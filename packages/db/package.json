@@ -1,0 +1,27 @@
+{
+  "name": "@nuxflow/db",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./client": "./src/client.ts",
+    "./migrate": "./src/migrate.ts"
+  },
+  "scripts": {
+    "migrate": "tsx --env-file=../../apps/nuxflow/.env src/migrate.ts",
+    "migrate:fts": "tsx src/migrate-fts.ts",
+    "generate": "drizzle-kit generate",
+    "studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "drizzle-orm": "^0.45.2",
+    "ulid": "^2.3.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

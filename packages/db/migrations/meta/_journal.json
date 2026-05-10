@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1776832253569,
+      "tag": "0000_lyrical_archangel",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1776848689557,
+      "tag": "0001_mean_shocker",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1776853853134,
+      "tag": "0002_familiar_johnny_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1776854373903,
+      "tag": "0003_brainy_dorian_gray",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1777369800823,
+      "tag": "0004_premium_jocasta",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1746403200000,
+      "tag": "0005_dynamic_plugins",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1746489600000,
+      "tag": "0006_theme_css",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@nuxflow/plugin-contact-form",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./components/ContactFormBlock": "./src/components/ContactFormBlock.vue",
+    "./components/ContactFormAdmin": "./src/components/ContactFormAdmin.vue"
+  },
+  "peerDependencies": {
+    "@nuxflow/plugin-sdk": "workspace:*",
+    "nuxt": "^4.0.0"
+  }
+}

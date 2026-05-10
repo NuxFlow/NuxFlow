@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "speckit-constitution": {
+      "source": "dceoy/speckit-agent-skills",
+      "sourceType": "github",
+      "computedHash": "6328bcd94d49564544b0a0f058844403575ea1f20c4517eddd1696a0fcf8192d"
+    },
+    "speckit-implement": {
+      "source": "dceoy/speckit-agent-skills",
+      "sourceType": "github",
+      "computedHash": "dfd8317878b0eeba63fb87a9ab2f9514fe1a66a99334a0bd5ab64108c71877df"
+    },
+    "speckit-orchestrator": {
+      "source": "athola/claude-night-market",
+      "sourceType": "github",
+      "computedHash": "918180aacb9c98af301d89f2093596a96461786ff7f5bbd53581d0ce57e8d82a"
+    },
+    "speckit-plan": {
+      "source": "dceoy/speckit-agent-skills",
+      "sourceType": "github",
+      "computedHash": "6f85a690a8cd5322514063578c167e097737dd1de3ebd38e445b3702d6425cee"
+    },
+    "speckit-specify": {
+      "source": "dceoy/speckit-agent-skills",
+      "sourceType": "github",
+      "computedHash": "64a14756350c3ad02b13c86cc66e04bbb0570947331529ea3baf2c7e964f9a19"
+    },
+    "speckit-tasks": {
+      "source": "dceoy/speckit-agent-skills",
+      "sourceType": "github",
+      "computedHash": "a2e17ddf71d7faea47a73b2b359dace0e93435cc45fcd524c6ccbe721f496934"
+    }
+  }
+}

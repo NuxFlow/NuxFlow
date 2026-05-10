@@ -1,0 +1,6 @@
+/* NuxFlow Default Theme — base styles */
+/* Nuxt green accent: #00DC82 */
+:root {
+  --color-primary: #00DC82;
+  --color-primary-hover: #00c274;
+}

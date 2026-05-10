@@ -1,0 +1,23 @@
+{
+  "name": "@nuxflow/plugin-payments",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./components/MembershipsAdmin": "./src/components/MembershipsAdmin.vue",
+    "./components/Paywall": "./src/components/Paywall.vue",
+    "./providers/stripe": "./src/providers/stripe.ts",
+    "./providers/lemonsqueezy": "./src/providers/lemonsqueezy.ts",
+    "./providers/paddle": "./src/providers/paddle.ts"
+  },
+  "dependencies": {
+    "stripe": "^17.0.0",
+    "drizzle-orm": "^0.45.2",
+    "ulid": "^2.3.0"
+  },
+  "peerDependencies": {
+    "@nuxflow/plugin-sdk": "workspace:*",
+    "@nuxflow/db": "workspace:*",
+    "nuxt": "^4.0.0"
+  }
+}

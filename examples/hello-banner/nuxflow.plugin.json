@@ -1,0 +1,6 @@
+{
+  "id": "hello-banner",
+  "name": "Hello Banner",
+  "version": "0.1.0",
+  "description": "Test external plugin — adds a customisable full-width banner block to the Canvas editor"
+}

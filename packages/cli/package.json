@@ -1,0 +1,24 @@
+{
+  "name": "@nuxflow/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "nuxflow": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.9.0",
+    "citty": "^0.1.6",
+    "consola": "^3.2.3",
+    "esbuild": "^0.25.0",
+    "fs-extra": "^11.2.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

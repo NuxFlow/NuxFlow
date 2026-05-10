@@ -1,0 +1,209 @@
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+/* NuxFlow — Glassmorphism Design System */
+
+/* ───────────────────────────────────────────
+   Design tokens
+   ─────────────────────────────────────────── */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-xl-bg: rgba(255, 255, 255, 0.6);
+  --glass-xl-border: rgba(255, 255, 255, 0.8);
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(255, 255, 255, 0.4) inset;
+  --shadow-glass-hover: 0 16px 48px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(255, 255, 255, 0.6) inset;
+}
+
+.dark {
+  --glass-bg: rgba(8, 16, 30, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.15);
+  --glass-xl-bg: rgba(8, 16, 30, 0.6);
+  --glass-xl-border: rgba(255, 255, 255, 0.2);
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(255, 255, 255, 0.1) inset;
+  --shadow-glass-hover: 0 16px 48px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(255, 255, 255, 0.15) inset;
+}
+
+/* ───────────────────────────────────────────
+   Override Nuxt UI's opaque body background.
+   Nuxt UI sets body { background-color: var(--ui-bg) } in @layer base.
+   Un-layered rules outrank @layer base, so no !important needed.
+   The gradient mesh lives on each layout's own wrapper div.
+   ─────────────────────────────────────────── */
+body {
+  background-color: transparent;
+  background-image: none;
+}
+
+/* ───────────────────────────────────────────
+   Gradient mesh — applied as a class on layout wrappers
+   so it doesn't rely on html/body transparency.
+   ─────────────────────────────────────────── */
+.mesh-bg {
+  background-color: #e8faf2;
+  background-image:
+    radial-gradient(ellipse 80% 80% at 0% 0%,   rgba(0, 220, 130, 0.35) 0px, transparent 60%),
+    radial-gradient(ellipse 70% 70% at 100% 5%,  rgba(56, 189, 248, 0.28) 0px, transparent 60%),
+    radial-gradient(ellipse 60% 60% at 50% 100%, rgba(139, 92, 246, 0.2)  0px, transparent 60%);
+}
+
+.dark .mesh-bg,
+.mesh-bg.dark {
+  background-color: #040e1a;
+  background-image:
+    radial-gradient(ellipse 80% 80% at 0% 0%,   rgba(0, 220, 130, 0.12) 0px, transparent 60%),
+    radial-gradient(ellipse 70% 70% at 100% 5%,  rgba(56, 189, 248, 0.09) 0px, transparent 60%),
+    radial-gradient(ellipse 60% 60% at 50% 100%, rgba(139, 92, 246, 0.1)  0px, transparent 60%);
+}
+
+/* ───────────────────────────────────────────
+   Glass surface utilities
+   ─────────────────────────────────────────── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+}
+
+.glass-xl {
+  background: var(--glass-xl-bg);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border: 1px solid var(--glass-xl-border);
+  box-shadow: var(--shadow-glass);
+}
+
+.glass:hover,
+.glass-hover:hover {
+  box-shadow: var(--shadow-glass-hover);
+  transition: box-shadow 0.25s ease;
+}
+
+/* ───────────────────────────────────────────
+   Decorative floating orbs
+   ─────────────────────────────────────────── */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(64px);
+  pointer-events: none;
+}
+
+.orb-float {
+  animation: orb-float 10s ease-in-out infinite;
+}
+
+@keyframes orb-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%       { transform: translateY(-20px) scale(1.05); }
+}
+
+/* ───────────────────────────────────────────
+   Sidebar nav active state
+   ─────────────────────────────────────────── */
+.nav-active {
+  background: rgba(0, 220, 130, 0.16);
+  color: #009e5e;
+  font-weight: 600;
+}
+
+.dark .nav-active {
+  background: rgba(0, 220, 130, 0.14);
+  color: #00DC82;
+}
+
+/* ───────────────────────────────────────────
+   NuxBlock — rendered TipTap content typography
+   ─────────────────────────────────────────── */
+.nux-content {
+  color: #111827;
+  line-height: 1.75;
+  font-size: 1rem;
+  word-break: break-word;
+}
+.dark .nux-content { color: #f3f4f6; }
+
+.nux-content h1, .nux-content h2, .nux-content h3,
+.nux-content h4, .nux-content h5, .nux-content h6 {
+  font-weight: 700;
+  line-height: 1.3;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+.nux-content h1 { font-size: 2.25rem; }
+.nux-content h2 { font-size: 1.875rem; border-bottom: 1px solid rgba(0,0,0,.08); padding-bottom: .4rem; }
+.nux-content h3 { font-size: 1.5rem; }
+.nux-content h4 { font-size: 1.25rem; }
+.nux-content h5 { font-size: 1.125rem; }
+.nux-content h6 { font-size: 1rem; }
+.dark .nux-content h2 { border-bottom-color: rgba(255,255,255,.08); }
+
+.nux-content p { margin-bottom: 1.25rem; }
+.nux-content p:last-child { margin-bottom: 0; }
+
+.nux-content a { color: #00a86b; text-decoration: underline; }
+.nux-content a:hover { opacity: .8; }
+.dark .nux-content a { color: #00dc82; }
+
+.nux-content strong { font-weight: 700; }
+.nux-content em { font-style: italic; }
+.nux-content s { text-decoration: line-through; }
+.nux-content u { text-decoration: underline; }
+.nux-content sup { font-size: .75em; vertical-align: super; }
+.nux-content sub { font-size: .75em; vertical-align: sub; }
+.nux-content mark { background: #fef08a; padding: .1em .2em; border-radius: .2em; }
+
+.nux-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .875em;
+  background: rgba(0,0,0,.06);
+  padding: .1em .35em;
+  border-radius: .25rem;
+}
+.dark .nux-content code { background: rgba(255,255,255,.1); }
+
+.nux-content pre {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 1.25rem 1.5rem;
+  border-radius: .5rem;
+  overflow-x: auto;
+  margin-bottom: 1.25rem;
+  font-size: .875rem;
+  line-height: 1.65;
+}
+.nux-content pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
+
+.nux-content blockquote {
+  border-left: 4px solid #00dc82;
+  padding: .5rem 1.25rem;
+  margin: 1.5rem 0;
+  color: #6b7280;
+  font-style: italic;
+}
+.dark .nux-content blockquote { color: #9ca3af; }
+
+.nux-content ul, .nux-content ol { margin: 1.25rem 0; padding-left: 1.75rem; }
+.nux-content ul { list-style-type: disc; }
+.nux-content ol { list-style-type: decimal; }
+.nux-content li { margin-bottom: .375rem; }
+.nux-content li > p { margin-bottom: .375rem; }
+
+.nux-content hr { border: none; border-top: 1px solid rgba(0,0,0,.12); margin: 2rem 0; }
+.dark .nux-content hr { border-top-color: rgba(255,255,255,.12); }
+
+.nux-content img { max-width: 100%; height: auto; border-radius: .5rem; margin: 1.25rem 0; display: block; }
+
+.nux-content table { width: 100%; border-collapse: collapse; margin: 1.25rem 0; font-size: .9375rem; }
+.nux-content th, .nux-content td { padding: .625rem 1rem; text-align: left; border: 1px solid rgba(0,0,0,.12); }
+.dark .nux-content th, .dark .nux-content td { border-color: rgba(255,255,255,.12); }
+.nux-content th { background: rgba(0,0,0,.04); font-weight: 600; }
+.dark .nux-content th { background: rgba(255,255,255,.04); }
+.nux-content tr:nth-child(even) td { background: rgba(0,0,0,.02); }
+.dark .nux-content tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+
+.nux-content .nux-task-list { list-style: none; padding-left: .25rem; }
+.nux-content .nux-task-item label { display: flex; align-items: flex-start; gap: .5rem; cursor: default; }
+.nux-content .nux-task-item input[type="checkbox"] { margin-top: .2rem; flex-shrink: 0; }

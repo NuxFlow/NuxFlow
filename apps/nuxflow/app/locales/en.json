@@ -1,0 +1,45 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "success": "Done!",
+    "confirm": "Are you sure?"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "content": "Content",
+    "media": "Media",
+    "forms": "Forms",
+    "users": "Users",
+    "themes": "Themes",
+    "plugins": "Plugins",
+    "settings": "Settings"
+  },
+  "auth": {
+    "login": "Sign in",
+    "logout": "Sign out",
+    "email": "Email address",
+    "password": "Password",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "Don't have an account?",
+    "signUp": "Sign up"
+  },
+  "setup": {
+    "title": "Welcome to NuxFlow",
+    "subtitle": "Let's get your site set up in a few steps.",
+    "steps": {
+      "site": "Site details",
+      "admin": "Admin account",
+      "email": "Email settings",
+      "appearance": "Appearance",
+      "content": "Content types",
+      "plugins": "Plugins",
+      "done": "All done!"
+    }
+  }
+}

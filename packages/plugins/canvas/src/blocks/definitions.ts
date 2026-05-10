@@ -1,0 +1,386 @@
+import type { CanvasBlockDefinition } from '../types'
+
+export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
+  // ── Hero ──────────────────────────────────────────────────────────────────
+  {
+    id: 'canvas-hero',
+    name: 'Hero',
+    description: 'Full-width hero with headline, subtext, and CTA',
+    icon: 'i-lucide-layout-template',
+    category: 'content',
+    component: 'CanvasBlockHero',
+    thumbnailColor: '#eef2ff',
+    fields: [
+      { key: 'headline', label: 'Headline', type: 'text', placeholder: 'Your big headline' },
+      { key: 'subtext', label: 'Subtext', type: 'textarea', placeholder: 'Supporting text…' },
+      { key: 'ctaLabel', label: 'Primary button label', type: 'text', placeholder: 'Get started' },
+      { key: 'ctaUrl', label: 'Primary button URL', type: 'url', placeholder: '/contact' },
+      { key: 'ctaBgColor', label: 'Primary button colour', type: 'color' },
+      { key: 'cta2Label', label: 'Secondary button label', type: 'text', placeholder: 'Learn more' },
+      { key: 'cta2Url', label: 'Secondary button URL', type: 'url', placeholder: 'https://github.com/...' },
+      {
+        key: 'align',
+        label: 'Alignment',
+        type: 'select',
+        options: [
+          { label: 'Left', value: 'left' },
+          { label: 'Center', value: 'center' },
+          { label: 'Right', value: 'right' },
+        ],
+      },
+      { key: 'logoIcon', label: 'Logo icon class (optional)', type: 'text', placeholder: 'i-lucide-layers' },
+      { key: 'showDecorations', label: 'Show glow & grid overlay', type: 'toggle' },
+      { key: 'bgGradient', label: 'Background gradient (CSS)', type: 'text', placeholder: 'linear-gradient(to bottom right, #030712, #111827, #030712)' },
+      { key: 'bgColor', label: 'Background colour (fallback)', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      headline: 'Welcome to our site',
+      subtext: 'We help you build amazing things.',
+      ctaLabel: 'Get started',
+      ctaUrl: '/',
+      align: 'center',
+      bgColor: '#ffffff',
+      textColor: '#111827',
+      padding: { top: 80, right: 24, bottom: 80, left: 24, unit: 'px' },
+    },
+  },
+
+  // ── Rich text ─────────────────────────────────────────────────────────────
+  {
+    id: 'canvas-text',
+    name: 'Text',
+    description: 'Rich text content block',
+    icon: 'i-lucide-type',
+    category: 'content',
+    component: 'CanvasBlockText',
+    thumbnailColor: '#f9fafb',
+    fields: [
+      { key: 'content', label: 'Content', type: 'richtext' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      content: '<p>Start writing your content here.</p>',
+      padding: { top: 24, right: 24, bottom: 24, left: 24, unit: 'px' },
+    },
+  },
+
+  // ── Image ─────────────────────────────────────────────────────────────────
+  {
+    id: 'canvas-image',
+    name: 'Image',
+    description: 'Single image with optional caption',
+    icon: 'i-lucide-image',
+    category: 'media',
+    component: 'CanvasBlockImage',
+    thumbnailColor: '#f3f4f6',
+    fields: [
+      { key: 'src', label: 'Image URL', type: 'image' },
+      { key: 'alt', label: 'Alt text', type: 'text', placeholder: 'Describe the image' },
+      { key: 'caption', label: 'Caption', type: 'text', placeholder: 'Optional caption' },
+      {
+        key: 'width',
+        label: 'Width',
+        type: 'select',
+        options: [
+          { label: 'Full width', value: 'full' },
+          { label: 'Large (75%)', value: 'lg' },
+          { label: 'Medium (50%)', value: 'md' },
+          { label: 'Small (33%)', value: 'sm' },
+        ],
+      },
+      {
+        key: 'align',
+        label: 'Alignment',
+        type: 'select',
+        options: [
+          { label: 'Left', value: 'left' },
+          { label: 'Center', value: 'center' },
+          { label: 'Right', value: 'right' },
+        ],
+      },
+      { key: 'rounded', label: 'Rounded corners', type: 'toggle' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      src: '',
+      alt: '',
+      caption: '',
+      width: 'full',
+      align: 'center',
+      rounded: false,
+      padding: { top: 16, right: 24, bottom: 16, left: 24, unit: 'px' },
+    },
+  },
+
+  // ── Video ─────────────────────────────────────────────────────────────────
+  {
+    id: 'canvas-video',
+    name: 'Video',
+    description: 'YouTube or Vimeo embed',
+    icon: 'i-lucide-play-circle',
+    category: 'media',
+    component: 'CanvasBlockVideo',
+    thumbnailColor: '#1e1e2e',
+    fields: [
+      { key: 'url', label: 'Video URL', type: 'url', placeholder: 'https://www.youtube.com/watch?v=...' },
+      {
+        key: 'aspectRatio',
+        label: 'Aspect ratio',
+        type: 'select',
+        options: [
+          { label: '16:9 (widescreen)', value: '16:9' },
+          { label: '4:3 (classic)', value: '4:3' },
+          { label: '1:1 (square)', value: '1:1' },
+          { label: '9:16 (portrait)', value: '9:16' },
+        ],
+      },
+      { key: 'caption', label: 'Caption', type: 'text', placeholder: 'Optional caption…' },
+      { key: 'autoplay', label: 'Autoplay', type: 'toggle' },
+      { key: 'muted', label: 'Muted', type: 'toggle', condition: p => Boolean(p.autoplay) },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      url: '',
+      aspectRatio: '16:9',
+      caption: '',
+      autoplay: false,
+      muted: false,
+      padding: { top: 16, right: 24, bottom: 16, left: 24, unit: 'px' },
+    },
+  },
+
+  // ── Columns ───────────────────────────────────────────────────────────────
+  {
+    id: 'canvas-columns',
+    name: 'Columns',
+    description: 'Multi-column layout with rich text',
+    icon: 'i-lucide-columns-3',
+    category: 'layout',
+    component: 'CanvasBlockColumns',
+    thumbnailColor: '#eff6ff',
+    fields: [
+      {
+        key: 'columns',
+        label: 'Number of columns',
+        type: 'select',
+        options: [
+          { label: '2 columns', value: '2' },
+          { label: '3 columns', value: '3' },
+          { label: '4 columns', value: '4' },
+        ],
+      },
+      { key: 'col1', label: 'Column 1', type: 'richtext' },
+      { key: 'col2', label: 'Column 2', type: 'richtext' },
+      { key: 'col3', label: 'Column 3', type: 'richtext', condition: p => ['3', '4'].includes(p.columns as string) },
+      { key: 'col4', label: 'Column 4', type: 'richtext', condition: p => p.columns === '4' },
+      { key: 'gap', label: 'Gap (px)', type: 'number', min: 0, max: 64, step: 4 },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      columns: '2',
+      col1: '<p>Column one content.</p>',
+      col2: '<p>Column two content.</p>',
+      col3: '<p>Column three content.</p>',
+      col4: '<p>Column four content.</p>',
+      gap: 24,
+      padding: { top: 24, right: 24, bottom: 24, left: 24, unit: 'px' },
+    },
+  },
+
+  // ── Features grid ─────────────────────────────────────────────────────────
+  {
+    id: 'canvas-features',
+    name: 'Features',
+    description: 'Grid of icon + title + description cards',
+    icon: 'i-lucide-layout-grid',
+    category: 'content',
+    component: 'CanvasBlockFeatures',
+    thumbnailColor: '#fafaff',
+    fields: [
+      { key: 'sectionLabel', label: 'Section label (e.g. "Everything you need")', type: 'text', placeholder: 'Everything you need' },
+      { key: 'sectionTitle', label: 'Section title', type: 'text', placeholder: 'Built for real projects' },
+      { key: 'sectionDesc', label: 'Section description', type: 'textarea' },
+      {
+        key: 'numFeatures',
+        label: 'Number of features',
+        type: 'select',
+        options: [
+          { label: '1', value: 1 as unknown as string },
+          { label: '2', value: 2 as unknown as string },
+          { label: '3', value: 3 as unknown as string },
+          { label: '4', value: 4 as unknown as string },
+        ],
+      },
+      {
+        key: 'style',
+        label: 'Card style',
+        type: 'select',
+        options: [
+          { label: 'Plain', value: 'plain' },
+          { label: 'Card (bordered)', value: 'card' },
+          { label: 'Icon on top', value: 'icon-top' },
+        ],
+      },
+      {
+        key: 'align',
+        label: 'Alignment',
+        type: 'select',
+        options: [
+          { label: 'Center', value: 'center' },
+          { label: 'Left', value: 'left' },
+        ],
+      },
+      { key: 'iconColor', label: 'Icon colour', type: 'color' },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      // Feature 1
+      { key: 'feat1Icon', label: 'Feature 1 — Icon class', type: 'text', placeholder: 'i-lucide-zap' },
+      { key: 'feat1Title', label: 'Feature 1 — Title', type: 'text', placeholder: 'Fast & reliable' },
+      { key: 'feat1Desc', label: 'Feature 1 — Description', type: 'textarea' },
+      // Feature 2
+      { key: 'feat2Icon', label: 'Feature 2 — Icon class', type: 'text', placeholder: 'i-lucide-shield-check', condition: p => Number(p.numFeatures) >= 2 },
+      { key: 'feat2Title', label: 'Feature 2 — Title', type: 'text', condition: p => Number(p.numFeatures) >= 2 },
+      { key: 'feat2Desc', label: 'Feature 2 — Description', type: 'textarea', condition: p => Number(p.numFeatures) >= 2 },
+      // Feature 3
+      { key: 'feat3Icon', label: 'Feature 3 — Icon class', type: 'text', placeholder: 'i-lucide-sparkles', condition: p => Number(p.numFeatures) >= 3 },
+      { key: 'feat3Title', label: 'Feature 3 — Title', type: 'text', condition: p => Number(p.numFeatures) >= 3 },
+      { key: 'feat3Desc', label: 'Feature 3 — Description', type: 'textarea', condition: p => Number(p.numFeatures) >= 3 },
+      // Feature 4
+      { key: 'feat4Icon', label: 'Feature 4 — Icon class', type: 'text', placeholder: 'i-lucide-globe', condition: p => Number(p.numFeatures) >= 4 },
+      { key: 'feat4Title', label: 'Feature 4 — Title', type: 'text', condition: p => Number(p.numFeatures) >= 4 },
+      { key: 'feat4Desc', label: 'Feature 4 — Description', type: 'textarea', condition: p => Number(p.numFeatures) >= 4 },
+      { key: 'gap', label: 'Gap (px)', type: 'number', min: 8, max: 96, step: 8 },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      numFeatures: 3,
+      style: 'plain',
+      align: 'center',
+      iconColor: '#6366f1',
+      bgColor: '#ffffff',
+      feat1Icon: 'i-lucide-zap',
+      feat1Title: 'Fast & reliable',
+      feat1Desc: 'Built for performance from the ground up.',
+      feat2Icon: 'i-lucide-shield-check',
+      feat2Title: 'Secure by default',
+      feat2Desc: 'Enterprise-grade security you can trust.',
+      feat3Icon: 'i-lucide-sparkles',
+      feat3Title: 'Easy to use',
+      feat3Desc: 'Intuitive interface your whole team will love.',
+      feat4Icon: 'i-lucide-globe',
+      feat4Title: 'Works everywhere',
+      feat4Desc: 'Access from any device, any time.',
+      gap: 32,
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
+  // ── Testimonial ───────────────────────────────────────────────────────────
+  {
+    id: 'canvas-testimonial',
+    name: 'Testimonial',
+    description: 'Customer quote with author, role, and star rating',
+    icon: 'i-lucide-quote',
+    category: 'content',
+    component: 'CanvasBlockTestimonial',
+    thumbnailColor: '#fefce8',
+    fields: [
+      { key: 'quote', label: 'Quote', type: 'textarea', placeholder: 'What did they say?' },
+      { key: 'author', label: 'Author name', type: 'text', placeholder: 'Jane Smith' },
+      { key: 'role', label: 'Role / title', type: 'text', placeholder: 'CEO' },
+      { key: 'company', label: 'Company', type: 'text', placeholder: 'Acme Inc.' },
+      { key: 'avatar', label: 'Avatar URL', type: 'image' },
+      { key: 'rating', label: 'Star rating (0 = hide)', type: 'number', min: 0, max: 5, step: 1 },
+      {
+        key: 'style',
+        label: 'Style',
+        type: 'select',
+        options: [
+          { label: 'Card (bordered)', value: 'card' },
+          { label: 'Simple', value: 'simple' },
+          { label: 'Large quote', value: 'large' },
+        ],
+      },
+      {
+        key: 'align',
+        label: 'Alignment',
+        type: 'select',
+        options: [
+          { label: 'Center', value: 'center' },
+          { label: 'Left', value: 'left' },
+        ],
+      },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      quote: 'This product completely changed how our team works.',
+      author: 'Jane Smith',
+      role: 'Product Manager',
+      company: 'Acme Inc.',
+      avatar: '',
+      rating: 5,
+      style: 'card',
+      align: 'center',
+      bgColor: '#ffffff',
+      textColor: '#111827',
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
+  // ── CTA Banner ────────────────────────────────────────────────────────────
+  {
+    id: 'canvas-cta',
+    name: 'CTA Banner',
+    description: 'Call-to-action strip with heading and button',
+    icon: 'i-lucide-megaphone',
+    category: 'cta',
+    component: 'CanvasBlockCta',
+    thumbnailColor: '#ecfdf5',
+    fields: [
+      { key: 'headline', label: 'Headline', type: 'text', placeholder: 'Ready to get started?' },
+      { key: 'subtext', label: 'Subtext', type: 'text', placeholder: 'Join thousands of happy customers.' },
+      { key: 'btnLabel', label: 'Button label', type: 'text', placeholder: 'Sign up free' },
+      { key: 'btnUrl', label: 'Button URL', type: 'url', placeholder: '/signup' },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'btnColor', label: 'Button colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      headline: 'Ready to get started?',
+      subtext: 'Join thousands of happy customers.',
+      btnLabel: 'Sign up free',
+      btnUrl: '/signup',
+      bgColor: '#00dc82',
+      textColor: '#0f172a',
+      btnColor: '#0f172a',
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
+  // ── Spacer ────────────────────────────────────────────────────────────────
+  {
+    id: 'canvas-spacer',
+    name: 'Spacer',
+    description: 'Empty vertical space between blocks',
+    icon: 'i-lucide-move-vertical',
+    category: 'layout',
+    component: 'CanvasBlockSpacer',
+    thumbnailColor: '#f9fafb',
+    fields: [
+      { key: 'height', label: 'Height (px)', type: 'number', min: 8, max: 400, step: 8 },
+      { key: 'showLine', label: 'Show divider line', type: 'toggle' },
+    ],
+    defaultProps: {
+      height: 48,
+      showLine: false,
+    },
+  },
+]
+
+export function getBlockDefinition(id: string): CanvasBlockDefinition | undefined {
+  return CANVAS_BLOCKS.find(b => b.id === id)
+}

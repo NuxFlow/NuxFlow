@@ -1,0 +1,32 @@
+{
+  "name": "nuxflow",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev --filter=@nuxflow/app",
+    "build": "turbo build",
+    "test": "turbo test",
+    "test:e2e": "turbo test:e2e",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "deploy": "turbo deploy --filter=@nuxflow/app"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
+    "@commitlint/types": "^19.0.0",
+    "@nuxt/eslint-config": "^0.7.0",
+    "turbo": "^2.0.0",
+    "vitest": "^3.2.0",
+    "wrangler": "^3.103.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "better-call>zod": "^3.24.0"
+    }
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+.output/
+.nuxt/
+.cache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Testing
+coverage/
+playwright-report/
+test-results/
+
+# Turso
+*.db
+*.db-shm
+*.db-wal
+auth
+auth-wal
+
+# Turborepo
+.turbo/
+
+# Cloudflare
+.wrangler/
+
+# Claude Code
+.claude/settings.local.json

@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @nuxflow/app exec nuxt prepare
+        env:
+          NUXT_TURSO_URL: libsql://placeholder.turso.io
+          NUXT_TURSO_AUTH_TOKEN: placeholder
+          NUXT_BETTER_AUTH_SECRET: ci-placeholder-secret-32-characters
+          NUXT_PUBLIC_SITE_URL: https://example.com
+      - run: pnpm test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [typecheck, lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+        env:
+          NUXT_TURSO_URL: libsql://placeholder.turso.io
+          NUXT_TURSO_AUTH_TOKEN: placeholder
+          NUXT_BETTER_AUTH_SECRET: ci-placeholder-secret-32-characters
+          NUXT_PUBLIC_SITE_URL: https://example.com
+          NODE_OPTIONS: --max-old-space-size=4096
