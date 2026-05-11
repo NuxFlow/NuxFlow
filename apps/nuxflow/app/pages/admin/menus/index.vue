@@ -28,6 +28,10 @@ const showCreate = ref(false)
 const creating = ref(false)
 const newName = ref('')
 const newLocation = ref<'header' | 'footer' | 'sidebar' | null>(null)
+const newLocationModel = computed({
+  get: () => newLocation.value ?? undefined,
+  set: (v: string | undefined) => { newLocation.value = (v as 'header' | 'footer' | 'sidebar') ?? null },
+})
 
 const locationOptions = [
   { label: 'Header', value: 'header' },
@@ -144,7 +148,7 @@ onMounted(() => { if (!data.value) refresh() })
           </UFormField>
           <UFormField label="Location" hint="Where this menu appears on your site">
             <USelect
-              v-model="newLocation"
+              v-model="newLocationModel"
               :items="locationOptions"
               placeholder="No location assigned"
             />

@@ -5,7 +5,6 @@ import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql'
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import * as schema from '@nuxflow/db/schema'
 import { getD1 } from './utils/db'
-import { hashPassword, verifyPassword } from './utils/crypto'
 
 export default defineServerAuth((ctx) => {
   const config = ctx.runtimeConfig as {
@@ -53,12 +52,6 @@ export default defineServerAuth((ctx) => {
     }),
     emailAndPassword: {
       enabled: true,
-      password: {
-        // Use Web Crypto PBKDF2 — crypto.subtle runs as native workerd code outside
-        // V8's CPU budget, avoiding "worker exceeded resource limits" on CF free plan.
-        hash: hashPassword,
-        verify: ({ hash, password }: { hash: string; password: string }) => verifyPassword(hash, password),
-      },
     },
     rateLimit: { enabled: false },
     socialProviders: {

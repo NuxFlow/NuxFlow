@@ -36,6 +36,10 @@ useHead({ title: computed(() => menuData.value?.name ?? 'Edit menu') })
 
 const name = ref('')
 const location = ref<'header' | 'footer' | 'sidebar' | null>(null)
+const locationModel = computed({
+  get: () => location.value ?? undefined,
+  set: (v: string | undefined) => { location.value = (v as 'header' | 'footer' | 'sidebar') ?? null },
+})
 const items = ref<MenuItem[]>([])
 
 let seeded = false
@@ -306,7 +310,7 @@ function itemHref(item: MenuItem | ChildItem) {
             </UFormField>
             <UFormField label="Location" hint="Assign this menu to a slot on your site">
               <USelect
-                v-model="location"
+                v-model="locationModel"
                 :items="locationOptions"
                 placeholder="No location"
               />

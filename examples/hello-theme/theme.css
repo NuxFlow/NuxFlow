@@ -1,0 +1,68 @@
+/*
+ * Hello Theme — NuxFlow CSS Theme
+ * A warm sunset palette: amber, orange, and coral.
+ *
+ * Deploy:  nuxflow theme deploy --site https://your-site.com
+ * Update:  nuxflow theme update --site https://your-site.com
+ */
+
+:root {
+  /* ── Brand colours ─────────────────────────────────────── */
+  --color-primary:       #f97316;
+  --color-primary-hover: #ea580c;
+
+  /* ── Glassmorphism — warm peach tints ─────────────────── */
+  --glass-bg:           rgba(255, 237, 213, 0.45);
+  --glass-border:       rgba(253, 186, 116, 0.65);
+  --glass-xl-bg:        rgba(255, 237, 213, 0.65);
+  --glass-xl-border:    rgba(253, 186, 116, 0.85);
+  --shadow-glass:       0 8px 32px rgba(249, 115, 22, 0.08), 0 1px 2px rgba(253, 186, 116, 0.4) inset;
+  --shadow-glass-hover: 0 16px 48px rgba(249, 115, 22, 0.14), 0 1px 2px rgba(253, 186, 116, 0.6) inset;
+}
+
+.dark {
+  /* ── Glassmorphism — dark warm tints ──────────────────── */
+  --glass-bg:           rgba(28, 10, 0, 0.4);
+  --glass-border:       rgba(249, 115, 22, 0.2);
+  --glass-xl-bg:        rgba(28, 10, 0, 0.6);
+  --glass-xl-border:    rgba(249, 115, 22, 0.25);
+  --shadow-glass:       0 8px 32px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(249, 115, 22, 0.12) inset;
+  --shadow-glass-hover: 0 16px 48px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(249, 115, 22, 0.18) inset;
+}
+
+/* ── Gradient mesh background ──────────────────────────────
+   Overrides the green/sky/purple default with amber/orange/rose.
+   ─────────────────────────────────────────────────────────── */
+.mesh-bg {
+  background-color: #fff7ed;
+  background-image:
+    radial-gradient(ellipse 80% 80% at 0% 0%,   rgba(251, 191, 36, 0.35) 0px, transparent 60%),
+    radial-gradient(ellipse 70% 70% at 100% 5%,  rgba(249, 115, 22, 0.28) 0px, transparent 60%),
+    radial-gradient(ellipse 60% 60% at 50% 100%, rgba(244, 63, 94, 0.22)  0px, transparent 60%);
+}
+
+.dark .mesh-bg,
+.mesh-bg.dark {
+  background-color: #1c0a00;
+  background-image:
+    radial-gradient(ellipse 80% 80% at 0% 0%,   rgba(251, 191, 36, 0.11) 0px, transparent 60%),
+    radial-gradient(ellipse 70% 70% at 100% 5%,  rgba(249, 115, 22, 0.09) 0px, transparent 60%),
+    radial-gradient(ellipse 60% 60% at 50% 100%, rgba(244, 63, 94, 0.09)  0px, transparent 60%);
+}
+
+/* ── Sidebar nav active state ──────────────────────────── */
+.nav-active {
+  background: rgba(249, 115, 22, 0.15);
+  color: #c2410c;
+}
+
+.dark .nav-active {
+  background: rgba(249, 115, 22, 0.14);
+  color: #fb923c;
+}
+
+/* ── Content typography ────────────────────────────────── */
+.nux-content a       { color: #c2410c; }
+.dark .nux-content a { color: #fb923c; }
+
+.nux-content blockquote { border-left-color: #f97316; }

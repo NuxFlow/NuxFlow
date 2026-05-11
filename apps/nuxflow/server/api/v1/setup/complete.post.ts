@@ -5,7 +5,7 @@ import { sites, users, accounts, userSiteRoles, contentTypes, contentItems } fro
 import { ulid } from 'ulid'
 import { count, eq } from 'drizzle-orm'
 import { rateLimit } from '../../../utils/rate-limit'
-import { hashPassword } from '../../../utils/crypto'
+import { hashPassword } from 'better-auth/crypto'
 
 const bodySchema = z.object({
   site: z.object({
@@ -111,9 +111,8 @@ async function _handleSetup(event: H3Event) {
     },
   ])
 
-  // Insert the homepage row synchronously with no content so this request
-  // stays within Cloudflare's CPU budget (bcrypt already consumes most of it).
-  // The Canvas blocks are written after the response via ctx.waitUntil.
+  // Insert the homepage row synchronously with no content; heavy Canvas
+  // seeding runs after the response via ctx.waitUntil.
   const homepageId = ulid()
   const siteName = body.site.name
   await db.insert(contentItems).values({
