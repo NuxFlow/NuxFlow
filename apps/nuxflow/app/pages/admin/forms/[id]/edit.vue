@@ -119,7 +119,7 @@ async function save() {
         <UInput v-model="selectedField.name" size="sm" />
       </UFormField>
       <UFormField label="Required">
-        <UToggle v-model="selectedField.required" />
+        <USwitch v-model="selectedField.required" />
       </UFormField>
     </aside>
   </div>

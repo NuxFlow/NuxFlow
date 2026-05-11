@@ -207,14 +207,14 @@ async function deleteSite() {
                   <p class="text-sm font-medium text-gray-900 dark:text-white">Show header bar</p>
                   <p class="mt-0.5 text-xs text-gray-400">Displays the site name and navigation bar at the top of every public page.</p>
                 </div>
-                <UToggle v-model="appearance.showHeader" />
+                <USwitch v-model="appearance.showHeader" />
               </div>
               <div class="flex items-start justify-between gap-4">
                 <div>
                   <p class="text-sm font-medium text-gray-900 dark:text-white">Show colour mode toggle</p>
                   <p class="mt-0.5 text-xs text-gray-400">Lets visitors switch between light and dark mode. Disable for sites with a fixed colour scheme.</p>
                 </div>
-                <UToggle v-model="appearance.showColorToggle" />
+                <USwitch v-model="appearance.showColorToggle" />
               </div>
             </div>
             <template #footer>
