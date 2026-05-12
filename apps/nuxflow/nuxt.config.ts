@@ -34,6 +34,9 @@ export default defineNuxtConfig({
     alias: {
       '@opentelemetry/api': resolve(_dirname, 'server/stubs/opentelemetry-api.mjs'),
     },
+    scheduledTasks: {
+      '* * * * *': ['publish-scheduled'],
+    },
   },
 
   ui: {

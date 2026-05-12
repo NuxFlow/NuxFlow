@@ -1,5 +1,5 @@
 import { useDb } from '../utils/db'
-import { contentItems, sites } from '@nuxflow/db/schema'
+import { contentItems, sites, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -14,17 +14,31 @@ export default defineEventHandler(async (event) => {
 
   const baseUrl = site ? `https://${site.domain}` : config.public.siteUrl
 
-  const pages = await db.query.contentItems.findMany({
-    where: and(eq(contentItems.siteId, siteId), eq(contentItems.status, 'published')),
-    columns: { slug: true, updatedAt: true },
-  })
+  const [pages, taxRows] = await Promise.all([
+    db.query.contentItems.findMany({
+      where: and(eq(contentItems.siteId, siteId), eq(contentItems.status, 'published')),
+      columns: { slug: true, updatedAt: true },
+    }),
+    db
+      .select({ taxSlug: taxonomies.slug, termSlug: taxonomyTerms.slug })
+      .from(taxonomyTerms)
+      .innerJoin(taxonomies, eq(taxonomyTerms.taxonomyId, taxonomies.id))
+      .where(eq(taxonomies.siteId, siteId)),
+  ])
 
-  const urls = pages.map(p => `
+  const contentUrls = pages.map(p => `
   <url>
     <loc>${baseUrl}/${p.slug}</loc>
     <lastmod>${p.updatedAt}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+  </url>`).join('')
+
+  const taxUrls = taxRows.map(t => `
+  <url>
+    <loc>${baseUrl}/${t.taxSlug}/${t.termSlug}</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.6</priority>
   </url>`).join('')
 
   setHeader(event, 'Content-Type', 'application/xml')
@@ -34,6 +48,6 @@ export default defineEventHandler(async (event) => {
     <loc>${baseUrl}/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
-  </url>${urls}
+  </url>${contentUrls}${taxUrls}
 </urlset>`
 })

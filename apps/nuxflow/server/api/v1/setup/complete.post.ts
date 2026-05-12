@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { H3Event } from 'h3'
 import { useDb } from '../../../utils/db'
-import { sites, users, accounts, userSiteRoles, contentTypes, contentItems } from '@nuxflow/db/schema'
+import { sites, users, accounts, userSiteRoles, contentTypes, contentItems, taxonomies } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { count, eq } from 'drizzle-orm'
 import { rateLimit } from '../../../utils/rate-limit'
@@ -228,6 +228,12 @@ async function _handleSetup(event: H3Event) {
   } else {
     await seedCanvasContent()
   }
+
+  // Seed default taxonomies
+  await db.insert(taxonomies).values([
+    { id: ulid(), siteId, slug: 'category', name: 'Categories', isHierarchical: true },
+    { id: ulid(), siteId, slug: 'post_tag', name: 'Tags', isHierarchical: false },
+  ])
 
   // Grant super_admin role
   await db.insert(userSiteRoles).values({

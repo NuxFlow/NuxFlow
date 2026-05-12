@@ -270,6 +270,8 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
           @update:model-value="v => { form.seoTitle = v.seoTitle ?? ''; form.seoDescription = v.seoDescription ?? ''; form.access = v.access ?? 'public' }"
         />
 
+        <EditorTermPicker :content-id="isNew ? undefined : id" />
+
         <EditorRevisionHistory
           v-if="showRevisions && !isNew"
           :content-id="id"

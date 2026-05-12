@@ -8,6 +8,8 @@ const route = useRoute()
 const coreNav = [
   { label: 'Dashboard', to: '/admin', icon: 'i-lucide-layout-dashboard' },
   { label: 'Content', to: '/admin/content', icon: 'i-lucide-file-text' },
+  { label: 'Taxonomies', to: '/admin/taxonomies', icon: 'i-lucide-tag' },
+  { label: 'Comments', to: '/admin/comments', icon: 'i-lucide-message-circle' },
   { label: 'Navigation', to: '/admin/menus', icon: 'i-lucide-navigation' },
   { label: 'Media', to: '/admin/media', icon: 'i-lucide-image' },
   { label: 'Forms', to: '/admin/forms', icon: 'i-lucide-list-checks' },
@@ -15,6 +17,7 @@ const coreNav = [
   { label: 'Themes', to: '/admin/themes', icon: 'i-lucide-palette' },
   { label: 'Plugins', to: '/admin/plugins', icon: 'i-lucide-puzzle' },
   { label: 'SEO', to: '/admin/seo', icon: 'i-lucide-search' },
+  { label: 'Import', to: '/admin/import', icon: 'i-lucide-upload' },
   { label: 'Settings', to: '/admin/settings', icon: 'i-lucide-settings' },
 ]
 
