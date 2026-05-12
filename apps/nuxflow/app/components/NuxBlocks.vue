@@ -9,16 +9,30 @@ const { resolve } = useBlockRegistry()
 <template>
   <div class="nux-blocks">
     <template v-for="block in blocks" :key="block.id">
+      <!--
+        Bundled blocks: resolve() returns a component on both server and client —
+        rendered normally, fully SSR'd.
+
+        Dynamic plugin blocks: resolve() returns undefined during SSR (plugins load
+        client-side only). Wrapping in ClientOnly means the server emits the
+        #fallback skeleton and the client takes over after dynamic plugins load,
+        avoiding a hydration mismatch.
+      -->
       <component
-        :is="resolve(block.type)"
         v-if="resolve(block.type)"
+        :is="resolve(block.type)"
         v-bind="block.props"
       />
-      <!-- Placeholder shown while dynamic plugin blocks are still loading -->
-      <div
-        v-else
-        class="animate-pulse bg-gray-100 dark:bg-gray-800 rounded-lg h-16"
-      />
+      <ClientOnly v-else>
+        <component
+          v-if="resolve(block.type)"
+          :is="resolve(block.type)"
+          v-bind="block.props"
+        />
+        <template #fallback>
+          <div class="animate-pulse bg-gray-100 dark:bg-gray-800 rounded-lg h-16" />
+        </template>
+      </ClientOnly>
     </template>
   </div>
 </template>

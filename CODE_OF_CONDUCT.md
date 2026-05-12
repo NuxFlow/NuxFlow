@@ -24,7 +24,7 @@ Examples of unacceptable behaviour:
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behaviour may be reported to **[conduct@nuxflow.io](mailto:conduct@nuxflow.io)**. All complaints will be reviewed and investigated promptly and fairly. Maintainers are obligated to maintain confidentiality with regard to the reporter.
+Instances of abusive, harassing, or otherwise unacceptable behaviour may be reported to **[conduct@nuxflow.io](mailto:conduct@nuxflow.dev)**. All complaints will be reviewed and investigated promptly and fairly. Maintainers are obligated to maintain confidentiality with regard to the reporter.
 
 Maintainers who do not follow or enforce this Code of Conduct in good faith may face temporary or permanent repercussions as determined by other members of the project's leadership.
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { inject, computed } from 'vue'
-import { CANVAS_BLOCKS } from '../blocks/definitions'
+import { CANVAS_BLOCKS, getPluginBlockDefinitions } from '../blocks/definitions'
 
 const emit = defineEmits<{ pick: [typeId: string]; close: [] }>()
 
@@ -24,10 +24,17 @@ interface BlockRegistryLike {
 
 const registry = inject<BlockRegistryLike | null>('nuxflow:blockRegistry', null)
 
-// Blocks registered by active dynamic plugins. The registry tracks which
-// plugin IDs were marked dynamic by dynamic-plugins.client.ts so bundled
-// plugin blocks (contact-form, payments) are never included here.
-const pluginBlocks = computed(() => registry?.dynamicBlocks() ?? [])
+// Blocks registered by active dynamic (external) plugins.
+const dynamicBlocks = computed(() => registry?.dynamicBlocks() ?? [])
+
+// Blocks registered by bundled plugins via registerBlockDefinition().
+const bundledPluginBlocks = computed(() => getPluginBlockDefinitions())
+
+// Combined plugins section — bundled first, then dynamic.
+const pluginBlocks = computed(() => [
+  ...bundledPluginBlocks.value,
+  ...dynamicBlocks.value.map(b => ({ ...b, thumbnailColor: '#f0fdf4' as string | undefined })),
+])
 </script>
 
 <template>
@@ -69,7 +76,7 @@ const pluginBlocks = computed(() => registry?.dynamicBlocks() ?? [])
           </div>
         </div>
 
-        <!-- Dynamic plugin blocks -->
+        <!-- Plugin blocks (bundled + dynamic) -->
         <div v-if="pluginBlocks.length > 0">
           <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Plugins</p>
           <div class="grid grid-cols-3 gap-2">
@@ -77,11 +84,11 @@ const pluginBlocks = computed(() => registry?.dynamicBlocks() ?? [])
               v-for="block in pluginBlocks"
               :key="block.id"
               class="flex flex-col items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 p-3 hover:border-primary-400 hover:shadow-sm transition-all text-center group"
-              style="background-color: #f0fdf4"
+              :style="{ backgroundColor: block.thumbnailColor ?? '#f0fdf4' }"
               @click="emit('pick', block.id)"
             >
               <span
-                :class="`${block.icon ?? 'i-lucide-box'} w-7 h-7 text-gray-600 dark:text-gray-300 group-hover:text-primary-600 transition-colors`"
+                :class="`${('icon' in block ? block.icon : undefined) ?? 'i-lucide-box'} w-7 h-7 text-gray-600 dark:text-gray-300 group-hover:text-primary-600 transition-colors`"
               />
               <span class="text-xs font-medium text-gray-700 dark:text-gray-300 group-hover:text-primary-700 transition-colors leading-tight">
                 {{ block.name }}

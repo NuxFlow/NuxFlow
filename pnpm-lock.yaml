@@ -50,6 +50,9 @@ importers:
       '@nuxflow/plugin-contact-form':
         specifier: workspace:*
         version: link:../../packages/plugins/contact-form
+      '@nuxflow/plugin-html-block':
+        specifier: workspace:*
+        version: link:../../packages/plugins/html-block
       '@nuxflow/plugin-payments':
         specifier: workspace:*
         version: link:../../packages/plugins/payments
@@ -92,6 +95,9 @@ importers:
       graphql-yoga:
         specifier: ^5.10.0
         version: 5.21.0(graphql@16.13.2)
+      highlight.js:
+        specifier: ^11.11.1
+        version: 11.11.1
       motion-v:
         specifier: ^1.0.0
         version: 1.10.3(@vueuse/core@14.2.1(vue@3.5.32(typescript@5.9.3)))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vue@3.5.32(typescript@5.9.3))
@@ -240,6 +246,18 @@ importers:
       nuxt:
         specifier: ^4.0.0
         version: 4.4.2(npwahpeflrwul2pjj7xkduz6si)
+
+  packages/plugins/html-block:
+    dependencies:
+      '@nuxflow/plugin-canvas':
+        specifier: workspace:*
+        version: link:../canvas
+      '@nuxflow/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../plugin-sdk
+      vue:
+        specifier: ^3.5.0
+        version: 3.5.32(typescript@5.9.3)
 
   packages/plugins/payments:
     dependencies:
@@ -6630,6 +6648,10 @@ packages:
 
   hey-listen@1.0.8:
     resolution: {integrity: sha512-COpmrF2NOg4TBWUJ5UVyaCU2A88wEMkUPK4hNqyCkqHbxT92BbvfjoSozkAIIm6XhicGlJHhFdullInrdhwU8Q==}
+
+  highlight.js@11.11.1:
+    resolution: {integrity: sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w==}
+    engines: {node: '>=12.0.0'}
 
   hono@4.12.18:
     resolution: {integrity: sha512-RWzP96k/yv0PQfyXnWjs6zot20TqfpfsNXhOnev8d1InAxubW93L11/oNUc3tQqn2G0bSdAOBpX+2uDFHV7kdQ==}
@@ -16431,6 +16453,8 @@ snapshots:
       function-bind: 1.1.2
 
   hey-listen@1.0.8: {}
+
+  highlight.js@11.11.1: {}
 
   hono@4.12.18: {}
 

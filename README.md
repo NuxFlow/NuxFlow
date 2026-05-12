@@ -21,20 +21,29 @@
   <img src="https://img.shields.io/badge/pnpm-workspace-F69220?logo=pnpm" alt="pnpm workspace" />
 </p>
 
+> **Alpha software.** NuxFlow is under active development. Breaking changes may occur between releases. It is suitable for experimentation and early adopters — not yet recommended for high-traffic production sites without thorough testing. Feedback and contributions are very welcome.
+
 ---
 
 NuxFlow is a self-hosted, open-source CMS that gives non-technical users a WordPress-level experience on a modern, serverless stack — with no server to manage, no lock-in, and a free-tier-compatible deployment.
 
-**For users:** A guided onboarding wizard, a block-based page editor, media library, form builder, and a full admin dashboard — no config file editing required.
+**For users:** A guided onboarding wizard, a Canvas visual page builder, media library, form builder, and a full admin dashboard — no config file editing required.
 
-**For developers:** A Nuxt 4 monorepo with a typed REST + GraphQL API, a plugin SDK, a theme layer system, and a first-class headless mode.
+**For developers:** A Nuxt 4 monorepo with a typed REST + GraphQL API, a plugin SDK, a theme layer system, and a dynamic plugin runtime powered by Cloudflare Workers.
 
 ---
 
 ## Features
 
-### Content Management
-- **Block editor** powered by TipTap (via Nuxt UI Pro `UEditor`) with drag-and-drop reordering
+### Canvas Visual Page Builder
+- **Elementor-style drag-and-drop editor** — build pages visually without writing code
+- **Built-in block types**: Hero, Rich Text, Image, Video, Columns, Feature Grid, Testimonial, CTA Banner, Spacer
+- **Third-party blocks** — install dynamic plugins to add new block types (Countdown, Pricing Table, Map, etc.)
+- **State-driven editing** — every property change updates live JSON, saved with a single API call
+- **Fully server-side rendered** — canvas pages are SSR'd at the edge for instant first paint and SEO
+
+### Rich Text Content
+- **Block editor** powered by TipTap with drag-and-drop reordering
 - **Block types**: Paragraph, Heading (H1–H6), Image, Video, Gallery, Ordered/Unordered List, Blockquote, Code, Embed, Button, Divider, Table, Custom HTML, Form embed
 - **Content types**: Pages, Posts, custom types defined per site
 - **Workflow states**: Draft → Pending Review → Scheduled → Published → Archived
@@ -87,12 +96,12 @@ NuxFlow is a self-hosted, open-source CMS that gives non-technical users a WordP
 - CLI scaffolding: `npx nuxflow create-theme`
 
 ### Plugin System
-- Plugins are **Nuxt modules** — add server routes, admin pages, and UI components
-- **Declared permissions** — admin approves permissions before activation
-- **Error containment** — plugin failures cannot crash the core
-- Workers-compatible **build-time registry** maps plugin IDs to bundled entry points
-- CLI scaffolding: `npx nuxflow create-plugin`
-- **Bundled plugins**: Contact Form, Payments (Stripe / Lemon Squeezy / Paddle)
+- **Two tiers**: bundled plugins (ship with NuxFlow) and dynamic third-party plugins
+- **Dynamic plugins** run as isolated **Cloudflare Worker instances** — code is uploaded to KV and spawned on demand with zero redeployment
+- **Ed25519 code signing** — every plugin must be signed with the author's private key; the server verifies the signature and SHA-256 checksums on install and on every request, blocking tampered code before it executes
+- **Canvas blocks** — dynamic plugins can register new block types that appear in the page builder immediately after install
+- **CLI toolchain** — `nuxflow plugin keygen` · `nuxflow plugin build` · `nuxflow plugin deploy`
+- **Bundled plugins**: Contact Form, Payments (Stripe / Lemon Squeezy / Paddle), HTML Block
 
 ### Membership & Payments (Payments Plugin)
 - **Membership tiers** with recurring subscription pricing
@@ -116,7 +125,7 @@ NuxFlow is a self-hosted, open-source CMS that gives non-technical users a WordP
 - **Alt text generation** for media uploads
 - AI toolbar only appears when a provider is configured — zero friction when unused
 
-### Headless API
+### REST & GraphQL API
 - **REST API v1** — full CRUD on all content types, paginated and filterable
 - **GraphQL API** — `graphql-yoga` endpoint at `/api/graphql`
 - **API keys** — generate named keys with scoped permissions, revoke anytime
@@ -143,8 +152,8 @@ NuxFlow is a self-hosted, open-source CMS that gives non-technical users a WordP
 | Layer | Technology |
 |---|---|
 | Framework | Nuxt 4 |
-| Runtime | Cloudflare Workers (via Nitro `cloudflare-pages` preset) |
-| Database | Turso (libSQL / SQLite at the edge) |
+| Runtime | Cloudflare Workers (via Nitro `cloudflare-module` preset) |
+| Database | Cloudflare D1 (default) · Turso / libSQL (alternative) |
 | ORM | Drizzle ORM |
 | UI | Nuxt UI Pro (TipTap `UEditor`, `UDashboardSidebar`) |
 | Auth | Better Auth + `@onmax/nuxt-better-auth` |
@@ -210,26 +219,46 @@ For detailed information on how to install and use NuxFlow, please refer to our 
 |---|---|---|
 | Node.js | 20+ | `nvm install 20` |
 | pnpm | 9+ | `npm install -g pnpm` |
-| Turso CLI | latest | `curl -sSfL https://get.tur.so/install.sh \| bash` |
-| Wrangler | 3+ | `pnpm add -g wrangler` |
+| Wrangler | 4+ | `pnpm add -g wrangler` |
 
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/nuxflow/nuxflow.git
+git clone https://github.com/mattmacmillan76/Nuxflow.git
 cd nuxflow
 pnpm install
 ```
 
-### 2. Create a Turso database
+### 2. Configure the database
+
+NuxFlow uses **Cloudflare D1** by default (recommended). A local SQLite file via Turso is available as a zero-account alternative for development.
+
+**Option A — Cloudflare D1 (recommended)**
 
 ```bash
+wrangler login
+wrangler d1 create nuxflow-dev
+```
+
+Copy the returned `database_id` into `apps/nuxflow/wrangler.toml` under `[[d1_databases]]`, then apply migrations:
+
+```bash
+cd apps/nuxflow
+wrangler d1 execute nuxflow-dev --local --file=../../packages/db/migrations/0000_confused_blackheart.sql
+wrangler d1 execute nuxflow-dev --local --file=../../packages/db/migrations/0001_plugin_signing.sql
+```
+
+**Option B — Local SQLite file (no Cloudflare account required)**
+
+```bash
+# Install Turso CLI
+curl -sSfL https://get.tur.so/install.sh | bash
 turso db create nuxflow-dev
 turso db show nuxflow-dev --url       # copy the URL
 turso db tokens create nuxflow-dev    # copy the token
 ```
 
-For local development you can also use the bundled SQLite file — skip this step and set `NUXT_TURSO_URL=file:../../packages/db/local.db` with no auth token.
+Then set `NUXT_TURSO_URL` and `NUXT_TURSO_AUTH_TOKEN` in your `.env` file and remove the `[[d1_databases]]` block from `wrangler.toml`.
 
 ### 3. Configure environment
 
@@ -240,21 +269,13 @@ cp apps/nuxflow/.env.example apps/nuxflow/.env
 Minimum required variables:
 
 ```env
-NUXT_TURSO_URL=libsql://your-db.turso.io
-NUXT_TURSO_AUTH_TOKEN=your-token
 NUXT_BETTER_AUTH_SECRET=at-least-32-random-characters
 NUXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 See [Environment Variables](#environment-variables) for the full reference.
 
-### 4. Run migrations
-
-```bash
-pnpm --filter @nuxflow/db migrate
-```
-
-### 5. Start the dev server
+### 4. Start the dev server
 
 ```bash
 pnpm dev
@@ -266,26 +287,32 @@ Open `http://localhost:3000/setup` — the onboarding wizard walks through the r
 
 ## Deployment
 
-### Cloudflare Workers / Pages
+### Cloudflare Workers
 
 ```bash
 # Log in to Cloudflare
 wrangler login
 
+# Create the D1 database and note the returned database_id
+wrangler d1 create nuxflow
+
+# Apply migrations (run from apps/nuxflow/)
+wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0000_confused_blackheart.sql
+wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0001_plugin_signing.sql
+
 # Set secrets
-wrangler secret put NUXT_TURSO_AUTH_TOKEN
 wrangler secret put NUXT_BETTER_AUTH_SECRET
 
 # Build and deploy
 pnpm build
-pnpm --filter @nuxflow/app deploy
+pnpm deploy
 ```
 
-The `wrangler.toml` in `apps/nuxflow/` is preconfigured with the `nodejs_compat` compatibility flag and the scheduled cron trigger for auto-publishing.
+The `wrangler.toml` in `apps/nuxflow/` is preconfigured with the `nodejs_compat` compatibility flag, the KV namespace for dynamic plugins, the WorkerLoader binding, and the scheduled cron trigger for auto-publishing.
 
 ### Vercel
 
-Vercel is a supported alternative. Set the same environment variables in the Vercel dashboard. Point the root directory to `apps/nuxflow`.
+Vercel is a supported alternative. Set the same environment variables in the Vercel dashboard and point the root directory to `apps/nuxflow`. Note that Vercel deployments cannot use the dynamic plugin Worker runtime — that feature requires Cloudflare Workers.
 
 ---
 
@@ -351,7 +378,7 @@ pnpm build
 pnpm preview
 
 # Deploy to Cloudflare
-pnpm --filter @nuxflow/app deploy
+pnpm deploy
 
 # Run DB migrations
 pnpm --filter @nuxflow/db migrate
@@ -370,13 +397,30 @@ Plugins extend NuxFlow with new server routes, admin pages, and UI components. T
 | **Contact Form** | Multi-step forms with conditional logic, computed fields, Turnstile spam protection, CSV export |
 | **Payments** | Membership tiers, content gating, Stripe / Lemon Squeezy / Paddle, subscriber management |
 
-### Creating a plugin
+### Creating a dynamic plugin
+
+Dynamic plugins are standalone packages built and deployed independently from NuxFlow itself. The CLI handles the full lifecycle.
 
 ```bash
-npx nuxflow create-plugin my-plugin
+# Scaffold a new plugin project
+nuxflow plugin create
+
+# Generate your Ed25519 publisher keypair (do this once — keep the private key secret)
+nuxflow plugin keygen
+
+# Build (compiles server Worker + client bundle, computes SHA-256 checksums)
+nuxflow plugin build
+
+# Deploy to a NuxFlow site
+nuxflow plugin deploy --site https://your-site.com --email admin@example.com --password ••••
+
+# Push an update
+nuxflow plugin update --site https://your-site.com --email admin@example.com --password ••••
 ```
 
-This scaffolds a Nuxt module with a `nuxflow.plugin.ts` manifest, server API routes, and admin components. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full plugin authoring guide.
+The server verifies the Ed25519 signature and SHA-256 checksums on install and on every request. Code that fails verification is rejected before execution.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full plugin authoring guide including how to register Canvas block types with a field schema.
 
 ---
 

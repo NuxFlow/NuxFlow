@@ -6,6 +6,7 @@ import { getBlockDefinition } from '../blocks/definitions'
 interface BlockRegistryLike {
   meta(id: string): { name: string; icon?: string; description?: string } | undefined
   resolve(id: string): object | undefined
+  getDefinition(id: string): unknown
   all(): Array<{ id: string; name: string; icon?: string }>
   dynamicBlocks(): Array<{ id: string; name: string; icon?: string }>
 }
@@ -31,8 +32,12 @@ export function useCanvas(initial?: CanvasContent) {
     if (!selectedBlock.value) return null
     const def = getBlockDefinition(selectedBlock.value.type)
     if (def) return def
-    // Dynamic plugin block — build a minimal definition from the registry so
-    // SettingsPanel renders (with block name + move/delete controls, no fields).
+    // Dynamic plugin block — check if the plugin registered a full definition
+    // (with fields) so the settings panel renders proper field editors.
+    const regDef = registry?.getDefinition(selectedBlock.value.type)
+    if (regDef) return regDef as CanvasBlockDefinition
+    // Fall back to a minimal shell using registry metadata (name + icon only)
+    // so the settings panel at least renders with move/delete controls.
     const regMeta = registry?.meta(selectedBlock.value.type)
     if (regMeta) {
       return {
@@ -53,12 +58,13 @@ export function useCanvas(initial?: CanvasContent) {
 
   function addBlock(typeId: string, atIndex?: number) {
     const def = getBlockDefinition(typeId)
-    // Dynamic plugin blocks have no static definition — add them with empty
-    // props so the Vue component's own prop defaults take effect on render.
+    // For dynamic plugin blocks: use the registered definition's defaultProps if
+    // available so the block renders with sensible initial values.
+    const regDef = !def ? registry?.getDefinition(typeId) as CanvasBlockDefinition | undefined : undefined
     const block: CanvasBlockData = {
       id: uuid(),
       type: typeId,
-      props: def ? { ...def.defaultProps } : {},
+      props: def ? { ...def.defaultProps } : regDef ? { ...regDef.defaultProps } : {},
     }
     const idx = atIndex ?? canvas.value.blocks.length
     canvas.value.blocks.splice(idx, 0, block)

@@ -113,7 +113,7 @@ export default defineNuxtConfig({
   site: {
     url: process.env.NUXT_PUBLIC_SITE_URL || 'https://example.com',
     name: 'NuxFlow',
-    description: 'A headless CMS powered by NuxFlow',
+    description: 'A CMS powered by NuxFlow',
     defaultLocale: 'en',
     identity: {
       type: 'Organization',

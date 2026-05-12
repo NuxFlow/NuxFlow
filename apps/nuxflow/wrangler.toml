@@ -45,6 +45,7 @@ binding = "LOADER"
 #   wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0004_premium_jocasta.sql
 #   wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0005_dynamic_plugins.sql
 #   wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0006_theme_css.sql
+#   wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0001_plugin_signing.sql
 # To use Turso instead: remove this block and set TURSO_URL + TURSO_AUTH_TOKEN secrets.
 [[d1_databases]]
 binding = "DB"

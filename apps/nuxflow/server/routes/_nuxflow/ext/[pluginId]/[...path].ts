@@ -1,5 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { spawnPluginWorker, getPluginServerCode } from '../../../../utils/cf-env'
+import { assertCodeIntegrity } from '../../../../utils/plugin-signing'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -23,6 +24,13 @@ export default defineEventHandler(async (event) => {
   const worker = spawnPluginWorker(event, cacheId, async (): Promise<string> => {
     const code = await getPluginServerCode(event, siteId, pluginId)
     if (!code) throw createError({ statusCode: 500, message: 'Plugin server code not found in KV' })
+
+    // Verify KV content against the checksum stored in D1 at install time.
+    // A mismatch means the KV entry was modified after the signed install — hard stop.
+    if (plugin.serverChecksum) {
+      await assertCodeIntegrity(code, plugin.serverChecksum, 'server module')
+    }
+
     return code
   })
 

@@ -20,22 +20,22 @@ Thank you for your interest in contributing. This guide covers everything from r
 
 ## Code of Conduct
 
-This project follows our [Code of Conduct](CODE_OF_CONDUCT.md). By participating you agree to uphold it. Please report unacceptable behaviour to [conduct@nuxflow.io](mailto:conduct@nuxflow.io).
+This project follows our [Code of Conduct](CODE_OF_CONDUCT.md). By participating you agree to uphold it. Please report unacceptable behaviour to [conduct@nuxflow.dev](mailto:conduct@nuxflow.dev).
 
 ---
 
 ## Ways to Contribute
 
-| Type | How |
-|---|---|
-| Bug report | Open a [bug report issue](.github/ISSUE_TEMPLATE/bug_report.md) |
-| Feature request | Open a [feature request issue](.github/ISSUE_TEMPLATE/feature_request.md) |
-| Fix a bug | Fork → branch → PR |
-| Add a feature | Discuss in an issue first, then PR |
-| Documentation | PRs to `README.md`, `CONTRIBUTING.md`, or `specs/` |
-| Plugin submission | PR adding your plugin to the bundled list or registry |
-| Theme submission | PR adding your theme to the registry |
-| Translation | PRs to `apps/nuxflow/app/locales/` |
+| Type              | How                                                                       |
+| ----------------- | ------------------------------------------------------------------------- |
+| Bug report        | Open a [bug report issue](.github/ISSUE_TEMPLATE/bug_report.md)           |
+| Feature request   | Open a [feature request issue](.github/ISSUE_TEMPLATE/feature_request.md) |
+| Fix a bug         | Fork → branch → PR                                                        |
+| Add a feature     | Discuss in an issue first, then PR                                        |
+| Documentation     | PRs to `README.md`, `CONTRIBUTING.md`, or `specs/`                        |
+| Plugin submission | PR adding your plugin to the bundled list or registry                     |
+| Theme submission  | PR adding your theme to the registry                                      |
+| Translation       | PRs to `apps/nuxflow/app/locales/`                                        |
 
 ---
 
@@ -43,12 +43,12 @@ This project follows our [Code of Conduct](CODE_OF_CONDUCT.md). By participating
 
 ### Prerequisites
 
-| Tool | Version |
-|---|---|
-| Node.js | 20+ |
-| pnpm | 9+ |
-| Turso CLI | latest |
-| Git | any |
+| Tool      | Version |
+| --------- | ------- |
+| Node.js   | 20+     |
+| pnpm      | 9+      |
+| Turso CLI | latest  |
+| Git       | any     |
 
 ### Local setup
 
@@ -129,6 +129,7 @@ feat!: rename TURSO_URL env var to NUXT_TURSO_URL
 3. **Write tests** for all new behaviour (see [Writing Tests](#writing-tests)).
 
 4. **Check types and lint** before pushing:
+
    ```bash
    pnpm typecheck
    pnpm lint
@@ -279,7 +280,7 @@ Example `Paragraph.vue`:
 
 ```vue
 <script setup lang="ts">
-defineProps<{ block: { attributes: { content: string } } }>()
+  defineProps<{ block: { attributes: { content: string } } }>()
 </script>
 
 <template>
@@ -299,12 +300,12 @@ Publish your theme as an npm package and open a PR adding it to the NuxFlow them
 
 All server code (API handlers, middleware, plugins, utilities) runs in the Cloudflare Workers runtime. Key restrictions:
 
-| Not allowed | Use instead |
-|---|---|
-| `node:crypto` | `crypto.subtle` (Web Crypto API) |
-| `node:fs` | `fetch()` / Turso client |
-| `require()` dynamic | Static `import` |
-| In-memory Map/state | Turso DB (shared across isolates) |
+| Not allowed            | Use instead                           |
+| ---------------------- | ------------------------------------- |
+| `node:crypto`          | `crypto.subtle` (Web Crypto API)      |
+| `node:fs`              | `fetch()` / Turso client              |
+| `require()` dynamic    | Static `import`                       |
+| In-memory Map/state    | Turso DB (shared across isolates)     |
 | Long-running processes | Cron via Cloudflare scheduled workers |
 
 ### Database

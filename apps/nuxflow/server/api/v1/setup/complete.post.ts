@@ -143,7 +143,7 @@ async function _handleSetup(event: H3Event) {
               type: 'canvas-hero',
               props: {
                 headline: 'The CMS built for the edge',
-                subtext: `${siteName} is powered by NuxFlow — an open-source headless CMS built on Nuxt 4 and Cloudflare Workers. Fast, flexible, and fully self-hosted.`,
+                subtext: `${siteName} is powered by NuxFlow — an open-source CMS built on Nuxt 4 and Cloudflare Workers. Fast, flexible, and fully self-hosted.`,
                 ctaLabel: 'Go to dashboard',
                 ctaUrl: '/admin',
                 cta2Label: 'View on GitHub',

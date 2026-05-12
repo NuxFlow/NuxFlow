@@ -2,13 +2,16 @@ import { build } from 'esbuild'
 import { readFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
+import { computeSha256 } from './signing'
 
-interface BuildResult {
-  serverModule?: string  // base64-encoded ESM for Cloudflare Workers
-  clientBundle?: string  // base64-encoded ESM for browser
+export interface BuildResult {
+  serverModule?: string    // base64-encoded ESM for Cloudflare Workers
+  serverChecksum?: string  // SHA-256 hex of raw server code
+  clientBundle?: string    // base64-encoded ESM for browser
+  clientChecksum?: string  // SHA-256 hex of raw client bundle
 }
 
-async function tryBuild(entryPoint: string, outfile: string, platform: 'neutral' | 'browser', target: string): Promise<string | undefined> {
+async function tryBuild(entryPoint: string, outfile: string, platform: 'neutral' | 'browser', target: string): Promise<{ b64: string; checksum: string } | undefined> {
   if (!existsSync(entryPoint)) return undefined
 
   await build({
@@ -26,14 +29,18 @@ async function tryBuild(entryPoint: string, outfile: string, platform: 'neutral'
   })
 
   const code = await readFile(outfile, 'utf-8')
-  return Buffer.from(code).toString('base64')
+  const [b64, checksum] = await Promise.all([
+    Promise.resolve(Buffer.from(code).toString('base64')),
+    computeSha256(code),
+  ])
+  return { b64, checksum }
 }
 
 export async function buildPlugin(pluginDir: string): Promise<BuildResult> {
   const distDir = join(pluginDir, 'dist')
   await mkdir(distDir, { recursive: true })
 
-  const [serverModule, clientBundle] = await Promise.all([
+  const [server, client] = await Promise.all([
     tryBuild(
       join(pluginDir, 'src/server.ts'),
       join(distDir, 'server.js'),
@@ -48,5 +55,8 @@ export async function buildPlugin(pluginDir: string): Promise<BuildResult> {
     ),
   ])
 
-  return { serverModule, clientBundle }
+  return {
+    ...(server ? { serverModule: server.b64, serverChecksum: server.checksum } : {}),
+    ...(client ? { clientBundle: client.b64, clientChecksum: client.checksum } : {}),
+  }
 }

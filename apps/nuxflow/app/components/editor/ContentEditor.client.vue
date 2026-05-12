@@ -6,6 +6,22 @@ import Placeholder from '@tiptap/extension-placeholder'
 const props = defineProps<{ modelValue: unknown }>()
 const emit = defineEmits<{ 'update:modelValue': [value: unknown] }>()
 
+const CODE_LANGUAGES = [
+  { label: 'Plain text', value: '' },
+  { label: 'HTML', value: 'html' },
+  { label: 'CSS', value: 'css' },
+  { label: 'JavaScript', value: 'javascript' },
+  { label: 'TypeScript', value: 'typescript' },
+  { label: 'Vue', value: 'vue' },
+  { label: 'JSX / TSX', value: 'tsx' },
+  { label: 'JSON', value: 'json' },
+  { label: 'Python', value: 'python' },
+  { label: 'PHP', value: 'php' },
+  { label: 'SQL', value: 'sql' },
+  { label: 'Bash / Shell', value: 'bash' },
+  { label: 'YAML', value: 'yaml' },
+]
+
 const editor = useEditor({
   extensions: [
     StarterKit,
@@ -25,6 +41,17 @@ watch(() => props.modelValue, (val) => {
 })
 
 onBeforeUnmount(() => editor.value?.destroy())
+
+const isCodeBlockActive = computed(() => editor.value?.isActive('codeBlock') ?? false)
+
+const codeBlockLanguage = computed({
+  get() {
+    return (editor.value?.getAttributes('codeBlock').language as string | undefined) ?? ''
+  },
+  set(lang: string) {
+    editor.value?.chain().focus().updateAttributes('codeBlock', { language: lang || null }).run()
+  },
+})
 
 interface ToolItem {
   icon: string
@@ -102,6 +129,14 @@ const tools = computed((): ToolGroup[] => {
         />
         <div class="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1 last:hidden" />
       </template>
+      <select
+        v-if="isCodeBlockActive"
+        v-model="codeBlockLanguage"
+        class="ml-1 px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-500"
+        title="Code language"
+      >
+        <option v-for="lang in CODE_LANGUAGES" :key="lang.value" :value="lang.value">{{ lang.label }}</option>
+      </select>
     </div>
 
     <!-- Editable area -->

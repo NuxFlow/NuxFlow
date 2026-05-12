@@ -381,6 +381,20 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
   },
 ]
 
+// External bundled plugins can register their own block definitions here so
+// the Canvas settings panel renders their fields correctly.
+const _pluginDefinitions: CanvasBlockDefinition[] = []
+
+export function registerBlockDefinition(def: CanvasBlockDefinition): void {
+  if (!_pluginDefinitions.find(d => d.id === def.id)) {
+    _pluginDefinitions.push(def)
+  }
+}
+
+export function getPluginBlockDefinitions(): CanvasBlockDefinition[] {
+  return _pluginDefinitions
+}
+
 export function getBlockDefinition(id: string): CanvasBlockDefinition | undefined {
-  return CANVAS_BLOCKS.find(b => b.id === id)
+  return CANVAS_BLOCKS.find(b => b.id === id) ?? _pluginDefinitions.find(b => b.id === id)
 }

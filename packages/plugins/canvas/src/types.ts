@@ -35,6 +35,7 @@ export interface FieldSchema {
   min?: number                 // for 'number'
   max?: number
   step?: number
+  rows?: number                // for 'textarea'
   /** Hide this field unless the function returns true for the current block props */
   condition?: (props: Record<string, unknown>) => boolean
 }

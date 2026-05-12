@@ -90,6 +90,14 @@ export const dynamicPlugins = sqliteTable('dynamic_plugins', {
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(false),
   hasServer: integer('has_server', { mode: 'boolean' }).notNull().default(false),
   hasClient: integer('has_client', { mode: 'boolean' }).notNull().default(false),
+  // SHA-256 hex of the raw (pre-base64) code stored in KV.
+  // Verified on every retrieval to detect KV tampering.
+  serverChecksum: text('server_checksum'),
+  clientChecksum: text('client_checksum'),
+  // Ed25519 publisher identity — stored on first install, verified on every update.
+  // An empty string means the plugin pre-dates signing (should never occur post-launch).
+  publisherPublicKey: text('publisher_public_key').notNull().default(''),
+  signature: text('signature').notNull().default(''),
   installedAt: text('installed_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_dynamic_plugins_site').on(t.siteId),

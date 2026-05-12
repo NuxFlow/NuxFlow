@@ -42,11 +42,11 @@ const emit = defineEmits<{
 const registry = inject<BlockRegistryLike | null>('nuxflow:blockRegistry', null)
 
 const definition = computed(() => getBlockDefinition(props.block.type))
-const component = computed(() =>
-  definition.value
-    ? COMPONENTS[definition.value.component]
-    : registry?.resolve(props.block.type) ?? null,
-)
+const component = computed(() => {
+  const def = definition.value
+  if (!def) return registry?.resolve(props.block.type) ?? null
+  return COMPONENTS[def.component] ?? registry?.resolve(props.block.type) ?? null
+})
 </script>
 
 <template>

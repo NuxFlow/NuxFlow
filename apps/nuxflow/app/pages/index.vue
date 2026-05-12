@@ -12,7 +12,7 @@ const isCanvasPage = computed(() => {
 
 useSeoMeta({
   title: page.value?.seoTitle || page.value?.title || 'NuxFlow',
-  description: page.value?.seoDescription || 'A modern, edge-deployed headless CMS built on Nuxt, Cloudflare Workers, and Turso.',
+  description: page.value?.seoDescription || 'A modern, edge-deployed CMS built on Nuxt, Cloudflare Workers, and Turso.',
 })
 
 const features = [
@@ -104,7 +104,7 @@ const stack = [
             <span class="text-primary-400"> the edge</span>
           </h1>
           <p class="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed">
-            NuxFlow is an open-source headless CMS powered by Nuxt 4 and Cloudflare Workers.
+            NuxFlow is an open-source CMS powered by Nuxt 4 and Cloudflare Workers.
             Fast, flexible, and fully self-hosted — no subscriptions, no lock-in.
           </p>
         </div>

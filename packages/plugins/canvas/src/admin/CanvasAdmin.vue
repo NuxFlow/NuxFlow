@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { CANVAS_BLOCKS } from '../blocks/definitions'
+import { ref, computed } from 'vue'
+import { CANVAS_BLOCKS, getPluginBlockDefinitions } from '../blocks/definitions'
 
 const tabs = ['Blocks', 'Settings'] as const
 const active = ref<typeof tabs[number]>('Blocks')
@@ -17,6 +17,8 @@ const categoryLabels: Record<string, string> = {
 function blocksFor(cat: string) {
   return CANVAS_BLOCKS.filter(b => b.category === cat)
 }
+
+const pluginBlocks = computed(() => getPluginBlockDefinitions())
 </script>
 
 <template>
@@ -56,6 +58,23 @@ function blocksFor(cat: string) {
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <div
             v-for="block in blocksFor(cat)"
+            :key="block.id"
+            class="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
+          >
+            <span :class="`${block.icon} w-5 h-5 mt-0.5 shrink-0`" />
+            <div>
+              <p class="text-sm font-medium text-gray-900 dark:text-white">{{ block.name }}</p>
+              <p v-if="block.description" class="text-xs text-gray-400 mt-0.5">{{ block.description }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="pluginBlocks.length > 0" class="space-y-2">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400">Plugins</h3>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div
+            v-for="block in pluginBlocks"
             :key="block.id"
             class="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
           >

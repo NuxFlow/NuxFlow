@@ -41,8 +41,8 @@ function updateSpacing(key: keyof SpacingValue, raw: unknown) {
     <textarea
       :value="(modelValue as string) ?? ''"
       :placeholder="field.placeholder"
-      rows="3"
-      class="w-full px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+      :rows="field.rows ?? 3"
+      class="w-full px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y font-mono"
       @input="update(($event.target as HTMLTextAreaElement).value)"
     />
   </div>
