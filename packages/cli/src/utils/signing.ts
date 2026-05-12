@@ -49,7 +49,7 @@ function canonicalInput(payload: SigningPayload): ArrayBuffer {
     payload.serverChecksum,
     payload.clientChecksum,
   ].join('\n')
-  return new TextEncoder().encode(text)
+  return new TextEncoder().encode(text).buffer as ArrayBuffer
 }
 
 // ── SHA-256 ───────────────────────────────────────────────────────────────────
