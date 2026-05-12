@@ -8,9 +8,13 @@
     "test:e2e": "turbo test:e2e",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "deploy": "turbo deploy --filter=@nuxflow/app"
+    "deploy": "turbo deploy --filter=@nuxflow/app",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "pnpm build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@commitlint/cli": "^19.0.0",
     "@commitlint/config-conventional": "^19.0.0",
     "@commitlint/types": "^19.0.0",
