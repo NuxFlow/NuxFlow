@@ -1,0 +1,22 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [
+    [
+      "@nuxflow/app",
+      "@nuxflow/cli",
+      "@nuxflow/db",
+      "@nuxflow/plugin-sdk",
+      "@nuxflow/plugin-canvas",
+      "@nuxflow/plugin-contact-form",
+      "@nuxflow/plugin-html-block",
+      "@nuxflow/plugin-payments"
+    ]
+  ],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": []
+}
