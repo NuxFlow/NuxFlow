@@ -30,12 +30,15 @@ const restoreWhat = ref(['content', 'taxonomies', 'menus', 'forms'])
 const restoreConflict = ref<'skip' | 'overwrite'>('skip')
 const restoring = ref(false)
 const restoreResult = ref<{
-  content: { created: number; skipped: number }
-  taxonomies: { created: number }
-  terms: { created: number }
-  menus: { created: number }
-  forms: { created: number }
-  settings: { updated: number }
+  result: {
+    content: { created: number; skipped: number }
+    taxonomies: { created: number }
+    terms: { created: number }
+    menus: { created: number }
+    forms: { created: number }
+    settings: { updated: number }
+  }
+  media: { uploaded: number; skipped: number }
 } | null>(null)
 const restoreError = ref('')
 
@@ -66,11 +69,11 @@ async function runRestore() {
       what: restoreWhat.value.join(','),
       conflictMode: restoreConflict.value,
     })
-    const res = await $fetch<{ result: typeof restoreResult.value }>(`/api/v1/restore?${params}`, {
+    const res = await $fetch<typeof restoreResult.value>(`/api/v1/restore?${params}`, {
       method: 'POST',
       body: formData,
     })
-    restoreResult.value = res.result
+    restoreResult.value = res
   } catch (e: unknown) {
     const msg = e && typeof e === 'object' && 'data' in e
       ? (e as { data?: { message?: string } }).data?.message
@@ -164,17 +167,13 @@ const tabs: { value: Tab; label: string; icon: string }[] = [
           color="blue"
           variant="soft"
           title="What's included"
-          description="Site settings, all content and pages, categories & tags, menus, and forms. Media files are not included — only metadata and references."
+          description="A self-contained .zip file with all site data and media files. Restoring it on any NuxFlow site will re-upload your images to that site's configured media provider. Limit: 100 MB of media."
         />
 
         <div class="grid grid-cols-2 gap-3 text-sm">
-          <div v-for="item in ['Content & pages', 'Categories & tags', 'Menus', 'Forms', 'Site settings', 'Content types']" :key="item" class="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+          <div v-for="item in ['Content & pages', 'Categories & tags', 'Menus', 'Forms', 'Site settings', 'Content types', 'Media files']" :key="item" class="flex items-center gap-2 text-gray-600 dark:text-gray-400">
             <UIcon name="i-lucide-check" class="w-4 h-4 text-green-500 shrink-0" />
             {{ item }}
-          </div>
-          <div class="flex items-center gap-2 text-gray-400">
-            <UIcon name="i-lucide-x" class="w-4 h-4 text-gray-300 shrink-0" />
-            Media files (references only)
           </div>
         </div>
       </div>
@@ -213,7 +212,8 @@ const tabs: { value: Tab; label: string; icon: string }[] = [
               <span v-if="restoreFile" class="font-medium text-gray-900 dark:text-white">{{ restoreFile.name }}</span>
               <span v-else>Click to select a NuxFlow backup file</span>
             </p>
-            <input ref="restoreFileInput" type="file" accept=".json" class="sr-only" @change="onRestoreFile">
+            <p v-if="!restoreFile" class="text-xs text-gray-400">.zip (with images) or .json (content only)</p>
+            <input ref="restoreFileInput" type="file" accept=".zip,.json" class="sr-only" @change="onRestoreFile">
           </div>
         </UFormField>
 
@@ -259,11 +259,12 @@ const tabs: { value: Tab; label: string; icon: string }[] = [
         >
           <template #description>
             <ul class="text-sm space-y-0.5 mt-1">
-              <li>Content: {{ restoreResult.content.created }} created, {{ restoreResult.content.skipped }} skipped</li>
-              <li>Taxonomies: {{ restoreResult.taxonomies.created }} created, {{ restoreResult.terms.created }} terms</li>
-              <li>Menus: {{ restoreResult.menus.created }} created</li>
-              <li>Forms: {{ restoreResult.forms.created }} created</li>
-              <li v-if="restoreResult.settings.updated">Settings: {{ restoreResult.settings.updated }} updated</li>
+              <li>Content: {{ restoreResult.result.content.created }} created, {{ restoreResult.result.content.skipped }} skipped</li>
+              <li>Taxonomies: {{ restoreResult.result.taxonomies.created }} created, {{ restoreResult.result.terms.created }} terms</li>
+              <li>Menus: {{ restoreResult.result.menus.created }} created</li>
+              <li>Forms: {{ restoreResult.result.forms.created }} created</li>
+              <li v-if="restoreResult.result.settings.updated">Settings: {{ restoreResult.result.settings.updated }} updated</li>
+              <li v-if="restoreResult.media.uploaded">Media: {{ restoreResult.media.uploaded }} images uploaded<span v-if="restoreResult.media.skipped">, {{ restoreResult.media.skipped }} skipped</span></li>
             </ul>
           </template>
         </UAlert>
@@ -271,7 +272,7 @@ const tabs: { value: Tab; label: string; icon: string }[] = [
 
       <template #footer>
         <div class="flex items-center justify-between">
-          <p class="text-xs text-gray-400">Only NuxFlow .json backup files are supported here</p>
+          <p class="text-xs text-gray-400">NuxFlow .zip (full) or .json (content only) backup files</p>
           <UButton
             color="orange"
             :loading="restoring"

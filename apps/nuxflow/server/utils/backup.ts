@@ -4,7 +4,7 @@ import {
   sites, siteSettings,
   contentTypes, contentItems,
   taxonomies, taxonomyTerms, contentTaxonomyTerms,
-  menus, forms,
+  menus, forms, media,
 } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -67,6 +67,19 @@ export interface BackupForm {
   status: string
 }
 
+export interface BackupMediaItem {
+  id: string
+  originalName: string
+  mimeType: string
+  size: number
+  width: number | null
+  height: number | null
+  altText: string | null
+  caption: string | null
+  url: string
+  zipPath: string | null  // relative path inside the backup zip; null = not bundled
+}
+
 export interface NuxFlowBackup {
   version: '1'
   exportedAt: string
@@ -81,6 +94,17 @@ export interface NuxFlowBackup {
   taxonomies: BackupTaxonomy[]
   menus: BackupMenu[]
   forms: BackupForm[]
+  media: BackupMediaItem[]
+}
+
+// Replaces all occurrences of old image URLs with new ones throughout the backup JSON
+export function rewriteImageUrls(backup: NuxFlowBackup, urlMap: Map<string, string>): NuxFlowBackup {
+  if (urlMap.size === 0) return backup
+  let json = JSON.stringify(backup)
+  for (const [oldUrl, newUrl] of urlMap) {
+    json = json.replaceAll(oldUrl, newUrl)
+  }
+  return JSON.parse(json) as NuxFlowBackup
 }
 
 // ── Export (build backup object) ──────────────────────────────────────────────
@@ -88,7 +112,7 @@ export interface NuxFlowBackup {
 export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFlowBackup> {
   const db = useDb(event)
 
-  const [site, settingRows, ctRows, itemRows, taxRows, menuRows, formRows] = await Promise.all([
+  const [site, settingRows, ctRows, itemRows, taxRows, menuRows, formRows, mediaRows] = await Promise.all([
     db.query.sites.findFirst({
       where: eq(sites.id, siteId),
       columns: { name: true, locale: true, timezone: true },
@@ -111,6 +135,10 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
     db.query.forms.findMany({
       where: eq(forms.siteId, siteId),
       columns: { slug: true, name: true, fields: true, logic: true, notifications: true, redirectUrl: true, status: true },
+    }),
+    db.query.media.findMany({
+      where: eq(media.siteId, siteId),
+      columns: { id: true, originalName: true, mimeType: true, size: true, width: true, height: true, url: true, altText: true, caption: true },
     }),
   ])
 
@@ -196,6 +224,18 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
       notifications: f.notifications,
       redirectUrl: f.redirectUrl,
       status: f.status,
+    })),
+    media: mediaRows.map(m => ({
+      id: m.id,
+      originalName: m.originalName,
+      mimeType: m.mimeType,
+      size: m.size,
+      width: m.width ?? null,
+      height: m.height ?? null,
+      altText: m.altText ?? null,
+      caption: m.caption ?? null,
+      url: m.url,
+      zipPath: null as string | null,
     })),
   }
 }

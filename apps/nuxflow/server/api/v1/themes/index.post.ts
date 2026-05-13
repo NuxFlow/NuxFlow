@@ -1,11 +1,20 @@
 import { requireRole } from '../../../utils/permissions'
 import { putThemeCSS, putThemeDemo } from '../../../utils/cf-env'
-import { themes } from '@nuxflow/db/schema'
+import { themes, media } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
 import { unzipSync } from 'fflate'
+import { getActiveProvider } from '../../../utils/media-providers/index'
 import type { NuxFlowBackup } from '../../../utils/backup'
+
+const MAX_ZIP_BYTES = 50 * 1024 * 1024 // 50 MB
+const IMAGE_EXT = /\.(jpg|jpeg|png|webp|gif|svg|avif|ico)$/i
+
+const MIME_MAP: Record<string, string> = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+  gif: 'image/gif', svg: 'image/svg+xml', avif: 'image/avif', ico: 'image/x-icon',
+}
 
 interface CssBody { name: string; version?: string; css: string }
 
@@ -19,7 +28,7 @@ function parseDemoSummary(backup: NuxFlowBackup) {
 }
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'admin')
+  const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = event.context.siteId as string
 
@@ -39,6 +48,10 @@ export default defineEventHandler(async (event) => {
 
     if (fileField?.filename?.endsWith('.zip')) {
       // ── Zip theme package ─────────────────────────────────────────────────
+      if (fileField.data.byteLength > MAX_ZIP_BYTES) {
+        throw createError({ statusCode: 413, message: 'Theme zip exceeds 50 MB limit' })
+      }
+
       let files: Record<string, Uint8Array>
       try {
         files = unzipSync(fileField.data)
@@ -59,10 +72,9 @@ export default defineEventHandler(async (event) => {
         } catch { /* use defaults */ }
       }
 
-      const demoFile = files['demo.json']
-      if (demoFile) {
+      if (files['demo.json']) {
         try {
-          demoJson = new TextDecoder().decode(demoFile)
+          demoJson = new TextDecoder().decode(files['demo.json'])
           JSON.parse(demoJson) // validate
         } catch {
           demoJson = null
@@ -71,6 +83,45 @@ export default defineEventHandler(async (event) => {
 
       if (!name) {
         name = (fileField.filename ?? 'Uploaded Theme').replace(/\.zip$/i, '').replace(/[-_]/g, ' ')
+      }
+
+      // ── Upload images and rewrite demo.json references ────────────────────
+      const imageEntries = Object.entries(files).filter(
+        ([path]) => path.startsWith('images/') && IMAGE_EXT.test(path),
+      )
+
+      if (imageEntries.length > 0 && demoJson) {
+        const provider = getActiveProvider()
+        const themeImageId = ulid() // stable prefix so all theme images share a folder
+
+        for (const [zipPath, imageData] of imageEntries) {
+          const filename = zipPath.split('/').pop()!
+          const ext = filename.split('.').pop()?.toLowerCase() ?? 'bin'
+          const mimeType = MIME_MAP[ext] ?? 'application/octet-stream'
+          const storageKey = `${siteId}/themes/${themeImageId}/${filename}`
+
+          try {
+            const imageFile = new File([imageData], filename, { type: mimeType })
+            const { url } = await provider.upload(imageFile, storageKey, siteId)
+
+            // Rewrite all occurrences of the relative path in demo.json
+            demoJson = demoJson.replaceAll(zipPath, url)
+
+            // Add to media library so it's visible/manageable
+            await db.insert(media).values({
+              id: ulid(),
+              siteId,
+              uploadedBy: userId,
+              filename: storageKey,
+              originalName: filename,
+              mimeType,
+              size: imageData.byteLength,
+              url,
+              storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
+              storageKey,
+            })
+          } catch { /* skip — demo will just have a missing image */ }
+        }
       }
     } else {
       const get = (n: string) => formData.find(f => f.name === n)
