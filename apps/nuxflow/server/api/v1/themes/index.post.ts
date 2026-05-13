@@ -9,7 +9,7 @@ import { getActiveProvider } from '../../../utils/media-providers/index'
 import type { NuxFlowBackup } from '../../../utils/backup'
 
 const MAX_ZIP_BYTES = 50 * 1024 * 1024 // 50 MB
-const IMAGE_EXT = /\.(jpg|jpeg|png|webp|gif|svg|avif|ico)$/i
+const IMAGE_EXT = /\.(?:jpg|jpeg|png|webp|gif|svg|avif|ico)$/i
 
 const MIME_MAP: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',

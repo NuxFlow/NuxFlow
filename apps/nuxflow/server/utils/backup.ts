@@ -6,6 +6,7 @@ import {
   taxonomies, taxonomyTerms, contentTaxonomyTerms,
   menus, forms, media,
 } from '@nuxflow/db/schema'
+import type { FormField, ConditionalLogic } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 
@@ -456,8 +457,8 @@ export async function applyBackup(
         id: ulid(), siteId,
         slug: backupForm.slug,
         name: backupForm.name,
-        fields: backupForm.fields as import('@nuxflow/db/schema').FormField[],
-        logic: backupForm.logic as import('@nuxflow/db/schema').ConditionalLogic[],
+        fields: backupForm.fields as FormField[],
+        logic: backupForm.logic as ConditionalLogic[],
         notifications: backupForm.notifications as Record<string, unknown> | undefined,
         redirectUrl: backupForm.redirectUrl,
         status: backupForm.status as 'active' | 'draft' | 'closed',

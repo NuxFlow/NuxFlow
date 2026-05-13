@@ -5,7 +5,7 @@ interface Term { termId: string; termName: string; termSlug: string; taxonomyId:
 interface Taxonomy { id: string; slug: string; name: string; isHierarchical: boolean }
 interface TaxonomyTerm { id: string; slug: string; name: string; parentId: string | null }
 
-const { data: taxData, refresh: refreshTaxonomies } = await useFetch<{ taxonomies: Taxonomy[] }>('/api/v1/taxonomies', {
+const { data: taxData } = await useFetch<{ taxonomies: Taxonomy[] }>('/api/v1/taxonomies', {
   default: () => ({ taxonomies: [] }),
 })
 
@@ -33,7 +33,7 @@ async function openPanel(taxonomyId: string) {
 
 function toggle(termId: string) {
   const next = new Set(selectedIds.value)
-  next.has(termId) ? next.delete(termId) : next.add(termId)
+  if (next.has(termId)) { next.delete(termId) } else { next.add(termId) }
   selectedIds.value = next
   save()
 }
