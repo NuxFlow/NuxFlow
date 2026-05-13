@@ -65,6 +65,24 @@ export async function deleteThemeCSS(event: H3Event, siteId: string, themeId: st
   await kv.delete(`theme:${siteId}:${themeId}:css`)
 }
 
+export async function getThemeDemo(event: H3Event, siteId: string, themeId: string): Promise<string | null> {
+  const { kv } = getCfBindings(event)
+  if (!kv) return null
+  return kv.get(`theme:${siteId}:${themeId}:demo`)
+}
+
+export async function putThemeDemo(event: H3Event, siteId: string, themeId: string, json: string): Promise<void> {
+  const { kv } = getCfBindings(event)
+  if (!kv) return
+  await kv.put(`theme:${siteId}:${themeId}:demo`, json)
+}
+
+export async function deleteThemeDemo(event: H3Event, siteId: string, themeId: string): Promise<void> {
+  const { kv } = getCfBindings(event)
+  if (!kv) return
+  await kv.delete(`theme:${siteId}:${themeId}:demo`)
+}
+
 export function spawnPluginWorker(
   event: H3Event,
   cacheId: string,

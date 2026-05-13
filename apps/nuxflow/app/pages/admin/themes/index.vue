@@ -12,6 +12,7 @@ interface Theme {
   version: string
   isActive: boolean
   hasCss: boolean
+  settings?: { hasDemoContent?: boolean } | null
 }
 
 const { data, refresh } = await useFetch<{ themes: Theme[] }>('/api/v1/themes')
@@ -77,28 +78,72 @@ async function deleteTheme(id: string, name: string) {
   }
 }
 
-// ── CSS theme upload ──────────────────────────────────────────────────────────
+// ── Theme upload (CSS paste or zip file) ─────────────────────────────────────
 
 const uploadModal = ref(false)
+const uploadMode = ref<'css' | 'zip'>('zip')
 const uploadForm = reactive({ name: '', version: '1.0.0', css: '' })
+const zipFile = ref<File | null>(null)
 const uploading = ref(false)
+
+// After zip install: show demo import offer
+const demoOfferThemeId = ref<string | null>(null)
+const demoOfferSummary = ref<{ pages: number; posts: number; menus: number; forms: number } | null>(null)
+const importingDemo = ref(false)
+
+function onZipFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  zipFile.value = input.files?.[0] ?? null
+}
 
 async function uploadTheme() {
   uploading.value = true
   try {
-    await $fetch('/api/v1/themes', {
-      method: 'POST',
-      body: { name: uploadForm.name, version: uploadForm.version, css: uploadForm.css },
-    })
+    let result: { id: string; hasDemoContent: boolean; demoSummary: typeof demoOfferSummary.value }
+    if (uploadMode.value === 'zip' && zipFile.value) {
+      const fd = new FormData()
+      fd.append('file', zipFile.value)
+      result = await $fetch('/api/v1/themes', { method: 'POST', body: fd })
+    } else {
+      result = await $fetch('/api/v1/themes', {
+        method: 'POST',
+        body: { name: uploadForm.name, version: uploadForm.version, css: uploadForm.css },
+      })
+    }
     await refresh()
     uploadModal.value = false
     Object.assign(uploadForm, { name: '', version: '1.0.0', css: '' })
-    toast.add({ title: 'CSS theme uploaded and activated', color: 'green' })
+    zipFile.value = null
+
+    if (result.hasDemoContent && result.demoSummary) {
+      demoOfferThemeId.value = result.id
+      demoOfferSummary.value = result.demoSummary
+    } else {
+      toast.add({ title: 'Theme installed', color: 'green' })
+    }
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Upload failed'
     toast.add({ title: msg, color: 'red' })
   } finally {
     uploading.value = false
+  }
+}
+
+async function importDemoContent(themeId: string) {
+  importingDemo.value = true
+  try {
+    const res = await $fetch<{ result: { content: { created: number } } }>(`/api/v1/themes/${themeId}/demo-import`, {
+      method: 'POST',
+      body: { what: ['content', 'taxonomies', 'menus', 'forms'], conflictMode: 'skip' },
+    })
+    demoOfferThemeId.value = null
+    demoOfferSummary.value = null
+    toast.add({ title: `Demo content imported — ${res.result.content.created} pages/posts created`, color: 'green' })
+  } catch (e: unknown) {
+    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Import failed'
+    toast.add({ title: msg, color: 'red' })
+  } finally {
+    importingDemo.value = false
   }
 }
 
@@ -208,7 +253,7 @@ const swatches = [
     <div class="space-y-3">
       <div class="flex items-center justify-between">
         <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Installed themes</h2>
-        <UButton size="xs" icon="i-lucide-upload" @click="uploadModal = true">Upload CSS theme</UButton>
+        <UButton size="xs" icon="i-lucide-upload" @click="uploadModal = true">Install theme</UButton>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -267,7 +312,7 @@ const swatches = [
               <p class="font-medium text-gray-900 dark:text-white text-sm truncate">{{ theme.name }}</p>
               <p class="text-xs text-gray-400">v{{ theme.version }}</p>
             </div>
-            <div class="flex items-center gap-1.5 shrink-0">
+            <div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
               <UButton
                 v-if="theme.hasCss"
                 size="xs"
@@ -285,6 +330,16 @@ const swatches = [
                 title="Preview"
                 @click="preview(theme.id)"
               />
+              <UButton
+                v-if="theme.settings?.hasDemoContent"
+                size="xs"
+                color="blue"
+                variant="soft"
+                icon="i-lucide-sparkles"
+                @click="importDemoContent(theme.id)"
+              >
+                Demo content
+              </UButton>
               <UBadge v-if="theme.isActive" color="green" variant="soft" size="xs">Active</UBadge>
               <UButton
                 v-else
@@ -408,46 +463,120 @@ const swatches = [
       </UCard>
     </div>
 
-    <!-- Upload CSS theme modal -->
-    <UModal v-model:open="uploadModal" title="Upload CSS theme">
+    <!-- Install theme modal -->
+    <UModal v-model:open="uploadModal" title="Install theme">
       <template #body>
         <div class="space-y-4 p-1">
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            Paste your CSS below. It will be injected into every public page as an inline
-            <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">&lt;style&gt;</code>
-            block — no redeploy required.
-          </p>
-
-          <div class="grid grid-cols-2 gap-3">
-            <UFormField label="Theme name" required>
-              <UInput v-model="uploadForm.name" placeholder="My Theme" />
-            </UFormField>
-            <UFormField label="Version">
-              <UInput v-model="uploadForm.version" placeholder="1.0.0" class="font-mono" />
-            </UFormField>
+          <!-- Mode toggle -->
+          <div class="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
+            <button
+              v-for="m in [{ value: 'zip', label: 'Theme package (.zip)' }, { value: 'css', label: 'CSS only' }]"
+              :key="m.value"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+              :class="uploadMode === m.value ? 'bg-white dark:bg-gray-900 shadow-sm' : 'text-gray-500'"
+              @click="uploadMode = m.value as 'css' | 'zip'"
+            >
+              {{ m.label }}
+            </button>
           </div>
 
-          <UFormField label="CSS" required hint="Custom properties, font imports, selector overrides">
-            <UTextarea
-              v-model="uploadForm.css"
-              :rows="12"
-              placeholder=":root {
-  --color-primary: 147 51 234;
-  --font-sans: 'Inter', sans-serif;
-}
-
-body {
-  font-family: var(--font-sans);
-}"
-              class="font-mono text-xs"
+          <!-- Zip upload -->
+          <template v-if="uploadMode === 'zip'">
+            <UAlert
+              icon="i-lucide-info"
+              color="blue"
+              variant="soft"
+              description="A theme package is a .zip file containing theme.css (required), theme.json (metadata), and optionally demo.json (starter content)."
             />
-          </UFormField>
+            <div
+              class="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl px-6 py-8 hover:border-primary-400 transition-colors cursor-pointer"
+              @click="($refs.zipInput as HTMLInputElement).click()"
+            >
+              <UIcon name="i-lucide-package" class="w-8 h-8 text-gray-400" />
+              <p class="text-sm text-gray-500">
+                <span v-if="zipFile" class="font-medium text-gray-900 dark:text-white">{{ zipFile.name }}</span>
+                <span v-else>Click to select a .zip theme package</span>
+              </p>
+              <input ref="zipInput" type="file" accept=".zip" class="sr-only" @change="onZipFile">
+            </div>
+          </template>
+
+          <!-- CSS paste -->
+          <template v-else>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              Paste CSS directly. It will be injected as an inline
+              <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">&lt;style&gt;</code>
+              block — no redeploy required.
+            </p>
+            <div class="grid grid-cols-2 gap-3">
+              <UFormField label="Theme name" required>
+                <UInput v-model="uploadForm.name" placeholder="My Theme" />
+              </UFormField>
+              <UFormField label="Version">
+                <UInput v-model="uploadForm.version" placeholder="1.0.0" class="font-mono" />
+              </UFormField>
+            </div>
+            <UFormField label="CSS" required>
+              <UTextarea
+                v-model="uploadForm.css"
+                :rows="10"
+                placeholder=":root { --color-primary: 147 51 234; }"
+                class="font-mono text-xs"
+              />
+            </UFormField>
+          </template>
 
           <div class="flex justify-end gap-2">
             <UButton color="neutral" variant="ghost" @click="uploadModal = false">Cancel</UButton>
-            <UButton :loading="uploading" icon="i-lucide-upload" @click="uploadTheme">Upload &amp; activate</UButton>
+            <UButton :loading="uploading" icon="i-lucide-upload" @click="uploadTheme">Install</UButton>
           </div>
         </div>
+      </template>
+    </UModal>
+
+    <!-- Demo content offer modal (shown after zip install if demo.json was present) -->
+    <UModal
+      :open="demoOfferThemeId !== null"
+      title="Import demo content?"
+      @update:open="(v) => { if (!v) { demoOfferThemeId = null; demoOfferSummary = null } }"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            This theme includes starter content to help you get started quickly. You can import it now or skip and start from scratch.
+          </p>
+          <div v-if="demoOfferSummary" class="grid grid-cols-2 gap-2 text-sm">
+            <div class="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+              <UIcon name="i-lucide-file-text" class="w-4 h-4 text-primary-500" />
+              {{ demoOfferSummary.pages }} page{{ demoOfferSummary.pages !== 1 ? 's' : '' }}
+            </div>
+            <div class="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+              <UIcon name="i-lucide-pencil" class="w-4 h-4 text-primary-500" />
+              {{ demoOfferSummary.posts }} post{{ demoOfferSummary.posts !== 1 ? 's' : '' }}
+            </div>
+            <div class="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+              <UIcon name="i-lucide-navigation" class="w-4 h-4 text-primary-500" />
+              {{ demoOfferSummary.menus }} menu{{ demoOfferSummary.menus !== 1 ? 's' : '' }}
+            </div>
+            <div class="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+              <UIcon name="i-lucide-list-checks" class="w-4 h-4 text-primary-500" />
+              {{ demoOfferSummary.forms }} form{{ demoOfferSummary.forms !== 1 ? 's' : '' }}
+            </div>
+          </div>
+          <p class="text-xs text-gray-400">Existing content with the same slug will be skipped. You can always import it later from the theme card.</p>
+        </div>
+      </template>
+      <template #footer>
+        <UButton variant="ghost" @click="demoOfferThemeId = null; demoOfferSummary = null">
+          Skip for now
+        </UButton>
+        <UButton
+          :loading="importingDemo"
+          icon="i-lucide-sparkles"
+          @click="demoOfferThemeId && importDemoContent(demoOfferThemeId)"
+        >
+          Import demo content
+        </UButton>
       </template>
     </UModal>
 
