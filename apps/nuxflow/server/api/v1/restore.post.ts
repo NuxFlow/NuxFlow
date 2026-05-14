@@ -63,12 +63,14 @@ export default defineEventHandler(async (event) => {
     const urlMap = new Map<string, string>()
 
     for (const item of backup.media) {
-      if (!item.zipPath || !zipFiles[item.zipPath]) {
+      const zipPath = item.zipPath
+      const rawData = zipPath ? zipFiles[zipPath] : undefined
+      if (!zipPath || !rawData) {
         mediaResult.skipped++
         continue
       }
       try {
-        const imageData = zipFiles[item.zipPath]
+        const imageData = new Uint8Array(rawData)
         const ext = item.originalName.split('.').pop() ?? 'bin'
         const storageKey = `${siteId}/${ulid()}.${ext}`
         const imageFile = new File([imageData], item.originalName, { type: item.mimeType })

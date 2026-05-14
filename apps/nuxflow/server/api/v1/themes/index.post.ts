@@ -101,7 +101,7 @@ export default defineEventHandler(async (event) => {
           const storageKey = `${siteId}/themes/${themeImageId}/${filename}`
 
           try {
-            const imageFile = new File([imageData], filename, { type: mimeType })
+            const imageFile = new File([new Uint8Array(imageData)], filename, { type: mimeType })
             const { url } = await provider.upload(imageFile, storageKey, siteId)
 
             // Rewrite all occurrences of the relative path in demo.json

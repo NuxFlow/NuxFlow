@@ -99,13 +99,14 @@ function onZipFile(e: Event) {
 async function uploadTheme() {
   uploading.value = true
   try {
-    let result: { id: string; hasDemoContent: boolean; demoSummary: typeof demoOfferSummary.value }
+    type UploadResult = { id: string; hasDemoContent: boolean; demoSummary: { pages: number; posts: number; menus: number; forms: number } | null }
+    let result: UploadResult
     if (uploadMode.value === 'zip' && zipFile.value) {
       const fd = new FormData()
       fd.append('file', zipFile.value)
-      result = await $fetch('/api/v1/themes', { method: 'POST', body: fd })
+      result = await $fetch<UploadResult>('/api/v1/themes', { method: 'POST', body: fd })
     } else {
-      result = await $fetch('/api/v1/themes', {
+      result = await $fetch<UploadResult>('/api/v1/themes', {
         method: 'POST',
         body: { name: uploadForm.name, version: uploadForm.version, css: uploadForm.css },
       })
