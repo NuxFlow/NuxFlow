@@ -63,8 +63,8 @@ pnpm --filter @nuxflow/db migrate
 
 ```bash
 cd apps/nuxflow
-wrangler d1 execute nuxflow --local --file=../../packages/db/migrations/0000_lyrical_archangel.sql
-# … repeat for each migration file in packages/db/migrations/ in numeric order
+wrangler d1 execute nuxflow --local --file=../../packages/db/migrations/0000_confused_blackheart.sql
+wrangler d1 execute nuxflow --local --file=../../packages/db/migrations/0001_plugin_signing.sql
 ```
 
 Then run the dev server with:
@@ -133,14 +133,8 @@ database_id = "YOUR_DATABASE_ID_HERE"
 Still in the `apps/nuxflow` directory, apply each migration file in order:
 
 ```bash
-wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0000_lyrical_archangel.sql
-wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0001_mean_shocker.sql
-wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0001_fts5_search_index.sql
-wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0002_familiar_johnny_storm.sql
-wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0003_brainy_dorian_gray.sql
-wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0004_premium_jocasta.sql
-wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0005_dynamic_plugins.sql
-wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0006_theme_css.sql
+wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0000_confused_blackheart.sql
+wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0001_plugin_signing.sql
 ```
 
 When NuxFlow receives future schema updates, repeat this step with only the new migration files.
