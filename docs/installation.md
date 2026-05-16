@@ -95,6 +95,10 @@ pnpm dev
 
 Database migrations run automatically on the first request. Visit `http://localhost:3000/setup` to complete the onboarding wizard.
 
+::note
+**How migrations work:** NuxFlow bundles all database migration files into the deployed Worker. On the very first request after a fresh install or an upgrade, any migrations that have not yet been applied are executed automatically. A `_nuxflow_migrations` table in your database tracks which files have already run, so no migration is ever applied twice. You never need to run a migration command manually.
+::
+
 ---
 
 ## 2. Cloudflare Deployment
