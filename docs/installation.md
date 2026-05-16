@@ -24,42 +24,13 @@ pnpm install
 
 ### Set Up a Local Database
 
-For local development you have two options:
+There are three options. **Option A is recommended** — it uses the same D1 database as production, so there are no surprises when you deploy.
 
-**Option A — Local SQLite file (simplest, no account required):**
+**Option A — Cloudflare D1 via `wrangler dev` (recommended):**
 
-Set `NUXT_TURSO_URL` to a local file path in your `.env`. NuxFlow uses its libSQL adapter to read and write a local SQLite file — no Turso account is needed:
+This mirrors production exactly. `wrangler dev` provisions a local D1 database automatically — no `.env` file is needed for the database connection.
 
-```
-NUXT_TURSO_URL=file:local.db
-NUXT_TURSO_AUTH_TOKEN=
-```
-
-Then apply migrations to the local file:
-
-```bash
-pnpm --filter @nuxflow/db migrate
-```
-
-**Option B — Turso remote database:**
-
-Create a Turso database and retrieve its credentials:
-
-```bash
-turso db create nuxflow-dev
-turso db show nuxflow-dev --url
-turso db tokens create nuxflow-dev
-```
-
-Then apply migrations:
-
-```bash
-pnpm --filter @nuxflow/db migrate
-```
-
-**Option C — Cloudflare D1 via `wrangler dev`:**
-
-`wrangler dev` automatically provisions a local D1 database. Apply migrations to it first:
+Apply the migrations to the local D1 instance first:
 
 ```bash
 cd apps/nuxflow
@@ -67,28 +38,75 @@ wrangler d1 execute nuxflow --local --file=../../packages/db/migrations/0000_con
 wrangler d1 execute nuxflow --local --file=../../packages/db/migrations/0001_plugin_signing.sql
 ```
 
-Then run the dev server with:
+Then start the dev server:
 
 ```bash
 wrangler dev
 ```
 
-### Configure Environment Variables
+Visit `http://localhost:8787/setup` to complete the onboarding wizard.
 
-Copy the example file and fill in your values:
+**Option B — Local SQLite file (no Cloudflare account required):**
+
+NuxFlow can use a plain SQLite file for local development via its libSQL adapter — no Turso account is needed.
+
+Copy the example env file and set the database path:
 
 ```bash
 cp apps/nuxflow/.env.example apps/nuxflow/.env
 ```
 
-| Variable | Description |
-|---|---|
-| `NUXT_TURSO_URL` | Local SQLite path (`file:local.db`) or Turso URL — not needed for `wrangler dev` |
-| `NUXT_TURSO_AUTH_TOKEN` | Turso auth token — leave empty for local SQLite |
-| `NUXT_BETTER_AUTH_SECRET` | Random 32+ character string for session signing |
-| `NUXT_PUBLIC_SITE_URL` | `http://localhost:3000` for local dev |
+```
+NUXT_TURSO_URL=file:local.db
+NUXT_TURSO_AUTH_TOKEN=
+NUXT_BETTER_AUTH_SECRET=your-32-char-secret-here
+NUXT_PUBLIC_SITE_URL=http://localhost:3000
+```
 
-### Start the Dev Server
+Apply migrations to the local file:
+
+```bash
+pnpm --filter @nuxflow/db migrate
+```
+
+Then start the dev server:
+
+```bash
+pnpm dev
+```
+
+Visit `http://localhost:3000/setup` to complete the onboarding wizard.
+
+**Option C — Turso remote database:**
+
+Use this if you prefer a managed cloud database for development, or if you intend to deploy to a non-Cloudflare host.
+
+```bash
+turso db create nuxflow-dev
+turso db show nuxflow-dev --url
+turso db tokens create nuxflow-dev
+```
+
+Copy the example env file and fill in your Turso credentials:
+
+```bash
+cp apps/nuxflow/.env.example apps/nuxflow/.env
+```
+
+```
+NUXT_TURSO_URL=libsql://your-db.turso.io
+NUXT_TURSO_AUTH_TOKEN=your-token
+NUXT_BETTER_AUTH_SECRET=your-32-char-secret-here
+NUXT_PUBLIC_SITE_URL=http://localhost:3000
+```
+
+Apply migrations:
+
+```bash
+pnpm --filter @nuxflow/db migrate
+```
+
+Then start the dev server:
 
 ```bash
 pnpm dev
