@@ -37,6 +37,9 @@ export default defineNuxtConfig({
     scheduledTasks: {
       '* * * * *': ['publish-scheduled'],
     },
+    serverAssets: [
+      { baseName: 'migrations', dir: resolve(_dirname, '../../packages/db/migrations') },
+    ],
   },
 
   ui: {

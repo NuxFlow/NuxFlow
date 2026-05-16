@@ -30,21 +30,14 @@ There are three options. **Option A is recommended** — it uses the same D1 dat
 
 This mirrors production exactly. `wrangler dev` provisions a local D1 database automatically — no `.env` file is needed for the database connection.
 
-Apply the migrations to the local D1 instance first:
+Start the dev server from the `apps/nuxflow` directory:
 
 ```bash
 cd apps/nuxflow
-wrangler d1 execute nuxflow --local --file=../../packages/db/migrations/0000_confused_blackheart.sql
-wrangler d1 execute nuxflow --local --file=../../packages/db/migrations/0001_plugin_signing.sql
-```
-
-Then start the dev server:
-
-```bash
 wrangler dev
 ```
 
-Visit `http://localhost:8787/setup` to complete the onboarding wizard.
+Database migrations run automatically on the first request. Visit `http://localhost:8787/setup` to complete the onboarding wizard.
 
 **Option B — Local SQLite file (no Cloudflare account required):**
 
@@ -63,19 +56,13 @@ NUXT_BETTER_AUTH_SECRET=your-32-char-secret-here
 NUXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
-Apply migrations to the local file:
-
-```bash
-pnpm --filter @nuxflow/db migrate
-```
-
-Then start the dev server:
+Start the dev server:
 
 ```bash
 pnpm dev
 ```
 
-Visit `http://localhost:3000/setup` to complete the onboarding wizard.
+Database migrations run automatically on the first request. Visit `http://localhost:3000/setup` to complete the onboarding wizard.
 
 **Option C — Turso remote database:**
 
@@ -100,19 +87,13 @@ NUXT_BETTER_AUTH_SECRET=your-32-char-secret-here
 NUXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
-Apply migrations:
-
-```bash
-pnpm --filter @nuxflow/db migrate
-```
-
-Then start the dev server:
+Start the dev server:
 
 ```bash
 pnpm dev
 ```
 
-Visit `http://localhost:3000/setup` to complete the onboarding wizard.
+Database migrations run automatically on the first request. Visit `http://localhost:3000/setup` to complete the onboarding wizard.
 
 ---
 
@@ -146,18 +127,7 @@ database_name = "nuxflow"
 database_id = "YOUR_DATABASE_ID_HERE"
 ```
 
-### Step 3: Apply Database Migrations
-
-Still in the `apps/nuxflow` directory, apply each migration file in order:
-
-```bash
-wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0000_confused_blackheart.sql
-wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0001_plugin_signing.sql
-```
-
-When NuxFlow receives future schema updates, repeat this step with only the new migration files.
-
-### Step 4: Build and Deploy
+### Step 3: Build and Deploy
 
 Return to the repo root, build, then deploy:
 
@@ -167,7 +137,9 @@ pnpm build
 pnpm --filter @nuxflow/app run deploy
 ```
 
-### Step 5: Add Production Secrets
+Database migrations run automatically on the first request after deployment. There is nothing else to run.
+
+### Step 4: Add Production Secrets
 
 With the worker now deployed, add your runtime secrets. Wrangler will prompt you to type or paste the value — it is never passed as a command-line argument:
 
@@ -185,7 +157,7 @@ You can also manage secrets in the Cloudflare dashboard under **Workers & Pages 
 D1 does not require any secrets. The database connection is handled automatically through the `DB` binding declared in `wrangler.toml`.
 ::
 
-### Step 6: Add a Custom Domain
+### Step 5: Add a Custom Domain
 
 By default Cloudflare assigns a `*.workers.dev` subdomain. To use your own domain:
 
@@ -196,7 +168,7 @@ By default Cloudflare assigns a `*.workers.dev` subdomain. To use your own domai
 
 Your domain must be on Cloudflare's nameservers for this to work. If it is not, use a **Route** instead and point the DNS record manually.
 
-### Step 7: Verify Cron Triggers
+### Step 6: Verify Cron Triggers
 
 NuxFlow uses a scheduled Worker to handle timed content publishing. The trigger is defined in `wrangler.toml`:
 
@@ -289,13 +261,7 @@ turso db show nuxflow --url
 turso db tokens create nuxflow
 ```
 
-**Step 2 — Apply migrations:**
-
-```bash
-NUXT_TURSO_URL=libsql://your-db.turso.io NUXT_TURSO_AUTH_TOKEN=your-token pnpm --filter @nuxflow/db migrate
-```
-
-**Step 3 — Remove the D1 binding from `wrangler.toml`:**
+**Step 2 — Remove the D1 binding from `wrangler.toml`:**
 
 Comment out or delete the `[[d1_databases]]` block:
 
@@ -306,7 +272,7 @@ Comment out or delete the `[[d1_databases]]` block:
 # database_id = "..."
 ```
 
-**Step 4 — Add Turso secrets:**
+**Step 3 — Add Turso secrets:**
 
 ```bash
 cd apps/nuxflow
@@ -314,7 +280,7 @@ wrangler secret put NUXT_TURSO_URL
 wrangler secret put NUXT_TURSO_AUTH_TOKEN
 ```
 
-**Step 5 — Add the same secrets as build-time environment variables** in **Workers & Pages → nuxflow → Settings → Build → Environment variables**:
+**Step 4 — Add the same secrets as build-time environment variables** in **Workers & Pages → nuxflow → Settings → Build → Environment variables**:
 
 | Variable | Value |
 |---|---|
@@ -323,7 +289,7 @@ wrangler secret put NUXT_TURSO_AUTH_TOKEN
 | `NUXT_BETTER_AUTH_SECRET` | Your session-signing secret |
 | `NUXT_PUBLIC_SITE_URL` | Your production site URL |
 
-NuxFlow automatically detects that no D1 binding is present and falls back to Turso.
+NuxFlow automatically detects that no D1 binding is present and falls back to Turso. Database migrations run automatically on the first request after deployment.
 
 ---
 
