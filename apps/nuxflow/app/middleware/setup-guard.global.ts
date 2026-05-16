@@ -1,5 +1,5 @@
 export default defineNuxtRouteMiddleware(async (to) => {
-  if (to.path.startsWith('/setup') || to.path.startsWith('/api')) return
+  if (to.path.startsWith('/api')) return
 
   const needsSetup = useState('setup:needs-setup', () => null as boolean | null)
   if (needsSetup.value === null) {
@@ -12,7 +12,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
     }
   }
 
-  if (needsSetup.value) {
+  if (needsSetup.value && !to.path.startsWith('/setup')) {
     return navigateTo('/setup')
+  }
+
+  if (!needsSetup.value && to.path.startsWith('/setup')) {
+    return navigateTo('/')
   }
 })
