@@ -316,14 +316,17 @@ async function deleteSite() {
               <p class="text-sm text-gray-600 dark:text-gray-400">
                 Permanently deletes this site and all its content, media, users, and settings. This action cannot be undone.
               </p>
-              <UFormField :label="`Type &quot;${data?.site.name}&quot; to confirm`">
-                <UInput v-model="deleteConfirm" :placeholder="data?.site.name" />
+              <UFormField :label="`Type &quot;${data?.site.name}&quot; to confirm`" class="w-full">
+                <UInput v-model="deleteConfirm" :placeholder="data?.site.name" class="w-full" />
               </UFormField>
-            </div>
-            <template #footer>
-              <div class="flex justify-end">
+              <div class="flex items-center justify-between pt-2">
+                <p class="text-xs text-gray-400">
+                  <span v-if="deleteConfirm && deleteConfirm !== data?.site.name" class="text-red-400">Name does not match.</span>
+                  <span v-else-if="deleteConfirm === data?.site.name && deleteConfirm" class="text-green-500">Name confirmed — you can now delete.</span>
+                  <span v-else>The button below will activate once the name matches.</span>
+                </p>
                 <UButton
-                  color="red"
+                  color="error"
                   :loading="deleting"
                   :disabled="deleteConfirm !== data?.site.name"
                   @click="deleteSite"
@@ -331,7 +334,7 @@ async function deleteSite() {
                   Delete this site
                 </UButton>
               </div>
-            </template>
+            </div>
           </UCard>
         </template>
 
