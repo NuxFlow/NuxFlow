@@ -29,5 +29,6 @@ const blocks = computed((): NuxBlockData[] => {
 
 <template>
   <NuxBlocks v-if="isBlocks || isCanvas" :blocks="blocks" />
+  <!-- eslint-disable-next-line vue/no-v-html -->
   <div v-else class="nux-content" v-html="html" />
 </template>

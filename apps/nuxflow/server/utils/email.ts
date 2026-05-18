@@ -45,7 +45,7 @@ async function loadEmailConfig(event: H3Event): Promise<EmailConfig> {
   const rc = useRuntimeConfig() as Record<string, string>
   const siteId = event.context.siteId as string | undefined
 
-  let dbSettings: Record<string, string> = {}
+  const dbSettings: Record<string, string> = {}
   if (siteId) {
     try {
       const db = useDb(event)

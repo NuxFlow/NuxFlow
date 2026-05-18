@@ -276,8 +276,8 @@ async function deleteSite() {
 
               <div class="flex items-center gap-4">
                 <div class="w-14 h-14 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-center overflow-hidden shrink-0">
-                  <img v-if="appearance.faviconUrl" :src="appearance.faviconUrl" alt="Current favicon" class="w-10 h-10 object-contain" />
-                  <img v-else src="/favicon.svg" alt="Default favicon" class="w-10 h-10 object-contain" />
+                  <img v-if="appearance.faviconUrl" :src="appearance.faviconUrl" alt="Current favicon" class="w-10 h-10 object-contain">
+                  <img v-else src="/favicon.svg" alt="Default favicon" class="w-10 h-10 object-contain">
                 </div>
                 <div class="space-y-2">
                   <label class="cursor-pointer">
@@ -290,7 +290,7 @@ async function deleteSite() {
                     >
                       {{ appearance.faviconUrl ? 'Replace' : 'Upload favicon' }}
                     </UButton>
-                    <input type="file" accept=".png,.svg,.ico,.jpg,.jpeg,.webp" class="sr-only" @change="uploadFavicon" />
+                    <input type="file" accept=".png,.svg,.ico,.jpg,.jpeg,.webp" class="sr-only" @change="uploadFavicon">
                   </label>
                   <UButton
                     v-if="appearance.faviconUrl"

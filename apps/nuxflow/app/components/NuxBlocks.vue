@@ -19,14 +19,14 @@ const { resolve } = useBlockRegistry()
         avoiding a hydration mismatch.
       -->
       <component
-        v-if="resolve(block.type)"
         :is="resolve(block.type)"
+        v-if="resolve(block.type)"
         v-bind="block.props"
       />
       <ClientOnly v-else>
         <component
-          v-if="resolve(block.type)"
           :is="resolve(block.type)"
+          v-if="resolve(block.type)"
           v-bind="block.props"
         />
         <template #fallback>
