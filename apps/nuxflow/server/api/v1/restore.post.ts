@@ -41,6 +41,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Invalid zip file — upload a NuxFlow .zip backup' })
   }
 
+  // Path Traversal (Zip Slip) Mitigation: Block directory traversal in zip entries
+  for (const entryPath of Object.keys(zipFiles)) {
+    if (entryPath.includes('..') || entryPath.startsWith('/') || entryPath.startsWith('\\')) {
+      throw createError({
+        statusCode: 400,
+        message: `Invalid zip entry detected: ${entryPath}. Directory traversal is forbidden.`,
+      })
+    }
+  }
+
   const backupFile = zipFiles['backup.json']
   if (!backupFile) throw createError({ statusCode: 400, message: 'backup.json not found in zip' })
 
@@ -64,6 +74,12 @@ export default defineEventHandler(async (event) => {
 
     for (const item of backup.media) {
       const zipPath = item.zipPath
+      if (zipPath && (zipPath.includes('..') || zipPath.startsWith('/') || zipPath.startsWith('\\'))) {
+        throw createError({
+          statusCode: 400,
+          message: `Invalid zipPath in backup metadata: ${zipPath}. Directory traversal is forbidden.`,
+        })
+      }
       const rawData = zipPath ? zipFiles[zipPath] : undefined
       if (!zipPath || !rawData) {
         mediaResult.skipped++

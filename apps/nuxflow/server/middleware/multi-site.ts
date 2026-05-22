@@ -10,7 +10,10 @@ export default defineEventHandler(async (event) => {
     return
   }
 
-  const host = getHeader(event, 'host')?.split(':')[0] ?? ''
+  let host = getHeader(event, 'host')?.split(':')[0] ?? ''
+  if (host === '127.0.0.1' || host === '::1') {
+    host = 'localhost'
+  }
   const db = useDb(event)
 
   let site: { id: string; status: string; setupCompleted: boolean } | undefined
