@@ -36,13 +36,13 @@ async function applyMigrations(event: H3Event) {
   const applied = new Set(rows.map(r => r[0]))
 
   // If the tracking table is empty but the schema already exists (e.g. a prior
-  // manual wrangler d1 execute install), seed the table and skip re-running SQL.
+  // manual wrangler d1 execute install), seed the tracking table for the base schema
+  // and let any subsequent migrations run normally to update the tables.
   if (applied.size === 0 && await tableExists(db, 'sites')) {
-    for (const key of keys) {
-      await db.run(sql`INSERT OR IGNORE INTO _nuxflow_migrations (filename) VALUES (${key})`)
-    }
-    console.warn('[nuxflow:migrate] Pre-existing schema detected — migration tracking seeded')
-    return
+    const baseMigration = '0000_majestic_cannonball.sql'
+    await db.run(sql`INSERT OR IGNORE INTO _nuxflow_migrations (filename) VALUES (${baseMigration})`)
+    applied.add(baseMigration)
+    console.warn('[nuxflow:migrate] Pre-existing schema detected — base migration tracking seeded')
   }
 
   let count = 0

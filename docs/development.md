@@ -297,3 +297,33 @@ Build your theme into a zip package and upload it through the admin:
 3. Activate the theme and inspect the result
 
 To include starter content images in `demo.json`, place them in an `images/` folder inside the zip. NuxFlow uploads them to your configured media provider and rewrites the references automatically.
+
+### Advanced Guidelines for Theme Bundlers
+
+#### 1. Canvas Full-Width Layout Paradigm
+NuxFlow page templates served via the **Canvas page builder** (i.e. pages containing `"type": "canvas"` inside their page JSON) render **full-width** without an outer restrictive container or automatic heading output. This is intentional to allow visual page builders to create stunning full-bleed heroes, multi-color alternating card grids, and interactive wide galleries.
+
+Because of this, theme creators should specify container constraints inside their `theme.css` to prevent standard layout blocks from expanding infinitely on large desktop displays (1080p, 1440p, or 4K viewports).
+
+#### 2. Constraining and Styling Block Components
+If an image block (`canvas-image`) or prose column block needs viewport constraints, target their unique DOM elements inside your `theme.css`.
+
+For instance, to enforce a premium mockup container look with automated centering and viewport limits for images, include the following rule in your `theme.css`:
+```css
+/* Constrain canvas-image blocks to an elegant dashboard max-width */
+.nux-blocks figure {
+  max-width: 900px !important;
+  width: 100% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+```
+
+#### 3. Cross-Platform ZIP Packaging
+Windows zip utilities (including PowerShell's `Compress-Archive` and Explorer's Send to Compressed Folder) compress directories using **backslashes** in file paths (e.g. `images\my-graphic.png`). 
+
+NuxFlow automatically normalizes these backslashes into standard forward-slashes (`/`) during theme uploads and backup restores under the hood on Cloudflare. However, to keep your zip packages clean and standardized across Mac, Linux, and Windows, it is highly recommended to package theme files with POSIX-standard paths whenever possible.

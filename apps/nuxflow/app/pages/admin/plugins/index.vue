@@ -25,9 +25,38 @@ const installForm = reactive({
   version: '',
   description: '',
   serverModule: '',
+  serverChecksum: '',
   clientBundle: '',
+  clientChecksum: '',
+  publisherPublicKey: '',
+  signature: '',
 })
 const installLoading = ref(false)
+
+const jsonPayloadText = ref('')
+
+function handlePasteJson() {
+  try {
+    const parsed = JSON.parse(jsonPayloadText.value)
+    if (!parsed.id) {
+      toast.add({ title: 'Invalid JSON: id is required', color: 'red' })
+      return
+    }
+    installForm.id = parsed.id || ''
+    installForm.name = parsed.name || ''
+    installForm.version = parsed.version || ''
+    installForm.description = parsed.description || ''
+    installForm.serverModule = parsed.serverModule || ''
+    installForm.serverChecksum = parsed.serverChecksum || ''
+    installForm.clientBundle = parsed.clientBundle || ''
+    installForm.clientChecksum = parsed.clientChecksum || ''
+    installForm.publisherPublicKey = parsed.publisherPublicKey || ''
+    installForm.signature = parsed.signature || ''
+    toast.add({ title: 'Plugin payload parsed successfully!', color: 'green' })
+  } catch {
+    // Ignore typings and partial input
+  }
+}
 
 async function dynInstall() {
   installLoading.value = true
@@ -40,13 +69,29 @@ async function dynInstall() {
         version: installForm.version,
         description: installForm.description,
         serverModule: installForm.serverModule || undefined,
+        serverChecksum: installForm.serverChecksum || undefined,
         clientBundle: installForm.clientBundle || undefined,
+        clientChecksum: installForm.clientChecksum || undefined,
+        publisherPublicKey: installForm.publisherPublicKey || undefined,
+        signature: installForm.signature || undefined,
       },
     })
     await refreshDyn()
     installModal.value = false
-    Object.assign(installForm, { id: '', name: '', version: '', description: '', serverModule: '', clientBundle: '' })
-    toast.add({ title: 'Plugin installed', color: 'green' })
+    Object.assign(installForm, {
+      id: '',
+      name: '',
+      version: '',
+      description: '',
+      serverModule: '',
+      serverChecksum: '',
+      clientBundle: '',
+      clientChecksum: '',
+      publisherPublicKey: '',
+      signature: '',
+    })
+    jsonPayloadText.value = ''
+    toast.add({ title: 'Plugin installed successfully!', color: 'green' })
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Install failed'
     toast.add({ title: msg, color: 'red' })
@@ -103,13 +148,13 @@ async function dynUninstall(id: string, name: string) {
                 </UBadge>
                 <UBadge color="blue" variant="soft" size="xs">Dynamic</UBadge>
               </div>
-              <p class="text-xs text-gray-400 truncate">{{ plugin.id }} @ {{ plugin.version }}</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ plugin.id }} @ {{ plugin.version }}</p>
               <p v-if="plugin.description" class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ plugin.description }}</p>
               <div class="flex gap-2 mt-1.5">
-                <span v-if="plugin.hasServer" class="text-xs text-gray-400 flex items-center gap-1">
+                <span v-if="plugin.hasServer" class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
                   <UIcon name="i-lucide-server" class="w-3 h-3" /> Server
                 </span>
-                <span v-if="plugin.hasClient" class="text-xs text-gray-400 flex items-center gap-1">
+                <span v-if="plugin.hasClient" class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
                   <UIcon name="i-lucide-monitor" class="w-3 h-3" /> Client
                 </span>
               </div>
@@ -170,7 +215,7 @@ async function dynUninstall(id: string, name: string) {
             </div>
           </div>
 
-          <div class="border-t border-gray-100 dark:border-gray-800 pt-3 flex items-center gap-2 text-xs text-gray-400">
+          <div class="border-t border-gray-100 dark:border-gray-800 pt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <UIcon name="i-lucide-package-search" class="w-3.5 h-3.5 shrink-0" />
             Find community plugins by searching npm for <span class="font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">nuxflow-plugin</span>
           </div>
@@ -181,10 +226,28 @@ async function dynUninstall(id: string, name: string) {
     <!-- Dynamic plugin install modal -->
     <UModal v-model:open="installModal" title="Upload dynamic plugin">
       <template #body>
-        <div class="space-y-4 p-1">
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            Paste the base64-encoded plugin bundle below. The plugin runs as an isolated Cloudflare Worker — no redeploy required.
-          </p>
+        <div class="space-y-4 p-1 max-h-[80vh] overflow-y-auto pr-2">
+          <UAlert
+            icon="i-lucide-shield-alert"
+            color="yellow"
+            variant="soft"
+            title="Cryptographic Signature Required"
+            description="Dynamic plugins must be signed with an Ed25519 publisher key. Paste the signed JSON bundle from your build output to auto-fill, or manually fill all fields."
+          />
+
+          <!-- JSON Paste Shortcut -->
+          <div class="border border-gray-200 dark:border-gray-800 rounded-xl p-3 bg-gray-50/50 dark:bg-gray-900/30 space-y-2">
+            <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1">
+              <UIcon name="i-lucide-paste" class="w-3.5 h-3.5" /> Auto-fill from signed plugin JSON
+            </span>
+            <UTextarea
+              v-model="jsonPayloadText"
+              :rows="3"
+              placeholder='Paste fully signed plugin JSON payload here...'
+              class="font-mono text-xs"
+              @input="handlePasteJson"
+            />
+          </div>
 
           <div class="grid grid-cols-2 gap-3">
             <UFormField label="Plugin ID" required>
@@ -203,15 +266,33 @@ async function dynUninstall(id: string, name: string) {
             <UInput v-model="installForm.description" placeholder="What does this plugin do?" />
           </UFormField>
 
+          <div class="grid grid-cols-2 gap-3">
+            <UFormField label="Publisher Public Key" required>
+              <UInput v-model="installForm.publisherPublicKey" placeholder="publisher key..." class="font-mono text-xs" />
+            </UFormField>
+            <UFormField label="Signature" required>
+              <UInput v-model="installForm.signature" placeholder="signature..." class="font-mono text-xs" />
+            </UFormField>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <UFormField label="Server Checksum (SHA-256)">
+              <UInput v-model="installForm.serverChecksum" placeholder="server checksum..." class="font-mono text-xs" />
+            </UFormField>
+            <UFormField label="Client Checksum (SHA-256)">
+              <UInput v-model="installForm.clientChecksum" placeholder="client checksum..." class="font-mono text-xs" />
+            </UFormField>
+          </div>
+
           <UFormField label="Server module (base64)" hint="Self-contained ES module exporting a fetch handler">
-            <UTextarea v-model="installForm.serverModule" :rows="4" placeholder="base64-encoded server module..." class="font-mono text-xs" />
+            <UTextarea v-model="installForm.serverModule" :rows="3" placeholder="base64-encoded server module..." class="font-mono text-xs" />
           </UFormField>
 
           <UFormField label="Client bundle (base64)" hint="ES module exporting register(app, registry)">
-            <UTextarea v-model="installForm.clientBundle" :rows="4" placeholder="base64-encoded client bundle..." class="font-mono text-xs" />
+            <UTextarea v-model="installForm.clientBundle" :rows="3" placeholder="base64-encoded client bundle..." class="font-mono text-xs" />
           </UFormField>
 
-          <div class="flex justify-end gap-2">
+          <div class="flex justify-end gap-2 border-t border-gray-100 dark:border-gray-800 pt-3">
             <UButton color="neutral" variant="ghost" @click="installModal = false">Cancel</UButton>
             <UButton :loading="installLoading" icon="i-lucide-upload" @click="dynInstall">Install plugin</UButton>
           </div>

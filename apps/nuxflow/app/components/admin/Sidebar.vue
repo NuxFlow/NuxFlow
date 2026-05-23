@@ -82,7 +82,7 @@ function isActive(to: string) {
         <UAvatar :alt="auth.user?.name" size="sm" />
         <div class="flex-1 min-w-0">
           <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ auth.user?.name }}</p>
-          <p class="text-xs text-gray-400 truncate">{{ auth.user?.email }}</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ auth.user?.email }}</p>
         </div>
         <UButton variant="ghost" size="xs" icon="i-lucide-log-out" aria-label="Sign out" @click="auth.signOut()" />
       </div>

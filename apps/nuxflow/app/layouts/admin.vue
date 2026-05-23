@@ -86,7 +86,7 @@ watch(() => route.path, () => { sidebarOpen.value = false })
         </div>
       </header>
 
-      <main class="flex-1 p-4 md:p-6 overflow-auto">
+      <main class="flex-1 p-4 md:p-6 overflow-auto bg-white dark:bg-transparent">
         <slot />
       </main>
     </div>

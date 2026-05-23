@@ -45,21 +45,25 @@ pnpm add -g @nuxflow/cli
 ## Quickstart
 
 ```bash
-# 1. Scaffold a new plugin
+# 1. Scaffold a new plugin project
 nuxflow plugin create
 
-# 2. Edit src/server.ts and src/client.ts (see below)
+# 2. Enter the folder and generate your Ed25519 signature keypair (Required!)
+cd my-plugin
+nuxflow plugin keygen
 
-# 3. Build
+# 3. Edit src/server.ts (Edge API) and src/client.ts (Canvas Blocks)
+
+# 4. Build the plugin, computing checksums
 nuxflow plugin build
 
-# 4. Deploy to your site
+# 5. Deploy to your live site (signs the payload locally using your private key)
 nuxflow plugin deploy \
   --site https://your-site.workers.dev \
   --email admin@example.com \
   --password yourpassword
 
-# 5. Enable it in Admin → Plugins
+# 6. Enable it in Admin → Plugins
 ```
 
 ---
@@ -230,6 +234,21 @@ nuxflow plugin update
 ```
 
 This removes the old plugin entry and re-installs the new version. If the plugin was active, go to Admin → Plugins and re-enable it after updating.
+
+### Dynamic Plugin Security & Cryptographic Signatures
+
+To prevent unauthorized or arbitrary code execution on your Cloudflare Workers edge environment, NuxFlow enforces strict cryptographic constraints:
+
+1. **Ed25519 Publisher Signing**: Every plugin deployment payload must be signed by the publisher's private key. The deployment payload contains the SPKI Ed25519 `publisherPublicKey` and an Ed25519 `signature` of the canonical payload (`id + version + serverChecksum + clientChecksum`).
+2. **WebCrypto API Validation**: Verification runs entirely on Cloudflare Workers using the native **Web Crypto API** (`globalThis.crypto.subtle`), ensuring high-speed validation without heavy external libraries.
+3. **KV Code Integrity Checks**: When proxying requests to dynamic plugins, `assertCodeIntegrity()` compares the raw KV source code SHA-256 checksum against the signed D1 database checksum. Any mismatch throws a hard 500 error, blocking tampered KV entries immediately.
+
+#### Installing fully signed bundles via the Admin UI
+
+While the CLI `nuxflow plugin deploy` handles signatures automatically, you can also install signed plugin packages directly from the browser:
+- Navigate to **Admin → Plugins** and click **Upload plugin**.
+- Paste the complete, signed JSON package outputted by the CLI (which contains the code, checksums, public key, and signature) into the **"Auto-fill from signed plugin JSON"** textarea.
+- The UI will automatically parse the package and populate all required fields, including the public key and signature, letting you securely deploy plugins via the dashboard.
 
 ---
 

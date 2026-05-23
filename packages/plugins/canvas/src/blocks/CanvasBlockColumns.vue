@@ -43,7 +43,7 @@ const colContents = computed(() => {
 </script>
 
 <template>
-  <div :style="containerStyle">
+  <div class="canvas-columns" :style="containerStyle">
     <div class="grid" :class="gridClass" :style="gridStyle">
       <div
         v-for="(col, i) in colContents"

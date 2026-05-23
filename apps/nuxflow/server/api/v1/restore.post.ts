@@ -34,12 +34,17 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 413, message: 'Backup file exceeds 100 MB limit' })
   }
 
-  let zipFiles: Record<string, Uint8Array>
+  let rawZipFiles: Record<string, Uint8Array>
   try {
-    zipFiles = unzipSync(file.data)
+    rawZipFiles = unzipSync(file.data)
   } catch {
     throw createError({ statusCode: 400, message: 'Invalid zip file — upload a NuxFlow .zip backup' })
   }
+
+  // Normalize zip entry paths to forward-slashes to support Windows-packaged ZIP archives
+  const zipFiles = Object.fromEntries(
+    Object.entries(rawZipFiles).map(([path, data]) => [path.replace(/\\/g, '/'), data])
+  )
 
   // Path Traversal (Zip Slip) Mitigation: Block directory traversal in zip entries
   for (const entryPath of Object.keys(zipFiles)) {

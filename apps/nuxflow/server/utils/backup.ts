@@ -245,7 +245,7 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
 
 export interface RestoreOptions {
   what: ('content' | 'settings' | 'menus' | 'taxonomies' | 'forms')[]
-  conflictMode: 'skip' | 'overwrite'
+  conflictMode: 'skip' | 'overwrite' | 'archive'
 }
 
 export interface RestoreResult {
@@ -375,11 +375,20 @@ export async function applyBackup(
 
       const existing = await db.query.contentItems.findFirst({
         where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, backupItem.slug)),
-        columns: { id: true },
+        columns: { id: true, title: true },
       })
 
       if (existing) {
-        if (opts.conflictMode === 'overwrite') {
+        if (opts.conflictMode === 'archive') {
+          // Smart Archiving: Rename existing conflicting page slug & title, mark as draft
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+          await db.update(contentItems).set({
+            slug: `${backupItem.slug}-backup-${timestamp}`,
+            title: `${existing.title} (Backup — ${timestamp})`,
+            status: 'draft',
+          }).where(eq(contentItems.id, existing.id))
+          // Proceed to insert the new page cleanly!
+        } else if (opts.conflictMode === 'overwrite') {
           await db.update(contentItems).set({
             title: backupItem.title,
             status: backupItem.status as 'draft' | 'published' | 'scheduled' | 'archived' | 'review',
@@ -393,10 +402,11 @@ export async function applyBackup(
             settings: backupItem.settings ?? undefined,
           }).where(eq(contentItems.id, existing.id))
           result.content.created++
+          continue
         } else {
           result.content.skipped++
+          continue
         }
-        continue
       }
 
       const id = ulid()
@@ -435,7 +445,17 @@ export async function applyBackup(
       const existing = await db.query.menus.findFirst({
         where: and(eq(menus.siteId, siteId), eq(menus.name, backupMenu.name)),
       })
-      if (existing) continue
+      if (existing) {
+        if (opts.conflictMode === 'archive') {
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+          await db.update(menus).set({
+            name: `${existing.name} (Backup — ${timestamp})`,
+            location: null, // clear header/footer location so the new menu can take over!
+          }).where(and(eq(menus.siteId, siteId), eq(menus.name, backupMenu.name)))
+        } else {
+          continue
+        }
+      }
       await db.insert(menus).values({
         id: ulid(), siteId,
         name: backupMenu.name,
@@ -452,7 +472,18 @@ export async function applyBackup(
       const existing = await db.query.forms.findFirst({
         where: and(eq(forms.siteId, siteId), eq(forms.slug, backupForm.slug)),
       })
-      if (existing) continue
+      if (existing) {
+        if (opts.conflictMode === 'archive') {
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+          await db.update(forms).set({
+            slug: `${existing.slug}-backup-${timestamp}`,
+            name: `${existing.name} (Backup — ${timestamp})`,
+            status: 'closed',
+          }).where(and(eq(forms.siteId, siteId), eq(forms.slug, backupForm.slug)))
+        } else {
+          continue
+        }
+      }
       await db.insert(forms).values({
         id: ulid(), siteId,
         slug: backupForm.slug,

@@ -25,11 +25,13 @@
 
 ---
 
-NuxFlow is a self-hosted, open-source CMS that gives non-technical users a WordPress-level experience on a modern, serverless stack — with no server to manage, no lock-in, and a free-tier-compatible deployment.
+NuxFlow is a self-hosted, open-source CMS that gives non-technical editors a WordPress-level visual page-building experience, engineered specifically for the serverless **Cloudflare Workers edge ecosystem** (with Turso/libSQL fallback). 
 
-**For users:** A guided onboarding wizard, a Canvas visual page builder, media library, form builder, and a full admin dashboard — no config file editing required.
+By optimizing strictly for Cloudflare Workers instead of legacy VPS hosting or complex AWS cloud architectures, NuxFlow delivers a **zero-configuration, zero-cold-start, and virtually free-to-host CMS** capable of serving pages globally in under 15ms.
 
-**For developers:** A Nuxt 4 monorepo with a typed REST + GraphQL API, a plugin SDK, a theme layer system, and a dynamic plugin runtime powered by Cloudflare Workers.
+**For users:** A guided onboarding wizard, a drag-and-drop Canvas page builder, media library, multi-step forms, and an intuitive admin dashboard — all with zero database configuration or server setups.
+
+**For developers:** A fully typed Nuxt 4 monorepo with Drizzle ORM, a typed REST + GraphQL API, a plugin SDK, and a secure, cryptographically signed dynamic plugin sandbox powered exclusively by Cloudflare's Dynamic Workers.
 
 ---
 
@@ -310,9 +312,12 @@ pnpm deploy
 
 The `wrangler.toml` in `apps/nuxflow/` is preconfigured with the `nodejs_compat` compatibility flag, the KV namespace for dynamic plugins, the WorkerLoader binding, and the scheduled cron trigger for auto-publishing.
 
-### Vercel
+### Why Exclusively Cloudflare Workers?
 
-Vercel is a supported alternative. Set the same environment variables in the Vercel dashboard and point the root directory to `apps/nuxflow`. Note that Vercel deployments cannot use the dynamic plugin Worker runtime — that feature requires Cloudflare Workers.
+Unlike traditional CMS platforms built for legacy VPS servers or complex AWS infrastructures, NuxFlow is built from the ground up to utilize Cloudflare's edge capabilities:
+- **Zero Cold Starts**: Served instantly from Cloudflare's global edge runtime.
+- **Edge Sandboxing**: Sandboxed plugin modules are hot-loaded at the edge using the native **Cloudflare Dynamic Workers API** (`WorkerLoader`), a feature not natively available on AWS Lambda or general Node servers.
+- **D1 & KV Cache**: Database read/writes are replicated globally on D1 SQLite bindings with KV asset speed.
 
 ---
 

@@ -61,12 +61,20 @@ async function _handleSetup(event: H3Event) {
   })
 
   // Seed initial site settings from setup choices
-  await db.insert(siteSettings).values({
-    id: ulid(),
-    siteId,
-    key: 'email.provider',
-    value: body.email?.provider ?? 'console',
-  })
+  await db.insert(siteSettings).values([
+    {
+      id: ulid(),
+      siteId,
+      key: 'email.provider',
+      value: body.email?.provider ?? 'console',
+    },
+    {
+      id: ulid(),
+      siteId,
+      key: 'frontend.show_header',
+      value: false,
+    },
+  ])
 
   // Create admin user directly — bypasses Better Auth's HTTP layer which sets
   // response cookies and can conflict when called from within a Nitro handler.
@@ -136,7 +144,7 @@ async function _handleSetup(event: H3Event) {
           cta2Label: 'View on GitHub',
           cta2Url: 'https://github.com/mattmacmillan76/Nuxflow',
           align: 'center',
-          bgGradient: 'linear-gradient(to bottom right, #030712, #111827, #030712)',
+          bgGradient: 'linear-gradient(to bottom right, #090d16, #064e3b, #022c22, #090d16)',
           textColor: '#ffffff',
           ctaBgColor: '#00dc82',
           logoIcon: 'i-lucide-layers',
@@ -176,9 +184,9 @@ async function _handleSetup(event: H3Event) {
           subtext: 'Your workspace is set up and ready to create. Start building your client and portal pages today!',
           btnLabel: 'Open Admin Dashboard',
           btnUrl: '/admin',
-          bgColor: '#00dc82',
-          textColor: '#0f172a',
-          btnColor: '#0f172a',
+          bgColor: '#022c22',
+          textColor: '#ffffff',
+          btnColor: '#00dc82',
           padding: fp,
         },
       },
@@ -194,7 +202,7 @@ async function _handleSetup(event: H3Event) {
           ctaLabel: 'Read Blog Posts',
           ctaUrl: '/admin/content?type=post',
           align: 'center',
-          bgGradient: 'linear-gradient(to bottom right, #064e3b, #022c22, #064e3b)',
+          bgGradient: 'linear-gradient(to bottom right, #022c22, #047857, #022c22)',
           textColor: '#ffffff',
           ctaBgColor: '#10b981',
           logoIcon: 'i-lucide-book-open',
@@ -218,6 +226,20 @@ async function _handleSetup(event: H3Event) {
           padding: { top: 64, right: 24, bottom: 64, left: 24, unit: 'px' as const },
         },
       },
+      {
+        id: ulid(),
+        type: 'canvas-cta',
+        props: {
+          headline: 'Share your stories',
+          subtext: 'Ready to write your own articles? Log into your dashboard and publish your first post today.',
+          btnLabel: 'Write a Post',
+          btnUrl: '/admin/content?type=post',
+          bgColor: '#022c22',
+          textColor: '#ffffff',
+          btnColor: '#10b981',
+          padding: fp,
+        },
+      },
     ]
   } else if (body.template === 'portfolio') {
     blocks = [
@@ -230,7 +252,7 @@ async function _handleSetup(event: H3Event) {
           ctaLabel: 'View Projects',
           ctaUrl: '/admin',
           align: 'left',
-          bgGradient: 'linear-gradient(to bottom right, #1e1b4b, #311042, #1e1b4b)',
+          bgGradient: 'linear-gradient(to bottom right, #0f0728, #3b0764, #0f0728)',
           textColor: '#ffffff',
           ctaBgColor: '#d946ef',
           logoIcon: 'i-lucide-palette',
@@ -270,9 +292,9 @@ async function _handleSetup(event: H3Event) {
           subtext: 'I am always open to discussing new opportunities, custom web designs, or client applications.',
           btnLabel: 'Get in Touch',
           btnUrl: '/admin',
-          bgColor: '#faf5ff',
-          textColor: '#3b0764',
-          btnColor: '#3b0764',
+          bgColor: '#0f0728',
+          textColor: '#ffffff',
+          btnColor: '#d946ef',
           padding: fp,
         },
       },

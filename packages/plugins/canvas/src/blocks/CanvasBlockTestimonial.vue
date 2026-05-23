@@ -40,22 +40,22 @@ const stars = computed(() => Math.min(5, Math.max(0, props.rating ?? 0)))
 </script>
 
 <template>
-  <section :style="containerStyle">
+  <section class="canvas-testimonial" :style="containerStyle">
     <div
       class="mx-auto max-w-2xl"
       :class="align === 'center' ? 'text-center' : 'text-left'"
     >
       <div
-        class="relative"
+        class="relative transition-all duration-300 testimonial-card"
         :class="{
-          'bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-sm border border-gray-100 dark:border-gray-800': style === 'card',
+          'bg-white dark:bg-gray-900 rounded-2xl p-8 border border-gray-100 dark:border-gray-800/80 shadow-md shadow-gray-200/50 dark:shadow-none hover:shadow-lg hover:shadow-gray-200/80 dark:hover:shadow-none hover:-translate-y-0.5': style === 'card',
           'py-8': style === 'simple',
         }"
       >
         <!-- Large quote mark -->
         <svg
           v-if="style !== 'simple'"
-          class="absolute top-4 left-6 w-10 h-10 opacity-10"
+          class="absolute top-4 left-6 w-10 h-10 opacity-10 pointer-events-none z-0"
           fill="currentColor"
           viewBox="0 0 24 24"
         >
@@ -63,7 +63,7 @@ const stars = computed(() => Math.min(5, Math.max(0, props.rating ?? 0)))
         </svg>
 
         <!-- Stars -->
-        <div v-if="stars > 0" class="flex gap-0.5 mb-4" :class="align === 'center' ? 'justify-center' : ''">
+        <div v-if="stars > 0" class="relative z-10 flex gap-0.5 mb-4" :class="align === 'center' ? 'justify-center' : ''">
           <svg
             v-for="i in 5"
             :key="i"
@@ -78,15 +78,16 @@ const stars = computed(() => Math.min(5, Math.max(0, props.rating ?? 0)))
 
         <!-- Quote -->
         <blockquote
-          class="text-lg leading-relaxed mb-6"
+          class="relative z-10 text-lg leading-relaxed mb-6"
           :class="style === 'large' ? 'text-2xl font-medium' : ''"
+          style="quotes: none;"
         >
-          "{{ quote }}"
+          {{ quote }}
         </blockquote>
 
         <!-- Author -->
         <div
-          class="flex items-center gap-3"
+          class="relative z-10 flex items-center gap-3"
           :class="align === 'center' ? 'justify-center' : ''"
         >
           <img
@@ -112,3 +113,10 @@ const stars = computed(() => Math.min(5, Math.max(0, props.rating ?? 0)))
     </div>
   </section>
 </template>
+
+<style scoped>
+blockquote::before,
+blockquote::after {
+  content: none !important;
+}
+</style>

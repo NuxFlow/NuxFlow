@@ -9,7 +9,7 @@ const props = withDefaults(defineProps<{
 </script>
 
 <template>
-  <div :style="{ height: `${height}px` }" class="relative flex items-center">
+  <div :style="{ height: `${height}px` }" class="canvas-spacer relative flex items-center">
     <div
       v-if="showLine"
       class="absolute inset-x-6 border-t border-gray-200 dark:border-gray-700"

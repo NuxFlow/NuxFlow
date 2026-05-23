@@ -9,7 +9,7 @@ import type { NuxFlowBackup } from '../../../../utils/backup'
 
 const bodySchema = z.object({
   what: z.array(z.enum(['content', 'taxonomies', 'menus', 'forms'])).default(['content', 'taxonomies', 'menus', 'forms']),
-  conflictMode: z.enum(['skip', 'overwrite']).default('skip'),
+  conflictMode: z.enum(['skip', 'overwrite', 'archive']).default('archive'),
 })
 
 export default defineEventHandler(async (event) => {

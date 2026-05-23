@@ -21,9 +21,9 @@ const props = withDefaults(defineProps<{
 
 const widthClass = computed(() => ({
   full: 'w-full',
-  lg: 'w-3/4',
-  md: 'w-1/2',
-  sm: 'w-1/3',
+  lg: 'w-full max-w-5xl',
+  md: 'w-full max-w-3xl',
+  sm: 'w-full max-w-lg',
 }[props.width ?? 'full']))
 
 const wrapClass = computed(() => ({
@@ -41,7 +41,7 @@ const containerStyle = computed(() => {
 </script>
 
 <template>
-  <div :style="containerStyle">
+  <div class="canvas-image" :style="containerStyle">
     <figure :class="[widthClass, wrapClass]">
       <img
         v-if="src"

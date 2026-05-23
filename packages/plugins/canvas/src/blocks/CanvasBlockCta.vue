@@ -34,7 +34,7 @@ const containerStyle = computed(() => {
 </script>
 
 <template>
-  <section :style="containerStyle">
+  <section class="canvas-cta" :style="containerStyle">
     <div class="mx-auto max-w-2xl text-center">
       <h2 class="text-3xl font-bold mb-3">{{ headline }}</h2>
       <p v-if="subtext" class="text-base opacity-80 mb-6">{{ subtext }}</p>

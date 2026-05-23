@@ -91,16 +91,17 @@ const muteStyle  = computed(() => hasBg.value ? { color: onDark.value ? '#9ca3af
 const cardStyle  = computed(() => hasBg.value ? {
   borderWidth: '1px',
   borderStyle: 'solid',
-  borderColor: onDark.value ? 'rgba(255,255,255,0.1)' : '#e5e7eb',
+  borderColor: onDark.value ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
   backgroundColor: onDark.value ? 'rgba(255,255,255,0.05)' : '#ffffff',
+  boxShadow: onDark.value ? 'none' : '0 4px 6px -1px rgba(0,0,0,0.03), 0 2px 4px -2px rgba(0,0,0,0.03)',
 } : undefined)
 </script>
 
 <template>
-  <section :style="containerStyle">
+  <section class="canvas-features" :style="containerStyle">
     <!-- Optional section header -->
     <div v-if="sectionLabel || sectionTitle || sectionDesc" class="mx-auto max-w-5xl text-center mb-12 space-y-3">
-      <p v-if="sectionLabel" class="text-xs font-semibold uppercase tracking-widest" style="color: #00dc82;">{{ sectionLabel }}</p>
+      <p v-if="sectionLabel" class="text-xs font-semibold uppercase tracking-widest" :style="{ color: iconColor ?? '#00dc82' }">{{ sectionLabel }}</p>
       <h2 v-if="sectionTitle" class="text-3xl font-bold" :class="!hasBg && 'text-gray-900 dark:text-white'" :style="titleStyle">{{ sectionTitle }}</h2>
       <p v-if="sectionDesc" class="max-w-xl mx-auto" :class="!hasBg && 'text-gray-500 dark:text-gray-400'" :style="muteStyle">{{ sectionDesc }}</p>
     </div>
@@ -113,14 +114,14 @@ const cardStyle  = computed(() => hasBg.value ? {
       <div
         v-for="feat in features"
         :key="feat.title"
-        class="flex"
+        class="flex transition-all duration-300"
         :class="{
           'flex-col': style === 'icon-top' || align === 'center',
           'flex-row gap-4': style !== 'icon-top' && align === 'left',
           'items-center': align === 'center',
           'text-center': align === 'center',
-          'rounded-xl p-6': style === 'card',
-          'border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900': style === 'card' && !hasBg,
+          'rounded-2xl p-6 shadow-sm shadow-gray-200/50 dark:shadow-none hover:shadow-md hover:shadow-gray-200/80 dark:hover:shadow-none hover:-translate-y-0.5': style === 'card',
+          'border border-gray-100 dark:border-gray-800/80 bg-white dark:bg-gray-900': style === 'card' && !hasBg,
           'p-0': style !== 'card',
         }"
         :style="style === 'card' ? cardStyle : undefined"

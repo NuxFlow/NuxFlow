@@ -52,12 +52,17 @@ export default defineEventHandler(async (event) => {
         throw createError({ statusCode: 413, message: 'Theme zip exceeds 50 MB limit' })
       }
 
-      let files: Record<string, Uint8Array>
+      let rawFiles: Record<string, Uint8Array>
       try {
-        files = unzipSync(fileField.data)
+        rawFiles = unzipSync(fileField.data)
       } catch {
         throw createError({ statusCode: 400, message: 'Invalid zip file' })
       }
+
+      // Normalize zip entry paths to forward-slashes to support Windows-packaged ZIP archives
+      const files = Object.fromEntries(
+        Object.entries(rawFiles).map(([path, data]) => [path.replace(/\\/g, '/'), data])
+      )
 
       const cssFile = files['theme.css']
       if (!cssFile) throw createError({ statusCode: 400, message: 'theme.css not found in zip' })

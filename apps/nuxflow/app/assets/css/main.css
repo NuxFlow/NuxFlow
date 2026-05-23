@@ -7,12 +7,12 @@
    Design tokens
    ─────────────────────────────────────────── */
 :root {
-  --glass-bg: rgba(255, 255, 255, 0.4);
-  --glass-border: rgba(255, 255, 255, 0.6);
-  --glass-xl-bg: rgba(255, 255, 255, 0.6);
-  --glass-xl-border: rgba(255, 255, 255, 0.8);
-  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(255, 255, 255, 0.4) inset;
-  --shadow-glass-hover: 0 16px 48px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(255, 255, 255, 0.6) inset;
+  --glass-bg: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(0, 0, 0, 0.09);
+  --glass-xl-bg: rgba(255, 255, 255, 0.94);
+  --glass-xl-border: rgba(0, 0, 0, 0.08);
+  --shadow-glass: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-glass-hover: 0 2px 6px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.06);
 }
 
 .dark {
@@ -40,11 +40,7 @@ body {
    so it doesn't rely on html/body transparency.
    ─────────────────────────────────────────── */
 .mesh-bg {
-  background-color: #e8faf2;
-  background-image:
-    radial-gradient(ellipse 80% 80% at 0% 0%,   rgba(0, 220, 130, 0.35) 0px, transparent 60%),
-    radial-gradient(ellipse 70% 70% at 100% 5%,  rgba(56, 189, 248, 0.28) 0px, transparent 60%),
-    radial-gradient(ellipse 60% 60% at 50% 100%, rgba(139, 92, 246, 0.2)  0px, transparent 60%);
+  background-color: #ffffff;
 }
 
 .dark .mesh-bg,
@@ -104,8 +100,8 @@ body {
    Sidebar nav active state
    ─────────────────────────────────────────── */
 .nav-active {
-  background: rgba(0, 220, 130, 0.16);
-  color: #009e5e;
+  background: rgba(0, 220, 130, 0.14);
+  color: #065f46;
   font-weight: 600;
 }
 

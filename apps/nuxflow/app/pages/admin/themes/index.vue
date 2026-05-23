@@ -63,13 +63,33 @@ async function resetToDefault() {
   }
 }
 
-async function deleteTheme(id: string, name: string) {
-  if (!confirm(`Delete "${name}"? This will permanently remove the CSS and cannot be undone.`)) return
+async function deleteTheme(theme: any) {
+  const name = theme.name
+  const id = theme.id
+  const hasDemo = theme.settings?.hasDemoContent === true
+
+  if (!confirm(`Are you sure you want to delete the theme "${name}"? This action cannot be undone.`)) {
+    return
+  }
+
+  let deleteDemo = false
+  if (hasDemo) {
+    deleteDemo = confirm(
+      `Would you also like to delete all the demo pages, menus, and forms that were imported with this theme?`
+    )
+  }
+
   deletingId.value = id
   try {
-    await $fetch(`/api/v1/themes/${id}`, { method: 'DELETE' })
+    await $fetch(`/api/v1/themes/${id}`, {
+      method: 'DELETE',
+      query: { deleteDemo: deleteDemo ? 'true' : 'false' }
+    })
     await refresh()
-    toast.add({ title: 'Theme deleted', color: 'green' })
+    toast.add({
+      title: deleteDemo ? 'Theme and demo content deleted' : 'Theme deleted (content kept)',
+      color: 'green'
+    })
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Delete failed'
     toast.add({ title: msg, color: 'red' })
@@ -135,7 +155,7 @@ async function importDemoContent(themeId: string) {
   try {
     const res = await $fetch<{ result: { content: { created: number } } }>(`/api/v1/themes/${themeId}/demo-import`, {
       method: 'POST',
-      body: { what: ['content', 'taxonomies', 'menus', 'forms'], conflictMode: 'skip' },
+      body: { what: ['content', 'taxonomies', 'menus', 'forms'], conflictMode: 'archive' },
     })
     demoOfferThemeId.value = null
     demoOfferSummary.value = null
@@ -272,7 +292,7 @@ const swatches = [
           <div class="flex items-center justify-between">
             <div>
               <p class="font-medium text-gray-900 dark:text-white text-sm">Default</p>
-              <p class="text-xs text-gray-400">Built-in · always available</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">Built-in · always available</p>
             </div>
             <UBadge v-if="defaultIsActive" color="green" variant="soft" size="xs">Active</UBadge>
             <UButton
@@ -311,7 +331,7 @@ const swatches = [
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0">
               <p class="font-medium text-gray-900 dark:text-white text-sm truncate">{{ theme.name }}</p>
-              <p class="text-xs text-gray-400">v{{ theme.version }}</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">v{{ theme.version }}</p>
             </div>
             <div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
               <UButton
@@ -358,7 +378,7 @@ const swatches = [
                 variant="ghost"
                 icon="i-lucide-trash-2"
                 :loading="deletingId === theme.id"
-                @click="deleteTheme(theme.id, theme.name)"
+                @click="deleteTheme(theme)"
               />
             </div>
           </div>
@@ -401,7 +421,7 @@ const swatches = [
             </div>
           </div>
 
-          <div class="border-t border-gray-100 dark:border-gray-800 pt-3 flex items-center gap-2 text-xs text-gray-400">
+          <div class="border-t border-gray-100 dark:border-gray-800 pt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <UIcon name="i-lucide-package-search" class="w-3.5 h-3.5 shrink-0" />
             Find community themes by searching npm for <span class="font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">nuxflow-theme</span>
           </div>
@@ -416,7 +436,7 @@ const swatches = [
       <UCard>
         <template #header>
           <p class="text-sm font-semibold">Global appearance</p>
-          <p class="text-xs text-gray-400 mt-0.5">Controls the visual style applied across your site</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Controls the visual style applied across your site</p>
         </template>
 
         <div class="space-y-5">
@@ -564,7 +584,10 @@ const swatches = [
               {{ demoOfferSummary.forms }} form{{ demoOfferSummary.forms !== 1 ? 's' : '' }}
             </div>
           </div>
-          <p class="text-xs text-gray-400">Existing content with the same slug will be skipped. You can always import it later from the theme card.</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-950/15 p-2.5 rounded-lg border border-blue-100 dark:border-blue-900/30 flex items-start gap-2">
+            <UIcon name="i-lucide-info" class="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+            <span><strong>Smart Archive Enabled:</strong> Conflicting pages (like an existing homepage) will be safely renamed and backed up as drafts, ensuring no data loss while the new theme imports cleanly.</span>
+          </p>
         </div>
       </template>
       <template #footer>

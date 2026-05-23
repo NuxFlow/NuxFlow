@@ -44,7 +44,7 @@ const primaryCtaColor = computed(() => props.bgGradient ? '#030712' : (props.bgC
 </script>
 
 <template>
-  <section class="relative overflow-hidden" :style="containerStyle">
+  <section class="canvas-hero relative overflow-hidden" :style="containerStyle">
     <!-- Grid overlay -->
     <div
       v-if="showDecorations"
@@ -55,7 +55,7 @@ const primaryCtaColor = computed(() => props.bgGradient ? '#030712' : (props.bgC
     <div
       v-if="showDecorations"
       class="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full blur-3xl pointer-events-none"
-      style="background: rgba(0, 220, 130, 0.18);"
+      :style="{ background: ctaBgColor ? `${ctaBgColor}1f` : 'rgba(0, 220, 130, 0.18)' }"
     />
 
     <div
@@ -70,8 +70,8 @@ const primaryCtaColor = computed(() => props.bgGradient ? '#030712' : (props.bgC
       <div
         v-if="logoIcon"
         :class="align === 'center' ? 'inline-flex' : 'flex'"
-        class="items-center justify-center w-16 h-16 rounded-2xl mb-2"
-        style="background: #00dc82; box-shadow: 0 20px 25px -5px rgba(0, 220, 130, 0.3);"
+        class="items-center justify-center w-16 h-16 rounded-2xl mb-2 animate-pulse"
+        :style="{ background: ctaBgColor ?? '#00dc82', boxShadow: `0 20px 25px -5px ${ctaBgColor ?? '#00dc82'}4d` }"
       >
         <span :class="`${logoIcon} w-8 h-8 text-white`" />
       </div>

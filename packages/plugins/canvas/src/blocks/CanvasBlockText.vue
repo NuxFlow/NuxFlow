@@ -18,7 +18,7 @@ const containerStyle = computed(() => {
 </script>
 
 <template>
-  <div :style="containerStyle">
+  <div class="canvas-text" :style="containerStyle">
     <div
       class="prose prose-gray dark:prose-invert max-w-none"
       v-html="content"

@@ -6,11 +6,17 @@ interface CfBindings {
   loader: WorkerLoader | null
 }
 
+let _kv: KVNamespace | null = null
+let _loader: WorkerLoader | null = null
+
 export function getCfBindings(event: H3Event): CfBindings {
-  const env = event.context.cloudflare?.env
+  const env = event?.context?.cloudflare?.env
+  if (env?.PLUGIN_KV) _kv = env.PLUGIN_KV as KVNamespace
+  if (env?.LOADER) _loader = env.LOADER as WorkerLoader
+
   return {
-    kv: (env?.PLUGIN_KV as KVNamespace | undefined) ?? null,
-    loader: (env?.LOADER as WorkerLoader | undefined) ?? null,
+    kv: (env?.PLUGIN_KV as KVNamespace | undefined) ?? _kv ?? null,
+    loader: (env?.LOADER as WorkerLoader | undefined) ?? _loader ?? null,
   }
 }
 

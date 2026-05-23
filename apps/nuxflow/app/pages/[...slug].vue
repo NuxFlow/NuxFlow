@@ -8,15 +8,29 @@ useSeoMeta({
   title: page.value?.seoTitle || page.value?.title,
   description: page.value?.seoDescription,
 })
+
+const isCanvasPage = computed(() => {
+  const c = page.value?.content
+  return typeof c === 'object' && c !== null && (c as { type: string }).type === 'canvas'
+})
 </script>
 
 <template>
-  <div v-if="page" class="max-w-4xl mx-auto px-6 py-12">
-    <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-8">
-      {{ page.title }}
-    </h1>
-    <NuxBlock :content="page.content" />
-    <CommentSection v-if="page.hasComments" :item-id="page.id" />
+  <div v-if="page">
+    <!-- Canvas pages: full-width, no container — blocks handle their own layout -->
+    <template v-if="isCanvasPage">
+      <NuxBlock :content="page.content" />
+      <CommentSection v-if="page.hasComments" :item-id="page.id" class="max-w-4xl mx-auto px-6 py-12" />
+    </template>
+
+    <!-- Rich-text / other content: contained with title -->
+    <div v-else class="max-w-4xl mx-auto px-6 py-12">
+      <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-8">
+        {{ page.title }}
+      </h1>
+      <NuxBlock :content="page.content" />
+      <CommentSection v-if="page.hasComments" :item-id="page.id" />
+    </div>
   </div>
   <div v-else-if="error" class="min-h-[60vh] flex items-center justify-center">
     <div class="text-center">

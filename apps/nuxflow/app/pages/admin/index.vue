@@ -105,7 +105,7 @@ const statCards = computed(() => [
 
     <!-- Homepage card -->
     <div v-if="homepage">
-      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Homepage</h2>
+      <h2 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3">Homepage</h2>
       <div class="glass rounded-2xl p-4 flex items-center justify-between gap-4">
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-10 h-10 rounded-xl bg-primary-500/10 flex items-center justify-center shrink-0">
@@ -113,7 +113,7 @@ const statCards = computed(() => [
           </div>
           <div class="min-w-0">
             <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ homepage.title }}</p>
-            <p class="text-xs text-gray-400 mt-0.5">
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
               <span v-if="homepage.hasCustomContent">Custom content · </span>
               <span v-else>Showing NuxFlow default template · </span>
               <a href="/" target="_blank" rel="noopener" class="text-primary-500 hover:underline">View site ↗</a>
@@ -145,7 +145,7 @@ const statCards = computed(() => [
 
     <!-- Quick actions -->
     <div>
-      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Quick actions</h2>
+      <h2 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3">Quick actions</h2>
       <div class="flex flex-wrap gap-3">
         <UButton to="/admin/content/new" icon="i-lucide-plus">New page</UButton>
         <UButton to="/admin/media" variant="outline" icon="i-lucide-upload">Upload media</UButton>

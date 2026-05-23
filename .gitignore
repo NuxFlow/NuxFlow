@@ -52,3 +52,7 @@ apps/nuxflow/wrangler.toml
 
 # Claude Code
 .claude/settings.local.json
+
+# Private NuxFlow Marketing Site (Ignored)
+/nuxflow-marketing-site/
+

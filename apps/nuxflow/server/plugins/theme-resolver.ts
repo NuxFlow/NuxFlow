@@ -1,23 +1,12 @@
 import { useDb } from '../utils/db'
 import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
-import type { KVNamespace } from '../types/cloudflare-bindings'
+import { getCfBindings, getThemeCSS } from '../utils/cf-env'
 
 export default defineNitroPlugin((nitro) => {
   nitro.hooks.hook('request', async (event) => {
-    const siteId = event.context.siteId as string | null
-    if (!siteId) return
-
-    const db = useDb(event)
-    const active = await db.query.themes.findFirst({
-      where: and(eq(themes.siteId, siteId), eq(themes.isActive, true)),
-      columns: { id: true, packageName: true, settings: true, hasCss: true },
-    })
-
-    event.context.theme = active?.packageName ?? '@nuxflow/theme-default'
-    event.context.themeSettings = active?.settings ?? {}
-    event.context.themeId = active?.id ?? null
-    event.context.themeHasCss = active?.hasCss ?? false
+    // Populate module-level KV cache on every standard incoming request
+    getCfBindings(event)
   })
 
   // Inject active CSS theme as an inline <style> block into every SSR page response.
@@ -25,17 +14,26 @@ export default defineNitroPlugin((nitro) => {
   // on first paint with no flash of the default theme.
   nitro.hooks.hook('render:html', async (html, { event }) => {
     const siteId = event.context.siteId as string | null
-    const themeId = event.context.themeId as string | null
-    const hasCss = event.context.themeHasCss as boolean
+    if (!siteId) return
 
-    if (!hasCss || !siteId || !themeId) return
+    try {
+      // We must query the DB here instead of the 'request' hook because 'siteId'
+      // is set by the multi-site middleware, which runs AFTER the 'request' hook.
+      const db = useDb(event)
+      const active = await db.query.themes.findFirst({
+        where: and(eq(themes.siteId, siteId), eq(themes.isActive, true)),
+        columns: { id: true, hasCss: true },
+      })
 
-    const kv = event.context.cloudflare?.env?.PLUGIN_KV as KVNamespace | undefined
-    if (!kv) return
+      if (!active || !active.hasCss) return
 
-    const css = await kv.get(`theme:${siteId}:${themeId}:css`)
-    if (css) {
-      html.head.push(`<style data-nuxflow-theme>${css}</style>`)
+      const css = await getThemeCSS(event, siteId, active.id)
+      if (css) {
+        html.head.push(`<style data-nuxflow-theme>${css}</style>`)
+      }
+    }
+    catch (err) {
+      console.error('[nuxflow:theme-resolver] CSS injection failed:', err instanceof Error ? err.message : err)
     }
   })
 })
