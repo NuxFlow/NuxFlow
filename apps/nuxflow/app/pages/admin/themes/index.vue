@@ -63,7 +63,7 @@ async function resetToDefault() {
   }
 }
 
-async function deleteTheme(theme: any) {
+async function deleteTheme(theme: Theme) {
   const name = theme.name
   const id = theme.id
   const hasDemo = theme.settings?.hasDemoContent === true
