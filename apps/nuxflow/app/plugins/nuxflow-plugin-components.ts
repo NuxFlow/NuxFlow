@@ -20,6 +20,8 @@ import {
   CanvasBlockVideo,
   CanvasBlockTestimonial,
   CanvasBlockFeatures,
+  CanvasBlockGdpr,
+  CanvasBlockFooter,
   registerBlockDefinition,
 } from '@nuxflow/plugin-canvas'
 
@@ -40,6 +42,8 @@ export default defineNuxtPlugin((nuxtApp) => {
   registry.register('canvas-testimonial', { name: 'Testimonial', icon: 'i-lucide-quote',            component: CanvasBlockTestimonial })
   registry.register('canvas-cta',         { name: 'CTA Banner',  icon: 'i-lucide-megaphone',        component: CanvasBlockCta })
   registry.register('canvas-spacer',      { name: 'Spacer',      icon: 'i-lucide-move-vertical',    component: CanvasBlockSpacer })
+  registry.register('canvas-gdpr',        { name: 'GDPR Banner', icon: 'i-lucide-cookie',           component: CanvasBlockGdpr })
+  registry.register('canvas-footer',      { name: 'Footer',      icon: 'i-lucide-panel-bottom',     component: CanvasBlockFooter })
 
   // ── @nuxflow/plugin-contact-form ──────────────────────────────────────────
   registry.register('contact-form/form', { name: 'Contact Form', icon: 'i-lucide-mail', component: ContactFormBlock })

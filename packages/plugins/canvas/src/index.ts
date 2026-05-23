@@ -13,6 +13,8 @@ export { default as CanvasBlockSpacer } from './blocks/CanvasBlockSpacer.vue'
 export { default as CanvasBlockVideo } from './blocks/CanvasBlockVideo.vue'
 export { default as CanvasBlockTestimonial } from './blocks/CanvasBlockTestimonial.vue'
 export { default as CanvasBlockFeatures } from './blocks/CanvasBlockFeatures.vue'
+export { default as CanvasBlockGdpr } from './blocks/CanvasBlockGdpr.vue'
+export { default as CanvasBlockFooter } from './blocks/CanvasBlockFooter.vue'
 export { default as CanvasAdmin } from './admin/CanvasAdmin.vue'
 
 export const canvasPluginManifest = {
@@ -40,5 +42,7 @@ export const canvasPluginManifest = {
     { id: 'canvas-testimonial', name: 'Testimonial', component: 'CanvasBlockTestimonial' },
     { id: 'canvas-cta',         name: 'CTA Banner',  component: 'CanvasBlockCta' },
     { id: 'canvas-spacer',      name: 'Spacer',      component: 'CanvasBlockSpacer' },
+    { id: 'canvas-gdpr',        name: 'GDPR Banner', component: 'CanvasBlockGdpr' },
+    { id: 'canvas-footer',      name: 'Footer',      component: 'CanvasBlockFooter' },
   ],
 }
