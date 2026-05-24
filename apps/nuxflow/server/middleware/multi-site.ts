@@ -1,6 +1,6 @@
 import { useDb } from '../utils/db'
 import { sites } from '@nuxflow/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   // Let setup & auth API paths through before touching the DB — the schema
@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   }
   const db = useDb(event)
 
-  let site: { id: string; status: string; setupCompleted: boolean } | undefined
+  let site: { id: string; status: string; setupCompleted: boolean; domain?: string } | undefined
   try {
     site = await db.query.sites.findFirst({
       where: eq(sites.domain, host),
@@ -28,10 +28,19 @@ export default defineEventHandler(async (event) => {
     // out of their admin dashboard when migrating from localhost/.workers.dev to a custom domain.
     if (!site) {
       const allSites = await db.query.sites.findMany({
-        columns: { id: true, status: true, setupCompleted: true },
+        columns: { id: true, status: true, setupCompleted: true, domain: true },
       })
       if (allSites.length === 1) {
         site = allSites[0]
+        
+        // Self-Healing Domain Migration: If this is a public domain in production,
+        // automatically update the database record to match the active request host.
+        // This ensures sitemaps, RSS feeds, and user invite email links heal automatically!
+        if (host && host !== 'localhost' && host !== '127.0.0.1' && host !== '::1' && site.domain !== host) {
+          await db.update(sites)
+            .set({ domain: host, updatedAt: sql`(datetime('now'))` })
+            .where(eq(sites.id, site.id))
+        }
       }
     }
   } catch {
