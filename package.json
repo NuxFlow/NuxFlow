@@ -2,6 +2,7 @@
   "name": "nuxflow",
   "private": true,
   "scripts": {
+    "postinstall": "pnpm --filter @nuxflow/app exec nuxt prepare",
     "dev": "turbo dev --filter=@nuxflow/app",
     "build": "turbo build",
     "test": "turbo test",
