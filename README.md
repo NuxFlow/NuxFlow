@@ -291,7 +291,7 @@ See [Environment Variables](#environment-variables) for the full reference.
 pnpm dev
 ```
 
-Open `http://localhost:3000/setup` — the onboarding wizard walks through the remaining configuration. No config file editing required.
+Open `http://localhost:3000/setup` — the onboarding wizard walks through the remaining configuration. No config file editing required. Once completed, your admin control panel is permanently accessible at `http://localhost:3000/admin`.
 
 ---
 

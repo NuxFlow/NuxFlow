@@ -45,7 +45,7 @@ cd apps/nuxflow
 wrangler dev
 ```
 
-Database migrations run automatically on the first request. Visit `http://localhost:8787/setup` to complete the onboarding wizard.
+Database migrations run automatically on the first request. Visit `http://localhost:8787/setup` to complete the onboarding wizard. Once setup is complete, you can access your admin dashboard at `http://localhost:8787/admin`.
 
 **Option B — Local SQLite file (no Cloudflare account required):**
 
@@ -70,7 +70,7 @@ Start the dev server:
 pnpm dev
 ```
 
-Database migrations run automatically on the first request. Visit `http://localhost:3000/setup` to complete the onboarding wizard.
+Database migrations run automatically on the first request. Visit `http://localhost:3000/setup` to complete the onboarding wizard. Once setup is complete, you can access your admin dashboard at `http://localhost:3000/admin`.
 
 **Option C — Turso remote database:**
 
@@ -101,7 +101,7 @@ Start the dev server:
 pnpm dev
 ```
 
-Database migrations run automatically on the first request. Visit `http://localhost:3000/setup` to complete the onboarding wizard.
+Database migrations run automatically on the first request. Visit `http://localhost:3000/setup` to complete the onboarding wizard. Once setup is complete, you can access your admin dashboard at `http://localhost:3000/admin`.
 
 ::note
 **How migrations work:** NuxFlow bundles all database migration files into the deployed Worker. On the very first request after a fresh install or an upgrade, any migrations that have not yet been applied are executed automatically. A `_nuxflow_migrations` table in your database tracks which files have already run, so no migration is ever applied twice. You never need to run a migration command manually.
