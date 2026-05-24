@@ -45,7 +45,7 @@ watch(() => route.path, () => { mobileOpen.value = false })
       <nav v-if="navItems.length" class="hidden md:flex items-center gap-1 flex-1">
         <template v-for="item in navItems" :key="item.id">
           <!-- Item with dropdown -->
-          <div v-if="item.children.length > 0" class="relative group">
+          <div v-if="item.children && item.children.length > 0" class="relative group">
             <NuxtLink
               :to="href(item)"
               :target="item.target"
