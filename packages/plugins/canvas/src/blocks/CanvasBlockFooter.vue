@@ -2,6 +2,9 @@
 import { computed } from 'vue'
 import type { SpacingValue } from '../types'
 
+declare const useFetch: <T = any>(url: string | (() => string), options?: any) => any
+declare const useRequestHeaders: any
+
 const props = withDefaults(defineProps<{
   logoText?: string
   logoIcon?: string
