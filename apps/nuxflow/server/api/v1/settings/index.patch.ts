@@ -8,6 +8,7 @@ import { ulid } from 'ulid'
 const bodySchema = z.object({
   // Site columns
   name: z.string().min(1).max(100).optional(),
+  domain: z.string().min(1).max(100).optional(),
   locale: z.string().optional(),
   timezone: z.string().optional(),
   status: z.enum(['active', 'maintenance']).optional(),
@@ -23,6 +24,7 @@ export default defineEventHandler(async (event) => {
 
   const siteUpdate = {
     ...(body.name !== undefined && { name: body.name }),
+    ...(body.domain !== undefined && { domain: body.domain }),
     ...(body.locale !== undefined && { locale: body.locale }),
     ...(body.timezone !== undefined && { timezone: body.timezone }),
     ...(body.status !== undefined && { status: body.status }),

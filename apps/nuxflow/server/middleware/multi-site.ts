@@ -22,6 +22,18 @@ export default defineEventHandler(async (event) => {
       where: eq(sites.domain, host),
       columns: { id: true, status: true, setupCompleted: true },
     })
+    
+    // Resilient Fallback: If no site matches the request domain but there is
+    // exactly one site in D1, use that site. This prevents locking the user
+    // out of their admin dashboard when migrating from localhost/.workers.dev to a custom domain.
+    if (!site) {
+      const allSites = await db.query.sites.findMany({
+        columns: { id: true, status: true, setupCompleted: true },
+      })
+      if (allSites.length === 1) {
+        site = allSites[0]
+      }
+    }
   } catch {
     // DB not yet migrated — treat as no site so the setup guard can redirect.
     site = undefined

@@ -24,6 +24,7 @@ const toast = useToast()
 // ── General ───────────────────────────────────────────────────────────────────
 const general = reactive({
   name: '',
+  domain: '',
   locale: 'en',
   timezone: 'UTC',
   status: 'active' as 'active' | 'maintenance',
@@ -135,6 +136,7 @@ watch(data, (d) => {
   if (!d) return
   Object.assign(general, {
     name: d.site.name,
+    domain: d.site.domain,
     locale: d.site.locale,
     timezone: d.site.timezone,
     status: d.site.status,
@@ -180,6 +182,7 @@ async function save() {
       method: 'PATCH',
       body: {
         name: general.name,
+        domain: general.domain,
         locale: general.locale,
         timezone: general.timezone,
         status: general.status,
@@ -243,6 +246,9 @@ async function deleteSite() {
             <div class="space-y-4">
               <UFormField label="Site name">
                 <UInput v-model="general.name" placeholder="My Site" />
+              </UFormField>
+              <UFormField label="Primary domain" hint="The primary domain this site runs on (e.g. nuxflow.dev)">
+                <UInput v-model="general.domain" placeholder="example.com" />
               </UFormField>
               <UFormField label="Default locale">
                 <USelect v-model="general.locale" :items="localeOptions" class="w-full" />
