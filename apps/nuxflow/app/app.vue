@@ -1,5 +1,7 @@
 <script setup lang="ts">
-const { data: siteInfo } = useFetch('/api/public/site')
+const { data: siteInfo } = useFetch('/api/public/site', {
+  headers: useRequestHeaders(['host']),
+})
 
 useHead({
   titleTemplate: (title) => {

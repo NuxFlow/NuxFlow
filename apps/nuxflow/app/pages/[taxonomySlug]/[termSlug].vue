@@ -7,7 +7,9 @@ const { data, error } = await useFetch<{
   taxonomy: { id: string; name: string; slug: string }
   term: { id: string; name: string; slug: string; description: string | null }
   items: { id: string; title: string; slug: string; excerpt: string | null; publishedAt: string | null }[]
-}>(`/api/public/taxonomy/${taxonomySlug}/${termSlug}`)
+}>(`/api/public/taxonomy/${taxonomySlug}/${termSlug}`, {
+  headers: useRequestHeaders(['host']),
+})
 
 if (error.value) {
   throw createError({ statusCode: 404, message: 'Not found' })

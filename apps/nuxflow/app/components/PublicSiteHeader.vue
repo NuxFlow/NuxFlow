@@ -15,8 +15,12 @@ interface SitePublic {
   showColorToggle: boolean
 }
 
-const { data: site } = await useFetch<SitePublic>('/api/public/site')
-const { data: menu } = await useFetch<{ items: unknown[] } | null>('/api/public/menus/header')
+const { data: site } = await useFetch<SitePublic>('/api/public/site', {
+  headers: useRequestHeaders(['host']),
+})
+const { data: menu } = await useFetch<{ items: unknown[] } | null>('/api/public/menus/header', {
+  headers: useRequestHeaders(['host']),
+})
 
 const navItems = computed<MenuItem[]>(() => (menu.value?.items ?? []) as MenuItem[])
 

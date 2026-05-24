@@ -27,6 +27,31 @@ const props = withDefaults(defineProps<{
   textColor: '#9ca3af',
 })
 
+interface SitePublic {
+  name: string
+  domain: string
+}
+
+const { data: site } = await useFetch<SitePublic>('/api/public/site', {
+  headers: useRequestHeaders(['host']),
+})
+
+const displayLogoText = computed(() => {
+  if (props.logoText && props.logoText !== 'My Site') {
+    return props.logoText
+  }
+  return site.value?.name ?? 'My Site'
+})
+
+const displayCopyright = computed(() => {
+  if (props.copyrightText && props.copyrightText !== '© 2026 My Site. All rights reserved.') {
+    return props.copyrightText
+  }
+  const year = new Date().getFullYear()
+  const siteName = site.value?.name ?? 'My Site'
+  return `© ${year} ${siteName}. All rights reserved.`
+})
+
 const parsedCol1 = computed(() => {
   try { return JSON.parse(props.col1Links) } catch { return [] }
 })
@@ -53,7 +78,7 @@ const wrapperStyle = computed(() => {
             <div v-if="logoIcon" class="logo-icon-bg">
               <span :class="logoIcon" class="logo-icon"></span>
             </div>
-            <span class="logo-text">{{ logoText }}</span>
+            <span class="logo-text">{{ displayLogoText }}</span>
           </div>
           <p class="brand-desc">{{ description }}</p>
         </div>
@@ -80,7 +105,7 @@ const wrapperStyle = computed(() => {
       </div>
       
       <div class="footer-bottom">
-        <div class="copyright">{{ copyrightText }}</div>
+        <div class="copyright">{{ displayCopyright }}</div>
         <div class="attribution">
           <span class="i-lucide-zap attribution-icon"></span>
           Built on NuxFlow CMS

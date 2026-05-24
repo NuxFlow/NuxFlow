@@ -1,5 +1,7 @@
 <script setup lang="ts">
-const { data: page } = await useFetch('/api/public/pages/home')
+const { data: page } = await useFetch('/api/public/pages/home', {
+  headers: useRequestHeaders(['host']),
+})
 
 const hasCustomContent = computed(() =>
   page.value !== null && page.value?.content !== null && page.value?.content !== undefined,
