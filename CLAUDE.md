@@ -147,3 +147,11 @@ Admin pages live in `app/pages/admin/`. Pinia stores in `app/stores/` manage aut
 ## Commit convention
 
 This project follows [Conventional Commits](https://www.conventionalcommits.org): `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`. Commitlint runs in CI.
+
+## Git & Deployment Workflow
+
+Before staging, committing, or pushing any changes to GitHub, **always** perform the following verification steps locally:
+1. **Linter**: Run `pnpm lint` and ensure there are 0 ESLint errors.
+2. **Typecheck**: Run `pnpm typecheck` and ensure the TypeScript compiler is 100% green.
+3. **Unit Tests**: Run `pnpm test` to guarantee zero regressions on serverless routes or business logic.
+4. **E2E Tests**: If modifying critical dashboard forms or routing logic, run E2E specs to ensure Edge Worker compatibility.
