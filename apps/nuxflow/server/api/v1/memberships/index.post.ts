@@ -1,0 +1,42 @@
+import { z } from 'zod'
+import { membershipTiers } from '@nuxflow/db/schema'
+import { ulid } from 'ulid'
+import { useDb } from '../../../utils/db'
+import { requireRole } from '../../../utils/permissions'
+
+const bodySchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().optional(),
+  price: z.number().min(0),
+  currency: z.string().length(3).default('USD'),
+  interval: z.enum(['month', 'year', 'one_time']).default('month'),
+  features: z.array(z.string()).default([]),
+  isActive: z.boolean().default(true),
+})
+
+export default defineEventHandler(async (event) => {
+  await requireRole(event, 'admin')
+  const db = useDb(event)
+  const siteId = event.context.siteId as string
+  const body = await readValidatedBody(event, bodySchema.parse)
+
+  const id = ulid()
+  await db.insert(membershipTiers).values({
+    id,
+    siteId,
+    name: body.name,
+    description: body.description ?? null,
+    price: body.price,
+    currency: body.currency,
+    interval: body.interval,
+    features: body.features,
+    isActive: body.isActive,
+  })
+
+  const tier = await db.query.membershipTiers.findFirst({
+    where: (t, { eq: eq_ }) => eq_(t.id, id),
+  })
+
+  setResponseStatus(event, 201)
+  return tier
+})

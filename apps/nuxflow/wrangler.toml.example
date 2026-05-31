@@ -1,0 +1,45 @@
+name = "nuxflow"
+main = ".output/server/index.mjs"
+compatibility_date = "2026-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".output/public"
+
+[vars]
+# Set production values in the Cloudflare dashboard or via:
+#   wrangler secret put SECRET_NAME
+# BETTER_AUTH_SECRET =
+# CLOUDFLARE_IMAGES_TOKEN =
+# CLOUDFLARE_ACCOUNT_ID =
+#
+# Turso (optional — only needed if you choose Turso over the default D1 database):
+# TURSO_URL =
+# TURSO_AUTH_TOKEN =
+
+[triggers]
+# Scheduled publish — runs every minute
+crons = ["* * * * *"]
+
+# Dynamic plugin KV store — run to create:
+#   wrangler kv namespace create PLUGIN_KV
+# then paste the returned id below and in the preview_id field.
+[[kv_namespaces]]
+binding = "PLUGIN_KV"
+id = "your-kv-namespace-id"
+preview_id = "your-kv-preview-namespace-id"
+
+# Dynamic Workers loader — spawns isolated Worker instances from code stored in KV.
+# Requires compatibility_date >= 2026-03-02.
+[[worker_loaders]]
+binding = "LOADER"
+
+# Cloudflare D1 database (default).
+# Create with: wrangler d1 create nuxflow
+# Then paste the returned database_id below.
+# Migrations run automatically on the first request after deployment.
+# To use Turso instead: remove this block and set TURSO_URL + TURSO_AUTH_TOKEN secrets.
+[[d1_databases]]
+binding = "DB"
+database_name = "nuxflow"
+database_id = "your-d1-database-id"

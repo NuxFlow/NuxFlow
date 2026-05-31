@@ -1,0 +1,389 @@
+import { z } from 'zod'
+import type { H3Event } from 'h3'
+import { useDb } from '../../../utils/db'
+import { sites, users, accounts, userSiteRoles, contentTypes, contentItems, taxonomies, siteSettings } from '@nuxflow/db/schema'
+import { ulid } from 'ulid'
+import { count } from 'drizzle-orm'
+import { hashPassword } from 'better-auth/crypto'
+
+const bodySchema = z.object({
+  site: z.object({
+    name: z.string().min(1).max(100),
+    domain: z.string().min(1),
+    locale: z.string().default('en'),
+    timezone: z.string().default('UTC'),
+  }),
+  admin: z.object({
+    name: z.string().min(1).max(100),
+    email: z.string().email(),
+    password: z.string().min(8).max(128),
+  }),
+  email: z.object({
+    provider: z.enum(['console', 'resend', 'brevo', 'zepto', 'smtp']).default('console'),
+  }).optional(),
+  template: z.enum(['landing', 'blog', 'portfolio', 'blank']).default('landing'),
+})
+
+export default defineEventHandler(async (event) => {
+  try {
+    return await _handleSetup(event)
+  } catch (e: unknown) {
+    // Re-throw H3 errors (createError) as-is; wrap everything else so the actual
+    // message is visible in the browser console during debugging.
+    if (e && typeof e === 'object' && 'statusCode' in e) throw e
+    const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e)
+    throw createError({ statusCode: 500, message: msg })
+  }
+})
+
+async function _handleSetup(event: H3Event) {
+  const db = useDb(event)
+
+  // Prevent running setup twice
+  const [siteCount] = await db.select({ value: count() }).from(sites)
+  if ((siteCount?.value ?? 0) > 0) {
+    throw createError({ statusCode: 409, message: 'Setup already completed' })
+  }
+
+  const body = await readValidatedBody(event, bodySchema.parse)
+
+  const siteId = ulid()
+
+  // Create site
+  await db.insert(sites).values({
+    id: siteId,
+    name: body.site.name,
+    domain: body.site.domain,
+    locale: body.site.locale,
+    timezone: body.site.timezone,
+    status: 'active',
+    setupCompleted: true,
+  })
+
+  // Seed initial site settings from setup choices
+  await db.insert(siteSettings).values([
+    {
+      id: ulid(),
+      siteId,
+      key: 'email.provider',
+      value: body.email?.provider ?? 'console',
+    },
+    {
+      id: ulid(),
+      siteId,
+      key: 'frontend.show_header',
+      value: false,
+    },
+  ])
+
+  // Create admin user directly — bypasses Better Auth's HTTP layer which sets
+  // response cookies and can conflict when called from within a Nitro handler.
+  const adminUserId = ulid()
+  const passwordHash = await hashPassword(body.admin.password)
+
+  await db.insert(users).values({
+    id: adminUserId,
+    name: body.admin.name,
+    email: body.admin.email.toLowerCase(),
+    emailVerified: false,
+  })
+
+  await db.insert(accounts).values({
+    id: ulid(),
+    accountId: adminUserId,
+    providerId: 'credential',
+    userId: adminUserId,
+    password: passwordHash,
+  })
+
+  const adminUser = { id: adminUserId }
+
+  // Seed built-in content types so the editor works out of the box
+  const pageTypeId = ulid()
+  const postTypeId = ulid()
+  await db.insert(contentTypes).values([
+    {
+      id: pageTypeId,
+      siteId,
+      slug: 'page',
+      name: 'Pages',
+      singularName: 'Page',
+      icon: 'i-lucide-file-text',
+      isBuiltIn: true,
+      hasRevisions: true,
+      hasComments: false,
+    },
+    {
+      id: postTypeId,
+      siteId,
+      slug: 'post',
+      name: 'Posts',
+      singularName: 'Post',
+      icon: 'i-lucide-pencil',
+      isBuiltIn: true,
+      hasRevisions: true,
+      hasComments: true,
+    },
+  ])
+
+  const sp = { top: 80, right: 24, bottom: 80, left: 24, unit: 'px' as const }
+  const fp = { top: 64, right: 24, bottom: 64, left: 24, unit: 'px' as const }
+
+  let blocks: Record<string, unknown>[] = []
+
+  if (body.template === 'landing') {
+    blocks = [
+      {
+        id: ulid(),
+        type: 'canvas-hero',
+        props: {
+          headline: 'Fast, modern, and beautiful',
+          subtext: `Welcome to ${body.site.name}. We are powered by NuxFlow — the open-source visual CMS optimized for the Cloudflare edge ecosystem.`,
+          ctaLabel: 'Go to dashboard',
+          ctaUrl: '/admin',
+          cta2Label: 'View on GitHub',
+          cta2Url: 'https://github.com/mattmacmillan76/Nuxflow',
+          align: 'center',
+          bgGradient: 'linear-gradient(to bottom right, #090d16, #064e3b, #022c22, #090d16)',
+          textColor: '#ffffff',
+          ctaBgColor: '#00dc82',
+          logoIcon: 'i-lucide-layers',
+          showDecorations: true,
+          padding: sp,
+        },
+      },
+      {
+        id: ulid(),
+        type: 'canvas-features',
+        props: {
+          sectionLabel: 'Why Choose Us',
+          sectionTitle: 'Built for Performance',
+          sectionDesc: 'Everything you need to succeed online, managed right from our fast and robust admin dashboard.',
+          numFeatures: 3,
+          style: 'card',
+          align: 'left',
+          iconColor: '#00dc82',
+          feat1Icon: 'i-lucide-zap',
+          feat1Title: 'Edge Performance',
+          feat1Desc: 'Global distribution with absolute speed. Zero cold starts, running closer to your audience.',
+          feat2Icon: 'i-lucide-layout',
+          feat2Title: 'Visual Canvas Builder',
+          feat2Desc: 'Custom page layouts in seconds. Add, edit, or rearrange sections with no technical experience needed.',
+          feat3Icon: 'i-lucide-shield',
+          feat3Title: 'Ultimate Security',
+          feat3Desc: 'Highly secure edge shielding, sandboxed plugin execution, and robust isolation by default.',
+          gap: 24,
+          padding: { top: 64, right: 24, bottom: 64, left: 24, unit: 'px' as const },
+        },
+      },
+      {
+        id: ulid(),
+        type: 'canvas-cta',
+        props: {
+          headline: 'Ready to grow?',
+          subtext: 'Your workspace is set up and ready to create. Start building your client and portal pages today!',
+          btnLabel: 'Open Admin Dashboard',
+          btnUrl: '/admin',
+          bgColor: '#022c22',
+          textColor: '#ffffff',
+          btnColor: '#00dc82',
+          padding: fp,
+        },
+      },
+    ]
+  } else if (body.template === 'blog') {
+    blocks = [
+      {
+        id: ulid(),
+        type: 'canvas-hero',
+        props: {
+          headline: 'Welcome to Our Journal',
+          subtext: `Thoughts, ideas, and stories on the latest edge-native technology and publishing trends. Brought to you by ${body.site.name}.`,
+          ctaLabel: 'Read Blog Posts',
+          ctaUrl: '/admin/content?type=post',
+          align: 'center',
+          bgGradient: 'linear-gradient(to bottom right, #022c22, #047857, #022c22)',
+          textColor: '#ffffff',
+          ctaBgColor: '#10b981',
+          logoIcon: 'i-lucide-book-open',
+          showDecorations: true,
+          padding: sp,
+        },
+      },
+      {
+        id: ulid(),
+        type: 'canvas-text',
+        props: {
+          content: `
+            <h2 style="font-size: 1.75rem; font-weight: 800; margin-bottom: 1rem; color: #111827;">Publishing on the Serverless Edge</h2>
+            <p style="font-size: 1.05rem; line-height: 1.7; color: #374151; margin-bottom: 1rem;">
+              This blog template is pre-seeded with NuxFlow. Everything here is running natively on Cloudflare Workers and Turso SQLite database configurations, making it extremely secure, globally distributed, and blisteringly fast.
+            </p>
+            <p style="font-size: 1.05rem; line-height: 1.7; color: #374151;">
+              To customize your homepage or write new articles, head to the admin panel. Your seeded post <strong>"Hello World!"</strong> is already live and editable in the Posts directory index.
+            </p>
+          `,
+          padding: { top: 64, right: 24, bottom: 64, left: 24, unit: 'px' as const },
+        },
+      },
+      {
+        id: ulid(),
+        type: 'canvas-cta',
+        props: {
+          headline: 'Share your stories',
+          subtext: 'Ready to write your own articles? Log into your dashboard and publish your first post today.',
+          btnLabel: 'Write a Post',
+          btnUrl: '/admin/content?type=post',
+          bgColor: '#022c22',
+          textColor: '#ffffff',
+          btnColor: '#10b981',
+          padding: fp,
+        },
+      },
+    ]
+  } else if (body.template === 'portfolio') {
+    blocks = [
+      {
+        id: ulid(),
+        type: 'canvas-hero',
+        props: {
+          headline: 'Building Digital Experiences',
+          subtext: `Hi! I am a creator and developer. This is my professional portfolio showcase where I share my creative web apps and designs. Powered by ${body.site.name}.`,
+          ctaLabel: 'View Projects',
+          ctaUrl: '/admin',
+          align: 'left',
+          bgGradient: 'linear-gradient(to bottom right, #0f0728, #3b0764, #0f0728)',
+          textColor: '#ffffff',
+          ctaBgColor: '#d946ef',
+          logoIcon: 'i-lucide-palette',
+          showDecorations: true,
+          padding: sp,
+        },
+      },
+      {
+        id: ulid(),
+        type: 'canvas-features',
+        props: {
+          sectionLabel: 'Selected Projects',
+          sectionTitle: 'My Work & Showcase',
+          sectionDesc: 'Take a look at some of my recent digital works, UI designs, and web applications.',
+          numFeatures: 3,
+          style: 'card',
+          align: 'left',
+          iconColor: '#d946ef',
+          feat1Icon: 'i-lucide-globe',
+          feat1Title: 'Web App Design',
+          feat1Desc: 'Interactive client web applications built using Nuxt 4, Vue 3, and rich micro-animations.',
+          feat2Icon: 'i-lucide-smartphone',
+          feat2Title: 'Mobile Interfaces',
+          feat2Desc: 'Pixel-perfect mobile viewports and native layout optimizations for handheld screens.',
+          feat3Icon: 'i-lucide-sparkles',
+          feat3Title: 'Visual Page Canvas',
+          feat3Desc: 'Bespoke components designed to allow instant visual updates via Canvas editors.',
+          gap: 24,
+          padding: { top: 64, right: 24, bottom: 64, left: 24, unit: 'px' as const },
+        },
+      },
+      {
+        id: ulid(),
+        type: 'canvas-cta',
+        props: {
+          headline: 'Work with me',
+          subtext: 'I am always open to discussing new opportunities, custom web designs, or client applications.',
+          btnLabel: 'Get in Touch',
+          btnUrl: '/admin',
+          bgColor: '#0f0728',
+          textColor: '#ffffff',
+          btnColor: '#d946ef',
+          padding: fp,
+        },
+      },
+    ]
+  } else {
+    // blank template
+    blocks = [
+      {
+        id: ulid(),
+        type: 'canvas-text',
+        props: {
+          content: `
+            <h1 style="font-size: 2.5rem; font-weight: 800; text-align: center; margin-top: 4rem; margin-bottom: 1rem; color: #111827;">Welcome to your blank canvas</h1>
+            <p style="text-align: center; color: #4b5563; max-width: 600px; margin: 0 auto; line-height: 1.6; font-size: 1.1rem;">
+              Your site is set up cleanly with NuxFlow. Double-click here to start editing this section or add more Canvas blocks from the toolbar below.
+            </p>
+          `,
+          padding: { top: 80, right: 24, bottom: 80, left: 24, unit: 'px' as const },
+        },
+      },
+    ]
+  }
+
+  // Insert the homepage row synchronously with populated Canvas content blocks
+  const homepageId = ulid()
+  const siteName = body.site.name
+  await db.insert(contentItems).values({
+    id: homepageId,
+    siteId,
+    typeId: pageTypeId,
+    authorId: adminUser.id,
+    slug: 'home',
+    title: siteName,
+    status: 'published',
+    visibility: 'public',
+    content: {
+      type: 'canvas',
+      blocks,
+    },
+    seoTitle: siteName,
+    seoDescription: `Welcome to ${siteName}`,
+    publishedAt: new Date().toISOString(),
+  })
+
+  // If the user selected the Blog template, seed a welcome post as well
+  if (body.template === 'blog') {
+    await db.insert(contentItems).values({
+      id: ulid(),
+      siteId,
+      typeId: postTypeId,
+      authorId: adminUser.id,
+      slug: 'hello-world',
+      title: 'Hello World!',
+      status: 'published',
+      visibility: 'public',
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Welcome to your brand new NuxFlow blog. This is your very first post! You can edit, replace, or delete this post anytime from your admin panel. Head over to the dashboard to start writing new journals, creating media assets, and building custom page flows.',
+              }
+            ]
+          }
+        ]
+      },
+      seoTitle: 'Hello World! - Welcome to NuxFlow',
+      seoDescription: 'This is the first seeded post on your new edge-native blog.',
+      publishedAt: new Date().toISOString(),
+    })
+  }
+
+  // Seed default taxonomies
+  await db.insert(taxonomies).values([
+    { id: ulid(), siteId, slug: 'category', name: 'Categories', isHierarchical: true },
+    { id: ulid(), siteId, slug: 'post_tag', name: 'Tags', isHierarchical: false },
+  ])
+
+  // Grant super_admin role
+  await db.insert(userSiteRoles).values({
+    id: ulid(),
+    userId: adminUser.id,
+    siteId,
+    role: 'super_admin',
+  })
+
+  setResponseStatus(event, 201)
+  return { success: true, siteId }
+}

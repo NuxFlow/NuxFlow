@@ -1,0 +1,11 @@
+{
+  "name": "hello-banner",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxflow plugin build",
+    "deploy": "nuxflow plugin deploy",
+    "update": "nuxflow plugin update"
+  }
+}

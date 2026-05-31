@@ -1,0 +1,173 @@
+/*
+ * NuxFlow Default Theme — Complete Design Token Reference
+ * ========================================================
+ * This file documents every CSS custom property and selector available
+ * in a NuxFlow theme. Copy any section into your own theme.css and
+ * change only the values you want to override — unset tokens fall back
+ * to the values listed here.
+ *
+ * Upload your CSS via Admin → Themes → Install theme, or paste it
+ * into the CSS editor on an existing theme.
+ */
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION 1 — Appearance settings bridge
+   ─────────────────────────────────────────────────────────────────────────────
+   Two CSS custom properties are injected automatically into every public page
+   from Admin → Themes → Appearance:
+
+     --nuxflow-primary   The "Accent colour" value chosen in the picker.
+     --nuxflow-font      The "Body font" value (font-family stack).
+
+   Use var(--nuxflow-primary) and var(--nuxflow-font) anywhere in your theme
+   CSS so that a single admin setting changes multiple parts of the design.
+   Both are available with a safe fallback when no value has been saved.
+
+   Example usage:
+     .canvas-hero a { background: var(--nuxflow-primary, #00dc82); }
+   ───────────────────────────────────────────────────────────────────────────── */
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION 2 — Legacy colour tokens
+   ─────────────────────────────────────────────────────────────────────────────
+   These are the original design tokens. Third-party themes that pre-date
+   the --nuxflow-primary variable should continue to use these.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --color-primary:       #00dc82;
+  --color-primary-hover: #00c274;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION 3 — Admin dashboard glass surfaces
+   ─────────────────────────────────────────────────────────────────────────────
+   Control the sidebar, top header bar, and hoverable card surfaces in the
+   admin dashboard. Light-mode values are semi-transparent white; dark-mode
+   values are semi-transparent navy.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --glass-bg:           rgba(255, 255, 255, 0.88);  /* top header bar  */
+  --glass-border:       rgba(0, 0, 0, 0.09);
+  --glass-xl-bg:        rgba(255, 255, 255, 0.94);  /* sidebar panel   */
+  --glass-xl-border:    rgba(0, 0, 0, 0.08);
+  --shadow-glass:       0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-glass-hover: 0 2px 6px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.dark {
+  --glass-bg:           rgba(8, 16, 30, 0.40);
+  --glass-border:       rgba(255, 255, 255, 0.15);
+  --glass-xl-bg:        rgba(8, 16, 30, 0.60);
+  --glass-xl-border:    rgba(255, 255, 255, 0.20);
+  --shadow-glass:       0 8px 32px rgba(0, 0, 0, 0.40), 0 1px 2px rgba(255, 255, 255, 0.10) inset;
+  --shadow-glass-hover: 0 16px 48px rgba(0, 0, 0, 0.50), 0 1px 2px rgba(255, 255, 255, 0.15) inset;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION 4 — Admin page background mesh
+   ─────────────────────────────────────────────────────────────────────────────
+   The gradient canvas behind all admin pages. Light mode uses clean white.
+   Dark mode uses a deep navy with subtle colour radials at the corners.
+   ───────────────────────────────────────────────────────────────────────────── */
+.mesh-bg {
+  background-color: #ffffff;
+}
+
+.dark .mesh-bg,
+.mesh-bg.dark {
+  background-color: #040e1a;
+  background-image:
+    radial-gradient(ellipse 80% 80% at 0% 0%,   rgba(0, 220, 130, 0.12) 0px, transparent 60%),
+    radial-gradient(ellipse 70% 70% at 100% 5%,  rgba(56, 189, 248, 0.09) 0px, transparent 60%),
+    radial-gradient(ellipse 60% 60% at 50% 100%, rgba(139, 92, 246, 0.10) 0px, transparent 60%);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION 5 — Sidebar active nav item
+   ─────────────────────────────────────────────────────────────────────────────
+   The highlighted link in the left navigation for the current page.
+   color-mix() derives the tinted background and readable text colour from
+   --nuxflow-primary automatically, so this adapts to any accent colour.
+   ───────────────────────────────────────────────────────────────────────────── */
+.nav-active {
+  background: color-mix(in srgb, var(--nuxflow-primary, #00dc82) 12%, transparent);
+  color:      color-mix(in srgb, var(--nuxflow-primary, #00dc82) 55%, #000000);
+  font-weight: 600;
+}
+
+.dark .nav-active {
+  background: color-mix(in srgb, var(--nuxflow-primary, #00dc82) 14%, transparent);
+  color:      var(--nuxflow-primary, #00dc82);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION 6 — Public page Canvas block selectors
+   ─────────────────────────────────────────────────────────────────────────────
+   Every Canvas block renders with a semantic class on its root element.
+   Target these selectors in your theme to style the public pages built with
+   the visual page builder. All blocks are wrapped in .nux-blocks.
+
+   Root classes (target the outer section/div of each block):
+
+     .canvas-hero          Hero / banner section
+     .canvas-features      Feature grid section
+     .canvas-image         Image block — the <figure> inside holds the image
+     .canvas-text          Rich text / prose block
+     .canvas-columns       Multi-column layout block
+     .canvas-testimonial   Testimonial / quote card block
+     .canvas-cta           Call-to-action banner block
+     .canvas-spacer        Vertical spacer / divider block
+     .nux-blocks           Outer wrapper for the entire canvas page
+
+   Important: Canvas pages render full-width with no container. Add
+   max-width constraints inside your selectors for large-screen layouts.
+
+   Examples:
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Style the hero headline with gradient text: */
+/* .canvas-hero h1 {
+  background: linear-gradient(135deg, #fff 30%, var(--nuxflow-primary, #00dc82) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+} */
+
+/* Add a glow border and shadow to every canvas image: */
+/* .canvas-image figure,
+.nux-blocks figure {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+} */
+
+/* Lift feature cards on hover: */
+/* .canvas-features .grid > div {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.canvas-features .grid > div:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+} */
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION 7 — Public page content typography
+   ─────────────────────────────────────────────────────────────────────────────
+   .nux-content wraps all TipTap-rendered rich text on pages using the
+   standard block editor (not Canvas). Targets blog posts, About pages, etc.
+   ───────────────────────────────────────────────────────────────────────────── */
+.nux-content a       { color: #00a86b; }
+.dark .nux-content a { color: #00dc82; }
+
+.nux-content blockquote { border-left-color: #00dc82; }

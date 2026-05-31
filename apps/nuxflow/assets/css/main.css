@@ -1,0 +1,92 @@
+/* NuxFlow — Glassmorphism Design System */
+
+/* Design tokens — light mode */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.45);
+  --glass-xl-bg: rgba(255, 255, 255, 0.88);
+  --glass-xl-border: rgba(255, 255, 255, 0.6);
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.06), 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+  --shadow-glass-hover: 0 16px 48px rgba(0, 0, 0, 0.1), 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+}
+
+/* Design tokens — dark mode */
+.dark {
+  --glass-bg: rgba(10, 18, 32, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-xl-bg: rgba(10, 18, 32, 0.88);
+  --glass-xl-border: rgba(255, 255, 255, 0.12);
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  --shadow-glass-hover: 0 16px 48px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+/* Gradient mesh — fixed so it covers the whole viewport behind all content */
+html {
+  min-height: 100%;
+  background-color: #edfaf3;
+  background-image:
+    radial-gradient(ellipse at 0% 0%, rgba(0, 220, 130, 0.25) 0px, transparent 55%),
+    radial-gradient(ellipse at 100% 5%, rgba(56, 189, 248, 0.2) 0px, transparent 55%),
+    radial-gradient(ellipse at 50% 100%, rgba(139, 92, 246, 0.14) 0px, transparent 55%);
+  background-attachment: fixed;
+  background-size: cover;
+}
+
+html.dark {
+  background-color: #030f1c;
+  background-image:
+    radial-gradient(ellipse at 0% 0%, rgba(0, 220, 130, 0.1) 0px, transparent 55%),
+    radial-gradient(ellipse at 100% 5%, rgba(56, 189, 248, 0.07) 0px, transparent 55%),
+    radial-gradient(ellipse at 50% 100%, rgba(139, 92, 246, 0.08) 0px, transparent 55%);
+}
+
+/* Glass surface utilities */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+}
+
+.glass-xl {
+  background: var(--glass-xl-bg);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border: 1px solid var(--glass-xl-border);
+  box-shadow: var(--shadow-glass);
+}
+
+.glass:hover,
+.glass-hover:hover {
+  box-shadow: var(--shadow-glass-hover);
+  transition: box-shadow 0.25s ease;
+}
+
+/* Decorative floating orbs used in auth layout */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+  pointer-events: none;
+}
+
+.orb-float {
+  animation: orb-float 10s ease-in-out infinite;
+}
+
+@keyframes orb-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%       { transform: translateY(-24px) scale(1.06); }
+}
+
+/* Sidebar nav active state tweak */
+.nav-active {
+  background: rgba(0, 220, 130, 0.14);
+  color: #00a865;
+}
+
+.dark .nav-active {
+  background: rgba(0, 220, 130, 0.12);
+  color: #00DC82;
+}
