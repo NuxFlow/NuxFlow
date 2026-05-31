@@ -8,6 +8,7 @@ interface SiteData {
 
 const { data, refresh } = await useFetch<SiteData>('/api/v1/settings')
 const { user: currentUser } = useUserSession()
+const auth = useAuthStore()
 
 const tabs = [
   { label: 'General', icon: 'i-lucide-settings' },
@@ -206,6 +207,8 @@ const security = reactive({
   confirmPassword: '',
 })
 const changingPassword = ref(false)
+const passwordChangedSuccess = ref(false)
+const redirectCountdown = ref(3)
 
 async function changePassword() {
   if (!security.currentPassword || !security.newPassword) {
@@ -231,11 +234,24 @@ async function changePassword() {
         revokeOtherSessions: true,
       },
     })
-    toast.add({ title: 'Password updated successfully!', color: 'green' })
-    // Reset fields
+    
+    // Clear fields
     security.currentPassword = ''
     security.newPassword = ''
     security.confirmPassword = ''
+    
+    // Set success state
+    passwordChangedSuccess.value = true
+    toast.add({ title: 'Password updated successfully!', color: 'green' })
+    
+    // Set a countdown to sign out and log back in
+    const interval = setInterval(() => {
+      redirectCountdown.value--
+      if (redirectCountdown.value <= 0) {
+        clearInterval(interval)
+        auth.signOut()
+      }
+    }, 1000)
   } catch (err: unknown) {
     const errMsg = (err as { data?: { message?: string } })?.data?.message ?? 'Failed to update password. Verify your current password.'
     toast.add({ title: errMsg, color: 'red' })
@@ -518,6 +534,16 @@ async function deleteSite() {
 
         <!-- Security -->
         <template v-if="active === 'Security'">
+          <UAlert
+            v-if="passwordChangedSuccess"
+            icon="i-lucide-circle-check"
+            color="green"
+            variant="soft"
+            title="Password updated successfully!"
+            :description="`Your password has been changed. Logging you out in ${redirectCountdown} seconds to re-authenticate with your new password...`"
+            class="mb-4"
+          />
+
           <UCard>
             <template #header>
               <p class="text-sm font-semibold text-gray-900 dark:text-white">Change password</p>
@@ -528,22 +554,22 @@ async function deleteSite() {
               </p>
               
               <UFormField label="Current password" required>
-                <UInput v-model="security.currentPassword" type="password" placeholder="••••••••" class="w-full" />
+                <UInput v-model="security.currentPassword" type="password" placeholder="••••••••" class="w-full" :disabled="passwordChangedSuccess" />
               </UFormField>
               
               <UFormField label="New password" required hint="Must be at least 8 characters">
-                <UInput v-model="security.newPassword" type="password" placeholder="••••••••" class="w-full" />
+                <UInput v-model="security.newPassword" type="password" placeholder="••••••••" class="w-full" :disabled="passwordChangedSuccess" />
               </UFormField>
               
               <UFormField label="Confirm new password" required>
-                <UInput v-model="security.confirmPassword" type="password" placeholder="••••••••" class="w-full" />
+                <UInput v-model="security.confirmPassword" type="password" placeholder="••••••••" class="w-full" :disabled="passwordChangedSuccess" />
               </UFormField>
             </div>
             <template #footer>
               <div class="flex justify-end">
                 <UButton
                   :loading="changingPassword"
-                  :disabled="!security.currentPassword || !security.newPassword || security.newPassword !== security.confirmPassword"
+                  :disabled="passwordChangedSuccess || !security.currentPassword || !security.newPassword || security.newPassword !== security.confirmPassword"
                   @click="changePassword"
                 >
                   Update password
