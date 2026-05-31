@@ -90,10 +90,26 @@ export const apiKeys = sqliteTable('api_keys', {
   index('idx_api_keys_site').on(t.siteId),
 ])
 
+export const passkeys = sqliteTable('passkey', {
+  id: text('id').primaryKey(),
+  name: text('name'),
+  publicKey: text('public_key').notNull(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  credentialID: text('credential_id').notNull(),
+  counter: integer('counter').notNull(),
+  deviceType: text('device_type').notNull(),
+  backedUp: integer('backed_up', { mode: 'boolean' }).notNull(),
+  transports: text('transports'),
+  createdAt: dateText('created_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_passkeys_user').on(t.userId),
+])
+
 export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
   sessions: many(sessions),
   siteRoles: many(userSiteRoles),
+  passkeys: many(passkeys),
 }))
 
 export const userSiteRolesRelations = relations(userSiteRoles, ({ one }) => ({
@@ -107,4 +123,8 @@ export const accountsRelations = relations(accounts, ({ one }) => ({
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
   users: one(users, { fields: [sessions.userId], references: [users.id] }),
+}))
+
+export const passkeysRelations = relations(passkeys, ({ one }) => ({
+  user: one(users, { fields: [passkeys.userId], references: [users.id] }),
 }))

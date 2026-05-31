@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { data: siteInfo } = useFetch('/api/public/site', {
+const { data: siteInfo } = useFetch<any>('/api/public/site', {
   headers: useRequestHeaders(['host']),
 })
 

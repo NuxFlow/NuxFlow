@@ -9,6 +9,7 @@ If you are new to NuxFlow, start with these guides:
 - **[Installation Guide](./installation.md)**: How to set up NuxFlow locally and deploy to Cloudflare.
 - **[User Guide](./user-guide.md)**: Learn how to manage content, media, and site settings.
 - **[External Plugin Development](./plugins.md)**: Build, deploy, and publish dynamic plugins using the NuxFlow CLI and Cloudflare Dynamic Workers.
+- **[Model Context Protocol (MCP)](./mcp.md)**: Connect AI coding assistants and agents (like Claude Desktop) to manage your site's content securely.
 
 ## 🛠 Features at a Glance
 

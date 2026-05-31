@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia'
 
 export const useAuthStore = defineStore('auth', () => {
-  const { user, loggedIn, signIn: _signIn, signOut: _signOut, fetchSession } = useUserSession()
+  const { user, loggedIn, signOut: _signOut, fetchSession } = useUserSession()
+  const signInEmail = useSignIn('email')
 
   async function signIn(email: string, password: string) {
-    const result = await _signIn.email({ email, password })
-    if (result?.error) throw new Error(result.error.message ?? 'Sign in failed')
+    await signInEmail.execute({ email, password })
+    if (signInEmail.error.value) {
+      throw new Error(signInEmail.error.value.message ?? 'Sign in failed')
+    }
   }
 
   async function signOut() {

@@ -22,7 +22,7 @@ const steps = [
   { id: 5, label: 'All done!', icon: 'i-lucide-check-circle' },
 ]
 
-const { signIn } = useUserSession()
+const signInEmail = useSignIn('email')
 const needsSetup = useState<boolean | null>('setup:needs-setup')
 
 function next() {
@@ -53,7 +53,7 @@ async function complete() {
     needsSetup.value = false
     // Auto sign-in is best-effort — if it fails the user lands on / and can sign in manually
     try {
-      await signIn.email({ email: form.admin.email, password: form.admin.password })
+      await signInEmail.execute({ email: form.admin.email, password: form.admin.password })
     } catch { /* non-fatal */ }
     step.value = totalSteps
   } catch (e: unknown) {

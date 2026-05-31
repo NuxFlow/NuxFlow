@@ -78,6 +78,27 @@ If configured, NuxFlow provides AI-powered tools to help you write:
 
 ---
 
+## Security & Passkeys
+
+NuxFlow supports state-of-the-art **Passkeys (WebAuthn)** for passwordless, highly secure biometrics-based authentication. This allows you to sign in instantly using Touch ID, Face ID, or external hardware security keys (e.g. YubiKeys).
+
+### Enabling Passkeys for your Account
+To register a passkey for passwordless sign-in:
+1. Log into the NuxFlow Admin dashboard (`/admin`) using your email and password.
+2. Go to **Settings** (click your profile in the sidebar) and navigate to the **Security** tab.
+3. Locate the **Passkeys & Passwordless Login** card.
+4. Enter a memorable name for your device (e.g. "Work MacBook Pro", "Personal iPhone").
+5. Click **Register Passkey**; your browser will trigger a secure system prompt to set up biometrics.
+6. Once registered, your device will appear in the **Registered Passkeys** list. You can view, manage, or delete keys at any time.
+
+### Signing In with a Passkey
+Once a passkey is registered:
+1. Go to the NuxFlow login page at `/login`.
+2. Click the **Sign in with Passkey** button.
+3. Complete the native biometric or security key prompt. You will be authenticated instantly and redirected straight to the dashboard with zero typing required!
+
+---
+
 ## Themes
 
 You can change the visual appearance of your site from **Admin → Themes**.

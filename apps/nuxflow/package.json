@@ -1,6 +1,6 @@
 {
   "name": "@nuxflow/app",
-  "version": "0.1.0-alpha.1",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@better-auth/passkey": "^1.6.12",
     "@libsql/client": "^0.14.0",
     "@nuxflow/db": "workspace:*",
     "@nuxflow/plugin-canvas": "workspace:*",
@@ -42,6 +43,7 @@
     "nuxt-seo-utils": "^8.1.9",
     "openai": "^4.82.0",
     "pinia": "^3.0.0",
+    "reflect-metadata": "^0.2.2",
     "ulid": "^2.3.0",
     "zod": "^3.24.0"
   },

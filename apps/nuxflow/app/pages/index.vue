@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { data: page } = await useFetch('/api/public/pages/home', {
+const { data: page } = await useFetch<any>('/api/public/pages/home', {
   headers: useRequestHeaders(['host']),
 })
 

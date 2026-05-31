@@ -1,6 +1,7 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { contentTypes, contentItems, taxonomies, taxonomyTerms, contentTaxonomyTerms } from '@nuxflow/db/schema'
+import { contentTypes, contentItems, taxonomies, taxonomyTerms, contentTaxonomyTerms, media } from '@nuxflow/db/schema'
+import { getActiveProvider } from '../../../utils/media-providers/index'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 
@@ -16,8 +17,15 @@ interface WpItem {
   tags: string[]
 }
 
-function parseWxr(xml: string): { items: WpItem[]; categories: Map<string, string>; tags: Map<string, string> } {
+interface WpAttachment {
+  title: string
+  slug: string
+  url: string
+}
+
+function parseWxr(xml: string): { items: WpItem[]; attachments: WpAttachment[]; categories: Map<string, string>; tags: Map<string, string> } {
   const items: WpItem[] = []
+  const attachments: WpAttachment[] = []
   const categories = new Map<string, string>()
   const tags = new Map<string, string>()
 
@@ -39,6 +47,16 @@ function parseWxr(xml: string): { items: WpItem[]; categories: Map<string, strin
     const block = itemMatch[1]!
 
     const postType = cdataOrTag(block, 'wp:post_type') ?? 'post'
+    if (postType === 'attachment') {
+      const title = cdataOrTag(block, 'title') ?? ''
+      const slug = cdataOrTag(block, 'wp:post_name') ?? slugify(title)
+      const url = cdataOrTag(block, 'wp:attachment_url')
+      if (url) {
+        attachments.push({ title, slug, url })
+      }
+      continue
+    }
+
     if (postType !== 'post' && postType !== 'page') continue
 
     const title = cdataOrTag(block, 'title') ?? ''
@@ -61,7 +79,7 @@ function parseWxr(xml: string): { items: WpItem[]; categories: Map<string, strin
     items.push({ title, slug, status, postType, content, excerpt, publishedAt: pubDate, categories: itemCats, tags: itemTags })
   }
 
-  return { items, categories, tags }
+  return { items, attachments, categories, tags }
 }
 
 function cdataOrTag(block: string, tag: string): string | null {
@@ -86,8 +104,45 @@ function wpContentToTipTap(html: string): object {
   }
 }
 
+function isSafeUrl(urlStr: string): boolean {
+  try {
+    const url = new URL(urlStr)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return false
+    }
+    const host = url.hostname.toLowerCase()
+
+    // Block localhost / loopback
+    if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1') {
+      return false
+    }
+
+    // Block ending in internal/local
+    if (host.endsWith('.local') || host.endsWith('.internal')) {
+      return false
+    }
+
+    // Parse literal IP blocks
+    // Regular expression for private IPv4 addresses:
+    // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16
+    const ipv4PrivateRegex = /^(?:10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+)$/
+    if (ipv4PrivateRegex.test(host)) {
+      return false
+    }
+
+    // Basic IPv6 private check: fc00::/7 (unique local), fe80::/10 (link local)
+    if (host.startsWith('fc00:') || host.startsWith('fd00:') || host.startsWith('fe80:')) {
+      return false
+    }
+
+    return true
+  } catch {
+    return false
+  }
+}
+
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'admin')
+  const { userId } = await requireRole(event, 'admin')
   const siteId = event.context.siteId as string
   const db = useDb(event)
 
@@ -96,7 +151,7 @@ export default defineEventHandler(async (event) => {
   if (!xmlFile) throw createError({ statusCode: 400, message: 'No file uploaded' })
 
   const xml = new TextDecoder().decode(xmlFile.data)
-  const { items, categories, tags } = parseWxr(xml)
+  const { items, attachments, categories, tags } = parseWxr(xml)
 
   // Ensure content types exist
   const pageType = await db.query.contentTypes.findFirst({
@@ -151,6 +206,46 @@ export default defineEventHandler(async (event) => {
     tagTermMap.set(slug, id)
   }
 
+  // Ingest attachments and build URL mapping
+  const urlMap = new Map<string, string>()
+  const provider = getActiveProvider()
+
+  for (const att of attachments) {
+    if (!isSafeUrl(att.url)) continue
+
+    try {
+      const res = await fetch(att.url)
+      if (!res.ok) continue
+      const buffer = await res.arrayBuffer()
+      const contentType = res.headers.get('content-type') || 'image/jpeg'
+
+      const fileId = ulid()
+      const filename = att.url.split('/').pop() || `${fileId}.jpg`
+      const ext = filename.split('.').pop() || 'jpg'
+      const storageKey = `${siteId}/${fileId}.${ext}`
+
+      const file = new File([buffer], filename, { type: contentType })
+      const { url: localUrl } = await provider.upload(file, storageKey, siteId)
+
+      await db.insert(media).values({
+        id: fileId,
+        siteId,
+        uploadedBy: userId,
+        filename: storageKey,
+        originalName: filename,
+        mimeType: contentType,
+        size: buffer.byteLength,
+        url: localUrl,
+        storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
+        storageKey,
+      })
+
+      urlMap.set(att.url, localUrl)
+    } catch (err) {
+      console.error(`Failed to ingest remote attachment ${att.url}:`, err)
+    }
+  }
+
   let imported = 0
   let skipped = 0
 
@@ -165,6 +260,55 @@ export default defineEventHandler(async (event) => {
     })
     if (existing) { skipped++; continue }
 
+    // Rewrite remote image URLs using parsed attachments or inline images scraped from content
+    let content = item.content
+
+    // 1. Rewrite using known attachments
+    for (const [remoteUrl, localUrl] of urlMap.entries()) {
+      content = content.replaceAll(remoteUrl, localUrl)
+    }
+
+    // 2. Scrape and ingest any remaining inline public image sources
+    const imgRegex = /<img[^>]+src=["'](https?:\/\/[^"']+)["']/g
+    for (const imgMatch of content.matchAll(imgRegex)) {
+      const remoteUrl = imgMatch[1]!
+      if (urlMap.has(remoteUrl)) continue
+      if (!isSafeUrl(remoteUrl)) continue
+
+      try {
+        const res = await fetch(remoteUrl)
+        if (!res.ok) continue
+        const buffer = await res.arrayBuffer()
+        const contentType = res.headers.get('content-type') || 'image/jpeg'
+
+        const fileId = ulid()
+        const filename = remoteUrl.split('/').pop() || `${fileId}.jpg`
+        const ext = filename.split('.').pop() || 'jpg'
+        const storageKey = `${siteId}/${fileId}.${ext}`
+
+        const file = new File([buffer], filename, { type: contentType })
+        const { url: localUrl } = await provider.upload(file, storageKey, siteId)
+
+        await db.insert(media).values({
+          id: fileId,
+          siteId,
+          uploadedBy: userId,
+          filename: storageKey,
+          originalName: filename,
+          mimeType: contentType,
+          size: buffer.byteLength,
+          url: localUrl,
+          storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
+          storageKey,
+        })
+
+        urlMap.set(remoteUrl, localUrl)
+        content = content.replaceAll(remoteUrl, localUrl)
+      } catch (err) {
+        console.error(`Failed to ingest remote inline image ${remoteUrl}:`, err)
+      }
+    }
+
     await db.insert(contentItems).values({
       id: itemId,
       siteId,
@@ -172,7 +316,7 @@ export default defineEventHandler(async (event) => {
       slug: item.slug,
       title: item.title || '(Untitled)',
       status: item.status as 'draft' | 'published',
-      content: wpContentToTipTap(item.content),
+      content: wpContentToTipTap(content),
       excerpt: item.excerpt || null,
       publishedAt: item.publishedAt,
     })
@@ -194,5 +338,5 @@ export default defineEventHandler(async (event) => {
     imported++
   }
 
-  return { imported, skipped, categories: categories.size, tags: tags.size }
+  return { imported, skipped, categories: categories.size, tags: tags.size, mediaUploaded: urlMap.size }
 })

@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import { defineServerAuth } from '@onmax/nuxt-better-auth/config'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { createClient } from '@libsql/client'
@@ -5,6 +6,7 @@ import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql'
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import * as schema from '@nuxflow/db/schema'
 import { getD1 } from './utils/db'
+import { passkey } from '@better-auth/passkey'
 
 export default defineServerAuth((ctx) => {
   const config = ctx.runtimeConfig as {
@@ -42,6 +44,7 @@ export default defineServerAuth((ctx) => {
         session: schema.sessions,
         account: schema.accounts,
         verification: schema.verifications,
+        passkey: schema.passkeys,
       },
       usePlural: false,
       // @ts-expect-error — DrizzleAdapterConfig doesn't type `experimental.joins` yet; valid at runtime
@@ -66,5 +69,8 @@ export default defineServerAuth((ctx) => {
         enabled: Boolean(config.githubClientId),
       },
     },
+    plugins: [
+      passkey(),
+    ],
   }
 })

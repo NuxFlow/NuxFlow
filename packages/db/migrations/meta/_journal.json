@@ -15,6 +15,13 @@
       "when": 1747526400000,
       "tag": "0001_allow_comments",
       "breakpoints": false
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1780217193268,
+      "tag": "0002_romantic_hellcat",
+      "breakpoints": true
     }
   ]
 }

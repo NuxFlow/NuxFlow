@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { data, refresh } = await useFetch('/api/v1/notifications')
+const { data, refresh } = await useFetch<any>('/api/v1/notifications')
 const notifications = computed(() => data.value?.notifications ?? [])
 const unread = computed(() => notifications.value.filter((n: { readAt: string | null }) => !n.readAt).length)
 const open = ref(false)

@@ -36,6 +36,11 @@ export default defineNuxtConfig({
     experimental: {
       wasm: true,
     },
+    rollupConfig: {
+      output: {
+        intro: 'import "reflect-metadata";',
+      },
+    },
     // @better-auth/core ships optional OpenTelemetry instrumentation that imports
     // @opentelemetry/api. That package is not installed and Cloudflare Pages preset
     // forbids externals, so we stub it out here.

@@ -1,4 +1,5 @@
 import { defineClientAuth } from '@onmax/nuxt-better-auth/config'
+import { passkeyClient } from '@better-auth/passkey/client'
 
 export default defineClientAuth((ctx) => {
   // nuxt-site-config (via nuxt-seo-utils) sets runtimeConfig.public.siteUrl to
@@ -8,5 +9,10 @@ export default defineClientAuth((ctx) => {
   // Stripping to the origin here prevents that.
   let origin = ctx.siteUrl
   try { origin = new URL(ctx.siteUrl).origin } catch { /* keep as-is */ }
-  return { baseURL: `${origin}/api/auth` }
+  return {
+    baseURL: `${origin}/api/auth`,
+    plugins: [
+      passkeyClient(),
+    ],
+  }
 })

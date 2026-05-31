@@ -2,7 +2,9 @@
 definePageMeta({ layout: 'auth' })
 
 const route = useRoute()
-const { signIn } = useUserSession()
+const signInEmail = useSignIn('email')
+const signInPasskey = useSignIn('passkey')
+const signInSocialAction = useSignIn('social')
 
 const form = reactive({ email: '', password: '', rememberMe: true })
 const loading = ref(false)
@@ -12,13 +14,13 @@ async function submit() {
   loading.value = true
   error.value = ''
   try {
-    const result = await signIn.email({
+    await signInEmail.execute({
       email: form.email,
       password: form.password,
       rememberMe: form.rememberMe,
     })
-    if (result?.error) {
-      error.value = result.error.message ?? 'Invalid email or password'
+    if (signInEmail.error.value) {
+      error.value = signInEmail.error.value.message ?? 'Invalid email or password'
       return
     }
     window.location.href = (route.query.redirect as string) || '/admin'
@@ -29,8 +31,25 @@ async function submit() {
   }
 }
 
+async function signInWithPasskey() {
+  loading.value = true
+  error.value = ''
+  try {
+    await signInPasskey.execute()
+    if (signInPasskey.error.value) {
+      error.value = signInPasskey.error.value.message ?? 'Biometric authentication failed'
+      return
+    }
+    window.location.href = (route.query.redirect as string) || '/admin'
+  } catch {
+    error.value = 'Biometric authentication failed or cancelled'
+  } finally {
+    loading.value = false
+  }
+}
+
 async function signInSocial(provider: 'google' | 'github') {
-  await signIn.social({ provider, callbackURL: '/admin' })
+  await signInSocialAction.execute({ provider, callbackURL: '/admin' })
 }
 </script>
 
@@ -62,7 +81,19 @@ async function signInSocial(provider: 'google' | 'github') {
 
       <UAlert v-if="error" color="red" variant="soft" :description="error" />
 
-      <UButton type="submit" block :loading="loading">Sign in</UButton>
+      <div class="flex flex-col gap-2">
+        <UButton type="submit" block :loading="loading">Sign in</UButton>
+        <UButton 
+          type="button" 
+          block 
+          variant="subtle" 
+          icon="i-lucide-fingerprint" 
+          :loading="loading"
+          @click="signInWithPasskey"
+        >
+          Sign in with Passkey
+        </UButton>
+      </div>
 
       <div class="relative flex items-center gap-3">
         <div class="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
