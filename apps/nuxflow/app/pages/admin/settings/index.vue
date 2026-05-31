@@ -14,6 +14,7 @@ const tabs = [
   { label: 'Appearance', icon: 'i-lucide-palette' },
   { label: 'Email', icon: 'i-lucide-mail' },
   { label: 'Integrations', icon: 'i-lucide-plug' },
+  { label: 'Security', icon: 'i-lucide-shield-check' },
   { label: 'Danger zone', icon: 'i-lucide-triangle-alert' },
 ]
 const active = ref('General')
@@ -195,6 +196,51 @@ async function save() {
     toast.add({ title: 'Failed to save settings', color: 'red' })
   } finally {
     saving.value = false
+  }
+}
+
+// ── Security ──────────────────────────────────────────────────────────────────
+const security = reactive({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+})
+const changingPassword = ref(false)
+
+async function changePassword() {
+  if (!security.currentPassword || !security.newPassword) {
+    toast.add({ title: 'Please fill in all password fields', color: 'red' })
+    return
+  }
+  if (security.newPassword !== security.confirmPassword) {
+    toast.add({ title: 'New passwords do not match', color: 'red' })
+    return
+  }
+  if (security.newPassword.length < 8) {
+    toast.add({ title: 'Password must be at least 8 characters long', color: 'red' })
+    return
+  }
+
+  changingPassword.value = true
+  try {
+    await $fetch('/api/auth/change-password', {
+      method: 'POST',
+      body: {
+        currentPassword: security.currentPassword,
+        newPassword: security.newPassword,
+        revokeOtherSessions: true,
+      },
+    })
+    toast.add({ title: 'Password updated successfully!', color: 'green' })
+    // Reset fields
+    security.currentPassword = ''
+    security.newPassword = ''
+    security.confirmPassword = ''
+  } catch (err: unknown) {
+    const errMsg = (err as { data?: { message?: string } })?.data?.message ?? 'Failed to update password. Verify your current password.'
+    toast.add({ title: errMsg, color: 'red' })
+  } finally {
+    changingPassword.value = false
   }
 }
 
@@ -465,6 +511,43 @@ async function deleteSite() {
             <template #footer>
               <div class="flex justify-end">
                 <UButton :loading="saving" @click="save">Save changes</UButton>
+              </div>
+            </template>
+          </UCard>
+        </template>
+
+        <!-- Security -->
+        <template v-if="active === 'Security'">
+          <UCard>
+            <template #header>
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">Change password</p>
+            </template>
+            <div class="space-y-4">
+              <p class="text-sm text-gray-500 dark:text-gray-400">
+                Update your account password securely. Once changed, you will be signed out of any other active browser sessions.
+              </p>
+              
+              <UFormField label="Current password" required>
+                <UInput v-model="security.currentPassword" type="password" placeholder="••••••••" class="w-full" />
+              </UFormField>
+              
+              <UFormField label="New password" required hint="Must be at least 8 characters">
+                <UInput v-model="security.newPassword" type="password" placeholder="••••••••" class="w-full" />
+              </UFormField>
+              
+              <UFormField label="Confirm new password" required>
+                <UInput v-model="security.confirmPassword" type="password" placeholder="••••••••" class="w-full" />
+              </UFormField>
+            </div>
+            <template #footer>
+              <div class="flex justify-end">
+                <UButton
+                  :loading="changingPassword"
+                  :disabled="!security.currentPassword || !security.newPassword || security.newPassword !== security.confirmPassword"
+                  @click="changePassword"
+                >
+                  Update password
+                </UButton>
               </div>
             </template>
           </UCard>
