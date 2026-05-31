@@ -1,6 +1,6 @@
 {
   "name": "@nuxflow/plugin-canvas",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0",
   "description": "NuxFlow Canvas — visual drag-and-drop page builder plugin",
   "type": "module",
   "exports": {
