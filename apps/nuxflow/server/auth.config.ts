@@ -19,12 +19,24 @@ export default defineServerAuth((ctx) => {
     public?: { siteUrl?: string }
   }
 
-  // Derive passkey rpID and origin from the configured site URL.
-  // NUXT_PUBLIC_SITE_URL must be set in the Cloudflare Workers environment
-  // (wrangler.toml [vars] or the Cloudflare dashboard) for passkeys to work.
-  // Without it, @simplewebauthn/server rejects the credential because the
-  // expectedOrigin it derives (empty or fallback) won't match https://your-domain.com.
-  const siteUrl = (config.public?.siteUrl ?? '').replace(/\/$/, '')
+  // Dynamically resolve request host from the active H3 event to support multi-site custom domains.
+  let activeOrigin = ''
+  try {
+    const event = useEvent()
+    if (event) {
+      let host = getHeader(event, 'host')?.split(':')[0] ?? ''
+      if (host === '127.0.0.1' || host === '::1') {
+        host = 'localhost'
+      }
+      if (host && host !== 'localhost') {
+        activeOrigin = `https://${host}`
+      }
+    }
+  } catch {
+    /* keep empty fallback */
+  }
+
+  const siteUrl = (activeOrigin || config.public?.siteUrl || '').replace(/\/$/, '')
   let passkeyRpID: string | undefined
   let passkeyOrigin: string | undefined
   if (siteUrl) {
@@ -54,6 +66,8 @@ export default defineServerAuth((ctx) => {
   }
 
   return {
+    baseURL: siteUrl ? `${siteUrl}/api/auth` : undefined,
+    trustedOrigins: siteUrl ? [siteUrl] : [],
     database: drizzleAdapter(db!, {
       provider: 'sqlite',
       schema: {
