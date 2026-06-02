@@ -3,7 +3,7 @@ import type { H3Event } from 'h3'
 import { useDb } from '../../../utils/db'
 import { sites, users, accounts, userSiteRoles, contentTypes, contentItems, taxonomies, siteSettings } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
-import { count } from 'drizzle-orm'
+import { count, eq, and } from 'drizzle-orm'
 import { hashPassword } from 'better-auth/crypto'
 
 const bodySchema = z.object({
@@ -14,9 +14,9 @@ const bodySchema = z.object({
     timezone: z.string().default('UTC'),
   }),
   admin: z.object({
-    name: z.string().min(1).max(100),
+    name: z.string().max(100).optional().default(''),
     email: z.string().email(),
-    password: z.string().min(8).max(128),
+    password: z.string().max(128).optional().default(''),
   }),
   email: z.object({
     provider: z.enum(['console', 'resend', 'brevo', 'zepto', 'smtp']).default('console'),
@@ -38,27 +38,63 @@ export default defineEventHandler(async (event) => {
 
 async function _handleSetup(event: H3Event) {
   const db = useDb(event)
-
-  // Prevent running setup twice
-  const [siteCount] = await db.select({ value: count() }).from(sites)
-  if ((siteCount?.value ?? 0) > 0) {
-    throw createError({ statusCode: 409, message: 'Setup already completed' })
-  }
-
   const body = await readValidatedBody(event, bodySchema.parse)
 
-  const siteId = ulid()
+  let host = getHeader(event, 'host')?.split(':')[0] ?? ''
+  if (host === '127.0.0.1' || host === '::1') {
+    host = 'localhost'
+  }
 
-  // Create site
-  await db.insert(sites).values({
-    id: siteId,
-    name: body.site.name,
-    domain: body.site.domain,
-    locale: body.site.locale,
-    timezone: body.site.timezone,
-    status: 'active',
-    setupCompleted: true,
-  })
+  // Check if we are running initial setup or setting up a pre-created secondary site
+  const [siteCount] = await db.select({ value: count() }).from(sites)
+  const isInitialSetup = (siteCount?.value ?? 0) === 0
+
+  let siteId: string
+
+  if (isInitialSetup) {
+    siteId = ulid()
+    // Create site
+    await db.insert(sites).values({
+      id: siteId,
+      name: body.site.name,
+      domain: body.site.domain,
+      locale: body.site.locale,
+      timezone: body.site.timezone,
+      status: 'active',
+      setupCompleted: true,
+    })
+  } else {
+    // We are setting up a pre-created site!
+    // Let's find it by the current host/domain, or the body domain as fallback
+    let site = await db.query.sites.findFirst({
+      where: eq(sites.domain, host),
+    })
+
+    if (!site) {
+      site = await db.query.sites.findFirst({
+        where: eq(sites.domain, body.site.domain),
+      })
+    }
+
+    if (!site) {
+      throw createError({ statusCode: 404, message: `Site for domain ${host} not found.` })
+    }
+
+    if (site.setupCompleted) {
+      throw createError({ statusCode: 409, message: 'Setup already completed for this site.' })
+    }
+
+    siteId = site.id
+    // Update the site details with anything the user might have updated in the wizard
+    await db.update(sites)
+      .set({
+        name: body.site.name,
+        locale: body.site.locale,
+        timezone: body.site.timezone,
+        setupCompleted: true,
+      })
+      .where(eq(sites.id, siteId))
+  }
 
   // Seed initial site settings from setup choices
   await db.insert(siteSettings).values([
@@ -76,25 +112,41 @@ async function _handleSetup(event: H3Event) {
     },
   ])
 
-  // Create admin user directly — bypasses Better Auth's HTTP layer which sets
-  // response cookies and can conflict when called from within a Nitro handler.
-  const adminUserId = ulid()
-  const passwordHash = await hashPassword(body.admin.password)
+  let adminUserId: string
 
-  await db.insert(users).values({
-    id: adminUserId,
-    name: body.admin.name,
-    email: body.admin.email.toLowerCase(),
-    emailVerified: false,
+  // Check if the user email already exists globally
+  const existingUser = await db.query.users.findFirst({
+    where: eq(users.email, body.admin.email.toLowerCase()),
   })
 
-  await db.insert(accounts).values({
-    id: ulid(),
-    accountId: adminUserId,
-    providerId: 'credential',
-    userId: adminUserId,
-    password: passwordHash,
-  })
+  if (existingUser) {
+    adminUserId = existingUser.id
+    // If they exist, we don't need to re-insert. We just reuse the existing user.
+  } else {
+    // If creating a new user, name and password are required.
+    if (!body.admin.name || !body.admin.password || body.admin.password.length < 8) {
+      throw createError({ statusCode: 400, message: 'A name and password of at least 8 characters are required for new accounts.' })
+    }
+
+    // Create admin user directly
+    adminUserId = ulid()
+    const passwordHash = await hashPassword(body.admin.password)
+
+    await db.insert(users).values({
+      id: adminUserId,
+      name: body.admin.name,
+      email: body.admin.email.toLowerCase(),
+      emailVerified: false,
+    })
+
+    await db.insert(accounts).values({
+      id: ulid(),
+      accountId: adminUserId,
+      providerId: 'credential',
+      userId: adminUserId,
+      password: passwordHash,
+    })
+  }
 
   const adminUser = { id: adminUserId }
 
@@ -376,13 +428,22 @@ async function _handleSetup(event: H3Event) {
     { id: ulid(), siteId, slug: 'post_tag', name: 'Tags', isHierarchical: false },
   ])
 
-  // Grant super_admin role
-  await db.insert(userSiteRoles).values({
-    id: ulid(),
-    userId: adminUser.id,
-    siteId,
-    role: 'super_admin',
+  // Grant super_admin role on this specific site if they don't already have one
+  const existingRole = await db.query.userSiteRoles.findFirst({
+    where: and(
+      eq(userSiteRoles.userId, adminUser.id),
+      eq(userSiteRoles.siteId, siteId)
+    ),
   })
+
+  if (!existingRole) {
+    await db.insert(userSiteRoles).values({
+      id: ulid(),
+      userId: adminUser.id,
+      siteId,
+      role: 'super_admin',
+    })
+  }
 
   setResponseStatus(event, 201)
   return { success: true, siteId }

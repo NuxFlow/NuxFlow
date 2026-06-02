@@ -5,6 +5,9 @@ const emit = defineEmits<{ toggleCollapse: [] }>()
 const auth = useAuthStore()
 const route = useRoute()
 
+const { data: me } = await useFetch<{ role: string; isSuperAdmin: boolean }>('/api/v1/users/me')
+const isSuperAdmin = computed(() => me.value?.isSuperAdmin ?? false)
+
 const coreNav = [
   { label: 'Dashboard', to: '/admin', icon: 'i-lucide-layout-dashboard' },
   { label: 'Content', to: '/admin/content', icon: 'i-lucide-file-text' },
@@ -70,6 +73,24 @@ function isActive(to: string) {
         <span v-if="!collapsed">{{ item.label }}</span>
       </NuxtLink>
 
+      <!-- Super admin section -->
+      <template v-if="isSuperAdmin">
+        <div v-if="!collapsed" class="px-3 pt-4 pb-1">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Super Admin</p>
+        </div>
+        <NuxtLink
+          to="/admin/super/sites"
+          :title="collapsed ? 'Sites' : undefined"
+          class="flex items-center gap-3 py-2 rounded-xl text-sm font-medium transition-colors"
+          :class="[
+            isActive('/admin/super/sites') ? 'nav-active' : 'text-gray-600 hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5',
+            collapsed ? 'justify-center px-2' : 'px-3',
+          ]"
+        >
+          <UIcon name="i-lucide-globe" class="w-4 h-4 shrink-0" />
+          <span v-if="!collapsed">Sites</span>
+        </NuxtLink>
+      </template>
     </nav>
 
     <!-- User footer -->

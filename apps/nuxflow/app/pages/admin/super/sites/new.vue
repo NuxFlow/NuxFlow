@@ -8,9 +8,6 @@ const form = reactive({
   domain: '',
   locale: 'en',
   timezone: 'UTC',
-  adminName: '',
-  adminEmail: '',
-  adminPassword: '',
 })
 
 const saving = ref(false)
@@ -27,7 +24,6 @@ async function create() {
         domain: form.domain,
         locale: form.locale,
         timezone: form.timezone,
-        admin: { name: form.adminName, email: form.adminEmail, password: form.adminPassword },
       },
     })
     await router.push('/admin/super/sites')
@@ -48,13 +44,13 @@ async function create() {
 
     <UCard>
       <template #header>
-        <p class="text-sm font-semibold">Site details</p>
+        <p class="text-sm font-semibold text-gray-900 dark:text-white">Site details</p>
       </template>
       <div class="space-y-4">
         <UFormField label="Site name" required>
           <UInput v-model="form.name" placeholder="My Blog" />
         </UFormField>
-        <UFormField label="Domain" hint="Used to route requests to this site">
+        <UFormField label="Domain" required hint="Used to route requests to this site">
           <UInput v-model="form.domain" placeholder="myblog.com" />
         </UFormField>
         <div class="grid grid-cols-2 gap-4">
@@ -68,27 +64,10 @@ async function create() {
       </div>
     </UCard>
 
-    <UCard>
-      <template #header>
-        <p class="text-sm font-semibold">Initial admin user</p>
-      </template>
-      <div class="space-y-4">
-        <UFormField label="Name" required>
-          <UInput v-model="form.adminName" placeholder="Jane Smith" />
-        </UFormField>
-        <UFormField label="Email" required>
-          <UInput v-model="form.adminEmail" type="email" placeholder="jane@example.com" />
-        </UFormField>
-        <UFormField label="Password" required>
-          <UInput v-model="form.adminPassword" type="password" placeholder="••••••••" />
-        </UFormField>
-      </div>
-    </UCard>
-
     <UAlert v-if="error" color="red" variant="soft" :description="error" />
 
     <div class="flex justify-end">
-      <UButton :loading="saving" :disabled="!form.name || !form.adminEmail" @click="create">
+      <UButton :loading="saving" :disabled="!form.name || !form.domain" @click="create">
         Create site
       </UButton>
     </div>

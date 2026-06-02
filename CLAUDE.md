@@ -45,6 +45,7 @@ packages/db/           # Drizzle schema, migrations, client factory
 packages/plugin-sdk/   # Plugin authoring types (NuxFlowPlugin, PluginBlock, etc.)
 packages/plugins/      # Bundled plugins: canvas, contact-form, payments, html-block
 themes/default/        # Default CSS theme
+docs/                  # User-facing documentation (markdown)
 ```
 
 `packages/db` is linked as a workspace dep; schema changes in `packages/db/src/schema/` are immediately visible to the app with no build step.
@@ -75,10 +76,14 @@ Schema files in `packages/db/src/schema/`:
 
 ### Multi-site and request context
 
-`server/middleware/multi-site.ts` resolves the current site from the `Host` header and sets:
+`server/middleware/02.multi-site.ts` resolves the current site from the `Host` header and sets:
 - `event.context.siteId` — all DB queries must be scoped by this
 - `event.context.siteStatus` — `'active' | 'maintenance' | 'suspended'`
 - `event.context.setupCompleted`
+
+**Single-site fallback:** if no site matches the incoming domain but exactly one site exists in the database, that site is used. In production this also self-heals by updating the stored domain to match the live request host — so sitemaps, invite links, and RSS feeds automatically correct after a domain migration.
+
+**Adding additional sites:** the initial setup wizard (`/api/v1/setup/complete`) blocks with 409 if any site already exists — it is a one-time first-install flow only. Additional sites must be created via the super admin panel at `/admin/super/sites`. Sites created this way are blank shells with no seeded content types, homepage, or users; the super admin must configure them manually.
 
 Setup and auth routes (`/api/v1/setup`, `/api/auth`) bypass multi-site resolution.
 
@@ -89,9 +94,13 @@ Setup and auth routes (`/api/v1/setup`, `/api/auth`) bypass multi-site resolutio
 Auth is handled by Better Auth via `@onmax/nuxt-better-auth`. Sessions are read server-side via `requireUserSession(event)`.
 
 **Permission helpers** in `server/utils/permissions.ts`:
-- `requireAuth(event)` → `{ userId, role }` — validates session + looks up `user_site_roles`
-- `requireRole(event, minimum)` — throws 403 if role rank is below minimum
-- `requireSuperAdmin(event)` — checks for a `super_admin` role entry across any site
+- `requireAuth(event)` → `{ userId, role }` — validates session + looks up `user_site_roles` for the **current site**
+- `requireRole(event, minimum)` — throws 403 if role rank is below minimum; **site-scoped**
+- `requireSuperAdmin(event)` — checks for a `super_admin` role entry on **any site**, not just the current one
+
+This cross-site vs site-scoped distinction matters: a super admin on site A automatically has super admin access when visiting site B's domain, but their effective role for content operations on site B defaults to `viewer` unless a `user_site_roles` row exists for that site.
+
+`GET /api/v1/users/me` — returns `{ role, isSuperAdmin }` for the authenticated user. This is the only client-side way to get role information; the session object from `useUserSession()` only contains the users table fields.
 
 Roles (ranked): `super_admin > admin > editor > author > member > viewer`
 
@@ -112,6 +121,8 @@ Roles (ranked): `super_admin > admin > editor > author > member > viewer`
 - `spawnPluginWorker(event, cacheId, getCode)` — spawns a dynamic plugin Worker via the `LOADER` binding
 
 Dynamic plugins require the Cloudflare Workers Paid plan. Without it the `LOADER` binding is absent and dynamic plugins 503.
+
+**`wrangler.toml` config notes:** custom domains must be declared via `[[routes]]` with `custom_domain = true` — if a domain is configured in the Cloudflare dashboard but not in `wrangler.toml`, Wrangler will warn about config drift and offer to remove it on every deploy. The `[assets]` section serves static files from `.output/public` and must be present for the built frontend to be served.
 
 ### Rate limiting
 
@@ -135,7 +146,7 @@ Public pages are rendered by `app/pages/[...slug].vue`. The page fetches `/api/p
 - `content.type === 'canvas'` → full-width `<NuxBlock>`, blocks handle their own layout
 - Otherwise → contained prose layout with `<h1>` and `<NuxBlock>`
 
-Admin pages live in `app/pages/admin/`. Pinia stores in `app/stores/` manage auth (`auth.ts`) and content (`content.ts`) state.
+Admin pages live in `app/pages/admin/`. Super-admin-only pages (e.g. multi-site management) live under `app/pages/admin/super/` and are linked in the sidebar only when `/api/v1/users/me` returns `isSuperAdmin: true`. Pinia stores in `app/stores/` manage auth (`auth.ts`) and content (`content.ts`) state.
 
 ### Nuxt config notes
 

@@ -4,7 +4,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const needsSetup = useState('setup:needs-setup', () => null as boolean | null)
   if (needsSetup.value === null) {
     try {
-      const status = await $fetch<{ needsSetup: boolean }>('/api/v1/setup/status')
+      const status = await $fetch<{ needsSetup: boolean }>('/api/v1/setup/status', {
+        headers: useRequestHeaders(['host']),
+      })
       needsSetup.value = status.needsSetup
     }
     catch {

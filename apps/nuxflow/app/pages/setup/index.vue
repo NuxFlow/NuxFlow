@@ -11,6 +11,20 @@ const form = reactive({
   template: 'landing',
 })
 
+const { data: status } = await useFetch<{
+  hasSite: boolean
+  hasAdmin: boolean
+  setupCompleted: boolean
+  needsSetup: boolean
+  site: { name: string; domain: string; locale: string; timezone: string } | null
+}>('/api/v1/setup/status')
+if (status.value?.site) {
+  form.site.name = status.value.site.name || ''
+  form.site.domain = status.value.site.domain || ''
+  form.site.locale = status.value.site.locale || 'en'
+  form.site.timezone = status.value.site.timezone || 'UTC'
+}
+
 const loading = ref(false)
 const error = ref('')
 
@@ -101,7 +115,7 @@ async function complete() {
     <!-- Step content -->
     <div class="glass rounded-2xl p-6">
       <SetupStepSite v-if="step === 1" v-model="form.site" @next="next" />
-      <SetupStepAdmin v-else-if="step === 2" v-model="form.admin" @next="next" @back="back" />
+      <SetupStepAdmin v-else-if="step === 2" v-model="form.admin" :has-global-admin="status?.hasAdmin" @next="next" @back="back" />
       <SetupStepEmail v-else-if="step === 3" v-model="form.email" @next="next" @back="back" />
       <SetupStepAppearance v-else-if="step === 4" v-model="form.template" :loading="loading" :error="error" @next="complete" @back="back" />
       <SetupStepDone v-else-if="step === 5" />

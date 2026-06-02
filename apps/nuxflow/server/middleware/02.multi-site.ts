@@ -41,6 +41,9 @@ export default defineEventHandler(async (event) => {
             .set({ domain: host, updatedAt: sql`(datetime('now'))` })
             .where(eq(sites.id, site.id))
         }
+      } else if (allSites.length > 1 && (host === 'localhost' || host.endsWith('.workers.dev'))) {
+        // Local/Preview fallback: default to the first site in D1
+        site = allSites[0]
       }
     }
   } catch {
