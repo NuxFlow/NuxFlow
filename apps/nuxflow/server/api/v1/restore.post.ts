@@ -7,6 +7,7 @@ import { getActiveProvider } from '../../utils/media-providers/index'
 import { media } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { useDb } from '../../utils/db'
+import { validateZipArchive } from '../../utils/security'
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB
 
@@ -32,29 +33,20 @@ export default defineEventHandler(async (event) => {
 
   if (file.data.byteLength > MAX_UPLOAD_BYTES) {
     throw createError({ statusCode: 413, message: 'Backup file exceeds 100 MB limit' })
-  }
+  }  // Robustly validate the ZIP archive for Zip Slip (path traversal) and Zip Bomb (uncompressed size)
+  validateZipArchive(file.data, MAX_UPLOAD_BYTES)
 
   let rawZipFiles: Record<string, Uint8Array>
   try {
     rawZipFiles = unzipSync(file.data)
-  } catch {
+  } catch (e: unknown) {
+    if (e && typeof e === 'object' && 'statusCode' in e) throw e
     throw createError({ statusCode: 400, message: 'Invalid zip file — upload a NuxFlow .zip backup' })
   }
-
   // Normalize zip entry paths to forward-slashes to support Windows-packaged ZIP archives
   const zipFiles = Object.fromEntries(
     Object.entries(rawZipFiles).map(([path, data]) => [path.replace(/\\/g, '/'), data])
   )
-
-  // Path Traversal (Zip Slip) Mitigation: Block directory traversal in zip entries
-  for (const entryPath of Object.keys(zipFiles)) {
-    if (entryPath.includes('..') || entryPath.startsWith('/') || entryPath.startsWith('\\')) {
-      throw createError({
-        statusCode: 400,
-        message: `Invalid zip entry detected: ${entryPath}. Directory traversal is forbidden.`,
-      })
-    }
-  }
 
   const backupFile = zipFiles['backup.json']
   if (!backupFile) throw createError({ statusCode: 400, message: 'backup.json not found in zip' })

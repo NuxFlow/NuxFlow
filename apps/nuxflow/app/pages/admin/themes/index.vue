@@ -153,13 +153,16 @@ async function uploadTheme() {
 async function importDemoContent(themeId: string) {
   importingDemo.value = true
   try {
-    const res = await $fetch<{ result: { content: { created: number } } }>(`/api/v1/themes/${themeId}/demo-import`, {
+    await $fetch(`/api/v1/themes/${themeId}/demo-import`, {
       method: 'POST',
       body: { what: ['content', 'taxonomies', 'menus', 'forms'], conflictMode: 'archive' },
     })
+    
+    await refresh()
+
     demoOfferThemeId.value = null
     demoOfferSummary.value = null
-    toast.add({ title: `Demo content imported — ${res.result.content.created} pages/posts created`, color: 'green' })
+    toast.add({ title: `Theme activated and demo content imported successfully!`, color: 'green' })
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Import failed'
     toast.add({ title: msg, color: 'red' })

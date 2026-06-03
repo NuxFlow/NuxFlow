@@ -425,7 +425,7 @@ async function deleteSite() {
               </UFormField>
 
               <template v-if="email.provider !== 'console'">
-                <UFormField label="From address" hint="Optional — defaults to noreply@nuxflow.app">
+                <UFormField label="From address" hint="Optional — defaults to noreply@nuxflow.dev">
                   <UInput v-model="email.fromAddress" type="email" placeholder="noreply@yourdomain.com" />
                 </UFormField>
               </template>

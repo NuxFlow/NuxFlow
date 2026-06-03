@@ -4,6 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { users } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { sendEmailWithConfig } from '../../../utils/email'
+import { resolveSetting, SECRET_MASK } from '../../../utils/settings'
 
 const bodySchema = z.object({
   sendTo: z.string().email().optional(),
@@ -35,18 +36,58 @@ export default defineEventHandler(async (event) => {
     return { success: true, message: 'Console provider — check your server logs' }
   }
 
+  let resendApiKey = body.resendApiKey
+  if (resendApiKey === SECRET_MASK || !resendApiKey) {
+    resendApiKey = await resolveSetting(event, 'email.resend_api_key', 'resendApiKey')
+  }
+
+  let brevoApiKey = body.brevoApiKey
+  if (brevoApiKey === SECRET_MASK || !brevoApiKey) {
+    brevoApiKey = await resolveSetting(event, 'email.brevo_api_key', 'brevoApiKey')
+  }
+
+  let zeptoApiKey = body.zeptoApiKey
+  if (zeptoApiKey === SECRET_MASK || !zeptoApiKey) {
+    zeptoApiKey = await resolveSetting(event, 'email.zepto_api_key', 'zeptoApiKey')
+  }
+
+  let smtpPass = body.smtpPass
+  if (smtpPass === SECRET_MASK || !smtpPass) {
+    smtpPass = await resolveSetting(event, 'email.smtp_pass', 'smtpPass')
+  }
+
+  let fromAddress = body.fromAddress
+  if (!fromAddress) {
+    fromAddress = await resolveSetting(event, 'email.from_address', 'emailFromAddress')
+  }
+
+  let smtpHost = body.smtpHost
+  if (!smtpHost) {
+    smtpHost = await resolveSetting(event, 'email.smtp_host', 'smtpHost')
+  }
+
+  let smtpPort = body.smtpPort
+  if (!smtpPort) {
+    smtpPort = await resolveSetting(event, 'email.smtp_port', 'smtpPort')
+  }
+
+  let smtpUser = body.smtpUser
+  if (!smtpUser) {
+    smtpUser = await resolveSetting(event, 'email.smtp_user', 'smtpUser')
+  }
+
   try {
     await sendEmailWithConfig(
       {
         emailProvider: body.provider,
-        fromAddress: body.fromAddress,
-        resendApiKey: body.resendApiKey,
-        brevoApiKey: body.brevoApiKey,
-        zeptoApiKey: body.zeptoApiKey,
-        smtpHost: body.smtpHost,
-        smtpPort: body.smtpPort,
-        smtpUser: body.smtpUser,
-        smtpPass: body.smtpPass,
+        fromAddress,
+        resendApiKey,
+        brevoApiKey,
+        zeptoApiKey,
+        smtpHost,
+        smtpPort,
+        smtpUser,
+        smtpPass,
       },
       {
         to: sendTo,
@@ -61,3 +102,4 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 422, message: msg })
   }
 })
+

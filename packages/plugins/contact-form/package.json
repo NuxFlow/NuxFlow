@@ -8,6 +8,7 @@
     "./components/ContactFormAdmin": "./src/components/ContactFormAdmin.vue"
   },
   "peerDependencies": {
+    "@nuxflow/plugin-canvas": "workspace:*",
     "@nuxflow/plugin-sdk": "workspace:*",
     "nuxt": "^4.0.0"
   }

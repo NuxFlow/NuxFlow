@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { rateLimits } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
+import { getCfBindings } from './cf-env'
 
 interface RateLimitOptions {
   limit: number
@@ -46,7 +47,36 @@ export async function rateLimit(event: H3Event, opts: RateLimitOptions): Promise
     _memoryCache.set(key, { count: 1, resetAt: now + opts.windowMs })
   }
 
-  // 2. Database fallback: Fetch global rate limits for multi-isolate consistency
+  // 2. Cloudflare KV check: Bypass D1 queries on edge when KV is configured
+  const { kv } = getCfBindings(event)
+  if (kv) {
+    const kvVal = await kv.get(key)
+    let count = 1
+    if (kvVal) {
+      count = Number.parseInt(kvVal, 10) + 1
+    }
+
+    // Expiration TTL for KV keys must be at least 60 seconds.
+    const ttl = Math.max(60, Math.ceil(opts.windowMs / 1000))
+    await kv.put(key, String(count), { expirationTtl: ttl })
+
+    // Sync memory cache
+    const currentMemory = _memoryCache.get(key)
+    if (currentMemory) {
+      currentMemory.count = Math.max(currentMemory.count, count)
+    }
+
+    if (count > opts.limit) {
+      throw createError({
+        statusCode: 429,
+        message: 'Too many requests',
+        data: { retryAfter: Math.ceil(opts.windowMs / 1000) },
+      })
+    }
+    return
+  }
+
+  // 3. Database fallback: Fetch global rate limits for multi-isolate consistency (local dev / no KV)
   const db = useDb(event)
   const existing = await db.query.rateLimits.findFirst({ where: eq(rateLimits.key, key) })
 

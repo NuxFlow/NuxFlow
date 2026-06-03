@@ -14,6 +14,9 @@ import CanvasBlockSpacer from '../blocks/CanvasBlockSpacer.vue'
 import CanvasBlockVideo from '../blocks/CanvasBlockVideo.vue'
 import CanvasBlockTestimonial from '../blocks/CanvasBlockTestimonial.vue'
 import CanvasBlockFeatures from '../blocks/CanvasBlockFeatures.vue'
+import CanvasBlockButton from '../blocks/CanvasBlockButton.vue'
+import CanvasBlockAccordion from '../blocks/CanvasBlockAccordion.vue'
+import CanvasBlockPricing from '../blocks/CanvasBlockPricing.vue'
 
 const COMPONENTS: Record<string, ReturnType<typeof defineAsyncComponent> | object> = {
   CanvasBlockHero,
@@ -25,6 +28,9 @@ const COMPONENTS: Record<string, ReturnType<typeof defineAsyncComponent> | objec
   CanvasBlockVideo,
   CanvasBlockTestimonial,
   CanvasBlockFeatures,
+  CanvasBlockButton,
+  CanvasBlockAccordion,
+  CanvasBlockPricing,
 }
 
 const props = defineProps<{

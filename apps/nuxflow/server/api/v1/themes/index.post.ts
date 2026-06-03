@@ -7,6 +7,7 @@ import { useDb } from '../../../utils/db'
 import { unzipSync } from 'fflate'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import type { NuxFlowBackup } from '../../../utils/backup'
+import { validateZipArchive } from '../../../utils/security'
 
 const MAX_ZIP_BYTES = 50 * 1024 * 1024 // 50 MB
 const IMAGE_EXT = /\.(?:jpg|jpeg|png|webp|gif|svg|avif|ico)$/i
@@ -52,10 +53,14 @@ export default defineEventHandler(async (event) => {
         throw createError({ statusCode: 413, message: 'Theme zip exceeds 50 MB limit' })
       }
 
+      // Robustly validate the ZIP archive for Zip Slip (path traversal) and Zip Bomb (uncompressed size)
+      validateZipArchive(fileField.data, MAX_ZIP_BYTES)
+
       let rawFiles: Record<string, Uint8Array>
       try {
         rawFiles = unzipSync(fileField.data)
-      } catch {
+      } catch (e: unknown) {
+        if (e && typeof e === 'object' && 'statusCode' in e) throw e
         throw createError({ statusCode: 400, message: 'Invalid zip file' })
       }
 

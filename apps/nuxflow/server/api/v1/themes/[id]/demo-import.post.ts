@@ -6,6 +6,7 @@ import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../../utils/db'
 import type { NuxFlowBackup } from '../../../../utils/backup'
+import { writeAuditLog } from '../../../../utils/audit'
 
 const bodySchema = z.object({
   what: z.array(z.enum(['content', 'taxonomies', 'menus', 'forms'])).default(['content', 'taxonomies', 'menus', 'forms']),
@@ -13,7 +14,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'admin')
+  const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const themeId = getRouterParam(event, 'id')!
@@ -38,6 +39,12 @@ export default defineEventHandler(async (event) => {
     what: body.what,
     conflictMode: body.conflictMode,
   })
+
+  // Automatically activate the theme since we are importing its content
+  await db.update(themes).set({ isActive: false }).where(eq(themes.siteId, siteId))
+  await db.update(themes).set({ isActive: true }).where(and(eq(themes.id, themeId), eq(themes.siteId, siteId)))
+
+  await writeAuditLog(event, userId, { action: 'activate', resource: 'theme', resourceId: themeId })
 
   return { success: true, result }
 })

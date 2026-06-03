@@ -253,6 +253,9 @@ importers:
 
   packages/plugins/contact-form:
     dependencies:
+      '@nuxflow/plugin-canvas':
+        specifier: workspace:*
+        version: link:../canvas
       '@nuxflow/plugin-sdk':
         specifier: workspace:*
         version: link:../../plugin-sdk

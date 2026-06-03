@@ -22,10 +22,13 @@ import {
   CanvasBlockFeatures,
   CanvasBlockGdpr,
   CanvasBlockFooter,
+  CanvasBlockButton,
+  CanvasBlockAccordion,
+  CanvasBlockPricing,
   registerBlockDefinition,
 } from '@nuxflow/plugin-canvas'
 
-import { ContactFormBlock } from '@nuxflow/plugin-contact-form'
+import { ContactFormBlock, contactFormBlockDefinition } from '@nuxflow/plugin-contact-form'
 import { Paywall } from '@nuxflow/plugin-payments'
 import { HtmlBlock, htmlBlockDefinition } from '@nuxflow/plugin-html-block'
 
@@ -44,9 +47,13 @@ export default defineNuxtPlugin((nuxtApp) => {
   registry.register('canvas-spacer',      { name: 'Spacer',      icon: 'i-lucide-move-vertical',    component: CanvasBlockSpacer })
   registry.register('canvas-gdpr',        { name: 'GDPR Banner', icon: 'i-lucide-cookie',           component: CanvasBlockGdpr })
   registry.register('canvas-footer',      { name: 'Footer',      icon: 'i-lucide-panel-bottom',     component: CanvasBlockFooter })
+  registry.register('canvas-button',      { name: 'Button',      icon: 'i-lucide-square-play',       component: CanvasBlockButton })
+  registry.register('canvas-accordion',   { name: 'Accordion',   icon: 'i-lucide-fold-vertical',     component: CanvasBlockAccordion })
+  registry.register('canvas-pricing',     { name: 'Pricing Table', icon: 'i-lucide-credit-card',    component: CanvasBlockPricing })
 
   // ── @nuxflow/plugin-contact-form ──────────────────────────────────────────
   registry.register('contact-form/form', { name: 'Contact Form', icon: 'i-lucide-mail', component: ContactFormBlock })
+  registerBlockDefinition(contactFormBlockDefinition)
 
   // ── @nuxflow/plugin-payments ──────────────────────────────────────────────
   registry.register('payments/paywall', { name: 'Paywall', icon: 'i-lucide-lock', component: Paywall })

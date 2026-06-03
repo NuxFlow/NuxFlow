@@ -4,6 +4,7 @@ import { contentTypes, contentItems, taxonomies, taxonomyTerms, contentTaxonomyT
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { isSafeUrl } from '../../../utils/security'
 
 interface WpItem {
   title: string
@@ -101,43 +102,6 @@ function wpContentToTipTap(html: string): object {
   return {
     type: 'doc',
     content: [{ type: 'paragraph', content: [{ type: 'text', text: html }] }],
-  }
-}
-
-function isSafeUrl(urlStr: string): boolean {
-  try {
-    const url = new URL(urlStr)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      return false
-    }
-    const host = url.hostname.toLowerCase()
-
-    // Block localhost / loopback
-    if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1') {
-      return false
-    }
-
-    // Block ending in internal/local
-    if (host.endsWith('.local') || host.endsWith('.internal')) {
-      return false
-    }
-
-    // Parse literal IP blocks
-    // Regular expression for private IPv4 addresses:
-    // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16
-    const ipv4PrivateRegex = /^(?:10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+)$/
-    if (ipv4PrivateRegex.test(host)) {
-      return false
-    }
-
-    // Basic IPv6 private check: fc00::/7 (unique local), fe80::/10 (link local)
-    if (host.startsWith('fc00:') || host.startsWith('fd00:') || host.startsWith('fe80:')) {
-      return false
-    }
-
-    return true
-  } catch {
-    return false
   }
 }
 
