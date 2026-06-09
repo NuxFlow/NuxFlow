@@ -2,8 +2,15 @@ import { useDb } from '../utils/db'
 import { contentItems, contentTypes } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { requireSuperAdmin } from '../utils/permissions'
 
 export default defineEventHandler(async (event) => {
+  if (process.env.NODE_ENV !== 'development') {
+    throw createError({ statusCode: 404, message: 'Not found' })
+  }
+
+  await requireSuperAdmin(event)
+
   const db = useDb(event)
 
   // 1. Get the first active site

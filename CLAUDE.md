@@ -24,9 +24,10 @@ pnpm typecheck
 pnpm lint
 
 # Database
-pnpm --filter @nuxflow/db generate   # generate migration after schema change
-pnpm --filter @nuxflow/db studio     # Drizzle Studio UI at https://local.drizzle.studio
-pnpm --filter @nuxflow/db migrate    # apply migrations via libSQL (Turso only)
+pnpm --filter @nuxflow/db generate      # generate migration after schema change
+pnpm --filter @nuxflow/db studio        # Drizzle Studio UI at https://local.drizzle.studio
+pnpm --filter @nuxflow/db migrate       # apply migrations via libSQL (Turso only)
+pnpm --filter @nuxflow/db migrate-fts   # apply FTS5 search index separately on Turso
 
 # Build and deploy
 pnpm build
@@ -44,6 +45,7 @@ apps/nuxflow/          # Main Nuxt 4 app (the CMS)
 packages/db/           # Drizzle schema, migrations, client factory
 packages/plugin-sdk/   # Plugin authoring types (NuxFlowPlugin, PluginBlock, etc.)
 packages/plugins/      # Bundled plugins: canvas, contact-form, payments, html-block
+packages/cli/          # `nuxflow` CLI — scaffold, build, and deploy dynamic plugins/themes
 themes/default/        # Default CSS theme
 docs/                  # User-facing documentation (markdown)
 ```
@@ -104,6 +106,8 @@ This cross-site vs site-scoped distinction matters: a super admin on site A auto
 
 Roles (ranked): `super_admin > admin > editor > author > member > viewer`
 
+**API key auth** — `server/middleware/03.api-key-auth.ts` handles `Authorization: Bearer <key>` requests. On a valid key it sets `event.context.apiKeyUserId` and `event.context.apiKeyRole` (derived from `user_site_roles` for the current site). Routes that want to support headless API access should check these context fields in addition to session auth.
+
 ### Server route conventions
 
 - Files use `[id].ts` (not `[id].js.ts`) — radix3 breaks param extraction with double extensions
@@ -112,6 +116,7 @@ Roles (ranked): `super_admin > admin > editor > author > member > viewer`
 - All mutations write an audit log via `writeAuditLog(event, userId, opts)` from `server/utils/audit.ts`
 - IDs are generated with `ulid()` — never use `crypto.randomUUID()` or `node:crypto`
 - Crypto operations (signing, hashing) use `globalThis.crypto.subtle` (Web Crypto API) — never `node:crypto`
+- Use response helpers from `server/utils/response.ts`: `ok(data)`, `created(event, data)`, `noContent(event)`, `notFound()`, `forbidden()`, `conflict()`, `validationError()` — do not throw raw `createError` for these common cases
 
 ### Cloudflare-specific utilities
 
@@ -130,15 +135,48 @@ Dynamic plugins require the Cloudflare Workers Paid plan. Without it the `LOADER
 1. Isolate-level memory cache (instant, no DB)
 2. DB upsert for cross-isolate consistency
 
+### Settings system
+
+`server/utils/settings.ts` — `resolveSetting(event, key, envKey?)` reads a site setting: DB first, falls back to `runtimeConfig[envKey]`. `saveSetting(event, key, value)` writes it. Keys listed in `SENSITIVE_SETTING_KEYS` (API keys, passwords) are automatically encrypted with AES-GCM using `betterAuthSecret` before writing and decrypted on read — never store or compare these in plaintext. There is a 30 s in-memory cache per isolate to avoid redundant DB reads; the cache is cleared automatically on save.
+
+### Email
+
+`server/utils/email.ts` — `sendEmail(event, msg)` dispatches email through the provider configured in site settings. Supported providers: `resend`, `brevo`, `zepto`, `smtp` (relayed via MailChannels in Workers). Defaults to `console` log in dev when no provider is configured. Use `sendNotification()` from `server/utils/notify.ts` to persist an in-app notification and optionally send email in one call.
+
+### AI providers
+
+`server/utils/ai-sdk.ts` — `getAiSdkModel(event, quality)` returns an AI SDK `LanguageModel` for the provider configured in site settings (`ai.provider`). Supported providers: `openai`, `anthropic`, `gemini`, `deepseek`, `ollama`. Quality is `'fast'` (default) or `'smart'`, which selects a smaller vs larger model per provider. Returns `null` when the provider API key is missing — callers are expected to throw 503 on `null`. Use `aiErrorMessage(err)` to extract a user-friendly message from provider SDK errors.
+
 ### Plugin system
 
 **Bundled plugins** (`packages/plugins/*`) are compiled into the Worker. Each implements `NuxFlowPlugin` from `packages/plugin-sdk/src/types.ts`, registering optional `blocks`, `adminPages`, `routes`, and `hooks`.
 
 **Dynamic plugins** are third-party Workers stored in KV and spawned on demand. The server verifies Ed25519 signatures and SHA-256 checksums on install and on every request (`server/utils/plugin-signing.ts`).
 
+**CLI** (`packages/cli`) — the `nuxflow` CLI is used by third-party plugin/theme authors:
+- `nuxflow plugin create` — scaffold a new dynamic plugin
+- `nuxflow plugin keygen` — generate an Ed25519 publisher keypair (private key stays local, public key embedded in `nuxflow.plugin.json`)
+- `nuxflow plugin build` — bundle `src/server.ts` + `src/client.ts` to `dist/plugin.json`
+- `nuxflow plugin deploy --site <url>` — sign and install a plugin on a live site
+- `nuxflow plugin update --site <url>` — remove old version and reinstall
+- `nuxflow theme` — analogous commands for custom themes
+
 ### Theme system
 
 Themes are CSS files stored in KV (`theme:{siteId}:{themeId}:css`). The active theme's CSS is injected as an inline `<style data-nuxflow-theme>` block during SSR via the `render:html` hook in `server/plugins/theme-resolver.ts` — no extra HTTP round-trip and no flash on first paint.
+
+`server/plugins/site-settings-resolver.ts` injects appearance settings into SSR HTML on the same hook:
+- `theme.dark_mode` → blocking inline `<script>` that adds/removes the `dark` class before paint
+- `theme.primary_color` → `--nuxflow-primary` CSS custom property (injected everywhere, including admin)
+- `theme.font_sans` → `--nuxflow-font` CSS property + Google Fonts `<link>`; `'system'` skips injection
+
+Admin pages skip dark-mode and font injection (the admin has its own colour-mode toggle).
+
+### Security utilities
+
+`server/utils/security.ts` — use these for any endpoint that fetches external URLs or processes archives:
+- `isSafeUrl(urlStr)` — SSRF guard; returns `false` for private/loopback IPv4, private IPv6, `localhost`, `.local`, `.internal`, and non-HTTP(S) schemes
+- `validateZipArchive(data, maxUncompressedSize)` — parses the ZIP central directory without decompressing; throws 400 on path traversal (Zip Slip) and 413 on Zip Bomb; returns `{ fileCount, totalSize }`
 
 ### Frontend routing
 

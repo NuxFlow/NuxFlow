@@ -216,6 +216,12 @@ export default defineEventHandler(async (event) => {
           }
 
           else if (name === 'create_content') {
+            const AUTHOR_ROLES = ['super_admin', 'admin', 'editor', 'author']
+            if (!AUTHOR_ROLES.includes(apiKeyRole ?? '')) {
+              result = { content: [{ type: 'text', text: `Error: Role "${apiKeyRole}" is unauthorized to create content.` }] }
+              break
+            }
+
             const title = args?.title
             const slugVal = args?.slug
             const contentVal = args?.content || ''
@@ -268,6 +274,12 @@ export default defineEventHandler(async (event) => {
           }
 
           else if (name === 'update_content') {
+            const AUTHOR_ROLES = ['super_admin', 'admin', 'editor', 'author']
+            if (!AUTHOR_ROLES.includes(apiKeyRole ?? '')) {
+              result = { content: [{ type: 'text', text: `Error: Role "${apiKeyRole}" is unauthorized to update content.` }] }
+              break
+            }
+
             const id = args?.id
             if (!id) {
               result = { content: [{ type: 'text', text: 'Error: id is required.' }] }
@@ -289,6 +301,11 @@ export default defineEventHandler(async (event) => {
             if (args.slug !== undefined) updates.slug = args.slug
             if (args.content !== undefined) updates.content = args.content
             if (args.status !== undefined) {
+              const PUBLISH_ROLES = ['super_admin', 'admin', 'editor']
+              if (args.status === 'published' && !PUBLISH_ROLES.includes(apiKeyRole ?? '')) {
+                result = { content: [{ type: 'text', text: `Error: Role "${apiKeyRole}" is unauthorized to publish content.` }] }
+                break
+              }
               updates.status = args.status
               if (args.status === 'published' && !existing.publishedAt) {
                 updates.publishedAt = new Date().toISOString()

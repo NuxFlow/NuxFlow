@@ -136,7 +136,7 @@ async function _handleSetup(event: H3Event) {
       id: adminUserId,
       name: body.admin.name,
       email: body.admin.email.toLowerCase(),
-      emailVerified: false,
+      emailVerified: true,
     })
 
     await db.insert(accounts).values({

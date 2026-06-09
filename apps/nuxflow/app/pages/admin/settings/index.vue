@@ -19,7 +19,12 @@ const tabs = [
   { label: 'Security', icon: 'i-lucide-shield-check' },
   { label: 'Danger zone', icon: 'i-lucide-triangle-alert' },
 ]
-const active = ref('General')
+const route = useRoute()
+const active = ref(
+  tabs.some(t => t.label === route.query.tab)
+    ? (route.query.tab as string)
+    : 'General',
+)
 
 const saving = ref(false)
 const toast = useToast()
@@ -684,6 +689,9 @@ async function deleteSite() {
           <ClientOnly>
             <div class="mt-6">
               <AdminPasskeyManager />
+            </div>
+            <div class="mt-6">
+              <AdminLinkedAccountsManager />
             </div>
           </ClientOnly>
         </template>

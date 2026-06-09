@@ -1,6 +1,9 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' })
 
+const route = useRoute()
+const signInSocialAction = useSignIn('social')
+
 const form = reactive({ name: '', email: '', password: '', confirmPassword: '' })
 const loading = ref(false)
 const error = ref('')
@@ -8,6 +11,19 @@ const success = ref(false)
 
 const { data: regStatus } = await useFetch<{ enabled: boolean }>('/api/public/auth/registration-status')
 const registrationEnabled = computed(() => regStatus.value?.enabled ?? false)
+
+const SOCIAL_ERROR_MESSAGES: Record<string, string> = {
+  'account_not_linked': 'This social account is already linked to an existing user. Please sign in instead.',
+  'account-already-linked': 'That social account is already connected to a different user.',
+  'provider-not-found': 'This sign-in provider is not enabled.',
+}
+
+onMounted(() => {
+  const queryError = route.query.error as string | undefined
+  if (queryError) {
+    error.value = SOCIAL_ERROR_MESSAGES[queryError] ?? `Sign-in error: ${queryError}`
+  }
+})
 
 async function submit() {
   error.value = ''
@@ -27,6 +43,10 @@ async function submit() {
   } finally {
     loading.value = false
   }
+}
+
+async function signInSocial(provider: 'google' | 'github') {
+  await signInSocialAction.execute({ provider, callbackURL: '/admin' })
 }
 </script>
 
@@ -62,6 +82,24 @@ async function submit() {
     <!-- Registration form -->
     <form v-else class="glass rounded-2xl p-6 space-y-4" @submit.prevent="submit">
       <p class="text-sm text-center text-gray-500 dark:text-gray-400">Join us — it only takes a moment</p>
+
+      <!-- Social sign-up -->
+      <div class="grid grid-cols-2 gap-3">
+        <UButton variant="outline" block @click="signInSocial('google')">
+          <UIcon name="i-simple-icons-google" class="w-4 h-4 mr-2" />
+          Google
+        </UButton>
+        <UButton variant="outline" block @click="signInSocial('github')">
+          <UIcon name="i-simple-icons-github" class="w-4 h-4 mr-2" />
+          GitHub
+        </UButton>
+      </div>
+
+      <div class="relative flex items-center gap-3">
+        <div class="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+        <span class="text-xs text-gray-400">or sign up with email</span>
+        <div class="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+      </div>
 
       <UFormField label="Full name">
         <UInput v-model="form.name" placeholder="Jane Smith" autocomplete="name" class="w-full" autofocus />

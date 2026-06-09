@@ -18,5 +18,6 @@ export default defineEventHandler(async (event) => {
     orderBy: [desc(comments.createdAt)],
   })
 
-  return { comments: rows }
+  // Strip guest commenter email — only the admin moderation endpoint exposes this
+  return { comments: rows.map(({ guestEmail: _guestEmail, ...rest }) => rest) }
 })

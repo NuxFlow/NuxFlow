@@ -6,6 +6,10 @@ export default defineEventHandler(async (event) => {
   const authHeader = getHeader(event, 'authorization')
   if (!authHeader?.startsWith('Bearer ')) return
 
+  // API key auth only applies once a site has been resolved
+  const siteId = event.context.siteId
+  if (!siteId) return
+
   const rawKey = authHeader.slice(7)
   const db = useDb(event)
 
@@ -16,8 +20,9 @@ export default defineEventHandler(async (event) => {
   const hashArray = Array.from(new Uint8Array(hashBuffer))
   const keyHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 
+  // Scope lookup to the current site so a key from Site A cannot authenticate on Site B
   const apiKey = await db.query.apiKeys.findFirst({
-    where: eq(apiKeys.keyHash, keyHash),
+    where: and(eq(apiKeys.keyHash, keyHash), eq(apiKeys.siteId, siteId)),
   })
 
   if (!apiKey) return
@@ -29,12 +34,9 @@ export default defineEventHandler(async (event) => {
   void db.update(apiKeys).set({ lastUsedAt: new Date().toISOString() }).where(eq(apiKeys.id, apiKey.id))
 
   // Resolve role for this site
-  const siteId = event.context.siteId
-  if (siteId) {
-    const roleRow = await db.query.userSiteRoles.findFirst({
-      where: and(eq(userSiteRoles.userId, apiKey.userId), eq(userSiteRoles.siteId, siteId)),
-    })
-    event.context.apiKeyUserId = apiKey.userId
-    event.context.apiKeyRole = roleRow?.role ?? 'viewer'
-  }
+  const roleRow = await db.query.userSiteRoles.findFirst({
+    where: and(eq(userSiteRoles.userId, apiKey.userId), eq(userSiteRoles.siteId, siteId)),
+  })
+  event.context.apiKeyUserId = apiKey.userId
+  event.context.apiKeyRole = roleRow?.role ?? 'viewer'
 })

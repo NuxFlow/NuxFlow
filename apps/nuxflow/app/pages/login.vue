@@ -10,6 +10,19 @@ const form = reactive({ email: '', password: '', rememberMe: true })
 const loading = ref(false)
 const error = ref('')
 
+const SOCIAL_ERROR_MESSAGES: Record<string, string> = {
+  'account_not_linked': 'This Google/GitHub account isn\'t linked to any NuxFlow account. Sign in with your email and password first, then go to Settings → Security to connect your social account.',
+  'account-already-linked': 'That social account is already connected to a different user.',
+  'provider-not-found': 'This sign-in provider is not enabled.',
+}
+
+onMounted(() => {
+  const queryError = route.query.error as string | undefined
+  if (queryError) {
+    error.value = SOCIAL_ERROR_MESSAGES[queryError] ?? `Sign-in error: ${queryError}`
+  }
+})
+
 async function submit() {
   loading.value = true
   error.value = ''

@@ -176,6 +176,15 @@ export default defineServerAuth((ctx) => {
       },
     },
     rateLimit: { enabled: false },
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ['google', 'github'],
+        // Onboarding users are created without going through email verification;
+        // trust them anyway since the admin physically ran the setup wizard.
+        requireLocalEmailVerified: false,
+      },
+    },
     socialProviders: {
       google: {
         clientId: config.googleClientId ?? '',

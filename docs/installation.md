@@ -418,6 +418,46 @@ Dynamic plugins are a Cloudflare-only feature. They are not available in local d
 
 For a complete walkthrough of building and publishing your own dynamic plugin — including the CLI commands, plugin structure, Canvas block registration, and troubleshooting — see the **[External Plugin Development Guide](./plugins.md)**.
 
+### Social Login (Google & GitHub)
+
+NuxFlow supports signing in — and registering — with Google and GitHub. Both providers are optional; leave the secrets unset to keep social login disabled.
+
+#### Google
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) → **APIs & Services → Credentials**
+2. Click **Create Credentials → OAuth 2.0 Client ID**, choose **Web application**
+3. Under **Authorized redirect URIs** add:
+   - `http://localhost:8787/api/auth/callback/google` (wrangler dev)
+   - `http://localhost:3000/api/auth/callback/google` (pnpm dev)
+   - `https://yourdomain.com/api/auth/callback/google` (production)
+4. Copy the **Client ID** and **Client Secret**, then add them as secrets:
+
+```bash
+cd apps/nuxflow
+wrangler secret put NUXT_GOOGLE_CLIENT_ID
+wrangler secret put NUXT_GOOGLE_CLIENT_SECRET
+```
+
+#### GitHub
+
+1. Go to **github.com → Settings → Developer settings → OAuth Apps → New OAuth App**
+2. Set **Authorization callback URL** to `https://yourdomain.com/api/auth/callback/github`
+   - For local dev add a separate OAuth App pointing to `http://localhost:8787/api/auth/callback/github`
+3. Copy the **Client ID** and generate a **Client Secret**, then add them:
+
+```bash
+wrangler secret put NUXT_GITHUB_CLIENT_ID
+wrangler secret put NUXT_GITHUB_CLIENT_SECRET
+```
+
+If you use automated deploys, add these four variables as build-time environment variables in **Workers & Pages → nuxflow → Settings → Build → Environment variables** as well — the same way you add `NUXT_BETTER_AUTH_SECRET`.
+
+::note
+**Account linking:** if a user signs in with Google using the same email address they registered with during onboarding, NuxFlow automatically links the two accounts. No manual steps are required — see the [User Guide](./user-guide.md#social-login--account-linking) for the full flow.
+::
+
+---
+
 ### Email Providers
 
 NuxFlow supports several email providers for transactional mail. Add the relevant secret for your chosen provider:

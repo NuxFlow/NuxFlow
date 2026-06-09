@@ -22,6 +22,16 @@ export function clearAppearanceCache(siteId: string): void {
   _cache.delete(siteId)
 }
 
+// ── Sanitization ─────────────────────────────────────────────────────────────
+
+// Allowlist for CSS color values written into inline <style> blocks.
+// Rejects anything that could break out of the CSS context.
+const CSS_COLOR_RE = /^(?:#[0-9a-fA-F]{3,8}|rgba?\([\d\s,.]+\)|hsla?\([\d\s,.%]+\)|[a-zA-Z]{2,30})$/
+
+function safeCssColor(value: string): string | null {
+  return CSS_COLOR_RE.test(value.trim()) ? value.trim() : null
+}
+
 // ── Google Fonts query strings ────────────────────────────────────────────────
 
 const FONT_QUERY: Record<string, string> = {
@@ -83,9 +93,10 @@ export default defineNitroPlugin((nitro) => {
 
       const cssParts: string[] = []
 
-      // Primary colour custom property — available everywhere (admin too)
-      if (primaryColor) {
-        cssParts.push(`--nuxflow-primary:${primaryColor}`)
+      // Primary colour custom property — validate before injecting into <style>
+      const safeColor = primaryColor ? safeCssColor(primaryColor) : null
+      if (safeColor) {
+        cssParts.push(`--nuxflow-primary:${safeColor}`)
       }
 
       if (!isAdmin) {
@@ -100,11 +111,12 @@ export default defineNitroPlugin((nitro) => {
         }
         // 'auto' → do nothing; @nuxtjs/color-mode / system preference handles it
 
-        // ── Font ───────────────────────────────────────────────────────────────
-        if (fontSans && fontSans !== 'system') {
-          cssParts.push(`--nuxflow-font:'${fontSans}',system-ui,-apple-system,sans-serif`)
+        // ── Font — only inject from the known allowlist ────────────────────────
+        const knownFont = (fontSans && fontSans !== 'system' && fontSans in FONT_QUERY) ? fontSans : null
+        if (knownFont) {
+          cssParts.push(`--nuxflow-font:'${knownFont}',system-ui,-apple-system,sans-serif`)
 
-          const query = FONT_QUERY[fontSans]
+          const query = FONT_QUERY[knownFont]
           if (query) {
             html.head.push(`<link rel="preconnect" href="https://fonts.googleapis.com">`)
             html.head.push(`<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">`)
@@ -115,7 +127,8 @@ export default defineNitroPlugin((nitro) => {
 
       if (cssParts.length) {
         // Apply --nuxflow-font to body on public pages so all text picks it up
-        const bodyRule = (!isAdmin && fontSans && fontSans !== 'system')
+        const knownFontForBody = (fontSans && fontSans !== 'system' && fontSans in FONT_QUERY) ? fontSans : null
+        const bodyRule = (!isAdmin && knownFontForBody)
           ? `body{font-family:var(--nuxflow-font,system-ui,-apple-system,sans-serif)}`
           : ''
         html.head.push(

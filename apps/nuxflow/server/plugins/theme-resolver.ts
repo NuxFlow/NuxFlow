@@ -29,7 +29,9 @@ export default defineNitroPlugin((nitro) => {
 
       const css = await getThemeCSS(event, siteId, active.id)
       if (css) {
-        html.head.push(`<style data-nuxflow-theme>${css}</style>`)
+        // Strip any </style> sequences to prevent breaking out of the style block
+        const safeCss = css.replace(/<\/style>/gi, '')
+        html.head.push(`<style data-nuxflow-theme>${safeCss}</style>`)
       }
     }
     catch (err) {

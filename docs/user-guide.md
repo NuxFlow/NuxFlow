@@ -99,6 +99,48 @@ Once a passkey is registered:
 
 ---
 
+## Social Login & Account Linking
+
+If the site administrator has configured Google or GitHub OAuth credentials, you can sign in — and register — using either provider from both the `/login` and `/register` pages.
+
+### Signing in with Google or GitHub
+
+On the login page, click the **Google** or **GitHub** button. You will be redirected to the provider to authenticate, then returned to the admin dashboard automatically.
+
+- **New user:** if no account with your email exists, NuxFlow creates one for you automatically (as long as public registration is enabled).
+- **Existing user:** if an account with your email already exists, NuxFlow links the social login to it silently — you land in the dashboard just as you would with your password.
+
+### After onboarding with email & password
+
+The onboarding wizard only supports email and password, so your initial admin account starts as an email/password account. After that, there are two ways to add Google or GitHub sign-in to it:
+
+**Option 1 — Sign in with Google directly (automatic linking)**
+
+Simply click **Google** on the login page. If the Google account's email matches your NuxFlow account email, NuxFlow automatically links them in the background and signs you in. From that point on you can use either method.
+
+**Option 2 — Link manually from Settings**
+
+If you want to link a social account whose email is *different* from your NuxFlow account email, or you prefer to do it explicitly:
+
+1. Sign in with your email and password
+2. Go to **Settings → Security**
+3. Find the **Connected Social Accounts** card
+4. Click **Connect** next to Google or GitHub and complete the OAuth flow
+
+Once connected, the provider appears as **Connected** with the date it was linked. You can disconnect a provider at any time — but you cannot remove your last login method. If you have no password set, you must keep at least one social provider connected.
+
+### If sign-in returns an error
+
+If clicking a social button returns you to the login page with an error message, the most common causes are:
+
+| Error | Meaning |
+|---|---|
+| "not linked to any NuxFlow account" | The social email does not match any existing account and registration is closed. Sign in with email/password first, then link from Settings → Security. |
+| "already connected to a different user" | That Google/GitHub account is already linked to another NuxFlow account. |
+| "provider is not enabled" | The site administrator has not configured credentials for this provider. |
+
+---
+
 ## Themes
 
 You can change the visual appearance of your site from **Admin → Themes**.
