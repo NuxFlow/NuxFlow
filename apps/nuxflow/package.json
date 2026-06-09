@@ -9,8 +9,11 @@
     "preview": "nuxt preview",
     "typecheck": "nuxt typecheck",
     "lint": "eslint .",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration:watch": "vitest --config vitest.integration.config.ts",
+    "test:all": "vitest run --config vitest.config.ts && vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
     "deploy": "wrangler deploy",
     "migrate": "pnpm --filter @nuxflow/db migrate"

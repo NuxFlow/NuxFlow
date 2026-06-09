@@ -32,6 +32,7 @@ const general = reactive({
   timezone: 'UTC',
   status: 'active' as 'active' | 'maintenance',
   notificationEmail: '',
+  allowPublicRegistration: false,
 })
 
 const localeOptions = [
@@ -165,6 +166,7 @@ watch(data, (d) => {
   })
   const s = d.settings
   general.notificationEmail = (s['notificationEmail'] as string) ?? ''
+  general.allowPublicRegistration = s['auth.allow_public_registration'] === 'true'
   email.provider = (s['email.provider'] as string) ?? 'console'
   email.fromAddress = (s['email.from_address'] as string) ?? ''
   email.resendApiKey = (s['email.resend_api_key'] as string) ?? ''
@@ -209,6 +211,7 @@ async function save() {
       'frontend.show_color_toggle': appearance.showColorToggle,
       'appearance.favicon_url': appearance.faviconUrl || null,
       'notificationEmail': general.notificationEmail || null,
+      'auth.allow_public_registration': general.allowPublicRegistration ? 'true' : 'false',
     }
     await $fetch('/api/v1/settings', {
       method: 'PATCH',
@@ -368,6 +371,14 @@ async function deleteSite() {
                 />
                 <p class="mt-1 text-xs text-gray-400">Maintenance mode shows a holding page to visitors.</p>
               </UFormField>
+
+              <div class="flex items-start justify-between gap-4 pt-2">
+                <div>
+                  <p class="text-sm font-medium text-gray-900 dark:text-white">Public registration</p>
+                  <p class="mt-0.5 text-xs text-gray-400">Allow visitors to create their own accounts on the public website. Required for self-service memberships.</p>
+                </div>
+                <USwitch v-model="general.allowPublicRegistration" />
+              </div>
             </div>
             <template #footer>
               <div class="flex justify-end">

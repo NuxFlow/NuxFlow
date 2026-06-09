@@ -7,7 +7,10 @@ import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import * as schema from '@nuxflow/db/schema'
 import { getD1 } from './utils/db'
 import { passkey } from '@better-auth/passkey'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
+import { sendEmailWithConfig, escapeHtml } from './utils/email'
+import { decryptText } from './utils/encryption'
+import { SENSITIVE_SETTING_KEYS } from './utils/settings'
 
 export default defineServerAuth((ctx) => {
   const config = ctx.runtimeConfig as {
@@ -118,6 +121,59 @@ export default defineServerAuth((ctx) => {
     }),
     emailAndPassword: {
       enabled: true,
+      sendResetPassword: async ({ user, url }) => {
+        // Extract site host from the reset URL to resolve per-site email config.
+        let host = 'localhost'
+        try { host = new URL(url).hostname } catch { /* keep default */ }
+
+        try {
+          const site = await db.query.sites.findFirst({ where: eq(schema.sites.domain, host) })
+          if (!site) {
+            console.warn('[auth] sendResetPassword: no site found for host', host)
+            return
+          }
+
+          const settingRows = await db.query.siteSettings.findMany({
+            where: and(eq(schema.siteSettings.siteId, site.id)),
+          })
+
+          const rc = useRuntimeConfig()
+          const secret = rc.betterAuthSecret as string
+          const sm: Record<string, string> = {}
+          for (const row of settingRows) {
+            if (!row.value) continue
+            if (SENSITIVE_SETTING_KEYS.has(row.key)) {
+              try { sm[row.key] = await decryptText(row.value as string, secret) }
+              catch { sm[row.key] = row.value as string }
+            } else {
+              sm[row.key] = row.value as string
+            }
+          }
+
+          await sendEmailWithConfig(
+            {
+              emailProvider: sm['email.provider'] || 'console',
+              fromAddress: sm['email.from_address'] || `noreply@${host}`,
+              resendApiKey: sm['email.resend_api_key'],
+              brevoApiKey: sm['email.brevo_api_key'],
+              zeptoApiKey: sm['email.zepto_api_key'],
+              smtpHost: sm['email.smtp_host'],
+              smtpPort: sm['email.smtp_port'],
+              smtpUser: sm['email.smtp_user'],
+              smtpPass: sm['email.smtp_pass'],
+              domain: host,
+            },
+            {
+              to: user.email,
+              subject: 'Reset your password',
+              html: `<p>Hi ${escapeHtml(user.name)},</p><p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href="${url}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Reset password</a></p><p style="color:#6b7280;font-size:14px;">If you did not request this, you can safely ignore this email.</p>`,
+              text: `Hi ${user.name},\n\nReset your password:\n${url}\n\nIf you did not request this, ignore this email.`,
+            },
+          )
+        } catch (err) {
+          console.error('[auth] sendResetPassword email failed:', err)
+        }
+      },
     },
     rateLimit: { enabled: false },
     socialProviders: {

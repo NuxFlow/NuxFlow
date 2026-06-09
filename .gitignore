@@ -36,12 +36,14 @@ coverage/
 playwright-report/
 test-results/
 
-# Turso
+# Turso / libSQL local database files (created by wrangler dev)
 *.db
 *.db-shm
 *.db-wal
-auth
-auth-wal
+/apps/nuxflow/auth
+/apps/nuxflow/auth-wal
+/auth
+/auth-wal
 
 # Turborepo
 .turbo/
@@ -55,6 +57,7 @@ apps/nuxflow/wrangler.toml
 
 # Private NuxFlow Marketing Site (Ignored)
 /nuxflow-marketing-site/
+/nuxflow-marketing-site.zip
 
 # Custom Dynamic Landing Theme (Ignored)
 /nuxflow-marketing-landing/

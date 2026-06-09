@@ -1,6 +1,63 @@
+import type { H3Event } from 'h3'
 import { useDb } from '../../../utils/db'
-import { contentItems, contentTypes, redirects } from '@nuxflow/db/schema'
+import { contentItems, contentTypes, membershipTiers, redirects, subscriptions } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+
+async function checkContentAccess(event: H3Event, page: { visibility: string; settings: Record<string, unknown> | null | undefined }, siteId: string) {
+  const visibility = page.visibility ?? 'public'
+  if (visibility === 'public') return null
+
+  // private pages are never accessible via public API
+  if (visibility === 'private') return { blocked: true, reason: 'private' as const, requiredTier: null, tiers: [] }
+
+  // members-only: check active subscription
+  if (visibility === 'members' || visibility === 'password') {
+    const access = (page.settings as { access?: string } | null)?.access ?? (visibility === 'members' ? 'members' : 'public')
+    if (access === 'public') return null
+
+    const session = await getUserSession(event).catch(() => null)
+    const apiKeyUserId = event.context.apiKeyUserId as string | undefined
+    const userId = (session?.user?.id as string | undefined) ?? apiKeyUserId
+
+    if (!userId) {
+      const tiers = await fetchTiers(siteId)
+      return { blocked: true, reason: 'members' as const, requiredTier: null, tiers }
+    }
+
+    const db = useDb(event)
+    const requiredTierId = access.startsWith('tier:') ? access.slice(5) : null
+
+    const activeSub = await db.query.subscriptions.findFirst({
+      where: and(
+        eq(subscriptions.userId, userId),
+        eq(subscriptions.siteId, siteId),
+        eq(subscriptions.status, 'active'),
+      ),
+    })
+
+    if (!activeSub) {
+      const tiers = await fetchTiers(siteId)
+      return { blocked: true, reason: 'members' as const, requiredTier: requiredTierId, tiers }
+    }
+
+    if (requiredTierId && activeSub.tierId !== requiredTierId) {
+      const tiers = await fetchTiers(siteId)
+      return { blocked: true, reason: 'tier' as const, requiredTier: requiredTierId, tiers }
+    }
+  }
+
+  return null
+}
+
+async function fetchTiers(siteId: string) {
+  const db = useDb()
+  const rows = await db.query.membershipTiers.findMany({
+    where: eq(membershipTiers.siteId, siteId),
+    orderBy: (t, { asc }) => [asc(t.price)],
+    columns: { id: true, name: true, price: true, currency: true, interval: true, features: true },
+  })
+  return rows
+}
 
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
@@ -25,6 +82,14 @@ export default defineEventHandler(async (event) => {
 
   if (!page) throw createError({ statusCode: 404, message: 'Not found' })
 
+  const gate = await checkContentAccess(event, { visibility: page.visibility, settings: page.settings as Record<string, unknown> | null }, siteId)
+  if (gate?.blocked) {
+    throw createError({
+      statusCode: 402,
+      data: { gated: true, requiredTier: gate.requiredTier, tiers: gate.tiers },
+    })
+  }
+
   const type = page.typeId
     ? await db.query.contentTypes.findFirst({
         where: eq(contentTypes.id, page.typeId),
@@ -37,6 +102,7 @@ export default defineEventHandler(async (event) => {
     ? page.allowComments
     : (type?.hasComments ?? false)
 
+  // Only cache public content; member content must not be cached publicly
   setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
 
   return {
