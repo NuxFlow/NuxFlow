@@ -188,12 +188,15 @@ With the worker now deployed, add your runtime secrets. Wrangler will prompt you
 ```bash
 cd apps/nuxflow
 wrangler secret put NUXT_BETTER_AUTH_SECRET
-wrangler secret put NUXT_PUBLIC_SITE_URL
 ```
 
 Secrets on Cloudflare Workers take effect immediately — no redeploy is needed after adding them.
 
 You can also manage secrets in the Cloudflare dashboard under **Workers & Pages → nuxflow → Settings → Variables and Secrets**.
+
+::note
+`NUXT_PUBLIC_SITE_URL` is **not** a secret — it is a plain variable declared in the `[vars]` section of `apps/nuxflow/wrangler.toml`. Set it there before deploying; do not use `wrangler secret put` for this value.
+::
 
 ::note
 D1 does not require any secrets. The database connection is handled automatically through the `DB` binding declared in `wrangler.toml`.
@@ -426,10 +429,11 @@ NuxFlow supports signing in — and registering — with Google and GitHub. Both
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com) → **APIs & Services → Credentials**
 2. Click **Create Credentials → OAuth 2.0 Client ID**, choose **Web application**
-3. Under **Authorized redirect URIs** add:
+3. Under **Authorized redirect URIs** add one entry for each domain that will use Google sign-in:
    - `http://localhost:8787/api/auth/callback/google` (wrangler dev)
    - `http://localhost:3000/api/auth/callback/google` (pnpm dev)
-   - `https://yourdomain.com/api/auth/callback/google` (production)
+   - `https://yourdomain.com/api/auth/callback/google` (production primary domain)
+   - `https://anotherdomain.com/api/auth/callback/google` (any additional custom domain)
 4. Copy the **Client ID** and **Client Secret**, then add them as secrets:
 
 ```bash
@@ -437,6 +441,10 @@ cd apps/nuxflow
 wrangler secret put NUXT_GOOGLE_CLIENT_ID
 wrangler secret put NUXT_GOOGLE_CLIENT_SECRET
 ```
+
+::note
+**Multi-domain deployments:** you do **not** need a separate Google Cloud project or OAuth client per domain. A single OAuth 2.0 client supports multiple redirect URIs — just add `/api/auth/callback/google` for every custom domain in the same client's **Authorized redirect URIs** list. NuxFlow automatically uses the correct callback URL for each domain using the incoming request's hostname.
+::
 
 #### GitHub
 

@@ -153,6 +153,34 @@ There is no confirmation step and no undo. Ensure you have taken a D1 backup via
 
 ---
 
+## Social login on custom domains
+
+NuxFlow automatically resolves OAuth redirect URIs from the incoming request's hostname, so Google and GitHub sign-in work correctly on every custom domain without any code changes.
+
+The one step you **must** complete manually is registering each domain's callback URL in the provider's developer console.
+
+### Google
+
+In the [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services → Credentials**, open your existing OAuth 2.0 Client ID (the same one used for your primary domain — you do **not** need a new project or client). Under **Authorized redirect URIs**, add:
+
+```
+https://yournewdomain.com/api/auth/callback/google
+```
+
+Do this for every custom domain you add. Google validates the `redirect_uri` on every sign-in attempt, so a domain that is not listed will fail with a `redirect_uri_mismatch` error.
+
+### GitHub
+
+GitHub OAuth Apps only support a single callback URL. Add a **separate OAuth App** for each custom domain:
+
+1. Go to **github.com → Settings → Developer settings → OAuth Apps → New OAuth App**
+2. Set **Authorization callback URL** to `https://yournewdomain.com/api/auth/callback/github`
+3. Copy the new app's **Client ID** and **Client Secret**
+
+Because NuxFlow uses a single `NUXT_GITHUB_CLIENT_ID` / `NUXT_GITHUB_CLIENT_SECRET` pair shared across all domains, GitHub OAuth is effectively limited to the primary domain unless you run separate Workers per domain. For multi-domain GitHub login, consider using Google OAuth instead.
+
+---
+
 ## Roles and access across sites
 
 User accounts are global — a user can hold a role on any number of sites using the same login. Roles are always resolved against the site that handled the request, so a user with `editor` access on site A and `viewer` access on site B will see different permissions depending on which domain they are visiting.
