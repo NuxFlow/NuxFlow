@@ -91,12 +91,25 @@ By optimizing strictly for Cloudflare Workers instead of legacy VPS hosting or c
 - Submissions stored in database; viewable and **exportable as CSV**
 - Optional email notification on submission
 
-### Theme System
+### Theme System & Visual Customizer
+- **Visual Customizer** — full-screen, no-code style editor with a side-by-side live preview of your site; change fonts (17 Google Fonts), colours, backgrounds, spacing density, content width, and corner radius in real time, then publish with one click
+- **Site logo** — upload a logo image (PNG/SVG/WebP) to replace the text site name in the public header; managed from Settings → Appearance
+- **Custom code injection** — inject analytics tags, chat widgets, or any HTML into `<head>` or `<body>` of every public page via Settings → Appearance, with no redeploy required
 - Themes are **Nuxt layers** — override any component, page, or layout
 - **Live theme preview** — admin sees new theme while visitors see the current one
 - **Instant activation** — new theme takes effect immediately on activation
 - Per-block render components defined in the theme
 - CLI scaffolding: `npx nuxflow create-theme`
+
+### Membership & Payments
+- **Membership tiers** with recurring subscription pricing
+- **Auto-sync** — saving a tier automatically creates the matching product and price in your configured provider(s); no manual setup in the provider dashboard required
+- **Content access gating** — per-page: Public / Members Only / Specific Tier
+- **Paywall component** shown to visitors who lack access
+- Payment processors: **Stripe**, **Lemon Squeezy**, **Paddle** (configure one or all three simultaneously)
+- **Cancel subscription** — members cancel from `/account` for all providers; Stripe members can also open the Customer Portal for invoice history and payment method updates
+- Webhook handlers for full subscription lifecycle (created, updated, cancelled, expired)
+- Subscriber management admin page
 
 ### Plugin System
 - **Two tiers**: bundled plugins (ship with NuxFlow) and dynamic third-party plugins
@@ -104,15 +117,7 @@ By optimizing strictly for Cloudflare Workers instead of legacy VPS hosting or c
 - **Ed25519 code signing** — every plugin must be signed with the author's private key; the server verifies the signature and SHA-256 checksums on install and on every request, blocking tampered code before it executes
 - **Canvas blocks** — dynamic plugins can register new block types that appear in the page builder immediately after install
 - **CLI toolchain** — `nuxflow plugin keygen` · `nuxflow plugin build` · `nuxflow plugin deploy`
-- **Bundled plugins**: Contact Form, Payments (Stripe / Lemon Squeezy / Paddle), HTML Block
-
-### Membership & Payments (Payments Plugin)
-- **Membership tiers** with recurring subscription pricing
-- **Content access gating** — Public / Members Only / Specific Tier
-- **Paywall component** shown to non-members
-- Payment processors: **Stripe**, **Lemon Squeezy**, **Paddle**
-- Webhook handlers for subscription lifecycle events
-- Subscriber management admin page
+- No bundled plugins — all built-in features (Canvas blocks, Contact Forms, Memberships, HTML embeds) are part of core NuxFlow
 
 ### Multi-Site Management
 - One installation manages **unlimited sites** with full data isolation
@@ -195,8 +200,7 @@ nuxflow/
 │   ├── plugin-sdk/             # Types and helpers for plugin authors
 │   └── cli/                    # create-plugin and create-theme scaffolding
 ├── packages/plugins/
-│   ├── contact-form/           # Bundled Contact Form plugin
-│   └── payments/               # Bundled Payments plugin (Stripe, LS, Paddle)
+│   └── canvas/                 # Canvas page builder (block components + editor)
 ├── themes/
 │   └── default/                # Default theme (Nuxt layer, block renderers)
 └── specs/001-nuxflow-cms-platform/  # Specification, data model, API contracts
@@ -210,6 +214,7 @@ For detailed information on how to install and use NuxFlow, please refer to our 
 
 - **[Installation Guide](docs/installation.md)** — Step-by-step setup for local development and Cloudflare deployment.
 - **[User Guide](docs/user-guide.md)** — A comprehensive manual for managing content and site settings.
+- **[Payments & Memberships Setup](docs/payments-setup.md)** — Configure Stripe, Lemon Squeezy, or Paddle; set up webhooks; gate content.
 - **[Documentation Index](docs/index.md)** — The entry point for all documentation.
 
 ---
@@ -324,8 +329,7 @@ wrangler kv namespace create PLUGIN_KV --preview
 # Set secrets
 wrangler secret put NUXT_BETTER_AUTH_SECRET
 
-# Build and deploy
-pnpm build
+# Build and deploy — pnpm deploy builds automatically, no separate pnpm build needed
 pnpm deploy
 ```
 
@@ -373,14 +377,14 @@ Most variables are prefixed `NUXT_` (except direct provider envs like `S3_*` or 
 | `BUNNY_API_KEY` | | Bunny.net media provider — API key (setting this enables Bunny.net) |
 | `BUNNY_STORAGE_ZONE` | | Bunny.net media provider — storage zone name |
 | `BUNNY_PULL_ZONE` | | Bunny.net media provider — pull zone subdomain |
-| `NUXT_STRIPE_SECRET_KEY` | | Payments plugin — Stripe secret key |
-| `NUXT_STRIPE_WEBHOOK_SECRET` | | Payments plugin — Stripe webhook signing secret |
-| `NUXT_LS_API_KEY` | | Payments plugin — Lemon Squeezy API key |
-| `NUXT_LS_STORE_ID` | | Payments plugin — Lemon Squeezy store ID |
-| `NUXT_LS_WEBHOOK_SECRET` | | Payments plugin — Lemon Squeezy webhook secret |
-| `NUXT_PADDLE_API_KEY` | | Payments plugin — Paddle API key |
-| `NUXT_PADDLE_VENDOR_ID` | | Payments plugin — Paddle vendor ID |
-| `NUXT_PADDLE_WEBHOOK_PUBLIC_KEY` | | Payments plugin — Paddle Ed25519 public key |
+| `NUXT_STRIPE_SECRET_KEY` | | Payments — Stripe secret key |
+| `NUXT_STRIPE_WEBHOOK_SECRET` | | Payments — Stripe webhook signing secret |
+| `NUXT_LS_API_KEY` | | Payments — Lemon Squeezy API key |
+| `NUXT_LS_STORE_ID` | | Payments — Lemon Squeezy store ID |
+| `NUXT_LS_WEBHOOK_SECRET` | | Payments — Lemon Squeezy webhook secret |
+| `NUXT_PADDLE_API_KEY` | | Payments — Paddle API key |
+| `NUXT_PADDLE_VENDOR_ID` | | Payments — Paddle vendor ID |
+| `NUXT_PADDLE_WEBHOOK_PUBLIC_KEY` | | Payments — Paddle Ed25519 public key |
 
 ---
 
@@ -424,13 +428,6 @@ pnpm --filter @nuxflow/db migrate
 
 Plugins extend NuxFlow with new server routes, admin pages, and UI components. They declare their required permissions upfront; an admin must approve them before activation.
 
-### Bundled plugins
-
-| Plugin | Description |
-|---|---|
-| **Contact Form** | Multi-step forms with conditional logic, computed fields, Turnstile spam protection, CSV export |
-| **Payments** | Membership tiers, content gating, Stripe / Lemon Squeezy / Paddle, subscriber management |
-
 ### Creating a dynamic plugin
 
 Dynamic plugins are standalone packages built and deployed independently from NuxFlow itself. The CLI handles the full lifecycle.
@@ -458,7 +455,29 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full plugin authoring guide inclu
 
 ---
 
-## Themes
+## Themes & Visual Customizer
+
+### Visual Customizer
+
+The Visual Customizer is a no-code, full-screen style editor built into the admin dashboard. Open it from **Admin → Themes → Open customizer**.
+
+The left panel gives you point-and-click controls for:
+
+- **Colour scheme** — Auto (follows each visitor's OS), Light, or Dark
+- **Accent colour** — colour picker + hex input + quick swatches, injected as `--nuxflow-primary`
+- **Link colour** — defaults to accent; independently overridable
+- **Page background** — separate light-mode and dark-mode background colours with quick presets
+- **Body & heading fonts** — 17 Google Fonts across sans-serif, serif, and monospace families
+- **Font size** — XS / SM / MD / LG / XL step scale
+- **Heading weight** — Light through Extra Bold
+- **Line spacing** — Tight / Normal / Relaxed
+- **Corner radius** — None through Pill, with visual previews
+- **Section spacing** — Compact / Normal / Spacious, scales the vertical padding between page sections
+- **Content width** — Narrow (720 px) / Default (960 px) / Wide (1200 px) / Full
+
+The right panel shows a live iframe preview of your actual site, updating as you change controls (300 ms debounce). Use the device toggle to switch between Desktop, Tablet, and Mobile viewports. Click **Publish** to write the generated CSS to a managed theme and activate it instantly.
+
+### Themes (Nuxt layers)
 
 Themes are [Nuxt layers](https://nuxt.com/docs/guide/going-further/layers) — they can override any component, page, layout, or asset. The active theme is loaded per request; switching themes is instant and does not affect live visitors until Activate is clicked.
 

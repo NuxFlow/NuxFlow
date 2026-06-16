@@ -104,6 +104,25 @@ export const pushSubscriptions = sqliteTable('push_subscriptions', {
   index('idx_push_subs_user_site').on(t.userId, t.siteId),
 ])
 
+export const aiGenerationJobs = sqliteTable('ai_generation_jobs', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  prompt: text('prompt').notNull(),
+  type: text('type', { enum: ['page', 'site'] }).notNull().default('page'),
+  plan: text('plan', { mode: 'json' }).$type<Array<{ title: string; slug: string; description: string }>>(),
+  status: text('status', { enum: ['planning', 'approved', 'generating', 'complete', 'failed'] }).notNull().default('planning'),
+  generatedCount: integer('generated_count').notNull().default(0),
+  totalCount: integer('total_count').notNull().default(0),
+  contentItemIds: text('content_item_ids', { mode: 'json' }).$type<string[]>(),
+  error: text('error'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_ai_gen_jobs_site').on(t.siteId),
+  index('idx_ai_gen_jobs_user_site').on(t.userId, t.siteId),
+])
+
 // Virtual FTS5 table — created via raw SQL in migration, not via Drizzle
 // See migrations/0001_fts5_search_index.sql
 export const searchIndexSql = `

@@ -24,19 +24,19 @@ const { mockConstructEvent, mockLsVerify, mockPaddleVerify } = vi.hoisted(() => 
   mockPaddleVerify: vi.fn(),
 }))
 
-vi.mock('@nuxflow/plugin-payments/providers/stripe', () => ({
+vi.mock('../../server/utils/payments/stripe', () => ({
   StripeProvider: vi.fn().mockImplementation(() => ({
     constructWebhookEvent: mockConstructEvent,
   })),
 }))
 
-vi.mock('@nuxflow/plugin-payments/providers/lemonsqueezy', () => ({
+vi.mock('../../server/utils/payments/lemonsqueezy', () => ({
   LemonSqueezyProvider: vi.fn().mockImplementation(() => ({
     verifyWebhook: mockLsVerify,
   })),
 }))
 
-vi.mock('@nuxflow/plugin-payments/providers/paddle', () => ({
+vi.mock('../../server/utils/payments/paddle', () => ({
   PaddleProvider: vi.fn().mockImplementation(() => ({
     verifyWebhook: mockPaddleVerify,
   })),

@@ -4,7 +4,8 @@ import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { resolveSetting } from '../../../utils/settings'
-import { StripeProvider } from '@nuxflow/plugin-payments/providers/stripe'
+import { StripeProvider } from '../../../utils/payments/stripe'
+import { LemonSqueezyProvider } from '../../../utils/payments/lemonsqueezy'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -34,33 +35,29 @@ export default defineEventHandler(async (event) => {
 
   let stripeProductId = body.stripeProductId !== undefined ? body.stripeProductId : tier.stripeProductId
   let stripePriceId = body.stripePriceId !== undefined ? body.stripePriceId : tier.stripePriceId
+  let lsVariantId = body.lsVariantId !== undefined ? body.lsVariantId : tier.lsVariantId
 
-  // Determine target price, currency, interval, name, description
   const targetPrice = body.price !== undefined ? body.price : tier.price
   const targetCurrency = body.currency !== undefined ? body.currency : tier.currency
   const targetInterval = body.interval !== undefined ? body.interval : tier.interval
   const targetName = body.name !== undefined ? body.name : tier.name
   const targetDescription = body.description !== undefined ? body.description : (tier.description ?? undefined)
 
-  // Auto-sync/create if Stripe is configured and it's a paid tier
   if (targetPrice > 0) {
+    // ── Stripe sync ────────────────────────────────────────────────────────
     const stripeSecretKey = await resolveSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
     if (stripeSecretKey) {
       try {
         const stripe = new StripeProvider(stripeSecretKey)
         if (!stripeProductId) {
-          // No product exists. Create both product and price
           const product = await stripe.createProduct(targetName, targetDescription)
           const price = await stripe.createPrice(product.id, targetPrice, targetCurrency, targetInterval)
           stripeProductId = product.id
           stripePriceId = price.id
         } else {
-          // Product exists. If name or description is updated, update product metadata on Stripe
           if (body.name !== undefined || body.description !== undefined) {
             await stripe.updateProduct(stripeProductId, targetName, targetDescription)
           }
-
-          // If price, currency, or interval changed (or if no stripePriceId exists yet), create a new price
           const priceChanged = body.price !== undefined && body.price !== tier.price
           const currencyChanged = body.currency !== undefined && body.currency !== tier.currency
           const intervalChanged = body.interval !== undefined && body.interval !== tier.interval
@@ -77,6 +74,35 @@ export default defineEventHandler(async (event) => {
         })
       }
     }
+
+    // ── Lemon Squeezy sync ────────────────────────────────────────────────
+    const lsApiKey = await resolveSetting(event, 'payments.ls_api_key', 'lsApiKey')
+    const lsStoreId = await resolveSetting(event, 'payments.ls_store_id', 'lsStoreId')
+    if (lsApiKey && lsStoreId) {
+      try {
+        const ls = new LemonSqueezyProvider(lsApiKey, lsStoreId)
+        const priceChanged = body.price !== undefined && body.price !== tier.price
+        const intervalChanged = body.interval !== undefined && body.interval !== tier.interval
+
+        if (!lsVariantId) {
+          // No variant yet — create product + variant
+          const product = await ls.createProduct(targetName, targetDescription)
+          const variant = await ls.createVariant(product.data.id, targetName, targetPrice, targetInterval)
+          lsVariantId = variant.data.id
+        } else if (priceChanged || intervalChanged) {
+          // Price or interval changed — create a new product + variant (existing subscriptions keep the old one)
+          const product = await ls.createProduct(targetName, targetDescription)
+          const variant = await ls.createVariant(product.data.id, targetName, targetPrice, targetInterval)
+          lsVariantId = variant.data.id
+        }
+      } catch (err) {
+        console.error('[lemonsqueezy] Auto-sync failed on tier update:', err)
+        throw createError({
+          statusCode: 400,
+          message: `Lemon Squeezy synchronization failed: ${(err as Error).message}`,
+        })
+      }
+    }
   }
 
   await db.update(membershipTiers)
@@ -84,6 +110,7 @@ export default defineEventHandler(async (event) => {
       ...body,
       stripeProductId: stripeProductId || null,
       stripePriceId: stripePriceId || null,
+      lsVariantId: lsVariantId || null,
       updatedAt: new Date().toISOString(),
     })
     .where(and(eq(membershipTiers.id, id), eq(membershipTiers.siteId, siteId)))

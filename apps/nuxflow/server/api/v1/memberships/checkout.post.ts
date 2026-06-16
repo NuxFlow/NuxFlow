@@ -4,8 +4,8 @@ import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
 import { resolveSetting } from '../../../utils/settings'
-import { StripeProvider } from '@nuxflow/plugin-payments/providers/stripe'
-import { LemonSqueezyProvider } from '@nuxflow/plugin-payments/providers/lemonsqueezy'
+import { StripeProvider } from '../../../utils/payments/stripe'
+import { LemonSqueezyProvider } from '../../../utils/payments/lemonsqueezy'
 
 const bodySchema = z.object({
   tierId: z.string(),

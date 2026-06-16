@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { useDb } from '../../../utils/db'
+import { trackPageView } from '../../../utils/analytics'
 import { contentItems, contentTypes, membershipTiers, redirects, subscriptions } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -102,8 +103,16 @@ export default defineEventHandler(async (event) => {
     ? page.allowComments
     : (type?.hasComments ?? false)
 
-  // Only cache public content; member content must not be cached publicly
-  setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
+  // Member/password-gated pages that passed the gate must not be publicly cached
+  const isGated = page.visibility === 'members' || page.visibility === 'password'
+  if (isGated) {
+    setHeader(event, 'Cache-Control', 'private, no-store')
+  }
+  else {
+    setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
+  }
+
+  trackPageView(event, { siteId, slug })
 
   return {
     id: page.id,

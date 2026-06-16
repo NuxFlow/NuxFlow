@@ -1,6 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { contentItems, contentTypes } from '@nuxflow/db/schema'
-import { and, eq, desc } from 'drizzle-orm'
+import { and, eq, desc, gt } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
@@ -27,11 +27,18 @@ export default defineEventHandler(async (event) => {
     conditions.push(eq(contentItems.status, query.status as 'draft' | 'review' | 'published' | 'scheduled' | 'archived'))
   }
 
+  // Delta sync: return only items modified after a given timestamp.
+  // Used by offline clients on reconnect to fetch only what changed.
+  // Hits idx_content_items_site_updated (site_id, updated_at) index.
+  if (query.updatedAfter) {
+    conditions.push(gt(contentItems.updatedAt, query.updatedAfter as string))
+  }
+
   const items = await db.query.contentItems.findMany({
     where: and(...conditions),
     orderBy: [desc(contentItems.updatedAt)],
     columns: {
-      id: true, title: true, slug: true, status: true, publishedAt: true, updatedAt: true, authorId: true,
+      id: true, title: true, slug: true, status: true, publishedAt: true, updatedAt: true, authorId: true, version: true,
     },
   })
 

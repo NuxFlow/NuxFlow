@@ -3,7 +3,7 @@ import { subscriptions } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { resolveSetting } from '../../../utils/settings'
-import { StripeProvider } from '@nuxflow/plugin-payments/providers/stripe'
+import { StripeProvider } from '../../../utils/payments/stripe'
 
 const bodySchema = z.object({
   returnUrl: z.string().url(),

@@ -62,7 +62,33 @@ const appearance = reactive({
   showHeader: true,
   showColorToggle: true,
   faviconUrl: '',
+  logoUrl: '',
+  customHeadHtml: '',
+  customBodyHtml: '',
 })
+
+const uploadingLogo = ref(false)
+
+async function uploadLogo(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  uploadingLogo.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const result = await $fetch<{ url: string }>('/api/v1/media/upload', { method: 'POST', body: fd })
+    appearance.logoUrl = result.url
+    await save()
+  } finally {
+    uploadingLogo.value = false
+    ;(e.target as HTMLInputElement).value = ''
+  }
+}
+
+async function removeLogo() {
+  appearance.logoUrl = ''
+  await save()
+}
 
 const uploadingFavicon = ref(false)
 
@@ -270,6 +296,9 @@ watch(data, (d) => {
   appearance.showHeader = (s['frontend.show_header'] as boolean | undefined) !== false
   appearance.showColorToggle = (s['frontend.show_color_toggle'] as boolean | undefined) !== false
   appearance.faviconUrl = (s['appearance.favicon_url'] as string) ?? ''
+  appearance.logoUrl = (s['appearance.logo_url'] as string) ?? ''
+  appearance.customHeadHtml = (s['appearance.custom_head_html'] as string) ?? ''
+  appearance.customBodyHtml = (s['appearance.custom_body_html'] as string) ?? ''
 
   payments.stripeSecretKey = (s['payments.stripe_secret_key'] as string) ?? ''
   payments.stripeWebhookSecret = (s['payments.stripe_webhook_secret'] as string) ?? ''
@@ -314,6 +343,9 @@ async function save() {
       'frontend.show_header': appearance.showHeader,
       'frontend.show_color_toggle': appearance.showColorToggle,
       'appearance.favicon_url': appearance.faviconUrl || null,
+      'appearance.logo_url': appearance.logoUrl || null,
+      'appearance.custom_head_html': appearance.customHeadHtml || null,
+      'appearance.custom_body_html': appearance.customBodyHtml || null,
       'notificationEmail': general.notificationEmail || null,
       'auth.allow_public_registration': general.allowPublicRegistration ? 'true' : 'false',
       'push.events.content_published': push.eventsContentPublished ? 'true' : 'false',
@@ -520,6 +552,37 @@ async function deleteSite() {
           </UAlert>
 
           <UCard>
+            <template #header>
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">Site logo</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Shown in the header instead of the site name. Upload an SVG or PNG with a transparent background — max height 40 px looks best.</p>
+            </template>
+            <div class="flex items-center gap-4">
+              <div class="w-32 h-14 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-center overflow-hidden shrink-0 px-2">
+                <img v-if="appearance.logoUrl" :src="appearance.logoUrl" alt="Current logo" class="max-h-10 max-w-full object-contain">
+                <span v-else class="text-xs text-gray-400 dark:text-gray-500">No logo set</span>
+              </div>
+              <div class="space-y-2">
+                <label class="cursor-pointer">
+                  <UButton as="span" variant="outline" icon="i-lucide-upload" :loading="uploadingLogo" size="sm">
+                    {{ appearance.logoUrl ? 'Replace logo' : 'Upload logo' }}
+                  </UButton>
+                  <input type="file" accept=".png,.svg,.jpg,.jpeg,.webp" class="sr-only" @change="uploadLogo">
+                </label>
+                <UButton
+                  v-if="appearance.logoUrl"
+                  variant="ghost"
+                  color="red"
+                  icon="i-lucide-trash-2"
+                  size="sm"
+                  @click="removeLogo"
+                >
+                  Remove logo
+                </UButton>
+              </div>
+            </div>
+          </UCard>
+
+          <UCard>
             <template #header><p class="text-sm font-semibold text-gray-900 dark:text-white">Favicon</p></template>
             <div class="space-y-4">
               <p class="text-sm text-gray-500 dark:text-gray-400">The icon shown in browser tabs and bookmarks. Upload a square PNG, SVG, or ICO file — 256×256 px or larger recommended.</p>
@@ -574,6 +637,36 @@ async function deleteSite() {
                 </div>
                 <USwitch v-model="appearance.showColorToggle" />
               </div>
+            </div>
+            <template #footer>
+              <div class="flex justify-end">
+                <UButton :loading="saving" @click="save">Save changes</UButton>
+              </div>
+            </template>
+          </UCard>
+
+          <UCard>
+            <template #header>
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">Custom code</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Inject analytics scripts, chat widgets, or any other HTML into your public pages. Only paste code from trusted sources.</p>
+            </template>
+            <div class="space-y-5">
+              <UFormField label="Head code" hint="Injected before </head> — use for scripts that must load early (analytics, fonts).">
+                <textarea
+                  v-model="appearance.customHeadHtml"
+                  rows="5"
+                  placeholder="<!-- e.g. Google Analytics, Meta Pixel -->"
+                  class="w-full px-3 py-2 text-xs font-mono rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y"
+                />
+              </UFormField>
+              <UFormField label="Body code" hint="Injected before </body> — use for chat widgets or deferred scripts.">
+                <textarea
+                  v-model="appearance.customBodyHtml"
+                  rows="5"
+                  placeholder="<!-- e.g. Intercom, Crisp, HubSpot -->"
+                  class="w-full px-3 py-2 text-xs font-mono rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y"
+                />
+              </UFormField>
             </div>
             <template #footer>
               <div class="flex justify-end">

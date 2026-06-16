@@ -43,8 +43,9 @@ interface AccountData {
 }
 
 const { user } = useUserSession()
+const toast = useToast()
 
-const { data } = await useFetch<AccountData>('/api/v1/account/subscription', {
+const { data, refresh: refreshSubscription } = await useFetch<AccountData>('/api/v1/account/subscription', {
   headers: useRequestHeaders(['cookie']),
 })
 
@@ -52,7 +53,8 @@ const subscription = computed(() => data.value?.subscription ?? null)
 const tier = computed(() => data.value?.tier ?? null)
 
 const managingBilling = ref(false)
-const toast = useToast()
+const cancellingSubscription = ref(false)
+const showCancelConfirm = ref(false)
 
 const statusColor = computed(() => {
   switch (subscription.value?.status) {
@@ -75,6 +77,12 @@ const statusLabel = computed(() => {
   }
 })
 
+const canCancel = computed(() =>
+  subscription.value !== null
+  && ['active', 'trialing'].includes(subscription.value.status)
+  && !subscription.value.cancelledAt,
+)
+
 async function manageBilling() {
   managingBilling.value = true
   try {
@@ -88,6 +96,21 @@ async function manageBilling() {
     toast.add({ title: msg, color: 'red' })
   } finally {
     managingBilling.value = false
+  }
+}
+
+async function cancelSubscription() {
+  cancellingSubscription.value = true
+  showCancelConfirm.value = false
+  try {
+    await $fetch('/api/v1/account/subscription', { method: 'DELETE' })
+    toast.add({ title: 'Subscription cancelled', color: 'green' })
+    await refreshSubscription()
+  } catch (e: unknown) {
+    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Could not cancel subscription'
+    toast.add({ title: msg, color: 'red' })
+  } finally {
+    cancellingSubscription.value = false
   }
 }
 
@@ -168,14 +191,28 @@ function formatDate(dateStr: string | null) {
           </div>
         </div>
 
-        <div v-if="subscription.provider === 'stripe'">
+        <div class="flex items-center gap-3 flex-wrap">
+          <!-- Stripe billing portal for managing payment method, invoices, etc. -->
           <UButton
+            v-if="subscription.provider === 'stripe'"
             variant="outline"
             icon="i-lucide-credit-card"
             :loading="managingBilling"
             @click="manageBilling"
           >
             Manage billing
+          </UButton>
+
+          <!-- Cancel button for all providers -->
+          <UButton
+            v-if="canCancel"
+            variant="ghost"
+            color="red"
+            icon="i-lucide-x-circle"
+            :loading="cancellingSubscription"
+            @click="showCancelConfirm = true"
+          >
+            Cancel subscription
           </UButton>
         </div>
       </div>
@@ -191,6 +228,24 @@ function formatDate(dateStr: string | null) {
         <UButton to="/pricing" icon="i-lucide-star">View plans</UButton>
       </div>
     </UCard>
+
+    <!-- Cancel confirmation modal -->
+    <UModal v-model:open="showCancelConfirm" title="Cancel subscription">
+      <template #body>
+        <div class="space-y-4">
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            Are you sure you want to cancel your <strong>{{ tier?.name }}</strong> subscription?
+            You will lose access to member-only content immediately.
+          </p>
+          <div class="flex justify-end gap-2">
+            <UButton variant="ghost" @click="showCancelConfirm = false">Keep subscription</UButton>
+            <UButton color="red" :loading="cancellingSubscription" @click="cancelSubscription">
+              Yes, cancel
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
 
     <!-- Notifications -->
     <ClientOnly>

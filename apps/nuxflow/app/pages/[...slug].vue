@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import Paywall from '@nuxflow/plugin-payments/components/Paywall'
+import Paywall from '~/components/memberships/Paywall.vue'
 
 const route = useRoute()
 const slug = computed(() => (route.params.slug as string[]).join('/'))

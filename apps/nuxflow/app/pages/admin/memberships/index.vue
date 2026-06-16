@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import MembershipsAdmin from '@nuxflow/plugin-payments/components/MembershipsAdmin'
+import MembershipsAdmin from '~/components/memberships/MembershipsAdmin.vue'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 </script>

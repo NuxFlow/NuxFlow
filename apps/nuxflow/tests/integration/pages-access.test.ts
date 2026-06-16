@@ -127,4 +127,19 @@ describe('Public pages API — content gating', () => {
       expect(Array.isArray(e.data.tiers)).toBe(true)
     }
   })
+
+  it('sets Cache-Control: public for public pages', async () => {
+    const event = mkEvent(publicSlug)
+    await (handler as HandlerFn)(event)
+    const headers = (event as unknown as { _responseHeaders: Record<string, string> })._responseHeaders
+    expect(headers['Cache-Control']).toBe('public, max-age=3600, stale-while-revalidate=86400')
+  })
+
+  it('sets Cache-Control: private for members-only pages accessed by a valid subscriber', async () => {
+    // userId already has an active subscription from the 'allows access' test above
+    const event = mkEvent(membersSlug, { user: { id: userId, name: 'Reader', email: 'reader@pages.test' } })
+    await (handler as HandlerFn)(event)
+    const headers = (event as unknown as { _responseHeaders: Record<string, string> })._responseHeaders
+    expect(headers['Cache-Control']).toBe('private, no-store')
+  })
 })

@@ -18,6 +18,9 @@ const bodySchema = z.object({
   scheduledAt: z.string().datetime().nullish(),
   settings: z.record(z.unknown()).optional(),
   allowComments: z.boolean().nullable().optional(),
+  // Optional optimistic lock: client sends the version it last saw.
+  // Server returns 409 if the item has since been updated by someone else.
+  expectedVersion: z.number().int().positive().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -32,6 +35,17 @@ export default defineEventHandler(async (event) => {
   })
   if (!existing) throw createError({ statusCode: 404, message: 'Not found' })
 
+  const { expectedVersion, ...updateFields } = body
+  if (expectedVersion !== undefined && existing.version !== expectedVersion) {
+    throw createError({
+      statusCode: 409,
+      message: 'Content has been modified since you last loaded it',
+      data: { currentVersion: existing.version },
+    })
+  }
+
+  const nextVersion = existing.version + 1
+
   // Snapshot revision before update
   await db.insert(contentRevisions).values({
     id: ulid(),
@@ -43,9 +57,10 @@ export default defineEventHandler(async (event) => {
 
   await db.update(contentItems)
     .set({
-      ...body,
+      ...updateFields,
+      version: nextVersion,
       updatedAt: sql`(datetime('now'))`,
-      publishedAt: body.status === 'published' && !existing.publishedAt
+      publishedAt: updateFields.status === 'published' && !existing.publishedAt
         ? sql`(datetime('now'))`
         : existing.publishedAt,
     })
@@ -56,21 +71,21 @@ export default defineEventHandler(async (event) => {
     resource: 'content_item',
     resourceId: id,
     before: existing,
-    after: body,
+    after: updateFields,
   })
 
   // Push broadcast when content is first published
-  const isFirstPublish = body.status === 'published' && existing.status !== 'published'
+  const isFirstPublish = updateFields.status === 'published' && existing.status !== 'published'
   if (isFirstPublish) {
     const enabled = await resolveSetting(event, 'push.events.content_published')
     if (enabled === 'true') {
       broadcastPushToSite(event, {
         title: body.title ?? existing.title,
         body: 'New content has been published.',
-        url: `/${body.slug ?? existing.slug}`,
+        url: `/${updateFields.slug ?? existing.slug}`,
       }).catch(err => console.error('[push] Content publish broadcast failed:', err))
     }
   }
 
-  return { id }
+  return { id, version: nextVersion }
 })

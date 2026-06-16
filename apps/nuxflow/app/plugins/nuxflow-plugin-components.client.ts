@@ -19,17 +19,17 @@ import {
   CanvasAdmin,
 } from '@nuxflow/plugin-canvas'
 
-import { ContactFormAdmin } from '@nuxflow/plugin-contact-form'
-import { MembershipsAdmin } from '@nuxflow/plugin-payments'
+import ContactFormAdmin from '~/components/forms/ContactFormAdmin.vue'
+import MembershipsAdmin from '~/components/memberships/MembershipsAdmin.vue'
 
 export default defineNuxtPlugin((nuxtApp) => {
   // ── @nuxflow/plugin-canvas editor ────────────────────────────────────────
   nuxtApp.vueApp.component('CanvasAdmin', CanvasAdmin)
   nuxtApp.vueApp.component('CanvasContentEditor', CanvasContentEditor)
 
-  // ── @nuxflow/plugin-contact-form ─────────────────────────────────────────
+  // ── Contact Forms ────────────────────────────────────────────────────────
   nuxtApp.vueApp.component('ContactFormAdmin', ContactFormAdmin)
 
-  // ── @nuxflow/plugin-payments ─────────────────────────────────────────────
+  // ── Memberships ──────────────────────────────────────────────────────────
   nuxtApp.vueApp.component('MembershipsAdmin', MembershipsAdmin)
 })

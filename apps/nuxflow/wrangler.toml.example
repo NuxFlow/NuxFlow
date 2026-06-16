@@ -50,6 +50,13 @@ preview_id = "your-kv-preview-namespace-id"
 [[worker_loaders]]
 binding = "LOADER"
 
+# Cloudflare Analytics Engine (optional — included in Workers Paid plan).
+# Enables edge-native, cookie-free page view and event analytics.
+# Create a dataset in the Cloudflare dashboard, then set the binding name to "AE".
+# [[analytics_engine_datasets]]
+# binding = "AE"
+# dataset = "nuxflow_analytics"
+
 # Cloudflare D1 database (default).
 # Create with: wrangler d1 create nuxflow
 # Then paste the returned database_id below.

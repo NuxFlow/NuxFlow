@@ -460,6 +460,31 @@ const swatches = [
     <div class="space-y-3">
       <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Appearance</h2>
 
+      <!-- Visual Customizer CTA -->
+      <div class="relative overflow-hidden rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 p-5 text-white shadow-md">
+        <div class="relative flex items-start justify-between gap-4">
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-palette" class="w-5 h-5 text-violet-200" />
+              <p class="text-sm font-semibold">Visual Customizer</p>
+            </div>
+            <p class="text-xs text-violet-100/90 max-w-sm leading-relaxed">
+              No code needed — change fonts, colors, spacing, and corner shapes with a live preview of your site right next to the controls.
+            </p>
+          </div>
+          <NuxtLink
+            to="/admin/themes/customize"
+            class="shrink-0 inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-white/20 hover:bg-white/30 active:bg-white/40 px-3.5 py-2 text-xs font-semibold text-white shadow transition-colors"
+          >
+            Open customizer
+            <UIcon name="i-lucide-arrow-right" class="w-3.5 h-3.5" />
+          </NuxtLink>
+        </div>
+        <!-- decorative blobs -->
+        <div class="pointer-events-none absolute -right-6 -top-6 w-28 h-28 rounded-full bg-white/5" />
+        <div class="pointer-events-none absolute -right-2 -bottom-8 w-20 h-20 rounded-full bg-white/5" />
+      </div>
+
       <!-- How appearance settings work -->
       <UCard>
         <div class="flex gap-3">

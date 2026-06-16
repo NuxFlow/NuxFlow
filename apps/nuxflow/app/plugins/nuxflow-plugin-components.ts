@@ -27,10 +27,59 @@ import {
   CanvasBlockPricing,
   registerBlockDefinition,
 } from '@nuxflow/plugin-canvas'
+import type { CanvasBlockDefinition } from '@nuxflow/plugin-canvas'
 
-import { ContactFormBlock, contactFormBlockDefinition } from '@nuxflow/plugin-contact-form'
-import { Paywall } from '@nuxflow/plugin-payments'
-import { HtmlBlock, htmlBlockDefinition } from '@nuxflow/plugin-html-block'
+import ContactFormBlock from '~/components/forms/ContactFormBlock.vue'
+import Paywall from '~/components/memberships/Paywall.vue'
+import HtmlBlock from '~/components/blocks/HtmlBlock.vue'
+
+const contactFormBlockDefinition: CanvasBlockDefinition = {
+  id: 'contact-form/form',
+  name: 'Contact Form',
+  description: 'Embed a contact form with customisable title, description, and button text.',
+  icon: 'i-lucide-mail',
+  category: 'plugin',
+  component: 'ContactFormBlock',
+  thumbnailColor: '#ecfdf5',
+  fields: [
+    { key: 'title', label: 'Form Title', type: 'text', placeholder: 'Get in touch' },
+    { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Send us a message and we\'ll get back to you.' },
+    { key: 'submitLabel', label: 'Submit button label', type: 'text', placeholder: 'Send message' },
+    { key: 'bgColor', label: 'Background colour', type: 'color' },
+    { key: 'textColor', label: 'Text colour', type: 'color' },
+    { key: 'padding', label: 'Padding', type: 'spacing' },
+  ],
+  defaultProps: {
+    title: 'Get in touch',
+    description: 'Send us a message and we\'ll get back to you.',
+    submitLabel: 'Send message',
+    padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+  },
+}
+
+const htmlBlockDefinition: CanvasBlockDefinition = {
+  id: 'html-block/html',
+  name: 'HTML',
+  description: 'Raw HTML block — paste any HTML snippet directly onto the page',
+  icon: 'i-lucide-code-xml',
+  category: 'plugin',
+  component: 'HtmlBlock',
+  thumbnailColor: '#fef3c7',
+  fields: [
+    {
+      key: 'html',
+      label: 'HTML',
+      type: 'textarea',
+      rows: 10,
+      placeholder: '<div class="my-widget">\n  <!-- your HTML here -->\n</div>',
+    },
+    { key: 'padding', label: 'Padding', type: 'spacing' },
+  ],
+  defaultProps: {
+    html: '',
+    padding: { top: 16, right: 16, bottom: 16, left: 16, unit: 'px' },
+  },
+}
 
 export default defineNuxtPlugin((nuxtApp) => {
   const registry = useBlockRegistry()
@@ -51,14 +100,14 @@ export default defineNuxtPlugin((nuxtApp) => {
   registry.register('canvas-accordion',   { name: 'Accordion',   icon: 'i-lucide-fold-vertical',     component: CanvasBlockAccordion })
   registry.register('canvas-pricing',     { name: 'Pricing Table', icon: 'i-lucide-credit-card',    component: CanvasBlockPricing })
 
-  // ── @nuxflow/plugin-contact-form ──────────────────────────────────────────
+  // ── Contact Forms ─────────────────────────────────────────────────────────
   registry.register('contact-form/form', { name: 'Contact Form', icon: 'i-lucide-mail', component: ContactFormBlock })
   registerBlockDefinition(contactFormBlockDefinition)
 
-  // ── @nuxflow/plugin-payments ──────────────────────────────────────────────
+  // ── Memberships ───────────────────────────────────────────────────────────
   registry.register('payments/paywall', { name: 'Paywall', icon: 'i-lucide-lock', component: Paywall })
 
-  // ── @nuxflow/plugin-html-block ────────────────────────────────────────────
+  // ── HTML Block ────────────────────────────────────────────────────────────
   registry.register('html-block/html', { name: 'HTML', icon: 'i-lucide-code-xml', component: HtmlBlock })
   registerBlockDefinition(htmlBlockDefinition)
 

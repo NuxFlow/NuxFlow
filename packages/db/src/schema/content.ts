@@ -43,6 +43,8 @@ export const contentItems = sqliteTable('content_items', {
   allowComments: integer('allow_comments', { mode: 'boolean' }),
   locale: text('locale').notNull().default('en'),
   sourceItemId: text('source_item_id').references((): AnySQLiteColumn => contentItems.id, { onDelete: 'set null' }),
+  // Incremented on every PATCH — used for optimistic locking and offline sync conflict detection.
+  version: integer('version').notNull().default(1),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
@@ -51,6 +53,8 @@ export const contentItems = sqliteTable('content_items', {
   index('idx_content_items_site_status').on(t.siteId, t.status),
   index('idx_content_items_locale').on(t.siteId, t.locale),
   index('idx_content_items_source').on(t.sourceItemId),
+  // Supports delta sync: WHERE site_id = ? AND updated_at > ? (used by offline clients on reconnect)
+  index('idx_content_items_site_updated').on(t.siteId, t.updatedAt),
 ])
 
 export const contentRevisions = sqliteTable('content_revisions', {

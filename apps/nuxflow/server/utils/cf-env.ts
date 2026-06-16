@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import type { KVNamespace, WorkerLoader, WorkerStub, WorkerCode } from '../types/cloudflare-bindings'
+import type { AnalyticsEngineDataset, KVNamespace, WorkerLoader, WorkerStub, WorkerCode } from '../types/cloudflare-bindings'
 
 interface CfBindings {
   kv: KVNamespace | null
@@ -87,6 +87,10 @@ export async function deleteThemeDemo(event: H3Event, siteId: string, themeId: s
   const { kv } = getCfBindings(event)
   if (!kv) return
   await kv.delete(`theme:${siteId}:${themeId}:demo`)
+}
+
+export function getAnalyticsEngine(event: H3Event): AnalyticsEngineDataset | null {
+  return (event?.context?.cloudflare?.env?.AE as AnalyticsEngineDataset | undefined) ?? null
 }
 
 export function spawnPluginWorker(

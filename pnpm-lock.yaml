@@ -74,15 +74,6 @@ importers:
       '@nuxflow/plugin-canvas':
         specifier: workspace:*
         version: link:../../packages/plugins/canvas
-      '@nuxflow/plugin-contact-form':
-        specifier: workspace:*
-        version: link:../../packages/plugins/contact-form
-      '@nuxflow/plugin-html-block':
-        specifier: workspace:*
-        version: link:../../packages/plugins/html-block
-      '@nuxflow/plugin-payments':
-        specifier: workspace:*
-        version: link:../../packages/plugins/payments
       '@nuxflow/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
@@ -161,6 +152,9 @@ importers:
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
+      stripe:
+        specifier: ^17.0.0
+        version: 17.7.0
       tus-js-client:
         specifier: ^4.3.1
         version: 4.3.1

@@ -12,7 +12,7 @@ vi.mock('../../server/utils/db', () => ({
 
 const PORTAL_URL = 'https://billing.stripe.com/session/test_portal_abc'
 
-vi.mock('@nuxflow/plugin-payments/providers/stripe', () => ({
+vi.mock('../../server/utils/payments/stripe', () => ({
   StripeProvider: vi.fn().mockImplementation(() => ({
     createBillingPortalSession: vi.fn().mockResolvedValue({ url: PORTAL_URL }),
   })),

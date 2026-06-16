@@ -16,6 +16,10 @@ export default defineNitroPlugin((nitro) => {
     const siteId = event.context.siteId as string | null
     if (!siteId) return
 
+    // Theme CSS is for the public site only — never inject into the admin UI.
+    // Admin pages get --nuxflow-primary from site-settings-resolver.ts instead.
+    if (getRequestURL(event).pathname.startsWith('/admin')) return
+
     try {
       // We must query the DB here instead of the 'request' hook because 'siteId'
       // is set by the multi-site middleware, which runs AFTER the 'request' hook.

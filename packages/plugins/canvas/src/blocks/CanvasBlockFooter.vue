@@ -33,6 +33,7 @@ const props = withDefaults(defineProps<{
 interface SitePublic {
   name: string
   domain: string
+  logoUrl: string | null
 }
 
 const { data: site } = await useFetch<SitePublic>('/api/public/site', {
@@ -78,10 +79,18 @@ const wrapperStyle = computed(() => {
       <div class="footer-main">
         <div class="brand-section">
           <div class="logo-wrap">
-            <div v-if="logoIcon" class="logo-icon-bg">
-              <span :class="logoIcon" class="logo-icon"></span>
-            </div>
-            <span class="logo-text">{{ displayLogoText }}</span>
+            <img
+              v-if="site?.logoUrl"
+              :src="site.logoUrl"
+              :alt="displayLogoText"
+              class="footer-logo-img"
+            >
+            <template v-else>
+              <div v-if="logoIcon" class="logo-icon-bg">
+                <span :class="logoIcon" class="logo-icon"></span>
+              </div>
+              <span class="logo-text">{{ displayLogoText }}</span>
+            </template>
           </div>
           <p class="brand-desc">{{ description }}</p>
         </div>
@@ -158,6 +167,13 @@ const wrapperStyle = computed(() => {
   width: 1.25rem;
   height: 1.25rem;
   color: #00dc82; /* primary-500 equivalent */
+}
+
+.footer-logo-img {
+  max-height: 2.5rem;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
 }
 
 .logo-text {

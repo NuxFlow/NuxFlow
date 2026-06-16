@@ -13,6 +13,7 @@ interface SitePublic {
   domain: string
   showHeader: boolean
   showColorToggle: boolean
+  logoUrl: string | null
 }
 
 const { data: site } = await useFetch<SitePublic>('/api/public/site', {
@@ -37,8 +38,16 @@ watch(() => route.path, () => { mobileOpen.value = false })
   <header v-if="site?.showHeader !== false" class="glass sticky top-0 z-50" style="border-bottom: 1px solid var(--glass-border);">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-6">
       <!-- Logo -->
-      <NuxtLink to="/" class="font-bold text-lg text-gray-900 dark:text-white hover:text-primary-500 transition-colors shrink-0">
-        {{ site?.name ?? 'NuxFlow' }}
+      <NuxtLink to="/" class="shrink-0 flex items-center hover:opacity-80 transition-opacity">
+        <img
+          v-if="site?.logoUrl"
+          :src="site.logoUrl"
+          :alt="site.name ?? 'Logo'"
+          class="h-8 w-auto max-w-[160px] object-contain"
+        >
+        <span v-else class="font-bold text-lg text-gray-900 dark:text-white">
+          {{ site?.name ?? 'NuxFlow' }}
+        </span>
       </NuxtLink>
 
       <!-- Desktop nav -->

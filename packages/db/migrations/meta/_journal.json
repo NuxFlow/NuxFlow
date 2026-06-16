@@ -29,6 +29,20 @@
       "when": 1781290476377,
       "tag": "0003_regular_changeling",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1781460418208,
+      "tag": "0004_peaceful_the_hunter",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1781461857718,
+      "tag": "0005_exotic_stark_industries",
+      "breakpoints": true
     }
   ]
 }

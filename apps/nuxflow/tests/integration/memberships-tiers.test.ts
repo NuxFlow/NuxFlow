@@ -11,11 +11,18 @@ vi.mock('../../server/utils/db', () => ({
   getD1: () => null,
 }))
 
-vi.mock('@nuxflow/plugin-payments/providers/stripe', () => ({
+vi.mock('../../server/utils/payments/stripe', () => ({
   StripeProvider: vi.fn().mockImplementation(() => ({
     createProduct: vi.fn().mockResolvedValue({ id: 'prod_mock123' }),
     createPrice: vi.fn().mockResolvedValue({ id: 'price_mock123' }),
     updateProduct: vi.fn().mockResolvedValue({}),
+  })),
+}))
+
+vi.mock('../../server/utils/payments/lemonsqueezy', () => ({
+  LemonSqueezyProvider: vi.fn().mockImplementation(() => ({
+    createProduct: vi.fn().mockResolvedValue({ data: { id: 'ls_prod_mock123' } }),
+    createVariant: vi.fn().mockResolvedValue({ data: { id: 'ls_var_mock123' } }),
   })),
 }))
 
@@ -64,26 +71,28 @@ describe('POST /api/v1/memberships', () => {
     await expect((createHandler as HandlerFn)(event)).rejects.toMatchObject({ statusCode: 403 })
   })
 
-  it('creates a free tier with no Stripe sync', async () => {
+  it('creates a free tier with no provider sync', async () => {
     const result = await (createHandler as HandlerFn)(
       mkEvent({ name: 'Free Plan', price: 0, currency: 'USD', interval: 'month' }),
-    ) as { name: string; price: number; stripePriceId: string | null }
+    ) as { name: string; price: number; stripePriceId: string | null; lsVariantId: string | null }
 
     expect(result.name).toBe('Free Plan')
     expect(result.price).toBe(0)
     expect(result.stripePriceId).toBeNull()
+    expect(result.lsVariantId).toBeNull()
   })
 
-  it('creates a paid tier without auto-sync when no Stripe key is configured', async () => {
+  it('creates a paid tier without auto-sync when no provider keys are configured', async () => {
     const result = await (createHandler as HandlerFn)(
       mkEvent({ name: 'Paid No Key', price: 9.99, currency: 'USD', interval: 'month' }),
-    ) as { price: number; stripePriceId: string | null }
+    ) as { price: number; stripePriceId: string | null; lsVariantId: string | null }
 
     expect(result.price).toBe(9.99)
     expect(result.stripePriceId).toBeNull()
+    expect(result.lsVariantId).toBeNull()
   })
 
-  it('creates a paid tier and auto-syncs to Stripe when key is configured', async () => {
+  it('creates a paid tier and auto-syncs to Stripe when Stripe key is configured', async () => {
     await seedSetting(getCurrentTestDb(), SITE, 'payments.stripe_secret_key', 'sk_test_tiers')
 
     const result = await (createHandler as HandlerFn)(
@@ -94,13 +103,25 @@ describe('POST /api/v1/memberships', () => {
     expect(result.stripePriceId).toBe('price_mock123')
   })
 
-  it('allows explicit stripeProductId and stripePriceId to bypass auto-sync', async () => {
+  it('creates a paid tier and auto-syncs to Lemon Squeezy when LS keys are configured', async () => {
+    await seedSetting(getCurrentTestDb(), SITE, 'payments.ls_api_key', 'ls_key_test')
+    await seedSetting(getCurrentTestDb(), SITE, 'payments.ls_store_id', '99')
+
     const result = await (createHandler as HandlerFn)(
-      mkEvent({ name: 'Manual Sync', price: 5, stripeProductId: 'prod_manual', stripePriceId: 'price_manual' }),
-    ) as { stripeProductId: string | null; stripePriceId: string | null }
+      mkEvent({ name: 'LS Pro Plan', price: 14.99, currency: 'USD', interval: 'month' }),
+    ) as { lsVariantId: string | null }
+
+    expect(result.lsVariantId).toBe('ls_var_mock123')
+  })
+
+  it('allows explicit provider IDs to bypass auto-sync', async () => {
+    const result = await (createHandler as HandlerFn)(
+      mkEvent({ name: 'Manual Sync', price: 5, stripeProductId: 'prod_manual', stripePriceId: 'price_manual', lsVariantId: 'ls_var_manual' }),
+    ) as { stripeProductId: string | null; stripePriceId: string | null; lsVariantId: string | null }
 
     expect(result.stripeProductId).toBe('prod_manual')
     expect(result.stripePriceId).toBe('price_manual')
+    expect(result.lsVariantId).toBe('ls_var_manual')
   })
 
   it('rejects a name longer than 100 characters', async () => {
@@ -127,6 +148,7 @@ describe('PATCH /api/v1/memberships/:id', () => {
       price: 5,
       stripeProductId: null,
       stripePriceId: null,
+      lsVariantId: null,
     })
   })
 
@@ -187,5 +209,31 @@ describe('PATCH /api/v1/memberships/:id', () => {
 
     expect(result.stripeProductId).toBe('prod_mock123')
     expect(result.stripePriceId).toBe('price_mock123')
+  })
+
+  it('auto-creates LS product and variant when LS is configured and tier has no variant', async () => {
+    // LS keys already seeded from the POST tests above
+    const result = await (patchHandler as HandlerFn)(
+      mkEvent({ name: 'LS Synced' }, adminId, { id: tierId }),
+    ) as { lsVariantId: string | null }
+
+    expect(result.lsVariantId).toBe('ls_var_mock123')
+  })
+
+  it('creates a new LS variant when price changes', async () => {
+    // Seed a tier that already has an lsVariantId so we can test the price-change branch
+    const db = getCurrentTestDb()
+    const lsTierId = await seedTier(db, SITE, {
+      name: 'LS Price Change',
+      price: 10,
+      lsVariantId: 'ls_var_existing',
+    })
+
+    const result = await (patchHandler as HandlerFn)(
+      mkEvent({ price: 20 }, adminId, { id: lsTierId }),
+    ) as { lsVariantId: string | null }
+
+    // Price changed => new variant created
+    expect(result.lsVariantId).toBe('ls_var_mock123')
   })
 })

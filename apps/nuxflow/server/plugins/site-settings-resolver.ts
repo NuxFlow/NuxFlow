@@ -12,6 +12,8 @@ interface AppearanceCache {
   darkMode: string
   primaryColor: string
   fontSans: string
+  customHeadHtml: string
+  customBodyHtml: string
   ts: number
 }
 
@@ -53,7 +55,7 @@ async function resolveAppearance(event: H3Event, siteId: string): Promise<Appear
     .where(
       and(
         eq(siteSettings.siteId, siteId),
-        inArray(siteSettings.key, ['theme.dark_mode', 'theme.primary_color', 'theme.font_sans']),
+        inArray(siteSettings.key, ['theme.dark_mode', 'theme.primary_color', 'theme.font_sans', 'appearance.custom_head_html', 'appearance.custom_body_html']),
       ),
     )
 
@@ -62,6 +64,8 @@ async function resolveAppearance(event: H3Event, siteId: string): Promise<Appear
     darkMode: map['theme.dark_mode'] ?? 'auto',
     primaryColor: map['theme.primary_color'] ?? '',
     fontSans: map['theme.font_sans'] ?? 'system',
+    customHeadHtml: map['appearance.custom_head_html'] ?? '',
+    customBodyHtml: map['appearance.custom_body_html'] ?? '',
     ts: now,
   }
   _cache.set(siteId, entry)
@@ -86,7 +90,7 @@ export default defineNitroPlugin((nitro) => {
     if (!siteId) return
 
     try {
-      const { darkMode, primaryColor, fontSans } = await resolveAppearance(event, siteId)
+      const { darkMode, primaryColor, fontSans, customHeadHtml, customBodyHtml } = await resolveAppearance(event, siteId)
 
       const path = getRequestURL(event).pathname
       const isAdmin = path.startsWith('/admin')
@@ -134,6 +138,12 @@ export default defineNitroPlugin((nitro) => {
         html.head.push(
           `<style data-nuxflow-appearance>:root{${cssParts.join(';')}}${bodyRule}</style>`,
         )
+      }
+
+      // Custom code injection — admin-only setting; only injected on public pages
+      if (!isAdmin) {
+        if (customHeadHtml) html.head.push(customHeadHtml)
+        if (customBodyHtml) html.bodyAppend.push(customBodyHtml)
       }
     }
     catch (err) {

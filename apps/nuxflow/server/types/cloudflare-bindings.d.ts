@@ -63,10 +63,21 @@ export interface D1Database {
   dump(): Promise<ArrayBuffer>
 }
 
+export interface AnalyticsEngineDataPoint {
+  blobs?: (string | null)[]
+  doubles?: number[]
+  indexes?: string[]
+}
+
+export interface AnalyticsEngineDataset {
+  writeDataPoint(event?: AnalyticsEngineDataPoint): void
+}
+
 export interface NuxFlowCloudflareEnv {
   PLUGIN_KV: KVNamespace
   LOADER: WorkerLoader
   DB?: D1Database
+  AE?: AnalyticsEngineDataset
   [key: string]: unknown
 }
 

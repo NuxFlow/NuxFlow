@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import ContactFormAdmin from '@nuxflow/plugin-contact-form/components/ContactFormAdmin'
+import ContactFormAdmin from '~/components/forms/ContactFormAdmin.vue'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 </script>

@@ -29,9 +29,8 @@ pnpm --filter @nuxflow/db studio        # Drizzle Studio UI at https://local.dri
 pnpm --filter @nuxflow/db migrate       # apply migrations via libSQL (Turso only)
 pnpm --filter @nuxflow/db migrate-fts   # apply FTS5 search index separately on Turso
 
-# Build and deploy
-pnpm build
-pnpm deploy   # wrangler deploy from apps/nuxflow
+# Build and deploy — run from apps/nuxflow; wrangler handles the build step automatically
+cd apps/nuxflow && pnpm run deploy
 ```
 
 **Always use `pnpm`, never `npm`.**
@@ -122,10 +121,13 @@ Roles (ranked): `super_admin > admin > editor > author > member > viewer`
 
 `server/utils/cf-env.ts` — typed accessors for Cloudflare bindings:
 - `getCfBindings(event)` → `{ kv, loader }` — `PLUGIN_KV` and `LOADER` bindings
+- `getAnalyticsEngine(event)` → `AE` Analytics Engine binding (null when not available)
 - KV key conventions: `plugin:{siteId}:{pluginId}:server|client`, `theme:{siteId}:{themeId}:css|demo`
 - `spawnPluginWorker(event, cacheId, getCode)` — spawns a dynamic plugin Worker via the `LOADER` binding
 
 Dynamic plugins require the Cloudflare Workers Paid plan. Without it the `LOADER` binding is absent and dynamic plugins 503.
+
+`server/utils/analytics.ts` — `trackPageView(event, { siteId, slug })` writes a data point to the `AE` binding (no-ops silently when binding is absent). Called automatically from the public pages API.
 
 **`wrangler.toml` config notes:** custom domains must be declared via `[[routes]]` with `custom_domain = true` — if a domain is configured in the Cloudflare dashboard but not in `wrangler.toml`, Wrangler will warn about config drift and offer to remove it on every deploy. The `[assets]` section serves static files from `.output/public` and must be present for the built frontend to be served.
 
@@ -146,6 +148,25 @@ Dynamic plugins require the Cloudflare Workers Paid plan. Without it the `LOADER
 ### AI providers
 
 `server/utils/ai-sdk.ts` — `getAiSdkModel(event, quality)` returns an AI SDK `LanguageModel` for the provider configured in site settings (`ai.provider`). Supported providers: `openai`, `anthropic`, `gemini`, `deepseek`, `ollama`. Quality is `'fast'` (default) or `'smart'`, which selects a smaller vs larger model per provider. Returns `null` when the provider API key is missing — callers are expected to throw 503 on `null`. Use `aiErrorMessage(err)` to extract a user-friendly message from provider SDK errors.
+
+### Payments and memberships
+
+Payment providers are abstracted in `server/utils/payments/`:
+- `StripeProvider` — products, prices, checkout sessions, billing portal, subscription cancel, webhook event construction
+- `LemonSqueezyProvider` — products, variants, checkout, portal, cancellation, webhook HMAC verification
+- `PaddleProvider` — analogous interface for Paddle Classic
+
+`server/utils/payments/gate.ts` — `resolveContentGate(event, settings)` checks `settings.access` (`'public'`, `'members'`, `'tier:<tierId>'`) against the caller's active subscription. Returns `GateResult | null` (null = access granted). Used internally by the public pages API.
+
+Membership tiers and subscriptions live in the core DB schema (`packages/db/src/schema/payments.ts`). The `packages/plugins/payments/` package is a **deprecated stub** kept for workspace dependency compatibility and will be removed.
+
+Routes under `/api/v1/memberships/`:
+- `POST /checkout` → creates a provider checkout session, returns `{ url }`
+- `POST /billing-portal` → opens the provider billing portal, returns `{ url }`
+- `DELETE /api/v1/account/subscription` → cancels the caller's active subscription (skips provider API for free-tier subs whose `providerSubscriptionId` starts with `free_`)
+- `POST /webhooks/[provider]` → Stripe/LS/Paddle webhook handler; upserts `subscriptions` rows and optionally sends a push notification via `push.events.payment_confirmation` setting
+
+The public pages API returns **HTTP 402** with `{ gated: true, requiredTier, tiers }` when content requires a subscription the caller doesn't hold. `app/pages/[...slug].vue` catches this in `onResponseError` and renders `<Paywall :tiers="gated.tiers" />`. Member-only pages also set `Cache-Control: private` to prevent CDN caching.
 
 ### Plugin system
 
@@ -180,9 +201,10 @@ Admin pages skip dark-mode and font injection (the admin has its own colour-mode
 
 ### Frontend routing
 
-Public pages are rendered by `app/pages/[...slug].vue`. The page fetches `/api/public/pages/:slug` and branches on content type:
+Public pages are rendered by `app/pages/[...slug].vue`. The page fetches `/api/public/pages/:slug`, which first checks the `redirects` table (returning a 3xx if matched), then branches on content type:
 - `content.type === 'canvas'` → full-width `<NuxBlock>`, blocks handle their own layout
 - Otherwise → contained prose layout with `<h1>` and `<NuxBlock>`
+- **402 response** → member-gated content; `onResponseError` captures `{ gated, requiredTier, tiers }` and renders `<Paywall>` instead of the page
 
 Admin pages live in `app/pages/admin/`. Super-admin-only pages (e.g. multi-site management) live under `app/pages/admin/super/` and are linked in the sidebar only when `/api/v1/users/me` returns `isSuperAdmin: true`. Pinia stores in `app/stores/` manage auth (`auth.ts`) and content (`content.ts`) state.
 
@@ -192,6 +214,15 @@ Admin pages live in `app/pages/admin/`. Super-admin-only pages (e.g. multi-site 
 - Nitro preset is `cloudflare-module` in production only
 - `@opentelemetry/api` is stubbed via `nitro.alias` because Better Auth imports it optionally but it is not installed
 - Migrations SQL files are bundled via `nitro.serverAssets`
+
+### Integration test helpers
+
+`apps/nuxflow/tests/helpers/` — shared utilities for integration tests:
+- `db.ts` — `initTestDb()` / `teardownTestDb()` / `getCurrentTestDb()` — manages a real SQLite (libSQL) database per test file
+- `event.ts` — `createMockEvent(overrides)` — builds a minimal H3 event with `siteId`, session, headers, and body
+- `seed.ts` — one insert per table: `seedSite`, `seedUser`, `seedRole`, `seedContentType`, `seedContentItem`, `seedTier`, `seedSubscription`, `seedMedia`, `seedVideoAsset`, `seedSetting`
+
+Integration tests mock `../../server/utils/db` to return `getCurrentTestDb()` and mock payment provider classes (Stripe/LS/Paddle) to avoid real network calls.
 
 ## Commit convention
 

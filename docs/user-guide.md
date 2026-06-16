@@ -160,9 +160,50 @@ You can change the visual appearance of your site from **Admin → Themes**.
 
 The built-in Default theme is always available as a fallback. Additional themes can be installed as a zip package from the **Install theme** button or added to the codebase and deployed — see [Adding themes](#adding-themes-and-plugins) below.
 
-### Appearance settings
+---
 
-The **Appearance** card at the bottom of the Themes page controls three global settings that apply to every public-facing page on your site. They take effect on the next page load.
+### Visual Customizer
+
+The **Visual Customizer** is a no-code, full-screen style editor with a live preview of your site running alongside the controls. It is the recommended way for non-technical users to style their site without editing CSS.
+
+**To open it:** go to **Admin → Themes** and click **Open customizer** in the Appearance section, or click the palette icon on any theme card.
+
+The customizer is divided into a controls panel on the left and a live iframe preview on the right. Changes appear in the preview within a fraction of a second — no page reload required.
+
+#### What you can control
+
+| Section | Controls |
+|---|---|
+| **Appearance** | Colour scheme: Auto (follows visitor's system), Light, or Dark |
+| **Colors** | Accent colour — used for buttons, links, and highlights; choose from swatches or enter any hex value. Link colour — defaults to the accent colour; override independently if needed |
+| **Background** | Page background colour for Light mode and Dark mode separately — choose from presets or enter any hex value. Leave blank to use the active theme's default |
+| **Typography** | Body font and Heading font — choose from 17 Google Fonts across sans-serif, serif, and monospace families. Font size (XS → XL). Heading weight (Light → Extra Bold). Line spacing (Tight / Normal / Relaxed) |
+| **Shape** | Corner radius for images, blockquotes, and code blocks — from sharp (None) to fully rounded (Pill) |
+| **Layout** | Section spacing — Compact / Normal / Spacious, scales the vertical padding between page sections. Content width — Narrow (720 px) / Default (960 px) / Wide (1200 px) / Full, controls how wide the readable column is inside each section |
+
+#### Device preview
+
+Use the **Desktop / Tablet / Mobile** toggle in the top bar to check how your site looks at each viewport. The iframe resizes to match a real device width.
+
+#### Navigating the preview
+
+The URL bar at the top of the preview panel lets you navigate to any public page on your site. Type a path (e.g. `/about`) and press **Enter** or click **Go**. Style changes follow you across page navigations.
+
+#### Saving and publishing
+
+Changes are applied to the live preview immediately but are **not** saved until you click **Publish** in the top-right corner. When you publish, a CSS theme file is created (or updated) and activated automatically — visitors see your new styles on their next page load.
+
+The **Unsaved** indicator in the title bar reminds you when there are unpublished changes.
+
+#### What the customizer cannot change
+
+Canvas page sections (Hero, Features, CTA banners, etc.) store their background and text colours as individual block settings in the canvas editor, not as global CSS. To change the colour of a specific canvas block, open that page in the Canvas editor and update the block's colour settings directly.
+
+---
+
+### Appearance settings (advanced)
+
+The **Global appearance** card at the bottom of the Themes page exposes the same colour scheme, accent colour, and body font controls as the Visual Customizer, plus a direct save button. Use the Visual Customizer for a live-preview experience; use this card when you just want to tweak one value quickly.
 
 | Setting | What it does |
 |---|---|
@@ -174,25 +215,59 @@ These settings are separate from the active theme CSS file — you can set an ac
 
 ---
 
-## Plugins
+### Site logo
 
-NuxFlow supports two kinds of plugins, both managed from **Admin → Plugins**.
+Upload a logo image to replace the site name text in the public navigation bar. Configure it at **Admin → Settings → Appearance → Site logo**.
 
-**Bundled plugins** are compiled into the Worker at deploy time and support deep framework integration such as custom content types and admin pages. NuxFlow ships with three bundled plugins out of the box.
+- Accepted formats: PNG, SVG, JPG, WebP
+- A transparent background (PNG or SVG) looks best on most themes
+- Recommended height: 40–80 px; the image is displayed at a maximum height of 32 px in the header and scales down automatically on smaller screens
+- Upload a new image with **Upload logo**, or remove the current logo with **Remove logo** — removing it reverts the header to displaying the site name as text
 
-**Dynamic plugins** run as isolated Cloudflare Workers spawned on demand from code stored in KV. They can be uploaded and activated from the dashboard without redeploying your site — a capability unique to the Cloudflare Workers platform.
+---
 
-### Canvas Page Builder
+### Custom code injection
 
-Canvas is a visual drag-and-drop page builder. When enabled, it adds a **Canvas** editor mode to any page or post, letting you build layouts from blocks without writing code.
+Inject third-party scripts or HTML snippets into every public page without editing any files or redeploying. Configure it at **Admin → Settings → Appearance → Custom code**.
 
-Available blocks include Hero sections, Text, Image, Video (supporting YouTube, Vimeo, and Cloudflare Stream), Columns, Feature grids, Testimonials, CTA banners, and Spacers. Each block has a settings panel for configuring its content and appearance.
+| Field | Where it is injected | Typical use |
+|---|---|---|
+| **Head code** | Before `</head>` | Analytics tags (GA4, Meta Pixel), early-loading scripts, custom font `<link>` tags |
+| **Body code** | Before `</body>` | Live chat widgets (Intercom, Crisp), deferred scripts, cookie consent overlays |
+
+> **Security note:** only paste code from sources you trust. The HTML you enter here is injected verbatim into your public pages. It is never shown to logged-in admin users browsing the dashboard, and it is skipped entirely on all `/admin` routes.
+
+---
+
+## Memberships & Payments
+
+NuxFlow includes built-in membership and payment support. Manage it from **Admin → Memberships**.
+
+**Tiers tab**: Create and manage membership tiers with a name, price, billing interval (monthly, yearly, or one-time), and a list of features shown to visitors. When a payment provider is configured, tiers are automatically synced to that provider on creation and update — no manual product setup required.
+
+**Subscribers tab**: View all active and historical subscriptions across Stripe, Lemon Squeezy, and Paddle, with their status and renewal date.
+
+**Content gating**: In the content editor, the **SEO & Access** panel lets you restrict any page or post to `Members only` or a specific tier. Visitors who don't have the required membership see a paywall with available plans.
+
+**Member account**: Subscribers can view their active plan and cancel at any time from `/account`. Stripe subscribers also get a **Manage billing** link that opens the Stripe Customer Portal for invoice history and payment method updates.
+
+To accept payments, configure at least one payment provider in **Admin → Settings → Payments**. The checkout flow is fully handled server-side; no payment provider credentials are exposed to the browser. See the [Payments Setup Guide](./payments-setup.md) for full instructions.
+
+---
+
+## Canvas Page Builder
+
+Canvas is a visual drag-and-drop page builder built into NuxFlow. It adds a **Canvas** editor mode to any page or post, letting you build layouts from blocks without writing code.
+
+Available blocks include Hero sections, Text, Image, Video (supporting YouTube, Vimeo, and Cloudflare Stream), Columns, Feature grids, Testimonials, CTA banners, Spacers, Accordions, Pricing Tables, Contact Form, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
 
 To use Canvas on a piece of content, open the content item and switch the editor mode to **Canvas editor** using the toggle at the top of the editor.
 
-### Contact Form
+---
 
-The Contact Form plugin provides an embeddable `ContactForm` block and a submission inbox at **Admin → Plugins → Contact Forms**.
+## Contact Forms
+
+Contact Forms are built into NuxFlow. The **Contact Form** block can be placed on any Canvas page, and all submissions are collected in the inbox at **Admin → Contact Forms**.
 
 When the block is placed on a page, visitors can submit their name, email, subject, and message. Submissions are protected by Cloudflare Turnstile spam detection (when configured) and rate-limited automatically.
 
@@ -200,23 +275,13 @@ From the inbox you can view each submission, mark it as read, archive it, mark i
 
 To receive email notifications when a new message arrives, set a **Notification email** in **Admin → Settings**.
 
-### Payments & Memberships
-
-The Payments plugin adds subscription tiers and content gating. Manage it from **Admin → Memberships**.
-
-**Tiers tab**: Create and manage membership tiers with a name, price, billing interval (monthly, yearly, or one-time), and a list of features shown to visitors. Tiers can be deactivated without deleting them.
-
-**Subscribers tab**: View all active and historical subscriptions across Stripe, Lemon Squeezy, and Paddle, with their status and renewal date.
-
-To accept payments, configure at least one payment provider by adding the relevant secrets — see the [Installation Guide](./installation.md) for the required environment variables. The checkout flow is fully handled server-side; no payment provider credentials are exposed to the browser.
-
 ---
 
-## Adding Themes and Plugins
+## Plugins
 
-### Dynamic plugins (no redeploy required)
+The **Admin → Plugins** page manages dynamic third-party plugins. NuxFlow does not use bundled plugins — all built-in features (Canvas, Contact Forms, Memberships, HTML embeds) are part of core.
 
-Dynamic plugins run as isolated Cloudflare Workers and are stored in a KV namespace. To install one, build it with the NuxFlow CLI and run `nuxflow plugin deploy` — or go to **Admin → Plugins** and use the **Upload plugin** button to paste a pre-built bundle directly.
+**Dynamic plugins** run as isolated Cloudflare Workers spawned on demand from code stored in KV. They can be uploaded and activated from the dashboard without redeploying your site — a capability unique to the Cloudflare Workers platform.
 
 A dynamic plugin bundle consists of up to two parts:
 
@@ -225,18 +290,16 @@ A dynamic plugin bundle consists of up to two parts:
 
 For a complete guide to building and deploying your own dynamic plugin, see the **[External Plugin Development Guide](./plugins.md)**.
 
-### Bundled plugins and themes (requires redeploy)
+---
 
-For plugins that need deeper integration — custom content types, Drizzle schema extensions, or new admin pages — add them to the codebase and redeploy.
+## Adding Themes and Custom Plugins
 
-```bash
-# 1. Add the package and register it automatically
-npx nuxflow add @author/package-name
+### Dynamic plugins (no redeploy required)
 
-# 2. Rebuild and redeploy
-pnpm build && wrangler deploy
-```
+To install a dynamic plugin, build it with the NuxFlow CLI and run `nuxflow plugin deploy` — or go to **Admin → Plugins** and use the **Upload plugin** button to paste a pre-built bundle directly.
 
-Once deployed, return to **Admin → Plugins** or **Admin → Themes** and click **Install** or **Activate**.
+Community packages follow the naming convention `nuxflow-plugin-*` on npm.
 
-Community packages follow the naming conventions `nuxflow-plugin-*` and `nuxflow-theme-*` on npm.
+### Themes (no redeploy required)
+
+Themes are CSS files uploaded through **Admin → Themes → Install theme**. Switching themes is instant and does not affect live visitors until **Activate** is clicked.

@@ -116,10 +116,9 @@ Database migrations run automatically on the first request. Visit `http://localh
 NuxFlow deploys as a **Cloudflare Worker** using the `cloudflare-module` Nitro preset. The `wrangler.toml` in `apps/nuxflow` is pre-configured with D1 as the default database.
 
 > [!IMPORTANT]
-> **Local Build Requirements:**
-> Even when deploying straight to Cloudflare, the build compilation runs on your local machine before being uploaded. Therefore, you **must** do the following before running `pnpm build`:
-> 1. **Install Dependencies:** If you skipped the local development steps, ensure you have run `pnpm install` in the repository root directory.
-> 2. **Local `.env` File:** You must copy the example configuration:
+> **Before deploying, make sure you have:**
+> 1. **Installed dependencies:** If you skipped the local development steps, run `pnpm install` from the repository root first.
+> 2. **A local `.env` file:** Copy the example configuration:
 >    ```bash
 >    cp apps/nuxflow/.env.example apps/nuxflow/.env
 >    ```
@@ -173,13 +172,13 @@ preview_id = "YOUR_PREVIEW_ID_FROM_SECOND_COMMAND"
 
 ### Step 4: Build and Deploy
 
-Return to the repo root, build, then deploy:
+From the `apps/nuxflow` directory, run:
 
 ```bash
-cd ../..
-pnpm build
-pnpm --filter @nuxflow/app run deploy
+pnpm run deploy
 ```
+
+This builds the app and uploads it to Cloudflare in one step — you do not need to run a separate build command. The `[build]` section in `wrangler.toml` instructs Wrangler to compile the Nuxt app before uploading.
 
 Database migrations run automatically on the first request after deployment. There is nothing else to run.
 
@@ -449,10 +448,10 @@ preview_id = "YOUR_ID_FROM_SECOND_COMMAND"
 
 **Step 2 — Redeploy:**
 
+From the `apps/nuxflow` directory:
+
 ```bash
-cd ../..
-pnpm build
-pnpm --filter @nuxflow/app run deploy
+pnpm run deploy
 ```
 
 The `[[worker_loaders]]` binding is enabled automatically once you deploy with the updated `wrangler.toml`.
