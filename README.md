@@ -5,7 +5,7 @@
 <h3 align="center">The open-source CMS for the modern, edge-deployed web</h3>
 
 <p align="center">
-  Built on Nuxt 4 · Runs on Cloudflare free tier
+  Built on Nuxt 4 · Cloudflare Workers
 </p>
 
 <p align="center">
