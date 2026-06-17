@@ -5,7 +5,7 @@
 <h3 align="center">The open-source CMS for the modern, edge-deployed web</h3>
 
 <p align="center">
-  Built on Nuxt 4 · Runs on Cloudflare free tier · No config file editing required
+  Built on Nuxt 4 · Runs on Cloudflare free tier
 </p>
 
 <p align="center">
@@ -297,7 +297,7 @@ See [Environment Variables](#environment-variables) for the full reference.
 pnpm dev
 ```
 
-Open `http://localhost:3000/setup` — the onboarding wizard walks through the remaining configuration. No config file editing required. Once completed, your admin control panel is permanently accessible at `http://localhost:3000/admin`.
+Open `http://localhost:3000/setup` — the onboarding wizard walks through the remaining configuration. Once completed, your admin control panel is permanently accessible at `http://localhost:3000/admin`.
 
 ---
 
