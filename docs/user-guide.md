@@ -249,6 +249,8 @@ NuxFlow includes built-in membership and payment support. Manage it from **Admin
 
 **Content gating**: In the content editor, the **SEO & Access** panel lets you restrict any page or post to `Members only` or a specific tier. Visitors who don't have the required membership see a paywall with available plans.
 
+**Pricing page**: There is no hardcoded `/pricing` route. Instead, add the **Membership Pricing** canvas block to any canvas page (see [Canvas Page Builder](#canvas-page-builder) below). The block fetches your live membership tiers automatically — no content to maintain separately. You can place it at any URL, mix it with other blocks, and highlight a specific tier as "Popular" from the block settings.
+
 **Member account**: Subscribers can view their active plan and cancel at any time from `/account`. Stripe subscribers also get a **Manage billing** link that opens the Stripe Customer Portal for invoice history and payment method updates.
 
 To accept payments, configure at least one payment provider in **Admin → Settings → Payments**. The checkout flow is fully handled server-side; no payment provider credentials are exposed to the browser. See the [Payments Setup Guide](./payments-setup.md) for full instructions.
@@ -259,7 +261,7 @@ To accept payments, configure at least one payment provider in **Admin → Setti
 
 Canvas is a visual drag-and-drop page builder built into NuxFlow. It adds a **Canvas** editor mode to any page or post, letting you build layouts from blocks without writing code.
 
-Available blocks include Hero sections, Text, Image, Video (supporting YouTube, Vimeo, and Cloudflare Stream), Columns, Feature grids, Testimonials, CTA banners, Spacers, Accordions, Pricing Tables, Contact Form, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
+Available blocks include Hero sections, Text, Image, Video (supporting YouTube, Vimeo, and Cloudflare Stream), Columns, Feature grids, Testimonials, CTA banners, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), Contact Form, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
 
 To use Canvas on a piece of content, open the content item and switch the editor mode to **Canvas editor** using the toggle at the top of the editor.
 

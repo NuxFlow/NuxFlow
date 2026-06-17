@@ -5,6 +5,7 @@ defineProps<{
 
 const { loggedIn } = useUserSession()
 const loading = ref<string | null>(null)
+const toast = useToast()
 
 async function subscribe(tierId: string) {
   if (!loggedIn.value) {
@@ -18,8 +19,9 @@ async function subscribe(tierId: string) {
       body: { tierId, returnUrl: window.location.href },
     })
     window.location.href = url
-  } catch (err) {
-    console.error('[paywall] Checkout error:', err)
+  } catch (e: unknown) {
+    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Could not start checkout'
+    toast.add({ title: msg, color: 'red' })
   } finally {
     loading.value = null
   }

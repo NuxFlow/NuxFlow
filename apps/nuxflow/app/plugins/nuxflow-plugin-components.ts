@@ -30,6 +30,7 @@ import {
 import type { CanvasBlockDefinition } from '@nuxflow/plugin-canvas'
 
 import ContactFormBlock from '~/components/forms/ContactFormBlock.vue'
+import MembershipsBlock from '~/components/memberships/MembershipsBlock.vue'
 import Paywall from '~/components/memberships/Paywall.vue'
 import HtmlBlock from '~/components/blocks/HtmlBlock.vue'
 
@@ -81,6 +82,34 @@ const htmlBlockDefinition: CanvasBlockDefinition = {
   },
 }
 
+const membershipsPricingBlockDefinition: CanvasBlockDefinition = {
+  id: 'payments/memberships',
+  name: 'Membership Pricing',
+  description: 'Live membership tier grid with checkout buttons — pulls directly from your Memberships admin.',
+  icon: 'i-lucide-credit-card',
+  category: 'plugin',
+  component: 'MembershipsBlock',
+  thumbnailColor: '#eff6ff',
+  fields: [
+    { key: 'title', label: 'Section title', type: 'text', placeholder: 'Membership Plans' },
+    { key: 'subtitle', label: 'Subtitle', type: 'textarea', placeholder: 'Choose the plan that works for you' },
+    { key: 'ctaLabel', label: 'Button label', type: 'text', placeholder: 'Get started' },
+    { key: 'highlightTierName', label: 'Highlight tier name (exact match, optional)', type: 'text', placeholder: 'Pro' },
+    { key: 'showAccountLink', label: 'Show "Already a member?" link', type: 'toggle' },
+    { key: 'bgColor', label: 'Background colour', type: 'color' },
+    { key: 'textColor', label: 'Text colour', type: 'color' },
+    { key: 'padding', label: 'Padding', type: 'spacing' },
+  ],
+  defaultProps: {
+    title: 'Membership Plans',
+    subtitle: 'Choose the plan that works for you',
+    ctaLabel: 'Get started',
+    highlightTierName: '',
+    showAccountLink: true,
+    padding: { top: 64, right: 24, bottom: 64, left: 24, unit: 'px' },
+  },
+}
+
 export default defineNuxtPlugin((nuxtApp) => {
   const registry = useBlockRegistry()
 
@@ -105,6 +134,9 @@ export default defineNuxtPlugin((nuxtApp) => {
   registerBlockDefinition(contactFormBlockDefinition)
 
   // ── Memberships ───────────────────────────────────────────────────────────
+  registry.register('payments/memberships', { name: 'Membership Pricing', icon: 'i-lucide-credit-card', component: MembershipsBlock })
+  registerBlockDefinition(membershipsPricingBlockDefinition)
+
   registry.register('payments/paywall', { name: 'Paywall', icon: 'i-lucide-lock', component: Paywall })
 
   // ── HTML Block ────────────────────────────────────────────────────────────

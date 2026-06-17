@@ -58,6 +58,9 @@ export class StripeProvider {
       success_url: opts.successUrl,
       cancel_url: opts.cancelUrl,
       metadata: opts.metadata,
+      subscription_data: {
+        metadata: opts.metadata,
+      },
     })
   }
 
@@ -72,7 +75,7 @@ export class StripeProvider {
     return this.client.subscriptions.cancel(subscriptionId)
   }
 
-  constructWebhookEvent(payload: Buffer, signature: string, secret: string) {
-    return this.client.webhooks.constructEvent(payload, signature, secret)
+  async constructWebhookEvent(payload: string, signature: string, secret: string) {
+    return this.client.webhooks.constructEventAsync(payload, signature, secret)
   }
 }

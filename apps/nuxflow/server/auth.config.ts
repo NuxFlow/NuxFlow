@@ -71,6 +71,7 @@ export default defineServerAuth((ctx) => {
   }
 
   return {
+    baseURL: siteUrl || undefined,
     advanced: {
       trustedProxyHeaders: true,
     },

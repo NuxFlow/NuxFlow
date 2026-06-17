@@ -19,6 +19,13 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
 
   const db = useDb(event)
+
+  const signupsDisabled = await resolveSetting(event, 'payments.signups_disabled')
+  if (signupsDisabled === 'true') {
+    const msg = await resolveSetting(event, 'payments.signups_disabled_message')
+    throw createError({ statusCode: 403, message: (msg as string | null) || 'New signups are temporarily paused.' })
+  }
+
   const tier = await db.query.membershipTiers.findFirst({
     where: and(eq(membershipTiers.id, body.tierId), eq(membershipTiers.siteId, siteId)),
   })

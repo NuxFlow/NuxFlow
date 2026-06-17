@@ -170,6 +170,8 @@ async function sendTestEmail() {
 const integrations = reactive({ turnstileSiteKey: '', analyticsId: '' })
 
 const payments = reactive({
+  signupsDisabled: false,
+  signupsDisabledMessage: '',
   stripeSecretKey: '',
   stripeWebhookSecret: '',
   lsApiKey: '',
@@ -300,6 +302,8 @@ watch(data, (d) => {
   appearance.customHeadHtml = (s['appearance.custom_head_html'] as string) ?? ''
   appearance.customBodyHtml = (s['appearance.custom_body_html'] as string) ?? ''
 
+  payments.signupsDisabled = s['payments.signups_disabled'] === 'true'
+  payments.signupsDisabledMessage = (s['payments.signups_disabled_message'] as string) ?? ''
   payments.stripeSecretKey = (s['payments.stripe_secret_key'] as string) ?? ''
   payments.stripeWebhookSecret = (s['payments.stripe_webhook_secret'] as string) ?? ''
   payments.lsApiKey = (s['payments.ls_api_key'] as string) ?? ''
@@ -351,6 +355,8 @@ async function save() {
       'push.events.content_published': push.eventsContentPublished ? 'true' : 'false',
       'push.events.payment_confirmation': push.eventsPaymentConfirmation ? 'true' : 'false',
       'push.events.form_submission': push.eventsFormSubmission ? 'true' : 'false',
+      'payments.signups_disabled': payments.signupsDisabled ? 'true' : 'false',
+      'payments.signups_disabled_message': payments.signupsDisabledMessage || null,
       'payments.stripe_secret_key': payments.stripeSecretKey,
       'payments.stripe_webhook_secret': payments.stripeWebhookSecret,
       'payments.ls_api_key': payments.lsApiKey,
@@ -766,6 +772,38 @@ async function deleteSite() {
 
         <!-- Payments -->
         <template v-if="active === 'Payments'">
+          <UCard>
+            <template #header>
+              <div class="flex items-center justify-between">
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">Membership signups</p>
+                <UBadge v-if="payments.signupsDisabled" color="orange" variant="subtle" size="xs">Signups paused</UBadge>
+              </div>
+            </template>
+            <div class="space-y-4">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="text-sm font-medium text-gray-900 dark:text-white">Pause new signups</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Disables checkout for all membership tiers site-wide. Existing subscribers are unaffected.
+                  </p>
+                </div>
+                <USwitch v-model="payments.signupsDisabled" />
+              </div>
+              <UFormField v-if="payments.signupsDisabled" label="Message shown to visitors">
+                <UInput
+                  v-model="payments.signupsDisabledMessage"
+                  placeholder="New signups are temporarily paused."
+                  class="w-full"
+                />
+              </UFormField>
+            </div>
+            <template #footer>
+              <div class="flex justify-end">
+                <UButton :loading="saving" @click="save">Save changes</UButton>
+              </div>
+            </template>
+          </UCard>
+
           <UCard>
             <template #header><p class="text-sm font-semibold text-gray-900 dark:text-white">Payment gateway settings</p></template>
             <div class="space-y-6">

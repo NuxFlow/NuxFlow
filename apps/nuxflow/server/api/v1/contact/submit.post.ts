@@ -113,8 +113,8 @@ export default defineEventHandler(async (event) => {
     })
   } catch (err: unknown) {
     console.error('Failed to send contact notification email:', err)
-    const msg = err instanceof Error ? err.message : String(err)
-    throw createError({ statusCode: 422, message: `Message saved, but failed to send email notification: ${msg}` })
+    // We intentionally don't throw an error here because the submission
+    // was successfully saved to the database. We just log the failure.
   }
 
   // Push confirmation to the logged-in member who submitted

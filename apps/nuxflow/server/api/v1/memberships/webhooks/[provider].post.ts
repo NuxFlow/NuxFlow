@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import type { H3Event } from 'h3'
 import { subscriptions, membershipTiers } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -32,9 +33,9 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
   const stripe = new StripeProvider(stripeSecretKey as string)
   const sig = getHeader(event, 'stripe-signature') ?? ''
 
-  let stripeEvent: ReturnType<StripeProvider['constructWebhookEvent']>
+  let stripeEvent: Awaited<ReturnType<StripeProvider['constructWebhookEvent']>>
   try {
-    stripeEvent = stripe.constructWebhookEvent(Buffer.from(rawBody), sig, stripeWebhookSecret as string)
+    stripeEvent = await stripe.constructWebhookEvent(rawBody, sig, stripeWebhookSecret as string)
   } catch {
     throw createError({ statusCode: 400, message: 'Invalid Stripe webhook signature' })
   }
@@ -43,6 +44,67 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
   const siteId = event.context.siteId as string
 
   switch (stripeEvent.type) {
+    case 'checkout.session.completed': {
+      const session = stripeEvent.data.object as {
+        id: string; customer: string | null; subscription: string | null
+        metadata: Record<string, string>
+        payment_status: string
+      }
+      console.log('[stripe-webhook] checkout.session.completed', { sessionId: session.id, sub: session.subscription, meta: session.metadata })
+      // Only handle subscription checkouts
+      if (!session.subscription) break
+      const userId = session.metadata?.userId
+      if (!userId) {
+        console.warn('[stripe-webhook] checkout.session.completed missing userId in metadata')
+        break
+      }
+
+      // Fetch the subscription from Stripe to get full details
+      const stripeSecretKeyFull = await resolveSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
+      const subRes = await fetch(`https://api.stripe.com/v1/subscriptions/${session.subscription}`, {
+        headers: { Authorization: `Bearer ${stripeSecretKeyFull}` },
+      })
+      if (!subRes.ok) {
+        console.error('[stripe-webhook] Failed to fetch subscription', await subRes.text())
+        break
+      }
+      const stripeSub = await subRes.json() as {
+        id: string; customer: string; status: string
+        items: { data: Array<{ price: { id: string } }> }
+        current_period_start: number; current_period_end: number
+      }
+
+      const tier = await db.query.membershipTiers.findFirst({
+        where: and(eq(membershipTiers.siteId, siteId), eq(membershipTiers.stripePriceId, stripeSub.items.data[0]?.price?.id ?? '')),
+      })
+      const existing = await db.query.subscriptions.findFirst({
+        where: and(eq(subscriptions.providerSubscriptionId, stripeSub.id), eq(subscriptions.provider, 'stripe')),
+      })
+      const statusMap: Record<string, 'active' | 'cancelled' | 'past_due' | 'trialing' | 'unpaid'> = {
+        active: 'active', trialing: 'trialing', past_due: 'past_due', canceled: 'cancelled', unpaid: 'unpaid',
+      }
+      const status = statusMap[stripeSub.status] ?? 'active'
+      const periodStart = new Date(stripeSub.current_period_start * 1000).toISOString()
+      const periodEnd = new Date(stripeSub.current_period_end * 1000).toISOString()
+
+      if (existing) {
+        await db.update(subscriptions)
+          .set({ status, tierId: tier?.id ?? null, currentPeriodStart: periodStart, currentPeriodEnd: periodEnd })
+          .where(eq(subscriptions.id, existing.id))
+      } else {
+        await db.insert(subscriptions).values({
+          id: ulid(), siteId, userId, tierId: tier?.id ?? null,
+          provider: 'stripe', providerSubscriptionId: stripeSub.id,
+          providerCustomerId: String(stripeSub.customer),
+          status, currentPeriodStart: periodStart, currentPeriodEnd: periodEnd,
+        })
+        if (status === 'active' || status === 'trialing') {
+          await maybeSendPaymentPush(event, userId, tier?.name)
+        }
+      }
+      console.log('[stripe-webhook] checkout.session.completed handled', { userId, status, subId: stripeSub.id })
+      break
+    }
     case 'customer.subscription.created':
     case 'customer.subscription.updated': {
       const sub = stripeEvent.data.object as {
@@ -51,8 +113,12 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         current_period_start: number; current_period_end: number
         metadata: Record<string, string>
       }
+      console.log('[stripe-webhook] subscription event', stripeEvent.type, { subId: sub.id, meta: sub.metadata })
       const userId = sub.metadata?.userId
-      if (!userId) break
+      if (!userId) {
+        console.warn('[stripe-webhook] subscription event missing userId in metadata')
+        break
+      }
 
       const tier = await db.query.membershipTiers.findFirst({
         where: and(eq(membershipTiers.siteId, siteId), eq(membershipTiers.stripePriceId, sub.items.data[0]?.price?.id ?? '')),
@@ -91,8 +157,11 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         .where(and(eq(subscriptions.providerSubscriptionId, sub.id), eq(subscriptions.provider, 'stripe')))
       break
     }
+    default:
+      console.log('[stripe-webhook] unhandled event type:', stripeEvent.type)
   }
 }
+
 
 // ── Lemon Squeezy ────────────────────────────────────────────────────────────
 

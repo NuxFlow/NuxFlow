@@ -58,6 +58,9 @@ export class StripeProvider {
       success_url: opts.successUrl,
       cancel_url: opts.cancelUrl,
       metadata: opts.metadata,
+      subscription_data: {
+        metadata: opts.metadata,
+      },
     })
   }
 

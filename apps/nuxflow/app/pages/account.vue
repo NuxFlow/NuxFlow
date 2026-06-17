@@ -206,7 +206,7 @@ function formatDate(dateStr: string | null) {
           <!-- Cancel button for all providers -->
           <UButton
             v-if="canCancel"
-            variant="ghost"
+            variant="outline"
             color="red"
             icon="i-lucide-x-circle"
             :loading="cancellingSubscription"
