@@ -51,6 +51,7 @@ test-results/
 # Cloudflare
 .wrangler/
 apps/nuxflow/wrangler.toml
+apps/nuxflow/wrangler.demo.toml
 
 # Claude Code
 .claude/settings.local.json
