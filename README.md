@@ -34,6 +34,20 @@ By optimizing strictly for Cloudflare Workers instead of legacy VPS hosting or c
 
 ---
 
+## Quick Start
+
+```bash
+pnpm create nuxflow-app
+```
+
+> Also works with `npm create nuxflow-app` or `pnpm dlx create-nuxflow-app`.
+
+The scaffolder downloads NuxFlow, generates a secure auth secret, configures your `.env`, and walks you through D1 database setup — ready to run in under two minutes.
+
+For a manual setup or to contribute to NuxFlow itself, see [Getting Started](#getting-started) below.
+
+---
+
 ## Features
 
 ### Canvas Visual Page Builder
