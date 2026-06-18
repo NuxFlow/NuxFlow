@@ -1,0 +1,38 @@
+{
+  "name": "create-nuxflow-app",
+  "version": "0.1.0",
+  "description": "Create a new NuxFlow CMS project — edge-native Nuxt 4 + Cloudflare Workers",
+  "type": "module",
+  "bin": {
+    "create-nuxflow-app": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/index.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "nuxflow",
+    "cms",
+    "nuxt",
+    "cloudflare",
+    "create-app",
+    "scaffold"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@clack/prompts": "^0.9.0",
+    "consola": "^3.2.3",
+    "giget": "^1.2.3"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
