@@ -14,7 +14,7 @@ If you are new to NuxFlow, start with these guides:
 
 ## 🛠 Features at a Glance
 
-- **Edge-First**: Built for Cloudflare Workers and Turso for maximum performance.
+- **Edge-First**: Built for Cloudflare Workers for maximum performance.
 - **Modern Stack**: Powered by Nuxt 4, Vue 3, and Tailwind CSS.
 - **Block-Based Editor**: Create rich content without coding.
 - **Canvas Page Builder**: Visual drag-and-drop layout editor via the bundled Canvas plugin.

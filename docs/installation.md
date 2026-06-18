@@ -1,6 +1,6 @@
 # Installation Guide
 
-NuxFlow runs on Cloudflare Workers with **Cloudflare D1** as the default database. D1 is SQLite at the edge — no separate account, no credentials to manage, everything lives inside your Cloudflare account. Turso is supported as an optional alternative for users who prefer it.
+NuxFlow runs on Cloudflare Workers with **Cloudflare D1** as the database. D1 is SQLite at the edge — no separate account, no credentials to manage, everything lives inside your Cloudflare account.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ Install the following tools before you begin:
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/mattmacmillan76/NuxFlow.git
+git clone https://github.com/NuxFlow/NuxFlow.git
 cd nuxflow
 pnpm install
 ```
@@ -32,9 +32,7 @@ cp apps/nuxflow/wrangler.toml.example apps/nuxflow/wrangler.toml
 
 ### Set Up a Local Database
 
-There are three options. **Option A is recommended** — it uses the same D1 database as production, so there are no surprises when you deploy.
-
-**Option A — Cloudflare D1 via `wrangler dev` (recommended):**
+**Cloudflare D1 via `wrangler dev`:**
 
 This mirrors production exactly. `wrangler dev` provisions a local D1 database automatically — no `.env` file is needed for the database connection.
 
@@ -48,62 +46,6 @@ wrangler dev
 The first run will compile the Nuxt app before starting (this takes about a minute). Subsequent starts reuse the compiled output and are much faster. To pick up source code changes, stop the server and run `wrangler dev` again — or rebuild manually with `pnpm build` from the repo root and then restart.
 
 Database migrations run automatically on the first request. Visit `http://localhost:8787/setup` to complete the onboarding wizard. Once setup is complete, you can access your admin dashboard at `http://localhost:8787/admin`.
-
-**Option B — Local SQLite file (no Cloudflare account required):**
-
-NuxFlow can use a plain SQLite file for local development via its libSQL adapter — no Turso account is needed.
-
-Copy the example env file and set the database path:
-
-```bash
-cp apps/nuxflow/.env.example apps/nuxflow/.env
-```
-
-```
-NUXT_TURSO_URL=file:local.db
-NUXT_TURSO_AUTH_TOKEN=
-NUXT_BETTER_AUTH_SECRET=your-32-char-secret-here
-NUXT_PUBLIC_SITE_URL=http://localhost:3000
-```
-
-Start the dev server:
-
-```bash
-pnpm dev
-```
-
-Database migrations run automatically on the first request. Visit `http://localhost:3000/setup` to complete the onboarding wizard. Once setup is complete, you can access your admin dashboard at `http://localhost:3000/admin`.
-
-**Option C — Turso remote database:**
-
-Use this if you prefer a managed cloud database for development, or if you intend to deploy to a non-Cloudflare host.
-
-```bash
-turso db create nuxflow-dev
-turso db show nuxflow-dev --url
-turso db tokens create nuxflow-dev
-```
-
-Copy the example env file and fill in your Turso credentials:
-
-```bash
-cp apps/nuxflow/.env.example apps/nuxflow/.env
-```
-
-```
-NUXT_TURSO_URL=libsql://your-db.turso.io
-NUXT_TURSO_AUTH_TOKEN=your-token
-NUXT_BETTER_AUTH_SECRET=your-32-char-secret-here
-NUXT_PUBLIC_SITE_URL=http://localhost:3000
-```
-
-Start the dev server:
-
-```bash
-pnpm dev
-```
-
-Database migrations run automatically on the first request. Visit `http://localhost:3000/setup` to complete the onboarding wizard. Once setup is complete, you can access your admin dashboard at `http://localhost:3000/admin`.
 
 ::note
 **How migrations work:** NuxFlow bundles all database migration files into the deployed Worker. On the very first request after a fresh install or an upgrade, any migrations that have not yet been applied are executed automatically. A `_nuxflow_migrations` table in your database tracks which files have already run, so no migration is ever applied twice. You never need to run a migration command manually.
@@ -241,13 +183,13 @@ Connecting NuxFlow to GitHub lets Cloudflare rebuild and redeploy your site auto
 
 ### Fork the Repository First
 
-Rather than connecting Cloudflare directly to the `mattmacmillan76/NuxFlow` repository, we strongly recommend creating your own fork on GitHub first.
+Rather than connecting Cloudflare directly to the `NuxFlow/NuxFlow` repository, we strongly recommend creating your own fork on GitHub first.
 
 Deploying from a fork means you control when upstream updates are pulled in, so a new NuxFlow release never lands on your live site without your review. It also gives you a place to add site-specific customisations and to run a staging environment — for example, a second Cloudflare Worker connected to the same fork's `staging` branch — before changes reach production.
 
 To fork:
 
-1. Go to [github.com/mattmacmillan76/NuxFlow](https://github.com/mattmacmillan76/NuxFlow) and click **Fork**
+1. Go to [github.com/NuxFlow/NuxFlow](https://github.com/NuxFlow/NuxFlow) and click **Fork**
 2. Clone your fork and use it as the basis for your deployment
 
 ### Connect Your Fork to Cloudflare
@@ -294,52 +236,7 @@ After saving the build configuration, push a commit to your connected branch to 
 
 ---
 
-## 4. Using Turso Instead of D1
-
-Turso is a managed libSQL database service that works as an alternative to D1. Use it if you prefer a standalone database service, or if you want to run NuxFlow outside of Cloudflare Workers.
-
-**Step 1 — Install the Turso CLI and create a database:**
-
-```bash
-curl -sSfL https://get.tur.so/install.sh | bash
-turso db create nuxflow
-turso db show nuxflow --url
-turso db tokens create nuxflow
-```
-
-**Step 2 — Remove the D1 binding from `wrangler.toml`:**
-
-Comment out or delete the `[[d1_databases]]` block:
-
-```toml
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "nuxflow"
-# database_id = "..."
-```
-
-**Step 3 — Add Turso secrets:**
-
-```bash
-cd apps/nuxflow
-wrangler secret put NUXT_TURSO_URL
-wrangler secret put NUXT_TURSO_AUTH_TOKEN
-```
-
-**Step 4 — Add the same secrets as build-time environment variables** in **Workers & Pages → nuxflow → Settings → Build → Environment variables**:
-
-| Variable | Value |
-|---|---|
-| `NUXT_TURSO_URL` | Your Turso database URL |
-| `NUXT_TURSO_AUTH_TOKEN` | Your Turso auth token |
-| `NUXT_BETTER_AUTH_SECRET` | Your session-signing secret |
-| `NUXT_PUBLIC_SITE_URL` | Your production site URL |
-
-NuxFlow automatically detects that no D1 binding is present and falls back to Turso. Database migrations run automatically on the first request after deployment.
-
----
-
-## 5. Additional Configuration
+## 4. Additional Configuration
 
 All `wrangler secret put` commands in this section must be run from the `apps/nuxflow` directory.
 

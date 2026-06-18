@@ -11,7 +11,7 @@ With the MCP integration, you can ask your AI assistant to:
 
 ## 🚀 How it Works
 
-The MCP server runs natively on NuxFlow's edge runtime (Cloudflare Workers / Turso / D1) at the endpoint `/api/v1/mcp`. It supports:
+The MCP server runs natively on NuxFlow's edge runtime (Cloudflare Workers / D1) at the endpoint `/api/v1/mcp`. It supports:
 1. **GET (SSE Handshake)**: Establishes a Server-Sent Events (SSE) stream, returning a unique `sessionId` mapped to `/api/v1/mcp?sessionId=...`.
 2. **POST (JSON-RPC 2.0)**: Processes JSON-RPC 2.0 message payloads (containing methods like `initialize`, `tools/list`, and `tools/call`) and pushes results back through the SSE stream.
 

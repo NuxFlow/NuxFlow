@@ -17,7 +17,6 @@
   </a>
   <img src="https://img.shields.io/badge/nuxt-4-00DC82?logo=nuxt.js" alt="Nuxt 4" />
   <img src="https://img.shields.io/badge/cloudflare-workers-F38020?logo=cloudflare" alt="Cloudflare Workers" />
-  <img src="https://img.shields.io/badge/turso-libSQL-4FF8D2" alt="Turso" />
   <img src="https://img.shields.io/badge/pnpm-workspace-F69220?logo=pnpm" alt="pnpm workspace" />
 </p>
 
@@ -25,7 +24,7 @@
 
 ---
 
-NuxFlow is a self-hosted, open-source CMS that gives non-technical editors a WordPress-level visual page-building experience, engineered specifically for the serverless **Cloudflare Workers edge ecosystem** (with Turso/libSQL fallback). 
+NuxFlow is a self-hosted, open-source CMS that gives non-technical editors a WordPress-level visual page-building experience, engineered specifically for the serverless **Cloudflare Workers edge ecosystem**.
 
 By optimizing strictly for Cloudflare Workers instead of legacy VPS hosting or complex AWS cloud architectures, NuxFlow delivers a **zero-configuration, zero-cold-start, and virtually free-to-host CMS** capable of serving pages globally in under 15ms.
 
@@ -161,7 +160,7 @@ By optimizing strictly for Cloudflare Workers instead of legacy VPS hosting or c
 |---|---|
 | Framework | Nuxt 4 |
 | Runtime | Cloudflare Workers (via Nitro `cloudflare-module` preset) |
-| Database | Cloudflare D1 (default) · Turso / libSQL (alternative) |
+| Database | Cloudflare D1 |
 | ORM | Drizzle ORM |
 | UI | Nuxt UI Pro (TipTap `UEditor`, `UDashboardSidebar`) |
 | Auth | Better Auth + `@onmax/nuxt-better-auth` |
@@ -247,9 +246,7 @@ cp apps/nuxflow/wrangler.toml.example apps/nuxflow/wrangler.toml
 
 ### 3. Configure the database
 
-NuxFlow uses **Cloudflare D1** by default (recommended). A local SQLite file via Turso is available as a zero-account alternative for development.
-
-**Option A — Cloudflare D1 (recommended)**
+NuxFlow uses **Cloudflare D1** — SQLite at the edge, included with every Cloudflare account.
 
 ```bash
 wrangler login
@@ -263,18 +260,6 @@ Copy the returned `database_id` into `apps/nuxflow/wrangler.toml` under `[[d1_da
 > cd apps/nuxflow
 > wrangler d1 execute nuxflow-dev --local --file=../../packages/db/migrations/0000_baseline.sql
 > ```
-
-**Option B — Local SQLite file (no Cloudflare account required)**
-
-```bash
-# Install Turso CLI
-curl -sSfL https://get.tur.so/install.sh | bash
-turso db create nuxflow-dev
-turso db show nuxflow-dev --url       # copy the URL
-turso db tokens create nuxflow-dev    # copy the token
-```
-
-Then set `NUXT_TURSO_URL` and `NUXT_TURSO_AUTH_TOKEN` in your `.env` file and remove the `[[d1_databases]]` block from `wrangler.toml`.
 
 ### 4. Configure environment
 
@@ -350,8 +335,6 @@ Most variables are prefixed `NUXT_` (except direct provider envs like `S3_*` or 
 
 | Variable | Required | Description |
 |---|---|---|
-| `NUXT_TURSO_URL` | | Turso/libSQL alternative to D1: `libsql://your-db.turso.io` or `file:../../packages/db/local.db` |
-| `NUXT_TURSO_AUTH_TOKEN` | | Turso JWT token. Not needed for local `file:` URL. |
 | `NUXT_BETTER_AUTH_SECRET` | ✅ | Session signing secret — minimum 32 characters |
 | `NUXT_PUBLIC_SITE_URL` | ✅ | Full URL including scheme, used in emails and SEO |
 | `NUXT_EMAIL_PROVIDER` | | `console` (default) · `resend` · `brevo` · `zepto` · `smtp` |

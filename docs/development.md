@@ -9,8 +9,6 @@ Install the following tools before you begin:
 - **Node.js** 20 or higher
 - **pnpm** 9 or higher — `npm install -g pnpm`
 - **Wrangler** v4 (Cloudflare CLI) — `pnpm add -g wrangler`
-- **Turso CLI** (optional, for remote database development) — `curl -sSfL https://get.tur.so/install.sh | bash`
-
 ---
 
 ## Monorepo Structure
@@ -41,7 +39,7 @@ Most day-to-day development happens in `apps/nuxflow` and `packages/db`. The pac
 Clone the repository and install dependencies from the repo root:
 
 ```bash
-git clone https://github.com/mattmacmillan76/NuxFlow.git
+git clone https://github.com/NuxFlow/NuxFlow.git
 cd nuxflow
 pnpm install
 ```
@@ -66,50 +64,6 @@ wrangler dev
 ```
 
 Database migrations run automatically on the first request. Visit `http://localhost:8787/setup`.
-
-**Option B — Local SQLite file:**
-
-Copy the example env file and point the URL at a local file:
-
-```bash
-cp apps/nuxflow/.env.example apps/nuxflow/.env
-```
-
-```
-NUXT_TURSO_URL=file:local.db
-NUXT_TURSO_AUTH_TOKEN=
-NUXT_BETTER_AUTH_SECRET=any-32-char-dev-secret-here!!
-NUXT_PUBLIC_SITE_URL=http://localhost:3000
-```
-
-```bash
-pnpm dev
-```
-
-Visit `http://localhost:3000/setup`. The SQLite file is created automatically on first run.
-
-**Option C — Turso remote database:**
-
-Use this if you prefer a persistent cloud database that survives local machine restarts.
-
-```bash
-turso db create nuxflow-dev
-turso db show nuxflow-dev --url
-turso db tokens create nuxflow-dev
-```
-
-Add the credentials to `apps/nuxflow/.env`:
-
-```
-NUXT_TURSO_URL=libsql://your-db.turso.io
-NUXT_TURSO_AUTH_TOKEN=your-token
-NUXT_BETTER_AUTH_SECRET=any-32-char-dev-secret-here!!
-NUXT_PUBLIC_SITE_URL=http://localhost:3000
-```
-
-```bash
-pnpm dev
-```
 
 ---
 
@@ -137,7 +91,7 @@ pnpm --filter @nuxflow/db generate
 
 ## Database Schema and Migrations
 
-NuxFlow uses [Drizzle ORM](https://orm.drizzle.team) with a SQLite dialect that works across both Cloudflare D1 and Turso.
+NuxFlow uses [Drizzle ORM](https://orm.drizzle.team) with a SQLite dialect targeting Cloudflare D1.
 
 ### Schema files
 
