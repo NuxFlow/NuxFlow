@@ -49,7 +49,7 @@ export default defineNuxtConfig({
     },
     scheduledTasks: {
       '* * * * *': ['publish-scheduled'],
-      '0 3 * * *': ['demo-reset'],
+      ...(process.env.NUXT_IS_DEMO === 'true' ? { '0 3 * * *': ['demo-reset'] } : {}),
     },
     serverAssets: [
       { baseName: 'migrations', dir: resolve(_dirname, '../../packages/db/migrations') },
