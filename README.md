@@ -9,10 +9,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/mattmacmillan76/NuxFlow/actions/workflows/ci.yml">
-    <img src="https://github.com/mattmacmillan76/NuxFlow/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" />
+  <a href="https://github.com/NuxFlow/NuxFlow/actions/workflows/ci.yml">
+    <img src="https://github.com/NuxFlow/NuxFlow/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" />
   </a>
-  <a href="https://github.com/mattmacmillan76/NuxFlow/blob/main/LICENSE">
+  <a href="https://github.com/NuxFlow/NuxFlow/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
   </a>
   <img src="https://img.shields.io/badge/nuxt-4-00DC82?logo=nuxt.js" alt="Nuxt 4" />
@@ -232,7 +232,7 @@ For detailed information on how to install and use NuxFlow, please refer to our 
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/mattmacmillan76/Nuxflow.git
+git clone https://github.com/NuxFlow/NuxFlow.git
 cd nuxflow
 pnpm install
 ```

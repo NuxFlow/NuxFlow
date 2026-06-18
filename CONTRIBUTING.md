@@ -327,4 +327,4 @@ Every database table that stores site-specific data has a `site_id` column. The 
 
 ## Questions?
 
-Open a [Discussion](https://github.com/mattmacmillan76/NuxFlow/discussions) for questions, ideas, or general feedback.
+Open a [Discussion](https://github.com/NuxFlow/NuxFlow/discussions) for questions, ideas, or general feedback.
