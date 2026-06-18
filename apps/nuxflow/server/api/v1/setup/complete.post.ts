@@ -194,7 +194,7 @@ async function _handleSetup(event: H3Event) {
           ctaLabel: 'Go to dashboard',
           ctaUrl: '/admin',
           cta2Label: 'View on GitHub',
-          cta2Url: 'https://github.com/mattmacmillan76/Nuxflow',
+          cta2Url: 'https://github.com/NuxFlow/NuxFlow',
           align: 'center',
           bgGradient: 'linear-gradient(to bottom right, #090d16, #064e3b, #022c22, #090d16)',
           textColor: '#ffffff',

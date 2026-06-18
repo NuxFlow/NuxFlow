@@ -49,6 +49,7 @@ export default defineNuxtConfig({
     },
     scheduledTasks: {
       '* * * * *': ['publish-scheduled'],
+      '0 3 * * *': ['demo-reset'],
     },
     serverAssets: [
       { baseName: 'migrations', dir: resolve(_dirname, '../../packages/db/migrations') },
@@ -118,6 +119,7 @@ export default defineNuxtConfig({
     paddleApiKey: '',
     paddleVendorId: '',
     paddleWebhookPublicKey: '',
+    isDemo: false,
     public: {
       siteUrl: '',
       cloudflareImagesDeliveryUrl: '',

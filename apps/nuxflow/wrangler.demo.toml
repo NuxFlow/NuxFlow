@@ -1,0 +1,46 @@
+name = "nuxflow-demo"
+main = ".output/server/index.mjs"
+compatibility_date = "2026-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+[build]
+command = "pnpm run build"
+
+[assets]
+directory = ".output/public"
+
+[vars]
+NUXT_IS_DEMO = "true"
+NUXT_PUBLIC_SITE_URL = "https://demo.nuxflow.dev"
+# Set these secrets via: wrangler secret put NUXT_BETTER_AUTH_SECRET --config wrangler.demo.toml
+# NUXT_BETTER_AUTH_SECRET =
+
+[triggers]
+# publish-scheduled runs every minute; demo-reset runs at 3 AM UTC daily
+crons = ["* * * * *", "0 3 * * *"]
+
+# Dynamic plugin KV store — run to create:
+#   wrangler kv namespace create PLUGIN_KV --config wrangler.demo.toml
+# then paste the returned id below and in the preview_id field.
+[[kv_namespaces]]
+binding = "PLUGIN_KV"
+id = "your-demo-kv-namespace-id"
+preview_id = "your-demo-kv-preview-namespace-id"
+
+# Dynamic Workers loader
+[[worker_loaders]]
+binding = "LOADER"
+
+# Cloudflare D1 database for the demo instance.
+# Create with: wrangler d1 create nuxflow-demo --config wrangler.demo.toml
+# Then paste the returned database_id below.
+# Migrations run automatically on the first request after deployment.
+[[d1_databases]]
+binding = "DB"
+database_name = "nuxflow-demo"
+database_id = "your-demo-d1-database-id"
+
+# demo.nuxflow.dev custom domain
+[[routes]]
+pattern = "demo.nuxflow.dev"
+custom_domain = true
