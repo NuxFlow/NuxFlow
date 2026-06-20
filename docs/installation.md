@@ -2,6 +2,22 @@
 
 NuxFlow runs on Cloudflare Workers with **Cloudflare D1** as the database. D1 is SQLite at the edge — no separate account, no credentials to manage, everything lives inside your Cloudflare account.
 
+## Quick Start
+
+The fastest way to get a new NuxFlow site running is the scaffolder — it handles cloning, dependency installation, secret generation, and `.env` setup in one step:
+
+```bash
+pnpm create nuxflow-app@beta
+```
+
+> Also works with `npm create nuxflow-app@beta` or `pnpm dlx create-nuxflow-app@beta`.
+>
+> The `@beta` tag is required while NuxFlow is in pre-release. It will be dropped once a stable `1.0` is published.
+
+After the scaffolder finishes, follow the prompts to create your D1 database and deploy. The sections below cover every step in detail if you need to configure things manually or want to contribute to NuxFlow itself.
+
+---
+
 ## Prerequisites
 
 Install the following tools before you begin:

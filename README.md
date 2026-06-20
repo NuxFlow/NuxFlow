@@ -37,12 +37,14 @@ By optimizing strictly for Cloudflare Workers instead of legacy VPS hosting or c
 ## Quick Start
 
 ```bash
-pnpm create nuxflow-app
+pnpm create nuxflow-app@beta
 ```
 
-> Also works with `npm create nuxflow-app` or `pnpm dlx create-nuxflow-app`.
+> Also works with `npm create nuxflow-app@beta` or `pnpm dlx create-nuxflow-app@beta`.
 
 The scaffolder downloads NuxFlow, generates a secure auth secret, configures your `.env`, and walks you through D1 database setup — ready to run in under two minutes.
+
+> **Note:** The `@beta` tag is required while NuxFlow is in pre-release. Once a stable `1.0` is published the tag can be dropped.
 
 For a manual setup or to contribute to NuxFlow itself, see [Getting Started](#getting-started) below.
 
