@@ -1,5 +1,6 @@
 import { useDb } from '../../utils/db'
-import { sql } from 'drizzle-orm'
+import { contentItems } from '@nuxflow/db/schema'
+import { inArray, sql } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
@@ -23,8 +24,29 @@ export default defineEventHandler(async (event) => {
   `)
 
   // D1 returns { results: [{...}] }, LibSQL returns { rows: [[...]] }
-  // The drizzle `.run()` return type differs by adapter; cast through unknown to access both shapes.
   const raw = rawResults as unknown as { rows?: unknown[]; results?: unknown[] }
-  const rows: unknown[] = raw.rows ?? raw.results ?? []
-  return { results: rows }
+  const rows = (raw.rows ?? raw.results ?? []) as Record<string, unknown>[]
+
+  if (!rows.length) return { results: [] }
+
+  // Resolve slugs for all matched content items
+  const ids = rows.map(r => String(r.content_item_id ?? ''))
+  const slugMap = new Map<string, string>()
+
+  if (ids.length > 0) {
+    const items = await db
+      .select({ id: contentItems.id, slug: contentItems.slug })
+      .from(contentItems)
+      .where(inArray(contentItems.id, ids))
+    for (const item of items) slugMap.set(item.id, item.slug)
+  }
+
+  const results = rows.map(r => ({
+    id: String(r.content_item_id ?? ''),
+    title: String(r.title ?? ''),
+    excerpt: String(r.excerpt ?? ''),
+    slug: slugMap.get(String(r.content_item_id ?? '')) ?? null,
+  }))
+
+  return { results }
 })

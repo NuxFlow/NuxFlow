@@ -1,10 +1,21 @@
 // Dynamically loads client bundles for active dynamic plugins at runtime.
 // This plugin is client-only — dynamic plugin components are not SSR'd.
-// Each plugin's client bundle must export:
+// NuxBlocks.vue wraps unknown block types in <ClientOnly> with a skeleton so
+// SSR renders a pulse placeholder and the real block appears after hydration.
+//
+// Each plugin's client bundle must export a named function:
 //   register(app: App, registry: BlockRegistry, vue: typeof import('vue')): void
 //
+// The registry.register() call accepts:
+//   { name, description?, icon?, component, definition? }
+//
+// Pass a `definition` object ({ id, name, icon, category, fields, defaultProps })
+// to enable the Canvas editor settings sidebar for the block. Without it the block
+// renders with no configurable props in the admin editor.
+//
 // Vue is passed as the third argument so plugin bundles don't need to import
-// it as a bare specifier (which would fail without an import map).
+// it as a bare specifier (which would fail without an import map). Destructure
+// any composition API you need: { ref, computed, onMounted, watch, h, ... }.
 
 import * as vue from 'vue'
 

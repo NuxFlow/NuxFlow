@@ -1,5 +1,5 @@
 import { useDb } from '../utils/db'
-import { contentItems, sites, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
+import { contentItems, sites, siteSettings, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -7,16 +7,28 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const config = useRuntimeConfig()
 
-  const site = await db.query.sites.findFirst({
-    where: eq(sites.id, siteId),
-    columns: { domain: true },
-  })
+  const [site, canonicalSetting] = await Promise.all([
+    db.query.sites.findFirst({
+      where: eq(sites.id, siteId),
+      columns: { domain: true },
+    }),
+    db.query.siteSettings.findFirst({
+      where: and(eq(siteSettings.siteId, siteId), eq(siteSettings.key, 'seo.canonical_url')),
+      columns: { value: true },
+    }),
+  ])
 
-  const baseUrl = site ? `https://${site.domain}` : config.public.siteUrl
+  const domainBase = site ? `https://${site.domain}` : config.public.siteUrl
+  const baseUrl = (canonicalSetting?.value as string | undefined)?.trim() || domainBase
 
   const [pages, taxRows] = await Promise.all([
     db.query.contentItems.findMany({
-      where: and(eq(contentItems.siteId, siteId), eq(contentItems.status, 'published')),
+      // Only public visibility — gated/private pages must not be indexed
+      where: and(
+        eq(contentItems.siteId, siteId),
+        eq(contentItems.status, 'published'),
+        eq(contentItems.visibility, 'public'),
+      ),
       columns: { slug: true, updatedAt: true },
     }),
     db
@@ -48,6 +60,16 @@ export default defineEventHandler(async (event) => {
     <loc>${baseUrl}/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/blog</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/search</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
   </url>${contentUrls}${taxUrls}
 </urlset>`
 })

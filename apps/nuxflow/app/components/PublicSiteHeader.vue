@@ -14,6 +14,7 @@ interface SitePublic {
   showHeader: boolean
   showColorToggle: boolean
   logoUrl: string | null
+  canonicalBase: string
 }
 
 const { data: site } = await useFetch<SitePublic>('/api/public/site', {
@@ -92,6 +93,13 @@ watch(() => route.path, () => { mobileOpen.value = false })
       </nav>
 
       <div class="flex items-center gap-2 ml-auto">
+        <NuxtLink
+          to="/search"
+          class="flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+          aria-label="Search"
+        >
+          <UIcon name="i-lucide-search" class="w-4 h-4" />
+        </NuxtLink>
         <ClientOnly>
           <UColorModeButton v-if="site?.showColorToggle !== false" size="sm" />
         </ClientOnly>

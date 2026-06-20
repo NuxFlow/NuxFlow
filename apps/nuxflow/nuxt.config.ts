@@ -35,6 +35,7 @@ export default defineNuxtConfig({
     preset: process.env.NODE_ENV === 'production' ? 'cloudflare-module' : undefined,
     experimental: {
       wasm: true,
+      tasks: true,
     },
     rollupConfig: {
       output: {
@@ -48,8 +49,9 @@ export default defineNuxtConfig({
       '@opentelemetry/api': resolve(_dirname, 'server/stubs/opentelemetry-api.mjs'),
     },
     scheduledTasks: {
-      '* * * * *': ['publish-scheduled'],
-      ...(process.env.NUXT_IS_DEMO === 'true' ? { '0 3 * * *': ['demo-reset'] } : {}),
+      '* * * * *': process.env.NUXT_IS_DEMO === 'true'
+        ? ['publish-scheduled', 'demo-reset']
+        : ['publish-scheduled'],
     },
     serverAssets: [
       { baseName: 'migrations', dir: resolve(_dirname, '../../packages/db/migrations') },

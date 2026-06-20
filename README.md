@@ -48,6 +48,20 @@ For a manual setup or to contribute to NuxFlow itself, see [Getting Started](#ge
 
 ---
 
+## Live Demo
+
+Explore NuxFlow without installing anything — a live instance resets every night so you can freely make changes, break things, and see exactly how the admin works.
+
+| | |
+|---|---|
+| **URL** | [demo.nuxflow.dev](https://demo.nuxflow.dev) |
+| **Email** | `demo@nuxflow.dev` |
+| **Password** | `demo123` |
+
+Every feature in the admin is fully functional. The demo resets automatically at 3 AM UTC each night.
+
+---
+
 ## Features
 
 ### Canvas Visual Page Builder

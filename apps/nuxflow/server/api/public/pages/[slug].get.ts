@@ -1,7 +1,7 @@
 import type { H3Event } from 'h3'
 import { useDb } from '../../../utils/db'
 import { trackPageView } from '../../../utils/analytics'
-import { contentItems, contentTypes, membershipTiers, redirects, subscriptions } from '@nuxflow/db/schema'
+import { contentItems, contentTypes, membershipTiers, redirects, subscriptions, users } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 async function checkContentAccess(event: H3Event, page: { visibility: string; settings: Record<string, unknown> | null | undefined }, siteId: string) {
@@ -114,15 +114,26 @@ export default defineEventHandler(async (event) => {
 
   trackPageView(event, { siteId, slug })
 
+  let author: { name: string; image: string | null } | null = null
+  if (page.authorId) {
+    const authorUser = await db.query.users.findFirst({
+      where: eq(users.id, page.authorId),
+      columns: { name: true, image: true },
+    })
+    author = authorUser ?? null
+  }
+
   return {
     id: page.id,
     title: page.title,
     slug: page.slug,
     content: page.content,
+    excerpt: page.excerpt,
     seoTitle: page.seoTitle,
     seoDescription: page.seoDescription,
     ogImage: page.ogImage,
     publishedAt: page.publishedAt,
     hasComments,
+    author,
   }
 })

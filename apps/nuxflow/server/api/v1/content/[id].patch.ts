@@ -17,6 +17,8 @@ const bodySchema = z.object({
   seoDescription: z.string().max(500).optional(),
   scheduledAt: z.string().datetime().nullish(),
   settings: z.record(z.unknown()).optional(),
+  excerpt: z.string().max(2000).nullish(),
+  ogImage: z.string().max(2048).nullish(),
   allowComments: z.boolean().nullable().optional(),
   // Optional optimistic lock: client sends the version it last saw.
   // Server returns 409 if the item has since been updated by someone else.

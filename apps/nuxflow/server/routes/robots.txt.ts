@@ -1,18 +1,29 @@
 import { useDb } from '../utils/db'
-import { siteSettings } from '@nuxflow/db/schema'
+import { sites, siteSettings } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  const config = useRuntimeConfig()
 
-  const setting = await db.query.siteSettings.findFirst({
-    where: and(eq(siteSettings.siteId, siteId), eq(siteSettings.key, 'seo.robots')),
-  })
+  const [robotsSetting, canonicalSetting, site] = await Promise.all([
+    db.query.siteSettings.findFirst({
+      where: and(eq(siteSettings.siteId, siteId), eq(siteSettings.key, 'seo.robots')),
+      columns: { value: true },
+    }),
+    db.query.siteSettings.findFirst({
+      where: and(eq(siteSettings.siteId, siteId), eq(siteSettings.key, 'seo.canonical_url')),
+      columns: { value: true },
+    }),
+    db.query.sites.findFirst({
+      where: eq(sites.id, siteId),
+      columns: { domain: true },
+    }),
+  ])
 
-  const robotsValue = (setting?.value as string | undefined) ?? 'index'
-  const baseUrl = config.public.siteUrl
+  const robotsValue = (robotsSetting?.value as string | undefined) ?? 'index'
+  const baseUrl = (canonicalSetting?.value as string | undefined)?.trim()
+    || (site ? `https://${site.domain}` : useRuntimeConfig().public.siteUrl)
 
   setHeader(event, 'Content-Type', 'text/plain')
 

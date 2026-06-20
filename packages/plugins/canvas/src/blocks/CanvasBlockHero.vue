@@ -41,6 +41,25 @@ const containerStyle = computed(() => {
 
 const primaryCtaBg = computed(() => props.ctaBgColor ?? props.textColor)
 const primaryCtaColor = computed(() => props.bgGradient ? '#030712' : (props.bgColor ?? '#ffffff'))
+
+// For decorative elements (glow, logo shadow) that need a low-opacity variant of
+// ctaBgColor: hex values get the two-digit alpha suffix appended; CSS variables
+// (e.g. var(--nuxflow-primary)) use color-mix() instead because string
+// concatenation produces invalid CSS like "var(--nuxflow-primary)1f".
+const glowColor = computed(() => {
+  if (!props.ctaBgColor) return 'rgba(0, 220, 130, 0.12)'
+  return props.ctaBgColor.startsWith('var(')
+    ? `color-mix(in srgb, ${props.ctaBgColor} 12%, transparent)`
+    : `${props.ctaBgColor}1f`
+})
+
+const logoStyle = computed(() => {
+  const color = props.ctaBgColor ?? 'var(--nuxflow-primary, #00dc82)'
+  const shadow = color.startsWith('var(')
+    ? `0 20px 25px -5px color-mix(in srgb, ${color} 30%, transparent)`
+    : `0 20px 25px -5px ${color}4d`
+  return { background: color, boxShadow: shadow }
+})
 </script>
 
 <template>
@@ -55,7 +74,7 @@ const primaryCtaColor = computed(() => props.bgGradient ? '#030712' : (props.bgC
     <div
       v-if="showDecorations"
       class="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full blur-3xl pointer-events-none"
-      :style="{ background: ctaBgColor ? `${ctaBgColor}1f` : 'rgba(0, 220, 130, 0.18)' }"
+      :style="{ background: glowColor }"
     />
 
     <div
@@ -71,7 +90,7 @@ const primaryCtaColor = computed(() => props.bgGradient ? '#030712' : (props.bgC
         v-if="logoIcon"
         :class="align === 'center' ? 'inline-flex' : 'flex'"
         class="items-center justify-center w-16 h-16 rounded-2xl mb-2 animate-pulse"
-        :style="{ background: ctaBgColor ?? '#00dc82', boxShadow: `0 20px 25px -5px ${ctaBgColor ?? '#00dc82'}4d` }"
+        :style="logoStyle"
       >
         <span :class="`${logoIcon} w-8 h-8 text-white`" />
       </div>

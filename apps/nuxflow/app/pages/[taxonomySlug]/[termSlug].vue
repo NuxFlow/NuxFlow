@@ -1,13 +1,29 @@
 <script setup lang="ts">
 const route = useRoute()
+const router = useRouter()
 const taxonomySlug = route.params.taxonomySlug as string
 const termSlug = route.params.termSlug as string
+const page = computed(() => Math.max(1, Number(route.query.page) || 1))
+
+interface PostItem {
+  id: string
+  title: string
+  slug: string
+  excerpt: string | null
+  ogImage: string | null
+  publishedAt: string | null
+}
 
 const { data, error } = await useFetch<{
   taxonomy: { id: string; name: string; slug: string }
   term: { id: string; name: string; slug: string; description: string | null }
-  items: { id: string; title: string; slug: string; excerpt: string | null; publishedAt: string | null }[]
+  items: PostItem[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
 }>(`/api/public/taxonomy/${taxonomySlug}/${termSlug}`, {
+  query: computed(() => ({ page: page.value, limit: 10 })),
   headers: useRequestHeaders(['host']),
 })
 
@@ -18,6 +34,10 @@ if (error.value) {
 useSeoMeta({
   title: computed(() => data.value ? `${data.value.term.name} — ${data.value.taxonomy.name}` : ''),
 })
+
+function goToPage(p: number) {
+  router.push({ query: { ...route.query, page: p > 1 ? p : undefined } })
+}
 </script>
 
 <template>
@@ -27,6 +47,7 @@ useSeoMeta({
       <p class="text-sm text-gray-500 uppercase tracking-wide font-medium mb-1">{{ data.taxonomy.name }}</p>
       <h1 class="text-3xl font-bold">{{ data.term.name }}</h1>
       <p v-if="data.term.description" class="mt-2 text-gray-500">{{ data.term.description }}</p>
+      <p class="mt-1 text-sm text-gray-400">{{ data.total }} post{{ data.total !== 1 ? 's' : '' }}</p>
     </div>
 
     <!-- Post list -->
@@ -46,5 +67,24 @@ useSeoMeta({
       </article>
     </div>
     <p v-else class="text-gray-400 text-sm">No published content in this {{ data.taxonomy.name.toLowerCase().slice(0, -1) }} yet.</p>
+
+    <!-- Pagination -->
+    <div v-if="data.totalPages > 1" class="flex items-center justify-center gap-2">
+      <UButton
+        variant="outline"
+        size="sm"
+        icon="i-lucide-chevron-left"
+        :disabled="page <= 1"
+        @click="goToPage(page - 1)"
+      />
+      <span class="text-sm text-gray-500">Page {{ page }} of {{ data.totalPages }}</span>
+      <UButton
+        variant="outline"
+        size="sm"
+        icon="i-lucide-chevron-right"
+        :disabled="page >= data.totalPages"
+        @click="goToPage(page + 1)"
+      />
+    </div>
   </div>
 </template>

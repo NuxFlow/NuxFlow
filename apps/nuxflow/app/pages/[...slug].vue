@@ -13,13 +13,22 @@ interface Tier {
   features: string[]
 }
 
+interface Author {
+  name: string
+  image: string | null
+}
+
 interface PublicPage {
   id: string
   title: string
   seoTitle?: string | null
   seoDescription?: string | null
   content: unknown
+  excerpt?: string | null
+  ogImage?: string | null
+  publishedAt?: string | null
   hasComments?: boolean | null
+  author?: Author | null
 }
 
 interface GateData {
@@ -45,11 +54,17 @@ watch(slug, () => { gated.value = null })
 useSeoMeta({
   title: page.value?.seoTitle || page.value?.title,
   description: page.value?.seoDescription,
+  ogImage: page.value?.ogImage ?? undefined,
 })
 
 const isCanvasPage = computed(() => {
   const c = page.value?.content
   return typeof c === 'object' && c !== null && (c as { type: string }).type === 'canvas'
+})
+
+const formattedDate = computed(() => {
+  if (!page.value?.publishedAt) return null
+  return new Date(page.value.publishedAt).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' })
 })
 </script>
 
@@ -70,10 +85,37 @@ const isCanvasPage = computed(() => {
 
       <!-- Rich-text / other content: contained with title -->
       <div v-else class="max-w-4xl mx-auto px-6 py-12">
-        <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-8">
+        <!-- Featured image -->
+        <img
+          v-if="page.ogImage"
+          :src="page.ogImage"
+          :alt="page.title"
+          class="w-full h-64 object-cover rounded-2xl mb-8"
+        >
+
+        <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">
           {{ page.title }}
         </h1>
+
+        <!-- Author + date meta -->
+        <div v-if="page.author || formattedDate" class="flex items-center gap-3 mb-8 text-sm text-gray-500">
+          <template v-if="page.author">
+            <UAvatar
+              :src="page.author.image ?? undefined"
+              :alt="page.author.name"
+              size="sm"
+            />
+            <span class="font-medium text-gray-700 dark:text-gray-300">{{ page.author.name }}</span>
+          </template>
+          <span v-if="page.author && formattedDate" class="text-gray-300 dark:text-gray-600">·</span>
+          <time v-if="formattedDate">{{ formattedDate }}</time>
+        </div>
+
         <NuxBlock :content="page.content" />
+
+        <!-- Social share -->
+        <PublicShareButtons :title="page.title" class="mt-10 pt-8 border-t border-gray-100 dark:border-gray-800" />
+
         <CommentSection v-if="page.hasComments" :item-id="page.id" />
       </div>
     </template>

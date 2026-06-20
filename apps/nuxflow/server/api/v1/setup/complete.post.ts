@@ -198,7 +198,7 @@ async function _handleSetup(event: H3Event) {
           align: 'center',
           bgGradient: 'linear-gradient(to bottom right, #090d16, #064e3b, #022c22, #090d16)',
           textColor: '#ffffff',
-          ctaBgColor: '#00dc82',
+          ctaBgColor: 'var(--nuxflow-primary, #00dc82)',
           logoIcon: 'i-lucide-layers',
           showDecorations: true,
           padding: sp,
@@ -214,7 +214,7 @@ async function _handleSetup(event: H3Event) {
           numFeatures: 3,
           style: 'card',
           align: 'left',
-          iconColor: '#00dc82',
+          iconColor: 'var(--nuxflow-primary, #00dc82)',
           feat1Icon: 'i-lucide-zap',
           feat1Title: 'Edge Performance',
           feat1Desc: 'Global distribution with absolute speed. Zero cold starts, running closer to your audience.',
@@ -238,7 +238,7 @@ async function _handleSetup(event: H3Event) {
           btnUrl: '/admin',
           bgColor: '#022c22',
           textColor: '#ffffff',
-          btnColor: '#00dc82',
+          btnColor: 'var(--nuxflow-primary, #00dc82)',
           padding: fp,
         },
       },
@@ -256,7 +256,7 @@ async function _handleSetup(event: H3Event) {
           align: 'center',
           bgGradient: 'linear-gradient(to bottom right, #022c22, #047857, #022c22)',
           textColor: '#ffffff',
-          ctaBgColor: '#10b981',
+          ctaBgColor: 'var(--nuxflow-primary, #10b981)',
           logoIcon: 'i-lucide-book-open',
           showDecorations: true,
           padding: sp,
@@ -269,7 +269,7 @@ async function _handleSetup(event: H3Event) {
           content: `
             <h2 style="font-size: 1.75rem; font-weight: 800; margin-bottom: 1rem; color: #111827;">Publishing on the Serverless Edge</h2>
             <p style="font-size: 1.05rem; line-height: 1.7; color: #374151; margin-bottom: 1rem;">
-              This blog template is pre-seeded with NuxFlow. Everything here is running natively on Cloudflare Workers and Turso SQLite database configurations, making it extremely secure, globally distributed, and blisteringly fast.
+              This blog template is pre-seeded with NuxFlow. Everything here is running natively on Cloudflare Workers and D1, making it extremely secure, globally distributed, and blisteringly fast.
             </p>
             <p style="font-size: 1.05rem; line-height: 1.7; color: #374151;">
               To customize your homepage or write new articles, head to the admin panel. Your seeded post <strong>"Hello World!"</strong> is already live and editable in the Posts directory index.
@@ -288,7 +288,7 @@ async function _handleSetup(event: H3Event) {
           btnUrl: '/admin/content?type=post',
           bgColor: '#022c22',
           textColor: '#ffffff',
-          btnColor: '#10b981',
+          btnColor: 'var(--nuxflow-primary, #10b981)',
           padding: fp,
         },
       },
@@ -306,7 +306,7 @@ async function _handleSetup(event: H3Event) {
           align: 'left',
           bgGradient: 'linear-gradient(to bottom right, #0f0728, #3b0764, #0f0728)',
           textColor: '#ffffff',
-          ctaBgColor: '#d946ef',
+          ctaBgColor: 'var(--nuxflow-primary, #d946ef)',
           logoIcon: 'i-lucide-palette',
           showDecorations: true,
           padding: sp,
@@ -322,7 +322,7 @@ async function _handleSetup(event: H3Event) {
           numFeatures: 3,
           style: 'card',
           align: 'left',
-          iconColor: '#d946ef',
+          iconColor: 'var(--nuxflow-primary, #d946ef)',
           feat1Icon: 'i-lucide-globe',
           feat1Title: 'Web App Design',
           feat1Desc: 'Interactive client web applications built using Nuxt 4, Vue 3, and rich micro-animations.',
@@ -346,7 +346,7 @@ async function _handleSetup(event: H3Event) {
           btnUrl: '/admin',
           bgColor: '#0f0728',
           textColor: '#ffffff',
-          btnColor: '#d946ef',
+          btnColor: 'var(--nuxflow-primary, #d946ef)',
           padding: fp,
         },
       },

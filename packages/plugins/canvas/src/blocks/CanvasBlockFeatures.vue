@@ -88,6 +88,15 @@ function hexLuminance(hex: string): number {
 const onDark = computed(() => hasBg.value && hexLuminance(props.bgColor!) < 128)
 const titleStyle = computed(() => hasBg.value ? { color: onDark.value ? '#f9fafb' : '#111827' } : undefined)
 const muteStyle  = computed(() => hasBg.value ? { color: onDark.value ? '#9ca3af' : '#6b7280' } : undefined)
+// Same hex-opacity-suffix issue as CanvasBlockHero: use color-mix() when the
+// value is a CSS variable so the icon background stays correct after theme changes.
+const iconBgColor = computed(() => {
+  const color = props.iconColor ?? '#6366f1'
+  return color.startsWith('var(')
+    ? `color-mix(in srgb, ${color} 10%, transparent)`
+    : `${color}18`
+})
+
 const cardStyle  = computed(() => hasBg.value ? {
   borderWidth: '1px',
   borderStyle: 'solid',
@@ -130,7 +139,7 @@ const cardStyle  = computed(() => hasBg.value ? {
         <div
           class="flex items-center justify-center w-11 h-11 rounded-xl shrink-0"
           :class="align === 'center' ? 'mx-auto mb-4' : style === 'icon-top' ? 'mb-4' : ''"
-          :style="{ backgroundColor: `${iconColor ?? '#6366f1'}18` }"
+          :style="{ backgroundColor: iconBgColor }"
         >
           <span
             :class="`${feat.icon} w-5 h-5`"

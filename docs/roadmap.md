@@ -181,6 +181,130 @@ Then deploy. Page views start recording immediately. No code changes, no migrati
 
 ---
 
-## Other Planned Features
+## Multilingual Content (Translations)
 
-*Add future planned features here as they are discussed.*
+### Vision
+
+Content editors can produce any content item (blog post, page, canvas page) in multiple languages. The AI does the heavy lifting — a single button click in the editor sends the entire piece to the configured AI provider, which returns a fully translated copy including the title, body, SEO fields, excerpt, and canvas block text. Translated content is saved as a separate draft for review before publishing.
+
+On the public-facing site, visitors are served the correct language version based on a URL convention (e.g. `/es/mi-articulo`) or a query parameter, with automatic fallback to the default-language version if a translation doesn't yet exist for the requested locale.
+
+### Why this is valuable
+
+- **No third-party i18n service needed**: The existing AI provider abstraction (`getAiSdkModel`) already supports five providers. Translation costs are absorbed into the AI plan the site owner already has configured.
+- **Both content types covered**: The translation engine handles both TipTap rich-text documents (recursive node traversal) and Canvas block pages (per-prop extraction from known block fields) without any extra configuration per block type.
+- **Human-review workflow baked in**: Translations are always created as drafts. The editor navigates to the new draft and publishes when satisfied, preventing AI hallucinations from going live unreviewed.
+- **Idempotent**: Running the translator again for the same locale updates the existing translation rather than creating a duplicate.
+
+### Groundwork already in place
+
+#### Database schema (fully in place)
+
+Two columns were added to `content_items` specifically for this feature:
+
+| Column | Type | Purpose |
+|---|---|---|
+| `locale` | `text`, default `'en'` | Language code of this item (e.g. `'es'`, `'fr'`, `'zh-CN'`) |
+| `sourceItemId` | `text`, FK → `content_items.id` | Points to the original-language item this was translated from |
+
+Both are indexed for efficient querying:
+- `idx_content_items_locale` on `(site_id, locale)` — list all content in a given language
+- `idx_content_items_source` on `(source_item_id)` — find all translations of a given item
+
+The `sites` table also has a `locale` column (default `'en'`) that records the site's primary language.
+
+#### AI translation engine (`POST /api/v1/ai/translate`)
+
+The server-side translation route is complete and production-ready:
+
+- **TipTap extraction**: Recursively walks the ProseMirror JSON tree, collects every text leaf, bundles them into a single AI call (to minimise token overhead and keep context coherent), then maps the translated strings back onto the same node positions.
+- **Canvas extraction**: Reads a known set of translatable props from each block — `title`, `subtitle`, `description`, `headline`, `quote`, `ctaLabel`, `authorName`, `caption`, and others — translates them as a batch, and writes them back to the same block positions.
+- **Metadata fields**: `title`, `seoTitle`, `seoDescription`, and `excerpt` are all translated in the same AI call.
+- **Slug handling**: The translated item receives a slug of `{originalSlug}-{locale}` by default (e.g. `my-post-es`), avoiding collisions with the source item.
+- **Update-or-create**: If a `content_items` row already exists with the matching `sourceItemId` + `locale`, the route updates it instead of creating a duplicate.
+- **Rate limiting**: Five translations per user per 60 seconds, enforced by the standard `rateLimit()` utility.
+- **Audit log**: Every translation (create or update) writes an audit log entry.
+
+#### Editor UI (fully in place)
+
+- A **Translate** button with a language icon lives in the content editor toolbar (visible only when editing an existing item, not for unsaved new items).
+- Clicking it opens `TranslateModal.vue`, which offers a dropdown of 15 pre-configured locales: Spanish, French, German, Italian, Portuguese, Dutch, Polish, Japanese, Simplified Chinese, Traditional Chinese, Korean, Arabic, Russian, and Hindi — plus a free-text input for any other locale code (e.g. `pt-BR`).
+- On success the modal emits the new item's ID and the editor navigates directly to the translated draft, ready for review.
+
+### What still needs to be built
+
+The entire *creation* side is done. The *serving and management* side is not.
+
+#### 1. URL strategy decision (required first)
+
+Before building public routing, a URL convention must be chosen. The three realistic options:
+
+| Strategy | Example URL | Trade-offs |
+|---|---|---|
+| Path prefix | `/es/mi-articulo` | SEO-friendly, requires Nuxt `i18n` routing or middleware rewrite |
+| Query parameter | `/my-post?locale=es` | Simplest to implement, less SEO-friendly |
+| Slug per locale | `/mi-articulo` (distinct slug) | Cleanest URLs, requires the CMS editor to set a locale-appropriate slug manually |
+
+The path-prefix strategy is the most conventional and SEO-friendly. It would require a route rewrite in `server/middleware` that strips the locale prefix and sets `event.context.locale` before multi-site resolution runs.
+
+#### 2. Public pages API — locale-aware serving
+
+`GET /api/public/pages/[slug]` currently ignores `locale` entirely. Changes needed:
+
+- Accept an optional `locale` query parameter or read `event.context.locale` from middleware.
+- When locale is set, prefer the `content_items` row where `slug` matches AND `locale` matches.
+- If no match for the requested locale, fall back to the source-language item (graceful degradation).
+- Return a `locale` field and an `availableLocales` array (queried via `sourceItemId`) so the frontend can render a language switcher.
+
+#### 3. Admin — translation status in the content list
+
+The content list at `/admin/content` currently shows all languages mixed together with no indication of which items are translations. Required:
+
+- A locale badge on each row (pill showing `EN`, `ES`, etc.)
+- An optional locale filter dropdown in the list header.
+- A visual grouping or indentation to show that item B is a translation of item A.
+
+#### 4. Admin — translations panel in the content editor sidebar
+
+When editing a content item, a sidebar card should show:
+- Which locale this item is (badge)
+- If it's a translation: a link back to the source/original item
+- If it's a source: a list of all existing translations (with locale code + status badge) and a link to each
+- A "Translate to…" button that opens the same `TranslateModal` (already exists) for locales not yet translated
+
+#### 5. Locale in content POST and PATCH
+
+`POST /api/v1/content` always inherits the site's default locale; `PATCH /api/v1/content/:id` doesn't accept a `locale` field at all. Both schemas need:
+
+```typescript
+locale: z.string().max(10).optional(),        // e.g. 'es', 'pt-BR'
+sourceItemId: z.string().optional(),          // only on POST, to link manually
+```
+
+This allows editors to create or correct locale manually without going through the AI translate flow.
+
+#### 6. Language switcher on public pages
+
+Once locale routing is live, the public site needs a way to switch between available translations. This is a small component that reads `availableLocales` from the page API response and renders flag icons or language names linking to the alternate-locale URL.
+
+#### 7. Setup wizard — expose locale selector
+
+The site creation wizard (`StepSite.vue`) currently offers only `English` in the locale dropdown. The full locale list already used in `TranslateModal.vue` should be reused here so the site default locale can be set correctly from the start.
+
+#### 8. Backup/restore — preserve translation links
+
+The backup utility (`server/utils/backup.ts`) exports content items but does not include `locale` or `sourceItemId` in the export format. Restoring a backup silently drops all translation relationships. The export schema needs these fields, and the import logic needs to restore `sourceItemId` references after all items are written (since the IDs must exist before the FK can be set).
+
+### Suggested implementation order
+
+1. Decide URL strategy (product decision, no code yet)
+2. Add `locale` + `sourceItemId` to POST/PATCH schemas (small, self-contained)
+3. Update public pages API to be locale-aware with fallback
+4. Add locale routing middleware (or query-param support if going that route)
+5. Add translations panel to the content editor sidebar
+6. Add locale filter and badges to the content list
+7. Add language switcher component to public pages
+8. Fix setup wizard locale dropdown
+9. Fix backup/restore to include translation metadata
+
+Steps 2–3 unblock everything else and are the logical first sprint.

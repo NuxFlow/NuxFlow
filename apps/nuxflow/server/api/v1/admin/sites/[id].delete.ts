@@ -14,6 +14,10 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const id = getRouterParam(event, 'id')!
 
+  if (id === event.context.siteId) {
+    throw createError({ statusCode: 409, message: 'Cannot delete the site you are currently viewing. Switch to another domain first.' })
+  }
+
   // 1. Delete physical media files
   const allMedia = await db.select({ storageKey: media.storageKey }).from(media).where(eq(media.siteId, id))
   if (allMedia.length > 0) {

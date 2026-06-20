@@ -14,6 +14,7 @@ const { data: item, refresh } = await useAsyncData(
   () => isNew.value ? Promise.resolve(null) : $fetch<{
     title: string; slug: string; status: string; scheduledAt?: string
     content?: unknown; seoTitle?: string; seoDescription?: string
+    excerpt?: string; ogImage?: string
     settings?: Record<string, unknown>
     allowComments?: boolean | null; typeHasComments?: boolean
   }>(`/api/v1/content/${id.value}`),
@@ -36,6 +37,8 @@ const form = reactive({
   content: EMPTY_DOC as unknown,
   seoTitle: '',
   seoDescription: '',
+  excerpt: '',
+  ogImage: '',
   access: 'public' as string,
   allowComments: null as boolean | null,
 })
@@ -53,6 +56,8 @@ watch(item, (val) => {
   form.content = val.content ?? EMPTY_DOC
   form.seoTitle = val.seoTitle ?? ''
   form.seoDescription = val.seoDescription ?? ''
+  form.excerpt = val.excerpt ?? ''
+  form.ogImage = val.ogImage ?? ''
   form.access = (val.settings as Record<string, unknown> | null)?.access as string ?? 'public'
   form.allowComments = val.allowComments ?? null
 }, { immediate: true })
@@ -100,6 +105,7 @@ const lastSaved = ref<Date | null>(null)
 const saveError = ref('')
 const showRevisions = ref(false)
 const showTranslateModal = ref(false)
+const showImagePicker = ref(false)
 
 const router = useRouter()
 function onTranslated(newId: string) {
@@ -127,6 +133,8 @@ async function save(overrideStatus?: string) {
       content: form.content,
       seoTitle: form.seoTitle,
       seoDescription: form.seoDescription,
+      excerpt: form.excerpt || null,
+      ogImage: form.ogImage || null,
       settings: { access: form.access },
       allowComments: form.allowComments,
     }
@@ -303,6 +311,37 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
           </div>
         </UCard>
 
+        <!-- Excerpt & featured image -->
+        <UCard class="text-sm">
+          <p class="font-medium mb-3">Post Details</p>
+          <div class="space-y-3">
+            <UFormField label="Excerpt" class="text-xs">
+              <UTextarea
+                v-model="form.excerpt"
+                placeholder="Brief summary shown in listings and RSS…"
+                :rows="3"
+                class="text-sm"
+              />
+            </UFormField>
+            <UFormField label="Featured image" class="text-xs">
+              <div class="flex gap-2">
+                <UInput
+                  v-model="form.ogImage"
+                  placeholder="https://…"
+                  class="text-sm flex-1"
+                />
+                <UButton variant="outline" size="sm" icon="i-lucide-image" @click="showImagePicker = true" />
+              </div>
+              <img
+                v-if="form.ogImage"
+                :src="form.ogImage"
+                alt="Featured image preview"
+                class="mt-2 w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+              >
+            </UFormField>
+          </div>
+        </UCard>
+
         <EditorTermPicker :content-id="isNew ? undefined : id" />
 
         <EditorRevisionHistory
@@ -312,6 +351,13 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
         />
       </div>
     </div>
+
+    <!-- Image picker modal -->
+    <UModal v-model:open="showImagePicker" title="Select featured image">
+      <template #body>
+        <EditorMediaPicker @select="(f) => { form.ogImage = f.url; showImagePicker = false }" />
+      </template>
+    </UModal>
 
     <!-- Translate modal -->
     <UModal v-model:open="showTranslateModal" title="Translate with AI">

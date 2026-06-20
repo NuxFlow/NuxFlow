@@ -54,6 +54,7 @@ apps/nuxflow/wrangler.toml
 apps/nuxflow/wrangler.demo.toml
 apps/nuxflow/wrangler.demo.toml.example
 apps/nuxflow/server/scheduled/demo-reset.ts
+apps/nuxflow/server/tasks/demo-reset.ts
 
 # Claude Code
 .claude/settings.local.json

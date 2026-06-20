@@ -11,10 +11,17 @@ pnpm dev
 # Wrangler dev (closest to production — localhost:8787, D1 auto-provisioned)
 cd apps/nuxflow && wrangler dev
 
-# Unit tests (Vitest)
-pnpm test                          # all packages
-pnpm --filter @nuxflow/app test    # app only
+# Unit tests (Vitest — tests/unit/**)
+pnpm test                                   # all packages
+pnpm --filter @nuxflow/app test             # app only
 pnpm --filter @nuxflow/app test:watch
+
+# Integration tests (Vitest — tests/integration/**)
+pnpm --filter @nuxflow/app test:integration
+pnpm --filter @nuxflow/app test:integration:watch
+
+# Run both unit and integration together
+pnpm --filter @nuxflow/app test:all
 
 # E2E tests (Playwright, requires running dev server)
 pnpm test:e2e
@@ -59,7 +66,7 @@ docs/                  # User-facing documentation (markdown)
 - Cloudflare D1 binding (`event.context.cloudflare.env.DB`) — used in production
 - Turso/libSQL (`NUXT_TURSO_URL`) — used in local dev and Option C setup
 
-Both share the same Drizzle schema so queries are identical. D1 is preferred and detected first.
+Both share the same Drizzle schema so queries are identical. D1 is preferred and detected first. `useDb()` also checks `globalThis.__env__?.DB` so it works inside Nitro scheduled tasks where no H3 event is available.
 
 **Migrations run automatically** on cold start via `server/middleware/00.migrate.ts`. SQL files are bundled into the Worker as server assets (`packages/db/migrations/`). Never hand-run migrations in production; just deploy. For schema changes: edit `packages/db/src/schema/*.ts`, run `pnpm --filter @nuxflow/db generate`, commit both the schema and the generated SQL.
 
@@ -116,6 +123,16 @@ Roles (ranked): `super_admin > admin > editor > author > member > viewer`
 - IDs are generated with `ulid()` — never use `crypto.randomUUID()` or `node:crypto`
 - Crypto operations (signing, hashing) use `globalThis.crypto.subtle` (Web Crypto API) — never `node:crypto`
 - Use response helpers from `server/utils/response.ts`: `ok(data)`, `created(event, data)`, `noContent(event)`, `notFound()`, `forbidden()`, `conflict()`, `validationError()` — do not throw raw `createError` for these common cases
+
+### Scheduled tasks
+
+The pattern is a two-layer split:
+- **`server/scheduled/`** — plain TypeScript modules containing the business logic as exported functions (e.g. `publishScheduled()`). These are not auto-discovered by Nitro.
+- **`server/tasks/`** — thin `defineTask()` wrappers that import and call the logic functions. Nitro only discovers tasks from this directory.
+
+Each file in `server/tasks/` corresponds to a task name registered in `nitro.scheduledTasks` in `nuxt.config.ts`. `experimental.tasks: true` must be set in the Nitro config for the task system to function. **Never add a file only to `server/scheduled/` and expect it to run on a schedule** — a matching `server/tasks/` wrapper is always required.
+
+Tasks run without a request context. `useDb()` handles this by falling back to `globalThis.__env__?.DB`, which Nitro populates from the Cloudflare bindings object before firing the `cloudflare:scheduled` hook.
 
 ### Cloudflare-specific utilities
 
@@ -203,10 +220,22 @@ Admin pages skip dark-mode and font injection (the admin has its own colour-mode
 
 Public pages are rendered by `app/pages/[...slug].vue`. The page fetches `/api/public/pages/:slug`, which first checks the `redirects` table (returning a 3xx if matched), then branches on content type:
 - `content.type === 'canvas'` → full-width `<NuxBlock>`, blocks handle their own layout
-- Otherwise → contained prose layout with `<h1>` and `<NuxBlock>`
+- Otherwise → contained prose layout with featured image, author/date meta, `<NuxBlock>`, share buttons
 - **402 response** → member-gated content; `onResponseError` captures `{ gated, requiredTier, tiers }` and renders `<Paywall>` instead of the page
 
-Admin pages live in `app/pages/admin/`. Super-admin-only pages (e.g. multi-site management) live under `app/pages/admin/super/` and are linked in the sidebar only when `/api/v1/users/me` returns `isSuperAdmin: true`. Pinia stores in `app/stores/` manage auth (`auth.ts`) and content (`content.ts`) state.
+Other public routes:
+- `/blog` (`app/pages/blog/index.vue`) — paginated post index; fetches `GET /api/public/posts`
+- `/search` (`app/pages/search.vue`) — FTS5 full-text search via `GET /api/v1/search`; no auth required
+- `/[taxonomySlug]/[termSlug]` — taxonomy archive with pagination; fetches `GET /api/public/taxonomy/:taxonomy/:term`
+- `/feed.xml` — RSS 2.0 feed with `<content:encoded>` full HTML for TipTap posts
+
+`GET /api/public/pages/:slug` returns `{ ..., author: { name, image } | null, excerpt }` in addition to the base fields. The author is looked up from the `users` table via `contentItems.authorId`.
+
+Admin pages live in `app/pages/admin/`. Super-admin-only pages (e.g. multi-site management) live under `app/pages/admin/super/` and are linked in the sidebar only when `/api/v1/users/me` returns `isSuperAdmin: true`. The super admin site-deletion API (`DELETE /api/v1/admin/sites/:id`) blocks deletion of the site currently being accessed (`event.context.siteId`). Pinia stores in `app/stores/` manage auth (`auth.ts`) and content (`content.ts`) state.
+
+### App utilities (Vue-only scope)
+
+`app/utils/render-tiptap.ts` — converts a TipTap/ProseMirror JSON document to an HTML string. **This file is scoped to the Vue app bundle and cannot be imported from Nitro server routes.** Server-side code (e.g. `server/routes/feed.xml.ts`) must contain its own serializer or use a shared package if one is added.
 
 ### Nuxt config notes
 
@@ -214,6 +243,7 @@ Admin pages live in `app/pages/admin/`. Super-admin-only pages (e.g. multi-site 
 - Nitro preset is `cloudflare-module` in production only
 - `@opentelemetry/api` is stubbed via `nitro.alias` because Better Auth imports it optionally but it is not installed
 - Migrations SQL files are bundled via `nitro.serverAssets`
+- `nitro.experimental.tasks: true` is required for the `server/tasks/` system to function
 
 ### Integration test helpers
 
@@ -222,7 +252,7 @@ Admin pages live in `app/pages/admin/`. Super-admin-only pages (e.g. multi-site 
 - `event.ts` — `createMockEvent(overrides)` — builds a minimal H3 event with `siteId`, session, headers, and body
 - `seed.ts` — one insert per table: `seedSite`, `seedUser`, `seedRole`, `seedContentType`, `seedContentItem`, `seedTier`, `seedSubscription`, `seedMedia`, `seedVideoAsset`, `seedSetting`
 
-Integration tests mock `../../server/utils/db` to return `getCurrentTestDb()` and mock payment provider classes (Stripe/LS/Paddle) to avoid real network calls.
+Integration tests mock `../../server/utils/db` to return `getCurrentTestDb()` and mock payment provider classes (Stripe/LS/Paddle) to avoid real network calls. They use `vitest.integration.config.ts` (separate from `vitest.config.ts` which covers unit tests only) and run sequentially via `pool: 'forks', singleFork: true` to prevent SQLite file conflicts.
 
 ## Commit convention
 

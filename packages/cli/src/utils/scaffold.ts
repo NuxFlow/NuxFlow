@@ -28,36 +28,121 @@ export default {
 // Client-side bundle for the "${name}" plugin.
 // NuxFlow calls register(app, registry, vue) once on app boot.
 //
-// Use registry.register() to add blocks to the Canvas page builder.
-// Vue utilities are passed in — do NOT import from 'vue' directly.
+// Rules:
+//   1. Never \`import from 'vue'\` — the full Vue module is the 3rd argument.
+//   2. Never \`import from '@nuxflow/*'\` — use the registry/app args instead.
+//   3. All third-party deps must be bundled (esbuild does this automatically).
 
-export function register(
-  _app: unknown,
-  registry: {
-    register: (id: string, entry: { name: string; icon?: string; component: unknown }) => void
+// ── Inline types (do not import from @nuxflow/plugin-canvas) ─────────────────
+// Copy and extend these interfaces in your own plugin.
+
+type FieldType = 'text' | 'textarea' | 'number' | 'color' | 'select' | 'toggle' | 'image' | 'url' | 'spacing'
+
+interface BlockDefinition {
+  id: string; name: string; description?: string; icon: string
+  category: 'layout' | 'content' | 'media' | 'cta' | 'plugin'
+  thumbnailColor?: string
+  fields: Array<{
+    key: string; label: string; type: FieldType
+    placeholder?: string; options?: Array<{ label: string; value: string }>
+    min?: number; max?: number; step?: number; rows?: number
+  }>
+  defaultProps: Record<string, unknown>
+}
+
+interface Registry {
+  register: (id: string, entry: {
+    name: string; description?: string; icon?: string; component: unknown
+    // Pass a definition so the Canvas sidebar shows editable fields for this block.
+    // Without it the block has no configurable props in the admin editor.
+    definition?: BlockDefinition
+  }) => void
+}
+
+// The vue argument is \`import * as vue from 'vue'\` — add more entries as needed.
+interface VueLike {
+  defineComponent: (opts: object) => unknown
+  ref: <T>(value: T) => { value: T }
+  onMounted: (fn: () => void | Promise<void>) => void
+  computed: <T>(fn: () => T) => { value: T }
+  h: (tag: string | object, props?: Record<string, unknown> | null, children?: unknown) => unknown
+}
+
+// ── Block definition ──────────────────────────────────────────────────────────
+// Centralising defaultProps here keeps them in sync between the definition
+// (which the Canvas editor uses) and the component prop declarations below.
+
+const EXAMPLE_BLOCK: BlockDefinition = {
+  id: '${id}/example',
+  name: 'Example Block',
+  description: 'Starter block from the ${name} plugin.',
+  icon: 'i-lucide-box',
+  category: 'plugin',
+  thumbnailColor: '#f0fdf4',
+  fields: [
+    { key: 'headline', label: 'Headline',         type: 'text',     placeholder: 'Hello from ${name}' },
+    { key: 'text',     label: 'Body text',         type: 'textarea'                                    },
+    { key: 'bgColor',  label: 'Background colour', type: 'color'                                       },
+    { key: 'padding',  label: 'Padding',           type: 'spacing'                                     },
+  ],
+  defaultProps: {
+    headline: 'Hello from ${name}',
+    text:     'Edit this block in the Canvas editor.',
+    bgColor:  '#ffffff',
+    padding:  { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
   },
-  { defineComponent, h }: {
-    defineComponent: (opts: object) => unknown
-    h: (tag: string | object, props?: object | null, children?: unknown) => unknown
-  },
-) {
+}
+
+// ── Entry point ───────────────────────────────────────────────────────────────
+
+export function register(_app: unknown, registry: Registry, vue: VueLike): void {
+  const { defineComponent, ref, onMounted, h } = vue
+
+  interface Props {
+    headline: string; text: string; bgColor: string
+    padding: { top: number; right: number; bottom: number; left: number; unit: string }
+  }
+
+  const ExampleBlock = defineComponent({
+    props: {
+      headline: { type: String, default: EXAMPLE_BLOCK.defaultProps.headline },
+      text:     { type: String, default: EXAMPLE_BLOCK.defaultProps.text     },
+      bgColor:  { type: String, default: EXAMPLE_BLOCK.defaultProps.bgColor  },
+      padding:  { type: Object, default: () => ({ ...EXAMPLE_BLOCK.defaultProps.padding }) },
+    },
+    setup(props: Props) {
+      // Example: fetch extra data from the plugin's own server route (src/server.ts).
+      // Server routes are served at /_nuxflow/ext/${id}/{path}.
+      const extra = ref<string | null>(null)
+
+      onMounted(async () => {
+        const res = await fetch('/_nuxflow/ext/${id}/hello').catch(() => null)
+        if (res?.ok) {
+          const data = await res.json() as { message?: string }
+          extra.value = data.message ?? null
+        }
+      })
+
+      // setup() returns a render function (Vue 3 composition API).
+      return () => {
+        const p = props.padding
+        const pad = \`\${p.top}\${p.unit} \${p.right}\${p.unit} \${p.bottom}\${p.unit} \${p.left}\${p.unit}\`
+        return h('section', {
+          style: { backgroundColor: props.bgColor, padding: pad, textAlign: 'center' },
+        }, [
+          h('h2', { style: { fontSize: '1.875rem', fontWeight: '700', marginBottom: '12px' } }, props.headline),
+          h('p',  { style: { color: '#6b7280' } }, extra.value ?? props.text),
+        ])
+      }
+    },
+  })
+
   registry.register('${id}/example', {
-    name: 'Example Block',
-    icon: 'i-lucide-box',
-    component: defineComponent({
-      props: {
-        headline: { type: String, default: 'Hello from ${name}' },
-        text: { type: String, default: 'Edit this block in the Canvas editor.' },
-        bgColor: { type: String, default: '#ffffff' },
-      },
-      setup(props: Record<string, string>) {
-        return () =>
-          h('section', { style: { backgroundColor: props.bgColor, padding: '48px 24px', textAlign: 'center' } }, [
-            h('h2', { style: { fontSize: '1.875rem', fontWeight: '700', marginBottom: '12px' } }, props.headline),
-            h('p', { style: { color: '#6b7280' } }, props.text),
-          ])
-      },
-    }),
+    name:        EXAMPLE_BLOCK.name,
+    description: EXAMPLE_BLOCK.description,
+    icon:        EXAMPLE_BLOCK.icon,
+    component:   ExampleBlock,
+    definition:  EXAMPLE_BLOCK,
   })
 }
 `,

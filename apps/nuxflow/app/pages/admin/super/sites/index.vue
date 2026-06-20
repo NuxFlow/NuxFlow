@@ -3,6 +3,9 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 type SiteRow = { id: string; name: string; domain: string; status: string; locale?: string; createdAt: string }
 const { data, refresh } = await useFetch<{ sites: SiteRow[] }>('/api/v1/admin/sites')
+
+const currentDomain = import.meta.client ? window.location.hostname : ''
+const isCurrentSite = (site: SiteRow) => site.domain === currentDomain
 const items = computed(() => data.value?.sites ?? [])
 
 type Color = 'green' | 'yellow' | 'red' | 'primary' | 'neutral'
@@ -113,7 +116,16 @@ async function deleteSite() {
         <template #actions-cell="{ row }">
           <div class="flex items-center gap-1.5">
             <UButton variant="ghost" size="xs" icon="i-lucide-pencil" @click="openEdit(row.original)" />
-            <UButton variant="ghost" color="red" size="xs" icon="i-lucide-trash" @click="openDelete(row.original)" />
+            <UTooltip :text="isCurrentSite(row.original) ? 'Cannot delete the current site' : 'Delete site'">
+              <UButton
+                variant="ghost"
+                color="red"
+                size="xs"
+                icon="i-lucide-trash"
+                :disabled="isCurrentSite(row.original)"
+                @click="openDelete(row.original)"
+              />
+            </UTooltip>
           </div>
         </template>
       </UTable>

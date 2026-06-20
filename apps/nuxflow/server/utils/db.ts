@@ -16,15 +16,21 @@ export function getD1(): unknown { return _d1 }
 // Pass the H3Event explicitly so Cloudflare D1 binding is always accessible —
 // useEvent() does not reliably propagate event context in CF Workers utility functions.
 export function useDb(event?: H3Event): Db {
-  try {
-    const d1 = (event ?? useEvent())?.context?.cloudflare?.env?.DB ?? _d1
-    if (d1) {
-      _d1 ??= d1
-      return drizzle(d1, { schema }) as unknown as Db
-    }
-  }
+  // useEvent() throws when called outside a request context (e.g. scheduled tasks).
+  // Isolate it so the globalThis.__env__ fallback is always reachable.
+  let eventD1: unknown
   // eslint-disable-next-line no-empty
-  catch {}
+  try { eventD1 = (event ?? useEvent())?.context?.cloudflare?.env?.DB } catch {}
+
+  // In scheduled tasks Nitro sets globalThis.__env__ to the Cloudflare bindings
+  // object before firing the cloudflare:scheduled hook, so DB is available there.
+  const cfGlobal = globalThis as { __env__?: { DB?: unknown } }
+  const d1 = eventD1 ?? cfGlobal.__env__?.DB ?? _d1
+
+  if (d1) {
+    _d1 ??= d1
+    return drizzle(d1, { schema }) as unknown as Db
+  }
 
   if (_tursoDb) return _tursoDb
   const config = useRuntimeConfig()

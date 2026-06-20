@@ -3,11 +3,6 @@ import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, lte, sql } from 'drizzle-orm'
 import { dispatchWebhook } from '../utils/webhooks'
 
-export default defineNitroPlugin((nitro) => {
-  nitro.hooks.hook('close', () => {})
-})
-
-// Cloudflare Cron Trigger handler — wire in wrangler.toml: [triggers] crons = ["* * * * *"]
 export const publishScheduled = async () => {
   const db = useDb()
 
