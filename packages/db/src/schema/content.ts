@@ -45,6 +45,13 @@ export const contentItems = sqliteTable('content_items', {
   sourceItemId: text('source_item_id').references((): AnySQLiteColumn => contentItems.id, { onDelete: 'set null' }),
   // Incremented on every PATCH — used for optimistic locking and offline sync conflict detection.
   version: integer('version').notNull().default(1),
+  // Event fields — null on regular content; populated when a content type is used as an events calendar.
+  // Stored as ISO 8601 strings so SQLite string comparisons work correctly for range queries.
+  eventStartAt: text('event_start_at'),
+  eventEndAt: text('event_end_at'),
+  eventLocation: text('event_location'),
+  eventUrl: text('event_url'),
+  eventAllDay: integer('event_all_day', { mode: 'boolean' }),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
@@ -55,6 +62,8 @@ export const contentItems = sqliteTable('content_items', {
   index('idx_content_items_source').on(t.sourceItemId),
   // Supports delta sync: WHERE site_id = ? AND updated_at > ? (used by offline clients on reconnect)
   index('idx_content_items_site_updated').on(t.siteId, t.updatedAt),
+  // Used by the events calendar to range-query by event date
+  index('idx_content_items_event_start').on(t.siteId, t.eventStartAt),
 ])
 
 export const contentRevisions = sqliteTable('content_revisions', {

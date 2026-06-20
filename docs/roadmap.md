@@ -308,3 +308,64 @@ The backup utility (`server/utils/backup.ts`) exports content items but does not
 9. Fix backup/restore to include translation metadata
 
 Steps 2–3 unblock everything else and are the logical first sprint.
+
+---
+
+## Events System
+
+### Vision
+
+Sites built on NuxFlow should be able to manage a public-facing events calendar — conferences, workshops, webinars, product launches, meetups — with start/end dates, location, optional RSVP/ticketing via the existing payments infrastructure, and iCal export so visitors can add events to their calendars.
+
+An events content type behaves like any other content type (rich text body, SEO fields, taxonomy tagging, media) but adds a structured event layer on top: a date range, an optional venue, and a link to an external URL (livestream, registration page, or ticket purchase).
+
+### Why this is valuable
+
+- **No extra plugin needed for most sites**: A conference site, a yoga studio, a local community group — all common NuxFlow use cases that need an events section. Without a built-in answer they reach for a plugin or a third-party embed.
+- **Canvas Calendar block**: A canvas block that renders a month-view or list-view of upcoming events, fully themed to the site's design, gives editors a no-code way to embed the calendar on any page.
+- **iCal export**: A standard `/events.ics` route lets visitors add the full event list to Google Calendar, Apple Calendar, or Outlook without any additional integration. For individual events, an "Add to calendar" button on the event page covers the single-event case.
+- **RSVP and paid ticketing**: Events can optionally require the existing membership tier check (`settings.access: 'tier:<id>'`) so paid events work out of the box via Stripe/LemonSqueezy, reusing all the existing payments infrastructure.
+
+### Groundwork already in place
+
+#### Event fields on `content_items` (added in migration `0006`)
+
+The following columns were added proactively to the `content_items` table. They are `NULL` on all regular content and only populated when a content type is used as an events calendar:
+
+| Column | Type | Purpose |
+|---|---|---|
+| `event_start_at` | `text` (ISO 8601) | Event start — ISO string for correct SQLite string comparisons in date range queries |
+| `event_end_at` | `text` (ISO 8601) | Event end — `NULL` for single-day all-day events |
+| `event_location` | `text` | Venue name, address, or "Online" |
+| `event_url` | `text` | Optional external link (livestream, registration page) |
+| `event_all_day` | `integer` (boolean) | Whether times should be ignored in display and iCal output |
+
+An index on `(site_id, event_start_at)` — `idx_content_items_event_start` — enables efficient range queries for upcoming events and the iCal feed without a full table scan.
+
+#### Editorial Calendar already ships (implemented)
+
+The admin already has a month-view Editorial Calendar at `/admin/calendar` that shows published and scheduled content items by date. While it is not yet event-aware (it ignores `event_start_at`), its infrastructure — the `GET /api/v1/content/calendar` endpoint and the `CalendarItem` type — is the foundation the Events version will extend: just add `eventStartAt` to the returned fields and let the calendar page render event items by their event date rather than publication date.
+
+#### Existing payments gate
+
+`resolveContentGate()` in `server/utils/payments/gate.ts` already supports `settings.access: 'tier:<tierId>'`. A paid event page sets this on its content item; no new gating code is needed for basic paid events.
+
+### What still needs to be built
+
+1. **Events content type scaffold** — a "Create Events content type" shortcut in the admin (or at minimum, documentation) that creates a content type with slug `event`, sets `isBuiltIn: true`, and applies sensible defaults for `hasRevisions` and `hasComments`.
+2. **Event metadata panel in the content editor** — a sidebar card that appears when `contentType.slug === 'event'` (or when event fields are non-null), exposing date/time pickers for `event_start_at`/`event_end_at`, a location field, the external URL field, and an all-day toggle.
+3. **Public events API** — `GET /api/public/events` with `from`, `to`, `limit`, `offset` query params; queries by `event_start_at` using the new index. Supports iCal output via `Accept: text/calendar` or `?format=ics`.
+4. **`/events.ics` route** — returns upcoming events (next 90 days by default) as a standards-compliant iCal feed (`VCALENDAR` + `VEVENT` components) for calendar app subscriptions.
+5. **Canvas Calendar block** — a new block in `packages/plugins/canvas/src/blocks/` that renders a month or list view of events, fetching from the public events API. The block props control date range, which content type slug to pull events from, and display mode (`month` | `list`).
+6. **"Add to calendar" button** — a small component on event pages that generates an `.ics` file for a single event and triggers a browser download, plus links to Google Calendar and Outlook web URLs.
+7. **RSVP / registration** — for free events: a simple RSVP form (reuse the existing `forms` table); for paid events: redirect to the existing checkout flow with the membership tier gate.
+8. **Recurrence** — out of scope for v1; recurring events are typically managed as separate content items. A `recurrenceRule` JSON field can be added later for iCal `RRULE` generation.
+
+### Suggested implementation order
+
+1. Event metadata panel in the content editor sidebar (unblocks content creation)
+2. Public events API with iCal output (unblocks embeds and subscriptions)
+3. `/events.ics` route (thin wrapper over the API)
+4. Canvas Calendar block (highest visibility, drives adoption)
+5. "Add to calendar" button component
+6. RSVP / registration (requires deciding free vs. paid event UX first)

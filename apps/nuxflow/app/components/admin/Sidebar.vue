@@ -11,6 +11,7 @@ const isSuperAdmin = computed(() => me.value?.isSuperAdmin ?? false)
 const coreNav = [
   { label: 'Dashboard', to: '/admin', icon: 'i-lucide-layout-dashboard' },
   { label: 'Content', to: '/admin/content', icon: 'i-lucide-file-text' },
+  { label: 'Calendar', to: '/admin/calendar', icon: 'i-lucide-calendar-days' },
   { label: 'Taxonomies', to: '/admin/taxonomies', icon: 'i-lucide-tag' },
   { label: 'Comments', to: '/admin/comments', icon: 'i-lucide-message-circle' },
   { label: 'Navigation', to: '/admin/menus', icon: 'i-lucide-navigation' },

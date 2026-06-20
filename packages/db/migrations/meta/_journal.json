@@ -43,6 +43,13 @@
       "when": 1781461857718,
       "tag": "0005_exotic_stark_industries",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1781945928841,
+      "tag": "0006_marvelous_argent",
+      "breakpoints": true
     }
   ]
 }
