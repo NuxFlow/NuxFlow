@@ -25,6 +25,13 @@ const bodySchema = z.object({
     ollamaBaseUrl: z.string().optional(),
     ollamaModel: z.string().optional(),
   }).optional(),
+  // Cloudflare media settings
+  cloudflare: z.object({
+    accountId: z.string().optional(),
+    streamToken: z.string().optional(),
+    imagesToken: z.string().optional(),
+    imagesDeliveryUrl: z.string().optional(),
+  }).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -62,6 +69,14 @@ export default defineEventHandler(async (event) => {
     if (ai.deepseekApiKey !== undefined) await saveSetting(event, 'ai.deepseek_api_key', ai.deepseekApiKey)
     if (ai.ollamaBaseUrl !== undefined) await saveSetting(event, 'ai.ollama_base_url', ai.ollamaBaseUrl)
     if (ai.ollamaModel !== undefined) await saveSetting(event, 'ai.ollama_model', ai.ollamaModel)
+  }
+
+  if (body.cloudflare) {
+    const cf = body.cloudflare
+    if (cf.accountId !== undefined) await saveSetting(event, 'cloudflare.account_id', cf.accountId)
+    if (cf.streamToken !== undefined) await saveSetting(event, 'cloudflare.stream_token', cf.streamToken)
+    if (cf.imagesToken !== undefined) await saveSetting(event, 'cloudflare.images_token', cf.imagesToken)
+    if (cf.imagesDeliveryUrl !== undefined) await saveSetting(event, 'cloudflare.images_delivery_url', cf.imagesDeliveryUrl)
   }
 
   // If any appearance settings changed, bust the per-isolate cache so the next

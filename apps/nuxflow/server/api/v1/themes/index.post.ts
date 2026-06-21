@@ -101,7 +101,7 @@ export default defineEventHandler(async (event) => {
       )
 
       if (imageEntries.length > 0 && demoJson) {
-        const provider = getActiveProvider()
+        const provider = await getActiveProvider(event)
         const themeImageId = ulid() // stable prefix so all theme images share a folder
 
         for (const [zipPath, imageData] of imageEntries) {

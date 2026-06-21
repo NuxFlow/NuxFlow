@@ -1,5 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
+import { resolveSetting } from '../../../../utils/settings'
 import { videoAssets } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { writeAuditLog } from '../../../../utils/audit'
@@ -20,15 +21,13 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const config = useRuntimeConfig()
-  const accountId = config.cloudflareAccountId
-  const streamToken = config.cloudflareStreamToken
+  const accountId = await resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
+  const streamToken = await resolveSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')
 
   let duration: number | null = null
   let thumbnailUrl: string | null = null
   let status: 'uploading' | 'processing' | 'ready' | 'failed' = 'processing'
 
-  // If Cloudflare Stream is configured, attempt to pull latest metadata from Cloudflare
   if (accountId && streamToken) {
     try {
       const response = await fetch(
@@ -58,7 +57,7 @@ export default defineEventHandler(async (event) => {
           if (!title && res.meta?.name) title = res.meta.name
           duration = res.duration ? Math.round(res.duration) : null
           thumbnailUrl = res.thumbnail || null
-          
+
           const cfState = res.status?.state
           if (cfState === 'ready') {
             status = 'ready'

@@ -110,7 +110,7 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const siteId = event.context.siteId as string
   const db = useDb(event)
-  const provider = getActiveProvider()
+  const provider = await getActiveProvider(event)
 
   const formData = await readMultipartFormData(event)
   const xmlFile = formData?.find(f => f.name === 'file')

@@ -64,7 +64,7 @@ export default defineEventHandler(async (event) => {
     const filename = `ai-${ulid()}.${ext}`
     const file = new File([imageBlob], filename, { type: imageBlob.type })
 
-    const storageProvider = getActiveProvider()
+    const storageProvider = await getActiveProvider(event)
     const storageKey = `${siteId}/${ulid()}.${ext}`
     const { url: storedUrl } = await storageProvider.upload(file, storageKey, siteId)
 

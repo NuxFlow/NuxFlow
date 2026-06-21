@@ -15,6 +15,7 @@ const tabs = [
   { label: 'Appearance', icon: 'i-lucide-palette' },
   { label: 'Email', icon: 'i-lucide-mail' },
   { label: 'Payments', icon: 'i-lucide-credit-card' },
+  { label: 'Media', icon: 'i-lucide-hard-drive' },
   { label: 'Integrations', icon: 'i-lucide-plug' },
   { label: 'AI Settings', icon: 'i-lucide-bot' },
   { label: 'Push', icon: 'i-lucide-bell' },
@@ -192,6 +193,13 @@ const ai = reactive({
   ollamaModel: 'llama3',
 })
 
+const cloudflare = reactive({
+  accountId: '',
+  streamToken: '',
+  imagesToken: '',
+  imagesDeliveryUrl: '',
+})
+
 const aiProviderOptions = [
   { label: 'OpenAI', value: 'openai' },
   { label: 'Anthropic', value: 'anthropic' },
@@ -325,6 +333,11 @@ watch(data, (d) => {
   push.eventsContentPublished = s['push.events.content_published'] === 'true'
   push.eventsPaymentConfirmation = s['push.events.payment_confirmation'] !== 'false'
   push.eventsFormSubmission = s['push.events.form_submission'] !== 'false'
+
+  cloudflare.accountId = (s['cloudflare.account_id'] as string) ?? ''
+  cloudflare.streamToken = (s['cloudflare.stream_token'] as string) ?? ''
+  cloudflare.imagesToken = (s['cloudflare.images_token'] as string) ?? ''
+  cloudflare.imagesDeliveryUrl = (s['cloudflare.images_delivery_url'] as string) ?? ''
 }, { immediate: true })
 
 onMounted(() => fetchPushSubscriberCount())
@@ -383,6 +396,12 @@ async function save() {
           deepseekApiKey: ai.deepseekApiKey,
           ollamaBaseUrl: ai.ollamaBaseUrl,
           ollamaModel: ai.ollamaModel,
+        },
+        cloudflare: {
+          accountId: cloudflare.accountId,
+          streamToken: cloudflare.streamToken,
+          imagesToken: cloudflare.imagesToken,
+          imagesDeliveryUrl: cloudflare.imagesDeliveryUrl,
         },
       },
     })
@@ -894,6 +913,74 @@ async function deleteSite() {
               </div>
             </template>
           </UCard>
+        </template>
+
+        <!-- Media -->
+        <template v-if="active === 'Media'">
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-2">
+                <UIcon name="i-lucide-video" class="w-4 h-4 text-primary-500" />
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">Cloudflare Stream</p>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Adaptive-bitrate video hosting for the Videos library. Requires a Cloudflare account with Stream enabled.</p>
+            </template>
+            <div class="space-y-4">
+              <UFormField label="Cloudflare Account ID" hint="Found in the Cloudflare dashboard sidebar under your profile">
+                <UInput v-model="cloudflare.accountId" placeholder="e.g. abc123def456..." class="font-mono" />
+              </UFormField>
+              <UFormField label="Stream API Token" hint="Create a token with Stream:Edit permission at dash.cloudflare.com → My Profile → API Tokens">
+                <UInput v-model="cloudflare.streamToken" type="password" placeholder="••••••••" />
+              </UFormField>
+            </div>
+            <template #footer>
+              <div class="flex items-center justify-between">
+                <p class="text-xs text-gray-400">
+                  Tokens are encrypted at rest using AES-GCM. Account ID is shared with Cloudflare Images below.
+                </p>
+                <UButton :loading="saving" @click="save">Save</UButton>
+              </div>
+            </template>
+          </UCard>
+
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-2">
+                <UIcon name="i-lucide-image" class="w-4 h-4 text-primary-500" />
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">Cloudflare Images</p>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Global CDN image hosting for the Media library. When configured, images are served from Cloudflare's edge instead of stored as base64.</p>
+            </template>
+            <div class="space-y-4">
+              <UFormField label="Images API Token" hint="Create a token with Cloudflare Images:Edit permission">
+                <UInput v-model="cloudflare.imagesToken" type="password" placeholder="••••••••" />
+              </UFormField>
+              <UFormField label="Images Delivery URL" hint="Your account's image delivery subdomain, e.g. https://imagedelivery.net/abc123">
+                <UInput v-model="cloudflare.imagesDeliveryUrl" placeholder="https://imagedelivery.net/..." />
+              </UFormField>
+            </div>
+            <template #footer>
+              <div class="flex justify-end">
+                <UButton :loading="saving" @click="save">Save</UButton>
+              </div>
+            </template>
+          </UCard>
+
+          <UAlert
+            icon="i-lucide-info"
+            color="blue"
+            variant="soft"
+            title="How to get these credentials"
+          >
+            <template #description>
+              <ol class="list-decimal list-inside space-y-1 text-xs mt-1">
+                <li><strong>Account ID</strong> — visible in the right sidebar of any Cloudflare dashboard page.</li>
+                <li><strong>Stream API Token</strong> — Cloudflare dashboard → My Profile → API Tokens → Create Token → use the "Cloudflare Stream" template.</li>
+                <li><strong>Images API Token</strong> — same flow, use the "Cloudflare Images" template.</li>
+                <li><strong>Images Delivery URL</strong> — Cloudflare dashboard → Images → Overview → your delivery subdomain (e.g. <code class="font-mono">https://imagedelivery.net/your-account-hash</code>).</li>
+              </ol>
+            </template>
+          </UAlert>
         </template>
 
         <!-- Integrations -->

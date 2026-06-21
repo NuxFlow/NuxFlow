@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   const ext = file.name.split('.').pop() ?? ''
   const storageKey = `${siteId}/${fileId}.${ext}`
 
-  const provider = getActiveProvider()
+  const provider = await getActiveProvider(event)
   const { url } = await provider.upload(file, storageKey, siteId)
 
   const db = useDb(event)

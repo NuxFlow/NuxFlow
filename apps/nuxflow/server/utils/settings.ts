@@ -25,6 +25,8 @@ export const SENSITIVE_SETTING_KEYS = new Set([
   'ai.gemini_api_key',
   'ai.deepseek_api_key',
   'push.vapid_private_key',
+  'cloudflare.stream_token',
+  'cloudflare.images_token',
 ])
 
 export const SECRET_MASK = '••••••••••••••••'

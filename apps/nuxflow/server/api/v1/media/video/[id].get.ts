@@ -1,5 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
+import { resolveSetting } from '../../../../utils/settings'
 import { videoAssets } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -19,9 +20,8 @@ export default defineEventHandler(async (event) => {
 
   // If the video is still processing/uploading, sync status with Cloudflare Stream
   if (asset.status === 'processing' || asset.status === 'uploading') {
-    const config = useRuntimeConfig()
-    const accountId = config.cloudflareAccountId
-    const streamToken = config.cloudflareStreamToken
+    const accountId = await resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
+    const streamToken = await resolveSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')
 
     if (accountId && streamToken) {
       try {

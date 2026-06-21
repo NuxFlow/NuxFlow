@@ -3,7 +3,11 @@ import type { MediaProvider, UploadResult } from './index'
 export class CloudflareImagesProvider implements MediaProvider {
   readonly name = 'cloudflare'
 
-  private get config() { return useRuntimeConfig() }
+  constructor(
+    private readonly accountId: string,
+    private readonly imagesToken: string,
+    private readonly deliveryUrl: string,
+  ) {}
 
   async upload(file: File, key: string): Promise<UploadResult> {
     const fd = new FormData()
@@ -11,8 +15,8 @@ export class CloudflareImagesProvider implements MediaProvider {
     fd.append('id', key)
 
     const res = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${this.config.cloudflareAccountId}/images/v1`,
-      { method: 'POST', headers: { Authorization: `Bearer ${this.config.cloudflareImagesToken}` }, body: fd },
+      `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/images/v1`,
+      { method: 'POST', headers: { Authorization: `Bearer ${this.imagesToken}` }, body: fd },
     )
 
     if (!res.ok) {
@@ -29,12 +33,12 @@ export class CloudflareImagesProvider implements MediaProvider {
 
   async delete(storageKey: string): Promise<void> {
     await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${this.config.cloudflareAccountId}/images/v1/${storageKey}`,
-      { method: 'DELETE', headers: { Authorization: `Bearer ${this.config.cloudflareImagesToken}` } },
+      `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/images/v1/${storageKey}`,
+      { method: 'DELETE', headers: { Authorization: `Bearer ${this.imagesToken}` } },
     )
   }
 
   getUrl(storageKey: string): string {
-    return `${this.config.cloudflareImagesDeliveryUrl}/${storageKey}/public`
+    return `${this.deliveryUrl}/${storageKey}/public`
   }
 }

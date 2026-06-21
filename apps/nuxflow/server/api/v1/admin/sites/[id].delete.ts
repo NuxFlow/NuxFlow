@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   // 1. Delete physical media files
   const allMedia = await db.select({ storageKey: media.storageKey }).from(media).where(eq(media.siteId, id))
   if (allMedia.length > 0) {
-    const provider = getActiveProvider()
+    const provider = await getActiveProvider(event)
     for (const file of allMedia) {
       await provider.delete(file.storageKey).catch(() => {})
     }

@@ -66,7 +66,7 @@ export default defineEventHandler(async (event) => {
 
   // Re-upload bundled images to the active media provider
   if (backup.media?.length && what.includes('content')) {
-    const provider = getActiveProvider()
+    const provider = await getActiveProvider(event)
     const urlMap = new Map<string, string>()
 
     for (const item of backup.media) {

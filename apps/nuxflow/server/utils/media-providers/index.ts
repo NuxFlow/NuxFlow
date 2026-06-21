@@ -1,6 +1,8 @@
+import type { H3Event } from 'h3'
 import { CloudflareImagesProvider } from './cloudflare-images'
 import { S3Provider } from './s3'
 import { BunnyProvider } from './bunny'
+import { resolveSetting } from '../settings'
 
 export interface UploadResult {
   url: string
@@ -15,11 +17,13 @@ export interface MediaProvider {
   getUrl(storageKey: string): string
 }
 
-export function getActiveProvider(): MediaProvider {
-  const config = useRuntimeConfig()
+export async function getActiveProvider(event: H3Event): Promise<MediaProvider> {
+  const accountId = await resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
+  const imagesToken = await resolveSetting(event, 'cloudflare.images_token', 'cloudflareImagesToken')
+  const deliveryUrl = await resolveSetting(event, 'cloudflare.images_delivery_url', 'cloudflareImagesDeliveryUrl')
 
-  if (config.cloudflareImagesToken && config.cloudflareAccountId) {
-    return new CloudflareImagesProvider()
+  if (imagesToken && accountId) {
+    return new CloudflareImagesProvider(accountId, imagesToken, deliveryUrl)
   }
   if (process.env.S3_BUCKET) {
     return new S3Provider()

@@ -1,17 +1,17 @@
 import { requireRole } from '../../../../utils/permissions'
+import { resolveSetting } from '../../../../utils/settings'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
   const siteId = event.context.siteId as string
 
-  const config = useRuntimeConfig()
-  const accountId = config.cloudflareAccountId
-  const streamToken = config.cloudflareStreamToken
+  const accountId = await resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
+  const streamToken = await resolveSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')
 
   if (!accountId || !streamToken) {
     throw createError({
       statusCode: 501,
-      message: 'Cloudflare Stream is not configured on this server.',
+      message: 'Cloudflare Stream is not configured. Add your Account ID and Stream API token in Settings → Media.',
     })
   }
 
@@ -19,7 +19,6 @@ export default defineEventHandler(async (event) => {
   const title = body?.title || 'Untitled Video'
 
   try {
-    // Request direct upload endpoint from Cloudflare Stream
     const response = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/direct_upload`,
       {
@@ -29,7 +28,7 @@ export default defineEventHandler(async (event) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          maxDurationSeconds: 14400, // 4 hours max duration
+          maxDurationSeconds: 14400,
           meta: {
             name: title,
             siteId,

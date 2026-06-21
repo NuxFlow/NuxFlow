@@ -45,6 +45,8 @@ export default defineEventHandler(async (event) => {
     'ai.anthropic_api_key': 'anthropicApiKey',
     'ai.gemini_api_key': 'geminiApiKey',
     'ai.deepseek_api_key': 'deepseekApiKey',
+    'cloudflare.stream_token': 'cloudflareStreamToken',
+    'cloudflare.images_token': 'cloudflareImagesToken',
   }
 
   const rc = useRuntimeConfig()
@@ -53,6 +55,12 @@ export default defineEventHandler(async (event) => {
       settings[key] = SECRET_MASK
     }
   }
+
+  // Expose non-sensitive cloudflare env vars so the UI can show them as placeholders
+  const cfAccountId = rc.cloudflareAccountId as string | undefined
+  if (!settings['cloudflare.account_id'] && cfAccountId) settings['cloudflare.account_id'] = cfAccountId
+  const cfDeliveryUrl = rc.cloudflareImagesDeliveryUrl as string | undefined
+  if (!settings['cloudflare.images_delivery_url'] && cfDeliveryUrl) settings['cloudflare.images_delivery_url'] = cfDeliveryUrl
 
   return { site, settings }
 })
