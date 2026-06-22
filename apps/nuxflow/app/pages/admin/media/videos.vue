@@ -18,6 +18,10 @@ const progress = ref(0)
 const statusText = ref('')
 const fileInput = ref<HTMLInputElement>()
 
+// Check Stream credentials before showing upload controls
+const { data: streamStatus } = await useFetch<{ configured: boolean }>('/api/v1/media/video/configured')
+const streamConfigured = computed(() => streamStatus.value?.configured ?? false)
+
 // Fetch videos
 const { data: videos, refresh } = await useFetch<VideoAsset[]>('/api/v1/media/video')
 
@@ -211,6 +215,7 @@ function formatDuration(seconds: number | null) {
           v-if="!uploading"
           icon="i-lucide-upload"
           color="primary"
+          :disabled="!streamConfigured"
           @click="fileInput?.click()"
         >
           Upload Video
@@ -233,6 +238,21 @@ function formatDuration(seconds: number | null) {
         >
       </div>
     </div>
+
+    <!-- Stream not configured banner -->
+    <UAlert
+      v-if="!streamConfigured"
+      icon="i-lucide-triangle-alert"
+      color="yellow"
+      variant="soft"
+      title="Cloudflare Stream is not configured"
+      description="Video uploads are disabled until you add your Account ID and Stream API token."
+    >
+      <template #description>
+        Video uploads are disabled until you add your Account ID and Stream API token.
+        <NuxtLink to="/admin/settings" class="underline font-medium ml-1">Go to Settings → Media</NuxtLink> to set them up.
+      </template>
+    </UAlert>
 
     <!-- Upload Progress Overlay (Glassmorphism card) -->
     <div
@@ -355,18 +375,38 @@ function formatDuration(seconds: number | null) {
       v-else
       class="text-center py-20 bg-gray-50/50 dark:bg-gray-900/20 rounded-2xl border border-dashed border-gray-200 dark:border-gray-800"
     >
-      <UIcon name="i-lucide-video" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-700 mb-3" />
-      <h3 class="text-md font-semibold text-gray-700 dark:text-gray-300">No videos uploaded</h3>
+      <UIcon
+        :name="streamConfigured ? 'i-lucide-video' : 'i-lucide-video-off'"
+        class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-700 mb-3"
+      />
+      <h3 class="text-md font-semibold text-gray-700 dark:text-gray-300">
+        {{ streamConfigured ? 'No videos uploaded yet' : 'Cloudflare Stream not configured' }}
+      </h3>
       <p class="text-sm text-gray-500 dark:text-gray-500 mt-1 max-w-sm mx-auto">
-        Configure your Cloudflare Stream secrets and upload video files to begin adaptive bitrate delivery.
+        <template v-if="streamConfigured">
+          Upload your first video to begin adaptive bitrate delivery.
+        </template>
+        <template v-else>
+          Add your Account ID and Stream API token in
+          <NuxtLink to="/admin/settings" class="underline">Settings → Media</NuxtLink>
+          to enable video uploads.
+        </template>
       </p>
       <div class="mt-6">
         <UButton
-          v-if="!uploading"
+          v-if="streamConfigured && !uploading"
           icon="i-lucide-upload"
           @click="fileInput?.click()"
         >
           Upload first video
+        </UButton>
+        <UButton
+          v-else-if="!streamConfigured"
+          icon="i-lucide-settings"
+          variant="soft"
+          to="/admin/settings"
+        >
+          Go to Settings
         </UButton>
       </div>
     </div>
