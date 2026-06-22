@@ -23,6 +23,7 @@ export const users = sqliteTable('users', {
   email: text('email').notNull().unique(),
   emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
   image: text('image'),
+  phone: text('phone'),
   createdAt: dateText('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: dateText('updated_at').notNull().default(sql`(datetime('now'))`),
 })

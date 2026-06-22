@@ -27,6 +27,11 @@ export const SENSITIVE_SETTING_KEYS = new Set([
   'push.vapid_private_key',
   'cloudflare.stream_token',
   'cloudflare.images_token',
+  // SMS provider credentials — added proactively ahead of SMS feature implementation
+  'sms.twilio_auth_token',
+  'sms.vonage_api_secret',
+  'sms.brevo_api_key',
+  'sms.telnyx_api_key',
 ])
 
 export const SECRET_MASK = '••••••••••••••••'
