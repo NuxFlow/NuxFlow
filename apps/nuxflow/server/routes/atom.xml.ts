@@ -2,8 +2,8 @@ import { useDb } from '../utils/db'
 import { contentItems, sites, users } from '@nuxflow/db/schema'
 import { and, desc, eq } from 'drizzle-orm'
 
-function escHtml(s: string) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+function escXml(s: string) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
 }
 
 function tiptapToHtml(node: unknown): string {
@@ -11,9 +11,7 @@ function tiptapToHtml(node: unknown): string {
   const n = node as Record<string, unknown>
   const children = (n.content as unknown[] | undefined)?.map(tiptapToHtml).join('') ?? ''
   const rawText = n.text as string | undefined
-
-  let result = rawText ? escHtml(rawText) : children
-
+  let result = rawText ? escXml(rawText) : children
   if (rawText && Array.isArray(n.marks)) {
     for (const mark of n.marks as Record<string, unknown>[]) {
       const attrs = (mark.attrs as Record<string, string>) ?? {}
@@ -21,13 +19,10 @@ function tiptapToHtml(node: unknown): string {
         case 'bold': result = `<strong>${result}</strong>`; break
         case 'italic': result = `<em>${result}</em>`; break
         case 'code': result = `<code>${result}</code>`; break
-        case 'underline': result = `<u>${result}</u>`; break
-        case 'strike': result = `<s>${result}</s>`; break
-        case 'link': result = `<a href="${escHtml(attrs.href ?? '')}">${result}</a>`; break
+        case 'link': result = `<a href="${escXml(attrs.href ?? '')}">${result}</a>`; break
       }
     }
   }
-
   const attrs = (n.attrs as Record<string, unknown>) ?? {}
   switch (n.type) {
     case 'doc': return result
@@ -40,7 +35,7 @@ function tiptapToHtml(node: unknown): string {
     case 'codeBlock': return `<pre><code>${result}</code></pre>`
     case 'hardBreak': return '<br>'
     case 'horizontalRule': return '<hr>'
-    case 'image': return `<img src="${escHtml(String(attrs.src ?? ''))}" alt="${escHtml(String(attrs.alt ?? ''))}">`
+    case 'image': return `<img src="${escXml(String(attrs.src ?? ''))}" alt="${escXml(String(attrs.alt ?? ''))}">`
     default: return result
   }
 }
@@ -55,7 +50,7 @@ export default defineEventHandler(async (event) => {
     columns: { name: true, domain: true },
   })
 
-  const baseUrl = site ? `https://${site.domain}` : config.public.siteUrl
+  const baseUrl = site ? `https://${site.domain}` : config.public.siteUrl as string
 
   const posts = await db
     .select({
@@ -75,39 +70,37 @@ export default defineEventHandler(async (event) => {
     .orderBy(desc(contentItems.publishedAt))
     .limit(20)
 
-  const items = posts.map((p) => {
+  const updated = posts[0]?.updatedAt ?? new Date().toISOString()
+
+  const entries = posts.map((p) => {
     const contentObj = p.content as Record<string, unknown> | null
     const isCanvas = contentObj?.type === 'canvas'
-    const fullHtml = !isCanvas && contentObj ? tiptapToHtml(contentObj) : ''
-    const summary = p.excerpt ?? ''
-    const itemUrl = `${baseUrl}/${escHtml(p.slug)}`
-    return `
-    <item>
-      <title><![CDATA[${p.title}]]></title>
-      <link>${itemUrl}</link>
-      <guid isPermaLink="true">${itemUrl}</guid>
-      <pubDate>${new Date(p.publishedAt ?? p.updatedAt).toUTCString()}</pubDate>
-      ${summary ? `<description><![CDATA[${summary}]]></description>` : ''}
-      ${fullHtml ? `<content:encoded><![CDATA[${fullHtml}]]></content:encoded>` : ''}
-      ${p.authorName ? `<author>${escHtml(p.authorName)}</author>` : ''}
-      ${p.ogImage ? `<media:thumbnail url="${escHtml(p.ogImage)}" /><media:content url="${escHtml(p.ogImage)}" medium="image" />` : ''}
-    </item>`
-  }).join('')
+    const html = !isCanvas && contentObj ? tiptapToHtml(contentObj) : ''
+    const url = `${baseUrl}/${p.slug}`
+    const pub = new Date(p.publishedAt ?? p.updatedAt).toISOString()
+    const mod = new Date(p.updatedAt).toISOString()
+    return `  <entry>
+    <title>${escXml(p.title)}</title>
+    <link href="${escXml(url)}" />
+    <id>${escXml(url)}</id>
+    <published>${pub}</published>
+    <updated>${mod}</updated>
+    ${p.excerpt ? `<summary type="text">${escXml(p.excerpt)}</summary>` : ''}
+    ${html ? `<content type="html"><![CDATA[${html}]]></content>` : ''}
+    ${p.authorName ? `<author><name>${escXml(p.authorName)}</name></author>` : ''}
+  </entry>`
+  }).join('\n')
 
-  setHeader(event, 'Content-Type', 'application/rss+xml; charset=UTF-8')
+  setHeader(event, 'Content-Type', 'application/atom+xml; charset=UTF-8')
   setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
+
   return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0"
-     xmlns:atom="http://www.w3.org/2005/Atom"
-     xmlns:content="http://purl.org/rss/1.0/modules/content/"
-     xmlns:media="http://search.yahoo.com/mrss/">
-  <channel>
-    <title>${site?.name ?? 'NuxFlow'}</title>
-    <link>${baseUrl}</link>
-    <description>Latest posts from ${site?.name ?? 'NuxFlow'}</description>
-    <atom:link href="${baseUrl}/feed.xml" rel="self" type="application/rss+xml" />
-    <atom:link href="${baseUrl}/atom.xml" rel="alternate" type="application/atom+xml" />
-    ${items}
-  </channel>
-</rss>`
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>${escXml(site?.name ?? 'NuxFlow')}</title>
+  <link href="${escXml(baseUrl)}" />
+  <link rel="self" type="application/atom+xml" href="${escXml(baseUrl)}/atom.xml" />
+  <id>${escXml(baseUrl)}/</id>
+  <updated>${new Date(updated).toISOString()}</updated>
+${entries}
+</feed>`
 })
