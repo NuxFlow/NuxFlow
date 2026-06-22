@@ -281,3 +281,21 @@ function triggerAi(instruction: 'improve' | 'shorten' | 'expand' | 'simplify') {
     </select>
   </div>
 </template>
+
+<style scoped>
+input:not([type="color"]):not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  color: #111827 !important;
+  background-color: #ffffff !important;
+  border-color: #e5e7eb !important;
+}
+
+:global(.dark) input:not([type="color"]):not([type="checkbox"]):not([type="radio"]),
+:global(.dark) textarea,
+:global(.dark) select {
+  color: #f3f4f6 !important;
+  background-color: #111827 !important;
+  border-color: #374151 !important;
+}
+</style>

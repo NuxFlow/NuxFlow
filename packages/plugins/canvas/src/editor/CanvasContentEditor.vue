@@ -131,7 +131,7 @@ const blockCount = computed(() => canvas.value.blocks.length)
     </div>
 
     <!-- Editor body -->
-    <div class="flex flex-1 overflow-hidden">
+    <div class="relative flex flex-1 overflow-hidden">
       <!-- Canvas area -->
       <div
         class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950"
@@ -192,9 +192,13 @@ const blockCount = computed(() => canvas.value.blocks.length)
                 :block="block"
                 :selected="selectedId === block.id"
                 :editing="true"
+                :is-first="idx === 0"
+                :is-last="idx === blockCount - 1"
                 @select="selectBlock(block.id)"
                 @duplicate="duplicateBlock(block.id)"
                 @remove="removeBlock(block.id)"
+                @move-up="moveBlock(block.id, 'up')"
+                @move-down="moveBlock(block.id, 'down')"
               />
             </div>
 
@@ -202,6 +206,13 @@ const blockCount = computed(() => canvas.value.blocks.length)
           </template>
         </div>
       </div>
+
+      <!-- Backdrop overlay on mobile/tablet viewports -->
+      <div
+        v-if="selectedBlock && selectedDefinition"
+        class="lg:hidden absolute inset-0 z-20 bg-black/30 dark:bg-black/50 backdrop-blur-sm transition-opacity"
+        @click="selectBlock(null)"
+      />
 
       <!-- Settings panel -->
       <SettingsPanel

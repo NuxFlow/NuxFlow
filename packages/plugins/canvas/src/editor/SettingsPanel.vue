@@ -24,7 +24,7 @@ const visibleFields = computed(() =>
 </script>
 
 <template>
-  <aside class="flex flex-col h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 w-72 shrink-0">
+  <aside class="absolute lg:relative inset-y-0 right-0 z-30 flex flex-col h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 w-full sm:w-80 lg:w-72 shrink-0 shadow-2xl lg:shadow-none">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
       <div class="flex items-center gap-2">

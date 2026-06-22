@@ -37,12 +37,16 @@ const props = defineProps<{
   block: CanvasBlockData
   selected?: boolean
   editing?: boolean
+  isFirst?: boolean
+  isLast?: boolean
 }>()
 
 const emit = defineEmits<{
   select: []
   duplicate: []
   remove: []
+  'move-up': []
+  'move-down': []
 }>()
 
 const registry = inject<BlockRegistryLike | null>('nuxflow:blockRegistry', null)
@@ -64,10 +68,11 @@ const component = computed(() => {
     ]"
     @click.stop="editing && emit('select')"
   >
-    <!-- Floating action bar — appears on hover in editor mode -->
+    <!-- Floating action bar — appears on hover or when selected in editor mode -->
     <div
       v-if="editing"
-      class="absolute top-2 right-2 hidden group-hover/block:flex items-center gap-0.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md px-1 py-0.5 z-20"
+      class="absolute top-2 right-2 items-center gap-0.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md px-1 py-0.5 z-20"
+      :class="[selected ? 'flex' : 'hidden group-hover/block:flex']"
     >
       <!-- Block label -->
       <span class="text-xs font-medium text-gray-500 dark:text-gray-400 px-1.5">
@@ -75,6 +80,32 @@ const component = computed(() => {
       </span>
 
       <div class="w-px h-3.5 bg-gray-200 dark:bg-gray-700 mx-0.5" />
+
+      <!-- Move up -->
+      <button
+        v-if="!isFirst"
+        class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        title="Move block up"
+        @click.stop="emit('move-up')"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+        </svg>
+      </button>
+
+      <!-- Move down -->
+      <button
+        v-if="!isLast"
+        class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        title="Move block down"
+        @click.stop="emit('move-down')"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      <div v-if="!isFirst || !isLast" class="w-px h-3.5 bg-gray-200 dark:bg-gray-700 mx-0.5" />
 
       <!-- Select / edit -->
       <button
@@ -94,7 +125,7 @@ const component = computed(() => {
         @click.stop="emit('duplicate')"
       >
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <rect x="9" y="9" width="13" height="13" rx="2" stroke-width="2"/><rect x="2" y="2" width="13" height="13" rx="2" stroke-width="2"/>
+          <rect x="9" y="9" width="13" height="13" rx="2" stroke-width="2" /><rect x="2" y="2" width="13" height="13" rx="2" stroke-width="2" />
         </svg>
       </button>
 

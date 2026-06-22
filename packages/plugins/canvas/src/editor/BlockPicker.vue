@@ -58,7 +58,7 @@ const pluginBlocks = computed(() => [
       <div class="overflow-y-auto flex-1 min-h-0 px-5 py-4 space-y-6">
         <div v-for="cat in categories" :key="cat">
           <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">{{ categoryLabels[cat] }}</p>
-          <div class="grid grid-cols-3 gap-2">
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <button
               v-for="block in blocksFor(cat)"
               :key="block.id"
@@ -79,7 +79,7 @@ const pluginBlocks = computed(() => [
         <!-- Plugin blocks (bundled + dynamic) -->
         <div v-if="pluginBlocks.length > 0">
           <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Plugins</p>
-          <div class="grid grid-cols-3 gap-2">
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <button
               v-for="block in pluginBlocks"
               :key="block.id"

@@ -241,6 +241,12 @@ function applyAiAlternative(alt: string) {
 </template>
 
 <style scoped>
+[contenteditable] {
+  color: #111827 !important;
+}
+:global(.dark) [contenteditable] {
+  color: #f3f4f6 !important;
+}
 [contenteditable] a { color: #3b82f6; text-decoration: underline; }
 [contenteditable] ul { list-style: disc; padding-left: 1.25rem; }
 [contenteditable] ol { list-style: decimal; padding-left: 1.25rem; }
