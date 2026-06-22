@@ -146,12 +146,12 @@ Follows the same pattern as `getCfBindings` — returns the `AE` binding when ru
 
 A fire-and-forget utility called at the end of every successful `GET /api/public/pages/:slug` response. It writes:
 
-| Field | Value |
-|---|---|
-| `blobs[0]` | Page slug |
-| `blobs[1]` | Visitor country (from `cf-ipcountry` header) |
-| `blobs[2]` | Referrer URL (truncated to 256 chars) |
-| `doubles[0]` | `1` (page view count — SUM this in queries) |
+| Field        | Value                                             |
+| ------------ | ------------------------------------------------- |
+| `blobs[0]`   | Page slug                                         |
+| `blobs[1]`   | Visitor country (from `cf-ipcountry` header)      |
+| `blobs[2]`   | Referrer URL (truncated to 256 chars)             |
+| `doubles[0]` | `1` (page view count — SUM this in queries)       |
 | `indexes[0]` | Site ID (partition key for fast per-site queries) |
 
 Data collection starts the moment the `AE` binding is added to `wrangler.toml` — no code changes needed at that point.
@@ -202,12 +202,13 @@ On the public-facing site, visitors are served the correct language version base
 
 Two columns were added to `content_items` specifically for this feature:
 
-| Column | Type | Purpose |
-|---|---|---|
-| `locale` | `text`, default `'en'` | Language code of this item (e.g. `'es'`, `'fr'`, `'zh-CN'`) |
+| Column         | Type                            | Purpose                                                       |
+| -------------- | ------------------------------- | ------------------------------------------------------------- |
+| `locale`       | `text`, default `'en'`          | Language code of this item (e.g. `'es'`, `'fr'`, `'zh-CN'`)   |
 | `sourceItemId` | `text`, FK → `content_items.id` | Points to the original-language item this was translated from |
 
 Both are indexed for efficient querying:
+
 - `idx_content_items_locale` on `(site_id, locale)` — list all content in a given language
 - `idx_content_items_source` on `(source_item_id)` — find all translations of a given item
 
@@ -233,16 +234,16 @@ The server-side translation route is complete and production-ready:
 
 ### What still needs to be built
 
-The entire *creation* side is done. The *serving and management* side is not.
+The entire _creation_ side is done. The _serving and management_ side is not.
 
 #### 1. URL strategy decision (required first)
 
 Before building public routing, a URL convention must be chosen. The three realistic options:
 
-| Strategy | Example URL | Trade-offs |
-|---|---|---|
-| Path prefix | `/es/mi-articulo` | SEO-friendly, requires Nuxt `i18n` routing or middleware rewrite |
-| Query parameter | `/my-post?locale=es` | Simplest to implement, less SEO-friendly |
+| Strategy        | Example URL                    | Trade-offs                                                                       |
+| --------------- | ------------------------------ | -------------------------------------------------------------------------------- |
+| Path prefix     | `/es/mi-articulo`              | SEO-friendly, requires Nuxt `i18n` routing or middleware rewrite                 |
+| Query parameter | `/my-post?locale=es`           | Simplest to implement, less SEO-friendly                                         |
 | Slug per locale | `/mi-articulo` (distinct slug) | Cleanest URLs, requires the CMS editor to set a locale-appropriate slug manually |
 
 The path-prefix strategy is the most conventional and SEO-friendly. It would require a route rewrite in `server/middleware` that strips the locale prefix and sets `event.context.locale` before multi-site resolution runs.
@@ -267,6 +268,7 @@ The content list at `/admin/content` currently shows all languages mixed togethe
 #### 4. Admin — translations panel in the content editor sidebar
 
 When editing a content item, a sidebar card should show:
+
 - Which locale this item is (badge)
 - If it's a translation: a link back to the source/original item
 - If it's a source: a list of all existing translations (with locale code + status badge) and a link to each
@@ -332,13 +334,13 @@ An events content type behaves like any other content type (rich text body, SEO 
 
 The following columns were added proactively to the `content_items` table. They are `NULL` on all regular content and only populated when a content type is used as an events calendar:
 
-| Column | Type | Purpose |
-|---|---|---|
-| `event_start_at` | `text` (ISO 8601) | Event start — ISO string for correct SQLite string comparisons in date range queries |
-| `event_end_at` | `text` (ISO 8601) | Event end — `NULL` for single-day all-day events |
-| `event_location` | `text` | Venue name, address, or "Online" |
-| `event_url` | `text` | Optional external link (livestream, registration page) |
-| `event_all_day` | `integer` (boolean) | Whether times should be ignored in display and iCal output |
+| Column           | Type                | Purpose                                                                              |
+| ---------------- | ------------------- | ------------------------------------------------------------------------------------ |
+| `event_start_at` | `text` (ISO 8601)   | Event start — ISO string for correct SQLite string comparisons in date range queries |
+| `event_end_at`   | `text` (ISO 8601)   | Event end — `NULL` for single-day all-day events                                     |
+| `event_location` | `text`              | Venue name, address, or "Online"                                                     |
+| `event_url`      | `text`              | Optional external link (livestream, registration page)                               |
+| `event_all_day`  | `integer` (boolean) | Whether times should be ignored in display and iCal output                           |
 
 An index on `(site_id, event_start_at)` — `idx_content_items_event_start` — enables efficient range queries for upcoming events and the iCal feed without a full table scan.
 
@@ -369,3 +371,159 @@ The admin already has a month-view Editorial Calendar at `/admin/calendar` that 
 4. Canvas Calendar block (highest visibility, drives adoption)
 5. "Add to calendar" button component
 6. RSVP / registration (requires deciding free vs. paid event UX first)
+
+---
+
+## SMS Notifications
+
+### Vision
+
+Site owners and their users should be able to receive notifications via SMS in addition to email and browser push. Use cases include transactional alerts (new form submission, payment confirmation, membership expiry), admin digests, and member-facing notifications for time-sensitive content like events.
+
+SMS is deliberately opt-in per user — no one receives a text message unless they have both provided a phone number and toggled SMS notifications on. Site owners choose one provider and configure it once in Admin → Settings → SMS, in the same way email is configured today.
+
+### Why this is valuable
+
+- **Higher open rates**: SMS open rates are typically 90%+ vs. 20–30% for email. For genuinely urgent notifications (event reminders, payment failures), SMS meaningfully increases the chance the user acts in time.
+- **No extra infrastructure**: The notification system already fans out to email and browser push via `sendNotification()` in `server/utils/notify.ts`. SMS is a fourth flag on the same call — no new job queue, no new table, no new scheduled task.
+- **Some providers are already half-integrated**: Brevo (already supported for email) offers a transactional SMS API on the same API key. Sites already using Brevo for email can enable SMS with zero additional credentials.
+- **Edge-compatible**: All four target providers expose plain REST APIs with JSON bodies. No Node.js SDK required — pure `fetch()` calls, identical to how Resend/Brevo/ZeptoMail are implemented today.
+
+### Provider comparison
+
+| Provider           | Also does email?        | Auth                                   | Notes                                                                            |
+| ------------------ | ----------------------- | -------------------------------------- | -------------------------------------------------------------------------------- |
+| **Twilio**         | Via SendGrid (separate) | Account SID + Auth Token + from number | Industry standard, widest global reach, MMS support, most Stack Overflow answers |
+| **Vonage (Nexmo)** | Yes (Email API)         | API Key + API Secret + from            | Strong EU coverage, competitive pricing, unified comms platform                  |
+| **Brevo**          | ✅ Already integrated   | Same API key as email                  | Lowest-friction option for sites already on Brevo — no new credentials required  |
+| **Telnyx**         | No                      | Single API key                         | Developer-friendly REST API, competitive pricing, good documentation             |
+
+Recommended default order: **Brevo** (if already configured) → **Twilio** → **Vonage** → **Telnyx**.
+
+### Groundwork already in place
+
+#### `phone` column on `users` (added in migration `0008`)
+
+A nullable `phone` text column was added to the `users` table proactively. It stores the user's phone number in E.164 format (e.g. `+447700900123`). Because it is nullable with no unique constraint, it has zero impact on existing users and zero risk of breaking the auth flow (Better Auth does not touch this column).
+
+This column is the only place phone numbers live. There is deliberately no `sms_subscriptions` table — the `push_subscriptions` table pattern (one row per device per user) is not needed for SMS since phone numbers are already globally unique per person.
+
+#### `SENSITIVE_SETTING_KEYS` pre-populated (`settings.ts`)
+
+The following keys were added to `SENSITIVE_SETTING_KEYS` now so that any SMS credential stored in `site_settings` is automatically AES-GCM encrypted at rest from the moment the feature lands:
+
+- `sms.twilio_auth_token`
+- `sms.vonage_api_secret`
+- `sms.brevo_api_key` _(shared with email if Brevo is the email provider)_
+- `sms.telnyx_api_key`
+
+#### Notification fanout architecture (`notify.ts`)
+
+`sendNotification()` already accepts per-call flags to opt into email (`sendEmailNotification`) and push (`sendPush`). Adding `sendSms` follows the identical pattern — look up `users.phone`, call `sendSms(event, msg)`, catch and log errors without throwing. No callers need to change unless they want to opt into SMS for a specific notification type.
+
+### What still needs to be built
+
+#### 1. `server/utils/sms.ts` — provider dispatcher
+
+Mirrors `email.ts` exactly:
+
+```typescript
+interface SmsMessage {
+  to: string // E.164 format, e.g. +447700900123
+  body: string // Plain text only — no HTML
+}
+
+interface SmsConfig {
+  smsProvider: string // 'twilio' | 'vonage' | 'brevo' | 'telnyx' | 'console'
+  twilio?: { accountSid: string; authToken: string; from: string }
+  vonage?: { apiKey: string; apiSecret: string; from: string }
+  brevo?: { apiKey: string; from: string }
+  telnyx?: { apiKey: string; from: string }
+}
+
+export async function sendSms(event: H3Event, msg: SmsMessage): Promise<void>
+```
+
+Provider-specific implementation notes:
+
+- **Twilio**: `POST https://api.twilio.com/2010-04-01/Accounts/{SID}/Messages.json` with Basic auth (`AccountSID:AuthToken`), `application/x-www-form-urlencoded` body
+- **Vonage**: `POST https://rest.nexmo.com/sms/json` with JSON body containing `api_key`, `api_secret`, `from`, `to`, `text`
+- **Brevo**: `POST https://api.brevo.com/v3/transactionalSMS/sms` — same `api-key` header as the email integration, body has `sender`, `recipient`, `content`
+- **Telnyx**: `POST https://api.telnyx.com/v2/messages` with `Authorization: Bearer {apiKey}`, JSON body
+
+#### 2. `sendSms` flag on `sendNotification()` in `notify.ts`
+
+```typescript
+interface NotifyOptions {
+  // ... existing fields ...
+  sendSms?: boolean // Also send an SMS to the user's phone number if set
+}
+```
+
+In the body: look up `users.phone`, skip silently if null, call `sendSms()`, catch and log errors without re-throwing (same pattern as `sendEmailNotification`).
+
+#### 3. Settings keys for `loadSmsConfig()`
+
+Settings to read via `resolveSetting()`:
+
+| Key                      | Description                                                       |
+| ------------------------ | ----------------------------------------------------------------- |
+| `sms.provider`           | Active provider: `twilio`, `vonage`, `brevo`, `telnyx`, `console` |
+| `sms.twilio_account_sid` | Twilio Account SID (not sensitive — public identifier)            |
+| `sms.twilio_auth_token`  | Twilio Auth Token (**encrypted**)                                 |
+| `sms.twilio_from`        | Twilio sender number or alphanumeric ID                           |
+| `sms.vonage_api_key`     | Vonage API Key                                                    |
+| `sms.vonage_api_secret`  | Vonage API Secret (**encrypted**)                                 |
+| `sms.vonage_from`        | Vonage sender name/number                                         |
+| `sms.brevo_api_key`      | Brevo API Key (**encrypted**, shared with email if same provider) |
+| `sms.brevo_from`         | Brevo sender name (alphanumeric, max 11 chars)                    |
+| `sms.telnyx_api_key`     | Telnyx API Key (**encrypted**)                                    |
+| `sms.telnyx_from`        | Telnyx sender number                                              |
+
+#### 4. Admin UI — Settings → SMS tab
+
+A new "SMS" tab in `app/pages/admin/settings/index.vue`, matching the layout of the existing Email tab:
+
+- Provider selector dropdown (Console / Twilio / Vonage / Brevo / Telnyx)
+- Conditional credential fields per provider (same show/hide pattern as email)
+- "Send test SMS" button — posts to a new `/api/v1/settings/sms-test` endpoint that sends a real SMS to the admin's own phone number (requires `users.phone` to be set on their account)
+- Save / mask behaviour identical to email (sensitive fields masked after save with `SECRET_MASK`)
+
+#### 5. User profile — phone number field
+
+The account settings page (Admin → My Account) needs a phone number input field:
+
+- Validates E.164 format client-side before saving
+- Saves via `PATCH /api/v1/users/me` (extend that route to accept `phone`)
+- Separate from notification preferences — having a phone number stored does not automatically opt the user in to SMS
+
+#### 6. SMS opt-in preference per user
+
+A boolean user preference (stored as a site setting scoped to the user, or as a JSON column on `user_site_roles`) that controls whether `sendNotification(..., { sendSms: true })` actually sends. The flag in `sendNotification` should be treated as intent — the actual send should also check the user's preference and skip if they have not opted in.
+
+The simplest implementation stores this as a `notifications_sms` boolean in a `user_preferences` JSON blob on `user_site_roles.preferences` (already a JSON column if added). Alternatively a `user_notification_prefs` table keyed by `(userId, siteId)` is cleaner if other per-user preferences accumulate.
+
+#### 7. `/api/v1/settings/sms-test` endpoint
+
+Mirrors `/api/v1/settings/email-test`. Loads SMS config via `loadSmsConfig()`, sends a fixed test message to the requesting user's `phone`, returns `{ ok: true }` or a descriptive error.
+
+### What was explicitly ruled out
+
+- **OTP / 2FA via SMS**: Better Auth handles multi-factor authentication. Integrating SMS-OTP into the auth flow requires hooking into Better Auth's plugin system specifically (it supports a `twoFactor` plugin). This is a distinct task from the transactional SMS feature above and should be tracked separately when 2FA is prioritised.
+- **Bulk SMS / marketing campaigns**: Transactional SMS (one notification triggered by a real event) is the use case here. Bulk campaign sending involves list management, opt-out compliance (TCPA/GDPR), carrier reputation, and unsubscribe handling — a significantly different scope. Not planned.
+- **Per-message cost visibility**: Carrier costs vary by country and provider. Surfacing per-message pricing in the admin is not worth the complexity; site owners should check their provider dashboard.
+- **SMS as an auth channel (passwordless login)**: Similar to OTP/2FA — belongs in the auth layer, not the notification layer.
+
+### Suggested implementation order
+
+1. `server/utils/sms.ts` with Brevo support first (easiest, no new credentials for existing Brevo users)
+2. `sendSms` flag on `sendNotification()` in `notify.ts`
+3. Phone number field on user profile + `PATCH /api/v1/users/me` extension
+4. Admin Settings → SMS tab + test endpoint
+5. Add Twilio support (highest user demand)
+6. Add Vonage and Telnyx support
+7. User SMS opt-in preference
+
+Steps 1–3 can be done in a single sitting. Steps 4–7 are polish and breadth.
+
+---

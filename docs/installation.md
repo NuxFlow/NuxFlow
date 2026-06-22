@@ -256,32 +256,73 @@ After saving the build configuration, push a commit to your connected branch to 
 
 All `wrangler secret put` commands in this section must be run from the `apps/nuxflow` directory.
 
+### AI Discoverability (GEO / LLMO)
+
+NuxFlow ships several AI-discoverability features out of the box — no configuration required:
+
+| Endpoint | What it does |
+|---|---|
+| `/llms.txt` | Machine-readable Markdown index of your site for ChatGPT, Claude, Perplexity, etc. |
+| `/atom.xml` | Atom 1.0 feed (alongside RSS 2.0 at `/feed.xml`) with author and image metadata |
+| `/sitemap.xml` | Includes `image:image` namespace tags for pages with OG images |
+| JSON-LD | `Article`, `BreadcrumbList`, `Organization`, and `WebSite` schemas auto-injected per page |
+
+**To control AI crawler access**, go to **Admin → SEO → AI Crawlers** after deploying. The "allow/block all AI crawlers" toggle adds or removes explicit `robots.txt` rules for GPTBot, ClaudeBot, PerplexityBot, and seven others without requiring a redeploy.
+
 ### Cloudflare Images
 
 Cloudflare Images provides optimised media hosting with automatic resizing and CDN delivery.
 
-1. Enable **Cloudflare Images** in your dashboard
-2. Create an API token with `Image:Edit` permissions
-3. Add the following secrets:
+#### Option A — Admin UI (recommended, no redeploy required)
+
+1. Enable **Cloudflare Images** in your Cloudflare dashboard.
+2. Go to **Admin → Settings → Media** in NuxFlow.
+3. Enter your **Cloudflare Account ID** (right-hand sidebar on any Cloudflare dashboard page).
+4. Create an **Images API Token**: Cloudflare dashboard → **My Profile → API Tokens → Create Token → Custom Token** → add permission **Account → Cloudflare Images → Edit**. Copy the token.
+5. Paste the token into the **Images API Token** field, enter the **Image Delivery URL** (found in the Cloudflare Images dashboard under **Overview**), and click **Save**.
+
+Credentials are encrypted at rest and take effect immediately.
+
+#### Option B — Environment variables
 
 ```bash
 wrangler secret put NUXT_CLOUDFLARE_IMAGES_TOKEN
 wrangler secret put NUXT_CLOUDFLARE_ACCOUNT_ID
 ```
 
+Also set `NUXT_CLOUDFLARE_IMAGES_DELIVERY_URL` if using image resizing variants.
+
 ### Cloudflare Stream
 
-Cloudflare Stream provides high-performance video hosting, encoding, and adaptive-bitrate streaming. When configured, NuxFlow enables a dedicated **Videos** tab in the media library where users can upload and manage videos directly from the browser (via the TUS resumable chunked upload protocol).
+Cloudflare Stream provides high-performance video hosting, encoding, and adaptive-bitrate streaming. When configured, NuxFlow enables a dedicated **Videos** tab in the media library where users can upload and manage videos directly from the browser via resumable chunked uploads (TUS protocol).
 
-1. Enable **Stream** on your Cloudflare dashboard.
-2. Create an API token with **Stream:Edit** permissions (go to your profile → API Tokens → Create Token → Custom Token, and select Account → Stream → Edit).
-3. Add the following secrets from the `apps/nuxflow` directory:
+#### Option A — Admin UI (recommended, no redeploy required)
+
+Once your site is deployed, configure Stream credentials directly from the admin dashboard:
+
+1. Log in to your site and go to **Admin → Settings → Media**.
+2. Enter your **Cloudflare Account ID** — visible in the right-hand sidebar of any page in the Cloudflare dashboard.
+3. Create a **Stream API Token**:
+   - Go to [dash.cloudflare.com](https://dash.cloudflare.com) → **My Profile → API Tokens → Create Token**
+   - Choose **Create Custom Token**
+   - Under **Permissions**, add: **Account → Cloudflare Stream → Edit**
+   - Click **Continue to summary → Create Token** and copy the token
+4. Paste the token into the **Stream API Token** field and click **Save**.
+
+Credentials saved here are encrypted at rest (AES-GCM) and take effect immediately — no redeployment required.
+
+#### Option B — Environment variables (for automated / CI deployments)
+
+If you prefer to manage credentials outside the admin UI, set them as Wrangler secrets from the `apps/nuxflow` directory:
 
 ```bash
 wrangler secret put NUXT_CLOUDFLARE_ACCOUNT_ID
 wrangler secret put NUXT_CLOUDFLARE_STREAM_TOKEN
 ```
-*(Note: If you have already configured `NUXT_CLOUDFLARE_ACCOUNT_ID` for Cloudflare Images, you only need to add `NUXT_CLOUDFLARE_STREAM_TOKEN`.)*
+
+*(If you have already configured `NUXT_CLOUDFLARE_ACCOUNT_ID` for Cloudflare Images, you only need to add `NUXT_CLOUDFLARE_STREAM_TOKEN`.)*
+
+Environment variables serve as a fallback when the admin setting is empty, so you can mix approaches — set defaults via env vars and override per-site from the UI.
 
 ### S3-Compatible Storage (AWS S3, Backblaze B2, Cloudflare R2, etc.)
 

@@ -60,6 +60,21 @@ For video bloggers, NuxFlow features an integrated, high-performance video hosti
 - **Visual Previews**: Play your uploaded videos directly from the dashboard in a popup media player.
 - **Analytics & Metadata**: Track video details and manage titles directly from the Videos admin page.
 
+#### Setup (required before uploads will work)
+
+Video uploads require Cloudflare Stream credentials. Configure them once in the admin — no code changes or redeployment needed:
+
+1. Go to **Admin → Settings → Media**.
+2. Enter your **Cloudflare Account ID** — visible in the right-hand sidebar on any page of the [Cloudflare dashboard](https://dash.cloudflare.com).
+3. Create a **Stream API Token**:
+   - In the Cloudflare dashboard, click your profile icon (top right) → **My Profile → API Tokens → Create Token**.
+   - Select **Create Custom Token**.
+   - Under **Permissions**, add: **Account → Cloudflare Stream → Edit**.
+   - Click **Continue to summary → Create Token** and copy the generated token.
+4. Paste the token into the **Stream API Token** field and click **Save**.
+
+Once saved, the Videos tab in the media library becomes active immediately. If credentials are missing, upload attempts will show an error message pointing back to this settings page.
+
 
 ---
 
@@ -69,10 +84,31 @@ For video bloggers, NuxFlow features an integrated, high-performance video hosti
 In **Settings > Site**, you can update your site's title, description, and primary language.
 
 ### Per-Page SEO
-Every Page and Post has an **SEO Tab** where you can:
-- Customize the Meta Title and Description.
-- Preview how the page will look on Google and Social Media.
-- Manage Open Graph (OG) images for sharing.
+Every Page and Post has an **SEO & Access** panel in the editor sidebar where you can:
+- **SEO Title & Meta Description** — with live character-count progress bars (50–60 and 150–160 are the target ranges).
+- **Google Snippet Preview** — see exactly how your title, URL slug, and description will appear in a search result card before publishing.
+- **Focus Keyword** — enter the primary keyword for the page; NuxFlow checks whether it appears in both the title and description and shows a ✓/✗ indicator for each.
+- **Canonical URL** — override the canonical link for this specific page (useful for syndicated content or content that lives under multiple URLs).
+- **Robots Override** — set `noindex`, `nofollow`, or combinations per-page, independently of the global setting.
+- **OG / Featured Image** — used as `og:image` and as the Twitter card image.
+- **Content Access** — control whether the page is public, members-only, or tier-gated.
+
+### Generative Engine Optimization (GEO / LLMO)
+
+NuxFlow bakes AI discoverability features into the routing layer — no plugins or third-party services required.
+
+#### What's auto-generated
+- **`/llms.txt`** — a machine-readable Markdown index of your site for AI assistants (ChatGPT, Claude, Perplexity, etc.). Lists your 20 most recent published posts with excerpts, links to your sitemap, feeds, and public API. No configuration needed.
+- **`/atom.xml`** — an Atom 1.0 feed alongside the existing RSS 2.0 feed at `/feed.xml`. Both include author attribution and media thumbnail tags for better feed-reader and AI parser support.
+- **JSON-LD structured data** — `Article`, `BreadcrumbList`, `Organization`, and `WebSite` (with `SearchAction`) schemas are automatically injected into every public page's `<head>`. These help AI systems and search engines understand your content structure without reading the full page.
+- **`image:image` tags in sitemap.xml** — pages with a featured OG image now expose that image URL directly in the sitemap, improving image indexing.
+
+#### AI crawler settings
+Go to **Admin → SEO → AI Crawlers** to control which AI bots can crawl your site:
+- **Allow all AI crawlers** (default) — your site is eligible to be cited as a source in AI-generated answers across ChatGPT, Claude, Perplexity, Google AI, and others.
+- **Block all AI crawlers** — adds explicit `Disallow` rules for GPTBot, ClaudeBot, PerplexityBot, ChatGPT-User, anthropic-ai, Googlebot-Extended, cohere-ai, CCBot, Applebot-Extended, and FacebookBot in your `robots.txt`.
+
+> Blocking AI crawlers means your site will not appear in AI-generated answers or recommendations. Allow is recommended for most sites that want discoverability.
 
 ### Redirects
 Manage **301 and 302 redirects** directly from the dashboard to ensure visitors never hit a 404 page when you move content.
