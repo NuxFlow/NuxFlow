@@ -14,6 +14,7 @@ const { data: item, refresh } = await useAsyncData(
   () => isNew.value ? Promise.resolve(null) : $fetch<{
     title: string; slug: string; status: string; scheduledAt?: string
     content?: unknown; seoTitle?: string; seoDescription?: string
+    canonicalUrl?: string | null; focusKeyword?: string | null; metaRobots?: string | null
     excerpt?: string; ogImage?: string
     settings?: Record<string, unknown>
     allowComments?: boolean | null; typeHasComments?: boolean
@@ -37,6 +38,9 @@ const form = reactive({
   content: EMPTY_DOC as unknown,
   seoTitle: '',
   seoDescription: '',
+  canonicalUrl: '',
+  focusKeyword: '',
+  metaRobots: '',
   excerpt: '',
   ogImage: '',
   access: 'public' as string,
@@ -56,6 +60,9 @@ watch(item, (val) => {
   form.content = val.content ?? EMPTY_DOC
   form.seoTitle = val.seoTitle ?? ''
   form.seoDescription = val.seoDescription ?? ''
+  form.canonicalUrl = val.canonicalUrl ?? ''
+  form.focusKeyword = val.focusKeyword ?? ''
+  form.metaRobots = val.metaRobots ?? ''
   form.excerpt = val.excerpt ?? ''
   form.ogImage = val.ogImage ?? ''
   form.access = (val.settings as Record<string, unknown> | null)?.access as string ?? 'public'
@@ -133,6 +140,9 @@ async function save(overrideStatus?: string) {
       content: form.content,
       seoTitle: form.seoTitle,
       seoDescription: form.seoDescription,
+      canonicalUrl: form.canonicalUrl || null,
+      focusKeyword: form.focusKeyword || null,
+      metaRobots: (form.metaRobots || null) as 'index,follow' | 'noindex,follow' | 'noindex,nofollow' | 'index,nofollow' | null,
       excerpt: form.excerpt || null,
       ogImage: form.ogImage || null,
       settings: { access: form.access },
@@ -175,7 +185,7 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
 <template>
   <div class="max-w-7xl mx-auto space-y-4">
     <!-- Top bar -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <UButton to="/admin/content" variant="ghost" icon="i-lucide-arrow-left" size="sm" />
         <span class="text-sm text-gray-400">
@@ -185,7 +195,7 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
           <span v-else class="text-gray-300">Unsaved</span>
         </span>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <!-- Editor mode switcher -->
         <div class="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
           <button
@@ -247,9 +257,9 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
       </div>
     </div>
 
-    <div class="grid grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Main editor column -->
-      <div class="col-span-2 space-y-3">
+      <div class="lg:col-span-2 space-y-3">
         <UInput
           v-model="form.title"
           placeholder="Page title"
@@ -285,10 +295,25 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
         />
 
         <EditorSeoPanel
-          :model-value="{ seoTitle: form.seoTitle, seoDescription: form.seoDescription, access: form.access }"
+          :model-value="{
+            seoTitle: form.seoTitle,
+            seoDescription: form.seoDescription,
+            access: form.access,
+            canonicalUrl: form.canonicalUrl,
+            focusKeyword: form.focusKeyword,
+            metaRobots: form.metaRobots,
+          }"
           :title="form.title"
+          :slug="form.slug"
           :content-id="isNew ? undefined : id"
-          @update:model-value="v => { form.seoTitle = v.seoTitle ?? ''; form.seoDescription = v.seoDescription ?? ''; form.access = v.access ?? 'public' }"
+          @update:model-value="v => {
+            form.seoTitle = v.seoTitle ?? ''
+            form.seoDescription = v.seoDescription ?? ''
+            form.access = v.access ?? 'public'
+            form.canonicalUrl = v.canonicalUrl ?? ''
+            form.focusKeyword = v.focusKeyword ?? ''
+            form.metaRobots = v.metaRobots ?? ''
+          }"
         />
 
         <UCard v-if="item?.typeHasComments" class="text-sm">

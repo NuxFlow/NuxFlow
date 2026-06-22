@@ -5,6 +5,7 @@ const toast = useToast()
 
 const tabs = [
   { label: 'Global defaults', icon: 'i-lucide-globe' },
+  { label: 'AI Crawlers', icon: 'i-lucide-bot' },
   { label: 'Redirects', icon: 'i-lucide-arrow-right-left' },
 ]
 const active = ref('Global defaults')
@@ -24,6 +25,7 @@ const seo = reactive({
   canonicalUrl: '',
   ogImage: '',
   robots: 'index' as 'index' | 'noindex',
+  aiCrawlers: 'allow' as 'allow' | 'disallow',
 })
 
 watch(settingsData, (d) => {
@@ -34,6 +36,7 @@ watch(settingsData, (d) => {
   seo.canonicalUrl = (s['seo.canonical_url'] as string) ?? ''
   seo.ogImage = (s['seo.og_image'] as string) ?? ''
   seo.robots = ((s['seo.robots'] as string) ?? 'index') as 'index' | 'noindex'
+  seo.aiCrawlers = ((s['seo.ai_crawlers'] as string) ?? 'allow') as 'allow' | 'disallow'
 }, { immediate: true })
 
 const savingGlobal = ref(false)
@@ -69,6 +72,7 @@ async function saveGlobal() {
           'seo.canonical_url': seo.canonicalUrl,
           'seo.og_image': seo.ogImage,
           'seo.robots': seo.robots,
+          'seo.ai_crawlers': seo.aiCrawlers,
         },
       },
     })
@@ -237,6 +241,71 @@ const columns = [
                   Your entire site will be hidden from search engines
                 </p>
               </UFormField>
+            </div>
+            <template #footer>
+              <div class="flex justify-end">
+                <UButton :loading="savingGlobal" @click="saveGlobal">Save changes</UButton>
+              </div>
+            </template>
+          </UCard>
+        </template>
+
+        <!-- AI Crawlers -->
+        <template v-if="active === 'AI Crawlers'">
+          <UCard>
+            <template #header>
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">Generative Engine Optimization (GEO)</p>
+              <p class="text-xs text-gray-400 mt-0.5">Control whether AI assistants (ChatGPT, Claude, Perplexity, etc.) can crawl and index your site</p>
+            </template>
+            <div class="space-y-5">
+              <UFormField label="AI crawler access">
+                <USelect
+                  v-model="seo.aiCrawlers"
+                  :items="[
+                    { label: 'Allow all AI crawlers (recommended for GEO visibility)', value: 'allow' },
+                    { label: 'Block all AI crawlers', value: 'disallow' },
+                  ]"
+                  class="w-full"
+                />
+                <p v-if="seo.aiCrawlers === 'disallow'" class="mt-1.5 text-xs text-amber-500 flex items-center gap-1">
+                  <UIcon name="i-lucide-triangle-alert" class="w-3.5 h-3.5" />
+                  Your site will be excluded from AI-generated answers and recommendations
+                </p>
+              </UFormField>
+
+              <UAlert
+                icon="i-lucide-info"
+                color="blue"
+                variant="soft"
+                title="What is GEO?"
+                description="Generative Engine Optimization ensures your content appears in answers from AI assistants like ChatGPT, Claude, and Perplexity. Allowing AI crawlers is required for your site to be cited as a source."
+              />
+
+              <div class="space-y-2">
+                <p class="text-xs font-medium text-gray-700 dark:text-gray-300">Bots controlled by this setting</p>
+                <div class="grid grid-cols-2 gap-1.5">
+                  <div
+                    v-for="bot in ['GPTBot (OpenAI)', 'ChatGPT-User (OpenAI)', 'ClaudeBot (Anthropic)', 'anthropic-ai', 'PerplexityBot', 'Googlebot-Extended', 'cohere-ai', 'CCBot (Common Crawl)', 'Applebot-Extended', 'FacebookBot (Meta)']"
+                    :key="bot"
+                    class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"
+                  >
+                    <UIcon
+                      :name="seo.aiCrawlers === 'allow' ? 'i-lucide-check-circle' : 'i-lucide-x-circle'"
+                      class="w-3.5 h-3.5 shrink-0"
+                      :class="seo.aiCrawlers === 'allow' ? 'text-green-500' : 'text-red-400'"
+                    />
+                    {{ bot }}
+                  </div>
+                </div>
+              </div>
+
+              <UAlert
+                icon="i-lucide-file-text"
+                color="neutral"
+                variant="soft"
+                title="llms.txt is auto-generated"
+                description="NuxFlow automatically serves /llms.txt — a machine-readable index of your content for AI systems. No configuration needed."
+              />
             </div>
             <template #footer>
               <div class="flex justify-end">

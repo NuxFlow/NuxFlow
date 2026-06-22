@@ -52,6 +52,10 @@ export const contentItems = sqliteTable('content_items', {
   eventLocation: text('event_location'),
   eventUrl: text('event_url'),
   eventAllDay: integer('event_all_day', { mode: 'boolean' }),
+  // GEO/LLMO optimisation fields
+  canonicalUrl: text('canonical_url'),
+  focusKeyword: text('focus_keyword'),
+  metaRobots: text('meta_robots'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [

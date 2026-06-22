@@ -21,12 +21,16 @@ interface Author {
 interface PublicPage {
   id: string
   title: string
+  slug: string
   seoTitle?: string | null
   seoDescription?: string | null
   content: unknown
   excerpt?: string | null
   ogImage?: string | null
+  canonicalUrl?: string | null
+  metaRobots?: string | null
   publishedAt?: string | null
+  updatedAt?: string | null
   hasComments?: boolean | null
   author?: Author | null
 }
@@ -48,13 +52,76 @@ const { data: page, error } = await useFetch<PublicPage>(() => `/api/public/page
   },
 })
 
+// Deduped with layout's fetch — no extra request
+const { data: site } = await useFetch('/api/public/site', { headers: useRequestHeaders(['host']) })
+const canonicalBase = computed(() => (site.value as { canonicalBase?: string } | null)?.canonicalBase ?? '')
+const siteName = computed(() => (site.value as { name?: string } | null)?.name ?? '')
+
 // Clear gate state when slug changes (navigating to a different page)
 watch(slug, () => { gated.value = null })
 
+const pageTitle = computed(() => page.value?.seoTitle || page.value?.title || '')
+const pageDesc = computed(() => page.value?.seoDescription || page.value?.excerpt || '')
+const pageUrl = computed(() => {
+  if (page.value?.canonicalUrl) return page.value.canonicalUrl
+  return canonicalBase.value ? `${canonicalBase.value}/${page.value?.slug ?? slug.value}` : ''
+})
+
 useSeoMeta({
-  title: page.value?.seoTitle || page.value?.title,
-  description: page.value?.seoDescription,
-  ogImage: page.value?.ogImage ?? undefined,
+  title: pageTitle,
+  description: pageDesc,
+  robots: computed(() => page.value?.metaRobots ?? undefined),
+  ogTitle: pageTitle,
+  ogDescription: pageDesc,
+  ogImage: computed(() => page.value?.ogImage ?? undefined),
+  ogType: 'article',
+  ogUrl: pageUrl,
+  ogSiteName: siteName,
+  articlePublishedTime: computed(() => page.value?.publishedAt ?? undefined),
+  articleModifiedTime: computed(() => page.value?.updatedAt ?? undefined),
+  articleAuthor: computed(() => page.value?.author?.name ? [page.value.author.name] : undefined),
+  twitterCard: 'summary_large_image',
+  twitterTitle: pageTitle,
+  twitterDescription: pageDesc,
+  twitterImage: computed(() => page.value?.ogImage ?? undefined),
+})
+
+useHead({
+  link: computed(() => pageUrl.value ? [{ rel: 'canonical', href: pageUrl.value }] : []),
+  script: computed(() => {
+    if (!page.value) return []
+    const schemas: unknown[] = []
+    // Article schema
+    schemas.push({
+      '@context': 'https://schema.org',
+      '@type': 'Article',
+      headline: pageTitle.value,
+      description: pageDesc.value || undefined,
+      image: page.value.ogImage || undefined,
+      datePublished: page.value.publishedAt || undefined,
+      dateModified: page.value.updatedAt || page.value.publishedAt || undefined,
+      url: pageUrl.value || undefined,
+      mainEntityOfPage: pageUrl.value ? { '@type': 'WebPage', '@id': pageUrl.value } : undefined,
+      author: page.value.author
+        ? { '@type': 'Person', name: page.value.author.name }
+        : siteName.value
+          ? { '@type': 'Organization', name: siteName.value }
+          : undefined,
+      publisher: siteName.value ? { '@type': 'Organization', name: siteName.value } : undefined,
+    })
+    // BreadcrumbList
+    if (pageUrl.value) {
+      schemas.push({
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: canonicalBase.value || '/' },
+          { '@type': 'ListItem', position: 2, name: page.value.title, item: pageUrl.value },
+        ],
+      })
+    }
+    return schemas.map(s => ({ type: 'application/ld+json', innerHTML: JSON.stringify(s) }))
+  }),
 })
 
 const isCanvasPage = computed(() => {

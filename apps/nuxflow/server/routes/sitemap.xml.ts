@@ -2,6 +2,10 @@ import { useDb } from '../utils/db'
 import { contentItems, sites, siteSettings, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
+function escXml(s: string) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = event.context.siteId as string
@@ -29,7 +33,7 @@ export default defineEventHandler(async (event) => {
         eq(contentItems.status, 'published'),
         eq(contentItems.visibility, 'public'),
       ),
-      columns: { slug: true, updatedAt: true },
+      columns: { slug: true, updatedAt: true, ogImage: true },
     }),
     db
       .select({ taxSlug: taxonomies.slug, termSlug: taxonomyTerms.slug })
@@ -40,22 +44,24 @@ export default defineEventHandler(async (event) => {
 
   const contentUrls = pages.map(p => `
   <url>
-    <loc>${baseUrl}/${p.slug}</loc>
+    <loc>${baseUrl}/${escXml(p.slug)}</loc>
     <lastmod>${p.updatedAt}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    ${p.ogImage ? `<image:image><image:loc>${escXml(p.ogImage)}</image:loc></image:image>` : ''}
   </url>`).join('')
 
   const taxUrls = taxRows.map(t => `
   <url>
-    <loc>${baseUrl}/${t.taxSlug}/${t.termSlug}</loc>
+    <loc>${baseUrl}/${escXml(t.taxSlug)}/${escXml(t.termSlug)}</loc>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>`).join('')
 
   setHeader(event, 'Content-Type', 'application/xml')
   return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
     <loc>${baseUrl}/</loc>
     <changefreq>daily</changefreq>

@@ -50,6 +50,20 @@
       "when": 1781945928841,
       "tag": "0006_marvelous_argent",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1782034990576,
+      "tag": "0007_hesitant_terrax",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1782107504423,
+      "tag": "0008_useful_malice",
+      "breakpoints": true
     }
   ]
 }

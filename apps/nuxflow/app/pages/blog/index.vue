@@ -25,9 +25,34 @@ const { data } = await useFetch<PostsResponse>('/api/public/posts', {
   headers: useRequestHeaders(['host']),
 })
 
+const { data: site } = await useFetch('/api/public/site', { headers: useRequestHeaders(['host']) })
+const canonicalBase = computed(() => (site.value as { canonicalBase?: string } | null)?.canonicalBase ?? '')
+const siteName = computed(() => (site.value as { name?: string } | null)?.name ?? '')
+
 useSeoMeta({
   title: 'Blog',
   description: computed(() => data.value ? `${data.value.total} posts` : 'All posts'),
+  ogType: 'website',
+  ogTitle: computed(() => siteName.value ? `Blog — ${siteName.value}` : 'Blog'),
+  ogUrl: computed(() => canonicalBase.value ? `${canonicalBase.value}/blog` : ''),
+  twitterCard: 'summary',
+})
+
+useHead({
+  script: computed(() => {
+    if (!data.value || !canonicalBase.value) return []
+    return [{
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'CollectionPage',
+        name: 'Blog',
+        url: `${canonicalBase.value}/blog`,
+        numberOfItems: data.value.total,
+        ...(siteName.value ? { publisher: { '@type': 'Organization', name: siteName.value } } : {}),
+      }),
+    }]
+  }),
 })
 
 function goToPage(p: number) {

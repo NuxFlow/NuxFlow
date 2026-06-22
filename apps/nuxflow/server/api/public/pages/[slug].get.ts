@@ -13,7 +13,7 @@ async function checkContentAccess(event: H3Event, page: { visibility: string; se
 
   // members-only: check active subscription
   if (visibility === 'members' || visibility === 'password') {
-    const access = (page.settings as { access?: string } | null)?.access ?? (visibility === 'members' ? 'members' : 'public')
+    const access = (page.settings as { access?: string } | null)?.access ?? (visibility === 'members' || visibility === 'password' ? 'members' : 'public')
     if (access === 'public') return null
 
     const session = await getUserSession(event).catch(() => null)
@@ -132,7 +132,10 @@ export default defineEventHandler(async (event) => {
     seoTitle: page.seoTitle,
     seoDescription: page.seoDescription,
     ogImage: page.ogImage,
+    canonicalUrl: page.canonicalUrl,
+    metaRobots: page.metaRobots,
     publishedAt: page.publishedAt,
+    updatedAt: page.updatedAt,
     hasComments,
     author,
   }
