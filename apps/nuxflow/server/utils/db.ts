@@ -15,6 +15,11 @@ export function getD1(): unknown { return _d1 }
 // type. The D1 drizzle instance is runtime-compatible and cast accordingly.
 // Pass the H3Event explicitly so Cloudflare D1 binding is always accessible —
 // useEvent() does not reliably propagate event context in CF Workers utility functions.
+//
+// Future (multi-DB sharding): event.context.shardIndex (number) is the reserved field
+// for selecting which D1 binding to use. When sharding is implemented this function
+// will read that value and return drizzle(env['DB' + shardIndex], ...) for index > 0.
+// See docs/roadmap.md — "Multi-DB Sharding" for the full design.
 export function useDb(event?: H3Event): Db {
   // useEvent() throws when called outside a request context (e.g. scheduled tasks).
   // Isolate it so the globalThis.__env__ fallback is always reachable.

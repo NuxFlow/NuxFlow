@@ -49,9 +49,14 @@ export default defineNuxtConfig({
       '@opentelemetry/api': resolve(_dirname, 'server/stubs/opentelemetry-api.mjs'),
     },
     scheduledTasks: {
+      // publish-scheduled runs every minute; demo-reset seeds an empty DB on first boot
       '* * * * *': process.env.NUXT_IS_DEMO === 'true'
         ? ['publish-scheduled', 'demo-reset']
         : ['publish-scheduled'],
+      // Nightly at 3 AM UTC — prune old data; on demo instances also wipe and reseed
+      '0 3 * * *': process.env.NUXT_IS_DEMO === 'true'
+        ? ['prune-old-data', 'demo-nightly-reset']
+        : ['prune-old-data'],
     },
     serverAssets: [
       { baseName: 'migrations', dir: resolve(_dirname, '../../packages/db/migrations') },
@@ -122,6 +127,9 @@ export default defineNuxtConfig({
     paddleVendorId: '',
     paddleWebhookPublicKey: '',
     isDemo: false,
+    // Data retention — configurable via env vars; sensible defaults for most deployments
+    auditLogRetentionDays: 90,   // NUXT_AUDIT_LOG_RETENTION_DAYS
+    revisionRetentionCount: 20,  // NUXT_REVISION_RETENTION_COUNT
     public: {
       siteUrl: '',
       cloudflareImagesDeliveryUrl: '',
