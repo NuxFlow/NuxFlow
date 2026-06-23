@@ -14,6 +14,14 @@ pnpm create nuxflow-app@beta
 >
 > The `@beta` tag is required while NuxFlow is in pre-release. It will be dropped once a stable `1.0` is published.
 
+**Permission error on Linux?** If the command fails with `EACCES` or a permissions error, prefix it with `sudo`:
+
+```bash
+sudo pnpm create nuxflow-app@beta
+```
+
+> This happens when pnpm was installed as root. For a cleaner setup that doesn't require sudo, reinstall pnpm as your own user via [corepack](https://pnpm.io/installation#using-corepack) (`corepack enable pnpm`) or the standalone install script (`curl -fsSL https://get.pnpm.io/install.sh | sh -`), then open a new terminal and run the original command without sudo.
+
 After the scaffolder finishes, follow the prompts to create your D1 database and deploy. The sections below cover every step in detail if you need to configure things manually or want to contribute to NuxFlow itself.
 
 ---

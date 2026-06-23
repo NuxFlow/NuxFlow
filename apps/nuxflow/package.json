@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "nuxt dev",
-    "build": "nuxt build",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=4096 nuxt build",
     "preview": "nuxt preview",
     "typecheck": "nuxt typecheck",
     "lint": "eslint .",
@@ -60,6 +60,7 @@
   },
   "devDependencies": {
     "@nuxt/eslint": "^0.7.0",
+    "cross-env": "^7.0.3",
     "@nuxt/test-utils": "^3.14.0",
     "@playwright/test": "^1.49.0",
     "@types/node": "^22.0.0",
