@@ -162,9 +162,21 @@ Dynamic plugins require the Cloudflare Workers Paid plan. Without it the `LOADER
 
 `server/utils/email.ts` — `sendEmail(event, msg)` dispatches email through the provider configured in site settings. Supported providers: `resend`, `brevo`, `zepto`, `smtp` (relayed via MailChannels in Workers). Defaults to `console` log in dev when no provider is configured. Use `sendNotification()` from `server/utils/notify.ts` to persist an in-app notification and optionally send email in one call.
 
+### Media system
+
+**Provider abstraction** — `server/utils/media-providers/index.ts` exports `getActiveProvider(event): Promise<MediaProvider>`. It probes site settings and env vars in priority order: Cloudflare Images → S3 (`S3_BUCKET`) → Bunny (`BUNNY_API_KEY`) → local (base64 data URI fallback). The `MediaProvider` interface has `upload()`, `delete()`, and `getUrl()`. All image upload endpoints call `getActiveProvider()` rather than touching a specific storage SDK directly.
+
+**EXIF extraction** — `server/utils/exif.ts` exports `extractExif(buffer: ArrayBuffer): ExifData | null`. Pure Web APIs, zero dependencies. Reads IFD0 (Make, Model) and ExifIFD (exposure, ISO, focal length, flash, dateTimeOriginal) from JPEG APP1 segments. Returns `null` for non-JPEG files or images with no EXIF. The upload handler calls this after a successful provider upload and stores the result in `media.metadata` as `{ exif: {...} }`. Errors are swallowed so they never fail the upload.
+
+**Cloudflare Stream video uploads** — `POST /api/v1/media/video/token` calls the Cloudflare Stream `direct_upload` API and returns `{ uploadUrl, uid }`. The browser then POSTs the file directly to `upload.cloudflarestream.com` via XHR (for progress events). The authenticated TUS endpoint lacks CORS headers and cannot be used from browsers. A 402 is returned when the account has no Stream minutes allocated (CF error code 10011) — the Workers Paid plan does not include Stream storage.
+
 ### AI providers
 
 `server/utils/ai-sdk.ts` — `getAiSdkModel(event, quality)` returns an AI SDK `LanguageModel` for the provider configured in site settings (`ai.provider`). Supported providers: `openai`, `anthropic`, `gemini`, `deepseek`, `ollama`. Quality is `'fast'` (default) or `'smart'`, which selects a smaller vs larger model per provider. Returns `null` when the provider API key is missing — callers are expected to throw 503 on `null`. Use `aiErrorMessage(err)` to extract a user-friendly message from provider SDK errors.
+
+AI routes in `server/api/v1/ai/`:
+- `POST /improve` — rewrites a text field (improve / shorten / expand / simplify). Called by the canvas `FieldRenderer` inline AI menu.
+- `POST /bulk-alt-text` — queues AI-generated alt text for multiple media items. Returns a processing status; the admin media page polls until done.
 
 ### Payments and memberships
 
@@ -190,6 +202,23 @@ The public pages API returns **HTTP 402** with `{ gated: true, requiredTier, tie
 **Bundled plugins** (`packages/plugins/*`) are compiled into the Worker. Each implements `NuxFlowPlugin` from `packages/plugin-sdk/src/types.ts`, registering optional `blocks`, `adminPages`, `routes`, and `hooks`.
 
 **Dynamic plugins** are third-party Workers stored in KV and spawned on demand. The server verifies Ed25519 signatures and SHA-256 checksums on install and on every request (`server/utils/plugin-signing.ts`).
+
+### Canvas block system
+
+Block definitions live in `packages/plugins/canvas/src/blocks/definitions.ts`. The file exports a `CANVAS_BLOCKS` array (built-in blocks) plus two public functions:
+- `registerBlockDefinition(def)` — appends to a module-level `_pluginDefinitions` array. Called at app startup by `apps/nuxflow/app/plugins/nuxflow-plugin-components.ts` for each bundled plugin block.
+- `getBlockDefinition(id)` — searches `CANVAS_BLOCKS` first, then `_pluginDefinitions`.
+
+**`CanvasBlockDefinition`** (from `packages/plugins/canvas/src/types.ts`) has:
+- `fields: FieldSchema[]` — each field has `type`, `key`, `label`, and optional `condition?: (props) => boolean` to hide the field based on sibling prop values. Use `condition` for dependent controls (e.g. focal-point sliders only when `fit === 'cover'`).
+- New field types beyond the original set: `'images'` (JSON array of `{ url, alt }` objects, renders a multi-image picker) and `'spacing'` (`{ top, right, bottom, left, unit }` object).
+- `component: string` — globally-registered Vue component name resolved at render time.
+
+**`NuxLightbox`** (`packages/plugins/canvas/src/blocks/NuxLightbox.vue`) — modal image viewer. Accepts `images: { url, alt }[]` and `initialIndex`. Supports keyboard navigation (←/→/Esc) and touch. Used by both `CanvasBlockImage` (single-image lightbox toggle) and `CanvasBlockGallery` (gallery with optional lightbox).
+
+**`CanvasBlockGallery`** (`packages/plugins/canvas/src/blocks/CanvasBlockGallery.vue`) — responsive grid block with `columns` (2/3/4), `gap`, `rounded`, `lightbox`, and `padding` props. The `images` prop is a JSON string of `{ url, alt }[]`.
+
+**Registering a new block**: add its `CanvasBlockDefinition` to `CANVAS_BLOCKS` in `definitions.ts`, create its `.vue` component in `blocks/`, import and register the component globally in `nuxflow-plugin-components.ts`, and add a test case in `tests/unit/canvas-blocks.test.ts`.
 
 **CLI** (`packages/cli`) — the `nuxflow` CLI is used by third-party plugin/theme authors:
 - `nuxflow plugin create` — scaffold a new dynamic plugin
@@ -228,6 +257,7 @@ Other public routes:
 - `/search` (`app/pages/search.vue`) — FTS5 full-text search via `GET /api/v1/search`; no auth required
 - `/[taxonomySlug]/[termSlug]` — taxonomy archive with pagination; fetches `GET /api/public/taxonomy/:taxonomy/:term`
 - `/feed.xml` — RSS 2.0 feed with `<content:encoded>` full HTML for TipTap posts
+- `/sitemap-images.xml` (`server/routes/sitemap-images.xml.ts`) — Google Image sitemap extension; lists all `image/%` media for the site with `<image:title>` (altText) and `<image:caption>`. Uses `seo.canonical_url` setting as the base URL. Cached for 1 hour.
 
 `GET /api/public/pages/:slug` returns `{ ..., author: { name, image } | null, excerpt }` in addition to the base fields. The author is looked up from the `users` table via `contentItems.authorId`.
 

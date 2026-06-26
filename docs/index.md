@@ -8,6 +8,8 @@ If you are new to NuxFlow, start with these guides:
 
 - **[Installation Guide](./installation.md)**: How to set up NuxFlow locally and deploy to Cloudflare.
 - **[User Guide](./user-guide.md)**: Learn how to manage content, media, and site settings.
+- **[Photography & Portfolio Guide](./photography.md)**: Build a photography portfolio with the Gallery block, lightbox, EXIF display, focal point editor, and image sitemap.
+- **[Video & Vlogging Guide](./video.md)**: Publish video content with Cloudflare Stream (self-hosted, ad-free, membership-gateable) or embed from YouTube and Vimeo — and understand when to choose each.
 - **[External Plugin Development](./plugins.md)**: Build, deploy, and publish dynamic plugins using the NuxFlow CLI and Cloudflare Dynamic Workers.
 - **[Model Context Protocol (MCP)](./mcp.md)**: Connect AI coding assistants and agents (like Claude Desktop) to manage your site's content securely.
 - **[Roadmap](./roadmap.md)**: Planned features and the preparatory groundwork already in place for them.
@@ -22,6 +24,8 @@ If you are new to NuxFlow, start with these guides:
 - **Contact Forms**: Embeddable, spam-protected contact forms with a submission inbox.
 - **Payments & Memberships**: Subscription tiers and content gating via Stripe, Lemon Squeezy, or Paddle.
 - **Hot-Loading Plugins**: Install and activate plugins at runtime without redeploying. Dynamic plugins run as isolated Cloudflare Workers spawned on demand — bundled plugins are also supported for deeper framework integration.
+- **Photography Ready**: Responsive image Gallery block with full-screen lightbox, EXIF metadata display, live focal-point crop preview, and a dedicated Google Image Sitemap at `/sitemap-images.xml`.
+- **Video & Vlogging Ready**: Canvas Video block embeds YouTube, Vimeo, and Cloudflare Stream. Self-hosted Stream videos are ad-free, brandable, and can be gated behind membership tiers.
 - **Multi-Site**: Manage multiple sites from a single installation.
 - **AI-Powered**: Integrated writing and SEO assistance.
 

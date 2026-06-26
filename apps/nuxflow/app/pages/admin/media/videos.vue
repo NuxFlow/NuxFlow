@@ -17,6 +17,7 @@ const uploading = ref(false)
 const progress = ref(0)
 const statusText = ref('')
 const fileInput = ref<HTMLInputElement>()
+const streamError = ref<string | null>(null)
 
 // Check Stream credentials before showing upload controls
 const { data: streamStatus } = await useFetch<{ configured: boolean }>('/api/v1/media/video/configured')
@@ -73,65 +74,64 @@ async function uploadFile(file: File) {
   uploading.value = true
   progress.value = 0
   statusText.value = 'Preparing upload...'
+  streamError.value = null
 
   try {
-    // 1. Get temporary upload URL & UID from NuxFlow backend
+    // 1. Get a pre-authorised upload.cloudflarestream.com URL from the backend.
+    //    TUS cannot be used from the browser: the authenticated CF TUS endpoint has no
+    //    CORS headers, and the direct_upload URL doesn't implement TUS properly.
+    //    A plain XHR POST to the direct_upload URL is the correct approach.
     const { uploadUrl, uid } = await $fetch<{ uploadUrl: string; uid: string }>('/api/v1/media/video/token', {
       method: 'POST',
       body: { title: file.name },
     })
 
-    statusText.value = 'Connecting to Cloudflare Stream...'
+    statusText.value = 'Uploading to Cloudflare Stream...'
 
-    // 2. Dynamically import tus-js-client to prevent SSR compile warnings
-    const tus = await import('tus-js-client')
-
-    const upload = new tus.Upload(file, {
-      uploadUrl,
-      chunkSize: 50 * 1024 * 1024, // 50MB chunks
-      retryDelays: [0, 1000, 3000, 5000],
-      metadata: {
-        filename: file.name,
-        filetype: file.type,
-      },
-      onError(err) {
-        console.error('TUS upload error:', err)
-        toast.add({ title: 'Upload failed', color: 'red', description: err.message })
-        uploading.value = false
-      },
-      onProgress(bytesSent, bytesTotal) {
-        progress.value = Math.round((bytesSent / bytesTotal) * 100)
-        statusText.value = `Uploading: ${progress.value}% (${formatBytes(bytesSent)} of ${formatBytes(bytesTotal)})`
-      },
-      async onSuccess() {
-        statusText.value = 'Registering video with library...'
-        try {
-          await $fetch('/api/v1/media/video', {
-            method: 'POST',
-            body: {
-              uid,
-              title: file.name.replace(/\.[^/.]+$/, ''), // Strip extension for clean title
-              size: file.size,
-            },
-          })
-          toast.add({ title: 'Video uploaded successfully!', color: 'green', description: 'Cloudflare Stream is now processing the file.' })
-          await refresh()
-          startPoller()
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : 'Unknown error'
-          toast.add({ title: 'Registration failed', color: 'red', description: errMsg })
-        } finally {
-          uploading.value = false
-          if (fileInput.value) fileInput.value.value = ''
+    // 2. Upload via XHR so we get upload progress events.
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          progress.value = Math.round((e.loaded / e.total) * 100)
+          statusText.value = `Uploading: ${progress.value}% (${formatBytes(e.loaded)} of ${formatBytes(e.total)})`
         }
-      },
+      }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve()
+        else reject(new Error(`Upload failed (${xhr.status}): ${xhr.statusText || 'unknown error'}`))
+      }
+      xhr.onerror = () => reject(new Error('Network error during upload — check your connection and try again.'))
+      xhr.onabort = () => reject(new Error('Upload was cancelled.'))
+      xhr.open('POST', uploadUrl)
+      const form = new FormData()
+      form.append('file', file)
+      xhr.send(form)
     })
 
-    upload.start()
-  } catch (err) {
-    console.error('Upload setup failed:', err)
-    const errorMsg = err instanceof Error ? err.message : 'Verify your Cloudflare Stream settings'
-    toast.add({ title: 'Upload setup failed', color: 'red', description: errorMsg })
+    // 3. Register the video in NuxFlow and let the poller sync processing status.
+    statusText.value = 'Registering video with library...'
+    await $fetch('/api/v1/media/video', {
+      method: 'POST',
+      body: { uid, title: file.name.replace(/\.[^/.]+$/, ''), size: file.size },
+    })
+    toast.add({ title: 'Video uploaded!', color: 'green', description: 'Cloudflare Stream is now processing the file.' })
+    await refresh()
+    startPoller()
+  }
+  catch (err: unknown) {
+    console.error('Video upload failed:', err)
+    const status = (err as { status?: number })?.status
+    const errorMsg = (err as { data?: { message?: string } })?.data?.message
+      || (err instanceof Error ? err.message : 'Verify your Cloudflare Stream settings.')
+    if (status === 402) {
+      streamError.value = errorMsg
+    }
+    else {
+      toast.add({ title: 'Upload failed', color: 'red', description: errorMsg })
+    }
+  }
+  finally {
     uploading.value = false
     if (fileInput.value) fileInput.value.value = ''
   }
@@ -177,6 +177,12 @@ async function deleteVideo() {
   } finally {
     deletingDetail.value = false
   }
+}
+
+async function copyStreamUrl(streamId: string) {
+  const url = `https://iframe.videodelivery.net/${streamId}`
+  await navigator.clipboard.writeText(url)
+  toast.add({ title: 'URL copied!', description: 'Paste it into a Canvas Video block.', color: 'green' })
 }
 
 function playVideo(video: VideoAsset) {
@@ -251,6 +257,26 @@ function formatDuration(seconds: number | null) {
       <template #description>
         Video uploads are disabled until you add your Account ID and Stream API token.
         <NuxtLink to="/admin/settings" class="underline font-medium ml-1">Go to Settings → Media</NuxtLink> to set them up.
+      </template>
+    </UAlert>
+
+    <!-- Stream quota / billing error -->
+    <UAlert
+      v-if="streamError"
+      icon="i-lucide-credit-card"
+      color="red"
+      variant="soft"
+      title="Cloudflare Stream quota exceeded"
+      :description="streamError"
+    >
+      <template #description>
+        {{ streamError }}
+        <a
+          href="https://dash.cloudflare.com/?to=/:account/stream"
+          target="_blank"
+          rel="noopener"
+          class="underline font-medium ml-1"
+        >Open Cloudflare Stream dashboard →</a>
       </template>
     </UAlert>
 
@@ -425,7 +451,20 @@ function formatDuration(seconds: number | null) {
               <UIcon v-else name="i-lucide-video" class="w-8 h-8 text-gray-600" />
             </div>
             <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-              <p><span class="font-medium">Stream ID:</span> <code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{{ selectedVideo.cloudflareStreamId }}</code></p>
+              <p class="flex items-center gap-1.5">
+                <span class="font-medium shrink-0">Stream URL:</span>
+                <code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded truncate max-w-[140px]" :title="`https://iframe.videodelivery.net/${selectedVideo.cloudflareStreamId}`">
+                  {{ selectedVideo.cloudflareStreamId }}
+                </code>
+                <UButton
+                  icon="i-lucide-copy"
+                  size="xs"
+                  variant="ghost"
+                  color="neutral"
+                  title="Copy video URL for use in Canvas Video block"
+                  @click="copyStreamUrl(selectedVideo.cloudflareStreamId)"
+                />
+              </p>
               <p><span class="font-medium">Duration:</span> {{ formatDuration(selectedVideo.duration) }}</p>
               <p><span class="font-medium">Size:</span> {{ formatBytes(selectedVideo.size) }}</p>
             </div>

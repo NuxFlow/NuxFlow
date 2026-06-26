@@ -51,14 +51,16 @@ Manage all your assets in one place.
 ### Standard Media Library
 - **Upload**: Drag and drop images or documents directly into the library.
 - **Editing**: Add Alt Text and Captions to improve SEO and accessibility.
-- **Focal Point**: Set a focal point for images to ensure they crop correctly on different screen sizes.
+- **Focal Point**: Set a focal point for images to control how they are cropped. Click anywhere on the live crop preview to move the focal point; the preview instantly re-centres on that spot so you can see the exact crop before saving.
+- **EXIF Metadata**: When you upload a JPEG captured by a camera or smartphone, NuxFlow automatically extracts and displays the camera model, aperture (ƒ-number), shutter speed, ISO, focal length, and capture date from the file's embedded EXIF data. No configuration is required — the data is stored alongside the image record and shown in the media detail panel.
 
 ### Video Library (Cloudflare Stream)
-For video bloggers, NuxFlow features an integrated, high-performance video hosting interface powered by Cloudflare Stream:
-- **Direct-to-Cloudflare Uploads**: Videos are uploaded directly from your browser to Cloudflare using resumable chunked uploads (TUS protocol). This allows uploading very large video files (up to several gigabytes) without hitting edge worker CPU timeouts or server payload limits.
-- **Processing & Transcoding**: Once uploaded, videos are processed into HLS/DASH adaptive bitrate streams in the background. NuxFlow polls the state and automatically updates the video metadata once ready.
+For video bloggers and videographers, NuxFlow features an integrated, high-performance video hosting interface powered by Cloudflare Stream:
+- **Direct-to-Cloudflare Uploads**: Videos upload directly from your browser to Cloudflare via an XHR request, so very large files upload without hitting server payload limits or edge worker CPU timeouts.
+- **Processing & Transcoding**: Once uploaded, videos are processed into adaptive bitrate streams in the background. NuxFlow polls the status automatically and updates the video record once it is ready.
 - **Visual Previews**: Play your uploaded videos directly from the dashboard in a popup media player.
-- **Analytics & Metadata**: Track video details and manage titles directly from the Videos admin page.
+- **Copy URL for Canvas**: Open any video's **Manage** panel and click the copy icon next to the Stream URL to copy a ready-to-paste URL for use in a Canvas Video block.
+- **Metadata management**: Update video titles and permanently delete videos (including from Cloudflare Stream) from the Videos admin page.
 
 #### Setup (required before uploads will work)
 
@@ -74,6 +76,8 @@ Video uploads require Cloudflare Stream credentials. Configure them once in the 
 4. Paste the token into the **Stream API Token** field and click **Save**.
 
 Once saved, the Videos tab in the media library becomes active immediately. If credentials are missing, upload attempts will show an error message pointing back to this settings page.
+
+> **Cloudflare Stream vs YouTube and Vimeo**: NuxFlow supports all three as embed sources in the Canvas Video block. Use Cloudflare Stream when you want ad-free, branded playback or need to gate video behind a membership tier. Use YouTube or Vimeo for public content where platform discoverability matters — no credentials required. For a full comparison and vlogger workflow, see the **[Video & Vlogging Guide](./video.md)**.
 
 
 ---
@@ -102,6 +106,7 @@ NuxFlow bakes AI discoverability features into the routing layer — no plugins 
 - **`/atom.xml`** — an Atom 1.0 feed alongside the existing RSS 2.0 feed at `/feed.xml`. Both include author attribution and media thumbnail tags for better feed-reader and AI parser support.
 - **JSON-LD structured data** — `Article`, `BreadcrumbList`, `Organization`, and `WebSite` (with `SearchAction`) schemas are automatically injected into every public page's `<head>`. These help AI systems and search engines understand your content structure without reading the full page.
 - **`image:image` tags in sitemap.xml** — pages with a featured OG image now expose that image URL directly in the sitemap, improving image indexing.
+- **`/sitemap-images.xml`** — a dedicated Google Image Sitemap Extension that lists every image in your media library with its alt text and caption. Submit it to Google Search Console so your photos can appear in Google Images search results. The sitemap is cached for one hour and uses the canonical URL configured in **Admin → Settings → SEO**.
 
 #### AI crawler settings
 Go to **Admin → SEO → AI Crawlers** to control which AI bots can crawl your site:
@@ -297,9 +302,51 @@ To accept payments, configure at least one payment provider in **Admin → Setti
 
 Canvas is a visual drag-and-drop page builder built into NuxFlow. It adds a **Canvas** editor mode to any page or post, letting you build layouts from blocks without writing code.
 
-Available blocks include Hero sections, Text, Image, Video (supporting YouTube, Vimeo, and Cloudflare Stream), Columns, Feature grids, Testimonials, CTA banners, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), Contact Form, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
+Available blocks include Hero sections, Text, Image, **Gallery**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), Columns, Feature grids, Testimonials, CTA banners, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), Contact Form, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
+
+#### Gallery block
+
+The **Gallery** block renders a responsive image grid. Add images by pasting their URLs one at a time into the Images field in the settings panel. You can set alt text for each image individually. Configure the number of columns (2, 3, or 4), the gap between images, and whether corners are rounded.
+
+Enable **Open lightbox on click** to let visitors view images full-screen. The lightbox supports keyboard navigation (← → arrow keys, Escape to close) and shows a position counter when the gallery has more than one image.
+
+#### Image block lightbox
+
+The **Image** block also has an **Open lightbox on click** toggle. When enabled, clicking the image opens it in the same full-screen lightbox — useful for hero shots or detail images where you want to offer a closer view.
+
+#### Video block
+
+The **Video** block embeds a video player on a Canvas page. Paste a URL from YouTube, Vimeo, or Cloudflare Stream into the **Video URL** field — the block detects the source automatically and renders the correct player.
+
+| Setting | Description |
+|---|---|
+| **Video URL** | YouTube, Vimeo, or Cloudflare Stream URL. |
+| **Aspect ratio** | 16:9 (default), 4:3, 1:1, or 9:16. |
+| **Caption** | Optional text below the player. |
+| **Autoplay** | Starts playback on page load. Enable **Muted** alongside this to ensure browsers allow it. |
+
+To use a Cloudflare Stream video, go to **Admin → Media → Videos**, open the video's **Manage** panel, and click the copy icon next to the Stream URL. Then paste that URL into the Video block.
+
+> For a full vlogger and videographer walkthrough — including when to choose Cloudflare Stream over YouTube, the upload flow, and gating video behind a membership — see the **[Video & Vlogging Guide](./video.md)**.
+
+> For a full photography portfolio walkthrough — including EXIF display, focal point setup, the blog grid layout, and the image sitemap — see the **[Photography & Portfolio Guide](./photography.md)**.
 
 To use Canvas on a piece of content, open the content item and switch the editor mode to **Canvas editor** using the toggle at the top of the editor.
+
+---
+
+## Blog
+
+The public blog index is available at `/blog`. It lists all published posts with their title, excerpt, featured image, and publication date.
+
+Visitors can switch between two display layouts using the toggle in the top-right corner of the page:
+
+- **List view** — a single column with large featured images and excerpts. Good for text-heavy writing.
+- **Grid view** — a responsive card grid (1 column on mobile, 2 on tablet, 3 on desktop) where each card shows a 4:3 cropped version of the featured image. Good for photography-driven content.
+
+The chosen layout is saved to the visitor's browser and persists across page loads.
+
+> Set an **OG / Featured Image** on each post in the SEO panel of the content editor. Posts without a featured image show a placeholder in grid view.
 
 ---
 

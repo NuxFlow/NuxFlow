@@ -9,7 +9,7 @@ import type { NuxFlowBackup } from '../../../../utils/backup'
 import { writeAuditLog } from '../../../../utils/audit'
 
 const bodySchema = z.object({
-  what: z.array(z.enum(['content', 'taxonomies', 'menus', 'forms'])).default(['content', 'taxonomies', 'menus', 'forms']),
+  what: z.array(z.enum(['content', 'taxonomies', 'menus', 'forms', 'settings'])).default(['content', 'taxonomies', 'menus', 'forms', 'settings']),
   conflictMode: z.enum(['skip', 'overwrite', 'archive']).default('archive'),
 })
 

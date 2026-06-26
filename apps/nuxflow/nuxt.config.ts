@@ -50,13 +50,12 @@ export default defineNuxtConfig({
     },
     scheduledTasks: {
       // publish-scheduled runs every minute; demo-reset seeds an empty DB on first boot
-      '* * * * *': process.env.NUXT_IS_DEMO === 'true'
-        ? ['publish-scheduled', 'demo-reset']
-        : ['publish-scheduled'],
+      // demo-reset and demo-nightly-reset guard themselves via useRuntimeConfig().isDemo
+      // so they're safe to include unconditionally — NUXT_IS_DEMO is a runtime [vars]
+      // in wrangler.demo.toml and is not available during the build step.
+      '* * * * *': ['publish-scheduled', 'demo-reset'],
       // Nightly at 3 AM UTC — prune old data; on demo instances also wipe and reseed
-      '0 3 * * *': process.env.NUXT_IS_DEMO === 'true'
-        ? ['prune-old-data', 'demo-nightly-reset']
-        : ['prune-old-data'],
+      '0 3 * * *': ['prune-old-data', 'demo-nightly-reset'],
     },
     serverAssets: [
       { baseName: 'migrations', dir: resolve(_dirname, '../../packages/db/migrations') },

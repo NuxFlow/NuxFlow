@@ -2,13 +2,19 @@ import { sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { useDb } from '../utils/db'
 
-// One promise per Worker isolate — all concurrent requests share it so migrations
-// only run once. Reset to null on failure so the next cold start retries.
+// Module-level flags per Worker isolate.
+// _migrationsDone lets the common path (already migrated) skip all async overhead.
+// _migrationPromise serialises concurrent cold-start requests so only one runs D1 ops.
+// Reset both on failure so the next request retries.
+let _migrationsDone = false
 let _migrationPromise: Promise<void> | null = null
 
 export default defineEventHandler(async (event) => {
+  if (_migrationsDone) return
   if (!_migrationPromise) {
-    _migrationPromise = applyMigrations(event).catch((err) => {
+    _migrationPromise = applyMigrations(event).then(() => {
+      _migrationsDone = true
+    }).catch((err) => {
       console.error('[nuxflow:migrate]', err instanceof Error ? err.message : err)
       _migrationPromise = null
     })

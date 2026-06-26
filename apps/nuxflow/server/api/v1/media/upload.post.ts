@@ -1,6 +1,7 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { getActiveProvider } from '../../../utils/media-providers/index'
+import { extractExif } from '../../../utils/exif'
 import { media } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
@@ -22,6 +23,19 @@ export default defineEventHandler(async (event) => {
   const provider = await getActiveProvider(event)
   const { url } = await provider.upload(file, storageKey, siteId)
 
+  // Extract EXIF from JPEG/TIFF images — runs after upload so it doesn't block the response path
+  let metadata: Record<string, unknown> | undefined
+  if (file.type === 'image/jpeg' || file.type === 'image/tiff') {
+    try {
+      const buf = await file.arrayBuffer()
+      const exif = extractExif(buf)
+      if (exif) metadata = { exif }
+    }
+    catch {
+      // EXIF extraction is best-effort; never fail the upload
+    }
+  }
+
   const db = useDb(event)
   await db.insert(media).values({
     id: fileId,
@@ -34,6 +48,7 @@ export default defineEventHandler(async (event) => {
     url,
     storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
     storageKey,
+    ...(metadata ? { metadata } : {}),
   })
 
   setResponseStatus(event, 201)

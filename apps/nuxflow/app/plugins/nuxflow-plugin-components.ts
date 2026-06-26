@@ -25,6 +25,7 @@ import {
   CanvasBlockButton,
   CanvasBlockAccordion,
   CanvasBlockPricing,
+  CanvasBlockGallery,
   registerBlockDefinition,
 } from '@nuxflow/plugin-canvas'
 import type { CanvasBlockDefinition } from '@nuxflow/plugin-canvas'
@@ -128,6 +129,7 @@ export default defineNuxtPlugin((nuxtApp) => {
   registry.register('canvas-button',      { name: 'Button',      icon: 'i-lucide-square-play',       component: CanvasBlockButton })
   registry.register('canvas-accordion',   { name: 'Accordion',   icon: 'i-lucide-fold-vertical',     component: CanvasBlockAccordion })
   registry.register('canvas-pricing',     { name: 'Pricing Table', icon: 'i-lucide-credit-card',    component: CanvasBlockPricing })
+  registry.register('canvas-gallery',     { name: 'Gallery',     icon: 'i-lucide-images',            component: CanvasBlockGallery })
 
   // ── Contact Forms ─────────────────────────────────────────────────────────
   registry.register('contact-form/form', { name: 'Contact Form', icon: 'i-lucide-mail', component: ContactFormBlock })

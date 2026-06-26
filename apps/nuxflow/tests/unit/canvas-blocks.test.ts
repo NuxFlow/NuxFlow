@@ -27,6 +27,7 @@ describe('CANVAS_BLOCKS registry', () => {
     expect(ids).toContain('canvas-button')
     expect(ids).toContain('canvas-accordion')
     expect(ids).toContain('canvas-pricing')
+    expect(ids).toContain('canvas-gallery')
   })
 
   it('every block has required metadata fields', () => {

@@ -18,12 +18,13 @@ export { default as CanvasBlockFooter } from './blocks/CanvasBlockFooter.vue'
 export { default as CanvasBlockButton } from './blocks/CanvasBlockButton.vue'
 export { default as CanvasBlockAccordion } from './blocks/CanvasBlockAccordion.vue'
 export { default as CanvasBlockPricing } from './blocks/CanvasBlockPricing.vue'
+export { default as CanvasBlockGallery } from './blocks/CanvasBlockGallery.vue'
 export { default as CanvasAdmin } from './admin/CanvasAdmin.vue'
 
 export const canvasPluginManifest = {
   id: 'canvas',
   name: 'Canvas Page Builder',
-  description: 'Visual drag-and-drop page builder — Hero, Text, Image, Video, Columns, Features, Testimonial, CTA, Spacer, Button, Accordion, Pricing',
+  description: 'Visual drag-and-drop page builder — Hero, Text, Image, Gallery, Video, Columns, Features, Testimonial, CTA, Spacer, Button, Accordion, Pricing',
   version: '0.2.0',
   author: 'NuxFlow',
   icon: 'i-lucide-layout-panel-top',
@@ -50,5 +51,6 @@ export const canvasPluginManifest = {
     { id: 'canvas-button',      name: 'Button',      component: 'CanvasBlockButton' },
     { id: 'canvas-accordion',   name: 'Accordion',   component: 'CanvasBlockAccordion' },
     { id: 'canvas-pricing',     name: 'Pricing Table', component: 'CanvasBlockPricing' },
+    { id: 'canvas-gallery',     name: 'Gallery',     component: 'CanvasBlockGallery' },
   ],
 }

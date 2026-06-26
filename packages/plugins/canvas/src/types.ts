@@ -9,6 +9,7 @@ export type FieldType =
   | 'select'
   | 'toggle'
   | 'image'
+  | 'images'
   | 'url'
   | 'spacing'
 

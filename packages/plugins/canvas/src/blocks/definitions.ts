@@ -101,6 +101,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
         ],
       },
       { key: 'rounded', label: 'Rounded corners', type: 'toggle' },
+      { key: 'lightbox', label: 'Open lightbox on click', type: 'toggle' },
       { key: 'focalX', label: 'Focal point X (%)', type: 'number', min: 0, max: 100 },
       { key: 'focalY', label: 'Focal point Y (%)', type: 'number', min: 0, max: 100 },
       { key: 'padding', label: 'Padding', type: 'spacing' },
@@ -114,6 +115,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       width: 'full',
       align: 'center',
       rounded: false,
+      lightbox: false,
       padding: { top: 16, right: 24, bottom: 16, left: 24, unit: 'px' },
     },
   },
@@ -628,6 +630,42 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       plan3BtnUrl: '#',
       plan3Popular: false,
       padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
+  // ── Gallery ───────────────────────────────────────────────────────────────
+  {
+    id: 'canvas-gallery',
+    name: 'Gallery',
+    description: 'Photo grid with lightbox — perfect for portfolios and image collections',
+    icon: 'i-lucide-images',
+    category: 'media',
+    component: 'CanvasBlockGallery',
+    thumbnailColor: '#f8f9fa',
+    fields: [
+      { key: 'images', label: 'Images', type: 'images' },
+      {
+        key: 'columns',
+        label: 'Columns',
+        type: 'select',
+        options: [
+          { label: '2 columns', value: '2' },
+          { label: '3 columns', value: '3' },
+          { label: '4 columns', value: '4' },
+        ],
+      },
+      { key: 'gap', label: 'Gap (px)', type: 'number', min: 0, max: 48, step: 2 },
+      { key: 'rounded', label: 'Rounded corners', type: 'toggle' },
+      { key: 'lightbox', label: 'Open lightbox on click', type: 'toggle' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      images: '[]',
+      columns: '3',
+      gap: 6,
+      rounded: false,
+      lightbox: true,
+      padding: { top: 16, right: 24, bottom: 16, left: 24, unit: 'px' },
     },
   },
 ]

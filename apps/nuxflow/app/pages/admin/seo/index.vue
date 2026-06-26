@@ -258,6 +258,14 @@ const columns = [
               <p class="text-xs text-gray-400 mt-0.5">Control whether AI assistants (ChatGPT, Claude, Perplexity, etc.) can crawl and index your site</p>
             </template>
             <div class="space-y-5">
+              <UAlert
+                icon="i-lucide-cloud"
+                color="yellow"
+                variant="soft"
+                title="Check your Cloudflare dashboard"
+                description="Cloudflare's 'Block AI Scrapers and Crawlers' toggle (Dashboard → your domain → Security → Bots) blocks AI crawlers at the network level before they reach your site — overriding the setting below. Ensure it is turned off if you want GEO visibility."
+              />
+
               <UFormField label="AI crawler access">
                 <USelect
                   v-model="seo.aiCrawlers"

@@ -14,6 +14,38 @@ function update(val: unknown) {
   emit('update:modelValue', val)
 }
 
+// ── Multi-image list (type === 'images') ──────────────────────────────────────
+
+interface GalleryImage { url: string; alt: string }
+
+const parsedImages = computed<GalleryImage[]>(() => {
+  if (props.field.type !== 'images') return []
+  try {
+    const arr = JSON.parse((props.modelValue as string) || '[]')
+    return Array.isArray(arr) ? arr : []
+  }
+  catch {
+    return []
+  }
+})
+
+const newImageUrl = ref('')
+
+function addImage() {
+  const url = newImageUrl.value.trim()
+  if (!url) return
+  update(JSON.stringify([...parsedImages.value, { url, alt: '' }]))
+  newImageUrl.value = ''
+}
+
+function removeImage(i: number) {
+  update(JSON.stringify(parsedImages.value.filter((_, idx) => idx !== i)))
+}
+
+function updateImageAlt(i: number, alt: string) {
+  update(JSON.stringify(parsedImages.value.map((img, idx) => idx === i ? { ...img, alt } : img)))
+}
+
 const spacing = computed(() => {
   const v = props.modelValue as SpacingValue | undefined
   return v ?? { top: 0, right: 0, bottom: 0, left: 0, unit: 'px' }
@@ -254,6 +286,60 @@ function triggerAi(instruction: 'improve' | 'shorten' | 'expand' | 'simplify') {
       :src="(modelValue as string)"
       class="h-20 w-full object-cover rounded-md border border-gray-200 dark:border-gray-700"
     />
+  </div>
+
+  <!-- Multi-image list (gallery) -->
+  <div v-else-if="field.type === 'images'" class="space-y-3">
+    <div v-if="parsedImages.length" class="space-y-1.5">
+      <div
+        v-for="(img, i) in parsedImages"
+        :key="i"
+        class="flex items-center gap-2 p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+      >
+        <img
+          v-if="img.url"
+          :src="img.url"
+          alt=""
+          class="w-10 h-10 object-cover rounded shrink-0"
+        />
+        <div v-else class="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded shrink-0 flex items-center justify-center">
+          <span class="i-lucide-image w-4 h-4 text-gray-400" />
+        </div>
+        <input
+          :value="img.alt"
+          placeholder="Alt text…"
+          class="flex-1 min-w-0 px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          @input="updateImageAlt(i, ($event.target as HTMLInputElement).value)"
+        />
+        <button
+          type="button"
+          class="shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors rounded"
+          title="Remove image"
+          @click="removeImage(i)"
+        >
+          <span class="i-lucide-trash-2 w-3.5 h-3.5 block" />
+        </button>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <input
+        v-model="newImageUrl"
+        placeholder="Paste image URL…"
+        class="flex-1 px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        @keyup.enter="addImage"
+      />
+      <button
+        type="button"
+        :disabled="!newImageUrl.trim()"
+        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-500 hover:bg-primary-600 disabled:opacity-40 text-white transition-colors"
+        @click="addImage"
+      >
+        Add
+      </button>
+    </div>
+    <p v-if="!parsedImages.length" class="text-xs text-gray-400">
+      Paste an image URL above to add it to the gallery.
+    </p>
   </div>
 
   <!-- Spacing -->

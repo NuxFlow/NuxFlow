@@ -1,11 +1,16 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
+interface ExifInfo {
+  make?: string; model?: string; exposureTime?: string
+  fNumber?: number; iso?: number; dateTimeOriginal?: string; focalLength?: number
+}
 type MediaFile = {
   id: string; originalName: string; mimeType: string; size: number
   url: string; altText: string | null; caption: string | null
   folderId: string | null; width: number | null; height: number | null
   focalX: number | null; focalY: number | null
+  metadata?: { exif?: ExifInfo } | null
   createdAt: string
 }
 type Folder = { id: string; name: string; fileCount: number }
@@ -245,11 +250,16 @@ function handleImageClick(event: MouseEvent) {
   const img = previewImg.value
   if (!img) return
   const rect = img.getBoundingClientRect()
-  const x = event.clientX - rect.left
-  const y = event.clientY - rect.top
+  const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width))
+  const y = Math.max(0, Math.min(event.clientY - rect.top, rect.height))
   detailFocalX.value = Math.round((x / rect.width) * 100)
   detailFocalY.value = Math.round((y / rect.height) * 100)
 }
+
+const detailExif = computed<ExifInfo | null>(() => {
+  const meta = detail.value?.metadata
+  return (meta && typeof meta === 'object' && meta.exif) ? (meta.exif as ExifInfo) : null
+})
 
 function resetFocalPoint() {
   detailFocalX.value = null
@@ -426,24 +436,30 @@ function resetFocalPoint() {
         <div v-if="detail" class="space-y-4">
           <div class="flex gap-4">
             <!-- Preview with Focal Point Selector -->
-            <div class="relative w-48 h-48 shrink-0 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center group cursor-crosshair">
+            <div
+              class="relative w-48 h-48 shrink-0 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center group"
+              :class="isImage(detail.mimeType) ? 'cursor-crosshair' : ''"
+            >
               <img
                 v-if="isImage(detail.mimeType)"
                 ref="previewImg"
                 :src="detail.url"
                 :alt="detail.altText || detail.originalName"
-                class="max-h-full max-w-full object-contain pointer-events-auto"
+                class="w-full h-full object-cover pointer-events-auto"
+                :style="{ objectPosition: `${detailFocalX ?? 50}% ${detailFocalY ?? 50}%` }"
                 @click="handleImageClick"
               >
-              <!-- Focal point crosshair -->
+              <!-- Focal point crosshair — positioned in container, which matches object-cover coords 1:1 -->
               <div
-                v-if="detailFocalX !== null && detailFocalY !== null"
-                class="absolute w-6 h-6 border-2 border-primary-500 rounded-full flex items-center justify-center -translate-x-1/2 -translate-y-1/2 pointer-events-none shadow"
+                v-if="isImage(detail.mimeType) && detailFocalX !== null && detailFocalY !== null"
+                class="absolute w-5 h-5 border-2 border-white rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none shadow-lg ring-1 ring-primary-500"
                 :style="{ left: detailFocalX + '%', top: detailFocalY + '%' }"
               >
-                <div class="w-1.5 h-1.5 bg-primary-500 rounded-full" />
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <div class="w-1 h-1 bg-primary-500 rounded-full" />
+                </div>
               </div>
-              <UIcon v-else-if="!isImage(detail.mimeType)" name="i-lucide-file" class="w-10 h-10 text-gray-400" />
+              <UIcon v-if="!isImage(detail.mimeType)" name="i-lucide-file" class="w-10 h-10 text-gray-400" />
             </div>
             <!-- Metadata -->
             <div class="flex-1 space-y-1 text-sm min-w-0">
@@ -462,9 +478,22 @@ function resetFocalPoint() {
                 {{ copied ? 'Copied!' : 'Copy URL' }}
               </UButton>
               <div v-if="isImage(detail.mimeType)" class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2.5 py-1 rounded mt-2 border border-gray-100 dark:border-gray-800">
-                <span v-if="detailFocalX !== null && detailFocalY !== null">Focal Point: {{ detailFocalX }}%, {{ detailFocalY }}%</span>
+                <span v-if="detailFocalX !== null && detailFocalY !== null">Focal: {{ detailFocalX }}%, {{ detailFocalY }}%</span>
                 <span v-else class="italic text-gray-400">Click preview to set focal point</span>
                 <UButton v-if="detailFocalX !== null || detailFocalY !== null" size="xs" variant="ghost" color="red" icon="i-lucide-trash-2" class="h-5 p-1" @click="resetFocalPoint" />
+              </div>
+              <!-- EXIF data -->
+              <div v-if="detailExif" class="mt-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2.5 py-1.5 rounded border border-gray-100 dark:border-gray-800 space-y-0.5">
+                <p v-if="detailExif.make || detailExif.model" class="font-medium text-gray-600 dark:text-gray-300">
+                  {{ [detailExif.make, detailExif.model].filter(Boolean).join(' ') }}
+                </p>
+                <div class="flex flex-wrap gap-x-3 gap-y-0.5">
+                  <span v-if="detailExif.fNumber">ƒ/{{ detailExif.fNumber }}</span>
+                  <span v-if="detailExif.exposureTime">{{ detailExif.exposureTime }}s</span>
+                  <span v-if="detailExif.iso">ISO {{ detailExif.iso }}</span>
+                  <span v-if="detailExif.focalLength">{{ detailExif.focalLength }}mm</span>
+                </div>
+                <p v-if="detailExif.dateTimeOriginal" class="text-gray-400">{{ detailExif.dateTimeOriginal?.replace('T', ' ') }}</p>
               </div>
             </div>
           </div>
