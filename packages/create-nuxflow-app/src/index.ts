@@ -118,13 +118,13 @@ async function main() {
 
   // ── 7. Install dependencies ───────────────────────────────────────────────
   if (installDeps) {
-    s.start('Installing dependencies (this may take a minute)...')
+    p.log.step('Installing dependencies — this takes a minute on first install...')
     try {
-      execSync('pnpm install', { cwd: targetDir, stdio: 'pipe' })
-      s.stop('Dependencies installed')
+      execSync('pnpm install', { cwd: targetDir, stdio: 'inherit' })
+      p.log.success('Dependencies installed')
     }
     catch {
-      s.stop('pnpm install failed — run it manually after setup')
+      p.log.warn('pnpm install failed — run it manually after setup')
     }
   }
   else if (!pnpmAvailable) {

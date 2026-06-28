@@ -1,6 +1,6 @@
 {
   "name": "create-nuxflow-app",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Create a new NuxFlow CMS project — edge-native Nuxt 4 + Cloudflare Workers",
   "type": "module",
   "bin": {
