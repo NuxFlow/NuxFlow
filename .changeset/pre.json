@@ -10,14 +10,32 @@
     "@nuxflow/plugin-contact-form": "1.0.0",
     "@nuxflow/plugin-html-block": "1.0.0",
     "@nuxflow/plugin-payments": "1.0.0",
-    "@nuxflow/theme-default": "0.1.0"
+    "@nuxflow/theme-default": "0.1.0",
+    "create-nuxflow-app": "0.1.0"
   },
   "changesets": [
     "canvas-admin-ui-simplification",
     "feat-ai-suite",
+    "feat-argon2-security-public-layout-and-dep-upgrades",
+    "feat-atom-feed-and-llms-txt",
+    "feat-blog-search-cli-and-content-improvements",
+    "feat-canvas-editor-improvements",
+    "feat-cloudflare-media-settings-ui",
+    "feat-editorial-calendar-and-events-scaffold",
+    "feat-gallery-lightbox-exif-and-seo",
     "feat-membership-auth-pages-and-test-suite",
+    "feat-memberships-pricing-block-and-pausing",
+    "feat-nightly-prune-task",
+    "feat-push-notifications",
+    "feat-seo-fields-and-structured-data",
+    "feat-sms-scaffold",
     "feat-social-login-and-security",
+    "feat-stream-config-check",
+    "feat-stream-video-memberships-and-canvas",
+    "feat-visual-customizer-theme-system-and-content-gating",
     "fix-lint-and-kysely",
+    "fix-linux-build-heap-limit",
+    "fix-multi-domain-oauth",
     "fix-ssr-setup-onboarding",
     "security-enhancements-and-new-canvas-blocks"
   ]
