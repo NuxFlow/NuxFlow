@@ -95,7 +95,7 @@ Every feature in the admin is fully functional. The demo resets automatically at
 
 
 ### Authentication & Users
-- Email/password login with secure hashing via **Better Auth**
+- Email/password login with **Argon2id** hashing (OWASP 2024 first choice, m=19456 KiB) via a dedicated Cloudflare service binding
 - **Social login** — Google and GitHub OAuth
 - **Passkey / Passwordless login** — register and authenticate with biometrics (Touch ID, Face ID) or hardware keys via WebAuthn
 - **Role-based access control**: Super Admin, Admin, Editor, Author, Viewer, plus custom roles
@@ -245,6 +245,7 @@ For detailed information on how to install and use NuxFlow, please refer to our 
 - **[User Guide](docs/user-guide.md)** — A comprehensive manual for managing content and site settings.
 - **[Payments & Memberships Setup](docs/payments-setup.md)** — Configure Stripe, Lemon Squeezy, or Paddle; set up webhooks; gate content.
 - **[Documentation Index](docs/index.md)** — The entry point for all documentation.
+- **[Security](docs/security.md)** — Algorithms, design decisions, and infrastructure properties that protect user data.
 
 ---
 
@@ -515,6 +516,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide including branch namin
 ---
 
 ## Security
+
+NuxFlow uses **Argon2id** for password hashing (OWASP 2024 first choice), **AES-256-GCM** for sensitive settings at rest, **Ed25519** signatures for plugin code integrity, and runs on Cloudflare Workers V8 isolates with no shared memory between requests or tenants.
+
+See [docs/security.md](docs/security.md) for the full breakdown — algorithms, parameters, design rationale, and the Cloudflare edge isolation model.
 
 Found a vulnerability? Please do not open a public issue. See [SECURITY.md](SECURITY.md) for the responsible disclosure process.
 

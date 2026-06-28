@@ -36,7 +36,7 @@ async function applyMigrations(event: H3Event) {
     )
   `)
 
-  const rows = await db.values<[string][]>(
+  const rows = await db.values<[string]>(
     sql`SELECT filename FROM _nuxflow_migrations ORDER BY filename ASC`,
   )
   const applied = new Set(rows.map(r => r[0]))

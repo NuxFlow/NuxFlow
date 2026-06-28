@@ -13,9 +13,9 @@ vi.mock('../../server/utils/db', () => ({
 const PORTAL_URL = 'https://billing.stripe.com/session/test_portal_abc'
 
 vi.mock('../../server/utils/payments/stripe', () => ({
-  StripeProvider: vi.fn().mockImplementation(() => ({
-    createBillingPortalSession: vi.fn().mockResolvedValue({ url: PORTAL_URL }),
-  })),
+  StripeProvider: vi.fn().mockImplementation(function () {
+    return { createBillingPortalSession: vi.fn().mockResolvedValue({ url: PORTAL_URL }) }
+  }),
 }))
 
 const SITE = 'site-portal-01'

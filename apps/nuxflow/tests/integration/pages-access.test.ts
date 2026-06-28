@@ -40,7 +40,7 @@ beforeAll(async () => {
     slug: membersSlug,
     title: 'Members Page',
     visibility: 'members',
-    settings: JSON.stringify({ access: 'members' }),
+    settings: { access: 'members' },
   })
 
   privateSlug = 'private-page'
@@ -55,7 +55,7 @@ beforeAll(async () => {
     slug: tieredSlug,
     title: 'Tiered Page',
     visibility: 'members',
-    settings: JSON.stringify({ access: `tier:${tierId}` }),
+    settings: { access: `tier:${tierId}` },
   })
 })
 

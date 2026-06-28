@@ -26,13 +26,13 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@clack/prompts": "^0.9.0",
-    "consola": "^3.2.3",
-    "giget": "^1.2.3"
+    "@clack/prompts": "^0.9.1",
+    "consola": "^3.4.2",
+    "giget": "^1.2.5"
   },
   "devDependencies": {
-    "tsup": "^8.3.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "tsup": "^8.5.1",
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.3"
   }
 }

@@ -14,7 +14,7 @@ const bodySchema = z.object({
   timezone: z.string().optional(),
   status: z.enum(['active', 'maintenance']).optional(),
   // Site settings (key-value store)
-  settings: z.record(z.unknown()).optional(),
+  settings: z.record(z.string(), z.unknown()).optional(),
   // AI settings compatibility
   ai: z.object({
     provider: z.string().optional(),

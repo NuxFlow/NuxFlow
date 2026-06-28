@@ -48,8 +48,8 @@ describe('verifyTurnstile', () => {
 
     await verifyTurnstile('tok-abc')
     expect(capturedBody).toBeInstanceOf(FormData)
-    expect((capturedBody as FormData).get('secret')).toBe('my-key')
-    expect((capturedBody as FormData).get('response')).toBe('tok-abc')
+    expect(capturedBody!.get('secret')).toBe('my-key')
+    expect(capturedBody!.get('response')).toBe('tok-abc')
   })
 
   it('includes remoteip in FormData when IP is provided', async () => {
@@ -61,6 +61,6 @@ describe('verifyTurnstile', () => {
     }))
 
     await verifyTurnstile('tok', '10.0.0.1')
-    expect((capturedBody as FormData).get('remoteip')).toBe('10.0.0.1')
+    expect(capturedBody!.get('remoteip')).toBe('10.0.0.1')
   })
 })

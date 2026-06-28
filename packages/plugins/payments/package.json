@@ -11,13 +11,13 @@
     "./providers/paddle": "./src/providers/paddle.ts"
   },
   "dependencies": {
-    "stripe": "^17.0.0",
-    "drizzle-orm": "^0.45.2",
-    "ulid": "^2.3.0"
+    "drizzle-orm": "0.45.2",
+    "stripe": "^17.7.0",
+    "ulid": "^2.4.0"
   },
   "peerDependencies": {
-    "@nuxflow/plugin-sdk": "workspace:*",
     "@nuxflow/db": "workspace:*",
+    "@nuxflow/plugin-sdk": "workspace:*",
     "nuxt": "^4.0.0"
   }
 }

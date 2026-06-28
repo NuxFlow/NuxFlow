@@ -142,7 +142,6 @@ export async function seedTier(
     id,
     siteId,
     name: 'Pro',
-    slug: 'pro',
     price: 999,
     currency: 'USD',
     interval: 'month',

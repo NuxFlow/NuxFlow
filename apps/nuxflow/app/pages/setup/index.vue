@@ -5,7 +5,7 @@ const step = ref(1)
 const totalSteps = 5
 
 const form = reactive({
-  site: { name: '', domain: '', locale: 'en', timezone: 'UTC' },
+  site: { name: '', locale: 'en', timezone: 'UTC' },
   admin: { name: '', email: '', password: '' },
   email: { provider: 'console' as const },
   template: 'landing',
@@ -20,7 +20,6 @@ const { data: status } = await useFetch<{
 }>('/api/v1/setup/status')
 if (status.value?.site) {
   form.site.name = status.value.site.name || ''
-  form.site.domain = status.value.site.domain || ''
   form.site.locale = status.value.site.locale || 'en'
   form.site.timezone = status.value.site.timezone || 'UTC'
 }

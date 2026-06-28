@@ -4,6 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { passkey } from '@better-auth/passkey'
 import { eq, and } from 'drizzle-orm'
 import * as schema from '@nuxflow/db/schema'
+import { nuxflowPasswordHasher } from './pw'
 
 // Isolate-level auth instance cache with 5-minute TTL so newly-registered
 // custom domains start working without a redeployment.
@@ -94,6 +95,7 @@ async function buildBetterAuthInstance(event: Parameters<typeof useDb>[0]) {
     }),
     emailAndPassword: {
       enabled: true,
+      password: nuxflowPasswordHasher,
       sendResetPassword: async ({ user, url: resetUrl }) => {
         let host = 'localhost'
         try { host = new URL(resetUrl).hostname } catch { /* keep default */ }

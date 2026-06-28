@@ -6,17 +6,17 @@ import { and, eq, sql } from 'drizzle-orm'
 
 const menuItemSchema: z.ZodType<unknown> = z.lazy(() =>
   z.object({
-    id: z.string(),
+    id: z.string().optional(),
     label: z.string(),
-    type: z.enum(['page', 'url']),
+    type: z.enum(['page', 'url']).optional(),
     url: z.string().optional(),
     contentId: z.string().optional(),
     slug: z.string().optional(),
     target: z.enum(['_self', '_blank']).default('_self'),
     children: z.array(z.object({
-      id: z.string(),
+      id: z.string().optional(),
       label: z.string(),
-      type: z.enum(['page', 'url']),
+      type: z.enum(['page', 'url']).optional(),
       url: z.string().optional(),
       contentId: z.string().optional(),
       slug: z.string().optional(),

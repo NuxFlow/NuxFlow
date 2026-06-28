@@ -42,6 +42,7 @@ export default async function globalSetup() {
       throw new Error(
         `[e2e:setup] Could not reach the dev server at ${BASE_URL}.\n` +
         'Run `pnpm dev` in a separate terminal before running E2E tests.',
+        { cause: err },
       )
     }
     throw err

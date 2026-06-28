@@ -1,0 +1,10 @@
+name = "nuxflow-argon2"
+main = "src/index.ts"
+compatibility_date = "2026-04-01"
+
+# No nodejs_compat needed — pure Wasm, no Node.js APIs used.
+
+[build]
+# Copies argon2.wasm from argon2-browser into src/ before Wrangler bundles.
+# Run `pnpm install` first so argon2-browser is present in node_modules.
+command = "node scripts/copy-wasm.js"

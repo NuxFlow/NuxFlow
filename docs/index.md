@@ -13,6 +13,7 @@ If you are new to NuxFlow, start with these guides:
 - **[External Plugin Development](./plugins.md)**: Build, deploy, and publish dynamic plugins using the NuxFlow CLI and Cloudflare Dynamic Workers.
 - **[Model Context Protocol (MCP)](./mcp.md)**: Connect AI coding assistants and agents (like Claude Desktop) to manage your site's content securely.
 - **[Roadmap](./roadmap.md)**: Planned features and the preparatory groundwork already in place for them.
+- **[Security](./security.md)**: Algorithms, design decisions, and infrastructure properties that protect user data — Argon2id hashing, AES-GCM encryption, plugin code signing, and Cloudflare edge isolation.
 
 ## 🛠 Features at a Glance
 

@@ -31,8 +31,8 @@ export default defineEventHandler(async (event) => {
         columns: { id: true, status: true, setupCompleted: true, domain: true },
       })
       if (allSites.length === 1) {
-        site = allSites[0]
-        
+        site = allSites[0]!
+
         // Self-Healing Domain Migration: If this is a public domain in production,
         // automatically update the database record to match the active request host.
         // This ensures sitemaps, RSS feeds, and user invite email links heal automatically!
@@ -43,7 +43,7 @@ export default defineEventHandler(async (event) => {
         }
       } else if (allSites.length > 1 && (host === 'localhost' || host.endsWith('.workers.dev'))) {
         // Local/Preview fallback: default to the first site in D1
-        site = allSites[0]
+        site = allSites[0]!
       }
     }
   } catch {

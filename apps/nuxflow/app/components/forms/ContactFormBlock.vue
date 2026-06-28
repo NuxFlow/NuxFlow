@@ -31,8 +31,12 @@ const form = reactive({
 const loading = ref(false)
 const submitted = ref(false)
 
-const config = useRuntimeConfig()
-const hasTurnstile = computed(() => Boolean(config.public.turnstileSiteKey))
+const { data: _siteData } = useFetch('/api/public/site', {
+  key: 'nuxflow-turnstile-key',
+  headers: useRequestHeaders(['host']),
+})
+const turnstileSiteKey = computed(() => (_siteData.value as { turnstileSiteKey?: string | null } | null)?.turnstileSiteKey ?? '')
+const hasTurnstile = computed(() => Boolean(turnstileSiteKey.value))
 
 const containerStyle = computed(() => {
   const p = props.padding
@@ -105,7 +109,7 @@ async function submit() {
           <UTextarea v-model="form.message" placeholder="Your message…" :rows="5" class="w-full" required />
         </UFormField>
 
-        <NuxtTurnstile v-if="hasTurnstile" v-model="form.turnstileToken" />
+        <NuxtTurnstile v-if="hasTurnstile" v-model="form.turnstileToken" :site-key="turnstileSiteKey" />
 
         <UButton type="submit" :loading="loading" block>
           {{ submitLabel }}

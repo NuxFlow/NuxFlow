@@ -66,3 +66,10 @@ binding = "LOADER"
 binding = "DB"
 database_name = "nuxflow"
 database_id = "your-d1-database-id"
+
+# Argon2id password hasher — separate Worker accessed via service binding.
+# Deploy first: cd workers/argon2-hasher && pnpm install && pnpm run deploy
+# The service name must match the `name` field in workers/argon2-hasher/wrangler.toml.
+[[services]]
+binding = "ARGON2"
+service = "nuxflow-argon2"

@@ -25,21 +25,21 @@ const { mockConstructEvent, mockLsVerify, mockPaddleVerify } = vi.hoisted(() => 
 }))
 
 vi.mock('../../server/utils/payments/stripe', () => ({
-  StripeProvider: vi.fn().mockImplementation(() => ({
-    constructWebhookEvent: mockConstructEvent,
-  })),
+  StripeProvider: vi.fn().mockImplementation(function () {
+    return { constructWebhookEvent: mockConstructEvent }
+  }),
 }))
 
 vi.mock('../../server/utils/payments/lemonsqueezy', () => ({
-  LemonSqueezyProvider: vi.fn().mockImplementation(() => ({
-    verifyWebhook: mockLsVerify,
-  })),
+  LemonSqueezyProvider: vi.fn().mockImplementation(function () {
+    return { verifyWebhook: mockLsVerify }
+  }),
 }))
 
 vi.mock('../../server/utils/payments/paddle', () => ({
-  PaddleProvider: vi.fn().mockImplementation(() => ({
-    verifyWebhook: mockPaddleVerify,
-  })),
+  PaddleProvider: vi.fn().mockImplementation(function () {
+    return { verifyWebhook: mockPaddleVerify }
+  }),
 }))
 
 const SITE = 'site-webhooks-01'

@@ -11,6 +11,7 @@ import { and, eq } from 'drizzle-orm'
 import { sendEmailWithConfig, escapeHtml } from './utils/email'
 import { decryptText } from './utils/encryption'
 import { SENSITIVE_SETTING_KEYS } from './utils/settings'
+import { nuxflowPasswordHasher } from './utils/pw'
 
 export default defineServerAuth((ctx) => {
   const config = ctx.runtimeConfig as {
@@ -122,6 +123,7 @@ export default defineServerAuth((ctx) => {
     }),
     emailAndPassword: {
       enabled: true,
+      password: nuxflowPasswordHasher,
       sendResetPassword: async ({ user, url }) => {
         // Extract site host from the reset URL to resolve per-site email config.
         let host = 'localhost'

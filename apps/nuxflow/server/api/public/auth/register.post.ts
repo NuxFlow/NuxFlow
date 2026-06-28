@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { users, accounts, userSiteRoles } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
-import { hashPassword } from 'better-auth/crypto'
+import { nuxflowPasswordHasher } from '../../../utils/pw'
 import { useDb } from '../../../utils/db'
 import { resolveSetting } from '../../../utils/settings'
 import { ulid } from 'ulid'
@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
   // A self-referencing fetch() to Better Auth's sign-up endpoint times out on
   // Cloudflare Workers (error 522) because a Worker cannot await a subrequest to itself.
   const userId = ulid()
-  const passwordHash = await hashPassword(body.password)
+  const passwordHash = await nuxflowPasswordHasher.hash(body.password)
 
   await db.insert(users).values({
     id: userId,

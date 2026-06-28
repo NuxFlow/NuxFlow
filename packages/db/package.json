@@ -16,12 +16,12 @@
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
-    "drizzle-orm": "^0.45.2",
-    "ulid": "^2.3.0"
+    "drizzle-orm": "0.45.2",
+    "ulid": "^2.4.0"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.30.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "drizzle-kit": "^0.30.6",
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.3"
   }
 }

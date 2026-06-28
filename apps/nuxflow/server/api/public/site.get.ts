@@ -2,7 +2,7 @@ import { useDb } from '../../utils/db'
 import { sites, siteSettings } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 
-const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'appearance.favicon_url', 'appearance.logo_url', 'seo.canonical_url'] as const
+const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'appearance.favicon_url', 'appearance.logo_url', 'seo.canonical_url', 'integrations.turnstile_site_key'] as const
 
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string | null
@@ -31,5 +31,6 @@ export default defineEventHandler(async (event) => {
     faviconUrl: (kvMap['appearance.favicon_url'] as string | undefined) ?? null,
     logoUrl: (kvMap['appearance.logo_url'] as string | undefined) ?? null,
     canonicalBase,
+    turnstileSiteKey: (kvMap['integrations.turnstile_site_key'] as string | undefined) || null,
   }
 })

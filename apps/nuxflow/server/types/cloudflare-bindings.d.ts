@@ -73,11 +73,20 @@ export interface AnalyticsEngineDataset {
   writeDataPoint(event?: AnalyticsEngineDataPoint): void
 }
 
+/** Service binding to the nuxflow-argon2 Worker (workers/argon2-hasher). */
+export interface ArgonHasherBinding {
+  /** Hash a plaintext password. Returns a PHC-format Argon2id string. */
+  hash(password: string): Promise<string>
+  /** Verify a plaintext password against a stored PHC-format Argon2id hash. */
+  verify(storedHash: string, password: string): Promise<boolean>
+}
+
 export interface NuxFlowCloudflareEnv {
   PLUGIN_KV: KVNamespace
   LOADER: WorkerLoader
   DB?: D1Database
   AE?: AnalyticsEngineDataset
+  ARGON2?: ArgonHasherBinding
   [key: string]: unknown
 }
 

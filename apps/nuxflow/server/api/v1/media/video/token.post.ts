@@ -39,6 +39,12 @@ export default defineEventHandler(async (event) => {
       },
     )
 
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '')
+      console.error('Cloudflare Stream direct_upload HTTP error:', response.status, errText)
+      throw createError({ statusCode: 502, message: 'Failed to request upload token from Cloudflare Stream.' })
+    }
+
     interface CloudflareDirectUploadResponse {
       success: boolean
       errors?: Array<{ code: number; message: string }>
@@ -47,7 +53,7 @@ export default defineEventHandler(async (event) => {
 
     const data = (await response.json()) as CloudflareDirectUploadResponse
 
-    if (!response.ok || !data.success) {
+    if (!data.success) {
       const cfError = data.errors?.[0]
       console.error('Cloudflare Stream direct_upload error:', JSON.stringify(data))
 

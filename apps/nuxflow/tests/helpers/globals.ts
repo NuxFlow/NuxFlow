@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck
 /**
  * Nuxt/H3/Nitro auto-import mocks for Vitest.
  * Applied via setupFiles in vitest.integration.config.ts so every integration

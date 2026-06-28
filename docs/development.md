@@ -65,6 +65,11 @@ wrangler dev
 
 Database migrations run automatically on the first request. Visit `http://localhost:8787/setup`.
 
+> [!NOTE]
+> **Working with Production Database Dumps:**
+> NuxFlow uses **Argon2id** password hashing in production via a Cloudflare service binding, but falls back to **scrypt** in local development (`pnpm dev`) because the binding is absent.
+> If you import a production database dump locally, any attempt to log in using those production passwords will fail because the dev server cannot verify the `$argon2id$` format. You will need to manually reset the user's password in your local database using a seed script, SQLite shell, or by re-running the setup wizard.
+
 ---
 
 ## Root Scripts
@@ -381,3 +386,53 @@ Because Canvas pages are full-width, add `max-width` constraints inside your sel
 A theme zip must contain `theme.css` at the root. Optional files: `theme.json` (name, version metadata) and `demo.json` (starter content). Images referenced in `demo.json` go in an `images/` subfolder.
 
 Windows zip utilities write backslash paths (`images\photo.png`). NuxFlow normalises these automatically on upload, but using POSIX paths (`images/photo.png`) is safer across all platforms.
+
+### demo.json format
+
+`demo.json` follows the `NuxFlowBackup` schema (`server/utils/backup.ts`). The easiest way to generate one is to build your content in the admin and export it from **Admin → Settings → Export**. If you write it by hand, the top-level shape is:
+
+```json
+{
+  "version": "1",
+  "exportedAt": "2026-01-01T00:00:00Z",
+  "site": { "name": "My Theme", "locale": "en", "timezone": "UTC" },
+  "settings": {},
+  "contentTypes": [],
+  "content": [],
+  "taxonomies": [],
+  "menus": [],
+  "forms": [],
+  "media": []
+}
+```
+
+**Menu items** must include `id`, `label`, `type`, `target`, and `children` — omitting any of these causes the Save button in the menu editor to fail silently after the demo is applied:
+
+```json
+"menus": [
+  {
+    "name": "Primary Navigation",
+    "location": "header",
+    "items": [
+      {
+        "id": "nav-001",
+        "label": "Home",
+        "type": "url",
+        "url": "/",
+        "target": "_self",
+        "children": []
+      },
+      {
+        "id": "nav-002",
+        "label": "Blog",
+        "type": "page",
+        "slug": "blog",
+        "target": "_self",
+        "children": []
+      }
+    ]
+  }
+]
+```
+
+`type` must be `"url"` (for external links or absolute/relative paths) or `"page"` (for a content item looked up by `slug`). `location` can be `"header"`, `"footer"`, `"sidebar"`, or `null`.

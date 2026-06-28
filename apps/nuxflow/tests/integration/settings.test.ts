@@ -93,7 +93,7 @@ describe('saveSetting + resolveSetting', () => {
 
   it('throws 400 when saving without a siteId in context', async () => {
     const event = createMockEvent({ siteId: undefined as unknown as string }) as unknown as H3Event
-    ;(event as { context: { siteId: string | undefined } }).context.siteId = undefined
+    ;(event as unknown as { context: { siteId: string | undefined } }).context.siteId = undefined
     await expect(saveSetting(event, 'foo', 'bar')).rejects.toMatchObject({ statusCode: 400 })
   })
 })

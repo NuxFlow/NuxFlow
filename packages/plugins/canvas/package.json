@@ -15,9 +15,9 @@
   },
   "devDependencies": {
     "@nuxflow/plugin-sdk": "workspace:*",
-    "@vue/runtime-core": "^3.5.0",
-    "typescript": "^5.7.2",
-    "vue": "^3.5.0",
-    "vue-tsc": "^3.2.7"
+    "@vue/runtime-core": "^3.5.39",
+    "typescript": "^5.9.3",
+    "vue": "^3.5.39",
+    "vue-tsc": "^3.3.5"
   }
 }

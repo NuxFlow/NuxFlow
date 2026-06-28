@@ -21,7 +21,7 @@ vi.mock('../../server/utils/db', () => ({
 }))
 
 const SITE = 'site-reg-01'
-let existingUserId: string
+let existingUserId!: string
 
 beforeAll(async () => {
   await initTestDb()

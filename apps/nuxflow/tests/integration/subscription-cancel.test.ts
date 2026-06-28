@@ -19,21 +19,21 @@ const { mockStripeCancel, mockLsCancel, mockPaddleCancel } = vi.hoisted(() => ({
 }))
 
 vi.mock('../../server/utils/payments/stripe', () => ({
-  StripeProvider: vi.fn().mockImplementation(() => ({
-    cancelSubscription: mockStripeCancel,
-  })),
+  StripeProvider: vi.fn().mockImplementation(function () {
+    return { cancelSubscription: mockStripeCancel }
+  }),
 }))
 
 vi.mock('../../server/utils/payments/lemonsqueezy', () => ({
-  LemonSqueezyProvider: vi.fn().mockImplementation(() => ({
-    cancelSubscription: mockLsCancel,
-  })),
+  LemonSqueezyProvider: vi.fn().mockImplementation(function () {
+    return { cancelSubscription: mockLsCancel }
+  }),
 }))
 
 vi.mock('../../server/utils/payments/paddle', () => ({
-  PaddleProvider: vi.fn().mockImplementation(() => ({
-    cancelSubscription: mockPaddleCancel,
-  })),
+  PaddleProvider: vi.fn().mockImplementation(function () {
+    return { cancelSubscription: mockPaddleCancel }
+  }),
 }))
 
 const SITE = 'site-cancel-01'

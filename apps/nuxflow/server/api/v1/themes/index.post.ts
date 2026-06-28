@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
 
   let name = ''
   let version = '1.0.0'
-  let css = ''
+  let css: string
   let demoJson: string | null = null
 
   if (isMultipart) {

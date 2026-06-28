@@ -8,7 +8,7 @@ import { ulid } from 'ulid'
 
 const bodySchema = z.object({
   turnstileToken: z.string().optional(),
-  data: z.record(z.unknown()),
+  data: z.record(z.string(), z.unknown()),
 })
 
 export default defineEventHandler(async (event) => {

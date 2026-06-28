@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Fetch the image bytes and save to the media library
-  let finalUrl = imageUrl
+  let finalUrl: string
   let mediaId: string | undefined
 
   try {

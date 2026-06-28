@@ -4,12 +4,11 @@ import { useDb } from '../../../utils/db'
 import { sites, users, accounts, userSiteRoles, contentTypes, contentItems, taxonomies, siteSettings } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { count, eq, and } from 'drizzle-orm'
-import { hashPassword } from 'better-auth/crypto'
+import { nuxflowPasswordHasher } from '../../../utils/pw'
 
 const bodySchema = z.object({
   site: z.object({
     name: z.string().min(1).max(100),
-    domain: z.string().min(1),
     locale: z.string().default('en'),
     timezone: z.string().default('UTC'),
   }),
@@ -53,28 +52,21 @@ async function _handleSetup(event: H3Event) {
 
   if (isInitialSetup) {
     siteId = ulid()
-    // Create site
     await db.insert(sites).values({
       id: siteId,
       name: body.site.name,
-      domain: body.site.domain,
+      domain: host,
       locale: body.site.locale,
       timezone: body.site.timezone,
       status: 'active',
       setupCompleted: true,
     })
   } else {
-    // We are setting up a pre-created site!
-    // Let's find it by the current host/domain, or the body domain as fallback
-    let site = await db.query.sites.findFirst({
+    // Pre-created secondary site — find by the request host (the domain was set when super
+    // admin created the site record, not from the setup form).
+    const site = await db.query.sites.findFirst({
       where: eq(sites.domain, host),
     })
-
-    if (!site) {
-      site = await db.query.sites.findFirst({
-        where: eq(sites.domain, body.site.domain),
-      })
-    }
 
     if (!site) {
       throw createError({ statusCode: 404, message: `Site for domain ${host} not found.` })
@@ -130,7 +122,7 @@ async function _handleSetup(event: H3Event) {
 
     // Create admin user directly
     adminUserId = ulid()
-    const passwordHash = await hashPassword(body.admin.password)
+    const passwordHash = await nuxflowPasswordHasher.hash(body.admin.password)
 
     await db.insert(users).values({
       id: adminUserId,
@@ -181,7 +173,7 @@ async function _handleSetup(event: H3Event) {
   const sp = { top: 80, right: 24, bottom: 80, left: 24, unit: 'px' as const }
   const fp = { top: 64, right: 24, bottom: 64, left: 24, unit: 'px' as const }
 
-  let blocks: Record<string, unknown>[] = []
+  let blocks: Record<string, unknown>[]
 
   if (body.template === 'landing') {
     blocks = [

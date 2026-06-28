@@ -13,8 +13,10 @@ import { ok, created, noContent, notFound, unauthorized, forbidden, conflict, va
   ;(event as { _status?: number })._status = status
 }
 
-function mkEvent() {
-  return { _status: undefined as number | undefined } as unknown as H3Event
+type MockEvent = H3Event & { _status: number | undefined }
+
+function mkEvent(): MockEvent {
+  return { _status: undefined } as unknown as MockEvent
 }
 
 describe('ok', () => {

@@ -19,7 +19,7 @@ const bodySchema = z.object({
   focusKeyword: z.string().max(200).nullish(),
   metaRobots: z.enum(['index,follow', 'noindex,follow', 'noindex,nofollow', 'index,nofollow']).nullish(),
   scheduledAt: z.string().datetime().nullish(),
-  settings: z.record(z.unknown()).optional(),
+  settings: z.record(z.string(), z.unknown()).optional(),
   excerpt: z.string().max(2000).nullish(),
   ogImage: z.string().max(2048).nullish(),
   allowComments: z.boolean().nullable().optional(),

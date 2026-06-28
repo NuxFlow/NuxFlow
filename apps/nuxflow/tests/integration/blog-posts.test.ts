@@ -76,7 +76,7 @@ describe('GET /api/public/posts', () => {
     const result = await (handler as HandlerFn)(mkEvent()) as PostsResponse
     const dates = result.posts.map(p => new Date(p.publishedAt!).getTime())
     for (let i = 1; i < dates.length; i++) {
-      expect(dates[i]).toBeLessThanOrEqual(dates[i - 1])
+      expect(dates[i]!).toBeLessThanOrEqual(dates[i - 1]!)
     }
   })
 

@@ -21,9 +21,9 @@ export default defineNuxtConfig({
   modules: [
     '@nuxt/ui-pro',
     '@nuxtjs/i18n',
+    '@nuxtjs/turnstile',
     '@onmax/nuxt-better-auth',
     '@pinia/nuxt',
-    'motion-v/nuxt',
     'nuxt-seo-utils',
   ],
 
@@ -78,11 +78,9 @@ export default defineNuxtConfig({
   },
 
   i18n: {
-    restructureDir: false,
     defaultLocale: 'en',
     locales: [{ code: 'en', file: 'en.json', name: 'English' }],
-    lazy: true,
-    langDir: 'locales/',
+    langDir: resolve(_dirname, 'app/locales'),
     strategy: 'no_prefix',
   },
 
@@ -132,7 +130,6 @@ export default defineNuxtConfig({
     public: {
       siteUrl: '',
       cloudflareImagesDeliveryUrl: '',
-      turnstileSiteKey: '',
     },
   },
 

@@ -86,7 +86,7 @@ describe('GET /api/public/site', () => {
 
   it('throws 404 when siteId is missing from context', async () => {
     const event = createMockEvent({ siteId: undefined as unknown as string }) as unknown as H3Event
-    ;(event as { context: { siteId: string | null } }).context.siteId = null
+    ;(event as unknown as { context: { siteId: string | null } }).context.siteId = null
     await expect((handler as HandlerFn)(event)).rejects.toMatchObject({ statusCode: 404 })
   })
 

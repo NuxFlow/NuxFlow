@@ -27,7 +27,7 @@ const blockTypeEnum = z.enum([
 
 const generatedBlockSchema = z.object({
   type: blockTypeEnum,
-  props: z.record(z.unknown()),
+  props: z.record(z.string(), z.unknown()),
 })
 
 const responseSchema = z.object({
@@ -115,7 +115,7 @@ export default defineEventHandler(async (event) => {
 
   const prompt = `Generate a ${pageGoal} page for: "${description}". Tone: ${tone}.`
 
-  let object: typeof responseSchema._type
+  let object: z.infer<typeof responseSchema>
   try {
     const result = await generateObject({
       model,

@@ -13,6 +13,13 @@ const error = ref('')
 const submitting = ref(false)
 const turnstileToken = ref('')
 
+const { data: _siteData } = useFetch('/api/public/site', {
+  key: 'nuxflow-turnstile-key',
+  headers: useRequestHeaders(['host']),
+})
+const turnstileSiteKey = computed(() => (_siteData.value as { turnstileSiteKey?: string | null } | null)?.turnstileSiteKey ?? '')
+const hasTurnstile = computed(() => Boolean(turnstileSiteKey.value))
+
 // Identifiers that must never appear in formulas regardless of field names,
 // preventing prototype chain access, global leakage, or eval escapes.
 const FORBIDDEN_IDENTIFIERS = new Set([
@@ -124,6 +131,8 @@ async function submit() {
       </template>
 
       <UAlert v-if="error" color="red" variant="soft" :description="error" />
+
+      <NuxtTurnstile v-if="hasTurnstile" v-model="turnstileToken" :site-key="turnstileSiteKey" />
 
       <UButton type="submit" :loading="submitting" block>Submit</UButton>
     </form>

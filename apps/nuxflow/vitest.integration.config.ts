@@ -14,7 +14,7 @@ export default defineConfig({
     environment: 'node',
     // Sequential execution prevents port / temp-file conflicts between suites
     pool: 'forks',
-    poolOptions: { forks: { singleFork: true } },
+    maxWorkers: 1,
     include: ['tests/integration/**/*.test.ts'],
     setupFiles: ['tests/helpers/globals.ts'],
     testTimeout: 30_000,

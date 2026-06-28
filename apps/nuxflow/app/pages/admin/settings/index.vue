@@ -168,7 +168,7 @@ async function sendTestEmail() {
 }
 
 // ── Integrations ─────────────────────────────────────────────────────────────
-const integrations = reactive({ turnstileSiteKey: '', analyticsId: '' })
+const integrations = reactive({ turnstileSiteKey: '' })
 
 const payments = reactive({
   signupsDisabled: false,
@@ -302,7 +302,6 @@ watch(data, (d) => {
   email.smtpPass = (s['email.smtp_pass'] as string) ?? ''
   if (!emailTestAddress.value) emailTestAddress.value = (currentUser.value as { email?: string })?.email ?? ''
   integrations.turnstileSiteKey = (s['integrations.turnstile_site_key'] as string) ?? ''
-  integrations.analyticsId = (s['integrations.analytics_id'] as string) ?? ''
   appearance.showHeader = (s['frontend.show_header'] as boolean | undefined) !== false
   appearance.showColorToggle = (s['frontend.show_color_toggle'] as boolean | undefined) !== false
   appearance.faviconUrl = (s['appearance.favicon_url'] as string) ?? ''
@@ -356,7 +355,6 @@ async function save() {
       'email.smtp_user': email.smtpUser,
       'email.smtp_pass': email.smtpPass,
       'integrations.turnstile_site_key': integrations.turnstileSiteKey,
-      'integrations.analytics_id': integrations.analyticsId,
       'frontend.show_header': appearance.showHeader,
       'frontend.show_color_toggle': appearance.showColorToggle,
       'appearance.favicon_url': appearance.faviconUrl || null,
@@ -995,21 +993,13 @@ async function deleteSite() {
                 Secret key must be set via <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">CLOUDFLARE_TURNSTILE_SECRET_KEY</code> environment variable.
               </p>
             </div>
-          </UCard>
-
-          <UCard>
-            <template #header><p class="text-sm font-semibold text-gray-900 dark:text-white">Analytics</p></template>
-            <div class="space-y-4">
-              <UFormField label="Google Analytics measurement ID" hint="e.g. G-XXXXXXXXXX">
-                <UInput v-model="integrations.analyticsId" placeholder="G-XXXXXXXXXX" />
-              </UFormField>
-            </div>
             <template #footer>
               <div class="flex justify-end">
                 <UButton :loading="saving" @click="save">Save changes</UButton>
               </div>
             </template>
           </UCard>
+
         </template>
 
         <!-- AI Settings -->

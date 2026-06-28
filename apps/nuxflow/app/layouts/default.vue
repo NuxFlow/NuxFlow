@@ -57,11 +57,15 @@ useHead({
 </script>
 
 <template>
-  <div class="mesh-bg min-h-screen">
+  <div class="mesh-bg min-h-screen flex flex-col">
     <PublicSiteHeader />
-    <main>
-      <slot />
-    </main>
+    <div class="flex flex-1">
+      <main class="flex-1 min-w-0">
+        <slot />
+      </main>
+      <PublicSiteSidebar />
+    </div>
+    <PublicSiteFooter />
     <ClientOnly><PublicCookieConsent /></ClientOnly>
     <ClientOnly><PublicPushNotificationBanner /></ClientOnly>
   </div>

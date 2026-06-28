@@ -12,18 +12,22 @@ vi.mock('../../server/utils/db', () => ({
 }))
 
 vi.mock('../../server/utils/payments/stripe', () => ({
-  StripeProvider: vi.fn().mockImplementation(() => ({
-    createProduct: vi.fn().mockResolvedValue({ id: 'prod_mock123' }),
-    createPrice: vi.fn().mockResolvedValue({ id: 'price_mock123' }),
-    updateProduct: vi.fn().mockResolvedValue({}),
-  })),
+  StripeProvider: vi.fn().mockImplementation(function () {
+    return {
+      createProduct: vi.fn().mockResolvedValue({ id: 'prod_mock123' }),
+      createPrice: vi.fn().mockResolvedValue({ id: 'price_mock123' }),
+      updateProduct: vi.fn().mockResolvedValue({}),
+    }
+  }),
 }))
 
 vi.mock('../../server/utils/payments/lemonsqueezy', () => ({
-  LemonSqueezyProvider: vi.fn().mockImplementation(() => ({
-    createProduct: vi.fn().mockResolvedValue({ data: { id: 'ls_prod_mock123' } }),
-    createVariant: vi.fn().mockResolvedValue({ data: { id: 'ls_var_mock123' } }),
-  })),
+  LemonSqueezyProvider: vi.fn().mockImplementation(function () {
+    return {
+      createProduct: vi.fn().mockResolvedValue({ data: { id: 'ls_prod_mock123' } }),
+      createVariant: vi.fn().mockResolvedValue({ data: { id: 'ls_var_mock123' } }),
+    }
+  }),
 }))
 
 const SITE = 'site-tiers-01'

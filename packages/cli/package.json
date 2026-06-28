@@ -15,15 +15,15 @@
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@clack/prompts": "^0.9.0",
+    "@clack/prompts": "^0.9.1",
     "citty": "^0.1.6",
-    "consola": "^3.2.3",
-    "esbuild": "^0.25.0",
-    "fs-extra": "^11.2.0"
+    "consola": "^3.4.2",
+    "esbuild": "^0.25.12",
+    "fs-extra": "^11.3.5"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
-    "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.3"
   }
 }

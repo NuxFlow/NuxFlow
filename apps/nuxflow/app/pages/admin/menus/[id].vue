@@ -42,16 +42,35 @@ const locationModel = computed({
 })
 const items = ref<MenuItem[]>([])
 
-let seeded = false
+function normalizeItem(raw: Record<string, unknown>): MenuItem {
+  const id = String(raw.id ?? (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)))
+  const type: 'page' | 'url' = raw.type === 'page' ? 'page' : (raw.url ? 'url' : 'page')
+  const children = ((raw.children as Record<string, unknown>[]) ?? []).map(c => ({
+    id: String(c.id ?? (Date.now().toString(36) + Math.random().toString(36).slice(2, 6))),
+    label: String(c.label ?? ''),
+    type: (c.type === 'page' ? 'page' : (c.url ? 'url' : 'page')) as 'page' | 'url',
+    url: c.url as string | undefined,
+    contentId: c.contentId as string | undefined,
+    slug: c.slug as string | undefined,
+    target: (c.target === '_blank' ? '_blank' : '_self') as '_self' | '_blank',
+  }))
+  return {
+    id,
+    label: String(raw.label ?? ''),
+    type,
+    url: raw.url as string | undefined,
+    contentId: raw.contentId as string | undefined,
+    slug: raw.slug as string | undefined,
+    target: (raw.target === '_blank' ? '_blank' : '_self') as '_self' | '_blank',
+    children,
+  }
+}
+
 watch(menuData, (val) => {
-  if (!val || seeded) return
-  seeded = true
+  if (!val) return
   name.value = val.name
   location.value = val.location as 'header' | 'footer' | 'sidebar' | null
-  items.value = (val.items as MenuItem[]).map(item => ({
-    ...item,
-    children: item.children ?? [],
-  }))
+  items.value = (val.items as Record<string, unknown>[]).map(normalizeItem)
 }, { immediate: true })
 
 // ── Content picker ────────────────────────────────────────────────────────────
@@ -142,6 +161,7 @@ async function save() {
       method: 'PATCH',
       body: { name: name.value, location: location.value, items: items.value },
     })
+    await refresh()
     toast.add({ title: 'Menu saved', color: 'green' })
   } catch {
     toast.add({ title: 'Failed to save', color: 'red' })

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const props = defineProps<{
-  modelValue: { name: string; domain: string; locale: string; timezone: string }
+  modelValue: { name: string; locale: string; timezone: string }
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: typeof props.modelValue]
@@ -9,12 +9,6 @@ const emit = defineEmits<{
 
 const local = reactive({ ...props.modelValue })
 watch(local, (v) => emit('update:modelValue', { ...v }))
-
-function autoFillDomain() {
-  if (!local.domain && local.name) {
-    local.domain = window.location.hostname
-  }
-}
 
 const timezones = [
   { label: 'UTC', value: 'UTC' },
@@ -64,11 +58,7 @@ const timezones = [
     </div>
 
     <UFormField label="Site name" required>
-      <UInput v-model="local.name" placeholder="My Awesome Site" @blur="autoFillDomain" />
-    </UFormField>
-
-    <UFormField label="Domain" required hint="The primary domain this site runs on">
-      <UInput v-model="local.domain" placeholder="example.com" />
+      <UInput v-model="local.name" placeholder="My Awesome Site" />
     </UFormField>
 
     <div class="grid grid-cols-2 gap-4">
@@ -82,7 +72,7 @@ const timezones = [
 
     <div class="flex justify-end pt-2">
       <UButton
-        :disabled="!local.name || !local.domain"
+        :disabled="!local.name"
         @click="emit('next')"
       >
         Continue

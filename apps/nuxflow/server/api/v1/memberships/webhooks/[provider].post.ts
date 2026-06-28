@@ -107,7 +107,7 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
     }
     case 'customer.subscription.created':
     case 'customer.subscription.updated': {
-      const sub = stripeEvent.data.object as {
+      const sub = stripeEvent.data.object as unknown as {
         id: string; customer: string; status: string
         items: { data: Array<{ price: { id: string } }> }
         current_period_start: number; current_period_end: number
