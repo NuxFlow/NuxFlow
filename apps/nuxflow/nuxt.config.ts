@@ -49,17 +49,13 @@ export default defineNuxtConfig({
       '@opentelemetry/api': resolve(_dirname, 'server/stubs/opentelemetry-api.mjs'),
     },
     scheduledTasks: {
-      // publish-scheduled runs every minute on every deployment.
-      // demo-reset / demo-nightly-reset seed and nightly-wipe the demo DB — they're only
-      // registered when building via `pnpm run build:demo` (wrangler.demo.toml), so
-      // production/self-hosted builds never schedule or bundle this demo-only logic.
-      '* * * * *': process.env.NUXT_IS_DEMO_BUILD === 'true'
-        ? ['publish-scheduled', 'demo-reset']
-        : ['publish-scheduled'],
-      // Nightly at 3 AM UTC — prune old data everywhere; demo instances also wipe and reseed.
-      '0 3 * * *': process.env.NUXT_IS_DEMO_BUILD === 'true'
-        ? ['prune-old-data', 'demo-nightly-reset']
-        : ['prune-old-data'],
+      // publish-scheduled runs every minute; demo-reset seeds an empty DB on first boot.
+      // demo-reset and demo-nightly-reset guard themselves via isDemoInstance() so they
+      // are safe to include unconditionally — NUXT_IS_DEMO is a runtime [vars] entry in
+      // wrangler.demo.toml and is NOT available as process.env during the build step.
+      '* * * * *': ['publish-scheduled', 'demo-reset'],
+      // Nightly at 3 AM UTC — prune old data; demo instances also wipe and reseed.
+      '0 3 * * *': ['prune-old-data', 'demo-nightly-reset'],
     },
     serverAssets: [
       { baseName: 'migrations', dir: resolve(_dirname, '../../packages/db/migrations') },

@@ -77,6 +77,15 @@ async function applyMigrations(event: H3Event) {
   }
 
   if (count > 0) console.warn(`[nuxflow:migrate] Applied ${count} migration(s)`)
+
+  // For demo instances: seed on cold start so the site is immediately usable
+  // without waiting up to 60 s for the first cron tick.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isDemo = useRuntimeConfig().isDemo === true || (globalThis as any).__env__?.NUXT_IS_DEMO === 'true'
+  if (isDemo) {
+    const { demoFirstBoot } = await import('../scheduled/demo-reset')
+    await demoFirstBoot()
+  }
 }
 
 async function tableExists(db: ReturnType<typeof useDb>, table: string): Promise<boolean> {
