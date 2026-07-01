@@ -33,14 +33,14 @@ export default {
 //   2. Never \`import from '@nuxflow/*'\` — use the registry/app args instead.
 //   3. All third-party deps must be bundled (esbuild does this automatically).
 
-// ── Inline types (do not import from @nuxflow/plugin-canvas) ─────────────────
+// ── Inline types (do not import from @nuxflow/canvas) ────────────────────────
 // Copy and extend these interfaces in your own plugin.
 
 type FieldType = 'text' | 'textarea' | 'number' | 'color' | 'select' | 'toggle' | 'image' | 'url' | 'spacing'
 
 interface BlockDefinition {
   id: string; name: string; description?: string; icon: string
-  category: 'layout' | 'content' | 'media' | 'cta' | 'plugin'
+  category: 'layout' | 'content' | 'media' | 'cta' | 'forms' | 'advanced' | 'commerce'
   thumbnailColor?: string
   fields: Array<{
     key: string; label: string; type: FieldType
@@ -77,7 +77,7 @@ const EXAMPLE_BLOCK: BlockDefinition = {
   name: 'Example Block',
   description: 'Starter block from the ${name} plugin.',
   icon: 'i-lucide-box',
-  category: 'plugin',
+  category: 'advanced',
   thumbnailColor: '#f0fdf4',
   fields: [
     { key: 'headline', label: 'Headline',         type: 'text',     placeholder: 'Hello from ${name}' },

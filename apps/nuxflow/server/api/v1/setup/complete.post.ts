@@ -168,6 +168,17 @@ async function _handleSetup(event: H3Event) {
       hasRevisions: true,
       hasComments: true,
     },
+    {
+      id: ulid(),
+      siteId,
+      slug: 'event',
+      name: 'Events',
+      singularName: 'Event',
+      icon: 'i-lucide-calendar',
+      isBuiltIn: true,
+      hasRevisions: true,
+      hasComments: true,
+    },
   ])
 
   const sp = { top: 80, right: 24, bottom: 80, left: 24, unit: 'px' as const }

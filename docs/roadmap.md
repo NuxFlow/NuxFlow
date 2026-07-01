@@ -91,7 +91,7 @@ Multi-page site generation takes 30–60 seconds and involves multiple AI calls.
 
 **Canvas block definitions already typed for AI prompts**
 
-`CANVAS_BLOCKS` in `packages/plugins/canvas/src/blocks/definitions.ts` is a fully-typed `CanvasBlockDefinition[]` array describing every built-in block: its `id`, `name`, `description`, field keys, field types, enum options, and default props. This is exactly what an AI system prompt needs to generate valid block JSON — no separate schema document to maintain.
+`CANVAS_BLOCKS` in `packages/canvas/src/blocks/definitions.ts` is a fully-typed `CanvasBlockDefinition[]` array describing every built-in block: its `id`, `name`, `description`, field keys, field types, enum options, and default props. This is exactly what an AI system prompt needs to generate valid block JSON — no separate schema document to maintain.
 
 **Content stored as JSON (always the case)**
 
@@ -181,196 +181,64 @@ Then deploy. Page views start recording immediately. No code changes, no migrati
 
 ---
 
-## Multilingual Content (Translations)
+## [COMPLETED] Multilingual Content (Translations)
 
-### Vision
+### Status: Fully Implemented & Shipped
 
-Content editors can produce any content item (blog post, page, canvas page) in multiple languages. The AI does the heavy lifting — a single button click in the editor sends the entire piece to the configured AI provider, which returns a fully translated copy including the title, body, SEO fields, excerpt, and canvas block text. Translated content is saved as a separate draft for review before publishing.
+Content editors can translate any content item (blog posts, standard pages, or visual Canvas block pages) into multiple languages with a single click. The serving, management, and routing infrastructure are fully active.
 
-On the public-facing site, visitors are served the correct language version based on a URL convention (e.g. `/es/mi-articulo`) or a query parameter, with automatic fallback to the default-language version if a translation doesn't yet exist for the requested locale.
+### Implementation Details
 
-### Why this is valuable
+#### 1. Dynamic Path-Prefixed serving with Fallback
+The public pages API (`GET /api/public/pages/[slug]`) automatically parses locale path prefixes (e.g., `/es/my-page` resolves to `locale = 'es'` and `slug = 'my-page'`).
+- **Graceful Fallback:** If a translation doesn't exist for the requested locale, it gracefully degrades to serving the original master language page.
+- **Translation Linkages:** Alternate locales are returned in the `availableLocales` metadata array.
 
-- **No third-party i18n service needed**: The existing AI provider abstraction (`getAiSdkModel`) already supports five providers. Translation costs are absorbed into the AI plan the site owner already has configured.
-- **Both content types covered**: The translation engine handles both TipTap rich-text documents (recursive node traversal) and Canvas block pages (per-prop extraction from known block fields) without any extra configuration per block type.
-- **Human-review workflow baked in**: Translations are always created as drafts. The editor navigates to the new draft and publishes when satisfied, preventing AI hallucinations from going live unreviewed.
-- **Idempotent**: Running the translator again for the same locale updates the existing translation rather than creating a duplicate.
+#### 2. Public Header Language Switcher
+- A visual dropdown globe selector is integrated into the public header navigation. It reads the shared `active-locales` Nuxt state and lists all available translations for the active page, allowing visitors to switch languages seamlessly.
 
-### Groundwork already in place
+#### 3. Administrative Panel Management
+- **Status Badges:** The Content index page (`/admin/content`) displays language badges (e.g., `EN`, `ES`, `FR`) next to each title.
+- **Language Filter:** A dropdown filter is added to the header so administrators can isolate content items of a specific language.
+- **Sidebar Integration:** Extended POST/PATCH schemas allow manual updates of locale values and source linkages.
 
-#### Database schema (fully in place)
-
-Two columns were added to `content_items` specifically for this feature:
-
-| Column         | Type                            | Purpose                                                       |
-| -------------- | ------------------------------- | ------------------------------------------------------------- |
-| `locale`       | `text`, default `'en'`          | Language code of this item (e.g. `'es'`, `'fr'`, `'zh-CN'`)   |
-| `sourceItemId` | `text`, FK → `content_items.id` | Points to the original-language item this was translated from |
-
-Both are indexed for efficient querying:
-
-- `idx_content_items_locale` on `(site_id, locale)` — list all content in a given language
-- `idx_content_items_source` on `(source_item_id)` — find all translations of a given item
-
-The `sites` table also has a `locale` column (default `'en'`) that records the site's primary language.
-
-#### AI translation engine (`POST /api/v1/ai/translate`)
-
-The server-side translation route is complete and production-ready:
-
-- **TipTap extraction**: Recursively walks the ProseMirror JSON tree, collects every text leaf, bundles them into a single AI call (to minimise token overhead and keep context coherent), then maps the translated strings back onto the same node positions.
-- **Canvas extraction**: Reads a known set of translatable props from each block — `title`, `subtitle`, `description`, `headline`, `quote`, `ctaLabel`, `authorName`, `caption`, and others — translates them as a batch, and writes them back to the same block positions.
-- **Metadata fields**: `title`, `seoTitle`, `seoDescription`, and `excerpt` are all translated in the same AI call.
-- **Slug handling**: The translated item receives a slug of `{originalSlug}-{locale}` by default (e.g. `my-post-es`), avoiding collisions with the source item.
-- **Update-or-create**: If a `content_items` row already exists with the matching `sourceItemId` + `locale`, the route updates it instead of creating a duplicate.
-- **Rate limiting**: Five translations per user per 60 seconds, enforced by the standard `rateLimit()` utility.
-- **Audit log**: Every translation (create or update) writes an audit log entry.
-
-#### Editor UI (fully in place)
-
-- A **Translate** button with a language icon lives in the content editor toolbar (visible only when editing an existing item, not for unsaved new items).
-- Clicking it opens `TranslateModal.vue`, which offers a dropdown of 15 pre-configured locales: Spanish, French, German, Italian, Portuguese, Dutch, Polish, Japanese, Simplified Chinese, Traditional Chinese, Korean, Arabic, Russian, and Hindi — plus a free-text input for any other locale code (e.g. `pt-BR`).
-- On success the modal emits the new item's ID and the editor navigates directly to the translated draft, ready for review.
-
-### What still needs to be built
-
-The entire _creation_ side is done. The _serving and management_ side is not.
-
-#### 1. URL strategy decision (required first)
-
-Before building public routing, a URL convention must be chosen. The three realistic options:
-
-| Strategy        | Example URL                    | Trade-offs                                                                       |
-| --------------- | ------------------------------ | -------------------------------------------------------------------------------- |
-| Path prefix     | `/es/mi-articulo`              | SEO-friendly, requires Nuxt `i18n` routing or middleware rewrite                 |
-| Query parameter | `/my-post?locale=es`           | Simplest to implement, less SEO-friendly                                         |
-| Slug per locale | `/mi-articulo` (distinct slug) | Cleanest URLs, requires the CMS editor to set a locale-appropriate slug manually |
-
-The path-prefix strategy is the most conventional and SEO-friendly. It would require a route rewrite in `server/middleware` that strips the locale prefix and sets `event.context.locale` before multi-site resolution runs.
-
-#### 2. Public pages API — locale-aware serving
-
-`GET /api/public/pages/[slug]` currently ignores `locale` entirely. Changes needed:
-
-- Accept an optional `locale` query parameter or read `event.context.locale` from middleware.
-- When locale is set, prefer the `content_items` row where `slug` matches AND `locale` matches.
-- If no match for the requested locale, fall back to the source-language item (graceful degradation).
-- Return a `locale` field and an `availableLocales` array (queried via `sourceItemId`) so the frontend can render a language switcher.
-
-#### 3. Admin — translation status in the content list
-
-The content list at `/admin/content` currently shows all languages mixed together with no indication of which items are translations. Required:
-
-- A locale badge on each row (pill showing `EN`, `ES`, etc.)
-- An optional locale filter dropdown in the list header.
-- A visual grouping or indentation to show that item B is a translation of item A.
-
-#### 4. Admin — translations panel in the content editor sidebar
-
-When editing a content item, a sidebar card should show:
-
-- Which locale this item is (badge)
-- If it's a translation: a link back to the source/original item
-- If it's a source: a list of all existing translations (with locale code + status badge) and a link to each
-- A "Translate to…" button that opens the same `TranslateModal` (already exists) for locales not yet translated
-
-#### 5. Locale in content POST and PATCH
-
-`POST /api/v1/content` always inherits the site's default locale; `PATCH /api/v1/content/:id` doesn't accept a `locale` field at all. Both schemas need:
-
-```typescript
-locale: z.string().max(10).optional(),        // e.g. 'es', 'pt-BR'
-sourceItemId: z.string().optional(),          // only on POST, to link manually
-```
-
-This allows editors to create or correct locale manually without going through the AI translate flow.
-
-#### 6. Language switcher on public pages
-
-Once locale routing is live, the public site needs a way to switch between available translations. This is a small component that reads `availableLocales` from the page API response and renders flag icons or language names linking to the alternate-locale URL.
-
-#### 7. Setup wizard — expose locale selector
-
-The site creation wizard (`StepSite.vue`) currently offers only `English` in the locale dropdown. The full locale list already used in `TranslateModal.vue` should be reused here so the site default locale can be set correctly from the start.
-
-#### 8. Backup/restore — preserve translation links
-
-The backup utility (`server/utils/backup.ts`) exports content items but does not include `locale` or `sourceItemId` in the export format. Restoring a backup silently drops all translation relationships. The export schema needs these fields, and the import logic needs to restore `sourceItemId` references after all items are written (since the IDs must exist before the FK can be set).
-
-### Suggested implementation order
-
-1. Decide URL strategy (product decision, no code yet)
-2. Add `locale` + `sourceItemId` to POST/PATCH schemas (small, self-contained)
-3. Update public pages API to be locale-aware with fallback
-4. Add locale routing middleware (or query-param support if going that route)
-5. Add translations panel to the content editor sidebar
-6. Add locale filter and badges to the content list
-7. Add language switcher component to public pages
-8. Fix setup wizard locale dropdown
-9. Fix backup/restore to include translation metadata
-
-Steps 2–3 unblock everything else and are the logical first sprint.
+#### 4. Backup & Restoration Integrity
+- The backup/restore utility (`server/utils/backup.ts`) fully exports `locale` and `sourceItemSlug` properties.
+- During imports, a second-pass routine automatically re-maps parent translation IDs to child translation rows using restored slug lists, ensuring all relationships are preserved even when internal database IDs are regenerated.
 
 ---
 
-## Events System
+## [COMPLETED] Events System
 
-### Vision
+### Status: Fully Implemented & Shipped
 
-Sites built on NuxFlow should be able to manage a public-facing events calendar — conferences, workshops, webinars, product launches, meetups — with start/end dates, location, optional RSVP/ticketing via the existing payments infrastructure, and iCal export so visitors can add events to their calendars.
+NuxFlow now supports a complete Events System. Sites can define events (meetups, conferences, webinars), display them on calendars/visual blocks, and let visitors export them directly to calendar clients.
 
-An events content type behaves like any other content type (rich text body, SEO fields, taxonomy tagging, media) but adds a structured event layer on top: a date range, an optional venue, and a link to an external URL (livestream, registration page, or ticket purchase).
+### Implementation Details
 
-### Why this is valuable
+#### 1. Content Seeding
+The built-in `event` content type is seeded automatically on site installation in [complete.post.ts](file:///c:/DEV/NuxFlow/apps/nuxflow/server/api/v1/setup/complete.post.ts).
 
-- **No extra plugin needed for most sites**: A conference site, a yoga studio, a local community group — all common NuxFlow use cases that need an events section. Without a built-in answer they reach for a plugin or a third-party embed.
-- **Canvas Calendar block**: A canvas block that renders a month-view or list-view of upcoming events, fully themed to the site's design, gives editors a no-code way to embed the calendar on any page.
-- **iCal export**: A standard `/events.ics` route lets visitors add the full event list to Google Calendar, Apple Calendar, or Outlook without any additional integration. For individual events, an "Add to calendar" button on the event page covers the single-event case.
-- **RSVP and paid ticketing**: Events can optionally require the existing membership tier check (`settings.access: 'tier:<id>'`) so paid events work out of the box via Stripe/LemonSqueezy, reusing all the existing payments infrastructure.
+#### 2. Editor Side Panels
+When creating or editing content of type `event` in [[id].vue](file:///c:/DEV/NuxFlow/apps/nuxflow/app/pages/admin/content/%5Bid%5D.vue), an **Event Details** sidebar card becomes active. This maps standard fields:
+- Start Date/Time (`eventStartAt`)
+- End Date/Time (`eventEndAt`)
+- All-Day Event Switch (`eventAllDay`)
+- Location / Venue (`eventLocation`)
+- Registration Link (`eventUrl`)
 
-### Groundwork already in place
+#### 3. Editorial & Admin Calendar
+In the dashboard Editorial Calendar (`/admin/calendar`), event items query their `eventStartAt` column and snap directly to the target event day rather than their publication date.
 
-#### Event fields on `content_items` (added in migration `0006`)
+#### 4. Public API & ICS Calendar Feed
+- **Events List API:** [events.get.ts](file:///c:/DEV/NuxFlow/apps/nuxflow/server/api/public/events.get.ts) serves upcoming published events.
+- **iCal Subscription Feed:** [events.ics.ts](file:///c:/DEV/NuxFlow/apps/nuxflow/server/routes/events.ics.ts) serves a standard-compliant iCal subscribe path `/events.ics`.
 
-The following columns were added proactively to the `content_items` table. They are `NULL` on all regular content and only populated when a content type is used as an events calendar:
-
-| Column           | Type                | Purpose                                                                              |
-| ---------------- | ------------------- | ------------------------------------------------------------------------------------ |
-| `event_start_at` | `text` (ISO 8601)   | Event start — ISO string for correct SQLite string comparisons in date range queries |
-| `event_end_at`   | `text` (ISO 8601)   | Event end — `NULL` for single-day all-day events                                     |
-| `event_location` | `text`              | Venue name, address, or "Online"                                                     |
-| `event_url`      | `text`              | Optional external link (livestream, registration page)                               |
-| `event_all_day`  | `integer` (boolean) | Whether times should be ignored in display and iCal output                           |
-
-An index on `(site_id, event_start_at)` — `idx_content_items_event_start` — enables efficient range queries for upcoming events and the iCal feed without a full table scan.
-
-#### Editorial Calendar already ships (implemented)
-
-The admin already has a month-view Editorial Calendar at `/admin/calendar` that shows published and scheduled content items by date. While it is not yet event-aware (it ignores `event_start_at`), its infrastructure — the `GET /api/v1/content/calendar` endpoint and the `CalendarItem` type — is the foundation the Events version will extend: just add `eventStartAt` to the returned fields and let the calendar page render event items by their event date rather than publication date.
-
-#### Existing payments gate
-
-`resolveContentGate()` in `server/utils/payments/gate.ts` already supports `settings.access: 'tier:<tierId>'`. A paid event page sets this on its content item; no new gating code is needed for basic paid events.
-
-### What still needs to be built
-
-1. **Events content type scaffold** — a "Create Events content type" shortcut in the admin (or at minimum, documentation) that creates a content type with slug `event`, sets `isBuiltIn: true`, and applies sensible defaults for `hasRevisions` and `hasComments`.
-2. **Event metadata panel in the content editor** — a sidebar card that appears when `contentType.slug === 'event'` (or when event fields are non-null), exposing date/time pickers for `event_start_at`/`event_end_at`, a location field, the external URL field, and an all-day toggle.
-3. **Public events API** — `GET /api/public/events` with `from`, `to`, `limit`, `offset` query params; queries by `event_start_at` using the new index. Supports iCal output via `Accept: text/calendar` or `?format=ics`.
-4. **`/events.ics` route** — returns upcoming events (next 90 days by default) as a standards-compliant iCal feed (`VCALENDAR` + `VEVENT` components) for calendar app subscriptions.
-5. **Canvas Calendar block** — a new block in `packages/plugins/canvas/src/blocks/` that renders a month or list view of events, fetching from the public events API. The block props control date range, which content type slug to pull events from, and display mode (`month` | `list`).
-6. **"Add to calendar" button** — a small component on event pages that generates an `.ics` file for a single event and triggers a browser download, plus links to Google Calendar and Outlook web URLs.
-7. **RSVP / registration** — for free events: a simple RSVP form (reuse the existing `forms` table); for paid events: redirect to the existing checkout flow with the membership tier gate.
-8. **Recurrence** — out of scope for v1; recurring events are typically managed as separate content items. A `recurrenceRule` JSON field can be added later for iCal `RRULE` generation.
-
-### Suggested implementation order
-
-1. Event metadata panel in the content editor sidebar (unblocks content creation)
-2. Public events API with iCal output (unblocks embeds and subscriptions)
-3. `/events.ics` route (thin wrapper over the API)
-4. Canvas Calendar block (highest visibility, drives adoption)
-5. "Add to calendar" button component
-6. RSVP / registration (requires deciding free vs. paid event UX first)
+#### 5. Visual Canvas Block
+- **Events Calendar Block:** Visual Canvas Block [CanvasBlockCalendar.vue](file:///c:/DEV/NuxFlow/packages/canvas/src/blocks/CanvasBlockCalendar.vue) is shipped. It supports:
+  - **List View:** Display cards of upcoming events.
+  - **Month View:** Displays an interactive calendar picker widget.
+  - **Add to Calendar Buttons:** Generates and downloads `.ics` files client-side directly on button click.
 
 ---
 

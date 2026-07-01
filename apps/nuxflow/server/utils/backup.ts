@@ -36,6 +36,8 @@ export interface BackupContentItem {
   publishedAt: string | null
   settings: Record<string, unknown> | null
   termSlugs: string[] // "{taxonomySlug}/{termSlug}"
+  locale: string | null
+  sourceItemSlug: string | null
 }
 
 export interface BackupTerm {
@@ -125,7 +127,7 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
       columns: {
         id: true, typeId: true, slug: true, title: true, status: true, visibility: true,
         content: true, excerpt: true, seoTitle: true, seoDescription: true, ogImage: true,
-        publishedAt: true, settings: true,
+        publishedAt: true, settings: true, locale: true, sourceItemId: true,
       },
     }),
     db.query.taxonomies.findMany({ where: eq(taxonomies.siteId, siteId) }),
@@ -178,6 +180,8 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
 
   // Build content with term assignments
   const backupContent: BackupContentItem[] = []
+  const slugById = new Map(itemRows.map(i => [i.id, i.slug]))
+
   for (const item of itemRows) {
     const assignments = await db.query.contentTaxonomyTerms.findMany({
       where: eq(contentTaxonomyTerms.contentItemId, item.id),
@@ -200,6 +204,8 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
       publishedAt: item.publishedAt,
       settings: item.settings,
       termSlugs,
+      locale: item.locale || null,
+      sourceItemSlug: item.sourceItemId ? (slugById.get(item.sourceItemId) ?? null) : null,
     })
   }
 
@@ -369,6 +375,8 @@ export async function applyBackup(
       }
     }
 
+    const idBySlug = new Map<string, string>()
+
     for (const backupItem of backup.content) {
       const typeId = typeIdBySlug.get(backupItem.typeSlug)
       if (!typeId) continue
@@ -379,6 +387,8 @@ export async function applyBackup(
       })
 
       if (existing) {
+        idBySlug.set(backupItem.slug, existing.id)
+
         if (opts.conflictMode === 'archive') {
           // Smart Archiving: Rename existing conflicting page slug & title, mark as draft
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
@@ -400,6 +410,7 @@ export async function applyBackup(
             ogImage: backupItem.ogImage,
             publishedAt: backupItem.publishedAt,
             settings: backupItem.settings ?? undefined,
+            locale: backupItem.locale || 'en',
           }).where(eq(contentItems.id, existing.id))
           result.content.created++
           continue
@@ -410,6 +421,7 @@ export async function applyBackup(
       }
 
       const id = ulid()
+      idBySlug.set(backupItem.slug, id)
       await db.insert(contentItems).values({
         id, siteId, typeId,
         slug: backupItem.slug,
@@ -423,6 +435,7 @@ export async function applyBackup(
         ogImage: backupItem.ogImage,
         publishedAt: backupItem.publishedAt,
         settings: backupItem.settings ?? undefined,
+        locale: backupItem.locale || 'en',
       })
 
       // Assign terms
@@ -436,6 +449,19 @@ export async function applyBackup(
       }
 
       result.content.created++
+    }
+
+    // Second pass: wire translation linkages
+    for (const backupItem of backup.content) {
+      if (backupItem.sourceItemSlug) {
+        const childId = idBySlug.get(backupItem.slug)
+        const parentId = idBySlug.get(backupItem.sourceItemSlug)
+        if (childId && parentId) {
+          await db.update(contentItems)
+            .set({ sourceItemId: parentId })
+            .where(eq(contentItems.id, childId))
+        }
+      }
     }
   }
 

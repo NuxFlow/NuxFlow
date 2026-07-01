@@ -3,8 +3,8 @@ import {
   CANVAS_BLOCKS,
   getBlockDefinition,
   registerBlockDefinition,
-  getPluginBlockDefinitions,
-} from '../../../../packages/plugins/canvas/src/blocks/definitions'
+  getDynamicBlockDefinitions,
+} from '../../../../packages/canvas/src/blocks/definitions'
 
 // ---------------------------------------------------------------------------
 // Block registry structure
@@ -28,6 +28,11 @@ describe('CANVAS_BLOCKS registry', () => {
     expect(ids).toContain('canvas-accordion')
     expect(ids).toContain('canvas-pricing')
     expect(ids).toContain('canvas-gallery')
+    expect(ids).toContain('canvas-carousel')
+    expect(ids).toContain('canvas-calendar')
+    expect(ids).toContain('contact-form/form')
+    expect(ids).toContain('html-block/html')
+    expect(ids).toContain('payments/memberships')
   })
 
   it('every block has required metadata fields', () => {
@@ -184,6 +189,124 @@ describe('canvas-image block definition', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Carousel block
+// ---------------------------------------------------------------------------
+
+describe('canvas-carousel block definition', () => {
+  const carousel = CANVAS_BLOCKS.find(b => b.id === 'canvas-carousel')!
+
+  it('exists in the registry', () => {
+    expect(carousel).toBeDefined()
+  })
+
+  it('is in the media category', () => {
+    expect(carousel.category).toBe('media')
+  })
+
+  it('has an images field', () => {
+    const images = carousel.fields.find(f => f.key === 'images')
+    expect(images?.type).toBe('images')
+  })
+
+  it('has aspectRatio select with all expected values', () => {
+    const ar = carousel.fields.find(f => f.key === 'aspectRatio')!
+    expect(ar.type).toBe('select')
+    const values = (ar.options as { value: string }[]).map(o => o.value)
+    expect(values).toContain('16:9')
+    expect(values).toContain('21:9')
+    expect(values).toContain('4:3')
+    expect(values).toContain('1:1')
+  })
+
+  it('defaults to autoplay enabled with a 5000ms interval', () => {
+    expect(carousel.defaultProps.autoplay).toBe(true)
+    expect(carousel.defaultProps.interval).toBe(5000)
+  })
+
+  it('interval field is conditional on autoplay', () => {
+    const interval = carousel.fields.find(f => f.key === 'interval')!
+    expect(typeof interval.condition).toBe('function')
+    expect(interval.condition!({ autoplay: true })).toBe(true)
+    expect(interval.condition!({ autoplay: false })).toBe(false)
+  })
+
+  it('has arrows and dots toggles defaulting to true', () => {
+    const keys = carousel.fields.map(f => f.key)
+    expect(keys).toContain('arrows')
+    expect(keys).toContain('dots')
+    expect(carousel.defaultProps.arrows).toBe(true)
+    expect(carousel.defaultProps.dots).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Contact Form block
+// ---------------------------------------------------------------------------
+
+describe('contact-form/form block definition', () => {
+  const block = CANVAS_BLOCKS.find(b => b.id === 'contact-form/form')!
+
+  it('exists in the registry', () => {
+    expect(block).toBeDefined()
+  })
+
+  it('is in the forms category', () => {
+    expect(block.category).toBe('forms')
+  })
+
+  it('has title, description, and submitLabel fields', () => {
+    const keys = block.fields.map(f => f.key)
+    expect(keys).toContain('title')
+    expect(keys).toContain('description')
+    expect(keys).toContain('submitLabel')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// HTML block
+// ---------------------------------------------------------------------------
+
+describe('html-block/html block definition', () => {
+  const block = CANVAS_BLOCKS.find(b => b.id === 'html-block/html')!
+
+  it('exists in the registry', () => {
+    expect(block).toBeDefined()
+  })
+
+  it('is in the advanced category', () => {
+    expect(block.category).toBe('advanced')
+  })
+
+  it('has an html textarea field', () => {
+    const html = block.fields.find(f => f.key === 'html')
+    expect(html?.type).toBe('textarea')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Membership Pricing block
+// ---------------------------------------------------------------------------
+
+describe('payments/memberships block definition', () => {
+  const block = CANVAS_BLOCKS.find(b => b.id === 'payments/memberships')!
+
+  it('exists in the registry', () => {
+    expect(block).toBeDefined()
+  })
+
+  it('is in the commerce category', () => {
+    expect(block.category).toBe('commerce')
+  })
+
+  it('has title, subtitle, and ctaLabel fields', () => {
+    const keys = block.fields.map(f => f.key)
+    expect(keys).toContain('title')
+    expect(keys).toContain('subtitle')
+    expect(keys).toContain('ctaLabel')
+  })
+})
+
+// ---------------------------------------------------------------------------
 // getBlockDefinition lookup
 // ---------------------------------------------------------------------------
 
@@ -216,8 +339,8 @@ describe('getBlockDefinition', () => {
     expect(def?.id).toBe('test-plugin-block')
   })
 
-  it('does not register the same plugin block twice', () => {
-    const before = getPluginBlockDefinitions().length
+  it('does not register the same dynamic block twice', () => {
+    const before = getDynamicBlockDefinitions().length
     registerBlockDefinition({
       id: 'test-plugin-block',
       name: 'Test Plugin',
@@ -230,7 +353,7 @@ describe('getBlockDefinition', () => {
       defaultProps: {},
     })
 
-    expect(getPluginBlockDefinitions().length).toBe(before)
+    expect(getDynamicBlockDefinitions().length).toBe(before)
   })
 })
 

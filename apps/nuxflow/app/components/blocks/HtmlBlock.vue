@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SpacingValue } from '@nuxflow/plugin-canvas'
+import type { SpacingValue } from '@nuxflow/canvas'
 
 const props = defineProps<{
   html?: string

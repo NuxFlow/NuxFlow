@@ -17,8 +17,8 @@ export default defineEventHandler(async (event) => {
 
   const type = await db.query.contentTypes.findFirst({
     where: eq(contentTypes.id, item.typeId),
-    columns: { hasComments: true },
+    columns: { hasComments: true, slug: true },
   })
 
-  return { ...item, typeHasComments: type?.hasComments ?? false }
+  return { ...item, typeHasComments: type?.hasComments ?? false, typeSlug: type?.slug ?? 'page' }
 })

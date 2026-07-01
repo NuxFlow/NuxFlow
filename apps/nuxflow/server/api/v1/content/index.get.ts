@@ -27,6 +27,11 @@ export default defineEventHandler(async (event) => {
     conditions.push(eq(contentItems.status, query.status as 'draft' | 'review' | 'published' | 'scheduled' | 'archived'))
   }
 
+  // Filter by locale
+  if (query.locale) {
+    conditions.push(eq(contentItems.locale, query.locale as string))
+  }
+
   // Delta sync: return only items modified after a given timestamp.
   // Used by offline clients on reconnect to fetch only what changed.
   // Hits idx_content_items_site_updated (site_id, updated_at) index.
@@ -38,7 +43,7 @@ export default defineEventHandler(async (event) => {
     where: and(...conditions),
     orderBy: [desc(contentItems.updatedAt)],
     columns: {
-      id: true, title: true, slug: true, status: true, publishedAt: true, updatedAt: true, authorId: true, version: true,
+      id: true, title: true, slug: true, status: true, publishedAt: true, updatedAt: true, authorId: true, version: true, locale: true, sourceItemId: true,
     },
   })
 

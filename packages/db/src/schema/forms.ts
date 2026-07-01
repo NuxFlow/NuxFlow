@@ -38,7 +38,7 @@ export const formSubmissions = sqliteTable('form_submissions', {
 // Type definitions for form field schema
 export interface FormField {
   id: string
-  type: 'text' | 'email' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'number' | 'date' | 'file' | 'computed' | 'hidden'
+  type: 'text' | 'email' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'number' | 'date' | 'file' | 'computed' | 'hidden' | 'signature'
   label: string
   name: string
   placeholder?: string

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import type { SpacingValue } from '@nuxflow/plugin-canvas'
+import type { SpacingValue } from '@nuxflow/canvas'
 
 const toast = useToast()
 

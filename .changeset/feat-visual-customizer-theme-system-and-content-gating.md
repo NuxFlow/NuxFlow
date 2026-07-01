@@ -1,10 +1,7 @@
 ---
 "@nuxflow/app": minor
 "@nuxflow/db": minor
-"@nuxflow/plugin-canvas": patch
-"@nuxflow/plugin-contact-form": patch
-"@nuxflow/plugin-html-block": patch
-"@nuxflow/plugin-payments": patch
+"@nuxflow/canvas": patch
 ---
 
 Add Visual Customizer, content gating with Cache-Control, multi-provider payments, and theme system hardening.

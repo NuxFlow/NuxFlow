@@ -1,6 +1,6 @@
 ---
 "@nuxflow/app": minor
-"@nuxflow/plugin-canvas": minor
+"@nuxflow/canvas": minor
 ---
 
 feat: gallery block with lightbox, EXIF extraction, image sitemap, and SEO/GEO improvements

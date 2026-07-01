@@ -1,8 +1,7 @@
 ---
 "@nuxflow/app": minor
 "@nuxflow/db": minor
-"@nuxflow/plugin-canvas": minor
-"@nuxflow/plugin-payments": minor
+"@nuxflow/canvas": minor
 ---
 
 Add Cloudflare Stream video support, membership tier management, canvas block improvements, and wrangler dev build automation.

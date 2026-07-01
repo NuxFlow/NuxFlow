@@ -2,7 +2,7 @@ import { useDb } from '../../utils/db'
 import { sites, siteSettings } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 
-const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'appearance.favicon_url', 'appearance.logo_url', 'seo.canonical_url', 'integrations.turnstile_site_key'] as const
+const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'seo.canonical_url', 'integrations.turnstile_site_key'] as const
 
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string | null
@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const site = await db.query.sites.findFirst({
     where: eq(sites.id, siteId),
-    columns: { name: true, domain: true },
+    columns: { name: true, domain: true, locale: true },
   })
   if (!site) throw createError({ statusCode: 404 })
 
@@ -28,6 +28,9 @@ export default defineEventHandler(async (event) => {
     ...site,
     showHeader: (kvMap['frontend.show_header'] as boolean | undefined) !== false,
     showColorToggle: (kvMap['frontend.show_color_toggle'] as boolean | undefined) !== false,
+    showSearch: (kvMap['frontend.show_search'] as boolean | undefined) !== false,
+    showStickyHeader: (kvMap['frontend.show_sticky_header'] as boolean | undefined) !== false,
+    logoSize: (kvMap['frontend.logo_size'] as string | undefined) ?? 'md',
     faviconUrl: (kvMap['appearance.favicon_url'] as string | undefined) ?? null,
     logoUrl: (kvMap['appearance.logo_url'] as string | undefined) ?? null,
     canonicalBase,

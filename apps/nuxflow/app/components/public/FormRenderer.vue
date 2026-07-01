@@ -116,16 +116,16 @@ async function submit() {
             <UInput :model-value="String(computeField(field))" readonly />
           </template>
           <template v-else-if="field.type === 'textarea'">
-            <UTextarea v-model="values[field.name] as string" :placeholder="field.placeholder" />
+            <UTextarea v-model="values[field.name] as string" :placeholder="field.placeholder" :required="field.required" />
           </template>
           <template v-else-if="field.type === 'select'">
-            <USelect :model-value="values[field.name] as string" :items="field.options ?? []" @update:model-value="values[field.name] = $event" />
+            <USelect :model-value="values[field.name] as string" :items="field.options ?? []" :required="field.required" @update:model-value="values[field.name] = $event" />
           </template>
           <template v-else-if="field.type === 'checkbox'">
-            <UCheckbox :model-value="Boolean(values[field.name])" :label="field.label" @update:model-value="values[field.name] = $event" />
+            <UCheckbox :model-value="Boolean(values[field.name])" :label="field.label" :required="field.required" @update:model-value="values[field.name] = $event" />
           </template>
           <template v-else>
-            <UInput v-model="values[field.name] as string" :type="field.type" :placeholder="field.placeholder" />
+            <UInput v-model="values[field.name] as string" :type="field.type" :placeholder="field.placeholder" :required="field.required" />
           </template>
         </UFormField>
       </template>

@@ -1,18 +1,22 @@
 <script setup lang="ts">
+import { z } from 'zod'
+
 definePageMeta({ layout: 'auth' })
 
-const email = ref('')
+const schema = z.object({
+  email: z.string().email('Enter a valid email address'),
+})
+
+const state = reactive({ email: '' })
 const loading = ref(false)
-const error = ref('')
 const sent = ref(false)
 
 async function submit() {
-  error.value = ''
   loading.value = true
   try {
     await $fetch('/api/auth/forget-password', {
       method: 'POST',
-      body: { email: email.value, redirectTo: '/reset-password' },
+      body: { email: state.email, redirectTo: '/reset-password' },
     })
     sent.value = true
   } catch {
@@ -38,19 +42,17 @@ async function submit() {
       <UIcon name="i-lucide-mail-check" class="w-10 h-10 text-green-500 mx-auto" />
       <p class="font-semibold text-gray-900 dark:text-white">Check your inbox</p>
       <p class="text-sm text-gray-500 dark:text-gray-400">
-        If an account exists for <strong>{{ email }}</strong>, a reset link has been sent.
+        If an account exists for <strong>{{ state.email }}</strong>, a reset link has been sent.
       </p>
       <NuxtLink to="/login" class="text-primary-500 hover:underline text-sm">Back to sign in</NuxtLink>
     </div>
 
-    <form v-else class="glass rounded-2xl p-6 space-y-4" @submit.prevent="submit">
-      <UFormField label="Email address">
-        <UInput v-model="email" type="email" placeholder="you@example.com" autocomplete="email" class="w-full" autofocus />
+    <UForm v-else :schema="schema" :state="state" class="glass rounded-2xl p-6 space-y-4" @submit="submit">
+      <UFormField name="email" label="Email address">
+        <UInput v-model="state.email" type="email" placeholder="you@example.com" autocomplete="email" class="w-full" autofocus />
       </UFormField>
 
-      <UAlert v-if="error" color="red" variant="soft" :description="error" />
-
-      <UButton type="submit" block :loading="loading" :disabled="!email">
+      <UButton type="submit" block :loading="loading">
         Send reset link
       </UButton>
 
@@ -58,6 +60,6 @@ async function submit() {
         Remembered it?
         <NuxtLink to="/login" class="text-primary-500 hover:underline font-medium">Sign in</NuxtLink>
       </p>
-    </form>
+    </UForm>
   </div>
 </template>

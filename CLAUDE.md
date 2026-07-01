@@ -48,9 +48,9 @@ cd apps/nuxflow && pnpm run deploy
 
 ```
 apps/nuxflow/          # Main Nuxt 4 app (the CMS)
+packages/canvas/       # Canvas page builder engine (blocks, editor, types) — @nuxflow/canvas
 packages/db/           # Drizzle schema, migrations, client factory
-packages/plugin-sdk/   # Plugin authoring types (NuxFlowPlugin, PluginBlock, etc.)
-packages/plugins/      # Bundled plugins: canvas, contact-form, payments, html-block
+packages/plugin-sdk/   # Types for building dynamic plugins (NuxFlowPlugin interface)
 packages/cli/          # `nuxflow` CLI — scaffold, build, and deploy dynamic plugins/themes
 themes/default/        # Default CSS theme
 docs/                  # User-facing documentation (markdown)
@@ -187,7 +187,7 @@ Payment providers are abstracted in `server/utils/payments/`:
 
 `server/utils/payments/gate.ts` — `resolveContentGate(event, settings)` checks `settings.access` (`'public'`, `'members'`, `'tier:<tierId>'`) against the caller's active subscription. Returns `GateResult | null` (null = access granted). Used internally by the public pages API.
 
-Membership tiers and subscriptions live in the core DB schema (`packages/db/src/schema/payments.ts`). The `packages/plugins/payments/` package is a **deprecated stub** kept for workspace dependency compatibility and will be removed.
+Membership tiers and subscriptions live in the core DB schema (`packages/db/src/schema/payments.ts`).
 
 Routes under `/api/v1/memberships/`:
 - `POST /checkout` → creates a provider checkout session, returns `{ url }`
@@ -199,26 +199,27 @@ The public pages API returns **HTTP 402** with `{ gated: true, requiredTier, tie
 
 ### Plugin system
 
-**Bundled plugins** (`packages/plugins/*`) are compiled into the Worker. Each implements `NuxFlowPlugin` from `packages/plugin-sdk/src/types.ts`, registering optional `blocks`, `adminPages`, `routes`, and `hooks`.
+**Dynamic plugins** are third-party Workers installed per-site. They implement `NuxFlowPlugin` from `packages/plugin-sdk/src/types.ts`, registering optional `blocks`, `adminPages`, `routes`, and `hooks`.
 
 **Dynamic plugins** are third-party Workers stored in KV and spawned on demand. The server verifies Ed25519 signatures and SHA-256 checksums on install and on every request (`server/utils/plugin-signing.ts`).
 
 ### Canvas block system
 
-Block definitions live in `packages/plugins/canvas/src/blocks/definitions.ts`. The file exports a `CANVAS_BLOCKS` array (built-in blocks) plus two public functions:
-- `registerBlockDefinition(def)` — appends to a module-level `_pluginDefinitions` array. Called at app startup by `apps/nuxflow/app/plugins/nuxflow-plugin-components.ts` for each bundled plugin block.
-- `getBlockDefinition(id)` — searches `CANVAS_BLOCKS` first, then `_pluginDefinitions`.
+Block definitions live in `packages/canvas/src/blocks/definitions.ts`. The file exports a `CANVAS_BLOCKS` array (all built-in blocks) plus two public functions:
+- `registerBlockDefinition(def)` — appends to a module-level `_dynamicDefinitions` array. Called by dynamic plugins to register their block field schemas so the canvas settings panel can render them.
+- `getBlockDefinition(id)` — searches `CANVAS_BLOCKS` first, then `_dynamicDefinitions`.
 
-**`CanvasBlockDefinition`** (from `packages/plugins/canvas/src/types.ts`) has:
+**`CanvasBlockDefinition`** (from `packages/canvas/src/types.ts`) has:
 - `fields: FieldSchema[]` — each field has `type`, `key`, `label`, and optional `condition?: (props) => boolean` to hide the field based on sibling prop values. Use `condition` for dependent controls (e.g. focal-point sliders only when `fit === 'cover'`).
-- New field types beyond the original set: `'images'` (JSON array of `{ url, alt }` objects, renders a multi-image picker) and `'spacing'` (`{ top, right, bottom, left, unit }` object).
+- Field types: `'text'`, `'textarea'`, `'richtext'`, `'number'`, `'color'`, `'select'`, `'toggle'`, `'image'`, `'images'` (JSON array of `{ url, alt }` objects), `'url'`, `'spacing'` (`{ top, right, bottom, left, unit }` object).
+- `category` determines which section of the block picker shows the block: `'content'`, `'media'`, `'layout'`, `'cta'`, `'forms'`, `'advanced'`, `'commerce'`.
 - `component: string` — globally-registered Vue component name resolved at render time.
 
-**`NuxLightbox`** (`packages/plugins/canvas/src/blocks/NuxLightbox.vue`) — modal image viewer. Accepts `images: { url, alt }[]` and `initialIndex`. Supports keyboard navigation (←/→/Esc) and touch. Used by both `CanvasBlockImage` (single-image lightbox toggle) and `CanvasBlockGallery` (gallery with optional lightbox).
+**`NuxLightbox`** (`packages/canvas/src/blocks/NuxLightbox.vue`) — modal image viewer. Accepts `images: { url, alt }[]` and `initialIndex`. Supports keyboard navigation (←/→/Esc) and touch. Used by both `CanvasBlockImage` (single-image lightbox toggle) and `CanvasBlockGallery` (gallery with optional lightbox).
 
-**`CanvasBlockGallery`** (`packages/plugins/canvas/src/blocks/CanvasBlockGallery.vue`) — responsive grid block with `columns` (2/3/4), `gap`, `rounded`, `lightbox`, and `padding` props. The `images` prop is a JSON string of `{ url, alt }[]`.
+**`CanvasBlockGallery`** (`packages/canvas/src/blocks/CanvasBlockGallery.vue`) — responsive grid block with `columns` (2/3/4), `gap`, `rounded`, `lightbox`, and `padding` props. The `images` prop is a JSON string of `{ url, alt }[]`.
 
-**Registering a new block**: add its `CanvasBlockDefinition` to `CANVAS_BLOCKS` in `definitions.ts`, create its `.vue` component in `blocks/`, import and register the component globally in `nuxflow-plugin-components.ts`, and add a test case in `tests/unit/canvas-blocks.test.ts`.
+**Registering a new block**: add its `CanvasBlockDefinition` to `CANVAS_BLOCKS` in `definitions.ts`, create its `.vue` component in `packages/canvas/src/blocks/`, import and register the component globally in `nuxflow-plugin-components.ts`, and add a test case in `tests/unit/canvas-blocks.test.ts`.
 
 **CLI** (`packages/cli`) — the `nuxflow` CLI is used by third-party plugin/theme authors:
 - `nuxflow plugin create` — scaffold a new dynamic plugin

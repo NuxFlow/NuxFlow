@@ -8,7 +8,22 @@ const items = computed(() => data.value?.redirects ?? [])
 const form = reactive({ from: '', to: '', statusCode: 301 as 301 | 302 })
 const creating = ref(false)
 
+const fromError = computed(() => {
+  if (!form.from) return ''
+  return form.from.startsWith('/') ? '' : 'Must start with /'
+})
+
+const toError = computed(() => {
+  if (!form.to) return ''
+  return form.to.startsWith('/') || /^https?:\/\//.test(form.to) ? '' : 'Must start with / or https://'
+})
+
+const canCreate = computed(() =>
+  form.from.startsWith('/') && (form.to.startsWith('/') || /^https?:\/\//.test(form.to)),
+)
+
 async function create() {
+  if (!canCreate.value) return
   creating.value = true
   try {
     await $fetch('/api/v1/redirects', { method: 'POST', body: form })
@@ -41,17 +56,17 @@ const columns = [
     <UCard>
       <template #header><p class="text-sm font-semibold">Add redirect</p></template>
       <div class="flex items-end gap-3">
-        <UFormField label="From" class="flex-1">
+        <UFormField label="From" class="flex-1" :error="fromError">
           <UInput v-model="form.from" placeholder="/old-page" />
         </UFormField>
         <UIcon name="i-lucide-arrow-right" class="w-4 h-4 text-gray-400 mb-2 shrink-0" />
-        <UFormField label="To" class="flex-1">
+        <UFormField label="To" class="flex-1" :error="toError">
           <UInput v-model="form.to" placeholder="/new-page" />
         </UFormField>
         <UFormField label="Type">
           <USelect v-model="form.statusCode" :items="[{ label: '301 Permanent', value: 301 }, { label: '302 Temporary', value: 302 }]" />
         </UFormField>
-        <UButton :loading="creating" :disabled="!form.from || !form.to" @click="create">Add</UButton>
+        <UButton :loading="creating" :disabled="!canCreate" @click="create">Add</UButton>
       </div>
     </UCard>
 

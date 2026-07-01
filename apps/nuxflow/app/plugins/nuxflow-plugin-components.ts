@@ -1,5 +1,5 @@
 /**
- * Plugin component bootstrap — universal (runs on server AND client).
+ * Block component bootstrap — universal (runs on server AND client).
  *
  * Registers all block render components into the block registry so that
  * canvas pages are fully server-side rendered. Only add components here that
@@ -26,95 +26,19 @@ import {
   CanvasBlockAccordion,
   CanvasBlockPricing,
   CanvasBlockGallery,
-  registerBlockDefinition,
-} from '@nuxflow/plugin-canvas'
-import type { CanvasBlockDefinition } from '@nuxflow/plugin-canvas'
+  CanvasBlockCarousel,
+  CanvasBlockCalendar,
+} from '@nuxflow/canvas'
 
 import ContactFormBlock from '~/components/forms/ContactFormBlock.vue'
 import MembershipsBlock from '~/components/memberships/MembershipsBlock.vue'
 import Paywall from '~/components/memberships/Paywall.vue'
 import HtmlBlock from '~/components/blocks/HtmlBlock.vue'
 
-const contactFormBlockDefinition: CanvasBlockDefinition = {
-  id: 'contact-form/form',
-  name: 'Contact Form',
-  description: 'Embed a contact form with customisable title, description, and button text.',
-  icon: 'i-lucide-mail',
-  category: 'plugin',
-  component: 'ContactFormBlock',
-  thumbnailColor: '#ecfdf5',
-  fields: [
-    { key: 'title', label: 'Form Title', type: 'text', placeholder: 'Get in touch' },
-    { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Send us a message and we\'ll get back to you.' },
-    { key: 'submitLabel', label: 'Submit button label', type: 'text', placeholder: 'Send message' },
-    { key: 'bgColor', label: 'Background colour', type: 'color' },
-    { key: 'textColor', label: 'Text colour', type: 'color' },
-    { key: 'padding', label: 'Padding', type: 'spacing' },
-  ],
-  defaultProps: {
-    title: 'Get in touch',
-    description: 'Send us a message and we\'ll get back to you.',
-    submitLabel: 'Send message',
-    padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
-  },
-}
-
-const htmlBlockDefinition: CanvasBlockDefinition = {
-  id: 'html-block/html',
-  name: 'HTML',
-  description: 'Raw HTML block — paste any HTML snippet directly onto the page',
-  icon: 'i-lucide-code-xml',
-  category: 'plugin',
-  component: 'HtmlBlock',
-  thumbnailColor: '#fef3c7',
-  fields: [
-    {
-      key: 'html',
-      label: 'HTML',
-      type: 'textarea',
-      rows: 10,
-      placeholder: '<div class="my-widget">\n  <!-- your HTML here -->\n</div>',
-    },
-    { key: 'padding', label: 'Padding', type: 'spacing' },
-  ],
-  defaultProps: {
-    html: '',
-    padding: { top: 16, right: 16, bottom: 16, left: 16, unit: 'px' },
-  },
-}
-
-const membershipsPricingBlockDefinition: CanvasBlockDefinition = {
-  id: 'payments/memberships',
-  name: 'Membership Pricing',
-  description: 'Live membership tier grid with checkout buttons — pulls directly from your Memberships admin.',
-  icon: 'i-lucide-credit-card',
-  category: 'plugin',
-  component: 'MembershipsBlock',
-  thumbnailColor: '#eff6ff',
-  fields: [
-    { key: 'title', label: 'Section title', type: 'text', placeholder: 'Membership Plans' },
-    { key: 'subtitle', label: 'Subtitle', type: 'textarea', placeholder: 'Choose the plan that works for you' },
-    { key: 'ctaLabel', label: 'Button label', type: 'text', placeholder: 'Get started' },
-    { key: 'highlightTierName', label: 'Highlight tier name (exact match, optional)', type: 'text', placeholder: 'Pro' },
-    { key: 'showAccountLink', label: 'Show "Already a member?" link', type: 'toggle' },
-    { key: 'bgColor', label: 'Background colour', type: 'color' },
-    { key: 'textColor', label: 'Text colour', type: 'color' },
-    { key: 'padding', label: 'Padding', type: 'spacing' },
-  ],
-  defaultProps: {
-    title: 'Membership Plans',
-    subtitle: 'Choose the plan that works for you',
-    ctaLabel: 'Get started',
-    highlightTierName: '',
-    showAccountLink: true,
-    padding: { top: 64, right: 24, bottom: 64, left: 24, unit: 'px' },
-  },
-}
-
 export default defineNuxtPlugin((nuxtApp) => {
   const registry = useBlockRegistry()
 
-  // ── @nuxflow/plugin-canvas blocks ─────────────────────────────────────────
+  // ── Canvas blocks ─────────────────────────────────────────────────────────
   registry.register('canvas-hero',        { name: 'Hero',        icon: 'i-lucide-layout-template', component: CanvasBlockHero })
   registry.register('canvas-text',        { name: 'Text',        icon: 'i-lucide-type',             component: CanvasBlockText })
   registry.register('canvas-image',       { name: 'Image',       icon: 'i-lucide-image',            component: CanvasBlockImage })
@@ -130,22 +54,20 @@ export default defineNuxtPlugin((nuxtApp) => {
   registry.register('canvas-accordion',   { name: 'Accordion',   icon: 'i-lucide-fold-vertical',     component: CanvasBlockAccordion })
   registry.register('canvas-pricing',     { name: 'Pricing Table', icon: 'i-lucide-credit-card',    component: CanvasBlockPricing })
   registry.register('canvas-gallery',     { name: 'Gallery',     icon: 'i-lucide-images',            component: CanvasBlockGallery })
+  registry.register('canvas-carousel',    { name: 'Carousel',    icon: 'i-lucide-gallery-horizontal', component: CanvasBlockCarousel })
+  registry.register('canvas-calendar',    { name: 'Events Calendar', icon: 'i-lucide-calendar',     component: CanvasBlockCalendar })
 
-  // ── Contact Forms ─────────────────────────────────────────────────────────
+  // ── Forms blocks ──────────────────────────────────────────────────────────
   registry.register('contact-form/form', { name: 'Contact Form', icon: 'i-lucide-mail', component: ContactFormBlock })
-  registerBlockDefinition(contactFormBlockDefinition)
 
-  // ── Memberships ───────────────────────────────────────────────────────────
-  registry.register('payments/memberships', { name: 'Membership Pricing', icon: 'i-lucide-credit-card', component: MembershipsBlock })
-  registerBlockDefinition(membershipsPricingBlockDefinition)
+  // ── Commerce blocks ───────────────────────────────────────────────────────
+  registry.register('payments/memberships', { name: 'Membership Pricing', icon: 'i-lucide-badge-dollar-sign', component: MembershipsBlock })
+  registry.register('payments/paywall',     { name: 'Paywall',            icon: 'i-lucide-lock',              component: Paywall })
 
-  registry.register('payments/paywall', { name: 'Paywall', icon: 'i-lucide-lock', component: Paywall })
-
-  // ── HTML Block ────────────────────────────────────────────────────────────
+  // ── Advanced blocks ───────────────────────────────────────────────────────
   registry.register('html-block/html', { name: 'HTML', icon: 'i-lucide-code-xml', component: HtmlBlock })
-  registerBlockDefinition(htmlBlockDefinition)
 
-  // Provide the block registry so canvas plugin components (BlockPicker,
+  // Provide the block registry so canvas block components (BlockPicker,
   // CanvasBlock, useCanvas) can inject it without a circular import.
   nuxtApp.vueApp.provide('nuxflow:blockRegistry', registry)
 })

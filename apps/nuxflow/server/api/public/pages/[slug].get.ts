@@ -73,13 +73,85 @@ export default defineEventHandler(async (event) => {
     return sendRedirect(event, redirect.to, redirect.statusCode)
   }
 
-  const page = await db.query.contentItems.findFirst({
+  // Multilingual URL parsing:
+  // Detect if slug starts with a locale prefix (e.g. "es/my-page" or is exactly "es")
+  const SUPPORTED_LOCALES = new Set([
+    'en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'pl', 'ja', 'zh-CN', 'zh-TW', 'ko', 'ar', 'ru', 'hi'
+  ])
+
+  let requestedLocale: string | null = null
+  let actualSlug = slug
+
+  const parts = slug.split('/')
+  const potentialLocale = parts[0]
+
+  let hasLocaleMatch = false
+  if (potentialLocale && potentialLocale.length >= 2 && potentialLocale.length <= 10) {
+    if (SUPPORTED_LOCALES.has(potentialLocale)) {
+      hasLocaleMatch = true
+    } else {
+      // Dynamic fallback: query database for active locales
+      const activeLocales = await db.select({ locale: contentItems.locale })
+        .from(contentItems)
+        .where(eq(contentItems.siteId, siteId))
+        .groupBy(contentItems.locale)
+      const activeSet = new Set(activeLocales.map(l => l.locale).filter(Boolean))
+      if (activeSet.has(potentialLocale)) {
+        hasLocaleMatch = true
+      }
+    }
+  }
+
+  if (hasLocaleMatch) {
+    requestedLocale = potentialLocale!
+    actualSlug = parts.slice(1).join('/') || 'home'
+  }
+
+  // 1. Try finding by exact slug first
+  let page = await db.query.contentItems.findFirst({
     where: and(
       eq(contentItems.siteId, siteId),
-      eq(contentItems.slug, slug),
+      eq(contentItems.slug, actualSlug),
       eq(contentItems.status, 'published'),
     ),
   })
+
+  // 2. Resolve translations:
+  if (!page && requestedLocale) {
+    // Look up by original slug, then find its translation
+    const sourcePage = await db.query.contentItems.findFirst({
+      where: and(
+        eq(contentItems.siteId, siteId),
+        eq(contentItems.slug, actualSlug),
+        eq(contentItems.status, 'published')
+      ),
+    })
+    if (sourcePage) {
+      const translation = await db.query.contentItems.findFirst({
+        where: and(
+          eq(contentItems.siteId, siteId),
+          eq(contentItems.sourceItemId, sourcePage.id),
+          eq(contentItems.locale, requestedLocale),
+          eq(contentItems.status, 'published')
+        ),
+      })
+      page = translation || sourcePage
+    }
+  } else if (page && requestedLocale && page.locale !== requestedLocale) {
+    // Exact slug matches but locale differs — search for a linked translation
+    const sourceId = page.sourceItemId || page.id
+    const translation = await db.query.contentItems.findFirst({
+      where: and(
+        eq(contentItems.siteId, siteId),
+        eq(contentItems.sourceItemId, sourceId),
+        eq(contentItems.locale, requestedLocale),
+        eq(contentItems.status, 'published')
+      ),
+    })
+    if (translation) {
+      page = translation
+    }
+  }
 
   if (!page) throw createError({ statusCode: 404, message: 'Not found' })
 
@@ -123,10 +195,46 @@ export default defineEventHandler(async (event) => {
     author = authorUser ?? null
   }
 
+  // Resolve available translations for the switcher
+  const availableLocales: Array<{ locale: string; slug: string; rawSlug: string }> = []
+  const sourceId = page.sourceItemId || page.id
+  const sourcePage = page.sourceItemId
+    ? await db.query.contentItems.findFirst({
+        where: eq(contentItems.id, page.sourceItemId),
+        columns: { locale: true, slug: true },
+      })
+    : page
+
+  if (sourcePage) {
+    availableLocales.push({
+      locale: sourcePage.locale || 'en',
+      slug: sourcePage.slug,
+      rawSlug: sourcePage.slug
+    })
+
+    const siblings = await db.query.contentItems.findMany({
+      where: and(
+        eq(contentItems.siteId, siteId),
+        eq(contentItems.sourceItemId, sourceId),
+        eq(contentItems.status, 'published')
+      ),
+      columns: { locale: true, slug: true },
+    })
+
+    siblings.forEach(s => {
+      availableLocales.push({
+        locale: s.locale,
+        slug: sourcePage.slug, // clean prefix routing uses parent slug
+        rawSlug: s.slug
+      })
+    })
+  }
+
   return {
     id: page.id,
     title: page.title,
     slug: page.slug,
+    locale: page.locale || 'en',
     content: page.content,
     excerpt: page.excerpt,
     seoTitle: page.seoTitle,
@@ -138,5 +246,6 @@ export default defineEventHandler(async (event) => {
     updatedAt: page.updatedAt,
     hasComments,
     author,
+    availableLocales,
   }
 })

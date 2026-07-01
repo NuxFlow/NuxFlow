@@ -2,6 +2,7 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry: ['src/index.ts'],
+  outDir: 'bin',
   format: ['esm'],
   target: 'node20',
   clean: true,

@@ -1,10 +1,17 @@
 <script setup lang="ts">
+import { z } from 'zod'
+
 definePageMeta({ layout: 'auth' })
 
 const route = useRoute()
 const signInEmail = useSignIn('email')
 const signInPasskey = useSignIn('passkey')
 const signInSocialAction = useSignIn('social')
+
+const schema = z.object({
+  email: z.string().email('Enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+})
 
 const form = reactive({ email: '', password: '', rememberMe: true })
 const loading = ref(false)
@@ -77,13 +84,12 @@ async function signInSocial(provider: 'google' | 'github') {
       <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Welcome back — enter your details below</p>
     </div>
 
-    <!-- Glass card -->
-    <form class="glass rounded-2xl p-6 space-y-4" @submit.prevent="submit">
-      <UFormField label="Email address">
+    <UForm :schema="schema" :state="form" class="glass rounded-2xl p-6 space-y-4" @submit="submit">
+      <UFormField name="email" label="Email address">
         <UInput v-model="form.email" type="email" placeholder="you@example.com" autocomplete="email" class="w-full" />
       </UFormField>
 
-      <UFormField label="Password">
+      <UFormField name="password" label="Password">
         <UInput v-model="form.password" type="password" placeholder="••••••••" autocomplete="current-password" class="w-full" />
       </UFormField>
 
@@ -96,11 +102,11 @@ async function signInSocial(provider: 'google' | 'github') {
 
       <div class="flex flex-col gap-2">
         <UButton type="submit" block :loading="loading">Sign in</UButton>
-        <UButton 
-          type="button" 
-          block 
-          variant="subtle" 
-          icon="i-lucide-fingerprint" 
+        <UButton
+          type="button"
+          block
+          variant="subtle"
+          icon="i-lucide-fingerprint"
           :loading="loading"
           @click="signInWithPasskey"
         >
@@ -124,7 +130,6 @@ async function signInSocial(provider: 'google' | 'github') {
           GitHub
         </UButton>
       </div>
-    </form>
-
+    </UForm>
   </div>
 </template>

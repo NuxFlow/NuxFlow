@@ -1,5 +1,15 @@
 <script setup lang="ts">
+import { z } from 'zod'
+
 definePageMeta({ layout: 'auth' })
+
+const schema = z.object({
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string(),
+}).refine(data => data.password === data.confirmPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmPassword'],
+})
 
 const route = useRoute()
 const form = reactive({ password: '', confirmPassword: '' })
@@ -11,10 +21,6 @@ const token = computed(() => route.query.token as string | undefined)
 
 async function submit() {
   error.value = ''
-  if (form.password !== form.confirmPassword) {
-    error.value = 'Passwords do not match'
-    return
-  }
   if (!token.value) {
     error.value = 'Invalid or expired reset link'
     return
@@ -58,20 +64,20 @@ async function submit() {
       <p class="text-sm text-gray-500">Redirecting you to sign in…</p>
     </div>
 
-    <form v-else class="glass rounded-2xl p-6 space-y-4" @submit.prevent="submit">
-      <UFormField label="New password" hint="At least 8 characters">
+    <UForm v-else :schema="schema" :state="form" class="glass rounded-2xl p-6 space-y-4" @submit="submit">
+      <UFormField name="password" label="New password" hint="At least 8 characters">
         <UInput v-model="form.password" type="password" placeholder="••••••••" autocomplete="new-password" class="w-full" autofocus />
       </UFormField>
 
-      <UFormField label="Confirm new password">
+      <UFormField name="confirmPassword" label="Confirm new password">
         <UInput v-model="form.confirmPassword" type="password" placeholder="••••••••" autocomplete="new-password" class="w-full" />
       </UFormField>
 
       <UAlert v-if="error" color="red" variant="soft" :description="error" />
 
-      <UButton type="submit" block :loading="loading" :disabled="!form.password || !form.confirmPassword">
+      <UButton type="submit" block :loading="loading">
         Reset password
       </UButton>
-    </form>
+    </UForm>
   </div>
 </template>

@@ -6,10 +6,7 @@
     "@nuxflow/cli": "1.0.0",
     "@nuxflow/db": "1.0.0",
     "@nuxflow/plugin-sdk": "1.0.0",
-    "@nuxflow/plugin-canvas": "1.0.0",
-    "@nuxflow/plugin-contact-form": "1.0.0",
-    "@nuxflow/plugin-html-block": "1.0.0",
-    "@nuxflow/plugin-payments": "1.0.0",
+    "@nuxflow/canvas": "1.0.0",
     "@nuxflow/theme-default": "0.1.0",
     "create-nuxflow-app": "0.1.0"
   },

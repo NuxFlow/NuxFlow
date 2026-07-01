@@ -29,6 +29,7 @@ CREATE TABLE `users` (
 	`email` text NOT NULL,
 	`email_verified` integer DEFAULT false NOT NULL,
 	`image` text,
+	`phone` text,
 	`created_at` text DEFAULT (datetime('now')) NOT NULL,
 	`updated_at` text DEFAULT (datetime('now')) NOT NULL
 );
@@ -161,6 +162,15 @@ CREATE TABLE `content_items` (
 	`allow_comments` integer,
 	`locale` text DEFAULT 'en' NOT NULL,
 	`source_item_id` text REFERENCES `content_items`(`id`) ON UPDATE no action ON DELETE set null,
+	`version` integer DEFAULT 1 NOT NULL,
+	`event_start_at` text,
+	`event_end_at` text,
+	`event_location` text,
+	`event_url` text,
+	`event_all_day` integer,
+	`canonical_url` text,
+	`focus_keyword` text,
+	`meta_robots` text,
 	`created_at` text DEFAULT (datetime('now')) NOT NULL,
 	`updated_at` text DEFAULT (datetime('now')) NOT NULL,
 	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
@@ -173,6 +183,8 @@ CREATE INDEX `idx_content_items_site_slug` ON `content_items` (`site_id`,`slug`)
 CREATE INDEX `idx_content_items_site_status` ON `content_items` (`site_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_content_items_locale` ON `content_items` (`site_id`,`locale`);--> statement-breakpoint
 CREATE INDEX `idx_content_items_source` ON `content_items` (`source_item_id`);--> statement-breakpoint
+CREATE INDEX `idx_content_items_site_updated` ON `content_items` (`site_id`,`updated_at`);--> statement-breakpoint
+CREATE INDEX `idx_content_items_event_start` ON `content_items` (`site_id`,`event_start_at`);--> statement-breakpoint
 CREATE TABLE `content_revisions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`item_id` text NOT NULL,
@@ -276,6 +288,8 @@ CREATE TABLE `media` (
 	`caption` text,
 	`folder_id` text,
 	`metadata` text,
+	`focal_x` integer,
+	`focal_y` integer,
 	`created_at` text DEFAULT (datetime('now')) NOT NULL,
 	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`uploaded_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null
@@ -293,6 +307,36 @@ CREATE TABLE `media_folders` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_media_folders_site` ON `media_folders` (`site_id`);--> statement-breakpoint
+CREATE TABLE `push_subscriptions` (
+	`id` text PRIMARY KEY NOT NULL,
+	`site_id` text NOT NULL,
+	`user_id` text NOT NULL,
+	`endpoint` text NOT NULL,
+	`p256dh` text NOT NULL,
+	`auth` text NOT NULL,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_push_subs_site` ON `push_subscriptions` (`site_id`);--> statement-breakpoint
+CREATE INDEX `idx_push_subs_user_site` ON `push_subscriptions` (`user_id`,`site_id`);--> statement-breakpoint
+CREATE TABLE `video_assets` (
+	`id` text PRIMARY KEY NOT NULL,
+	`site_id` text NOT NULL,
+	`uploaded_by` text,
+	`cloudflare_stream_id` text NOT NULL,
+	`title` text NOT NULL,
+	`duration` integer,
+	`thumbnail_url` text,
+	`status` text DEFAULT 'uploading' NOT NULL,
+	`size` integer,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`uploaded_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null
+);
+--> statement-breakpoint
+CREATE INDEX `idx_video_assets_site` ON `video_assets` (`site_id`);--> statement-breakpoint
 CREATE TABLE `forms` (
 	`id` text PRIMARY KEY NOT NULL,
 	`site_id` text NOT NULL,
@@ -327,6 +371,26 @@ CREATE TABLE `form_submissions` (
 CREATE INDEX `idx_form_submissions_form` ON `form_submissions` (`form_id`);--> statement-breakpoint
 CREATE INDEX `idx_form_submissions_site` ON `form_submissions` (`site_id`);--> statement-breakpoint
 CREATE INDEX `idx_form_submissions_form_status` ON `form_submissions` (`form_id`,`status`);--> statement-breakpoint
+CREATE TABLE `ai_generation_jobs` (
+	`id` text PRIMARY KEY NOT NULL,
+	`site_id` text NOT NULL,
+	`user_id` text NOT NULL,
+	`prompt` text NOT NULL,
+	`type` text DEFAULT 'page' NOT NULL,
+	`plan` text,
+	`status` text DEFAULT 'planning' NOT NULL,
+	`generated_count` integer DEFAULT 0 NOT NULL,
+	`total_count` integer DEFAULT 0 NOT NULL,
+	`content_item_ids` text,
+	`error` text,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL,
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_ai_gen_jobs_site` ON `ai_generation_jobs` (`site_id`);--> statement-breakpoint
+CREATE INDEX `idx_ai_gen_jobs_user_site` ON `ai_generation_jobs` (`user_id`,`site_id`);--> statement-breakpoint
 CREATE TABLE `audit_logs` (
 	`id` text PRIMARY KEY NOT NULL,
 	`site_id` text NOT NULL,

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
-import { contentItems, contentTypes } from '@nuxflow/db/schema'
+import { contentItems, contentTypes, sites } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 
@@ -14,6 +14,13 @@ const bodySchema = z.object({
   content: z.unknown().optional(),
   seoTitle: z.string().max(200).optional(),
   seoDescription: z.string().max(500).optional(),
+  locale: z.string().max(10).optional(),
+  sourceItemId: z.string().optional(),
+  eventStartAt: z.string().nullish(),
+  eventEndAt: z.string().nullish(),
+  eventLocation: z.string().max(500).nullish(),
+  eventUrl: z.string().max(2048).nullish(),
+  eventAllDay: z.boolean().nullish(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -27,6 +34,13 @@ export default defineEventHandler(async (event) => {
   })
   if (!type) throw createError({ statusCode: 404, message: 'Content type not found' })
 
+  // Resolve default site locale
+  const site = await db.query.sites.findFirst({
+    where: eq(sites.id, siteId),
+    columns: { locale: true },
+  })
+  const siteLocale = site?.locale || 'en'
+
   const id = ulid()
   await db.insert(contentItems).values({
     id,
@@ -39,6 +53,13 @@ export default defineEventHandler(async (event) => {
     content: body.content,
     seoTitle: body.seoTitle,
     seoDescription: body.seoDescription,
+    locale: body.locale || siteLocale,
+    sourceItemId: body.sourceItemId || null,
+    eventStartAt: body.eventStartAt || null,
+    eventEndAt: body.eventEndAt || null,
+    eventLocation: body.eventLocation || null,
+    eventUrl: body.eventUrl || null,
+    eventAllDay: body.eventAllDay || null,
   })
 
   await writeAuditLog(event, userId, { action: 'create', resource: 'content_item', resourceId: id })

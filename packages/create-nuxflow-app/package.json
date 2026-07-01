@@ -4,13 +4,14 @@
   "description": "Create a new NuxFlow CMS project — edge-native Nuxt 4 + Cloudflare Workers",
   "type": "module",
   "bin": {
-    "create-nuxflow-app": "dist/index.js"
+    "create-nuxflow-app": "bin/index.js"
   },
   "files": [
-    "dist"
+    "bin"
   ],
   "scripts": {
     "build": "tsup",
+    "prepare": "tsup",
     "dev": "tsx src/index.ts"
   },
   "engines": {

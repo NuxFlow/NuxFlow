@@ -120,6 +120,50 @@ Manage **301 and 302 redirects** directly from the dashboard to ensure visitors 
 
 ---
 
+## Multilingual Support (i18n)
+
+NuxFlow features native multilingual support that allows you to translate and serve content in multiple languages.
+
+### 1. Translating Content in the Editor
+When editing an existing post or page, click the **Translate** button in the top toolbar:
+- Select from the dropdown list of 15 pre-configured languages (e.g., Spanish, French, Japanese, Arabic) or enter a custom language code (e.g., `pt-BR`).
+- The AI will automatically copy your layout and translate all text, headings, and SEO metadata.
+- The translated copy is saved as a new **Draft** linked to the original page, allowing you to edit and review before publishing.
+
+### 2. Managing Translations
+- **Badges:** In **Admin → Content**, translations are marked with visual badges (e.g., `ES`, `FR`) and a `Translation` label next to their titles.
+- **Language Filtering:** Use the language dropdown selector in the Content header to filter items by language.
+
+### 3. Public Routing & Switching
+- **URL Strategy:** Translated pages are served at path-prefixed URLs (e.g., `/es/my-page`). If a visitor lands on a translated URL that has not been published yet, the CMS automatically falls back to showing the original language version.
+- **Language Switcher:** A globe dropdown picker appears in the header on pages with available translations, allowing visitors to change languages instantly.
+
+---
+
+## Events System
+
+Manage conferences, workshops, meetups, and webinars, displaying them on calendars and letting visitors subscribe or RSVP.
+
+### 1. Creating Events
+NuxFlow includes a built-in `event` content type:
+- In the editor sidebar, fill out the **Event Details** card:
+  - **Start & End Times:** Input the date and time of the event.
+  - **All Day Event Switch:** Toggle if the event spans the full day without specific hours.
+  - **Location / Venue:** Enter address or "Online".
+  - **Registration URL:** Provide an external registration link (e.g. Zoom, Eventbrite, or checkout page).
+- Publish or schedule the event.
+
+### 2. Events Calendar Block
+To display events on your website:
+- Add the **Events Calendar** block to a Canvas page.
+- Choose between **List view** (displays a timeline of event cards) and **Calendar Grid** (displays a month-grid where clicking dates highlights matching events).
+- Visitors can click **Add to Calendar** on any event card to generate and download a standard `.ics` file instantly to their device.
+
+### 3. Subscription & Feeds
+- **Calendar Feed:** NuxFlow automatically hosts a standards-compliant iCal feed at `/events.ics`. Visitors can copy this link and paste it into Apple Calendar, Google Calendar, or Outlook to subscribe to your events.
+
+---
+
 ## AI Writing Assistant
 
 If configured, NuxFlow provides AI-powered tools to help you write:
@@ -302,13 +346,29 @@ To accept payments, configure at least one payment provider in **Admin → Setti
 
 Canvas is a visual drag-and-drop page builder built into NuxFlow. It adds a **Canvas** editor mode to any page or post, letting you build layouts from blocks without writing code.
 
-Available blocks include Hero sections, Text, Image, **Gallery**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), Columns, Feature grids, Testimonials, CTA banners, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), Contact Form, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
+Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), Columns, Feature grids, Testimonials, CTA banners, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), Contact Form, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
 
 #### Gallery block
 
 The **Gallery** block renders a responsive image grid. Add images by pasting their URLs one at a time into the Images field in the settings panel. You can set alt text for each image individually. Configure the number of columns (2, 3, or 4), the gap between images, and whether corners are rounded.
 
 Enable **Open lightbox on click** to let visitors view images full-screen. The lightbox supports keyboard navigation (← → arrow keys, Escape to close) and shows a position counter when the gallery has more than one image.
+
+#### Carousel block
+
+The **Carousel** block displays a rotating image slider — popular for hero banners and product showcases. Add images via the Images field in the settings panel, same as the Gallery block.
+
+| Setting | Description |
+|---|---|
+| **Aspect ratio** | 16:9 (default), 21:9 (cinematic), 4:3, or 1:1. |
+| **Autoplay** | Automatically advances slides. Enabled by default. |
+| **Autoplay interval (ms)** | How long each slide stays on screen before advancing (only shown when Autoplay is on). |
+| **Loop back to start** | When enabled, the carousel wraps from the last slide back to the first (and vice versa). When disabled, the arrows disable themselves at the first/last slide. |
+| **Show prev/next arrows** | Toggles the click-through arrow controls. |
+| **Show dot navigation** | Toggles the row of dots below the slider for jumping to a specific slide. |
+| **Rounded corners** | Rounds the slider's corners. |
+
+Visitors can also swipe on touch devices, or use the ← → arrow keys after clicking/tapping into the carousel. Autoplay pauses automatically while a visitor is hovering over the slider. With a single image, the carousel renders that image statically with no arrows, dots, or autoplay.
 
 #### Image block lightbox
 

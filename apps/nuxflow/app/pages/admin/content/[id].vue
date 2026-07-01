@@ -18,6 +18,9 @@ const { data: item, refresh } = await useAsyncData(
     excerpt?: string; ogImage?: string
     settings?: Record<string, unknown>
     allowComments?: boolean | null; typeHasComments?: boolean
+    typeSlug?: string
+    eventStartAt?: string | null; eventEndAt?: string | null; eventLocation?: string | null
+    eventUrl?: string | null; eventAllDay?: boolean | null
   }>(`/api/v1/content/${id.value}`),
   { server: false },
 )
@@ -45,6 +48,16 @@ const form = reactive({
   ogImage: '',
   access: 'public' as string,
   allowComments: null as boolean | null,
+  eventStartAt: '',
+  eventEndAt: '',
+  eventLocation: '',
+  eventUrl: '',
+  eventAllDay: false,
+})
+
+const activeTypeSlug = computed(() => {
+  if (isNew.value) return (route.query.type as string) || 'page'
+  return item.value?.typeSlug ?? 'page'
 })
 
 // Populate (once) when the async data resolves — works for both SSR hydration
@@ -67,6 +80,11 @@ watch(item, (val) => {
   form.ogImage = val.ogImage ?? ''
   form.access = (val.settings as Record<string, unknown> | null)?.access as string ?? 'public'
   form.allowComments = val.allowComments ?? null
+  form.eventStartAt = val.eventStartAt ? val.eventStartAt.substring(0, 16) : ''
+  form.eventEndAt = val.eventEndAt ? val.eventEndAt.substring(0, 16) : ''
+  form.eventLocation = val.eventLocation ?? ''
+  form.eventUrl = val.eventUrl ?? ''
+  form.eventAllDay = val.eventAllDay ?? false
 }, { immediate: true })
 
 // ── Editor mode (TipTap vs Canvas) ───────────────────────────────────────────
@@ -147,6 +165,11 @@ async function save(overrideStatus?: string) {
       ogImage: form.ogImage || null,
       settings: { access: form.access },
       allowComments: form.allowComments,
+      eventStartAt: form.eventStartAt ? new Date(form.eventStartAt).toISOString() : null,
+      eventEndAt: form.eventEndAt ? new Date(form.eventEndAt).toISOString() : null,
+      eventLocation: form.eventLocation || null,
+      eventUrl: form.eventUrl || null,
+      eventAllDay: form.eventAllDay,
     }
     if (isNew.value) {
       const result = await $fetch<{ id: string }>('/api/v1/content', {
@@ -333,6 +356,48 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
             <UButton variant="ghost" size="xs" class="text-gray-400" @click="form.allowComments = null">
               Reset to type default
             </UButton>
+          </div>
+        </UCard>
+
+        <!-- Event Settings Panel -->
+        <UCard v-if="activeTypeSlug === 'event'" class="text-sm">
+          <p class="font-medium mb-3">Event Details</p>
+          <div class="space-y-3">
+            <UFormField label="Start Date & Time" class="text-xs">
+              <UInput
+                v-model="form.eventStartAt"
+                type="datetime-local"
+                class="text-sm"
+              />
+            </UFormField>
+            <UFormField label="End Date & Time" class="text-xs">
+              <UInput
+                v-model="form.eventEndAt"
+                type="datetime-local"
+                class="text-sm"
+              />
+            </UFormField>
+            <div class="flex items-center gap-2">
+              <USwitch
+                id="event-all-day"
+                v-model="form.eventAllDay"
+              />
+              <label for="event-all-day" class="text-xs text-gray-500 dark:text-gray-400 select-none cursor-pointer">All Day Event</label>
+            </div>
+            <UFormField label="Location / Venue" class="text-xs">
+              <UInput
+                v-model="form.eventLocation"
+                placeholder="e.g. Online, Paris Office..."
+                class="text-sm"
+              />
+            </UFormField>
+            <UFormField label="Event Link / Registration URL" class="text-xs">
+              <UInput
+                v-model="form.eventUrl"
+                placeholder="https://..."
+                class="text-sm"
+              />
+            </UFormField>
           </div>
         </UCard>
 

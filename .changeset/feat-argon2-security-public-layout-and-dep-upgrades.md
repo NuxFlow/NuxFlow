@@ -1,6 +1,6 @@
 ---
 "@nuxflow/app": minor
-"@nuxflow/plugin-canvas": patch
+"@nuxflow/canvas": patch
 "@nuxflow/plugin-sdk": patch
 "@nuxflow/db": patch
 "@nuxflow/cli": patch

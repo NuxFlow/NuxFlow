@@ -1,8 +1,20 @@
 <script setup lang="ts">
+import { z } from 'zod'
+
 definePageMeta({ layout: 'auth' })
 
 const route = useRoute()
 const signInSocialAction = useSignIn('social')
+
+const schema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Enter a valid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string(),
+}).refine(data => data.password === data.confirmPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmPassword'],
+})
 
 const form = reactive({ name: '', email: '', password: '', confirmPassword: '' })
 const loading = ref(false)
@@ -27,10 +39,6 @@ onMounted(() => {
 
 async function submit() {
   error.value = ''
-  if (form.password !== form.confirmPassword) {
-    error.value = 'Passwords do not match'
-    return
-  }
   loading.value = true
   try {
     await $fetch('/api/public/auth/register', {
@@ -59,7 +67,7 @@ async function signInSocial(provider: 'google' | 'github') {
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Create an account</h1>
     </div>
 
-    <!-- Registration is disabled — shown immediately on page load, no form presented -->
+    <!-- Registration disabled -->
     <div v-if="!registrationEnabled" class="rounded-2xl border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/60 p-6 text-center space-y-3">
       <UIcon name="i-lucide-lock" class="w-10 h-10 text-amber-500 mx-auto" />
       <p class="font-semibold text-gray-900 dark:text-white">Registration is currently closed</p>
@@ -69,7 +77,7 @@ async function signInSocial(provider: 'google' | 'github') {
       </NuxtLink>
     </div>
 
-    <!-- Success: account created, redirect to login to sign in -->
+    <!-- Success -->
     <div v-else-if="success" class="rounded-2xl border border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-900/30 p-6 text-center space-y-3">
       <UIcon name="i-lucide-circle-check" class="w-10 h-10 text-green-500 mx-auto" />
       <p class="font-semibold text-gray-900 dark:text-white">Account created!</p>
@@ -80,10 +88,9 @@ async function signInSocial(provider: 'google' | 'github') {
     </div>
 
     <!-- Registration form -->
-    <form v-else class="glass rounded-2xl p-6 space-y-4" @submit.prevent="submit">
+    <UForm v-else :schema="schema" :state="form" class="glass rounded-2xl p-6 space-y-4" @submit="submit">
       <p class="text-sm text-center text-gray-500 dark:text-gray-400">Join us — it only takes a moment</p>
 
-      <!-- Social sign-up -->
       <div class="grid grid-cols-2 gap-3">
         <UButton variant="outline" block @click="signInSocial('google')">
           <UIcon name="i-simple-icons-google" class="w-4 h-4 mr-2" />
@@ -101,33 +108,27 @@ async function signInSocial(provider: 'google' | 'github') {
         <div class="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
       </div>
 
-      <UFormField label="Full name">
+      <UFormField name="name" label="Full name">
         <UInput v-model="form.name" placeholder="Jane Smith" autocomplete="name" class="w-full" autofocus />
       </UFormField>
 
-      <UFormField label="Email address">
+      <UFormField name="email" label="Email address">
         <UInput v-model="form.email" type="email" placeholder="you@example.com" autocomplete="email" class="w-full" />
       </UFormField>
 
-      <UFormField label="Password" hint="At least 8 characters">
+      <UFormField name="password" label="Password" hint="At least 8 characters">
         <UInput v-model="form.password" type="password" placeholder="••••••••" autocomplete="new-password" class="w-full" />
       </UFormField>
 
-      <UFormField label="Confirm password">
+      <UFormField name="confirmPassword" label="Confirm password">
         <UInput v-model="form.confirmPassword" type="password" placeholder="••••••••" autocomplete="new-password" class="w-full" />
       </UFormField>
 
-      <!-- Error: solid background ensures visibility on the glass card -->
       <div v-if="error" class="rounded-lg bg-red-600 dark:bg-red-700 px-4 py-3">
         <p class="text-sm font-medium text-white">{{ error }}</p>
       </div>
 
-      <UButton
-        type="submit"
-        block
-        :loading="loading"
-        :disabled="!form.name || !form.email || !form.password || !form.confirmPassword"
-      >
+      <UButton type="submit" block :loading="loading">
         Create account
       </UButton>
 
@@ -135,6 +136,6 @@ async function signInSocial(provider: 'google' | 'github') {
         Already have an account?
         <NuxtLink to="/login" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">Sign in</NuxtLink>
       </p>
-    </form>
+    </UForm>
   </div>
 </template>

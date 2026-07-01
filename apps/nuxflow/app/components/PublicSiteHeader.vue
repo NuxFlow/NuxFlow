@@ -11,11 +11,21 @@ interface MenuItem {
 interface SitePublic {
   name: string
   domain: string
+  locale: string
   showHeader: boolean
-  showColorToggle: boolean
+  showSearch: boolean
+  showStickyHeader: boolean
+  logoSize: 'sm' | 'md' | 'lg'
   logoUrl: string | null
   canonicalBase: string
 }
+
+const logoHeightClass = computed(() => {
+  const size = site.value?.logoSize ?? 'md'
+  if (size === 'sm') return 'h-6'
+  if (size === 'lg') return 'h-10'
+  return 'h-8'
+})
 
 const { data: site } = await useFetch<SitePublic>('/api/public/site', {
   headers: useRequestHeaders(['host']),
@@ -33,10 +43,69 @@ function href(item: MenuItem | ChildItem) {
 const mobileOpen = ref(false)
 const route = useRoute()
 watch(() => route.path, () => { mobileOpen.value = false })
+
+// ── Language Switcher State ──────────────────────────────────────────────────
+const availableLocales = useState<Array<{ locale: string; slug: string; rawSlug?: string }>>('active-locales', () => [])
+const showLangMenu = ref(false)
+const langDropdown = ref<HTMLElement | null>(null)
+
+const currentLocale = computed(() => {
+  const pathParts = route.path.split('/').filter(Boolean)
+  const firstPart = pathParts[0]
+  if (firstPart && availableLocales.value.some(l => l.locale === firstPart)) {
+    return firstPart
+  }
+  return site.value?.locale || 'en'
+})
+
+const LOCALE_NAMES: Record<string, string> = {
+  en: 'English',
+  es: 'Español',
+  fr: 'Français',
+  de: 'Deutsch',
+  it: 'Italiano',
+  pt: 'Português',
+  nl: 'Nederlands',
+  pl: 'Polski',
+  ja: '日本語',
+  'zh-CN': '简体中文',
+  'zh-TW': '繁體中文',
+  ko: '한국어',
+  ar: 'العربية',
+  ru: 'Русский',
+  hi: 'हिन्दी'
+}
+
+function getLocaleName(code: string) {
+  return LOCALE_NAMES[code] || code.toUpperCase()
+}
+
+function getLocalePath(item: { locale: string; slug: string }) {
+  const defaultLocale = site.value?.locale || 'en'
+  const slugPath = item.slug === 'home' ? '' : item.slug
+  if (item.locale === defaultLocale) {
+    return `/${slugPath}`
+  }
+  return `/${item.locale}/${slugPath}`
+}
+
+function handleClickOutside(e: MouseEvent) {
+  if (langDropdown.value && !langDropdown.value.contains(e.target as Node)) {
+    showLangMenu.value = false
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('click', handleClickOutside)
+})
 </script>
 
 <template>
-  <header v-if="site?.showHeader !== false" class="glass sticky top-0 z-50" style="border-bottom: 1px solid var(--glass-border);">
+  <header v-if="site?.showHeader !== false" :class="['glass z-50', site?.showStickyHeader !== false ? 'sticky top-0' : '']" style="border-bottom: 1px solid var(--glass-border);">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-6">
       <!-- Logo -->
       <NuxtLink to="/" class="shrink-0 flex items-center hover:opacity-80 transition-opacity">
@@ -44,7 +113,7 @@ watch(() => route.path, () => { mobileOpen.value = false })
           v-if="site?.logoUrl"
           :src="site.logoUrl"
           :alt="site.name ?? 'Logo'"
-          class="h-8 w-auto max-w-[160px] object-contain"
+          :class="[logoHeightClass, 'w-auto max-w-[160px] object-contain']"
         >
         <span v-else class="font-bold text-lg text-gray-900 dark:text-white">
           {{ site?.name ?? 'NuxFlow' }}
@@ -93,16 +162,42 @@ watch(() => route.path, () => { mobileOpen.value = false })
       </nav>
 
       <div class="flex items-center gap-2 ml-auto">
+        <!-- Language Switcher -->
+        <div v-if="availableLocales && availableLocales.length > 1" ref="langDropdown" class="relative">
+          <button
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer select-none"
+            @click.stop="showLangMenu = !showLangMenu"
+          >
+            <UIcon name="i-lucide-globe" class="w-4 h-4" />
+            <span class="uppercase tracking-wider font-mono">{{ currentLocale }}</span>
+            <UIcon name="i-lucide-chevron-down" class="w-3.5 h-3.5 transition-transform duration-200" :class="showLangMenu ? 'rotate-180' : ''" />
+          </button>
+          
+          <div
+            v-if="showLangMenu"
+            class="absolute right-0 top-full mt-2 w-44 glass rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 py-1"
+          >
+            <NuxtLink
+              v-for="loc in availableLocales"
+              :key="loc.locale"
+              :to="getLocalePath(loc)"
+              class="flex items-center gap-2.5 px-4 py-2.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 hover:text-primary-500 transition-colors font-medium cursor-pointer"
+              @click="showLangMenu = false"
+            >
+              <span class="font-mono uppercase text-gray-400 dark:text-gray-500 font-semibold">{{ loc.locale }}</span>
+              <span class="truncate">{{ getLocaleName(loc.locale) }}</span>
+            </NuxtLink>
+          </div>
+        </div>
+
         <NuxtLink
+          v-if="site?.showSearch !== false"
           to="/search"
           class="flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
           aria-label="Search"
         >
           <UIcon name="i-lucide-search" class="w-4 h-4" />
         </NuxtLink>
-        <ClientOnly>
-          <UColorModeButton v-if="site?.showColorToggle !== false" size="sm" />
-        </ClientOnly>
         <!-- Mobile hamburger -->
         <button
           v-if="navItems.length"

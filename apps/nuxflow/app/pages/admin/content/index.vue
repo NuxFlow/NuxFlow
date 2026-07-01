@@ -6,8 +6,51 @@ const typeSlug = computed(() => (route.query.type as string) || 'page')
 
 useHead({ title: computed(() => typeSlug.value.charAt(0).toUpperCase() + typeSlug.value.slice(1) + 's') })
 
-type ContentRow = { id: string; title: string; slug: string; status: string; authorId: string; updatedAt: string }
-const { data: items, refresh } = await useFetch<{ items: ContentRow[] }>(() => `/api/v1/content?type=${typeSlug.value}`)
+type ContentRow = {
+  id: string
+  title: string
+  slug: string
+  status: string
+  authorId: string
+  updatedAt: string
+  locale: string | null
+  sourceItemId: string | null
+}
+
+const selectedLocale = ref<string>('all')
+
+const localeOptions = [
+  { label: 'All Languages', value: 'all' },
+  { label: 'English', value: 'en' },
+  { label: 'Spanish', value: 'es' },
+  { label: 'French', value: 'fr' },
+  { label: 'German', value: 'de' },
+  { label: 'Italian', value: 'it' },
+  { label: 'Portuguese', value: 'pt' },
+  { label: 'Dutch', value: 'nl' },
+  { label: 'Polish', value: 'pl' },
+  { label: 'Japanese', value: 'ja' },
+  { label: 'Chinese (Simplified)', value: 'zh-CN' },
+  { label: 'Chinese (Traditional)', value: 'zh-TW' },
+  { label: 'Korean', value: 'ko' },
+  { label: 'Arabic', value: 'ar' },
+  { label: 'Russian', value: 'ru' },
+  { label: 'Hindi', value: 'hi' },
+]
+
+const { data: items, refresh } = await useFetch<{ items: ContentRow[] }>(
+  () => '/api/v1/content',
+  {
+    query: computed(() => {
+      const q: Record<string, string> = { type: typeSlug.value }
+      if (selectedLocale.value && selectedLocale.value !== 'all') {
+        q.locale = selectedLocale.value
+      }
+      return q
+    }),
+    watch: [selectedLocale, typeSlug],
+  }
+)
 
 type Color = 'green' | 'gray' | 'blue' | 'yellow' | 'orange' | 'red' | 'primary' | 'neutral'
 const statusColor: Record<string, Color> = {
@@ -63,8 +106,16 @@ async function doDelete() {
 
 <template>
   <div class="space-y-4">
-    <div class="flex items-center justify-between">
-      <h1 class="text-xl font-bold text-gray-900 dark:text-white capitalize">{{ typeSlug }}s</h1>
+    <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <h1 class="text-xl font-bold text-gray-900 dark:text-white capitalize">{{ typeSlug }}s</h1>
+        <USelect
+          v-model="selectedLocale"
+          :items="localeOptions"
+          size="sm"
+          class="w-40"
+        />
+      </div>
       <UButton :to="`/admin/content/new?type=${typeSlug}`" icon="i-lucide-plus">
         New {{ typeSlug }}
       </UButton>
@@ -73,12 +124,32 @@ async function doDelete() {
     <UCard>
       <UTable :data="items?.items ?? []" :columns="columns">
         <template #title-cell="{ row }">
-          <NuxtLink
-            :to="`/admin/content/${row.original.id}`"
-            class="font-medium text-gray-900 dark:text-white hover:text-primary-500"
-          >
-            {{ row.original.title }}
-          </NuxtLink>
+          <div class="flex items-center gap-2">
+            <NuxtLink
+              :to="`/admin/content/${row.original.id}`"
+              class="font-medium text-gray-900 dark:text-white hover:text-primary-500"
+            >
+              {{ row.original.title }}
+            </NuxtLink>
+            <UBadge
+              v-if="row.original.locale"
+              color="neutral"
+              variant="soft"
+              size="xs"
+              class="uppercase text-[9px] px-1 py-0"
+            >
+              {{ row.original.locale }}
+            </UBadge>
+            <UBadge
+              v-if="row.original.sourceItemId"
+              color="primary"
+              variant="soft"
+              size="xs"
+              class="text-[9px] px-1 py-0"
+            >
+              Translation
+            </UBadge>
+          </div>
         </template>
 
         <template #status-cell="{ row }">

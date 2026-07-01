@@ -19,6 +19,7 @@ export default createConfigForNuxt({
   },
   {
     files: [
+      'apps/nuxflow/app/*.vue',
       'apps/nuxflow/app/pages/**/*.vue',
       'apps/nuxflow/app/layouts/**/*.vue',
       'apps/nuxflow/app/components/**/*.vue',

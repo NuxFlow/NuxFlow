@@ -176,7 +176,7 @@ When modifying or expanding the NuxFlow codebase:
 2.  **Respect Tenancy:** Ensure all database queries are scoped by `siteId`. Never select data without restricting queries to `eq(table.siteId, siteId)`.
 3.  **Strict Typing:** Ensure components in themes and blocks remain strongly typed and align with the interfaces defined in the `@nuxflow/plugin-sdk` package.
 4.  **Use Predefined Utilities:** Before implementing custom helper functions, check if the utility is already provided in the `server/utils` directory (e.g., `audit.ts` for audit logs, `notify.ts` for dashboard alerts, or `validate.ts` for runtime schemas).
-5.  **Strict Core vs. Theme/Plugin Separation (White-Labeling & Data Separation):** NuxFlow is an open-source, white-labeled CMS. All built-in canvas blocks (in `@nuxflow/plugin-canvas`) must remain strictly white-labeled.
+5.  **Strict Core vs. Theme/Plugin Separation (White-Labeling & Data Separation):** NuxFlow is an open-source, white-labeled CMS. All built-in canvas blocks (in `@nuxflow/canvas`) must remain strictly white-labeled.
     - **NO Core Hardcoding:** Never hardcode site-specific copy, custom brand logos, or specialized navigation links inside the Vue component code or the standard `defaultProps` in `definitions.ts`. Instead, use neutral, generic placeholder values (e.g., `'My Site'`, `'i-lucide-globe'`).
     - **Branded Data Belongs in the Theme:** Branded site-specific copy (e.g., NuxFlow descriptions, custom logo text, specific links, and themed color definitions) belongs **strictly** in the layout JSON files inside specific theme packages (such as `demo.json` in theme ZIPs). This ensures the engine is 100% white-paper generic, but fully customized when a branded theme package is imported.
 

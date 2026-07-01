@@ -8,62 +8,6 @@
       "when": 1749638400000,
       "tag": "0000_baseline",
       "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1781183115652,
-      "tag": "0001_simple_sprite",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1781289566164,
-      "tag": "0002_loose_kitty_pryde",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1781290476377,
-      "tag": "0003_regular_changeling",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1781460418208,
-      "tag": "0004_peaceful_the_hunter",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1781461857718,
-      "tag": "0005_exotic_stark_industries",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1781945928841,
-      "tag": "0006_marvelous_argent",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1782034990576,
-      "tag": "0007_hesitant_terrax",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1782107504423,
-      "tag": "0008_useful_malice",
-      "breakpoints": true
     }
   ]
 }

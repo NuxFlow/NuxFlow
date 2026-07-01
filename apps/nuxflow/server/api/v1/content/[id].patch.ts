@@ -23,6 +23,13 @@ const bodySchema = z.object({
   excerpt: z.string().max(2000).nullish(),
   ogImage: z.string().max(2048).nullish(),
   allowComments: z.boolean().nullable().optional(),
+  locale: z.string().max(10).optional(),
+  sourceItemId: z.string().nullable().optional(),
+  eventStartAt: z.string().nullable().optional(),
+  eventEndAt: z.string().nullable().optional(),
+  eventLocation: z.string().max(500).nullable().optional(),
+  eventUrl: z.string().max(2048).nullable().optional(),
+  eventAllDay: z.boolean().nullable().optional(),
   // Optional optimistic lock: client sends the version it last saw.
   // Server returns 409 if the item has since been updated by someone else.
   expectedVersion: z.number().int().positive().optional(),

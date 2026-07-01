@@ -20,9 +20,9 @@ nuxflow/
 ├── apps/
 │   └── nuxflow/          # Main Nuxt 4 application (the CMS)
 ├── packages/
+│   ├── canvas/           # Canvas page builder engine (blocks, editor, types)
 │   ├── db/               # Drizzle schema, migrations, and DB client
-│   ├── plugin-sdk/       # SDK for building NuxFlow plugins
-│   ├── plugins/          # Built-in plugins (canvas, contact-form, etc.)
+│   ├── plugin-sdk/       # Types and utilities for building dynamic plugins
 │   └── cli/              # NuxFlow CLI tool
 ├── themes/
 │   └── default/          # Default CSS theme
@@ -241,9 +241,11 @@ Commit messages are linted by commitlint in CI.
 
 ## Plugin Development
 
-Plugins extend NuxFlow with new Canvas blocks, admin pages, API routes, and background tasks. The `packages/plugin-sdk` package provides the types and utilities for building them.
+NuxFlow supports **dynamic plugins** — independently-installed Cloudflare Worker extensions that can add new Canvas blocks, admin pages, and server routes to a site. The `packages/plugin-sdk` package provides the `NuxFlowPlugin` interface and types for building them.
 
 For a complete guide covering plugin structure, Canvas block registration, signing, and publishing, see the [External Plugin Development Guide](./plugins.md).
+
+> **Note on built-in features:** Contact Forms, Memberships/Commerce, and the HTML block are first-class NuxFlow features, not plugins. Their components live in `apps/nuxflow/app/components/` and their server routes in `apps/nuxflow/server/api/`. They appear in the Canvas block picker under their own categories (Forms, Commerce, Advanced).
 
 ---
 
@@ -344,6 +346,7 @@ Pages using the Canvas page builder render **full-width** with no outer containe
 | `.canvas-hero` | Hero / banner section |
 | `.canvas-features` | Feature grid |
 | `.canvas-image` | Image block — `<figure>` inside holds the image |
+| `.canvas-carousel` | Image carousel / slider |
 | `.canvas-text` | Rich text / prose block |
 | `.canvas-columns` | Multi-column layout |
 | `.canvas-testimonial` | Testimonial / quote card |
@@ -436,3 +439,26 @@ Windows zip utilities write backslash paths (`images\photo.png`). NuxFlow normal
 ```
 
 `type` must be `"url"` (for external links or absolute/relative paths) or `"page"` (for a content item looked up by `slug`). `location` can be `"header"`, `"footer"`, `"sidebar"`, or `null`.
+
+---
+
+## Developer Reference: Multilingual & Events
+
+### 1. Multilingual Serving & Backups
+- **Routing Resolution:** The public route `[slug].get.ts` extracts optional locale prefixes (e.g. `/es/post-slug`). If a prefix is present, the handler queries `content_items` for the matching slug. If a translation is linked via `sourceItemId` for the requested locale, it is served; otherwise, it falls back to the original source item.
+- **Header Swapper Integration:** The page returns `availableLocales: Array<{ locale, slug, rawSlug }>` which is loaded into `useState('active-locales')`.
+- **Database Backup & Restoration Mappings:** The backup schema preserves translations using `locale` and `sourceItemSlug` (the parent slug). When applying a restore, NuxFlow stores the newly created SQLite ULIDs mapped by their slugs. After the initial database inserts, a second-pass routine runs to resolve the new parent `sourceItemId` foreign keys, preventing integrity constraint violations.
+
+### 2. Events System Architecture
+- **Schema Columns (`content_items`):**
+  - `eventStartAt` (ISO-8601 string)
+  - `eventEndAt` (ISO-8601 string)
+  - `eventLocation` (text)
+  - `eventUrl` (text)
+  - `eventAllDay` (boolean flag)
+- **Database Indexes:** Query ranges are optimized using the composite index `idx_content_items_event_start` on `(site_id, event_start_at)`.
+- **Public & iCal Feeds:**
+  - `GET /api/public/events` returning list responses.
+  - `GET /events.ics` returning standards-compliant iCal formatting (`VCALENDAR` and `VEVENT` blocks) for calendar client synchronization.
+- **Events Canvas Block:** The `CanvasBlockCalendar` block supports dynamic client-side `.ics` file generation and download using Blob and File APIs on click events.
+

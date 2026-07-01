@@ -32,6 +32,7 @@ export default defineEventHandler(async (event) => {
       or(
         and(gte(contentItems.publishedAt, fromTs), lte(contentItems.publishedAt, toTs)),
         and(gte(contentItems.scheduledAt, fromTs), lte(contentItems.scheduledAt, toTs)),
+        and(gte(contentItems.eventStartAt, fromTs), lte(contentItems.eventStartAt, toTs)),
       ),
     ),
     columns: {
@@ -42,16 +43,21 @@ export default defineEventHandler(async (event) => {
       typeId: true,
       publishedAt: true,
       scheduledAt: true,
+      eventStartAt: true,
+      eventEndAt: true,
+      eventLocation: true,
     },
   })
 
   const items = rows.map(row => ({
     ...row,
     type: typeMap[row.typeId] ?? null,
-    // Scheduled items anchor to their scheduled date; published items anchor to published date.
-    calendarDate: (row.status === 'scheduled' && row.scheduledAt)
-      ? row.scheduledAt.substring(0, 10)
-      : (row.publishedAt?.substring(0, 10) ?? from),
+    // Events anchor to their event start date; scheduled items anchor to scheduled date; published items to published date.
+    calendarDate: row.eventStartAt
+      ? row.eventStartAt.substring(0, 10)
+      : (row.status === 'scheduled' && row.scheduledAt)
+        ? row.scheduledAt.substring(0, 10)
+        : (row.publishedAt?.substring(0, 10) ?? from),
   }))
 
   return { items }

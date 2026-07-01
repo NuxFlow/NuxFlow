@@ -1,7 +1,7 @@
 ---
 "@nuxflow/app": minor
 "@nuxflow/cli": minor
-"@nuxflow/plugin-canvas": patch
+"@nuxflow/canvas": patch
 ---
 
 Add blog index, full-text search, share buttons, content excerpt/OG image, and fix CLI install on fresh clone.

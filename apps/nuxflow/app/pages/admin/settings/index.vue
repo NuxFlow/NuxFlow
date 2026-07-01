@@ -61,12 +61,20 @@ const timezones = [
 // ── Appearance ────────────────────────────────────────────────────────────────
 const appearance = reactive({
   showHeader: true,
-  showColorToggle: true,
+  showSearch: true,
+  showStickyHeader: true,
+  logoSize: 'md' as 'sm' | 'md' | 'lg',
   faviconUrl: '',
   logoUrl: '',
   customHeadHtml: '',
   customBodyHtml: '',
 })
+
+const logoSizeOptions = [
+  { label: 'Small (24 px)', value: 'sm' },
+  { label: 'Medium (32 px)', value: 'md' },
+  { label: 'Large (40 px)', value: 'lg' },
+]
 
 const uploadingLogo = ref(false)
 
@@ -303,7 +311,9 @@ watch(data, (d) => {
   if (!emailTestAddress.value) emailTestAddress.value = (currentUser.value as { email?: string })?.email ?? ''
   integrations.turnstileSiteKey = (s['integrations.turnstile_site_key'] as string) ?? ''
   appearance.showHeader = (s['frontend.show_header'] as boolean | undefined) !== false
-  appearance.showColorToggle = (s['frontend.show_color_toggle'] as boolean | undefined) !== false
+  appearance.showSearch = (s['frontend.show_search'] as boolean | undefined) !== false
+  appearance.showStickyHeader = (s['frontend.show_sticky_header'] as boolean | undefined) !== false
+  appearance.logoSize = ((s['frontend.logo_size'] as string | undefined) ?? 'md') as 'sm' | 'md' | 'lg'
   appearance.faviconUrl = (s['appearance.favicon_url'] as string) ?? ''
   appearance.logoUrl = (s['appearance.logo_url'] as string) ?? ''
   appearance.customHeadHtml = (s['appearance.custom_head_html'] as string) ?? ''
@@ -356,7 +366,9 @@ async function save() {
       'email.smtp_pass': email.smtpPass,
       'integrations.turnstile_site_key': integrations.turnstileSiteKey,
       'frontend.show_header': appearance.showHeader,
-      'frontend.show_color_toggle': appearance.showColorToggle,
+      'frontend.show_search': appearance.showSearch,
+      'frontend.show_sticky_header': appearance.showStickyHeader,
+      'frontend.logo_size': appearance.logoSize,
       'appearance.favicon_url': appearance.faviconUrl || null,
       'appearance.logo_url': appearance.logoUrl || null,
       'appearance.custom_head_html': appearance.customHeadHtml || null,
@@ -655,10 +667,24 @@ async function deleteSite() {
               </div>
               <div class="flex items-start justify-between gap-4">
                 <div>
-                  <p class="text-sm font-medium text-gray-900 dark:text-white">Show colour mode toggle</p>
-                  <p class="mt-0.5 text-xs text-gray-400">Lets visitors switch between light and dark mode. Disable for sites with a fixed colour scheme.</p>
+                  <p class="text-sm font-medium text-gray-900 dark:text-white">Show search icon</p>
+                  <p class="mt-0.5 text-xs text-gray-400">Displays a search icon in the header that links to the /search page.</p>
                 </div>
-                <USwitch v-model="appearance.showColorToggle" />
+                <USwitch v-model="appearance.showSearch" />
+              </div>
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="text-sm font-medium text-gray-900 dark:text-white">Sticky header</p>
+                  <p class="mt-0.5 text-xs text-gray-400">Keeps the header fixed at the top while scrolling. Disable to let it scroll away with the page.</p>
+                </div>
+                <USwitch v-model="appearance.showStickyHeader" />
+              </div>
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="text-sm font-medium text-gray-900 dark:text-white">Logo size</p>
+                  <p class="mt-0.5 text-xs text-gray-400">Height of the logo image in the header. Has no effect when no logo is uploaded.</p>
+                </div>
+                <USelect v-model="appearance.logoSize" :items="logoSizeOptions" class="w-40" />
               </div>
             </div>
             <template #footer>
@@ -738,7 +764,7 @@ async function deleteSite() {
                 </UFormField>
                 <div class="grid grid-cols-2 gap-3">
                   <UFormField label="Port">
-                    <UInput v-model="email.smtpPort" placeholder="587" />
+                    <UInput v-model="email.smtpPort" type="number" :min="1" :max="65535" placeholder="587" />
                   </UFormField>
                   <UFormField label="Username">
                     <UInput v-model="email.smtpUser" placeholder="user@example.com" />

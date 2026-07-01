@@ -33,6 +33,8 @@ interface PublicPage {
   updatedAt?: string | null
   hasComments?: boolean | null
   author?: Author | null
+  locale?: string | null
+  availableLocales?: Array<{ locale: string; slug: string; rawSlug?: string }> | null
 }
 
 interface GateData {
@@ -51,6 +53,12 @@ const { data: page, error } = await useFetch<PublicPage>(() => `/api/public/page
     }
   },
 })
+
+// Share available translations with layout/header via useState
+const activeLocalesState = useState<Array<{ locale: string; slug: string; rawSlug?: string }>>('active-locales', () => [])
+watch(page, (val) => {
+  activeLocalesState.value = val?.availableLocales || []
+}, { immediate: true })
 
 // Deduped with layout's fetch — no extra request
 const { data: site } = await useFetch('/api/public/site', { headers: useRequestHeaders(['host']) })
@@ -87,6 +95,9 @@ useSeoMeta({
 })
 
 useHead({
+  htmlAttrs: {
+    lang: computed(() => page.value?.locale || 'en'),
+  },
   link: computed(() => pageUrl.value ? [{ rel: 'canonical', href: pageUrl.value }] : []),
   script: computed(() => {
     if (!page.value) return []
