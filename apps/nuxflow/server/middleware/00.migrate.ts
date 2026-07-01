@@ -1,7 +1,6 @@
 import { sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { useDb } from '../utils/db'
-import { demoFirstBoot } from '../scheduled/demo-reset'
 
 // Module-level flags per Worker isolate.
 // _migrationsDone lets the common path (already migrated) skip all async overhead.
@@ -78,14 +77,6 @@ async function applyMigrations(event: H3Event) {
   }
 
   if (count > 0) console.warn(`[nuxflow:migrate] Applied ${count} migration(s)`)
-
-  // For demo instances: seed on cold start so the site is immediately usable
-  // without waiting up to 60 s for the first cron tick.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isDemo = useRuntimeConfig().isDemo === true || (globalThis as any).__env__?.NUXT_IS_DEMO === 'true'
-  if (isDemo) {
-    await demoFirstBoot()
-  }
 }
 
 async function tableExists(db: ReturnType<typeof useDb>, table: string): Promise<boolean> {
