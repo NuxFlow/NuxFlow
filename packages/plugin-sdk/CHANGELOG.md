@@ -1,5 +1,12 @@
 # @nuxflow/plugin-sdk
 
+## 2.0.0-beta.2
+
+### Patch Changes
+
+- Updated dependencies [e4d1b14]
+  - @nuxflow/db@2.0.0-beta.2
+
 ## 2.0.0-beta.1
 
 ### Patch Changes
