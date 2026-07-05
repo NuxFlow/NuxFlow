@@ -4,7 +4,7 @@ import { getActiveProvider } from '../../../../utils/media-providers/index'
 import {
   sites, users, userSiteRoles, contentItems, contentTypes,
   taxonomies, siteSettings, dynamicPlugins, themes,
-  auditLogs, notifications, webhooks, media, apiKeys,
+  auditLogs, notifications, media, apiKeys,
   accounts, sessions, passkeys
 } from '@nuxflow/db/schema'
 import { eq, and, ne, inArray } from 'drizzle-orm'
@@ -38,7 +38,6 @@ export default defineEventHandler(async (event) => {
   await db.delete(themes).where(eq(themes.siteId, id))
   await db.delete(auditLogs).where(eq(auditLogs.siteId, id))
   await db.delete(notifications).where(eq(notifications.siteId, id))
-  await db.delete(webhooks).where(eq(webhooks.siteId, id))
   await db.delete(apiKeys).where(eq(apiKeys.siteId, id))
 
   // 3. Handle users and roles

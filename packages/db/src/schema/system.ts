@@ -49,19 +49,6 @@ export const notifications = sqliteTable('notifications', {
   index('idx_notifications_user_site').on(t.userId, t.siteId),
 ])
 
-export const webhooks = sqliteTable('webhooks', {
-  id: text('id').primaryKey(),
-  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  url: text('url').notNull(),
-  events: text('events', { mode: 'json' }).$type<string[]>().notNull().default([]),
-  secret: text('secret'),
-  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
-  lastFiredAt: text('last_fired_at'),
-  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
-}, (t) => [
-  index('idx_webhooks_site').on(t.siteId),
-])
 
 export const rateLimits = sqliteTable('rate_limits', {
   key: text('key').primaryKey(),

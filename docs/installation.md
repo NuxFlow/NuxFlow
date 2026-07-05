@@ -308,6 +308,12 @@ NuxFlow ships several AI-discoverability features out of the box — no configur
 
 **To control AI crawler access**, go to **Admin → SEO → AI Crawlers** after deploying. The "allow/block all AI crawlers" toggle adds or removes explicit `robots.txt` rules for GPTBot, ClaudeBot, PerplexityBot, and seven others without requiring a redeploy.
 
+### Media Storage
+
+By default — before you configure any provider below — media uploads fall back to storing the file as base64 directly in a D1 column, capped at 512 KB (D1 rows have a hard 1 MB limit, and base64 encoding inflates size by ~33%). This fallback exists so the app works immediately after setup, but it isn't meant for real use: anything you upload over 512 KB is rejected, and this also affects images bundled inside a theme's `demo.json` (see the [Theme Development guide](./development.md#theme-development)) — an oversized theme image fails to upload and shows as broken in the demo content, even though the theme installs fine otherwise.
+
+**Configure one of the providers below before uploading real media or installing a theme with bundled images.**
+
 ### Cloudflare Images
 
 Cloudflare Images provides optimised media hosting with automatic resizing and CDN delivery.

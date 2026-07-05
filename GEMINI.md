@@ -57,7 +57,6 @@ c:/DEV/NuxFlow/
 │   ├── canvas/                       # Canvas page builder — blocks, editor, types (@nuxflow/canvas)
 │   ├── db/                           # Drizzle schema & migrations — D1-only, no client factory
 │   │   └── src/schema/               # Type-safe schemas (content, sites, system, users)
-│   ├── plugin-sdk/                   # Types for building dynamic (third-party) plugins
 │   ├── cli/                          # `nuxflow` CLI — scaffold/build/deploy dynamic plugins & themes
 │   └── create-nuxflow-app/           # `pnpm create nuxflow-app` scaffolder (the only two published packages
 │                                      #   are this and cli — everything else above is private/internal)
@@ -175,7 +174,7 @@ When modifying or expanding the NuxFlow codebase:
 
 1.  **Keep it Edge-Native:** Avoid importing heavy Node-specific modules (like `node:crypto` or `fs`). Always leverage standard Web APIs (`fetch`, `crypto.subtle`, `TextEncoder`, etc.) which run natively on Cloudflare Workers.
 2.  **Respect Tenancy:** Ensure all database queries are scoped by `siteId`. Never select data without restricting queries to `eq(table.siteId, siteId)`.
-3.  **Strict Typing:** Ensure components in themes and blocks remain strongly typed and align with the interfaces defined in the `@nuxflow/plugin-sdk` package.
+3.  **Strict Typing:** Ensure Canvas blocks remain strongly typed and align with `CanvasBlockDefinition`/`FieldSchema` from `@nuxflow/canvas`'s `types.ts`. Themes are plain CSS with no TypeScript surface. Dynamic (third-party) plugins have no shared SDK package — see `packages/cli/src/utils/scaffold.ts` for the generated contract.
 4.  **Use Predefined Utilities:** Before implementing custom helper functions, check if the utility is already provided in the `server/utils` directory (e.g., `audit.ts` for audit logs, `notify.ts` for dashboard alerts, or `validate.ts` for runtime schemas).
 5.  **Strict Core vs. Theme/Plugin Separation (White-Labeling & Data Separation):** NuxFlow is an open-source, white-labeled CMS. All built-in canvas blocks (in `@nuxflow/canvas`) must remain strictly white-labeled.
     - **NO Core Hardcoding:** Never hardcode site-specific copy, custom brand logos, or specialized navigation links inside the Vue component code or the standard `defaultProps` in `definitions.ts`. Instead, use neutral, generic placeholder values (e.g., `'My Site'`, `'i-lucide-globe'`).

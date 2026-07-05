@@ -145,6 +145,10 @@ async function buildBetterAuthInstance(event: H3Event) {
         }
       },
     },
+    // Better Auth's own rate limiter defaults to in-memory storage, which doesn't
+    // persist across Cloudflare Worker isolates. Rate limiting for sign-in/sign-up/
+    // password-reset is instead handled in server/middleware/04.auth-override.ts
+    // using the app's existing D1-backed rateLimit() utility.
     rateLimit: { enabled: false },
     account: {
       accountLinking: {

@@ -22,7 +22,6 @@ nuxflow/
 ├── packages/
 │   ├── canvas/           # Canvas page builder engine (blocks, editor, types)
 │   ├── db/               # Drizzle schema and migrations — D1-only, no client factory
-│   ├── plugin-sdk/       # Types and utilities for building dynamic plugins
 │   ├── cli/              # NuxFlow CLI tool
 │   └── create-nuxflow-app/  # `pnpm create nuxflow-app` scaffolder
 ├── themes/
@@ -215,7 +214,7 @@ Both checks run in CI on every push and pull request. A failing lint or typechec
 
 ## Versioning and Releases
 
-NuxFlow uses [Changesets](https://github.com/changesets/changesets) to version the packages that are actually published to npm: `@nuxflow/cli` and `create-nuxflow-app`. Every other package in the workspace (`@nuxflow/app`, `@nuxflow/canvas`, `@nuxflow/db`, `@nuxflow/plugin-sdk`) is marked `"private": true` and is versioned independently, not released to npm, and doesn't need a changeset for internal-only changes — it just ships as part of the main app deploy.
+NuxFlow uses [Changesets](https://github.com/changesets/changesets) to version the packages that are actually published to npm: `@nuxflow/cli` and `create-nuxflow-app`. Every other package in the workspace (`@nuxflow/app`, `@nuxflow/canvas`, `@nuxflow/db`) is marked `"private": true` and is versioned independently, not released to npm, and doesn't need a changeset for internal-only changes — it just ships as part of the main app deploy.
 
 ### Adding a changeset
 
@@ -255,7 +254,7 @@ Commit messages are linted by commitlint in CI.
 
 ## Plugin Development
 
-NuxFlow supports **dynamic plugins** — independently-installed Cloudflare Worker extensions that can add new Canvas blocks, admin pages, and server routes to a site. The `packages/plugin-sdk` package provides the `NuxFlowPlugin` interface and types for building them.
+NuxFlow supports **dynamic plugins** — independently-installed Cloudflare Worker extensions that can add new Canvas blocks, admin pages, and server routes to a site. There's no shared SDK package to depend on — a plugin is a `nuxflow.plugin.json` manifest plus a raw `src/server.ts` Worker handler and/or a `src/client.ts` exporting a `register(app, registry, vue)` function. Plugin authors are told to inline their own copies of the small shared type shapes rather than import from `@nuxflow/*`.
 
 For a complete guide covering plugin structure, Canvas block registration, signing, and publishing, see the [External Plugin Development Guide](./plugins.md).
 
@@ -280,6 +279,8 @@ Build your theme into a zip package and upload it through the admin:
 3. Activate the theme and inspect the result on the public site
 
 To include starter content images in `demo.json`, place them in an `images/` folder inside the zip. NuxFlow uploads them to your configured media provider and rewrites the references automatically.
+
+> **Keep bundled images under 512 KB.** If the installing site hasn't configured Cloudflare Images, S3, or Bunny.net (common on a fresh install, before any provider setup), uploads fall back to storing the image as base64 directly in a D1 column — capped at 512 KB, since D1 rows have a hard 1 MB limit and base64 inflates size by ~33%. An image over that cap fails to upload; the theme installs anyway, but that image reference in `demo.json` is left as the raw zip-relative path and renders as a broken image on the page. Compress/resize theme images to comfortably clear 512 KB so the demo content works out of the box regardless of what the installing site has configured.
 
 ### How the CSS pipeline works
 
@@ -400,7 +401,7 @@ Because Canvas pages are full-width, add `max-width` constraints inside your sel
 
 ### ZIP packaging
 
-A theme zip must contain `theme.css` at the root. Optional files: `theme.json` (name, version metadata) and `demo.json` (starter content). Images referenced in `demo.json` go in an `images/` subfolder.
+A theme zip must contain `theme.css` at the root. Optional files: `theme.json` (name, version metadata) and `demo.json` (starter content). Images referenced in `demo.json` go in an `images/` subfolder, each **under 512 KB** (see the note above).
 
 Windows zip utilities write backslash paths (`images\photo.png`). NuxFlow normalises these automatically on upload, but using POSIX paths (`images/photo.png`) is safer across all platforms.
 

@@ -104,4 +104,41 @@ describe('GET /api/v1/search', () => {
     const result = await (handler as HandlerFn)(mkEvent('a'))
     expect(result.results).toEqual([])
   })
+
+  it('splits the excerpt into text segments rather than returning raw HTML', async () => {
+    const db = getCurrentTestDb()
+    await seedContentItem(db, SITE, typeId, {
+      title: 'Carrot Growing Guide',
+      excerpt: 'Everything about growing carrots in raised beds.',
+      status: 'published',
+      visibility: 'public',
+    })
+
+    const result = await (handler as HandlerFn)(mkEvent('carrots'))
+    expect(result.results).toHaveLength(1)
+    const segments = (result.results[0] as { excerptSegments: { text: string; highlighted: boolean }[] }).excerptSegments
+    expect(segments.some(s => s.highlighted && s.text.toLowerCase().includes('carrot'))).toBe(true)
+    // No segment should still contain a raw <mark> tag — it must have been parsed
+    // out into the `highlighted` flag, not left in the text.
+    expect(segments.every(s => !s.text.includes('<mark>') && !s.text.includes('</mark>'))).toBe(true)
+  })
+
+  it('preserves HTML-like content in an excerpt as literal text, not markup (stored XSS regression guard)', async () => {
+    const db = getCurrentTestDb()
+    await seedContentItem(db, SITE, typeId, {
+      title: 'Radish Notes',
+      excerpt: '<img src=x onerror=alert(1)> radish planting tips',
+      status: 'published',
+      visibility: 'public',
+    })
+
+    const result = await (handler as HandlerFn)(mkEvent('radish'))
+    expect(result.results).toHaveLength(1)
+    const segments = (result.results[0] as { excerptSegments: { text: string; highlighted: boolean }[] }).excerptSegments
+    // The malicious markup must survive as inert text data somewhere in the
+    // segments — proving it was never treated as HTML server-side — and the
+    // frontend renders segments with {{ }} interpolation, never v-html.
+    const joined = segments.map(s => s.text).join('')
+    expect(joined).toContain('<img src=x onerror=alert(1)>')
+  })
 })

@@ -171,7 +171,6 @@ Every feature in the admin is fully functional. The demo resets automatically at
 ### Operations & Developer Experience
 - **In-app notifications** — bell icon in admin header for publish, submission, comment events
 - **Audit log** — full history of admin actions (who, what, when)
-- **Webhook dispatcher** — fires on `content.publish`, `form.submission`, `user.created`
 - **Full-text search** — SQLite FTS5, zero external dependency
 - **Content export** — JSON or CSV download
 - **Maintenance mode** — toggle from settings; shows a customisable holding page
@@ -226,7 +225,6 @@ nuxflow/
 ├── packages/
 │   ├── canvas/                 # Canvas page builder — block components + editor (@nuxflow/canvas)
 │   ├── db/                     # Drizzle schema + migrations — D1-only, no client factory
-│   ├── plugin-sdk/             # Types and helpers for dynamic plugin authors
 │   ├── cli/                    # `nuxflow` CLI — scaffold/build/deploy plugins and themes
 │   └── create-nuxflow-app/     # `pnpm create nuxflow-app` scaffolder
 ├── themes/
@@ -235,7 +233,7 @@ nuxflow/
     └── argon2-hasher/          # Standalone Worker for Argon2id password hashing (service binding)
 ```
 
-`@nuxflow/canvas`, `@nuxflow/db`, and `@nuxflow/plugin-sdk` are private/internal to the monorepo — only `@nuxflow/cli` and `create-nuxflow-app` are published to npm. Contact forms, memberships, and HTML embeds are core features of `apps/nuxflow`, not separate bundled plugin packages.
+`@nuxflow/canvas` and `@nuxflow/db` are private/internal to the monorepo — only `@nuxflow/cli` and `create-nuxflow-app` are published to npm. Contact forms, memberships, and HTML embeds are core features of `apps/nuxflow`, not separate bundled plugin packages. Dynamic (third-party) plugins have no shared SDK package to depend on — see the [External Plugin Development Guide](docs/plugins.md).
 
 ---
 

@@ -3,10 +3,15 @@ const route = useRoute()
 const router = useRouter()
 const query = ref((route.query.q as string) ?? '')
 
+interface SearchExcerptSegment {
+  text: string
+  highlighted: boolean
+}
+
 interface SearchResult {
   id: string
   title: string
-  excerpt: string
+  excerptSegments: SearchExcerptSegment[]
   slug: string | null
 }
 
@@ -65,9 +70,15 @@ function search() {
             </h2>
           </NuxtLink>
           <h2 v-else class="text-lg font-semibold text-gray-900 dark:text-white">{{ result.title }}</h2>
-          <!-- excerpt may contain <mark> tags from the FTS snippet — safe, server-generated -->
-          <!-- eslint-disable-next-line vue/no-v-html -->
-          <p v-if="result.excerpt" class="mt-1 text-sm text-gray-500 leading-relaxed [&_mark]:bg-yellow-100 [&_mark]:dark:bg-yellow-900/40 [&_mark]:rounded [&_mark]:px-0.5" v-html="result.excerpt" />
+          <!-- Each segment is rendered as plain text (auto-escaped) — the excerpt is
+               author-controlled content, so it's never trusted as raw HTML. Only the
+               <mark> wrapper itself is real markup, applied structurally below. -->
+          <p v-if="result.excerptSegments.length" class="mt-1 text-sm text-gray-500 leading-relaxed">
+            <template v-for="(segment, i) in result.excerptSegments" :key="i">
+              <mark v-if="segment.highlighted" class="bg-yellow-100 dark:bg-yellow-900/40 rounded px-0.5">{{ segment.text }}</mark>
+              <template v-else>{{ segment.text }}</template>
+            </template>
+          </p>
         </li>
       </ul>
     </div>

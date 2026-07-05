@@ -53,7 +53,6 @@ cd apps/nuxflow && pnpm run deploy
 apps/nuxflow/          # Main Nuxt 4 app (the CMS)
 packages/canvas/       # Canvas page builder engine (blocks, editor, types) — @nuxflow/canvas
 packages/db/           # Drizzle schema and migrations (D1-only — no client factory)
-packages/plugin-sdk/   # Types for building dynamic plugins (NuxFlowPlugin interface)
 packages/cli/          # `nuxflow` CLI — scaffold, build, and deploy dynamic plugins/themes
 themes/default/        # Default CSS theme
 docs/                  # User-facing documentation (markdown)
@@ -211,9 +210,7 @@ The public pages API returns **HTTP 402** with `{ gated: true, requiredTier, tie
 
 ### Plugin system
 
-**Dynamic plugins** are third-party Workers installed per-site. They implement `NuxFlowPlugin` from `packages/plugin-sdk/src/types.ts`, registering optional `blocks`, `adminPages`, `routes`, and `hooks`.
-
-**Dynamic plugins** are third-party Workers stored in KV and spawned on demand. The server verifies Ed25519 signatures and SHA-256 checksums on install and on every request (`server/utils/plugin-signing.ts`).
+**Dynamic plugins** are third-party Workers stored in KV and spawned on demand. A plugin is a `nuxflow.plugin.json` manifest plus `src/server.ts` (a raw `{ fetch(request) }` Cloudflare Worker handler, served at `/_nuxflow/ext/{pluginId}/*`) and/or `src/client.ts` (exports a `register(app, registry, vue)` function that calls `registry.register(id, { component, definition, ... })` to add Canvas blocks — see `useBlockRegistry.ts`). Plugin authors are explicitly told not to import from `@nuxflow/*` and to inline their own copies of the small shared type shapes instead, so there is no shared SDK package for this — see `packages/cli/src/utils/scaffold.ts` for the exact generated contract. The server verifies Ed25519 signatures and SHA-256 checksums on install and on every request (`server/utils/plugin-signing.ts`).
 
 ### Canvas block system
 

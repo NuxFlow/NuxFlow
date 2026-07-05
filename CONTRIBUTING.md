@@ -215,58 +215,16 @@ See the **[External Plugin Development Guide](docs/plugins.md)** for the full ma
 
 ## Building a Theme
 
-### Scaffold
+A NuxFlow theme is just a CSS file — no Nuxt layer, no Vue components. It overrides design tokens and selectors targeting public-facing pages, and can optionally bundle starter content.
 
 ```bash
 npx nuxflow theme create my-theme
 cd themes/my-theme
-pnpm install
 ```
 
-### Structure
+A theme zip contains `theme.css` at the root, plus two optional files: `theme.json` (name/version metadata) and `demo.json` (starter pages, menus, forms — installed via **Admin → Themes**). Any images referenced in `demo.json` go in an `images/` subfolder — **keep each one under 512 KB**. If the installing site hasn't configured a real media provider (Cloudflare Images, S3, Bunny.net), uploads fall back to base64-encoding the image directly into a D1 column, capped at 512 KB since D1 rows have a hard 1 MB limit. An oversized image fails to upload silently-ish (the admin gets a warning toast, but the theme still installs) and renders as a broken image in the demo content.
 
-```
-themes/my-theme/
-├── nuxt.config.ts              # Nuxt layer config (required)
-├── components/
-│   └── blocks/                 # One component per block type
-│       ├── Paragraph.vue
-│       ├── Heading.vue
-│       ├── Image.vue
-│       └── ...
-├── layouts/
-│   └── default.vue             # Public site root layout
-├── pages/                      # Theme-specific page overrides
-├── assets/                     # CSS, fonts, images
-└── package.json
-```
-
-### Block component contract
-
-Each block component receives a `block` prop:
-
-```ts
-interface Block {
-  type: string
-  attributes: Record<string, unknown>
-}
-```
-
-Example `Paragraph.vue`:
-
-```vue
-<script setup lang="ts">
-  defineProps<{ block: { attributes: { content: string } } }>()
-</script>
-
-<template>
-  <p class="my-4 leading-relaxed" v-html="block.attributes.content" />
-</template>
-```
-
-### Publish
-
-Publish your theme as an npm package and open a PR adding it to the NuxFlow theme registry (documented in `specs/`).
+See the **[Theme Development guide](docs/development.md#theme-development)** for the full CSS token reference, Canvas block selectors, and `demo.json` schema.
 
 ---
 

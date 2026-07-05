@@ -1,8 +1,7 @@
 /**
  * Integration tests for scheduled task logic.
  *
- * publishScheduled() — queries contentItems for due scheduled items,
- *   marks them published, fires webhooks.
+ * publishScheduled() — queries contentItems for due scheduled items and marks them published.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
@@ -14,15 +13,6 @@ import { publishScheduled } from '../../server/scheduled/publish-scheduled'
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
   getD1: () => null,
-}))
-
-// webhooks dispatched per published item — silence network calls
-const { mockDispatchWebhook } = vi.hoisted(() => ({
-  mockDispatchWebhook: vi.fn().mockResolvedValue(undefined),
-}))
-
-vi.mock('../../server/utils/webhooks', () => ({
-  dispatchWebhook: mockDispatchWebhook,
 }))
 
 // hashPassword (argon2) is slow and environment-dependent; stub it
@@ -115,24 +105,10 @@ describe('publishScheduled()', () => {
     expect(item!.status).toBe('draft')
   })
 
-  it('dispatches a content.publish webhook for each published item', async () => {
-    expect(mockDispatchWebhook).toHaveBeenCalledWith(
-      SITE,
-      'content.publish',
-      expect.objectContaining({ id: dueItemId, title: 'Due Post' }),
-    )
-  })
-
   it('returns { published: 0 } when called again with nothing due', async () => {
     // The due item is already published; nothing else is past-due
     const result = await publishScheduled()
     expect(result.published).toBe(0)
-  })
-
-  it('does not dispatch webhooks when nothing was published', async () => {
-    const callCountBefore = mockDispatchWebhook.mock.calls.length
-    await publishScheduled()
-    expect(mockDispatchWebhook.mock.calls.length).toBe(callCountBefore)
   })
 })
 
