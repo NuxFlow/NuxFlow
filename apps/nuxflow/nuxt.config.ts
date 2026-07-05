@@ -19,7 +19,7 @@ export default defineNuxtConfig({
   },
 
   modules: [
-    '@nuxt/ui-pro',
+    '@nuxt/ui',
     '@nuxtjs/i18n',
     '@nuxtjs/turnstile',
     '@onmax/nuxt-better-auth',
@@ -27,12 +27,14 @@ export default defineNuxtConfig({
     'nuxt-seo-utils',
   ],
 
-  // Workaround for https://github.com/nuxt/nuxt/issues/34727
-  // Windows Named Pipe IPC crash in @nuxt/vite-builder@4.4.2 + Vite 7.3.x
-  ssr: process.env.NODE_ENV !== 'development',
+  ssr: true,
 
   nitro: {
-    preset: process.env.NODE_ENV === 'production' ? 'cloudflare-module' : undefined,
+    // Local dev runs exclusively through `wrangler dev` (see apps/nuxflow/package.json),
+    // which always performs a production-mode build — so this preset applies uniformly,
+    // unlike the old NODE_ENV-conditional split that existed when `nuxt dev` was also
+    // a supported dev path.
+    preset: 'cloudflare-module',
     experimental: {
       wasm: true,
       tasks: true,
@@ -94,8 +96,6 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    tursoUrl: '',
-    tursoAuthToken: '',
     betterAuthSecret: '',
     googleClientId: '',
     googleClientSecret: '',
@@ -105,15 +105,23 @@ export default defineNuxtConfig({
     cloudflareAccountId: '',
     cloudflareStreamToken: '',
     cloudflareImagesDeliveryUrl: '',
+    // S3-compatible media storage — env-var fallback for resolveSetting(); the admin
+    // Settings → Media UI writes real per-site overrides to the DB on top of these.
+    s3Bucket: '',
+    s3AccessKey: '',
+    s3SecretKey: '',
+    s3Region: 'us-east-1',
+    s3Endpoint: '',
+    s3PublicUrl: '',
+    // Bunny.net media storage — same env-var fallback pattern as S3 above.
+    bunnyApiKey: '',
+    bunnyStorageZone: '',
+    bunnyPullZone: '',
     emailProvider: 'console',
     emailFromAddress: '',
     resendApiKey: '',
     brevoApiKey: '',
     zeptoApiKey: '',
-    smtpHost: '',
-    smtpPort: '',
-    smtpUser: '',
-    smtpPass: '',
     // Payments plugin
     stripeSecretKey: '',
     stripeWebhookSecret: '',

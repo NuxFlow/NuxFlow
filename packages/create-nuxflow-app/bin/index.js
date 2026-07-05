@@ -16,9 +16,6 @@ function generateSecret() {
 }
 function buildEnv(template, secret, siteUrl) {
   return template.replace(
-    /^# Option B: Turso.*\r?\nNUXT_TURSO_URL=.*\r?\nNUXT_TURSO_AUTH_TOKEN=.*\r?\n/m,
-    ""
-  ).replace(
     /NUXT_BETTER_AUTH_SECRET=.*/,
     `NUXT_BETTER_AUTH_SECRET=${secret}`
   ).replace(

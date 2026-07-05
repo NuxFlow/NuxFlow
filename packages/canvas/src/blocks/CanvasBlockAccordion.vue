@@ -12,7 +12,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   title: 'Frequently Asked Questions',
   description: 'Everything you need to know about our product.',
-  itemsJson: '[{"question":"How does NuxFlow work?","answer":"NuxFlow operates natively on Cloudflare Workers edge nodes. It fetches your content directly from D1/Turso and renders pages with Vue 3 server-side rendering."},{"question":"Do I need server configuration?","answer":"No, NuxFlow is fully serverless. You deploy it once to Cloudflare and it scales automatically with zero maintenance."}]',
+  itemsJson: '[{"question":"How does NuxFlow work?","answer":"NuxFlow operates natively on Cloudflare Workers edge nodes. It fetches your content directly from D1 and renders pages with Vue 3 server-side rendering."},{"question":"Do I need server configuration?","answer":"No, NuxFlow is fully serverless. You deploy it once to Cloudflare and it scales automatically with zero maintenance."}]',
 })
 
 const activeIndex = ref<number | null>(null)

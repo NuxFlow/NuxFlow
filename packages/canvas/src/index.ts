@@ -8,6 +8,7 @@ export { default as CanvasBlockHero } from './blocks/CanvasBlockHero.vue'
 export { default as CanvasBlockText } from './blocks/CanvasBlockText.vue'
 export { default as CanvasBlockImage } from './blocks/CanvasBlockImage.vue'
 export { default as CanvasBlockColumns } from './blocks/CanvasBlockColumns.vue'
+export { default as CanvasBlockContainer } from './blocks/CanvasBlockContainer.vue'
 export { default as CanvasBlockCta } from './blocks/CanvasBlockCta.vue'
 export { default as CanvasBlockSpacer } from './blocks/CanvasBlockSpacer.vue'
 export { default as CanvasBlockVideo } from './blocks/CanvasBlockVideo.vue'
@@ -21,12 +22,13 @@ export { default as CanvasBlockPricing } from './blocks/CanvasBlockPricing.vue'
 export { default as CanvasBlockGallery } from './blocks/CanvasBlockGallery.vue'
 export { default as CanvasBlockCarousel } from './blocks/CanvasBlockCarousel.vue'
 export { default as CanvasBlockCalendar } from './blocks/CanvasBlockCalendar.vue'
+export { default as HtmlBlock } from './blocks/HtmlBlock.vue'
 export { default as CanvasAdmin } from './admin/CanvasAdmin.vue'
 
 export const canvasManifest = {
   id: 'canvas',
   name: 'Canvas Page Builder',
-  description: 'Visual drag-and-drop page builder — Hero, Text, Image, Gallery, Carousel, Video, Columns, Features, Testimonial, CTA, Spacer, Button, Accordion, Pricing, Events Calendar',
+  description: 'Visual drag-and-drop page builder — Hero, Text, Image, Gallery, Carousel, Video, Columns, Container, Features, Testimonial, CTA, Spacer, Button, Accordion, Pricing, Events Calendar',
   version: '0.2.0',
   author: 'NuxFlow',
   icon: 'i-lucide-layout-panel-top',
@@ -44,6 +46,7 @@ export const canvasManifest = {
     { id: 'canvas-image',       name: 'Image',       component: 'CanvasBlockImage' },
     { id: 'canvas-video',       name: 'Video',       component: 'CanvasBlockVideo' },
     { id: 'canvas-columns',     name: 'Columns',     component: 'CanvasBlockColumns' },
+    { id: 'canvas-container',   name: 'Container',   component: 'CanvasBlockContainer' },
     { id: 'canvas-features',    name: 'Features',    component: 'CanvasBlockFeatures' },
     { id: 'canvas-testimonial', name: 'Testimonial', component: 'CanvasBlockTestimonial' },
     { id: 'canvas-cta',         name: 'CTA Banner',  component: 'CanvasBlockCta' },

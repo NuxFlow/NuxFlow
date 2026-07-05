@@ -129,18 +129,15 @@ const email = reactive({
   resendApiKey: '',
   brevoApiKey: '',
   zeptoApiKey: '',
-  smtpHost: '',
-  smtpPort: '587',
-  smtpUser: '',
-  smtpPass: '',
 })
 
 const emailProviderOptions = [
-  { label: 'Console (dev)', value: 'console' },
+  { label: 'Cloudflare Email (recommended)', value: 'cloudflare' },
   { label: 'Resend', value: 'resend' },
   { label: 'Brevo', value: 'brevo' },
   { label: 'ZeptoMail', value: 'zepto' },
-  { label: 'SMTP / MailChannels', value: 'smtp' },
+  { label: 'MailChannels', value: 'smtp' },
+  { label: 'Console (dev)', value: 'console' },
 ]
 
 const emailTestAddress = ref('')
@@ -160,10 +157,6 @@ async function sendTestEmail() {
         resendApiKey: email.resendApiKey || undefined,
         brevoApiKey: email.brevoApiKey || undefined,
         zeptoApiKey: email.zeptoApiKey || undefined,
-        smtpHost: email.smtpHost || undefined,
-        smtpPort: email.smtpPort || undefined,
-        smtpUser: email.smtpUser || undefined,
-        smtpPass: email.smtpPass || undefined,
       },
     })
     emailTestResult.value = { ok: true, message: res.message }
@@ -206,6 +199,21 @@ const cloudflare = reactive({
   streamToken: '',
   imagesToken: '',
   imagesDeliveryUrl: '',
+})
+
+const s3 = reactive({
+  bucket: '',
+  accessKey: '',
+  secretKey: '',
+  region: 'us-east-1',
+  endpoint: '',
+  publicUrl: '',
+})
+
+const bunny = reactive({
+  apiKey: '',
+  storageZone: '',
+  pullZone: '',
 })
 
 const aiProviderOptions = [
@@ -304,10 +312,6 @@ watch(data, (d) => {
   email.resendApiKey = (s['email.resend_api_key'] as string) ?? ''
   email.brevoApiKey = (s['email.brevo_api_key'] as string) ?? ''
   email.zeptoApiKey = (s['email.zepto_api_key'] as string) ?? ''
-  email.smtpHost = (s['email.smtp_host'] as string) ?? ''
-  email.smtpPort = (s['email.smtp_port'] as string) ?? '587'
-  email.smtpUser = (s['email.smtp_user'] as string) ?? ''
-  email.smtpPass = (s['email.smtp_pass'] as string) ?? ''
   if (!emailTestAddress.value) emailTestAddress.value = (currentUser.value as { email?: string })?.email ?? ''
   integrations.turnstileSiteKey = (s['integrations.turnstile_site_key'] as string) ?? ''
   appearance.showHeader = (s['frontend.show_header'] as boolean | undefined) !== false
@@ -347,6 +351,17 @@ watch(data, (d) => {
   cloudflare.streamToken = (s['cloudflare.stream_token'] as string) ?? ''
   cloudflare.imagesToken = (s['cloudflare.images_token'] as string) ?? ''
   cloudflare.imagesDeliveryUrl = (s['cloudflare.images_delivery_url'] as string) ?? ''
+
+  s3.bucket = (s['media.s3_bucket'] as string) ?? ''
+  s3.accessKey = (s['media.s3_access_key'] as string) ?? ''
+  s3.secretKey = (s['media.s3_secret_key'] as string) ?? ''
+  s3.region = (s['media.s3_region'] as string) || 'us-east-1'
+  s3.endpoint = (s['media.s3_endpoint'] as string) ?? ''
+  s3.publicUrl = (s['media.s3_public_url'] as string) ?? ''
+
+  bunny.apiKey = (s['media.bunny_api_key'] as string) ?? ''
+  bunny.storageZone = (s['media.bunny_storage_zone'] as string) ?? ''
+  bunny.pullZone = (s['media.bunny_pull_zone'] as string) ?? ''
 }, { immediate: true })
 
 onMounted(() => fetchPushSubscriberCount())
@@ -360,10 +375,6 @@ async function save() {
       'email.resend_api_key': email.resendApiKey,
       'email.brevo_api_key': email.brevoApiKey,
       'email.zepto_api_key': email.zeptoApiKey,
-      'email.smtp_host': email.smtpHost,
-      'email.smtp_port': email.smtpPort,
-      'email.smtp_user': email.smtpUser,
-      'email.smtp_pass': email.smtpPass,
       'integrations.turnstile_site_key': integrations.turnstileSiteKey,
       'frontend.show_header': appearance.showHeader,
       'frontend.show_search': appearance.showSearch,
@@ -412,6 +423,17 @@ async function save() {
           streamToken: cloudflare.streamToken,
           imagesToken: cloudflare.imagesToken,
           imagesDeliveryUrl: cloudflare.imagesDeliveryUrl,
+        },
+        media: {
+          s3Bucket: s3.bucket,
+          s3AccessKey: s3.accessKey,
+          s3SecretKey: s3.secretKey,
+          s3Region: s3.region,
+          s3Endpoint: s3.endpoint,
+          s3PublicUrl: s3.publicUrl,
+          bunnyApiKey: bunny.apiKey,
+          bunnyStorageZone: bunny.storageZone,
+          bunnyPullZone: bunny.pullZone,
         },
       },
     })
@@ -758,22 +780,22 @@ async function deleteSite() {
                 </UFormField>
               </template>
 
+              <template v-if="email.provider === 'cloudflare'">
+                <UAlert
+                  color="blue"
+                  variant="soft"
+                  icon="i-lucide-info"
+                  description="No API key needed. Add a send_email binding (name EMAIL) to wrangler.toml, then run `wrangler email sending enable <your-domain>` for whichever domain your From address uses."
+                />
+              </template>
+
               <template v-if="email.provider === 'smtp'">
-                <UFormField label="SMTP host">
-                  <UInput v-model="email.smtpHost" placeholder="smtp.example.com" />
-                </UFormField>
-                <div class="grid grid-cols-2 gap-3">
-                  <UFormField label="Port">
-                    <UInput v-model="email.smtpPort" type="number" :min="1" :max="65535" placeholder="587" />
-                  </UFormField>
-                  <UFormField label="Username">
-                    <UInput v-model="email.smtpUser" placeholder="user@example.com" />
-                  </UFormField>
-                </div>
-                <UFormField label="Password">
-                  <UInput v-model="email.smtpPass" type="password" />
-                </UFormField>
-                <p class="text-xs text-gray-400">On Cloudflare Workers, SMTP is sent via MailChannels relay.</p>
+                <UAlert
+                  color="yellow"
+                  variant="soft"
+                  icon="i-lucide-triangle-alert"
+                  description="Sent via MailChannels' API, not a generic SMTP relay — there are no host/username/password to configure here. MailChannels' free anonymous relay for Cloudflare Workers requires an existing MailChannels account and DNS domain-lockdown records set up outside NuxFlow; most new setups won't have this. Cloudflare Email (above) needs no third-party account."
+                />
               </template>
 
               <template v-if="email.provider === 'console'">
@@ -1005,6 +1027,84 @@ async function deleteSite() {
               </ol>
             </template>
           </UAlert>
+
+          <UDivider />
+
+          <UAlert
+            icon="i-lucide-arrow-down-up"
+            color="neutral"
+            variant="soft"
+            description="Only one image storage provider is active at a time, checked in this order: Cloudflare Images above → S3 below → Bunny.net below that. The first one with credentials configured wins. If none are configured, uploads fall back to storing small files directly in the database — fine for a quick test, not for real use."
+          />
+
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-2">
+                <UIcon name="i-lucide-database" class="w-4 h-4 text-primary-500" />
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">S3-compatible storage</p>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">AWS S3, Cloudflare R2, Backblaze B2, or any S3-compatible bucket. Used when Cloudflare Images above isn't configured.</p>
+            </template>
+            <div class="space-y-4">
+              <UFormField label="Bucket name">
+                <UInput v-model="s3.bucket" placeholder="my-nuxflow-media" />
+              </UFormField>
+              <div class="grid grid-cols-2 gap-3">
+                <UFormField label="Access key ID">
+                  <UInput v-model="s3.accessKey" placeholder="AKIA…" class="font-mono" />
+                </UFormField>
+                <UFormField label="Secret access key">
+                  <UInput v-model="s3.secretKey" type="password" placeholder="••••••••" />
+                </UFormField>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <UFormField label="Region" hint="Default us-east-1">
+                  <UInput v-model="s3.region" placeholder="us-east-1" />
+                </UFormField>
+                <UFormField label="Endpoint" hint="Leave blank for AWS S3; required for R2/B2/other providers">
+                  <UInput v-model="s3.endpoint" placeholder="https://<account>.r2.cloudflarestorage.com" />
+                </UFormField>
+              </div>
+              <UFormField label="Public URL" hint="Where uploaded files are publicly served from — your CDN or bucket's public endpoint">
+                <UInput v-model="s3.publicUrl" placeholder="https://media.yourdomain.com" />
+              </UFormField>
+            </div>
+            <template #footer>
+              <div class="flex items-center justify-between">
+                <p class="text-xs text-gray-400">Secret key is encrypted at rest using AES-GCM.</p>
+                <UButton :loading="saving" @click="save">Save</UButton>
+              </div>
+            </template>
+          </UCard>
+
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-2">
+                <UIcon name="i-lucide-zap" class="w-4 h-4 text-primary-500" />
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">Bunny.net storage</p>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Bunny.net Edge Storage + CDN. Used when neither Cloudflare Images nor S3 above are configured.</p>
+            </template>
+            <div class="space-y-4">
+              <UFormField label="API key" hint="Storage zone password, found in the Bunny.net dashboard under your storage zone → FTP & API Access">
+                <UInput v-model="bunny.apiKey" type="password" placeholder="••••••••" />
+              </UFormField>
+              <div class="grid grid-cols-2 gap-3">
+                <UFormField label="Storage zone name">
+                  <UInput v-model="bunny.storageZone" placeholder="my-nuxflow-media" />
+                </UFormField>
+                <UFormField label="Pull zone subdomain" hint="Without .b-cdn.net">
+                  <UInput v-model="bunny.pullZone" placeholder="my-nuxflow-media" />
+                </UFormField>
+              </div>
+            </div>
+            <template #footer>
+              <div class="flex items-center justify-between">
+                <p class="text-xs text-gray-400">API key is encrypted at rest using AES-GCM.</p>
+                <UButton :loading="saving" @click="save">Save</UButton>
+              </div>
+            </template>
+          </UCard>
         </template>
 
         <!-- Integrations -->

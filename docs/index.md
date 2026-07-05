@@ -20,11 +20,11 @@ If you are new to NuxFlow, start with these guides:
 - **Edge-First**: Built for Cloudflare Workers for maximum performance.
 - **Modern Stack**: Powered by Nuxt 4, Vue 3, and Tailwind CSS.
 - **Block-Based Editor**: Create rich content without coding.
-- **Canvas Page Builder**: Visual drag-and-drop layout editor via the bundled Canvas plugin.
+- **Canvas Page Builder**: Visual drag-and-drop layout editor built into core, with nestable blocks (Columns, Container), undo/redo, and AI page generation.
 - **Visual Customizer**: No-code style editor with a live site preview — change fonts, colours, backgrounds, spacing density, content width, and corner shapes without touching CSS. Site logo and custom `<head>`/`<body>` code injection are also available from Settings → Appearance.
 - **Contact Forms**: Embeddable, spam-protected contact forms with a submission inbox.
 - **Payments & Memberships**: Subscription tiers and content gating via Stripe, Lemon Squeezy, or Paddle.
-- **Hot-Loading Plugins**: Install and activate plugins at runtime without redeploying. Dynamic plugins run as isolated Cloudflare Workers spawned on demand — bundled plugins are also supported for deeper framework integration.
+- **Hot-Loading Plugins**: Install and activate dynamic plugins at runtime without redeploying — they run as isolated Cloudflare Workers spawned on demand.
 - **Photography Ready**: Responsive image Gallery block with full-screen lightbox, EXIF metadata display, live focal-point crop preview, and a dedicated Google Image Sitemap at `/sitemap-images.xml`.
 - **Video & Vlogging Ready**: Canvas Video block embeds YouTube, Vimeo, and Cloudflare Stream. Self-hosted Stream videos are ad-free, brandable, and can be gated behind membership tiers.
 - **Multi-Site**: Manage multiple sites from a single installation.

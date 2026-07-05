@@ -18,10 +18,16 @@ const bodySchema = z.object({
     password: z.string().max(128).optional().default(''),
   }),
   email: z.object({
-    provider: z.enum(['console', 'resend', 'brevo', 'zepto', 'smtp']).default('console'),
+    provider: z.enum(['console', 'cloudflare', 'resend', 'brevo', 'zepto', 'smtp']).default('console'),
   }).optional(),
   template: z.enum(['landing', 'blog', 'portfolio', 'blank']).default('landing'),
+  setupToken: z.string().optional(),
 })
+
+async function hashSetupToken(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
 
 export default defineEventHandler(async (event) => {
   try {
@@ -76,14 +82,26 @@ async function _handleSetup(event: H3Event) {
       throw createError({ statusCode: 409, message: 'Setup already completed for this site.' })
     }
 
+    // Secondary sites can only be claimed with the one-time token issued when the super
+    // admin created the site record — completing setup grants super_admin, so this must
+    // never be reachable by an unauthenticated request that merely knows the domain.
+    if (!site.setupTokenHash) {
+      throw createError({ statusCode: 403, message: 'This site has no setup link. Ask a super admin to generate one.' })
+    }
+    if (!body.setupToken || (await hashSetupToken(body.setupToken)) !== site.setupTokenHash) {
+      throw createError({ statusCode: 403, message: 'Invalid or missing setup token.' })
+    }
+
     siteId = site.id
-    // Update the site details with anything the user might have updated in the wizard
+    // Update the site details with anything the user might have updated in the wizard, and
+    // burn the setup token so it cannot be replayed.
     await db.update(sites)
       .set({
         name: body.site.name,
         locale: body.site.locale,
         timezone: body.site.timezone,
         setupCompleted: true,
+        setupTokenHash: null,
       })
       .where(eq(sites.id, siteId))
   }

@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
-import type { AnalyticsEngineDataset, KVNamespace, WorkerLoader, WorkerStub, WorkerCode } from '../types/cloudflare-bindings'
+import type { AnalyticsEngineDataset, KVNamespace, WorkerLoader, WorkerStub, WorkerCode, SendEmailBinding } from '../types/cloudflare-bindings'
+import { sanitizeThemeCss } from './security'
 
 interface CfBindings {
   kv: KVNamespace | null
@@ -62,7 +63,9 @@ export async function getThemeCSS(event: H3Event, siteId: string, themeId: strin
 export async function putThemeCSS(event: H3Event, siteId: string, themeId: string, css: string): Promise<void> {
   const { kv } = getCfBindings(event)
   if (!kv) throw createError({ statusCode: 503, message: 'CSS themes require a Cloudflare KV namespace (PLUGIN_KV). Configure it in wrangler.toml.' })
-  await kv.put(`theme:${siteId}:${themeId}:css`, css)
+  // Sanitize here — the single chokepoint every theme write path (upload, patch,
+  // customizer) goes through — so it can never be forgotten by a future call site.
+  await kv.put(`theme:${siteId}:${themeId}:css`, sanitizeThemeCss(css))
 }
 
 export async function deleteThemeCSS(event: H3Event, siteId: string, themeId: string): Promise<void> {
@@ -91,6 +94,14 @@ export async function deleteThemeDemo(event: H3Event, siteId: string, themeId: s
 
 export function getAnalyticsEngine(event: H3Event): AnalyticsEngineDataset | null {
   return (event?.context?.cloudflare?.env?.AE as AnalyticsEngineDataset | undefined) ?? null
+}
+
+/**
+ * Cloudflare's native transactional email binding — no API key, sends from any domain
+ * onboarded via `wrangler email sending enable <domain>`. See server/utils/email.ts.
+ */
+export function getEmailBinding(event: H3Event): SendEmailBinding | null {
+  return (event?.context?.cloudflare?.env?.EMAIL as SendEmailBinding | undefined) ?? null
 }
 
 export function spawnPluginWorker(

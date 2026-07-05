@@ -123,8 +123,11 @@ export const aiGenerationJobs = sqliteTable('ai_generation_jobs', {
   index('idx_ai_gen_jobs_user_site').on(t.userId, t.siteId),
 ])
 
-// Virtual FTS5 table — created via raw SQL in migration, not via Drizzle
-// See migrations/0001_fts5_search_index.sql
+// Virtual FTS5 table, backfill, and sync triggers — created via raw SQL in migration,
+// not via Drizzle (drizzle-kit can't express virtual tables or triggers).
+// See migrations/0002_search_index.sql. Kept in sync automatically by AFTER
+// INSERT/UPDATE/DELETE triggers on content_items — no application code indexes
+// content explicitly; only published + public items are searchable.
 export const searchIndexSql = `
 CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
   content_item_id UNINDEXED,

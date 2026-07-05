@@ -9,6 +9,9 @@ export interface NuxBlockData {
   type: string
   /** Block-specific configuration props passed directly to the block component */
   props: Record<string, unknown>
+  /** Child blocks nested inside this block's named slots (e.g. Columns' col1..col4).
+   * Mirrors CanvasBlockData.children from @nuxflow/canvas. */
+  children?: Record<string, NuxBlockData[]>
 }
 
 /**

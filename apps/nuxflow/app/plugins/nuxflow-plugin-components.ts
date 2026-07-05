@@ -15,6 +15,7 @@ import {
   CanvasBlockText,
   CanvasBlockImage,
   CanvasBlockColumns,
+  CanvasBlockContainer,
   CanvasBlockCta,
   CanvasBlockSpacer,
   CanvasBlockVideo,
@@ -28,12 +29,12 @@ import {
   CanvasBlockGallery,
   CanvasBlockCarousel,
   CanvasBlockCalendar,
+  HtmlBlock,
 } from '@nuxflow/canvas'
 
 import ContactFormBlock from '~/components/forms/ContactFormBlock.vue'
 import MembershipsBlock from '~/components/memberships/MembershipsBlock.vue'
 import Paywall from '~/components/memberships/Paywall.vue'
-import HtmlBlock from '~/components/blocks/HtmlBlock.vue'
 
 export default defineNuxtPlugin((nuxtApp) => {
   const registry = useBlockRegistry()
@@ -44,6 +45,7 @@ export default defineNuxtPlugin((nuxtApp) => {
   registry.register('canvas-image',       { name: 'Image',       icon: 'i-lucide-image',            component: CanvasBlockImage })
   registry.register('canvas-video',       { name: 'Video',       icon: 'i-lucide-play-circle',      component: CanvasBlockVideo })
   registry.register('canvas-columns',     { name: 'Columns',     icon: 'i-lucide-columns-3',        component: CanvasBlockColumns })
+  registry.register('canvas-container',   { name: 'Container',   icon: 'i-lucide-square',            component: CanvasBlockContainer })
   registry.register('canvas-features',    { name: 'Features',    icon: 'i-lucide-layout-grid',      component: CanvasBlockFeatures })
   registry.register('canvas-testimonial', { name: 'Testimonial', icon: 'i-lucide-quote',            component: CanvasBlockTestimonial })
   registry.register('canvas-cta',         { name: 'CTA Banner',  icon: 'i-lucide-megaphone',        component: CanvasBlockCta })

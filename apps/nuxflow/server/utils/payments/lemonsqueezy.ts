@@ -1,3 +1,5 @@
+import type { PaymentProvider } from './types'
+
 export interface LsSubscription {
   id: string
   attributes: {
@@ -10,7 +12,7 @@ export interface LsSubscription {
   }
 }
 
-export class LemonSqueezyProvider {
+export class LemonSqueezyProvider implements PaymentProvider {
   private apiKey: string
   readonly storeId: string
 

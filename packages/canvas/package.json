@@ -1,13 +1,22 @@
 {
   "name": "@nuxflow/canvas",
   "version": "2.0.0-beta.1",
+  "private": true,
   "description": "NuxFlow Canvas — visual drag-and-drop page builder",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@tiptap/core": "^3.27.1",
+    "@tiptap/extension-link": "^3.27.1",
+    "@tiptap/starter-kit": "^3.27.1",
+    "@tiptap/vue-3": "^3.27.1",
+    "vuedraggable": "^4.1.0"
   },
   "peerDependencies": {
     "@nuxflow/plugin-sdk": "workspace:*",

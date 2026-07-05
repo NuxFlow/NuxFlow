@@ -1,11 +1,23 @@
 import type { MediaProvider, UploadResult } from './index'
 
+export interface BunnyProviderConfig {
+  apiKey: string
+  storageZone: string
+  pullZone: string
+}
+
 export class BunnyProvider implements MediaProvider {
   readonly name = 'bunny'
 
-  private get apiKey() { return process.env.BUNNY_API_KEY! }
-  private get storageZone() { return process.env.BUNNY_STORAGE_ZONE! }
-  private get pullZone() { return process.env.BUNNY_PULL_ZONE! }
+  private readonly apiKey: string
+  private readonly storageZone: string
+  private readonly pullZone: string
+
+  constructor(config: BunnyProviderConfig) {
+    this.apiKey = config.apiKey
+    this.storageZone = config.storageZone
+    this.pullZone = config.pullZone
+  }
 
   async upload(file: File, key: string): Promise<UploadResult> {
     const buf = await file.arrayBuffer()

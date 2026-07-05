@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const props = defineProps<{
-  modelValue: { provider: 'console' | 'resend' | 'brevo' | 'zepto' | 'smtp' }
+  modelValue: { provider: 'console' | 'cloudflare' | 'resend' | 'brevo' | 'zepto' | 'smtp' }
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: typeof props.modelValue]
@@ -12,11 +12,12 @@ const local = reactive({ ...props.modelValue })
 watch(local, (v) => emit('update:modelValue', { ...v }))
 
 const providers = [
-  { label: 'Console (development only)', value: 'console' },
+  { label: 'Cloudflare Email (recommended — no account needed)', value: 'cloudflare' },
   { label: 'Resend', value: 'resend' },
   { label: 'Brevo (Sendinblue)', value: 'brevo' },
   { label: 'ZeptoMail', value: 'zepto' },
-  { label: 'Custom SMTP', value: 'smtp' },
+  { label: 'MailChannels (requires an existing account)', value: 'smtp' },
+  { label: 'Console (development only)', value: 'console' },
 ]
 </script>
 
@@ -37,6 +38,22 @@ const providers = [
       variant="soft"
       icon="i-lucide-triangle-alert"
       description="Console mode only prints emails to server logs. Switch to a real provider before going live."
+    />
+
+    <UAlert
+      v-else-if="local.provider === 'cloudflare'"
+      color="blue"
+      variant="soft"
+      icon="i-lucide-info"
+      description="No API key needed — add a send_email binding to wrangler.toml and run `wrangler email sending enable <your-domain>` for your sending domain."
+    />
+
+    <UAlert
+      v-else-if="local.provider === 'smtp'"
+      color="yellow"
+      variant="soft"
+      icon="i-lucide-triangle-alert"
+      description="MailChannels' free relay requires an existing MailChannels account and DNS domain-lockdown records — most new setups won't have this. Cloudflare Email is the zero-setup option."
     />
 
     <UAlert

@@ -7,7 +7,8 @@
 
 import { request } from '@playwright/test'
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
+// `pnpm dev` now runs `wrangler dev`, which serves on 8787 (not Nuxt's default 3000).
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8787'
 
 export const ADMIN_EMAIL = 'admin@e2e.test'
 export const ADMIN_PASSWORD = 'E2eTestPass123!'

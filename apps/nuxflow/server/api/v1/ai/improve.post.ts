@@ -1,8 +1,8 @@
 import { z } from 'zod'
+import { generateText } from 'ai'
 import { requireAuth } from '../../../utils/permissions'
-import { getAiProvider } from '../../../utils/ai-providers/index'
+import { getAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
-import { aiErrorMessage } from '../../../utils/ai-sdk'
 
 const bodySchema = z.object({
   text: z.string().min(1).max(5000),
@@ -15,8 +15,8 @@ export default defineEventHandler(async (event) => {
   await requireAuth(event)
   await rateLimit(event, { limit: 20, windowMs: 60_000, keyPrefix: 'ai' })
 
-  const ai = await getAiProvider(event)
-  if (!ai) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
+  const model = await getAiSdkModel(event, 'fast')
+  if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
 
   const { text, instruction } = await readValidatedBody(event, bodySchema.parse)
 
@@ -31,7 +31,8 @@ export default defineEventHandler(async (event) => {
 
   let raw: string
   try {
-    raw = await ai.complete(prompt, { systemPrompt: SYSTEM, maxTokens: 800, temperature: 0.8 })
+    const { text: result } = await generateText({ model, system: SYSTEM, prompt, maxOutputTokens: 800, temperature: 0.8 })
+    raw = result
   } catch (err) {
     throw createError({ statusCode: 502, message: aiErrorMessage(err) })
   }

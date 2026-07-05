@@ -1,31 +1,21 @@
 /* eslint-disable no-console */
 import type { H3Event } from 'h3'
-import { subscriptions, membershipTiers } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
-import { ulid } from 'ulid'
-import { useDb } from '../../../../utils/db'
 import { StripeProvider } from '../../../../utils/payments/stripe'
 import { LemonSqueezyProvider } from '../../../../utils/payments/lemonsqueezy'
 import { PaddleProvider } from '../../../../utils/payments/paddle'
+import { upsertSubscriptionFromWebhook, cancelSubscriptionFromWebhook } from '../../../../utils/payments/webhook-sync'
 import { resolveSetting } from '../../../../utils/settings'
-import { sendPushToUser } from '../../../../utils/webpush'
 
-async function maybeSendPaymentPush(event: H3Event, userId: string, tierName: string | undefined) {
-  const enabled = await resolveSetting(event, 'push.events.payment_confirmation')
-  if (enabled !== 'true') return
-  sendPushToUser(event, userId, {
-    title: 'Subscription confirmed',
-    body: tierName ? `You're now subscribed to ${tierName}.` : 'Your subscription is now active.',
-    url: '/account',
-  }).catch(err => console.error('[push] Payment push failed:', err))
-}
+const STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID = {
+  active: 'active', trialing: 'trialing', past_due: 'past_due', unpaid: 'unpaid',
+} as const
 
 // ── Stripe ───────────────────────────────────────────────────────────────────
 
 async function handleStripeWebhook(event: H3Event, rawBody: string) {
   const stripeSecretKey = await resolveSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
   const stripeWebhookSecret = await resolveSetting(event, 'payments.stripe_webhook_secret', 'stripeWebhookSecret')
-  
+
   if (!stripeSecretKey) {
     throw createError({ statusCode: 503, message: 'Stripe is not configured' })
   }
@@ -40,8 +30,9 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
     throw createError({ statusCode: 400, message: 'Invalid Stripe webhook signature' })
   }
 
-  const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const statusMap: Record<string, 'active' | 'cancelled' | 'past_due' | 'trialing' | 'unpaid'> = {
+    ...STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID, canceled: 'cancelled',
+  }
 
   switch (stripeEvent.type) {
     case 'checkout.session.completed': {
@@ -74,35 +65,18 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         current_period_start: number; current_period_end: number
       }
 
-      const tier = await db.query.membershipTiers.findFirst({
-        where: and(eq(membershipTiers.siteId, siteId), eq(membershipTiers.stripePriceId, stripeSub.items.data[0]?.price?.id ?? '')),
+      await upsertSubscriptionFromWebhook(event, {
+        provider: 'stripe',
+        userId,
+        providerSubscriptionId: stripeSub.id,
+        providerCustomerId: String(stripeSub.customer),
+        status: statusMap[stripeSub.status] ?? 'active',
+        tierLookupId: stripeSub.items.data[0]?.price?.id,
+        currentPeriodStart: new Date(stripeSub.current_period_start * 1000).toISOString(),
+        currentPeriodEnd: new Date(stripeSub.current_period_end * 1000).toISOString(),
+        pushOnActivation: true,
       })
-      const existing = await db.query.subscriptions.findFirst({
-        where: and(eq(subscriptions.providerSubscriptionId, stripeSub.id), eq(subscriptions.provider, 'stripe')),
-      })
-      const statusMap: Record<string, 'active' | 'cancelled' | 'past_due' | 'trialing' | 'unpaid'> = {
-        active: 'active', trialing: 'trialing', past_due: 'past_due', canceled: 'cancelled', unpaid: 'unpaid',
-      }
-      const status = statusMap[stripeSub.status] ?? 'active'
-      const periodStart = new Date(stripeSub.current_period_start * 1000).toISOString()
-      const periodEnd = new Date(stripeSub.current_period_end * 1000).toISOString()
-
-      if (existing) {
-        await db.update(subscriptions)
-          .set({ status, tierId: tier?.id ?? null, currentPeriodStart: periodStart, currentPeriodEnd: periodEnd })
-          .where(eq(subscriptions.id, existing.id))
-      } else {
-        await db.insert(subscriptions).values({
-          id: ulid(), siteId, userId, tierId: tier?.id ?? null,
-          provider: 'stripe', providerSubscriptionId: stripeSub.id,
-          providerCustomerId: String(stripeSub.customer),
-          status, currentPeriodStart: periodStart, currentPeriodEnd: periodEnd,
-        })
-        if (status === 'active' || status === 'trialing') {
-          await maybeSendPaymentPush(event, userId, tier?.name)
-        }
-      }
-      console.log('[stripe-webhook] checkout.session.completed handled', { userId, status, subId: stripeSub.id })
+      console.log('[stripe-webhook] checkout.session.completed handled', { userId, subId: stripeSub.id })
       break
     }
     case 'customer.subscription.created':
@@ -120,48 +94,28 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         break
       }
 
-      const tier = await db.query.membershipTiers.findFirst({
-        where: and(eq(membershipTiers.siteId, siteId), eq(membershipTiers.stripePriceId, sub.items.data[0]?.price?.id ?? '')),
+      await upsertSubscriptionFromWebhook(event, {
+        provider: 'stripe',
+        userId,
+        providerSubscriptionId: sub.id,
+        providerCustomerId: String(sub.customer),
+        status: statusMap[sub.status] ?? 'active',
+        tierLookupId: sub.items.data[0]?.price?.id,
+        currentPeriodStart: new Date(sub.current_period_start * 1000).toISOString(),
+        currentPeriodEnd: new Date(sub.current_period_end * 1000).toISOString(),
+        pushOnActivation: true,
       })
-      const existing = await db.query.subscriptions.findFirst({
-        where: and(eq(subscriptions.providerSubscriptionId, sub.id), eq(subscriptions.provider, 'stripe')),
-      })
-      const statusMap: Record<string, 'active' | 'cancelled' | 'past_due' | 'trialing' | 'unpaid'> = {
-        active: 'active', trialing: 'trialing', past_due: 'past_due', canceled: 'cancelled', unpaid: 'unpaid',
-      }
-      const status = statusMap[sub.status] ?? 'active'
-      const periodStart = new Date(sub.current_period_start * 1000).toISOString()
-      const periodEnd = new Date(sub.current_period_end * 1000).toISOString()
-
-      if (existing) {
-        await db.update(subscriptions)
-          .set({ status, tierId: tier?.id ?? null, currentPeriodStart: periodStart, currentPeriodEnd: periodEnd })
-          .where(eq(subscriptions.id, existing.id))
-      } else {
-        await db.insert(subscriptions).values({
-          id: ulid(), siteId, userId, tierId: tier?.id ?? null,
-          provider: 'stripe', providerSubscriptionId: sub.id,
-          providerCustomerId: String(sub.customer),
-          status, currentPeriodStart: periodStart, currentPeriodEnd: periodEnd,
-        })
-        if (status === 'active' || status === 'trialing') {
-          await maybeSendPaymentPush(event, userId, tier?.name)
-        }
-      }
       break
     }
     case 'customer.subscription.deleted': {
       const sub = stripeEvent.data.object as { id: string }
-      await db.update(subscriptions)
-        .set({ status: 'cancelled', cancelledAt: new Date().toISOString() })
-        .where(and(eq(subscriptions.providerSubscriptionId, sub.id), eq(subscriptions.provider, 'stripe')))
+      await cancelSubscriptionFromWebhook(event, { provider: 'stripe', providerSubscriptionId: sub.id })
       break
     }
     default:
       console.log('[stripe-webhook] unhandled event type:', stripeEvent.type)
   }
 }
-
 
 // ── Lemon Squeezy ────────────────────────────────────────────────────────────
 
@@ -185,8 +139,6 @@ async function handleLemonSqueezyWebhook(event: H3Event, rawBody: string) {
     data: { id: string; attributes: { status: string; customer_id: number; variant_id: number; renews_at: string | null } }
   }
 
-  const db = useDb(event)
-  const siteId = event.context.siteId as string
   const userId = payload.meta.custom_data?.user_id
   if (!userId) return
 
@@ -194,35 +146,21 @@ async function handleLemonSqueezyWebhook(event: H3Event, rawBody: string) {
   const sub = payload.data
 
   if (['subscription_created', 'subscription_updated', 'subscription_resumed'].includes(eventName)) {
-    const tier = await db.query.membershipTiers.findFirst({
-      where: and(eq(membershipTiers.siteId, siteId), eq(membershipTiers.lsVariantId, String(sub.attributes.variant_id))),
-    })
     const statusMap: Record<string, 'active' | 'cancelled' | 'past_due' | 'trialing' | 'unpaid'> = {
-      active: 'active', on_trial: 'trialing', past_due: 'past_due', cancelled: 'cancelled', expired: 'cancelled', unpaid: 'unpaid',
+      ...STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID, on_trial: 'trialing', cancelled: 'cancelled', expired: 'cancelled',
     }
-    const status = statusMap[sub.attributes.status] ?? 'active'
-    const existing = await db.query.subscriptions.findFirst({
-      where: and(eq(subscriptions.providerSubscriptionId, sub.id), eq(subscriptions.provider, 'lemonsqueezy')),
+    await upsertSubscriptionFromWebhook(event, {
+      provider: 'lemonsqueezy',
+      userId,
+      providerSubscriptionId: sub.id,
+      providerCustomerId: String(sub.attributes.customer_id),
+      status: statusMap[sub.attributes.status] ?? 'active',
+      tierLookupId: String(sub.attributes.variant_id),
+      currentPeriodEnd: sub.attributes.renews_at ?? undefined,
+      pushOnActivation: eventName === 'subscription_created',
     })
-    if (existing) {
-      await db.update(subscriptions)
-        .set({ status, tierId: tier?.id ?? null, currentPeriodEnd: sub.attributes.renews_at ?? undefined })
-        .where(eq(subscriptions.id, existing.id))
-    } else {
-      await db.insert(subscriptions).values({
-        id: ulid(), siteId, userId, tierId: tier?.id ?? null,
-        provider: 'lemonsqueezy', providerSubscriptionId: sub.id,
-        providerCustomerId: String(sub.attributes.customer_id),
-        status, currentPeriodEnd: sub.attributes.renews_at ?? undefined,
-      })
-      if (eventName === 'subscription_created' && (status === 'active' || status === 'trialing')) {
-        await maybeSendPaymentPush(event, userId, tier?.name)
-      }
-    }
   } else if (['subscription_cancelled', 'subscription_expired'].includes(eventName)) {
-    await db.update(subscriptions)
-      .set({ status: 'cancelled', cancelledAt: new Date().toISOString() })
-      .where(and(eq(subscriptions.providerSubscriptionId, sub.id), eq(subscriptions.provider, 'lemonsqueezy')))
+    await cancelSubscriptionFromWebhook(event, { provider: 'lemonsqueezy', providerSubscriptionId: sub.id })
   }
 }
 
@@ -254,47 +192,32 @@ async function handlePaddleWebhook(event: H3Event, rawBody: string) {
     }
   }
 
-  const db = useDb(event)
-  const siteId = event.context.siteId as string
   const userId = payload.data.custom_data?.user_id
   if (!userId) return
 
   const sub = payload.data
 
   if (['subscription.created', 'subscription.updated', 'subscription.activated'].includes(payload.event_type)) {
-    const priceId = sub.items?.[0]?.price?.id
-    const tier = priceId
-      ? await db.query.membershipTiers.findFirst({
-          where: and(eq(membershipTiers.siteId, siteId), eq(membershipTiers.paddleProductId, priceId)),
-        })
-      : null
-
     const statusMap: Record<string, 'active' | 'cancelled' | 'past_due' | 'trialing' | 'unpaid'> = {
-      active: 'active', trialing: 'trialing', past_due: 'past_due', canceled: 'cancelled', paused: 'cancelled',
+      ...STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID, canceled: 'cancelled', paused: 'cancelled',
     }
-    const status = statusMap[sub.status] ?? 'active'
-    const existing = await db.query.subscriptions.findFirst({
-      where: and(eq(subscriptions.providerSubscriptionId, sub.id), eq(subscriptions.provider, 'paddle')),
+    await upsertSubscriptionFromWebhook(event, {
+      provider: 'paddle',
+      userId,
+      providerSubscriptionId: sub.id,
+      providerCustomerId: sub.customer_id,
+      status: statusMap[sub.status] ?? 'active',
+      tierLookupId: sub.items?.[0]?.price?.id,
+      currentPeriodStart: sub.current_billing_period?.starts_at,
+      currentPeriodEnd: sub.current_billing_period?.ends_at,
+      pushOnActivation: payload.event_type === 'subscription.activated',
     })
-    if (existing) {
-      await db.update(subscriptions)
-        .set({ status, tierId: tier?.id ?? null, currentPeriodStart: sub.current_billing_period?.starts_at, currentPeriodEnd: sub.current_billing_period?.ends_at })
-        .where(eq(subscriptions.id, existing.id))
-    } else {
-      await db.insert(subscriptions).values({
-        id: ulid(), siteId, userId, tierId: tier?.id ?? null,
-        provider: 'paddle', providerSubscriptionId: sub.id,
-        providerCustomerId: sub.customer_id,
-        status, currentPeriodStart: sub.current_billing_period?.starts_at, currentPeriodEnd: sub.current_billing_period?.ends_at,
-      })
-      if (payload.event_type === 'subscription.activated' && (status === 'active' || status === 'trialing')) {
-        await maybeSendPaymentPush(event, userId, tier?.name)
-      }
-    }
   } else if (payload.event_type === 'subscription.canceled') {
-    await db.update(subscriptions)
-      .set({ status: 'cancelled', cancelledAt: sub.canceled_at ?? new Date().toISOString() })
-      .where(and(eq(subscriptions.providerSubscriptionId, sub.id), eq(subscriptions.provider, 'paddle')))
+    await cancelSubscriptionFromWebhook(event, {
+      provider: 'paddle',
+      providerSubscriptionId: sub.id,
+      cancelledAt: sub.canceled_at ?? undefined,
+    })
   }
 }
 

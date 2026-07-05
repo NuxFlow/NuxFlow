@@ -1,6 +1,9 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' })
 
+const route = useRoute()
+const setupToken = typeof route.query.token === 'string' ? route.query.token : ''
+
 const step = ref(1)
 const totalSteps = 5
 
@@ -53,7 +56,7 @@ async function complete() {
     try {
       await $fetch('/api/v1/setup/complete', {
         method: 'POST',
-        body: { site: form.site, admin: form.admin, email: form.email, template: form.template },
+        body: { site: form.site, admin: form.admin, email: form.email, template: form.template, setupToken },
       })
       clearNuxtData('/api/v1/setup/status')
     } catch (e: unknown) {

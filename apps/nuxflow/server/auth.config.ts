@@ -1,8 +1,6 @@
 import 'reflect-metadata'
 import { defineServerAuth } from '@onmax/nuxt-better-auth/config'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { createClient } from '@libsql/client'
-import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql'
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import * as schema from '@nuxflow/db/schema'
 import { getD1 } from './utils/db'
@@ -15,8 +13,6 @@ import { nuxflowPasswordHasher } from './utils/pw'
 
 export default defineServerAuth((ctx) => {
   const config = ctx.runtimeConfig as {
-    tursoUrl: string
-    tursoAuthToken: string
     googleClientId?: string
     googleClientSecret?: string
     githubClientId?: string
@@ -56,20 +52,11 @@ export default defineServerAuth((ctx) => {
   // D1 is cached into getD1() by the 01.d1-cache middleware which runs for every
   // request before this callback is invoked. The result is cached per-siteUrl by
   // the nuxt-better-auth runtime so this runs once per CF Workers isolate.
-  let db: ReturnType<typeof drizzleLibsql<typeof schema>> | ReturnType<typeof drizzleD1<typeof schema>>
-
   const d1 = getD1()
-  if (d1) {
-    db = drizzleD1(d1 as Parameters<typeof drizzleD1>[0], { schema })
+  if (!d1) {
+    throw new Error('Better Auth requires a D1 database binding (DB). Run via `wrangler dev` or deploy with the DB binding configured in wrangler.toml.')
   }
-
-  if (!db!) {
-    const client = createClient({
-      url: config.tursoUrl,
-      authToken: config.tursoAuthToken || undefined,
-    })
-    db = drizzleLibsql(client, { schema })
-  }
+  const db = drizzleD1(d1 as Parameters<typeof drizzleD1>[0], { schema })
 
   return {
     baseURL: siteUrl || undefined,
@@ -105,7 +92,7 @@ export default defineServerAuth((ctx) => {
       }
       return []
     },
-    database: drizzleAdapter(db!, {
+    database: drizzleAdapter(db, {
       provider: 'sqlite',
       schema: {
         user: schema.users,
@@ -153,6 +140,7 @@ export default defineServerAuth((ctx) => {
             }
           }
 
+          const resetEvent = useEvent()
           await sendEmailWithConfig(
             {
               emailProvider: sm['email.provider'] || 'console',
@@ -160,10 +148,6 @@ export default defineServerAuth((ctx) => {
               resendApiKey: sm['email.resend_api_key'],
               brevoApiKey: sm['email.brevo_api_key'],
               zeptoApiKey: sm['email.zepto_api_key'],
-              smtpHost: sm['email.smtp_host'],
-              smtpPort: sm['email.smtp_port'],
-              smtpUser: sm['email.smtp_user'],
-              smtpPass: sm['email.smtp_pass'],
               domain: host,
             },
             {
@@ -172,6 +156,7 @@ export default defineServerAuth((ctx) => {
               html: `<p>Hi ${escapeHtml(user.name)},</p><p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href="${url}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Reset password</a></p><p style="color:#6b7280;font-size:14px;">If you did not request this, you can safely ignore this email.</p>`,
               text: `Hi ${user.name},\n\nReset your password:\n${url}\n\nIf you did not request this, ignore this email.`,
             },
+            resetEvent,
           )
         } catch (err) {
           console.error('[auth] sendResetPassword email failed:', err)

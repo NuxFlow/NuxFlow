@@ -9,6 +9,7 @@ export const sites = sqliteTable('sites', {
   timezone: text('timezone').notNull().default('UTC'),
   status: text('status', { enum: ['active', 'maintenance', 'suspended'] }).notNull().default('active'),
   setupCompleted: integer('setup_completed', { mode: 'boolean' }).notNull().default(false),
+  setupTokenHash: text('setup_token_hash'),
   settings: text('settings', { mode: 'json' }).$type<Record<string, unknown>>(),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),

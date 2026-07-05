@@ -86,8 +86,6 @@ globalThis.getRequestURL = (event: Record<string, unknown>): URL => {
 
 globalThis.useRuntimeConfig = () => ({
   betterAuthSecret: 'test-secret-exactly-32-chars-ok!',
-  tursoUrl: '',
-  tursoAuthToken: '',
   cloudflareAccountId: '',
   cloudflareStreamToken: '',
   nuxtPublic: {},

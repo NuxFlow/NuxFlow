@@ -34,7 +34,6 @@ export default defineEventHandler(async (event) => {
     'email.resend_api_key': 'resendApiKey',
     'email.brevo_api_key': 'brevoApiKey',
     'email.zepto_api_key': 'zeptoApiKey',
-    'email.smtp_pass': 'smtpPass',
     'payments.stripe_secret_key': 'stripeSecretKey',
     'payments.stripe_webhook_secret': 'stripeWebhookSecret',
     'payments.ls_api_key': 'lsApiKey',
@@ -47,6 +46,8 @@ export default defineEventHandler(async (event) => {
     'ai.deepseek_api_key': 'deepseekApiKey',
     'cloudflare.stream_token': 'cloudflareStreamToken',
     'cloudflare.images_token': 'cloudflareImagesToken',
+    'media.s3_secret_key': 's3SecretKey',
+    'media.bunny_api_key': 'bunnyApiKey',
   }
 
   const rc = useRuntimeConfig()
@@ -61,6 +62,21 @@ export default defineEventHandler(async (event) => {
   if (!settings['cloudflare.account_id'] && cfAccountId) settings['cloudflare.account_id'] = cfAccountId
   const cfDeliveryUrl = rc.cloudflareImagesDeliveryUrl as string | undefined
   if (!settings['cloudflare.images_delivery_url'] && cfDeliveryUrl) settings['cloudflare.images_delivery_url'] = cfDeliveryUrl
+
+  // Same for the non-sensitive S3/Bunny env vars
+  const nonSensitiveMediaEnv: Record<string, string> = {
+    'media.s3_bucket': 's3Bucket',
+    'media.s3_access_key': 's3AccessKey',
+    'media.s3_region': 's3Region',
+    'media.s3_endpoint': 's3Endpoint',
+    'media.s3_public_url': 's3PublicUrl',
+    'media.bunny_storage_zone': 'bunnyStorageZone',
+    'media.bunny_pull_zone': 'bunnyPullZone',
+  }
+  for (const [key, rcKey] of Object.entries(nonSensitiveMediaEnv)) {
+    const envVal = rc[rcKey] as string | undefined
+    if (!settings[key] && envVal) settings[key] = envVal
+  }
 
   return { site, settings }
 })

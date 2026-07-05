@@ -1,104 +1,66 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { computed, onBeforeUnmount, watch } from 'vue'
+import { useEditor, EditorContent } from '@tiptap/vue-3'
+import StarterKit from '@tiptap/starter-kit'
+import Link from '@tiptap/extension-link'
+import { useAiImprove, AI_IMPROVE_ACTIONS } from './useAiImprove'
 
 const props = defineProps<{ modelValue: string }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
-const editorRef = ref<HTMLDivElement>()
-// Guard against triggering a watch loop when we set innerHTML programmatically
-let settingInternally = false
-
-onMounted(() => {
-  if (editorRef.value)
-    editorRef.value.innerHTML = props.modelValue ?? ''
+const editor = useEditor({
+  extensions: [
+    StarterKit,
+    Link.configure({ openOnClick: false, autolink: true, defaultProtocol: 'https' }),
+  ],
+  content: props.modelValue ?? '',
+  editorProps: { attributes: { class: 'nuxflow-richtext-input-prose' } },
+  onUpdate({ editor: e }) {
+    emit('update:modelValue', e.getHTML())
+  },
 })
 
 watch(() => props.modelValue, (val) => {
-  if (settingInternally) return
-  if (editorRef.value && editorRef.value.innerHTML !== val)
-    editorRef.value.innerHTML = val ?? ''
+  if (!editor.value) return
+  if (editor.value.getHTML() !== (val ?? '')) {
+    editor.value.commands.setContent(val ?? '', { emitUpdate: false })
+  }
 })
 
-function onInput() {
-  settingInternally = true
-  emit('update:modelValue', editorRef.value?.innerHTML ?? '')
-  setTimeout(() => { settingInternally = false }, 0)
-}
+onBeforeUnmount(() => {
+  editor.value?.destroy()
+})
 
-// execCommand is deprecated from the spec but still works in all browsers for
-// basic admin-UI formatting — it has no viable replacement for inline formatting
-function exec(cmd: string, value?: string) {
-  document.execCommand(cmd, false, value)
-  editorRef.value?.focus()
-  onInput()
-}
+const boldActive = computed(() => editor.value?.isActive('bold') ?? false)
+const italicActive = computed(() => editor.value?.isActive('italic') ?? false)
+const bulletListActive = computed(() => editor.value?.isActive('bulletList') ?? false)
+const orderedListActive = computed(() => editor.value?.isActive('orderedList') ?? false)
+const linkActive = computed(() => editor.value?.isActive('link') ?? false)
 
 function addLink() {
-  const url = prompt('Link URL:', 'https://')
-  if (url) exec('createLink', url)
-}
-
-function isActive(cmd: string): boolean {
-  try { return document.queryCommandState(cmd) } catch { return false }
-}
-
-const boldActive = ref(false)
-const italicActive = ref(false)
-
-function updateState() {
-  boldActive.value = isActive('bold')
-  italicActive.value = isActive('italic')
+  const previousUrl = editor.value?.getAttributes('link').href as string | undefined
+  const url = window.prompt('Link URL:', previousUrl || 'https://')
+  if (url === null) return
+  if (url === '') {
+    editor.value?.chain().focus().extendMarkRange('link').unsetLink().run()
+    return
+  }
+  editor.value?.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
 }
 
 // ── AI text improvement ───────────────────────────────────────────────────────
 
-const aiLoading = ref(false)
-const aiAlternatives = ref<string[]>([])
-const showAiAlts = ref(false)
+const { aiLoading, aiAlternatives, showAiMenu, triggerAi: runAiImprove, dismissAlternatives } = useAiImprove()
+const aiActions = AI_IMPROVE_ACTIONS
 
-const aiActions = [
-  { label: 'Improve', value: 'improve' as const },
-  { label: 'Shorten', value: 'shorten' as const },
-  { label: 'Expand', value: 'expand' as const },
-  { label: 'Simplify', value: 'simplify' as const },
-]
-
-const showAiMenu = ref(false)
-
-async function aiImprove(instruction: 'improve' | 'shorten' | 'expand' | 'simplify') {
-  const text = editorRef.value?.innerText?.trim() ?? ''
-  if (!text || aiLoading.value) return
-  showAiMenu.value = false
-  aiLoading.value = true
-  aiAlternatives.value = []
-  showAiAlts.value = false
-  try {
-    const res = await fetch('/api/v1/ai/improve', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, instruction }),
-    })
-    if (res.ok) {
-      const data = await res.json() as { alternatives?: string[] }
-      if (data.alternatives?.length) {
-        aiAlternatives.value = data.alternatives
-        showAiAlts.value = true
-      }
-    }
-  } finally {
-    aiLoading.value = false
-  }
+function triggerAi(instruction: typeof aiActions[number]['value']) {
+  runAiImprove(instruction, editor.value?.getText() ?? '')
 }
 
 function applyAiAlternative(alt: string) {
-  if (editorRef.value) {
-    settingInternally = true
-    editorRef.value.innerHTML = `<p>${alt}</p>`
-    emit('update:modelValue', editorRef.value.innerHTML)
-    setTimeout(() => { settingInternally = false }, 0)
-  }
-  showAiAlts.value = false
-  aiAlternatives.value = []
+  editor.value?.commands.setContent(`<p>${alt}</p>`)
+  emit('update:modelValue', editor.value?.getHTML() ?? '')
+  dismissAlternatives()
 }
 </script>
 
@@ -111,7 +73,7 @@ function applyAiAlternative(alt: string) {
         title="Bold"
         class="w-6 h-6 flex items-center justify-center rounded text-xs font-bold transition-colors"
         :class="boldActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'"
-        @mousedown.prevent="exec('bold')"
+        @mousedown.prevent="editor?.chain().focus().toggleBold().run()"
       >B</button>
 
       <button
@@ -119,7 +81,7 @@ function applyAiAlternative(alt: string) {
         title="Italic"
         class="w-6 h-6 flex items-center justify-center rounded text-xs italic transition-colors"
         :class="italicActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'"
-        @mousedown.prevent="exec('italic')"
+        @mousedown.prevent="editor?.chain().focus().toggleItalic().run()"
       >I</button>
 
       <div class="w-px h-3.5 bg-gray-300 dark:bg-gray-600 mx-0.5" />
@@ -127,8 +89,9 @@ function applyAiAlternative(alt: string) {
       <button
         type="button"
         title="Bullet list"
-        class="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-        @mousedown.prevent="exec('insertUnorderedList')"
+        class="w-6 h-6 flex items-center justify-center rounded transition-colors"
+        :class="bulletListActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'"
+        @mousedown.prevent="editor?.chain().focus().toggleBulletList().run()"
       >
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -138,8 +101,9 @@ function applyAiAlternative(alt: string) {
       <button
         type="button"
         title="Numbered list"
-        class="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-        @mousedown.prevent="exec('insertOrderedList')"
+        class="w-6 h-6 flex items-center justify-center rounded transition-colors"
+        :class="orderedListActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'"
+        @mousedown.prevent="editor?.chain().focus().toggleOrderedList().run()"
       >
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <line x1="10" y1="6" x2="21" y2="6" stroke-linecap="round" stroke-width="2"/>
@@ -156,7 +120,8 @@ function applyAiAlternative(alt: string) {
       <button
         type="button"
         title="Insert link"
-        class="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+        class="w-6 h-6 flex items-center justify-center rounded transition-colors"
+        :class="linkActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'"
         @mousedown.prevent="addLink"
       >
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -168,7 +133,7 @@ function applyAiAlternative(alt: string) {
         type="button"
         title="Remove link"
         class="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-        @mousedown.prevent="exec('unlink')"
+        @mousedown.prevent="editor?.chain().focus().unsetLink().run()"
       >
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728M5.636 18.364a9 9 0 010-12.728M3 3l18 18" />
@@ -184,7 +149,7 @@ function applyAiAlternative(alt: string) {
           class="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-primary-500 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-40 transition-colors"
           @mousedown.prevent="showAiMenu = !showAiMenu"
         >
-          <span v-if="aiLoading" class="i-lucide-loader-2 w-3 h-3 animate-spin" style="display:block;width:12px;height:12px;border:1.5px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;" />
+          <span v-if="aiLoading" style="display:block;width:12px;height:12px;border:1.5px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;" />
           <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
           </svg>
@@ -199,7 +164,7 @@ function applyAiAlternative(alt: string) {
             :key="action.value"
             type="button"
             class="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-            @mousedown.prevent="aiImprove(action.value)"
+            @mousedown.prevent="triggerAi(action.value)"
           >
             {{ action.label }}
           </button>
@@ -208,17 +173,10 @@ function applyAiAlternative(alt: string) {
     </div>
 
     <!-- Editable content area -->
-    <div
-      ref="editorRef"
-      contenteditable="true"
-      class="min-h-[80px] max-h-48 overflow-y-auto px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none"
-      @input="onInput"
-      @keyup="updateState"
-      @mouseup="updateState"
-    />
+    <EditorContent :editor="editor" class="nuxflow-richtext-input-content min-h-[80px] max-h-48 overflow-y-auto px-3 py-2 text-sm" />
 
     <!-- AI alternatives -->
-    <div v-if="showAiAlts && aiAlternatives.length" class="border-t border-gray-200 dark:border-gray-700 px-3 py-2 space-y-1.5 bg-gray-50 dark:bg-gray-800/50">
+    <div v-if="aiAlternatives.length" class="border-t border-gray-200 dark:border-gray-700 px-3 py-2 space-y-1.5 bg-gray-50 dark:bg-gray-800/50">
       <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Pick an alternative:</p>
       <button
         v-for="(alt, i) in aiAlternatives"
@@ -232,7 +190,7 @@ function applyAiAlternative(alt: string) {
       <button
         type="button"
         class="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-        @click="showAiAlts = false; aiAlternatives = []"
+        @click="dismissAlternatives()"
       >
         Dismiss
       </button>
@@ -241,19 +199,22 @@ function applyAiAlternative(alt: string) {
 </template>
 
 <style scoped>
-[contenteditable] {
-  color: #111827 !important;
+.nuxflow-richtext-input-content :deep(.nuxflow-richtext-input-prose) {
+  outline: none;
+  color: #111827;
 }
-:global(.dark) [contenteditable] {
-  color: #f3f4f6 !important;
+:global(.dark) .nuxflow-richtext-input-content :deep(.nuxflow-richtext-input-prose) {
+  color: #f3f4f6;
 }
-[contenteditable] a { color: #3b82f6; text-decoration: underline; }
-[contenteditable] ul { list-style: disc; padding-left: 1.25rem; }
-[contenteditable] ol { list-style: decimal; padding-left: 1.25rem; }
-[contenteditable]:empty::before {
+.nuxflow-richtext-input-content :deep(a) { color: #3b82f6; text-decoration: underline; }
+.nuxflow-richtext-input-content :deep(ul) { list-style: disc; padding-left: 1.25rem; }
+.nuxflow-richtext-input-content :deep(ol) { list-style: decimal; padding-left: 1.25rem; }
+.nuxflow-richtext-input-content :deep(p.is-editor-empty:first-child::before) {
   content: attr(data-placeholder);
   color: #9ca3af;
   pointer-events: none;
+  float: left;
+  height: 0;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>

@@ -23,7 +23,7 @@ const isCanvasPage = computed(() => {
 
 useSeoMeta({
   title: page.value?.seoTitle || page.value?.title || 'NuxFlow',
-  description: page.value?.seoDescription || 'A modern, edge-deployed CMS built on Nuxt, Cloudflare Workers, and Turso.',
+  description: page.value?.seoDescription || 'A modern, edge-deployed CMS built on Nuxt, Cloudflare Workers, and D1.',
 })
 
 const features = [
@@ -75,7 +75,7 @@ const stack = [
   { label: 'Nuxt 4', icon: 'i-simple-icons-nuxtdotjs' },
   { label: 'Vue 3', icon: 'i-simple-icons-vuedotjs' },
   { label: 'Cloudflare Workers', icon: 'i-simple-icons-cloudflare' },
-  { label: 'Turso · libSQL', icon: 'i-lucide-database' },
+  { label: 'Cloudflare D1', icon: 'i-lucide-database' },
   { label: 'Drizzle ORM', icon: 'i-lucide-layers' },
   { label: 'TypeScript', icon: 'i-simple-icons-typescript' },
 ]

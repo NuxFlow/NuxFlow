@@ -1,6 +1,7 @@
 import Stripe from 'stripe'
+import type { PaymentProvider } from './types'
 
-export class StripeProvider {
+export class StripeProvider implements PaymentProvider {
   private client: Stripe
 
   constructor(secretKey: string) {

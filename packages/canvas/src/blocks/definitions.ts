@@ -161,11 +161,17 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
   {
     id: 'canvas-columns',
     name: 'Columns',
-    description: 'Multi-column layout with rich text',
+    description: 'Multi-column layout — drag any block into each column',
     icon: 'i-lucide-columns-3',
     category: 'layout',
     component: 'CanvasBlockColumns',
     thumbnailColor: '#eff6ff',
+    slots: [
+      { id: 'col1', label: 'Column 1' },
+      { id: 'col2', label: 'Column 2' },
+      { id: 'col3', label: 'Column 3', condition: p => ['3', '4'].includes(p.columns as string) },
+      { id: 'col4', label: 'Column 4', condition: p => p.columns === '4' },
+    ],
     fields: [
       {
         key: 'columns',
@@ -177,20 +183,43 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
           { label: '4 columns', value: '4' },
         ],
       },
-      { key: 'col1', label: 'Column 1', type: 'richtext' },
-      { key: 'col2', label: 'Column 2', type: 'richtext' },
-      { key: 'col3', label: 'Column 3', type: 'richtext', condition: p => ['3', '4'].includes(p.columns as string) },
-      { key: 'col4', label: 'Column 4', type: 'richtext', condition: p => p.columns === '4' },
       { key: 'gap', label: 'Gap (px)', type: 'number', min: 0, max: 64, step: 4 },
       { key: 'padding', label: 'Padding', type: 'spacing' },
     ],
     defaultProps: {
       columns: '2',
-      col1: '<p>Column one content.</p>',
-      col2: '<p>Column two content.</p>',
-      col3: '<p>Column three content.</p>',
-      col4: '<p>Column four content.</p>',
       gap: 24,
+      padding: { top: 24, right: 24, bottom: 24, left: 24, unit: 'px' },
+    },
+  },
+
+  // ── Container ─────────────────────────────────────────────────────────────
+  {
+    id: 'canvas-container',
+    name: 'Container',
+    description: 'Groups other blocks together with a shared background, padding, and max width',
+    icon: 'i-lucide-square',
+    category: 'layout',
+    component: 'CanvasBlockContainer',
+    thumbnailColor: '#f8fafc',
+    slots: [{ id: 'default', label: 'Content' }],
+    fields: [
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      {
+        key: 'maxWidth',
+        label: 'Max width',
+        type: 'select',
+        options: [
+          { label: 'Full width', value: 'full' },
+          { label: 'Large', value: 'lg' },
+          { label: 'Medium', value: 'md' },
+          { label: 'Small', value: 'sm' },
+        ],
+      },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      maxWidth: 'full',
       padding: { top: 24, right: 24, bottom: 24, left: 24, unit: 'px' },
     },
   },
@@ -549,7 +578,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     defaultProps: {
       title: 'Frequently Asked Questions',
       description: 'Everything you need to know about our product.',
-      itemsJson: '[{"question":"How does NuxFlow work?","answer":"NuxFlow operates natively on Cloudflare Workers edge nodes. It fetches your content directly from D1/Turso and renders pages with Vue 3 server-side rendering."},{"question":"Do I need server configuration?","answer":"No, NuxFlow is fully serverless. You deploy it once to Cloudflare and it scales automatically with zero maintenance."}]',
+      itemsJson: '[{"question":"How does NuxFlow work?","answer":"NuxFlow operates natively on Cloudflare Workers edge nodes. It fetches your content directly from D1 and renders pages with Vue 3 server-side rendering."},{"question":"Do I need server configuration?","answer":"No, NuxFlow is fully serverless. You deploy it once to Cloudflare and it scales automatically with zero maintenance."}]',
       padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
     },
   },

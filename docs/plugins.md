@@ -1,6 +1,6 @@
 # External Plugin Development Guide
 
-NuxFlow supports two kinds of plugins. **Bundled plugins** (Canvas, Contact Form) are compiled into the Worker at deploy time and live inside the monorepo. **Dynamic plugins** are self-contained packages that you build and upload independently — they run as isolated Cloudflare Workers spawned on demand from code stored in KV, so you can install, update, or remove them without ever redeploying your site.
+NuxFlow does not use bundled plugins — Canvas, Contact Forms, and Payments/Memberships are all core features compiled directly into the Worker, not plugins you install or remove. The only kind of plugin is a **dynamic plugin**: a self-contained package you build and upload independently, running as an isolated Cloudflare Worker spawned on demand from code stored in KV, so you can install, update, or remove it without ever redeploying your site.
 
 > **Note:** Payments & Memberships is a core NuxFlow feature, not a plugin. See the [Payments Setup Guide](./payments-setup.md) for configuration instructions.
 

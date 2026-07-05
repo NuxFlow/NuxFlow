@@ -32,6 +32,19 @@ const bodySchema = z.object({
     imagesToken: z.string().optional(),
     imagesDeliveryUrl: z.string().optional(),
   }).optional(),
+  // S3-compatible and Bunny.net media storage — per-site overrides of the env-var
+  // fallbacks in nuxt.config.ts, resolved the same way as the Cloudflare settings above.
+  media: z.object({
+    s3Bucket: z.string().optional(),
+    s3AccessKey: z.string().optional(),
+    s3SecretKey: z.string().optional(),
+    s3Region: z.string().optional(),
+    s3Endpoint: z.string().optional(),
+    s3PublicUrl: z.string().optional(),
+    bunnyApiKey: z.string().optional(),
+    bunnyStorageZone: z.string().optional(),
+    bunnyPullZone: z.string().optional(),
+  }).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -77,6 +90,19 @@ export default defineEventHandler(async (event) => {
     if (cf.streamToken !== undefined) await saveSetting(event, 'cloudflare.stream_token', cf.streamToken)
     if (cf.imagesToken !== undefined) await saveSetting(event, 'cloudflare.images_token', cf.imagesToken)
     if (cf.imagesDeliveryUrl !== undefined) await saveSetting(event, 'cloudflare.images_delivery_url', cf.imagesDeliveryUrl)
+  }
+
+  if (body.media) {
+    const m = body.media
+    if (m.s3Bucket !== undefined) await saveSetting(event, 'media.s3_bucket', m.s3Bucket)
+    if (m.s3AccessKey !== undefined) await saveSetting(event, 'media.s3_access_key', m.s3AccessKey)
+    if (m.s3SecretKey !== undefined) await saveSetting(event, 'media.s3_secret_key', m.s3SecretKey)
+    if (m.s3Region !== undefined) await saveSetting(event, 'media.s3_region', m.s3Region)
+    if (m.s3Endpoint !== undefined) await saveSetting(event, 'media.s3_endpoint', m.s3Endpoint)
+    if (m.s3PublicUrl !== undefined) await saveSetting(event, 'media.s3_public_url', m.s3PublicUrl)
+    if (m.bunnyApiKey !== undefined) await saveSetting(event, 'media.bunny_api_key', m.bunnyApiKey)
+    if (m.bunnyStorageZone !== undefined) await saveSetting(event, 'media.bunny_storage_zone', m.bunnyStorageZone)
+    if (m.bunnyPullZone !== undefined) await saveSetting(event, 'media.bunny_pull_zone', m.bunnyPullZone)
   }
 
   // If any appearance settings changed, bust the per-isolate cache so the next

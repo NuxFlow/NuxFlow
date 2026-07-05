@@ -1,0 +1,1 @@
+ALTER TABLE `sites` ADD `setup_token_hash` text;

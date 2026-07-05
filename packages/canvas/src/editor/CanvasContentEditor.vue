@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
-import type { CanvasContent } from '../types'
+import { ref, watch, computed, provide, onMounted, onBeforeUnmount } from 'vue'
+import draggable from 'vuedraggable'
+import type { CanvasContent, CanvasBlockData } from '../types'
 import { isCanvasContent, emptyCanvas } from '../types'
+import { isDescendant } from '../tree'
 import { useCanvas } from './useCanvas'
+import { canvasApiKey, type CanvasApi } from './canvasApi'
 import CanvasBlock from './CanvasBlock.vue'
 import BlockPicker from './BlockPicker.vue'
 import SettingsPanel from './SettingsPanel.vue'
@@ -23,11 +26,15 @@ const {
   removeBlock,
   updateBlockProp,
   moveBlock,
-  reorderBlock,
   duplicateBlock,
   selectBlock,
   reset,
   toJSON,
+  undo,
+  redo,
+  canUndo,
+  canRedo,
+  recordDiscrete,
 } = useCanvas(initial)
 
 watch(canvas, () => emit('update:modelValue', toJSON()), { deep: true })
@@ -36,6 +43,7 @@ watch(() => props.modelValue, (val) => {
   if (isCanvasContent(val) && JSON.stringify(val) !== JSON.stringify(canvas.value))
     reset(val)
 })
+
 // AI generation
 
 const showAiModal = ref(false)
@@ -45,68 +53,128 @@ function onAiGenerate(content: CanvasContent) {
   showAiModal.value = false
 }
 
-
-// ── Block picker ───────────────────────────────────────────────���──────────────
+// ── Block picker ───────────────────────────────────────────────────────────
 
 const showPicker = ref(false)
-const insertAtIndex = ref<number | undefined>(undefined)
+const insertTarget = ref<{ parentId: string | null; slot: string | null; index?: number } | undefined>(undefined)
 
-function openPicker(atIndex?: number) {
-  insertAtIndex.value = atIndex
+function openPicker(target?: { parentId: string | null; slot: string | null; index?: number }) {
+  insertTarget.value = target
   showPicker.value = true
 }
 
 function onPick(typeId: string) {
-  addBlock(typeId, insertAtIndex.value)
+  addBlock(typeId, insertTarget.value)
   showPicker.value = false
-  insertAtIndex.value = undefined
+  insertTarget.value = undefined
 }
 
-// ── Drag-and-drop reorder ───────────────────────────��─────────────────────────
+// ── Cycle guard shared by every draggable instance (root + nested slots) ────
 
-const draggingIndex = ref<number | null>(null)
-const dragOverIndex = ref<number | null>(null)
+function checkMove(evt: { draggedContext?: { element?: { id?: string } }; to?: HTMLElement }): boolean {
+  const draggedId = evt.draggedContext?.element?.id
+  const toOwnerId = evt.to?.dataset?.slotOwner
+  if (!draggedId || !toOwnerId) return true // dropping at root is always cycle-safe
+  if (toOwnerId === draggedId) return false
+  return !isDescendant(canvas.value.blocks, draggedId, toOwnerId)
+}
 
-function onDragStart(e: DragEvent, index: number) {
-  draggingIndex.value = index
-  if (e.dataTransfer) {
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', String(index))
+function onRootDragStart() {
+  recordDiscrete()
+}
+
+// ── Provide the mutation API for CanvasBlock.vue at every recursion depth ───
+
+const api: CanvasApi = {
+  selectedId,
+  selectBlock,
+  addBlock,
+  removeBlock,
+  updateBlockProp,
+  duplicateBlock,
+  moveBlock,
+  moveBlockToSlot: (id, targetParentId, targetSlot, targetIndex) => {
+    // Only reached programmatically (not via drag, which mutates arrays
+    // directly through vuedraggable's v-model) — kept for API completeness.
+    void id; void targetParentId; void targetSlot; void targetIndex
+  },
+  recordDiscrete,
+  checkMove,
+  openPicker,
+}
+provide(canvasApiKey, api)
+
+// ── Undo/redo keyboard shortcuts ─────────────────────────────────────────────
+// Skipped while a text input/textarea/contenteditable has focus, so canvas-level
+// undo never fights a field's own native undo while the user is typing in it.
+
+function isTextEditingTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false
+  const tag = el.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (!(e.ctrlKey || e.metaKey)) return
+  if (isTextEditingTarget(e.target)) return
+  const key = e.key.toLowerCase()
+  if (key === 'z' && e.shiftKey) {
+    e.preventDefault()
+    redo()
+  } else if (key === 'z') {
+    e.preventDefault()
+    undo()
+  } else if (key === 'y') {
+    e.preventDefault()
+    redo()
   }
 }
 
-function onDragOver(e: DragEvent, index: number) {
-  e.preventDefault()
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
-  if (draggingIndex.value !== null && draggingIndex.value !== index)
-    dragOverIndex.value = index
-}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
-function onDrop(e: DragEvent, toIndex: number) {
-  e.preventDefault()
-  if (draggingIndex.value !== null && draggingIndex.value !== toIndex)
-    reorderBlock(draggingIndex.value, toIndex)
-  draggingIndex.value = null
-  dragOverIndex.value = null
-}
-
-function onDragEnd() {
-  draggingIndex.value = null
-  dragOverIndex.value = null
-}
-
-// ── Helpers ──────────────────────────────���────────────────────────────────���───
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 const blockCount = computed(() => canvas.value.blocks.length)
+
+function onRootUpdate(list: CanvasBlockData[]) {
+  canvas.value.blocks = list
+}
 </script>
 
 <template>
   <div class="flex flex-col h-full min-h-[500px]">
     <!-- Persistent toolbar -->
     <div class="sticky top-0 z-10 flex items-center justify-between px-4 py-2 bg-white/90 dark:bg-gray-900/90 backdrop-blur border-b border-gray-200 dark:border-gray-800">
-      <span class="text-xs text-gray-400">
-        {{ blockCount }} block{{ blockCount !== 1 ? 's' : '' }}
-      </span>
+      <div class="flex items-center gap-3">
+        <span class="text-xs text-gray-400">
+          {{ blockCount }} block{{ blockCount !== 1 ? 's' : '' }}
+        </span>
+        <div class="flex items-center gap-0.5">
+          <button
+            type="button"
+            title="Undo (Ctrl+Z)"
+            :disabled="!canUndo"
+            class="p-1.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors"
+            @click="undo()"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 15L4 10l5-5M4 10h11a4 4 0 010 8h-1" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            title="Redo (Ctrl+Shift+Z)"
+            :disabled="!canRedo"
+            class="p-1.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors"
+            @click="redo()"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l5-5-5-5M20 10H9a4 4 0 000 8h1" />
+            </svg>
+          </button>
+        </div>
+      </div>
       <div class="flex items-center gap-2">
         <button
           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 text-xs font-medium hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
@@ -150,7 +218,7 @@ const blockCount = computed(() => canvas.value.blocks.length)
           <p class="text-sm text-gray-400">No blocks yet</p>
           <button
             class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors"
-            @click="openPicker(0)"
+            @click="openPicker()"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -161,49 +229,30 @@ const blockCount = computed(() => canvas.value.blocks.length)
 
         <!-- Block list -->
         <div v-else class="py-4" @click.self="selectBlock(null)">
-          <InsertDivider @click="openPicker(0)" />
+          <InsertDivider @click="openPicker({ parentId: null, slot: null, index: 0 })" />
 
-          <template v-for="(block, idx) in canvas.blocks" :key="block.id">
-            <div
-              class="relative group/row transition-opacity"
-              :class="{
-                'opacity-30': draggingIndex === idx,
-                'ring-2 ring-primary-400 ring-inset': dragOverIndex === idx && draggingIndex !== idx,
-              }"
-              draggable="true"
-              @dragstart="onDragStart($event, idx)"
-              @dragover="onDragOver($event, idx)"
-              @drop="onDrop($event, idx)"
-              @dragend="onDragEnd"
-            >
-              <!-- Drag handle -->
-              <div
-                class="absolute left-1 inset-y-0 flex items-center justify-center w-5 opacity-0 group-hover/row:opacity-100 cursor-grab active:cursor-grabbing z-10 transition-opacity"
-                title="Drag to reorder"
-              >
-                <svg class="w-3.5 h-3.5 text-gray-400" fill="currentColor" viewBox="0 0 16 16">
-                  <circle cx="5" cy="3" r="1.2" /><circle cx="11" cy="3" r="1.2" />
-                  <circle cx="5" cy="8" r="1.2" /><circle cx="11" cy="8" r="1.2" />
-                  <circle cx="5" cy="13" r="1.2" /><circle cx="11" cy="13" r="1.2" />
-                </svg>
+          <draggable
+            :model-value="canvas.blocks"
+            item-key="id"
+            group="canvas-blocks"
+            handle=".canvas-drag-handle"
+            @update:model-value="onRootUpdate"
+            :move="checkMove"
+            @start="onRootDragStart"
+          >
+            <template #item="{ element, index }">
+              <div>
+                <CanvasBlock
+                  :block="element"
+                  :selected="selectedId === element.id"
+                  editing
+                  :is-first="index === 0"
+                  :is-last="index === blockCount - 1"
+                />
+                <InsertDivider @click="openPicker({ parentId: null, slot: null, index: index + 1 })" />
               </div>
-
-              <CanvasBlock
-                :block="block"
-                :selected="selectedId === block.id"
-                :editing="true"
-                :is-first="idx === 0"
-                :is-last="idx === blockCount - 1"
-                @select="selectBlock(block.id)"
-                @duplicate="duplicateBlock(block.id)"
-                @remove="removeBlock(block.id)"
-                @move-up="moveBlock(block.id, 'up')"
-                @move-down="moveBlock(block.id, 'down')"
-              />
-            </div>
-
-            <InsertDivider @click="openPicker(idx + 1)" />
-          </template>
+            </template>
+          </draggable>
         </div>
       </div>
 

@@ -21,11 +21,14 @@ nuxflow/
 │   └── nuxflow/          # Main Nuxt 4 application (the CMS)
 ├── packages/
 │   ├── canvas/           # Canvas page builder engine (blocks, editor, types)
-│   ├── db/               # Drizzle schema, migrations, and DB client
+│   ├── db/               # Drizzle schema and migrations — D1-only, no client factory
 │   ├── plugin-sdk/       # Types and utilities for building dynamic plugins
-│   └── cli/              # NuxFlow CLI tool
+│   ├── cli/              # NuxFlow CLI tool
+│   └── create-nuxflow-app/  # `pnpm create nuxflow-app` scaffolder
 ├── themes/
 │   └── default/          # Default CSS theme
+├── workers/
+│   └── argon2-hasher/    # Standalone Worker for Argon2id password hashing (service binding)
 ├── examples/             # Example themes and plugins
 └── docs/                 # Documentation source
 ```
@@ -52,23 +55,34 @@ NuxFlow uses Wrangler for local development and edge deployment. Copy the exampl
 cp apps/nuxflow/wrangler.toml.example apps/nuxflow/wrangler.toml
 ```
 
-### Choose a Local Database
+### Start the Password Hasher Worker
 
-**Option A — Cloudflare D1 via `wrangler dev` (recommended):**
+Password hashing (Argon2id) runs in a separate Worker, connected to the main app via a service binding — `wrangler dev` does not start it automatically, and setup/login/registration all fail without it. Run this once per session, in its own terminal, before starting the main app:
 
-This is the closest to production. `wrangler dev` provisions a local D1 SQLite database automatically. Run from the `apps/nuxflow` directory:
+```bash
+cd workers/argon2-hasher
+pnpm install
+pnpm dev
+```
+
+### Set Up the Local Database
+
+**Cloudflare D1 via `wrangler dev` (the only supported path):**
+
+This is the closest to production. `wrangler dev` provisions a local D1 SQLite database automatically. Run from the `apps/nuxflow` directory, in a second terminal alongside the password hasher started above:
 
 ```bash
 cd apps/nuxflow
 wrangler dev
 ```
 
+`pnpm dev` from the repo root runs the same thing — there is no separate `nuxt dev` path.
+
 Database migrations run automatically on the first request. Visit `http://localhost:8787/setup`.
 
 > [!NOTE]
 > **Working with Production Database Dumps:**
-> NuxFlow uses **Argon2id** password hashing in production via a Cloudflare service binding, but falls back to **scrypt** in local development (`pnpm dev`) because the binding is absent.
-> If you import a production database dump locally, any attempt to log in using those production passwords will fail because the dev server cannot verify the `$argon2id$` format. You will need to manually reset the user's password in your local database using a seed script, SQLite shell, or by re-running the setup wizard.
+> If you skip the password hasher worker above, NuxFlow falls back to **scrypt** for password hashing, and any imported production password hash in the `$argon2id$` format will fail to verify locally. With the hasher worker running as described above, the `ARGON2` binding is present locally too (`wrangler dev` reports it as `[connected]` in its bindings summary) and production password hashes verify normally. If you still hit this, reset the affected user's password in your local database using a seed script, SQLite shell, or by re-running the setup wizard.
 
 ---
 
@@ -201,11 +215,11 @@ Both checks run in CI on every push and pull request. A failing lint or typechec
 
 ## Versioning and Releases
 
-NuxFlow uses [Changesets](https://github.com/changesets/changesets) to manage versioning across the monorepo. All packages in the workspace are versioned together — a single release bumps every package to the same version.
+NuxFlow uses [Changesets](https://github.com/changesets/changesets) to version the packages that are actually published to npm: `@nuxflow/cli` and `create-nuxflow-app`. Every other package in the workspace (`@nuxflow/app`, `@nuxflow/canvas`, `@nuxflow/db`, `@nuxflow/plugin-sdk`) is marked `"private": true` and is versioned independently, not released to npm, and doesn't need a changeset for internal-only changes — it just ships as part of the main app deploy.
 
 ### Adding a changeset
 
-When your work is ready to ship, add a changeset describing what changed:
+If your change touches the CLI or the `create-nuxflow-app` scaffolder, add a changeset describing what changed:
 
 ```bash
 pnpm changeset

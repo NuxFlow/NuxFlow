@@ -18,7 +18,6 @@ const blockTypeEnum = z.enum([
   'canvas-cta',
   'canvas-accordion',
   'canvas-pricing',
-  'canvas-columns',
   'canvas-spacer',
   'canvas-footer',
   'canvas-button',
@@ -68,9 +67,6 @@ canvas-pricing: Pricing table (2 or 3 plans)
              plan1BtnLabel(str), plan1BtnUrl(str), plan1Popular(bool)
              [plan2 and plan3 same pattern]
 
-canvas-columns: Multi-column text layout
-  Key props: columns("2"|"3"), col1(HTML), col2(HTML), col3(HTML), gap(24)
-
 canvas-spacer: Vertical whitespace divider
   Key props: height(number 48-96), showLine(bool)
 
@@ -99,7 +95,6 @@ Rules:
 - End landing pages with canvas-cta and/or canvas-footer
 - For canvas-features, use real Lucide icon classes like i-lucide-zap, i-lucide-shield-check, i-lucide-sparkles, i-lucide-globe, i-lucide-code, i-lucide-layers
 - For canvas-accordion itemsJson and canvas-pricing planXFeatures, output valid JSON strings (escaped properly)
-- For canvas-columns col1/col2/col3, output valid HTML strings
 - Keep bgColor as "#ffffff" and textColor as "#111827" unless a specific style is requested
 - Generate 4-9 blocks total for a typical page
 - All text should be compelling and match the requested tone`

@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import type { FieldSchema, SpacingValue } from '../types'
 import RichTextInput from './RichTextInput.vue'
+import { useAiImprove, AI_IMPROVE_ACTIONS, type AiInstruction } from './useAiImprove'
 
 const props = defineProps<{
   field: FieldSchema
@@ -58,46 +59,16 @@ function updateSpacing(key: keyof SpacingValue, raw: unknown) {
 
 // ── AI text improvement ───────────────────────────────────────────────────────
 
-const aiLoading = ref(false)
-const aiAlternatives = ref<string[]>([])
+const { aiLoading, aiAlternatives, showAiMenu, triggerAi: runAiImprove, dismissAlternatives } = useAiImprove()
+const aiActions = AI_IMPROVE_ACTIONS
 
-async function aiImprove(instruction: 'improve' | 'shorten' | 'expand' | 'simplify') {
-  const text = String(props.modelValue ?? '').trim()
-  if (!text || aiLoading.value) return
-  aiLoading.value = true
-  aiAlternatives.value = []
-  try {
-    const res = await fetch('/api/v1/ai/improve', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, instruction }),
-    })
-    if (res.ok) {
-      const data = await res.json() as { alternatives?: string[] }
-      aiAlternatives.value = data.alternatives ?? []
-    }
-  } finally {
-    aiLoading.value = false
-  }
+function triggerAi(instruction: AiInstruction) {
+  runAiImprove(instruction, String(props.modelValue ?? ''))
 }
 
 function applyAlternative(alt: string) {
   update(alt)
-  aiAlternatives.value = []
-}
-
-const showAiMenu = ref(false)
-
-const aiActions = [
-  { label: 'Improve', value: 'improve' as const, icon: '✨' },
-  { label: 'Shorten', value: 'shorten' as const, icon: '✂️' },
-  { label: 'Expand', value: 'expand' as const, icon: '↔' },
-  { label: 'Simplify', value: 'simplify' as const, icon: '⚡' },
-]
-
-function triggerAi(instruction: 'improve' | 'shorten' | 'expand' | 'simplify') {
-  showAiMenu.value = false
-  aiImprove(instruction)
+  dismissAlternatives()
 }
 </script>
 
@@ -153,7 +124,7 @@ function triggerAi(instruction: 'improve' | 'shorten' | 'expand' | 'simplify') {
       >
         {{ alt }}
       </button>
-      <button type="button" class="text-xs text-gray-400 hover:text-gray-600" @click="aiAlternatives = []">
+      <button type="button" class="text-xs text-gray-400 hover:text-gray-600" @click="dismissAlternatives()">
         Dismiss
       </button>
     </div>
@@ -195,7 +166,7 @@ function triggerAi(instruction: 'improve' | 'shorten' | 'expand' | 'simplify') {
       >
         {{ alt }}
       </button>
-      <button type="button" class="text-xs text-gray-400 hover:text-gray-600" @click="aiAlternatives = []">
+      <button type="button" class="text-xs text-gray-400 hover:text-gray-600" @click="dismissAlternatives()">
         Dismiss
       </button>
     </div>

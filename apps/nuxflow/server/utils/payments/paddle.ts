@@ -1,3 +1,5 @@
+import type { PaymentProvider } from './types'
+
 export interface PaddleSubscription {
   id: string
   status: 'active' | 'canceled' | 'past_due' | 'paused' | 'trialing'
@@ -7,7 +9,7 @@ export interface PaddleSubscription {
   canceled_at: string | null
 }
 
-export class PaddleProvider {
+export class PaddleProvider implements PaymentProvider {
   private apiKey: string
   readonly vendorId: string
   private baseUrl: string

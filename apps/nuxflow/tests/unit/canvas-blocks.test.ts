@@ -18,6 +18,7 @@ describe('CANVAS_BLOCKS registry', () => {
     expect(ids).toContain('canvas-image')
     expect(ids).toContain('canvas-video')
     expect(ids).toContain('canvas-columns')
+    expect(ids).toContain('canvas-container')
     expect(ids).toContain('canvas-features')
     expect(ids).toContain('canvas-testimonial')
     expect(ids).toContain('canvas-cta')
@@ -112,6 +113,78 @@ describe('canvas-gdpr block definition', () => {
     expect(keys).toContain('bgColor')
     expect(keys).toContain('textColor')
     expect(keys).toContain('btnColor')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Columns block (nested slots)
+// ---------------------------------------------------------------------------
+
+describe('canvas-columns block definition', () => {
+  const columns = CANVAS_BLOCKS.find(b => b.id === 'canvas-columns')!
+
+  it('exists in the registry', () => {
+    expect(columns).toBeDefined()
+  })
+
+  it('is in the layout category', () => {
+    expect(columns.category).toBe('layout')
+  })
+
+  it('no longer has col1-col4 rich text props', () => {
+    const keys = columns.fields.map(f => f.key)
+    expect(keys).not.toContain('col1')
+    expect(keys).not.toContain('col2')
+    expect(keys).not.toContain('col3')
+    expect(keys).not.toContain('col4')
+  })
+
+  it('declares 4 named slots for nested child blocks', () => {
+    const slotIds = columns.slots?.map(s => s.id)
+    expect(slotIds).toEqual(['col1', 'col2', 'col3', 'col4'])
+  })
+
+  it('col3/col4 slots are conditional on the columns count', () => {
+    const col3 = columns.slots!.find(s => s.id === 'col3')!
+    const col4 = columns.slots!.find(s => s.id === 'col4')!
+    expect(col3.condition!({ columns: '2' })).toBe(false)
+    expect(col3.condition!({ columns: '3' })).toBe(true)
+    expect(col4.condition!({ columns: '3' })).toBe(false)
+    expect(col4.condition!({ columns: '4' })).toBe(true)
+  })
+
+  it('col1/col2 have no condition — always visible', () => {
+    const col1 = columns.slots!.find(s => s.id === 'col1')!
+    const col2 = columns.slots!.find(s => s.id === 'col2')!
+    expect(col1.condition).toBeUndefined()
+    expect(col2.condition).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Container block (nested slot)
+// ---------------------------------------------------------------------------
+
+describe('canvas-container block definition', () => {
+  const container = CANVAS_BLOCKS.find(b => b.id === 'canvas-container')!
+
+  it('exists in the registry', () => {
+    expect(container).toBeDefined()
+  })
+
+  it('is in the layout category', () => {
+    expect(container.category).toBe('layout')
+  })
+
+  it('declares a single default slot', () => {
+    expect(container.slots).toEqual([{ id: 'default', label: 'Content' }])
+  })
+
+  it('has bgColor, maxWidth, and padding fields', () => {
+    const keys = container.fields.map(f => f.key)
+    expect(keys).toContain('bgColor')
+    expect(keys).toContain('maxWidth')
+    expect(keys).toContain('padding')
   })
 })
 

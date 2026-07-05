@@ -81,7 +81,7 @@ watch(() => route.path, () => { sidebarOpen.value = false })
             <AdminNotificationBell />
           </ClientOnly>
           <ClientOnly>
-            <UColorModeButton />
+            <AdminColorModeToggle />
           </ClientOnly>
         </div>
       </header>

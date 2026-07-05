@@ -28,9 +28,6 @@
     "deploy": {
       "dependsOn": ["build"],
       "cache": false
-    },
-    "migrate": {
-      "cache": false
     }
   }
 }

@@ -346,7 +346,17 @@ To accept payments, configure at least one payment provider in **Admin → Setti
 
 Canvas is a visual drag-and-drop page builder built into NuxFlow. It adds a **Canvas** editor mode to any page or post, letting you build layouts from blocks without writing code.
 
-Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), Columns, Feature grids, Testimonials, CTA banners, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), Contact Form, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
+Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), Columns, **Container**, Feature grids, Testimonials, CTA banners, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), Contact Form, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
+
+#### Nesting blocks
+
+**Columns** and **Container** are layout blocks that hold other blocks inside them, rather than fixed text. Drag any block from the picker (or drag an existing block) into a column or into a Container to nest it — a column can hold an Image, a Button, another Text block, or even another Columns/Container block, to any depth. Container also has its own background colour, padding, and max-width settings, making it useful for grouping a section of blocks with shared framing.
+
+If you reduce a Columns block from 4 columns to 2, the blocks in the hidden columns aren't deleted — they reappear if you switch back to 4 columns.
+
+#### Undo and redo
+
+The Canvas toolbar has undo/redo buttons, and the standard keyboard shortcuts work too: **Ctrl+Z** (**Cmd+Z** on Mac) to undo, **Ctrl+Shift+Z** (or **Ctrl+Y**) to redo. Structural changes — adding, deleting, duplicating, or moving a block — are each a single undo step. Typing in a text field groups into one undo step per pause, so undo doesn't require reverting one keystroke at a time. These shortcuts are automatically disabled while a text field has focus, so they never interfere with normal typing or that field's own undo history.
 
 #### Gallery block
 

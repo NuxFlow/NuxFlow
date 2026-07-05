@@ -2,6 +2,7 @@ import { useDb } from '../utils/db'
 import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getCfBindings, getThemeCSS } from '../utils/cf-env'
+import { sanitizeThemeCss } from '../utils/security'
 
 export default defineNitroPlugin((nitro) => {
   nitro.hooks.hook('request', async (event) => {
@@ -33,9 +34,10 @@ export default defineNitroPlugin((nitro) => {
 
       const css = await getThemeCSS(event, siteId, active.id)
       if (css) {
-        // Strip any </style> sequences to prevent breaking out of the style block
-        const safeCss = css.replace(/<\/style>/gi, '')
-        html.head.push(`<style data-nuxflow-theme>${safeCss}</style>`)
+        // Sanitize again at render time (not just on write) so themes stored before
+        // this sanitization existed are protected immediately, with no data migration.
+        // Idempotent — already-clean CSS passes through unchanged.
+        html.head.push(`<style data-nuxflow-theme>${sanitizeThemeCss(css)}</style>`)
       }
     }
     catch (err) {

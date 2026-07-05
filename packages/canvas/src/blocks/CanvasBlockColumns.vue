@@ -4,18 +4,10 @@ import type { SpacingValue } from '../types'
 
 const props = withDefaults(defineProps<{
   columns?: '2' | '3' | '4'
-  col1?: string
-  col2?: string
-  col3?: string
-  col4?: string
   gap?: number
   padding?: SpacingValue
 }>(), {
   columns: '2',
-  col1: '<p>Column one content.</p>',
-  col2: '<p>Column two content.</p>',
-  col3: '',
-  col4: '',
   gap: 24,
 })
 
@@ -36,21 +28,20 @@ const gridStyle = computed(() => ({
   gap: `${props.gap ?? 24}px`,
 }))
 
-const colContents = computed(() => {
-  const count = parseInt(props.columns ?? '2')
-  return [props.col1, props.col2, props.col3, props.col4].slice(0, count)
+// Reducing the column count only hides the extra slots — their block data is
+// preserved in CanvasBlockData.children and reappears if the count goes back up.
+const activeSlots = computed(() => {
+  const count = parseInt(props.columns ?? '2', 10)
+  return (['col1', 'col2', 'col3', 'col4'] as const).slice(0, count)
 })
 </script>
 
 <template>
   <div class="canvas-columns" :style="containerStyle">
     <div class="grid" :class="gridClass" :style="gridStyle">
-      <div
-        v-for="(col, i) in colContents"
-        :key="i"
-        class="prose prose-gray dark:prose-invert max-w-none"
-        v-html="col"
-      />
+      <div v-for="slotName in activeSlots" :key="slotName" class="canvas-columns__col">
+        <slot :name="slotName" />
+      </div>
     </div>
   </div>
 </template>

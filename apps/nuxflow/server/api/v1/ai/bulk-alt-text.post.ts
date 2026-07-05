@@ -1,6 +1,7 @@
 import { z } from 'zod'
+import { generateText } from 'ai'
 import { requireRole } from '../../../utils/permissions'
-import { getAiProvider } from '../../../utils/ai-providers/index'
+import { getAiSdkModel } from '../../../utils/ai-sdk'
 import { useDb } from '../../../utils/db'
 import { media } from '@nuxflow/db/schema'
 import { and, eq, isNull, or } from 'drizzle-orm'
@@ -15,8 +16,8 @@ const SYSTEM = `You are an accessibility expert. Write concise, descriptive alt 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
 
-  const ai = await getAiProvider(event)
-  if (!ai) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
+  const model = await getAiSdkModel(event, 'fast')
+  if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
 
   const { mediaIds } = await readValidatedBody(event, bodySchema.parse)
   const siteId = event.context.siteId as string
@@ -50,9 +51,9 @@ export default defineEventHandler(async (event) => {
     for (const file of imageTargets) {
       try {
         const prompt = `Generate alt text for an image with filename: "${file.originalName}"`
-        const altText = await ai.complete(prompt, { systemPrompt: SYSTEM, maxTokens: 100 })
+        const { text } = await generateText({ model, system: SYSTEM, prompt, maxOutputTokens: 100 })
         await db.update(media)
-          .set({ altText: altText.trim() })
+          .set({ altText: text.trim() })
           .where(and(eq(media.id, file.id), eq(media.siteId, siteId)))
         processed++
       } catch {

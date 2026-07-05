@@ -15,8 +15,8 @@ function getArgon2(): ArgonHasherBinding | null {
 
 // ── Dev fallback — node:crypto.scrypt ─────────────────────────────────────────
 //
-// Used only when the ARGON2 service binding is unavailable (pnpm dev / Turso
-// local mode). Produces the same saltHex:keyHex format as Better Auth's default
+// Used only when the ARGON2 service binding is unavailable (e.g. `wrangler dev`
+// without the argon2-hasher worker linked). Produces the same saltHex:keyHex format as Better Auth's default
 // so the dev database behaves normally. Dev hashes are NOT portable to production
 // — production always starts from a fresh wipe with Argon2id hashes.
 

@@ -12,26 +12,25 @@ directory = ".output/public"
 [vars]
 # Set production values in the Cloudflare dashboard or via:
 #   wrangler secret put SECRET_NAME
-# BETTER_AUTH_SECRET =
-# CLOUDFLARE_IMAGES_TOKEN =
-# CLOUDFLARE_ACCOUNT_ID =
+# All names below are install-wide fallbacks read via Nuxt runtimeConfig — the NUXT_
+# prefix is required for Nuxt to pick them up. Cloudflare Images, S3, and Bunny.net are
+# also configurable per-site in Settings → Media, which takes priority over these.
+# NUXT_BETTER_AUTH_SECRET =
+# NUXT_CLOUDFLARE_IMAGES_TOKEN =
+# NUXT_CLOUDFLARE_ACCOUNT_ID =
 #
-# Turso (optional — only needed if you choose Turso over the default D1 database):
-# TURSO_URL =
-# TURSO_AUTH_TOKEN =
+# S3-compatible storage (checked after Cloudflare Images)
+# NUXT_S3_BUCKET =
+# NUXT_S3_ACCESS_KEY =
+# NUXT_S3_SECRET_KEY =
+# NUXT_S3_REGION = "us-east-1"
+# NUXT_S3_ENDPOINT =
+# NUXT_S3_PUBLIC_URL =
 #
-# S3-compatible storage (optional alternative to Cloudflare Images)
-# S3_BUCKET =
-# S3_ACCESS_KEY =
-# S3_SECRET_KEY =
-# S3_REGION = "us-east-1"
-# S3_ENDPOINT =
-# S3_PUBLIC_URL =
-#
-# Bunny.net storage (optional alternative to Cloudflare Images)
-# BUNNY_API_KEY =
-# BUNNY_STORAGE_ZONE =
-# BUNNY_PULL_ZONE =
+# Bunny.net storage (checked last, after Cloudflare Images and S3)
+# NUXT_BUNNY_API_KEY =
+# NUXT_BUNNY_STORAGE_ZONE =
+# NUXT_BUNNY_PULL_ZONE =
 
 [triggers]
 # Scheduled publish — runs every minute
@@ -57,11 +56,10 @@ binding = "LOADER"
 # binding = "AE"
 # dataset = "nuxflow_analytics"
 
-# Cloudflare D1 database (default).
+# Cloudflare D1 database — the only supported production database.
 # Create with: wrangler d1 create nuxflow
 # Then paste the returned database_id below.
 # Migrations run automatically on the first request after deployment.
-# To use Turso instead: remove this block and set TURSO_URL + TURSO_AUTH_TOKEN secrets.
 [[d1_databases]]
 binding = "DB"
 database_name = "nuxflow"
@@ -73,3 +71,12 @@ database_id = "your-d1-database-id"
 [[services]]
 binding = "ARGON2"
 service = "nuxflow-argon2"
+
+# Cloudflare Email Sending — native transactional email, no third-party account or API
+# key needed (this is the recommended email provider; select "Cloudflare Email" in
+# Settings → Email). Requires each sending domain to be onboarded once:
+#   wrangler email sending enable <your-domain>
+# Add "remote = true" if you want local dev sends to actually go out via the real
+# service instead of failing with a binding-not-found error.
+[[send_email]]
+name = "EMAIL"

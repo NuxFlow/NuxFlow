@@ -1,7 +1,7 @@
 import { z } from 'zod'
+import { generateText } from 'ai'
 import { requireAuth } from '../../../utils/permissions'
-import { getAiProvider } from '../../../utils/ai-providers/index'
-import { aiErrorMessage } from '../../../utils/ai-sdk'
+import { getAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
 import { useDb } from '../../../utils/db'
 import { media } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -12,8 +12,8 @@ const SYSTEM = `You are an accessibility expert. Write concise, descriptive alt 
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
-  const ai = await getAiProvider(event)
-  if (!ai) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
+  const model = await getAiSdkModel(event, 'fast')
+  if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
 
   const { mediaId } = await readValidatedBody(event, bodySchema.parse)
   const siteId = event.context.siteId as string
@@ -28,8 +28,8 @@ export default defineEventHandler(async (event) => {
   const prompt = `Generate alt text for an image with filename: "${file.originalName}"`
 
   try {
-    const altText = await ai.complete(prompt, { systemPrompt: SYSTEM, maxTokens: 100 })
-    return { altText: altText.trim() }
+    const { text } = await generateText({ model, system: SYSTEM, prompt, maxOutputTokens: 100 })
+    return { altText: text.trim() }
   } catch (err) {
     throw createError({ statusCode: 502, message: aiErrorMessage(err) })
   }

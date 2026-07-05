@@ -21,9 +21,7 @@
     "@commitlint/types": "^21.1.0",
     "@nuxt/eslint-config": "^1.16.0",
     "@typescript-eslint/eslint-plugin": "^8.62.0",
-    "eslint": "^10.6.0",
     "turbo": "^2.10.0",
-    "typescript": "^6.0.3",
     "vitest": "^4.1.9",
     "wrangler": "^4.105.0"
   },

@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { resolveSetting } from './settings'
+import { getEmailBinding } from './cf-env'
 
 const HTML_ESCAPE_MAP: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
 
@@ -22,10 +23,6 @@ interface EmailConfig {
   resendApiKey?: string
   brevoApiKey?: string
   zeptoApiKey?: string
-  smtpHost?: string
-  smtpPort?: string
-  smtpUser?: string
-  smtpPass?: string
   domain: string
 }
 
@@ -40,10 +37,6 @@ async function loadEmailConfig(event: H3Event): Promise<EmailConfig> {
     resendApiKey: await resolveSetting(event, 'email.resend_api_key', 'resendApiKey'),
     brevoApiKey: await resolveSetting(event, 'email.brevo_api_key', 'brevoApiKey'),
     zeptoApiKey: await resolveSetting(event, 'email.zepto_api_key', 'zeptoApiKey'),
-    smtpHost: await resolveSetting(event, 'email.smtp_host', 'smtpHost'),
-    smtpPort: await resolveSetting(event, 'email.smtp_port', 'smtpPort'),
-    smtpUser: await resolveSetting(event, 'email.smtp_user', 'smtpUser'),
-    smtpPass: await resolveSetting(event, 'email.smtp_pass', 'smtpPass'),
     domain: host,
   }
 }
@@ -108,10 +101,15 @@ async function sendViaZepto(msg: EmailMessage, config: EmailConfig): Promise<voi
   if (!res.ok) throw new Error(`ZeptoMail error ${res.status}: ${await res.text()}`)
 }
 
-async function sendViaSmtp(msg: EmailMessage, config: EmailConfig): Promise<void> {
-  // SMTP sending via fetch is not possible directly; use a worker-compatible relay.
-  // In Cloudflare Workers, use MailChannels (free for Workers) as the SMTP relay.
-  const from = msg.from ?? (config.fromAddress || `noreply@${config.smtpHost ?? config.domain}`)
+async function sendViaMailChannels(msg: EmailMessage, config: EmailConfig): Promise<void> {
+  // MailChannels' free anonymous relay for Cloudflare Workers was shut down for new
+  // customers in mid-2024 — using this now requires an existing MailChannels account
+  // relationship and DNS domain-lockdown records, which most self-hosters won't have.
+  // It does NOT use config.smtpHost/smtpUser/smtpPass — MailChannels has no concept of
+  // user-supplied SMTP credentials, it authorizes purely via the sending domain's DNS.
+  // Prefer the 'cloudflare' provider (sendViaCloudflareEmail below) instead — it needs
+  // no third-party account, just `wrangler email sending enable <domain>`.
+  const from = msg.from ?? (config.fromAddress || `noreply@${config.domain}`)
   const res = await fetch('https://api.mailchannels.net/tx/v1/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -129,8 +127,33 @@ async function sendViaSmtp(msg: EmailMessage, config: EmailConfig): Promise<void
   if (!res.ok && res.status !== 202) throw new Error(`MailChannels error ${res.status}: ${await res.text()}`)
 }
 
-export async function sendEmailWithConfig(config: EmailConfig, msg: EmailMessage): Promise<void> {
+/**
+ * Cloudflare's native transactional email binding (`send_email` in wrangler.toml) — no
+ * third-party account or API key needed, just `wrangler email sending enable <domain>`
+ * for whichever domain `from` uses. This is the recommended provider for NuxFlow sites,
+ * since every deployment already has a Cloudflare account by definition.
+ */
+async function sendViaCloudflareEmail(msg: EmailMessage, config: EmailConfig, event: H3Event): Promise<void> {
+  const email = getEmailBinding(event)
+  if (!email) {
+    throw new Error('Cloudflare Email Sending is not available — add a send_email binding (name "EMAIL") to wrangler.toml and run `wrangler email sending enable <domain>` for your sending domain.')
+  }
+  const from = msg.from ?? (config.fromAddress || `noreply@${config.domain}`)
+  await email.send({
+    to: msg.to,
+    from: { email: from },
+    subject: msg.subject,
+    html: msg.html,
+    text: msg.text,
+    ...(msg.replyTo ? { replyTo: msg.replyTo } : {}),
+  })
+}
+
+export async function sendEmailWithConfig(config: EmailConfig, msg: EmailMessage, event: H3Event): Promise<void> {
   switch (config.emailProvider) {
+    case 'cloudflare':
+      await sendViaCloudflareEmail(msg, config, event)
+      break
     case 'resend':
       if (!config.resendApiKey) throw new Error('Resend API key is not configured')
       await sendViaResend(msg, config)
@@ -144,7 +167,7 @@ export async function sendEmailWithConfig(config: EmailConfig, msg: EmailMessage
       await sendViaZepto(msg, config)
       break
     case 'smtp':
-      await sendViaSmtp(msg, config)
+      await sendViaMailChannels(msg, config)
       break
     case 'console':
     default:
@@ -156,5 +179,5 @@ export async function sendEmailWithConfig(config: EmailConfig, msg: EmailMessage
 
 export async function sendEmail(event: H3Event, msg: EmailMessage): Promise<void> {
   const config = await loadEmailConfig(event)
-  await sendEmailWithConfig(config, msg)
+  await sendEmailWithConfig(config, msg, event)
 }

@@ -1,4 +1,5 @@
 import 'reflect-metadata'
+import type { H3Event } from 'h3'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { passkey } from '@better-auth/passkey'
@@ -15,7 +16,7 @@ interface CachedBetterAuth {
 let _cachedBetterAuth: CachedBetterAuth | null = null
 const BETTER_AUTH_CACHE_TTL_MS = 5 * 60 * 1000
 
-async function buildBetterAuthInstance(event: Parameters<typeof useDb>[0]) {
+async function buildBetterAuthInstance(event: H3Event) {
   const config = useRuntimeConfig(event)
   const db = useDb(event)
 
@@ -128,10 +129,6 @@ async function buildBetterAuthInstance(event: Parameters<typeof useDb>[0]) {
               resendApiKey: sm['email.resend_api_key'],
               brevoApiKey: sm['email.brevo_api_key'],
               zeptoApiKey: sm['email.zepto_api_key'],
-              smtpHost: sm['email.smtp_host'],
-              smtpPort: sm['email.smtp_port'],
-              smtpUser: sm['email.smtp_user'],
-              smtpPass: sm['email.smtp_pass'],
               domain: host,
             },
             {
@@ -140,6 +137,7 @@ async function buildBetterAuthInstance(event: Parameters<typeof useDb>[0]) {
               html: `<p>Hi ${escapeHtml(user.name)},</p><p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Reset password</a></p><p style="color:#6b7280;font-size:14px;">If you did not request this, you can safely ignore this email.</p>`,
               text: `Hi ${user.name},\n\nReset your password:\n${resetUrl}\n\nIf you did not request this, ignore this email.`,
             },
+            event,
           )
         }
         catch (err) {
@@ -177,7 +175,7 @@ async function buildBetterAuthInstance(event: Parameters<typeof useDb>[0]) {
   })
 }
 
-export async function getOrCreateBetterAuth(event: Parameters<typeof useDb>[0]) {
+export async function getOrCreateBetterAuth(event: H3Event) {
   const now = Date.now()
   if (_cachedBetterAuth && now < _cachedBetterAuth.expiry) return _cachedBetterAuth.instance
   const instance = await buildBetterAuthInstance(event)

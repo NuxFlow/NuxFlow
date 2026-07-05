@@ -4,18 +4,25 @@
  * External AI provider calls are fully mocked; the real test DB is used
  * only for routes that query it (alt-text looks up the media row).
  *
+ * All AI routes go through the same getAiSdkModel + generateText/generateObject
+ * (Vercel AI SDK) path — there is no separate hand-rolled provider abstraction.
+ *
  * Routes covered:
- *   POST /api/v1/ai/seo-suggest      — uses getAiProvider
- *   POST /api/v1/ai/alt-text         — uses getAiProvider + media DB lookup
- *   POST /api/v1/ai/generate-content — uses getAiSdkModel + generateText (AI SDK)
+ *   POST /api/v1/ai/seo-suggest      — uses getAiSdkModel + generateText
+ *   POST /api/v1/ai/alt-text         — uses getAiSdkModel + generateText + media DB lookup
+ *   POST /api/v1/ai/generate-content — uses getAiSdkModel + generateText
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
+import { eq } from 'drizzle-orm'
+import { media } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedMedia } from '../helpers/seed'
 import seoSuggestHandler from '../../server/api/v1/ai/seo-suggest.post'
 import altTextHandler from '../../server/api/v1/ai/alt-text.post'
+import improveHandler from '../../server/api/v1/ai/improve.post'
+import bulkAltTextHandler from '../../server/api/v1/ai/bulk-alt-text.post'
 import generateContentHandler from '../../server/api/v1/ai/generate-content.post'
 
 vi.mock('../../server/utils/db', () => ({
@@ -28,15 +35,9 @@ vi.mock('../../server/utils/rate-limit', () => ({
 }))
 
 // Hoist mock functions so vi.mock factory closures can capture them
-const { mockGetAiProvider, mockComplete, mockGetAiSdkModel, mockGenerateText } = vi.hoisted(() => ({
-  mockGetAiProvider: vi.fn(),
-  mockComplete: vi.fn(),
+const { mockGetAiSdkModel, mockGenerateText } = vi.hoisted(() => ({
   mockGetAiSdkModel: vi.fn(),
   mockGenerateText: vi.fn(),
-}))
-
-vi.mock('../../server/utils/ai-providers/index', () => ({
-  getAiProvider: mockGetAiProvider,
 }))
 
 vi.mock('../../server/utils/ai-sdk', () => ({
@@ -50,6 +51,7 @@ vi.mock('ai', () => ({
 
 const SITE = 'site-ai-01'
 let userId: string
+let editorId: string
 let mediaId: string
 
 type HandlerFn = (e: H3Event) => Promise<unknown>
@@ -61,6 +63,8 @@ beforeAll(async () => {
   await seedSite(db, { id: SITE, domain: 'ai.localhost' })
   userId = await seedUser(db, { email: 'author@ai.test' })
   await seedRole(db, userId, SITE, 'author')
+  editorId = await seedUser(db, { email: 'editor@ai.test' })
+  await seedRole(db, editorId, SITE, 'editor')
   mediaId = await seedMedia(db, SITE, {
     originalName: 'hero-photo.jpg',
     mimeType: 'image/jpeg',
@@ -78,13 +82,21 @@ function mkEvent(body: unknown) {
   }) as unknown as H3Event
 }
 
+function mkEditorEvent(body: unknown) {
+  return createMockEvent({
+    siteId: SITE,
+    session: { user: { id: editorId, name: 'Editor', email: 'editor@ai.test' } },
+    body,
+  }) as unknown as H3Event
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/v1/ai/seo-suggest
 // ---------------------------------------------------------------------------
 
 describe('POST /api/v1/ai/seo-suggest', () => {
-  it('returns 503 when no AI provider is configured', async () => {
-    mockGetAiProvider.mockResolvedValueOnce(null)
+  it('returns 503 when no AI model is configured', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(null)
 
     await expect(
       (seoSuggestHandler as HandlerFn)(mkEvent({ title: 'My Article' })),
@@ -92,10 +104,11 @@ describe('POST /api/v1/ai/seo-suggest', () => {
   })
 
   it('returns seoTitle and seoDescription parsed from the AI JSON response', async () => {
-    mockGetAiProvider.mockResolvedValueOnce({ complete: mockComplete, isConfigured: () => true, name: 'test' })
-    mockComplete.mockResolvedValueOnce(
-      JSON.stringify({ title: 'AI Generated Title', description: 'AI Generated Description' }),
-    )
+    const fakeModel = Symbol('fake-model')
+    mockGetAiSdkModel.mockResolvedValueOnce(fakeModel)
+    mockGenerateText.mockResolvedValueOnce({
+      text: JSON.stringify({ title: 'AI Generated Title', description: 'AI Generated Description' }),
+    })
 
     const result = await (seoSuggestHandler as HandlerFn)(
       mkEvent({ title: 'My Article', body: 'Some content about dogs.' }),
@@ -106,8 +119,9 @@ describe('POST /api/v1/ai/seo-suggest', () => {
   })
 
   it('falls back to the original title when the AI returns invalid JSON', async () => {
-    mockGetAiProvider.mockResolvedValueOnce({ complete: mockComplete, isConfigured: () => true, name: 'test' })
-    mockComplete.mockResolvedValueOnce('this is not valid json at all')
+    const fakeModel = Symbol('fake-model')
+    mockGetAiSdkModel.mockResolvedValueOnce(fakeModel)
+    mockGenerateText.mockResolvedValueOnce({ text: 'this is not valid json at all' })
 
     const result = await (seoSuggestHandler as HandlerFn)(
       mkEvent({ title: 'Fallback Title' }),
@@ -117,9 +131,10 @@ describe('POST /api/v1/ai/seo-suggest', () => {
     expect(result.seoDescription).toBe('')
   })
 
-  it('returns 502 when the AI provider throws', async () => {
-    mockGetAiProvider.mockResolvedValueOnce({ complete: mockComplete, isConfigured: () => true, name: 'test' })
-    mockComplete.mockRejectedValueOnce(new Error('Provider network error'))
+  it('returns 502 when the AI SDK throws', async () => {
+    const fakeModel = Symbol('fake-model')
+    mockGetAiSdkModel.mockResolvedValueOnce(fakeModel)
+    mockGenerateText.mockRejectedValueOnce(new Error('Provider network error'))
 
     await expect(
       (seoSuggestHandler as HandlerFn)(mkEvent({ title: 'Error Test' })),
@@ -138,8 +153,8 @@ describe('POST /api/v1/ai/seo-suggest', () => {
 // ---------------------------------------------------------------------------
 
 describe('POST /api/v1/ai/alt-text', () => {
-  it('returns 503 when no AI provider is configured', async () => {
-    mockGetAiProvider.mockResolvedValueOnce(null)
+  it('returns 503 when no AI model is configured', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(null)
 
     await expect(
       (altTextHandler as HandlerFn)(mkEvent({ mediaId })),
@@ -147,16 +162,16 @@ describe('POST /api/v1/ai/alt-text', () => {
   })
 
   it('returns 404 when the media item does not exist', async () => {
-    mockGetAiProvider.mockResolvedValueOnce({ complete: mockComplete, isConfigured: () => true, name: 'test' })
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
 
     await expect(
       (altTextHandler as HandlerFn)(mkEvent({ mediaId: 'nonexistent-media-id-00000' })),
     ).rejects.toMatchObject({ statusCode: 404 })
   })
 
-  it('returns trimmed alt text from the AI provider', async () => {
-    mockGetAiProvider.mockResolvedValueOnce({ complete: mockComplete, isConfigured: () => true, name: 'test' })
-    mockComplete.mockResolvedValueOnce('  A cheerful person smiling at the camera  ')
+  it('returns trimmed alt text from the AI SDK', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateText.mockResolvedValueOnce({ text: '  A cheerful person smiling at the camera  ' })
 
     const result = await (altTextHandler as HandlerFn)(mkEvent({ mediaId })) as { altText: string }
 
@@ -164,13 +179,90 @@ describe('POST /api/v1/ai/alt-text', () => {
   })
 
   it('uses the original filename as context in the prompt (provider receives a filename-based prompt)', async () => {
-    mockGetAiProvider.mockResolvedValueOnce({ complete: mockComplete, isConfigured: () => true, name: 'test' })
-    mockComplete.mockResolvedValueOnce('Alt text result')
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateText.mockResolvedValueOnce({ text: 'Alt text result' })
 
     await (altTextHandler as HandlerFn)(mkEvent({ mediaId }))
 
-    const calledPrompt = mockComplete.mock.calls.at(-1)?.[0] as string
-    expect(calledPrompt).toContain('hero-photo.jpg')
+    const [callArgs] = mockGenerateText.mock.calls.at(-1) as [Record<string, unknown>]
+    expect(callArgs.prompt as string).toContain('hero-photo.jpg')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/ai/improve
+// ---------------------------------------------------------------------------
+
+describe('POST /api/v1/ai/improve', () => {
+  it('returns 503 when no AI model is configured', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(null)
+
+    await expect(
+      (improveHandler as HandlerFn)(mkEvent({ text: 'Some text', instruction: 'improve' })),
+    ).rejects.toMatchObject({ statusCode: 503 })
+  })
+
+  it('returns the parsed JSON array of alternatives', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateText.mockResolvedValueOnce({ text: JSON.stringify(['Alt 1', 'Alt 2', 'Alt 3']) })
+
+    const result = await (improveHandler as HandlerFn)(
+      mkEvent({ text: 'Some text', instruction: 'shorten' }),
+    ) as { alternatives: string[] }
+
+    expect(result.alternatives).toEqual(['Alt 1', 'Alt 2', 'Alt 3'])
+  })
+
+  it('wraps a non-JSON response as a single alternative', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateText.mockResolvedValueOnce({ text: 'plain text response' })
+
+    const result = await (improveHandler as HandlerFn)(
+      mkEvent({ text: 'Some text' }),
+    ) as { alternatives: string[] }
+
+    expect(result.alternatives).toEqual(['plain text response'])
+  })
+
+  it('returns 502 when the AI SDK throws', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateText.mockRejectedValueOnce(new Error('Rate limited'))
+
+    await expect(
+      (improveHandler as HandlerFn)(mkEvent({ text: 'Some text' })),
+    ).rejects.toMatchObject({ statusCode: 502 })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/ai/bulk-alt-text
+// ---------------------------------------------------------------------------
+
+describe('POST /api/v1/ai/bulk-alt-text', () => {
+  it('returns 503 when no AI model is configured', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(null)
+
+    await expect(
+      (bulkAltTextHandler as HandlerFn)(mkEditorEvent({})),
+    ).rejects.toMatchObject({ statusCode: 503 })
+  })
+
+  it('processes only the requested image, skipping non-image media', async () => {
+    const db = getCurrentTestDb()
+    const docId = await seedMedia(db, SITE, { originalName: 'brochure.pdf', mimeType: 'application/pdf' })
+
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateText.mockResolvedValueOnce({ text: 'Generated alt text' })
+
+    const result = await (bulkAltTextHandler as HandlerFn)(
+      mkEditorEvent({ mediaIds: [mediaId, docId] }),
+    ) as { processed: number; skipped: number; total: number }
+
+    expect(result.total).toBe(1)
+    expect(result.processed).toBe(1)
+
+    const updated = await db.query.media.findFirst({ where: eq(media.id, mediaId) })
+    expect(updated?.altText).toBe('Generated alt text')
   })
 })
 

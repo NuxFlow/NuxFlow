@@ -53,8 +53,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @nuxflow/app exec nuxt prepare
         env:
-          NUXT_TURSO_URL: libsql://placeholder.turso.io
-          NUXT_TURSO_AUTH_TOKEN: placeholder
           NUXT_BETTER_AUTH_SECRET: ci-placeholder-secret-32-characters
           NUXT_PUBLIC_SITE_URL: https://example.com
       - run: pnpm test
@@ -74,8 +72,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
         env:
-          NUXT_TURSO_URL: libsql://placeholder.turso.io
-          NUXT_TURSO_AUTH_TOKEN: placeholder
           NUXT_BETTER_AUTH_SECRET: ci-placeholder-secret-32-characters
           NUXT_PUBLIC_SITE_URL: https://example.com
           NODE_OPTIONS: --max-old-space-size=4096

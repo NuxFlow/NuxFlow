@@ -81,12 +81,48 @@ export interface ArgonHasherBinding {
   verify(storedHash: string, password: string): Promise<boolean>
 }
 
+/** Cloudflare Email Service `send_email` binding (native transactional email, no API key). */
+export interface SendEmailAddress {
+  email: string
+  name?: string
+}
+
+export interface SendEmailAttachment {
+  content: string | ArrayBuffer | ArrayBufferView
+  filename: string
+  type: string
+  disposition: 'attachment' | 'inline'
+  contentId?: string
+}
+
+export interface SendEmailMessage {
+  to: string | string[]
+  from: string | SendEmailAddress
+  subject: string
+  html?: string
+  text?: string
+  cc?: string[]
+  bcc?: string[]
+  replyTo?: string
+  headers?: Record<string, string>
+  attachments?: SendEmailAttachment[]
+}
+
+export interface SendEmailResponse {
+  messageId: string
+}
+
+export interface SendEmailBinding {
+  send(message: SendEmailMessage): Promise<SendEmailResponse>
+}
+
 export interface NuxFlowCloudflareEnv {
   PLUGIN_KV: KVNamespace
   LOADER: WorkerLoader
   DB?: D1Database
   AE?: AnalyticsEngineDataset
   ARGON2?: ArgonHasherBinding
+  EMAIL?: SendEmailBinding
   [key: string]: unknown
 }
 

@@ -8,15 +8,11 @@ import { resolveSetting, SECRET_MASK } from '../../../utils/settings'
 
 const bodySchema = z.object({
   sendTo: z.string().email().optional(),
-  provider: z.enum(['console', 'resend', 'brevo', 'zepto', 'smtp']),
+  provider: z.enum(['console', 'cloudflare', 'resend', 'brevo', 'zepto', 'smtp']),
   fromAddress: z.string().optional(),
   resendApiKey: z.string().optional(),
   brevoApiKey: z.string().optional(),
   zeptoApiKey: z.string().optional(),
-  smtpHost: z.string().optional(),
-  smtpPort: z.string().optional(),
-  smtpUser: z.string().optional(),
-  smtpPass: z.string().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -51,29 +47,9 @@ export default defineEventHandler(async (event) => {
     zeptoApiKey = await resolveSetting(event, 'email.zepto_api_key', 'zeptoApiKey')
   }
 
-  let smtpPass = body.smtpPass
-  if (smtpPass === SECRET_MASK || !smtpPass) {
-    smtpPass = await resolveSetting(event, 'email.smtp_pass', 'smtpPass')
-  }
-
   let fromAddress = body.fromAddress
   if (!fromAddress) {
     fromAddress = await resolveSetting(event, 'email.from_address', 'emailFromAddress')
-  }
-
-  let smtpHost = body.smtpHost
-  if (!smtpHost) {
-    smtpHost = await resolveSetting(event, 'email.smtp_host', 'smtpHost')
-  }
-
-  let smtpPort = body.smtpPort
-  if (!smtpPort) {
-    smtpPort = await resolveSetting(event, 'email.smtp_port', 'smtpPort')
-  }
-
-  let smtpUser = body.smtpUser
-  if (!smtpUser) {
-    smtpUser = await resolveSetting(event, 'email.smtp_user', 'smtpUser')
   }
 
   let host = getHeader(event, 'host')?.split(':')[0] ?? 'nuxflow.app'
@@ -89,10 +65,6 @@ export default defineEventHandler(async (event) => {
         resendApiKey,
         brevoApiKey,
         zeptoApiKey,
-        smtpHost,
-        smtpPort,
-        smtpUser,
-        smtpPass,
         domain: host,
       },
       {
@@ -101,6 +73,7 @@ export default defineEventHandler(async (event) => {
         html: '<p>This is a test email from your NuxFlow site. If you received this, your email delivery is configured correctly.</p>',
         text: 'This is a test email from your NuxFlow site. If you received this, your email delivery is configured correctly.',
       },
+      event,
     )
     return { success: true, message: `Test email sent to ${sendTo}` }
   } catch (err) {

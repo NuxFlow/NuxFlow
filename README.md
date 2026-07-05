@@ -128,7 +128,7 @@ Every feature in the admin is fully functional. The demo resets automatically at
 - **Live theme preview** — admin sees new theme while visitors see the current one
 - **Instant activation** — new theme takes effect immediately on activation
 - Per-block render components defined in the theme
-- CLI scaffolding: `npx nuxflow create-theme`
+- CLI scaffolding: `npx nuxflow theme create`
 
 ### Membership & Payments
 - **Membership tiers** with recurring subscription pricing
@@ -141,7 +141,6 @@ Every feature in the admin is fully functional. The demo resets automatically at
 - Subscriber management admin page
 
 ### Plugin System
-- **Two tiers**: bundled plugins (ship with NuxFlow) and dynamic third-party plugins
 - **Dynamic plugins** run as isolated **Cloudflare Worker instances** — code is uploaded to KV and spawned on demand with zero redeployment
 - **Ed25519 code signing** — every plugin must be signed with the author's private key; the server verifies the signature and SHA-256 checksums on install and on every request, blocking tampered code before it executes
 - **Canvas blocks** — dynamic plugins can register new block types that appear in the page builder immediately after install
@@ -192,12 +191,12 @@ Every feature in the admin is fully functional. The demo resets automatically at
 | Runtime | Cloudflare Workers (via Nitro `cloudflare-module` preset) |
 | Database | Cloudflare D1 |
 | ORM | Drizzle ORM |
-| UI | Nuxt UI Pro (TipTap `UEditor`, `UDashboardSidebar`) |
+| UI | Nuxt UI (free) — TipTap integrated directly via `@tiptap/vue-3`, admin layout is hand-built |
 | Auth | Better Auth + `@onmax/nuxt-better-auth` |
 | State | Pinia |
 | GraphQL | graphql-yoga |
 | Validation | Zod |
-| Animations | Motion Vue |
+| Animations | Vue's built-in `<Transition>` — no animation library dependency |
 | i18n | @nuxtjs/i18n |
 | SEO | nuxt-seo-utils |
 | Monorepo | pnpm workspaces + Turborepo |
@@ -225,15 +224,18 @@ nuxflow/
 │       ├── scheduled/          # Cron tasks (scheduled publish)
 │       └── utils/              # Permissions, audit, rate limiting, providers
 ├── packages/
-│   ├── db/                     # Drizzle schema + migrations + client factory
-│   ├── plugin-sdk/             # Types and helpers for plugin authors
-│   └── cli/                    # create-plugin and create-theme scaffolding
-├── packages/plugins/
-│   └── canvas/                 # Canvas page builder (block components + editor)
+│   ├── canvas/                 # Canvas page builder — block components + editor (@nuxflow/canvas)
+│   ├── db/                     # Drizzle schema + migrations — D1-only, no client factory
+│   ├── plugin-sdk/             # Types and helpers for dynamic plugin authors
+│   ├── cli/                    # `nuxflow` CLI — scaffold/build/deploy plugins and themes
+│   └── create-nuxflow-app/     # `pnpm create nuxflow-app` scaffolder
 ├── themes/
 │   └── default/                # Default theme (Nuxt layer, block renderers)
-└── specs/001-nuxflow-cms-platform/  # Specification, data model, API contracts
+└── workers/
+    └── argon2-hasher/          # Standalone Worker for Argon2id password hashing (service binding)
 ```
+
+`@nuxflow/canvas`, `@nuxflow/db`, and `@nuxflow/plugin-sdk` are private/internal to the monorepo — only `@nuxflow/cli` and `create-nuxflow-app` are published to npm. Contact forms, memberships, and HTML embeds are core features of `apps/nuxflow`, not separate bundled plugin packages.
 
 ---
 
@@ -302,18 +304,30 @@ Minimum required variables:
 
 ```env
 NUXT_BETTER_AUTH_SECRET=at-least-32-random-characters
-NUXT_PUBLIC_SITE_URL=http://localhost:3000
+NUXT_PUBLIC_SITE_URL=http://localhost:8787
 ```
 
 See [Environment Variables](#environment-variables) for the full reference.
 
-### 5. Start the dev server
+### 5. Start the argon2 password-hashing worker
+
+Password hashing runs in a separate Worker (`ARGON2` service binding), declared in `wrangler.toml` but not served by `wrangler dev` on its own. Any flow that hashes or verifies a password — setup, login, registration — will fail with `Worker "nuxflow-argon2" not found` unless this is also running, in its own terminal:
+
+```bash
+cd workers/argon2-hasher
+pnpm install
+pnpm dev
+```
+
+Leave it running. It listens on `localhost:8788` and only needs to be started once per session.
+
+### 6. Start the dev server
 
 ```bash
 pnpm dev
 ```
 
-Open `http://localhost:3000/setup` — the onboarding wizard walks through the remaining configuration. Once completed, your admin control panel is permanently accessible at `http://localhost:3000/admin`.
+This runs `wrangler dev`, which auto-provisions a local D1 database — there's no separate frontend-only dev mode. Open `http://localhost:8787/setup` — the onboarding wizard walks through the remaining configuration. Once completed, your admin control panel is permanently accessible at `http://localhost:8787/admin`.
 
 ---
 
@@ -337,6 +351,11 @@ wrangler d1 create nuxflow
 # Create the dynamic plugin/theme KV namespaces and copy the returned ids into wrangler.toml
 wrangler kv namespace create PLUGIN_KV
 wrangler kv namespace create PLUGIN_KV --preview
+
+# Onboard your domain for the native Cloudflare Email provider (optional — only if you
+# select "Cloudflare Email" in Settings → Email, but it's the recommended provider
+# since it needs no third-party account)
+wrangler email sending enable yourdomain.com
 
 # Migrations run automatically on the first request after deployment.
 # To seed manually before the first deploy:
@@ -368,14 +387,10 @@ Most variables are prefixed `NUXT_` (except direct provider envs like `S3_*` or 
 |---|---|---|
 | `NUXT_BETTER_AUTH_SECRET` | ✅ | Session signing secret — minimum 32 characters |
 | `NUXT_PUBLIC_SITE_URL` | ✅ | Full URL including scheme, used in emails and SEO |
-| `NUXT_EMAIL_PROVIDER` | | `console` (default) · `resend` · `brevo` · `zepto` · `smtp` |
+| `NUXT_EMAIL_PROVIDER` | | `console` (default) · `cloudflare` · `resend` · `brevo` · `zepto` · `smtp` — `cloudflare` needs no key, just the `send_email` binding in `wrangler.toml` (see below); `smtp` is actually MailChannels and needs an existing MailChannels account, not host/user/pass |
 | `NUXT_RESEND_API_KEY` | | Resend API key (`re_…`) |
 | `NUXT_BREVO_API_KEY` | | Brevo API key (`xkeysib-…`) |
 | `NUXT_ZEPTO_API_KEY` | | ZeptoMail API key |
-| `NUXT_SMTP_HOST` | | SMTP server hostname |
-| `NUXT_SMTP_PORT` | | SMTP port (default `587`) |
-| `NUXT_SMTP_USER` | | SMTP username |
-| `NUXT_SMTP_PASS` | | SMTP password |
 | `NUXT_CLOUDFLARE_IMAGES_TOKEN` | | Cloudflare Images API token |
 | `NUXT_CLOUDFLARE_ACCOUNT_ID` | | Cloudflare account ID |
 | `NUXT_CLOUDFLARE_IMAGES_DELIVERY_URL` | | Image delivery base URL |
@@ -405,7 +420,7 @@ Most variables are prefixed `NUXT_` (except direct provider envs like `S3_*` or 
 ## Development Commands
 
 ```bash
-# Dev server (localhost:3000)
+# Dev server — runs `wrangler dev` (localhost:8787, D1 auto-provisioned)
 pnpm dev
 
 # Run all unit tests
@@ -502,7 +517,7 @@ Themes are [Nuxt layers](https://nuxt.com/docs/guide/going-further/layers) — t
 ### Creating a theme
 
 ```bash
-npx nuxflow create-theme my-theme
+npx nuxflow theme create my-theme
 ```
 
 ---

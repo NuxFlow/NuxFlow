@@ -5,7 +5,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { encryptText, decryptText } from './encryption'
 
-// Simple in-memory cache to prevent redundant D1/Turso lookups on every request
+// Simple in-memory cache to prevent redundant D1 lookups on every request
 const settingsCache = new Map<string, { value: unknown; expires: number }>()
 const CACHE_TTL = 30_000 // 30 seconds
 
@@ -13,7 +13,6 @@ export const SENSITIVE_SETTING_KEYS = new Set([
   'email.resend_api_key',
   'email.brevo_api_key',
   'email.zepto_api_key',
-  'email.smtp_pass',
   'payments.stripe_secret_key',
   'payments.stripe_webhook_secret',
   'payments.ls_api_key',
@@ -27,6 +26,8 @@ export const SENSITIVE_SETTING_KEYS = new Set([
   'push.vapid_private_key',
   'cloudflare.stream_token',
   'cloudflare.images_token',
+  'media.s3_secret_key',
+  'media.bunny_api_key',
   // SMS provider credentials — added proactively ahead of SMS feature implementation
   'sms.twilio_auth_token',
   'sms.vonage_api_secret',

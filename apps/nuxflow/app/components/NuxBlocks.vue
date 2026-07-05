@@ -1,9 +1,22 @@
 <script setup lang="ts">
+import { getBlockDefinition, type CanvasBlockDefinition } from '@nuxflow/canvas'
 import type { NuxBlockData } from '~/types/blocks'
 
 defineProps<{ blocks: NuxBlockData[] }>()
 
-const { resolve } = useBlockRegistry()
+const { resolve, getDefinition } = useBlockRegistry()
+
+// Built-in canvas blocks carry their slot metadata in @nuxflow/canvas's own
+// definitions; dynamic plugin blocks register it into the app-level registry
+// instead (mirrors the exact fallback used by useCanvas.ts / CanvasBlock.vue).
+function slotsFor(type: string) {
+  const def = getBlockDefinition(type) ?? (getDefinition(type) as CanvasBlockDefinition | undefined)
+  return def?.slots ?? []
+}
+
+function childrenFor(block: NuxBlockData, slotId: string): NuxBlockData[] {
+  return block.children?.[slotId] ?? []
+}
 </script>
 
 <template>
@@ -22,13 +35,21 @@ const { resolve } = useBlockRegistry()
         :is="resolve(block.type)"
         v-if="resolve(block.type)"
         v-bind="block.props"
-      />
+      >
+        <template v-for="slot in slotsFor(block.type)" :key="slot.id" #[slot.id]>
+          <NuxBlocks :blocks="childrenFor(block, slot.id)" />
+        </template>
+      </component>
       <ClientOnly v-else>
         <component
           :is="resolve(block.type)"
           v-if="resolve(block.type)"
           v-bind="block.props"
-        />
+        >
+          <template v-for="slot in slotsFor(block.type)" :key="slot.id" #[slot.id]>
+            <NuxBlocks :blocks="childrenFor(block, slot.id)" />
+          </template>
+        </component>
         <template #fallback>
           <div class="animate-pulse bg-gray-100 dark:bg-gray-800 rounded-lg h-16" />
         </template>

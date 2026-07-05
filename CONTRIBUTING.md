@@ -47,7 +47,7 @@ This project follows our [Code of Conduct](CODE_OF_CONDUCT.md). By participating
 | --------- | ------- |
 | Node.js   | 20+     |
 | pnpm      | 9+      |
-| Turso CLI | latest  |
+| Wrangler  | 4+      |
 | Git       | any     |
 
 ### Local setup
@@ -62,16 +62,21 @@ pnpm install
 
 # Copy environment template
 cp apps/nuxflow/.env.example apps/nuxflow/.env
-# Edit .env — the file:// SQLite URL works for local dev without Turso
 
-# Run migrations
-pnpm --filter @nuxflow/db migrate
+# Copy wrangler config and add a D1 database (see README's Quick Start for details)
+cp apps/nuxflow/wrangler.toml.example apps/nuxflow/wrangler.toml
+wrangler d1 create nuxflow-dev   # paste the returned database_id into wrangler.toml
 
-# Start dev server
+# In a separate terminal: start the argon2 password-hashing worker. wrangler dev
+# doesn't serve this on its own, and setup/login/registration fail without it.
+cd workers/argon2-hasher && pnpm install && pnpm dev
+
+# Back in the repo root — start dev server. Runs `wrangler dev`, which auto-provisions
+# D1 locally and applies migrations automatically on first request.
 pnpm dev
 ```
 
-Visit `http://localhost:3000/setup` to complete onboarding.
+Visit `http://localhost:8787/setup` to complete onboarding.
 
 ### Useful commands
 
@@ -115,7 +120,7 @@ test: add form submission integration tests
 Breaking changes use a `!` suffix or a `BREAKING CHANGE:` footer:
 
 ```
-feat!: rename TURSO_URL env var to NUXT_TURSO_URL
+feat!: rename NUXT_STRIPE_SECRET_KEY env var to NUXT_STRIPE_SECRET
 ```
 
 ---
@@ -185,47 +190,18 @@ pnpm test:e2e
 
 ## Building a Plugin
 
-### Scaffold
+NuxFlow doesn't use bundled plugins — Canvas, Contact Forms, and Payments are core features, not plugins. The only kind of plugin is a **dynamic plugin**: a self-contained package, built and signed independently with the `nuxflow` CLI, that runs as an isolated Worker spawned on demand from code stored in KV. Plugins are scaffolded with their own `package.json` outside this repo's workspace, not under `packages/`.
 
 ```bash
-npx nuxflow create-plugin my-plugin
-cd packages/plugins/my-plugin
-pnpm install
+nuxflow plugin create        # scaffold a new plugin project
+cd my-plugin
+nuxflow plugin keygen        # generate your Ed25519 signing keypair (required)
+# edit src/server.ts (Edge API) and src/client.ts (Canvas blocks)
+nuxflow plugin build         # bundle + compute checksums
+nuxflow plugin deploy --site https://your-site.workers.dev   # sign and install
 ```
 
-### Manifest (`nuxflow.plugin.ts`)
-
-```ts
-import { defineNuxFlowPlugin } from '@nuxflow/plugin-sdk'
-
-export default defineNuxFlowPlugin({
-  name: 'My Plugin',
-  version: '1.0.0',
-  description: 'What this plugin does.',
-  permissions: ['read:content', 'send:email'],
-  adminMenuItems: [
-    {
-      label: 'My Plugin',
-      to: '/admin/my-plugin',
-      icon: 'i-lucide-puzzle',
-    },
-  ],
-})
-```
-
-### Structure
-
-```
-packages/plugins/my-plugin/
-├── nuxflow.plugin.ts       # Plugin manifest (required)
-├── nuxt.config.ts          # Nuxt module entry point
-├── server/
-│   └── api/                # API routes (prefixed automatically)
-├── app/
-│   └── pages/admin/        # Admin pages
-├── components/             # Vue components
-└── package.json
-```
+See the **[External Plugin Development Guide](docs/plugins.md)** for the full manifest format (`nuxflow.plugin.json`), project structure, Canvas block registration, and troubleshooting.
 
 ### Rules
 
@@ -242,7 +218,7 @@ packages/plugins/my-plugin/
 ### Scaffold
 
 ```bash
-npx nuxflow create-theme my-theme
+npx nuxflow theme create my-theme
 cd themes/my-theme
 pnpm install
 ```
@@ -303,9 +279,9 @@ All server code (API handlers, middleware, plugins, utilities) runs in the Cloud
 | Not allowed            | Use instead                           |
 | ---------------------- | ------------------------------------- |
 | `node:crypto`          | `crypto.subtle` (Web Crypto API)      |
-| `node:fs`              | `fetch()` / Turso client              |
+| `node:fs`              | `fetch()` / D1 for persistent storage |
 | `require()` dynamic    | Static `import`                       |
-| In-memory Map/state    | Turso DB (shared across isolates)     |
+| In-memory Map/state    | D1 (shared across isolates)           |
 | Long-running processes | Cron via Cloudflare scheduled workers |
 
 ### Database

@@ -1,6 +1,6 @@
 # NuxFlow CMS: Developer & Agent Context Guide (GEMINI.md)
 
-Welcome to the context guide for **NuxFlow**, an open-source, edge-native CMS built on **Nuxt 4** and designed specifically to run on the **Cloudflare Workers edge ecosystem** (with Turso/libSQL fallback). NuxFlow represents a paradigm shift from traditional VPS-hosted CMS platforms like WordPress to the serverless edge, offering high performance, multi-tenancy, and visual editing with zero server configuration.
+Welcome to the context guide for **NuxFlow**, an open-source, edge-native CMS built on **Nuxt 4** and designed specifically to run on the **Cloudflare Workers edge ecosystem**. NuxFlow represents a paradigm shift from traditional VPS-hosted CMS platforms like WordPress to the serverless edge, offering high performance, multi-tenancy, and visual editing with zero server configuration.
 
 ---
 
@@ -25,10 +25,10 @@ NuxFlow is designed to bridge the gap between two key target audiences:
 | **Core Framework**   | Nuxt 4 (utilizing the new `app` directory and server modules)                              |
 | **Edge Runtime**     | Cloudflare Workers (compiled via Nitro `cloudflare-module` preset)                         |
 | **Database ORM**     | Drizzle ORM (scoped queries, type-safe prepared statements)                                |
-| **Database Engines** | Cloudflare D1 (primary edge DB) · Turso/libSQL (development and alternative)               |
-| **UI Components**    | Nuxt UI Pro (TipTap `UEditor`, `UDashboardSidebar` and styled widgets)                     |
+| **Database Engine**  | Cloudflare D1 only — no alternate backend                                                  |
+| **UI Components**    | Nuxt UI (free, MIT) — TipTap integrated directly via `@tiptap/vue-3`, admin layout hand-built |
 | **Authentication**   | Better Auth + `@onmax/nuxt-better-auth` integration (Email/Password, Google, GitHub OAuth) |
-| **Animations**       | Motion Vue (`motion-v` primitives for transitions)                                         |
+| **Animations**       | Vue's built-in `<Transition>` — no animation library dependency                            |
 | **Multi-Language**   | `@nuxtjs/i18n` with per-item locale mapping                                                |
 | **Monorepo**         | pnpm workspaces + Turborepo for workspace orchestration                                    |
 
@@ -54,18 +54,21 @@ c:/DEV/NuxFlow/
 │           ├── scheduled/            # Edge cron tasks (auto-publish schedule)
 │           └── utils/                # DB clients, rate-limiters, providers, WebCrypto signing
 ├── packages/
-│   ├── db/                           # Database migration scripts & client definitions
-│   │   ├── src/schema/               # Type-safe schemas (content, sites, system, users)
-│   │   └── src/client.ts             # LibSQL database client factory
-│   ├── plugin-sdk/                   # Types, interfaces, and helpers for plugin authors
-│   └── cli/                          # CLI tool for scaffolding plugins and themes
+│   ├── canvas/                       # Canvas page builder — blocks, editor, types (@nuxflow/canvas)
+│   ├── db/                           # Drizzle schema & migrations — D1-only, no client factory
+│   │   └── src/schema/               # Type-safe schemas (content, sites, system, users)
+│   ├── plugin-sdk/                   # Types for building dynamic (third-party) plugins
+│   ├── cli/                          # `nuxflow` CLI — scaffold/build/deploy dynamic plugins & themes
+│   └── create-nuxflow-app/           # `pnpm create nuxflow-app` scaffolder (the only two published packages
+│                                      #   are this and cli — everything else above is private/internal)
 ├── themes/
-│   └── default/                      # Default theme layer (Nuxt layer with block renderers)
-└── packages/plugins/
-    ├── canvas/                       # Canvas page builder block system and UI
-    ├── contact-form/                 # Contact form plugin (multi-step, conditional logic)
-    └── payments/                     # Payments plugin (Stripe, Lemon Squeezy, Paddle integrations)
+│   └── default/                      # Default CSS theme
+└── workers/
+    └── argon2-hasher/                # Standalone Worker for Argon2id password hashing, called via a
+                                       # service binding — must run separately in local dev (see docs/installation.md)
 ```
+
+Contact forms, memberships/payments, and HTML embeds are **not** separate bundled plugin packages — they live directly in `apps/nuxflow` as core features (per the "eliminate bundled plugins, promote canvas to core" refactor). Only genuinely third-party, dynamically-installed Workers are "plugins" in the `Admin → Plugins` sense.
 
 ---
 
@@ -124,12 +127,10 @@ All primary tables (content, taxonomies, forms, media, site settings) include a 
 - [multi-site.ts](file:///c:/DEV/NuxFlow/apps/nuxflow/server/middleware/multi-site.ts) resolves `siteId` via the request's hostname (`host`).
 - It sets `event.context.siteId`, which is utilized by API handlers to restrict queries (`eq(schema.siteId, siteId)`).
 
-### 2. Dual Database Clients (D1 and Turso)
+### 2. D1 Client Resolution
 
-In [db.ts](file:///c:/DEV/NuxFlow/apps/nuxflow/server/utils/db.ts), the `useDb()` helper attempts to resolve the Cloudflare D1 environment binding (`event.context.cloudflare.env.DB`).
+In [db.ts](file:///c:/DEV/NuxFlow/apps/nuxflow/server/utils/db.ts), the `useDb()` helper resolves the Cloudflare D1 environment binding (`event.context.cloudflare.env.DB`) and initializes the `drizzle-orm/d1` driver. There is no alternate backend — if no D1 binding is present (e.g. `wrangler.toml` is missing a `[[d1_databases]]` block), it throws rather than falling back to anything else.
 
-- If D1 exists, it initializes the `drizzle-orm/d1` driver.
-- If not, it falls back to a Turso `drizzle-orm/libsql` instance using `NUXT_TURSO_URL`.
 - A module-level variable (`_d1`) caches the database reference per Workers isolate, which allows background tasks or libraries (such as Better Auth configurations) that run outside a standard H3 request hook to retain access.
 
 ### 3. Automated In-App Migrations

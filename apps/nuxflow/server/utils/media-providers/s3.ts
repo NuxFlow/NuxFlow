@@ -66,15 +66,33 @@ async function signRequest(opts: {
   }
 }
 
+export interface S3ProviderConfig {
+  bucket: string
+  accessKey: string
+  secretKey: string
+  region?: string
+  endpoint?: string
+  publicUrl?: string
+}
+
 export class S3Provider implements MediaProvider {
   readonly name = 's3'
 
-  private get bucket() { return process.env.S3_BUCKET! }
-  private get region() { return process.env.S3_REGION ?? 'us-east-1' }
-  private get endpoint() { return process.env.S3_ENDPOINT ?? `https://s3.${this.region}.amazonaws.com` }
-  private get accessKey() { return process.env.S3_ACCESS_KEY! }
-  private get secretKey() { return process.env.S3_SECRET_KEY! }
-  private get publicUrl() { return process.env.S3_PUBLIC_URL ?? `${this.endpoint}/${this.bucket}` }
+  private readonly bucket: string
+  private readonly accessKey: string
+  private readonly secretKey: string
+  private readonly region: string
+  private readonly endpoint: string
+  private readonly publicUrl: string
+
+  constructor(config: S3ProviderConfig) {
+    this.bucket = config.bucket
+    this.accessKey = config.accessKey
+    this.secretKey = config.secretKey
+    this.region = config.region || 'us-east-1'
+    this.endpoint = config.endpoint || `https://s3.${this.region}.amazonaws.com`
+    this.publicUrl = config.publicUrl || `${this.endpoint}/${this.bucket}`
+  }
 
   async upload(file: File, key: string): Promise<UploadResult> {
     const buf = await file.arrayBuffer()

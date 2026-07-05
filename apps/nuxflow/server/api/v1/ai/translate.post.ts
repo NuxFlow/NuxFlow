@@ -45,40 +45,74 @@ const TEXT_PROP_KEYS = new Set([
   'headline', 'subtext', 'title', 'description', 'content', 'caption', 'quote', 'author',
   'role', 'company', 'text', 'label', 'btnLabel', 'ctaLabel', 'cta2Label', 'sectionLabel',
   'sectionTitle', 'sectionDesc', 'feat1Title', 'feat1Desc', 'feat2Title', 'feat2Desc',
-  'feat3Title', 'feat3Desc', 'feat4Title', 'feat4Desc', 'col1', 'col2', 'col3', 'col4',
+  'feat3Title', 'feat3Desc', 'feat4Title', 'feat4Desc',
   'copyrightText', 'logoText', 'col1Title', 'col2Title', 'acceptLabel', 'declineLabel',
   'policyLabel', 'plan1Name', 'plan2Name', 'plan3Name', 'itemsJson', 'plan1Features',
   'plan2Features', 'plan3Features', 'col1Links', 'col2Links',
 ])
 
+// Structural shape shared with CanvasBlockData (@nuxflow/canvas) — declared
+// locally to avoid coupling this route to the canvas package for one type.
+interface CanvasBlockLike {
+  id: string
+  props?: Record<string, unknown>
+  children?: Record<string, CanvasBlockLike[]>
+}
+
 function extractCanvasStrings(content: unknown): Map<string, string> {
   const out = new Map<string, string>()
-  const c = content as { blocks?: Array<{ id: string; props?: Record<string, unknown> }> }
+  const c = content as { blocks?: CanvasBlockLike[] }
   if (!Array.isArray(c?.blocks)) return out
-  for (const block of c.blocks) {
-    if (!block.props) continue
-    for (const [key, val] of Object.entries(block.props)) {
-      if (TEXT_PROP_KEYS.has(key) && typeof val === 'string' && val.trim()) {
-        out.set(`${block.id}.${key}`, val)
-      }
-    }
-  }
+  extractFromBlocks(c.blocks, out)
   return out
 }
 
+// Recurses into block.children so text nested inside Columns/Container blocks
+// is translated too, not just root-level block props.
+function extractFromBlocks(blocks: CanvasBlockLike[], out: Map<string, string>) {
+  for (const block of blocks) {
+    if (block.props) {
+      for (const [key, val] of Object.entries(block.props)) {
+        if (TEXT_PROP_KEYS.has(key) && typeof val === 'string' && val.trim()) {
+          out.set(`${block.id}.${key}`, val)
+        }
+      }
+    }
+    if (block.children) {
+      for (const slotBlocks of Object.values(block.children)) {
+        extractFromBlocks(slotBlocks, out)
+      }
+    }
+  }
+}
+
 function applyCanvasTranslations(content: unknown, translations: Record<string, string>): unknown {
-  const c = content as { type: string; blocks: Array<{ id: string; type: string; props: Record<string, unknown> }> }
+  const c = content as { type: string; blocks: CanvasBlockLike[] }
   return {
     ...c,
-    blocks: c.blocks.map(block => ({
-      ...block,
-      props: Object.fromEntries(
-        Object.entries(block.props).map(([key, val]) => {
-          const tKey = `${block.id}.${key}`
-          return [key, translations[tKey] !== undefined ? translations[tKey] : val]
-        }),
-      ),
-    })),
+    blocks: c.blocks.map(block => applyToBlock(block, translations)),
+  }
+}
+
+function applyToBlock(block: CanvasBlockLike, translations: Record<string, string>): CanvasBlockLike {
+  return {
+    ...block,
+    props: block.props
+      ? Object.fromEntries(
+          Object.entries(block.props).map(([key, val]) => {
+            const tKey = `${block.id}.${key}`
+            return [key, translations[tKey] !== undefined ? translations[tKey] : val]
+          }),
+        )
+      : block.props,
+    children: block.children
+      ? Object.fromEntries(
+          Object.entries(block.children).map(([slot, slotBlocks]) => [
+            slot,
+            slotBlocks.map(b => applyToBlock(b, translations)),
+          ]),
+        )
+      : block.children,
   }
 }
 
