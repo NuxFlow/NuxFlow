@@ -40,6 +40,7 @@ export default defineEventHandler(async (event) => {
   let version = '1.0.0'
   let css: string
   let demoJson: string | null = null
+  const failedImages: string[] = []
 
   if (isMultipart) {
     const formData = await readMultipartFormData(event)
@@ -130,7 +131,13 @@ export default defineEventHandler(async (event) => {
               storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
               storageKey,
             })
-          } catch { /* skip — demo will just have a missing image */ }
+          } catch {
+            // Demo content will reference the raw zip-relative path and show a
+            // broken image — surfaced to the caller via failedImages rather than
+            // silently swallowed, since this usually means no real media provider
+            // is configured (the local fallback caps uploads at 512 KB).
+            failedImages.push(filename)
+          }
         }
       }
     } else {
@@ -175,5 +182,5 @@ export default defineEventHandler(async (event) => {
     ? parseDemoSummary(JSON.parse(demoJson!) as NuxFlowBackup)
     : null
 
-  return { success: true, id, hasDemoContent, demoSummary }
+  return { success: true, id, hasDemoContent, demoSummary, failedImages }
 })

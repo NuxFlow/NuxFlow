@@ -119,7 +119,7 @@ function onZipFile(e: Event) {
 async function uploadTheme() {
   uploading.value = true
   try {
-    type UploadResult = { id: string; hasDemoContent: boolean; demoSummary: { pages: number; posts: number; menus: number; forms: number } | null }
+    type UploadResult = { id: string; hasDemoContent: boolean; demoSummary: { pages: number; posts: number; menus: number; forms: number } | null; failedImages?: string[] }
     let result: UploadResult
     if (uploadMode.value === 'zip' && zipFile.value) {
       const fd = new FormData()
@@ -136,10 +136,18 @@ async function uploadTheme() {
     Object.assign(uploadForm, { name: '', version: '1.0.0', css: '' })
     zipFile.value = null
 
+    if (result.failedImages?.length) {
+      toast.add({
+        title: `${result.failedImages.length} theme image(s) failed to upload`,
+        description: `${result.failedImages.join(', ')} — likely too large for the local media fallback (512 KB limit). Configure Cloudflare Images, S3, or Bunny in Settings → Media, then reinstall the theme.`,
+        color: 'orange',
+      })
+    }
+
     if (result.hasDemoContent && result.demoSummary) {
       demoOfferThemeId.value = result.id
       demoOfferSummary.value = result.demoSummary
-    } else {
+    } else if (!result.failedImages?.length) {
       toast.add({ title: 'Theme installed', color: 'green' })
     }
   } catch (e: unknown) {
