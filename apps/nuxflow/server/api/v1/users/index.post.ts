@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 409, message: 'This user is already a member of this site' })
     }
   } else {
-    const auth = serverAuth(event)
+    const auth = await getOrCreateBetterAuth(event)
     const tempPassword = crypto.randomUUID()
     await auth.api.signUpEmail({
       body: { name: body.name, email: body.email, password: tempPassword },

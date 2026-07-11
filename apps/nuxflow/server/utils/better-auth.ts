@@ -7,21 +7,65 @@ import { eq, and } from 'drizzle-orm'
 import * as schema from '@nuxflow/db/schema'
 import { nuxflowPasswordHasher } from './pw'
 
-// Isolate-level auth instance cache with 5-minute TTL so newly-registered
-// custom domains start working without a redeployment.
+// Per-host auth instance cache with 5-minute TTL so newly-registered custom
+// domains — and per-site social-login credential changes — start working
+// without a redeployment. Keyed by Host header rather than siteId: /api/auth/**
+// deliberately bypasses multi-site middleware (see server/middleware/02.multi-site.ts),
+// so event.context.siteId isn't reliably set here — but the Host header always is,
+// and it's free to read (no DB round-trip) so it's safe to use as the cache key
+// even on the hot cache-hit path. Keyed by host rather than a single shared slot
+// because socialProviders below can now differ per site — a single cache slot
+// would let one site's request silently serve its Google/GitHub credentials to
+// every other site sharing the isolate for the next 5 minutes.
 interface CachedBetterAuth {
   instance: Awaited<ReturnType<typeof buildBetterAuthInstance>>
   expiry: number
 }
-let _cachedBetterAuth: CachedBetterAuth | null = null
+const _cachedBetterAuth = new Map<string, CachedBetterAuth>()
 const BETTER_AUTH_CACHE_TTL_MS = 5 * 60 * 1000
 
 async function buildBetterAuthInstance(event: H3Event) {
   const config = useRuntimeConfig(event)
   const db = useDb(event)
 
-  const isDev = process.env.NODE_ENV !== 'production'
-  const primaryUrl = (config.public.siteUrl || (isDev ? 'http://localhost:3000' : 'https://nuxflow.dev')).replace(/\/$/, '')
+  const requestHost = getHeader(event, 'host')
+  const requestProto = getHeader(event, 'x-forwarded-proto')
+  const requestHostname = requestHost?.split(':')[0] ?? ''
+
+  // /api/auth/** bypasses multi-site middleware, so event.context.siteId usually
+  // isn't set yet at this point — resolve it ourselves from the Host header (same
+  // domain-lookup pattern already used below for trustedOrigins/sendResetPassword)
+  // so resolveSetting() below can find this site's per-site setting overrides.
+  // Never overwrites an already-set siteId.
+  if (!event.context.siteId) {
+    if (requestHostname && requestHostname !== 'localhost' && requestHostname !== '127.0.0.1' && requestHostname !== '::1') {
+      const currentSite = await db.query.sites.findFirst({ where: eq(schema.sites.domain, requestHostname), columns: { id: true } })
+      if (currentSite) event.context.siteId = currentSite.id
+    }
+  }
+
+  const [googleClientId, googleClientSecret, githubClientId, githubClientSecret] = await Promise.all([
+    resolveSetting(event, 'auth.google_client_id', 'googleClientId'),
+    resolveSetting(event, 'auth.google_client_secret', 'googleClientSecret'),
+    resolveSetting(event, 'auth.github_client_id', 'githubClientId'),
+    resolveSetting(event, 'auth.github_client_secret', 'githubClientSecret'),
+  ])
+
+  // `wrangler dev` always performs a production-mode build (see CLAUDE.md), so
+  // process.env.NODE_ENV is 'production' locally too — it cannot be used to detect
+  // "am I running against a local dev server". Cloudflare's own runtime-config
+  // auto-detection also isn't reliable here: config.public.siteUrl resolves to
+  // workerd's own loopback bind address (e.g. http://127.0.0.1:8787) in local dev,
+  // which the browser's actual origin (http://localhost:8787 — a *different*
+  // hostname, even though both reach the same server) doesn't match. WebAuthn
+  // requires the RP origin to equal the page's real origin, so binding passkeys to
+  // either the production domain or workerd's bind address breaks them locally.
+  // Instead, detect "local dev" the same way the rest of this file already does
+  // (see trustedOrigins below): the incoming request's own Host header is loopback.
+  const isLocalRequest = requestHostname === 'localhost' || requestHostname === '127.0.0.1' || requestHostname === '::1'
+  const primaryUrl = isLocalRequest
+    ? `${requestProto ?? 'http'}://${requestHost}`
+    : (config.public.siteUrl || 'https://nuxflow.dev').replace(/\/$/, '')
 
   // Passkeys are WebAuthn relying-party scoped — bind them to the primary domain.
   // Users on secondary custom domains can still use email/password and Google/GitHub OAuth.
@@ -40,7 +84,7 @@ async function buildBetterAuthInstance(event: H3Event) {
   type BaseURLConfig = string | { allowedHosts: string[]; protocol: 'https' | 'http' | 'auto'; fallback: string }
   let baseURL: BaseURLConfig
 
-  if (isDev) {
+  if (isLocalRequest) {
     baseURL = primaryUrl
   }
   else {
@@ -157,16 +201,19 @@ async function buildBetterAuthInstance(event: H3Event) {
         requireLocalEmailVerified: false,
       },
     },
+    // Resolved via resolveSetting() above: per-site DB override first (Admin →
+    // Settings → Social Login), env var fallback second — same pattern as every
+    // other third-party credential in this app (media/email/AI/payments).
     socialProviders: {
       google: {
-        clientId: config.googleClientId ?? '',
-        clientSecret: config.googleClientSecret ?? '',
-        enabled: Boolean(config.googleClientId),
+        clientId: googleClientId,
+        clientSecret: googleClientSecret,
+        enabled: Boolean(googleClientId),
       },
       github: {
-        clientId: config.githubClientId ?? '',
-        clientSecret: config.githubClientSecret ?? '',
-        enabled: Boolean(config.githubClientId),
+        clientId: githubClientId,
+        clientSecret: githubClientSecret,
+        enabled: Boolean(githubClientId),
       },
     },
     plugins: [
@@ -180,9 +227,27 @@ async function buildBetterAuthInstance(event: H3Event) {
 }
 
 export async function getOrCreateBetterAuth(event: H3Event) {
+  // Cache key is the full Host header (not just the hostname): in local `wrangler dev`,
+  // some requests arrive with a port-less Host ("localhost") while others correctly
+  // include it ("localhost:8787") — an observed quirk of that dev server, not something
+  // this app controls. Keying on hostname alone let a port-less build (which computes a
+  // passkey origin missing the port) get cached and served to later, correctly-ported
+  // requests for the rest of the 5-minute TTL, breaking WebAuthn's exact-origin check.
+  // Keying on the full string means a malformed build can't poison a well-formed one.
+  const host = getHeader(event, 'host') || 'default'
   const now = Date.now()
-  if (_cachedBetterAuth && now < _cachedBetterAuth.expiry) return _cachedBetterAuth.instance
+  const cached = _cachedBetterAuth.get(host)
+  if (cached && now < cached.expiry) return cached.instance
   const instance = await buildBetterAuthInstance(event)
-  _cachedBetterAuth = { instance, expiry: now + BETTER_AUTH_CACHE_TTL_MS }
+  _cachedBetterAuth.set(host, { instance, expiry: now + BETTER_AUTH_CACHE_TTL_MS })
   return instance
+}
+
+// Called after saving auth.google_client_id/secret or auth.github_client_id/secret
+// (see server/api/v1/settings/index.patch.ts) so a credential change takes effect
+// on the next request instead of waiting out the 5-minute TTL. Clears every host's
+// entry rather than just the current site's — simplest correct option, and this
+// only runs on an infrequent admin settings save, not a hot request path.
+export function clearBetterAuthCache(): void {
+  _cachedBetterAuth.clear()
 }

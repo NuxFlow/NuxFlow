@@ -16,7 +16,7 @@ async function checkContentAccess(event: H3Event, page: { visibility: string; se
     const access = (page.settings as { access?: string } | null)?.access ?? (visibility === 'members' || visibility === 'password' ? 'members' : 'public')
     if (access === 'public') return null
 
-    const session = await getUserSession(event).catch(() => null)
+    const session = await getAuthSession(event).catch(() => null)
     const apiKeyUserId = event.context.apiKeyUserId as string | undefined
     const userId = (session?.user?.id as string | undefined) ?? apiKeyUserId
 

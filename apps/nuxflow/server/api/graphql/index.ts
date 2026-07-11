@@ -109,7 +109,7 @@ const yoga = createYoga({
 
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
-  const session = await getUserSession(event).catch(() => null)
+  const session = await getAuthSession(event).catch(() => null)
   const apiKeyUserId = event.context.apiKeyUserId as string | undefined
   const isAuthenticated = Boolean(session?.user?.id || apiKeyUserId)
 

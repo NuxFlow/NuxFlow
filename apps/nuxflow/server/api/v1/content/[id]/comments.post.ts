@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   const itemId = getRouterParam(event, 'id')!
   const parsed = await readValidatedBody(event, bodySchema.parse)
 
-  const session = await getUserSession(event).catch(() => null)
+  const session = await getAuthSession(event).catch(() => null)
 
   // Guests must supply a name and email; logged-in users do not need to
   if (!session && (!parsed.guestName || !parsed.guestEmail)) {

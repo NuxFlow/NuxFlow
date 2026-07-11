@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   const typeSlug = (query.type as string) || 'page'
 
   // Determine if request is authenticated (session or API key)
-  const session = await getUserSession(event)
+  const session = await getAuthSession(event)
   const apiKeyUserId = event.context.apiKeyUserId as string | undefined
   const isAuthenticated = Boolean(session || apiKeyUserId)
 

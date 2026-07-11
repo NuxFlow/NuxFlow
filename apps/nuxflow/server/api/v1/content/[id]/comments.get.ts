@@ -3,7 +3,7 @@ import { comments } from '@nuxflow/db/schema'
 import { and, eq, desc } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
-  const session = await getUserSession(event)
+  const session = await getAuthSession(event)
   const siteId = event.context.siteId!
   const itemId = getRouterParam(event, 'id')!
 

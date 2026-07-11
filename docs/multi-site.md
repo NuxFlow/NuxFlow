@@ -167,9 +167,16 @@ There is no confirmation step and no undo. Ensure you have taken a D1 backup via
 
 NuxFlow automatically resolves OAuth redirect URIs from the incoming request's hostname, so Google and GitHub sign-in work correctly on every custom domain without any code changes.
 
-The one step you **must** complete manually is registering each domain's callback URL in the provider's developer console.
+There are two ways to configure the actual OAuth app credentials (client ID/secret), and which one applies depends on the provider:
+
+- **`NUXT_GOOGLE_CLIENT_ID` / `NUXT_GOOGLE_CLIENT_SECRET` / `NUXT_GITHUB_CLIENT_ID` / `NUXT_GITHUB_CLIENT_SECRET`** (`[vars]`/secrets in `wrangler.toml`) — a single deployment-wide default, used by any site that hasn't configured its own.
+- **Admin → Settings → Integrations → Social Login**, per site — overrides the env-var default for that one site only. Values are stored encrypted in the database (same mechanism as email/payments/AI provider keys) and take effect immediately, no redeploy needed.
+
+Which one you need depends on the provider:
 
 ### Google
+
+One Google Cloud OAuth Client already supports unlimited domains — Google lets you register multiple **Authorized redirect URIs** on the same client. So for most deployments, the env-var default is all you need:
 
 In the [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services → Credentials**, open your existing OAuth 2.0 Client ID (the same one used for your primary domain — you do **not** need a new project or client). Under **Authorized redirect URIs**, add:
 
@@ -179,15 +186,19 @@ https://yournewdomain.com/api/auth/callback/google
 
 Do this for every custom domain you add. Google validates the `redirect_uri` on every sign-in attempt, so a domain that is not listed will fail with a `redirect_uri_mismatch` error.
 
+Use the per-site override instead if a specific site needs to show its *own* Google identity/branding on the consent screen (e.g. a tenant bringing their own Google Cloud project), rather than sharing yours.
+
 ### GitHub
 
-GitHub OAuth Apps only support a single callback URL. Add a **separate OAuth App** for each custom domain:
+GitHub OAuth Apps only support **one** callback URL each — there's no multi-domain equivalent of Google's redirect-URI list. This means the env-var default only ever works for one domain. To get GitHub login working on a secondary site, give that site its own OAuth App via the per-site override:
 
 1. Go to **github.com → Settings → Developer settings → OAuth Apps → New OAuth App**
 2. Set **Authorization callback URL** to `https://yournewdomain.com/api/auth/callback/github`
 3. Copy the new app's **Client ID** and **Client Secret**
+4. On that domain's admin panel, go to **Settings → Integrations → Social Login** and paste them into the GitHub fields
+5. Save — the change is live immediately, no redeploy required
 
-Because NuxFlow uses a single `NUXT_GITHUB_CLIENT_ID` / `NUXT_GITHUB_CLIENT_SECRET` pair shared across all domains, GitHub OAuth is effectively limited to the primary domain unless you run separate Workers per domain. For multi-domain GitHub login, consider using Google OAuth instead.
+Repeat for each additional domain that needs GitHub login. Sites with no override configured keep using the env-var default (effectively just the primary domain).
 
 ---
 

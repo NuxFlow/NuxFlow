@@ -12,10 +12,21 @@ import type { H3Event } from 'h3'
 // configs drifting out of sync (they did, once already) makes sessions that are
 // valid on /api/auth/** silently 401 everywhere else.
 export async function requireSession(event: H3Event) {
-  const auth = await getOrCreateBetterAuth(event)
-  const session = await auth.api.getSession({ headers: event.headers })
+  const session = await getAuthSession(event)
   if (!session) {
     throw createError({ statusCode: 401, statusMessage: 'Authentication required' })
   }
   return session
+}
+
+// Non-throwing counterpart for routes where auth is optional (public pages that
+// vary for logged-in visitors, guest-or-member comments, etc.) — same shared
+// instance, returns null instead of throwing when there's no valid session.
+// Named getAuthSession (not getSession) to avoid shadowing h3's own built-in
+// getSession — Nitro would silently prefer this one over h3's, which is correct
+// today but exactly the kind of implicit auto-import collision this project has
+// already been bitten by once.
+export async function getAuthSession(event: H3Event) {
+  const auth = await getOrCreateBetterAuth(event)
+  return auth.api.getSession({ headers: event.headers })
 }

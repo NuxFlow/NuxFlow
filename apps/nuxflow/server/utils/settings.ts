@@ -33,6 +33,11 @@ export const SENSITIVE_SETTING_KEYS = new Set([
   'sms.vonage_api_secret',
   'sms.brevo_api_key',
   'sms.telnyx_api_key',
+  // Social login (Google/GitHub) OAuth client secrets — client IDs are not
+  // sensitive (they're visible in the browser's OAuth redirect URL regardless)
+  // and are intentionally excluded from this set.
+  'auth.google_client_secret',
+  'auth.github_client_secret',
 ])
 
 export const SECRET_MASK = '••••••••••••••••'

@@ -5,18 +5,28 @@ import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import * as schema from '@nuxflow/db/schema'
 import { getD1 } from './utils/db'
 import { passkey } from '@better-auth/passkey'
-import { and, eq } from 'drizzle-orm'
-import { sendEmailWithConfig, escapeHtml } from './utils/email'
-import { decryptText } from './utils/encryption'
-import { SENSITIVE_SETTING_KEYS } from './utils/settings'
+import { eq } from 'drizzle-orm'
 import { nuxflowPasswordHasher } from './utils/pw'
 
+// NOTE ON WHY THIS FILE IS SMALLER THAN IT LOOKS LIKE IT SHOULD BE:
+//
+// This instance (built by @onmax/nuxt-better-auth's defineServerAuth) is never
+// actually used to serve /api/auth/** traffic — server/middleware/04.auth-override.ts
+// intercepts every /api/auth/** request before Nitro route resolution and hands it to
+// the real instance in server/utils/better-auth.ts instead (see that file's own
+// comment). This file only exists because the Nuxt module needs *some* config
+// returned from defineServerAuth() to bootstrap its client-side composables
+// (useUserSession(), signIn(), the passkey client's types, etc.).
+//
+// socialProviders, the custom emailAndPassword.sendResetPassword handler, and
+// account.accountLinking used to be duplicated here as well as in better-auth.ts —
+// two copies of the same config that could (and once did) silently drift apart
+// and break session validation in production. They were removed from this file
+// entirely rather than kept in sync: real Google/GitHub sign-in, password-reset
+// emails, and account linking are handled exclusively by better-auth.ts's instance,
+// so a second copy here was never anything but a liability. Don't re-add them here.
 export default defineServerAuth((ctx) => {
   const config = ctx.runtimeConfig as {
-    googleClientId?: string
-    googleClientSecret?: string
-    githubClientId?: string
-    githubClientSecret?: string
     public?: { siteUrl?: string }
   }
 
@@ -108,81 +118,25 @@ export default defineServerAuth((ctx) => {
       // uses individual statements instead of wrapping in BEGIN/COMMIT.
       transaction: false,
     }),
+    // No sendResetPassword handler here — this instance never receives a real
+    // /api/auth/forget-password request (04.auth-override.ts always routes it to
+    // better-auth.ts's instance first), so a handler here would just be dead code.
     emailAndPassword: {
       enabled: true,
       password: nuxflowPasswordHasher,
-      sendResetPassword: async ({ user, url }) => {
-        // Extract site host from the reset URL to resolve per-site email config.
-        let host = 'localhost'
-        try { host = new URL(url).hostname } catch { /* keep default */ }
-
-        try {
-          const site = await db.query.sites.findFirst({ where: eq(schema.sites.domain, host) })
-          if (!site) {
-            console.warn('[auth] sendResetPassword: no site found for host', host)
-            return
-          }
-
-          const settingRows = await db.query.siteSettings.findMany({
-            where: and(eq(schema.siteSettings.siteId, site.id)),
-          })
-
-          const rc = useRuntimeConfig()
-          const secret = rc.betterAuthSecret as string
-          const sm: Record<string, string> = {}
-          for (const row of settingRows) {
-            if (!row.value) continue
-            if (SENSITIVE_SETTING_KEYS.has(row.key)) {
-              try { sm[row.key] = await decryptText(row.value as string, secret) }
-              catch { sm[row.key] = row.value as string }
-            } else {
-              sm[row.key] = row.value as string
-            }
-          }
-
-          const resetEvent = useEvent()
-          await sendEmailWithConfig(
-            {
-              emailProvider: sm['email.provider'] || 'console',
-              fromAddress: sm['email.from_address'] || `noreply@${host}`,
-              resendApiKey: sm['email.resend_api_key'],
-              brevoApiKey: sm['email.brevo_api_key'],
-              zeptoApiKey: sm['email.zepto_api_key'],
-              domain: host,
-            },
-            {
-              to: user.email,
-              subject: 'Reset your password',
-              html: `<p>Hi ${escapeHtml(user.name)},</p><p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href="${url}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Reset password</a></p><p style="color:#6b7280;font-size:14px;">If you did not request this, you can safely ignore this email.</p>`,
-              text: `Hi ${user.name},\n\nReset your password:\n${url}\n\nIf you did not request this, ignore this email.`,
-            },
-            resetEvent,
-          )
-        } catch (err) {
-          console.error('[auth] sendResetPassword email failed:', err)
-        }
-      },
     },
-    account: {
-      accountLinking: {
-        enabled: true,
-        trustedProviders: ['google', 'github'],
-        // Onboarding users are created without going through email verification;
-        // trust them anyway since the admin physically ran the setup wizard.
-        requireLocalEmailVerified: false,
-      },
-    },
+    // No account.accountLinking here — see the file-level note above; real account
+    // linking is configured on better-auth.ts's instance only.
+    //
+    // socialProviders below is TYPE SCAFFOLDING ONLY, not live config: the client's
+    // signIn.social() infers its provider-name union from this instance's configured
+    // provider keys, so removing this block entirely breaks that type (provider
+    // narrows to `never` in login.vue/register.vue) even though the empty
+    // clientId/clientSecret values here are never read for a real request — real
+    // credentials live exclusively in better-auth.ts's instance.
     socialProviders: {
-      google: {
-        clientId: config.googleClientId ?? '',
-        clientSecret: config.googleClientSecret ?? '',
-        enabled: Boolean(config.googleClientId),
-      },
-      github: {
-        clientId: config.githubClientId ?? '',
-        clientSecret: config.githubClientSecret ?? '',
-        enabled: Boolean(config.githubClientId),
-      },
+      google: { clientId: '', clientSecret: '', enabled: false },
+      github: { clientId: '', clientSecret: '', enabled: false },
     },
     plugins: [
       passkey({

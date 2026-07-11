@@ -45,6 +45,15 @@ const bodySchema = z.object({
     bunnyStorageZone: z.string().optional(),
     bunnyPullZone: z.string().optional(),
   }).optional(),
+  // Per-site Google/GitHub OAuth app credentials — per-site overrides of the
+  // NUXT_GOOGLE_CLIENT_ID etc. env-var fallbacks, same resolveSetting() pattern
+  // as everything else on this page.
+  auth: z.object({
+    googleClientId: z.string().optional(),
+    googleClientSecret: z.string().optional(),
+    githubClientId: z.string().optional(),
+    githubClientSecret: z.string().optional(),
+  }).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -103,6 +112,17 @@ export default defineEventHandler(async (event) => {
     if (m.bunnyApiKey !== undefined) await saveSetting(event, 'media.bunny_api_key', m.bunnyApiKey)
     if (m.bunnyStorageZone !== undefined) await saveSetting(event, 'media.bunny_storage_zone', m.bunnyStorageZone)
     if (m.bunnyPullZone !== undefined) await saveSetting(event, 'media.bunny_pull_zone', m.bunnyPullZone)
+  }
+
+  if (body.auth) {
+    const a = body.auth
+    if (a.googleClientId !== undefined) await saveSetting(event, 'auth.google_client_id', a.googleClientId)
+    if (a.googleClientSecret !== undefined) await saveSetting(event, 'auth.google_client_secret', a.googleClientSecret)
+    if (a.githubClientId !== undefined) await saveSetting(event, 'auth.github_client_id', a.githubClientId)
+    if (a.githubClientSecret !== undefined) await saveSetting(event, 'auth.github_client_secret', a.githubClientSecret)
+    // The Better Auth instance caches socialProviders per host for 5 minutes —
+    // bust it so a credential change is live immediately, not after a wait.
+    clearBetterAuthCache()
   }
 
   // If any appearance settings changed, bust the per-isolate cache so the next

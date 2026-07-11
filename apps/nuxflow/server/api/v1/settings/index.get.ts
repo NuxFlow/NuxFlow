@@ -48,6 +48,8 @@ export default defineEventHandler(async (event) => {
     'cloudflare.images_token': 'cloudflareImagesToken',
     'media.s3_secret_key': 's3SecretKey',
     'media.bunny_api_key': 'bunnyApiKey',
+    'auth.google_client_secret': 'googleClientSecret',
+    'auth.github_client_secret': 'githubClientSecret',
   }
 
   const rc = useRuntimeConfig()
@@ -77,6 +79,12 @@ export default defineEventHandler(async (event) => {
     const envVal = rc[rcKey] as string | undefined
     if (!settings[key] && envVal) settings[key] = envVal
   }
+
+  // Same for the non-sensitive Google/GitHub OAuth client IDs
+  const googleClientId = rc.googleClientId as string | undefined
+  if (!settings['auth.google_client_id'] && googleClientId) settings['auth.google_client_id'] = googleClientId
+  const githubClientId = rc.githubClientId as string | undefined
+  if (!settings['auth.github_client_id'] && githubClientId) settings['auth.github_client_id'] = githubClientId
 
   return { site, settings }
 })

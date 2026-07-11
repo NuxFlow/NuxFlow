@@ -7,7 +7,7 @@ useHead({
   titleTemplate: (title) => {
     const name = siteInfo.value?.name
     return name
-      ? (title ? `${title} | ${name}` : name)
+      ? (title ? `${name} | ${title}` : name)
       : (title ?? '')
   },
   link: computed(() => {

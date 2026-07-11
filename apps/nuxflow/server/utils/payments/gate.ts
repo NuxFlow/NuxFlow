@@ -22,7 +22,7 @@ export async function resolveContentGate(
   const access = settings?.access ?? 'public'
   if (access === 'public') return null
 
-  const session = await getUserSession(event).catch(() => null)
+  const session = await getAuthSession(event).catch(() => null)
   const apiKeyUserId = event.context.apiKeyUserId as string | undefined
   const userId = (session?.user?.id as string | undefined) ?? apiKeyUserId
 

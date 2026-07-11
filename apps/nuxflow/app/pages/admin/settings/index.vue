@@ -171,6 +171,15 @@ async function sendTestEmail() {
 // ── Integrations ─────────────────────────────────────────────────────────────
 const integrations = reactive({ turnstileSiteKey: '' })
 
+// Per-site Google/GitHub OAuth app credentials — falls back to the
+// NUXT_GOOGLE_CLIENT_ID etc. env vars when no per-site override is saved.
+const social = reactive({
+  googleClientId: '',
+  googleClientSecret: '',
+  githubClientId: '',
+  githubClientSecret: '',
+})
+
 const payments = reactive({
   signupsDisabled: false,
   signupsDisabledMessage: '',
@@ -314,6 +323,10 @@ watch(data, (d) => {
   email.zeptoApiKey = (s['email.zepto_api_key'] as string) ?? ''
   if (!emailTestAddress.value) emailTestAddress.value = (currentUser.value as { email?: string })?.email ?? ''
   integrations.turnstileSiteKey = (s['integrations.turnstile_site_key'] as string) ?? ''
+  social.googleClientId = (s['auth.google_client_id'] as string) ?? ''
+  social.googleClientSecret = (s['auth.google_client_secret'] as string) ?? ''
+  social.githubClientId = (s['auth.github_client_id'] as string) ?? ''
+  social.githubClientSecret = (s['auth.github_client_secret'] as string) ?? ''
   appearance.showHeader = (s['frontend.show_header'] as boolean | undefined) !== false
   appearance.showSearch = (s['frontend.show_search'] as boolean | undefined) !== false
   appearance.showStickyHeader = (s['frontend.show_sticky_header'] as boolean | undefined) !== false
@@ -434,6 +447,12 @@ async function save() {
           bunnyApiKey: bunny.apiKey,
           bunnyStorageZone: bunny.storageZone,
           bunnyPullZone: bunny.pullZone,
+        },
+        auth: {
+          googleClientId: social.googleClientId,
+          googleClientSecret: social.googleClientSecret,
+          githubClientId: social.githubClientId,
+          githubClientSecret: social.githubClientSecret,
         },
       },
     })
@@ -1126,6 +1145,50 @@ async function deleteSite() {
             </template>
           </UCard>
 
+          <UCard class="mt-6">
+            <template #header><p class="text-sm font-semibold text-gray-900 dark:text-white">Social Login</p></template>
+            <div class="space-y-6">
+              <p class="text-sm text-gray-500 dark:text-gray-400">
+                Bring your own Google/GitHub OAuth app for this site instead of the deployment-wide default. Leave blank to keep using the environment-variable default (if one is configured).
+              </p>
+
+              <div class="space-y-3">
+                <p class="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                  <UIcon name="i-simple-icons-google" class="w-4 h-4" /> Google
+                </p>
+                <UFormField label="Client ID">
+                  <UInput v-model="social.googleClientId" placeholder="xxxxx.apps.googleusercontent.com" />
+                </UFormField>
+                <UFormField label="Client secret">
+                  <UInput v-model="social.googleClientSecret" type="password" placeholder="GOCSPX-…" />
+                </UFormField>
+                <p class="text-xs text-gray-400">
+                  Authorized redirect URI: <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">https://{{ general.domain || 'yourdomain.com' }}/api/auth/callback/google</code>
+                </p>
+              </div>
+
+              <div class="space-y-3 border-t border-gray-100 dark:border-gray-800 pt-6">
+                <p class="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                  <UIcon name="i-simple-icons-github" class="w-4 h-4" /> GitHub
+                </p>
+                <UFormField label="Client ID">
+                  <UInput v-model="social.githubClientId" placeholder="Iv1.xxxxxxxxxxxx" />
+                </UFormField>
+                <UFormField label="Client secret">
+                  <UInput v-model="social.githubClientSecret" type="password" placeholder="••••••••" />
+                </UFormField>
+                <p class="text-xs text-gray-400">
+                  Authorization callback URL: <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">https://{{ general.domain || 'yourdomain.com' }}/api/auth/callback/github</code>. GitHub OAuth Apps only support one callback URL each, so a secondary site needs its own GitHub OAuth App — this is exactly what these fields are for.
+                </p>
+              </div>
+            </div>
+            <template #footer>
+              <div class="flex items-center justify-between">
+                <p class="text-xs text-gray-400">Client secrets are encrypted at rest using AES-GCM.</p>
+                <UButton :loading="saving" @click="save">Save changes</UButton>
+              </div>
+            </template>
+          </UCard>
         </template>
 
         <!-- AI Settings -->

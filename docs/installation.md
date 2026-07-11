@@ -507,6 +507,10 @@ If you use automated deploys, add these four variables as build-time environment
 **Account linking:** if a user signs in with Google using the same email address they registered with during onboarding, NuxFlow automatically links the two accounts. No manual steps are required — see the [User Guide](./user-guide.md#social-login--account-linking) for the full flow.
 ::
 
+::note
+**Multi-site deployments:** the `wrangler secret` values above are a single deployment-wide default — every site falls back to them unless it configures its own. Since GitHub OAuth Apps only support one callback URL each, a secondary site that needs GitHub login needs its own OAuth App and its own credentials, set per-site via **Admin → Settings → Integrations → Social Login** on that site's domain rather than as another `wrangler secret`. Google doesn't have this limitation (one client, many redirect URIs), so the shared default is usually enough there. See [Multi-Site Hosting → Social login on custom domains](./multi-site.md#social-login-on-custom-domains) for the full picture.
+::
+
 ---
 
 ### Email Providers
