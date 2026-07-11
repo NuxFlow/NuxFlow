@@ -1,5 +1,47 @@
 # @nuxflow/cli
 
+## 2.0.0-beta.2
+
+### Minor Changes
+
+- 19df24f: feat: `nuxflow theme create`/`deploy`/`update` overhaul — correct design tokens, full block reference, and bundled-theme (zip + demo content) support
+
+  **`theme create`** previously scaffolded a `theme.css` with invented tokens (`--color-primary-500`, `--font-sans`, etc.) that nothing in the app reads, and no documentation of the Canvas block selector contract. It now generates:
+  - The actual live tokens (`--nuxflow-primary`, `--nuxflow-font`) that Admin → Appearance injects into every page
+  - A full reference of the 17 Canvas blocks that expose a stable root class, plus `.nux-blocks`/`.nux-content`
+
+  **`theme deploy`** previously could only ever POST bare `{ name, version, css }` — themes with seed content (pages, menus, forms, settings) had no path to ship through the CLI at all, only through a hand-built zip uploaded via the admin UI. It now auto-detects a `demo.json` and/or `images/` folder in the theme directory and, when present, zips `theme.css` + `theme.json` + `demo.json` + `images/*` and multipart-uploads it to the same `/api/v1/themes` endpoint the admin zip-upload UI uses — via a new `apiPostZip` helper in `utils/api.ts`. Bare-CSS themes are unaffected and still deploy as plain JSON.
+
+  `theme update` is unchanged — the CSS-patch endpoint is CSS-only by design, so demo-content changes require a fresh `deploy`.
+
+### Patch Changes
+
+- e4d1b14: refactor: eliminate fake "bundled plugins", promote canvas blocks to core, squash migrations
+
+  **Architecture cleanup — bundled plugins removed**
+  - Deleted `packages/plugins/` entirely (contact-form, html-block, payments, and the old canvas copy)
+  - Canvas package moved from `packages/plugins/canvas` to `packages/canvas` and renamed `@nuxflow/plugin-canvas` → `@nuxflow/canvas`
+  - "Plugin" in the codebase now means exactly one thing: a signed, independently-installable dynamic Cloudflare Worker extension
+
+  **Canvas block categories**
+  - Removed `'plugin'` category; added `'forms'`, `'advanced'`, and `'commerce'` categories
+  - Contact Form block promoted to `CANVAS_BLOCKS` under `'forms'`
+  - HTML Block promoted to `CANVAS_BLOCKS` under `'advanced'`
+  - Membership Pricing block promoted to `CANVAS_BLOCKS` under `'commerce'`
+  - Block picker "Plugins" section renamed "Extensions"; only appears when true dynamic plugin blocks are installed
+
+  **CLI scaffold template**
+  - `BlockDefinition.category` updated to reflect new category set (removed `'plugin'`, added `'forms'|'advanced'|'commerce'`)
+  - Example block defaults to `'advanced'` category
+
+  **create-nuxflow-app — Linux install fix**
+  - Build output moved from `dist/` to `bin/` (not gitignored)
+  - `bin/index.js` is now committed so `pnpm install` inside a freshly scaffolded project can link the bin without requiring a `prepare` run first
+
+  **DB migrations squash**
+  - Migrations 0001–0008 collapsed into `0000_baseline.sql` with all `ALTER TABLE` columns folded into their `CREATE TABLE` statements
+  - Clean starting point for beta
+
 ## 2.0.0-beta.1
 
 ### Minor Changes
