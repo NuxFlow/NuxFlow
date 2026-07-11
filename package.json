@@ -12,7 +12,7 @@
     "deploy": "turbo deploy --filter=@nuxflow/app",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "pnpm build && changeset publish"
+    "release": "turbo build --filter=@nuxflow/cli --filter=create-nuxflow-app && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
