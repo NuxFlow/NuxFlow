@@ -45,11 +45,19 @@ Click **New site** and fill in the following fields:
 | **Default locale** | BCP 47 language tag, e.g. `en`, `fr`, `de` (defaults to `en`) |
 | **Timezone** | IANA timezone string, e.g. `Europe/London`, `America/New_York` (defaults to `UTC`) |
 
-Click **Create site**. The new site is created immediately with a status of `active`.
+Click **Create site**. The new site record is created immediately with a status of `active`, but it can't be accessed yet — see the next step.
 
-::note
-Visiting the new domain for the first time will automatically trigger the Setup Wizard, which will pre-populate the site's name and domain. From there, you can choose a theme template (Landing, Blog, Portfolio, etc.) to seed all required standard content types and default canvas blocks automatically!
+### Step 3 — Copy the one-time setup link
+
+Creating the site immediately shows a **setup link**: a URL of the form `https://example.com/setup?token=...`, next to a **Copy** button. This is your only chance to get it — only a hash of the token is stored, so if you navigate away without copying it, it cannot be shown again (delete the site record and create it again if that happens).
+
+::warning
+The token only works as part of that exact URL — there's no field anywhere to type or paste the token by itself. Visiting the bare domain (`https://example.com/setup` with no `?token=...` in the address) fails with **"Invalid or missing setup token."** Copy the full link and paste it directly into your browser's address bar.
 ::
+
+Send that link to whoever will configure the site, or paste it into your own browser if that's you. Opening it runs the same 5-step Setup Wizard as a first install — site details, admin account, email settings, and a starter template (Landing, Blog, Portfolio, Blank) — and fully seeds the new site's content types, homepage, and taxonomies automatically. If you're the one completing it and you're already a super admin elsewhere in the deployment, enter your existing email and password in the admin-account step rather than creating a new account — NuxFlow recognizes the existing user and grants it `super_admin` on the new site instead of erroring.
+
+A setup attempt that fails or is abandoned partway through doesn't consume the token, so the same link can be reused until setup completes successfully.
 
 ---
 
@@ -99,9 +107,11 @@ The admin dashboard is fully domain-aware. You do not manage your secondary site
 Any pages, blog posts, forms, media assets, or settings you create while logged into `https://xyz.com/admin` are strictly scoped to `xyz.com` and will never leak or display on your other domains.
 
 ### 2. Logging in for the First Time
-When visiting a newly created domain's admin panel for the first time, you do not need to register a new user account:
-- **Global Super Admins:** Your primary site's `super_admin` credentials work across **all** domains in the deployment. Simply log in using your existing super admin email and password on `https://xyz.com/admin`.
-- **Tenant Scope:** Once logged in as a super admin, you can configure the site and invite local users (such as editors or authors) who will be scoped strictly to that specific site.
+Visiting `https://xyz.com/admin` directly won't work until setup is completed on that domain — a newly created site record redirects any request to `/setup` and rejects it without the one-time token from Step 3 above. Complete setup via the copied setup link first.
+
+You do not need to register a brand new user account to do that:
+- **Global Super Admins:** Your primary site's `super_admin` credentials work across **all** domains in the deployment. On the setup wizard's admin-account step, enter your existing super admin email and password instead of new ones — NuxFlow recognizes the existing account and grants it `super_admin` on this site too, rather than creating a duplicate. From then on, that same login works on `https://xyz.com/admin` like any other site.
+- **Tenant Scope:** Once setup is complete, you can configure the site and invite local users (such as editors or authors) who will be scoped strictly to that specific site.
 
 Because `requireSuperAdmin` is not scoped to a single site, your existing super admin account has access to every site's admin panel. From here you can:
 

@@ -10,7 +10,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const session = await requireUserSession(event)
+  const session = await requireSession(event)
   const siteId = event.context.siteId as string
   const body = await readValidatedBody(event, bodySchema.parse)
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 
 interface LightboxImage {
   url: string
@@ -52,7 +53,7 @@ onUnmounted(() => {
       aria-label="Close lightbox"
       @click="$emit('close')"
     >
-      <span class="i-lucide-x w-7 h-7 block" />
+      <UIcon name="i-lucide-x" mode="svg" class="w-7 h-7 block" />
     </button>
 
     <!-- Prev -->
@@ -63,7 +64,7 @@ onUnmounted(() => {
       aria-label="Previous image"
       @click="prev"
     >
-      <span class="i-lucide-chevron-left w-8 h-8 block" />
+      <UIcon name="i-lucide-chevron-left" mode="svg" class="w-8 h-8 block" />
     </button>
 
     <!-- Image -->
@@ -82,7 +83,7 @@ onUnmounted(() => {
       aria-label="Next image"
       @click="next"
     >
-      <span class="i-lucide-chevron-right w-8 h-8 block" />
+      <UIcon name="i-lucide-chevron-right" mode="svg" class="w-8 h-8 block" />
     </button>
 
     <!-- Counter -->

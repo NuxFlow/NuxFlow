@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import NuxLightbox from './NuxLightbox.vue'
 
@@ -86,7 +87,7 @@ function openLightbox(i: number) {
       class="flex items-center justify-center h-40 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700"
     >
       <div class="text-center">
-        <span class="i-lucide-images w-8 h-8 text-gray-300 mx-auto block mb-2" />
+        <UIcon name="i-lucide-images" mode="svg" class="w-8 h-8 text-gray-300 mx-auto block mb-2" />
         <span class="text-sm text-gray-400">No images — edit this block to add photos</span>
       </div>
     </div>

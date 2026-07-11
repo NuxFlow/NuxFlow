@@ -107,5 +107,12 @@ globalThis.requireUserSession = async (event: Record<string, unknown>) => {
   return session
 }
 
+// server/utils/auth.ts's requireSession — the app's own session helper (backed by
+// getOrCreateBetterAuth, see server/utils/better-auth.ts) that superseded the
+// nuxt-better-auth-provided requireUserSession above for all server-side checks.
+// Same test-double shape/behaviour so existing test fixtures (event.context._session)
+// keep working unchanged.
+globalThis.requireSession = globalThis.requireUserSession
+
 // useDb is NOT mocked globally — each integration test file provides its own
 // vi.mock for '../../server/utils/db' to inject the real in-memory test DB.

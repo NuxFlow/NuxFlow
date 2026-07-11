@@ -91,7 +91,9 @@ Schema files in `packages/db/src/schema/`:
 
 **Single-site fallback:** if no site matches the incoming domain but exactly one site exists in the database, that site is used. In production this also self-heals by updating the stored domain to match the live request host — so sitemaps, invite links, and RSS feeds automatically correct after a domain migration.
 
-**Adding additional sites:** the initial setup wizard (`/api/v1/setup/complete`) blocks with 409 if any site already exists — it is a one-time first-install flow only. Additional sites must be created via the super admin panel at `/admin/super/sites`. Sites created this way are blank shells with no seeded content types, homepage, or users; the super admin must configure them manually.
+**Adding additional sites:** create the site record via the super admin panel at `/admin/super/sites/new` (`POST /api/v1/admin/sites`). This generates a one-time setup token and displays it embedded in a full setup URL — `https://{domain}/setup?token={setupToken}` — shown only once (only the SHA-256 hash is persisted). Send that exact URL to whoever will configure the site; there's no field to paste the token manually, it must be picked up from the `?token=` query string. Visiting the bare domain's `/setup` without the token in the URL fails with 403 "Invalid or missing setup token."
+
+Visiting that link runs the *same* `/api/v1/setup/complete` wizard used for the first-ever install — `isInitialSetup` (no sites or no users yet) takes the fresh-install path; an existing, uncompleted site record with a matching domain takes the secondary-site path instead, which requires the token to match the stored hash before proceeding, then burns it (clears `setupTokenHash`) so the link can't be replayed. Either path fully seeds the new site — content types, homepage, taxonomies, and the completing user's account get `super_admin` on that site — it is not a blank shell requiring manual configuration afterward. A failed/missing-token attempt is a no-op (nothing is written), so the same link can be retried until it succeeds.
 
 Setup and auth routes (`/api/v1/setup`, `/api/auth`) bypass multi-site resolution.
 

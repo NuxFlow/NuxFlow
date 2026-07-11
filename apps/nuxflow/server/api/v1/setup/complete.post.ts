@@ -52,21 +52,47 @@ async function _handleSetup(event: H3Event) {
 
   // Check if we are running initial setup or setting up a pre-created secondary site
   const [siteCount] = await db.select({ value: count() }).from(sites)
-  const isInitialSetup = (siteCount?.value ?? 0) === 0
+  const [userCount] = await db.select({ value: count() }).from(users)
+  const isInitialSetup = (siteCount?.value ?? 0) === 0 || (userCount?.value ?? 0) === 0
 
   let siteId: string
 
   if (isInitialSetup) {
-    siteId = ulid()
-    await db.insert(sites).values({
-      id: siteId,
-      name: body.site.name,
-      domain: host,
-      locale: body.site.locale,
-      timezone: body.site.timezone,
-      status: 'active',
-      setupCompleted: true,
+    const existingSite = await db.query.sites.findFirst({
+      where: eq(sites.domain, host),
     })
+
+    if (existingSite) {
+      siteId = existingSite.id
+      // Clear any stale seeded data associated with this site to avoid duplicates/integrity errors
+      // Delete child/referencing tables first to respect foreign key constraints
+      await db.delete(contentItems).where(eq(contentItems.siteId, siteId))
+      await db.delete(contentTypes).where(eq(contentTypes.siteId, siteId))
+      await db.delete(taxonomies).where(eq(taxonomies.siteId, siteId))
+      await db.delete(siteSettings).where(eq(siteSettings.siteId, siteId))
+      await db.delete(userSiteRoles).where(eq(userSiteRoles.siteId, siteId))
+
+      await db.update(sites)
+        .set({
+          name: body.site.name,
+          locale: body.site.locale,
+          timezone: body.site.timezone,
+          status: 'active',
+          setupCompleted: true,
+        })
+        .where(eq(sites.id, siteId))
+    } else {
+      siteId = ulid()
+      await db.insert(sites).values({
+        id: siteId,
+        name: body.site.name,
+        domain: host,
+        locale: body.site.locale,
+        timezone: body.site.timezone,
+        status: 'active',
+        setupCompleted: true,
+      })
+    }
   } else {
     // Pre-created secondary site — find by the request host (the domain was set when super
     // admin created the site record, not from the setup form).

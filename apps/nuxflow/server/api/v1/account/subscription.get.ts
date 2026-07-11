@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 
 export default defineEventHandler(async (event) => {
-  const session = await requireUserSession(event)
+  const session = await requireSession(event)
   const siteId = event.context.siteId as string
   const userId = session.user.id as string
   const db = useDb(event)

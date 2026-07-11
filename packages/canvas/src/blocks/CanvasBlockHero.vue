@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 
 const props = withDefaults(defineProps<{
@@ -92,7 +93,7 @@ const logoStyle = computed(() => {
         class="items-center justify-center w-16 h-16 rounded-2xl mb-2 animate-pulse"
         :style="logoStyle"
       >
-        <span :class="`${logoIcon} w-8 h-8 text-white`" />
+        <UIcon :name="logoIcon" mode="svg" class="w-8 h-8 text-white" />
       </div>
 
       <h1 class="text-5xl sm:text-6xl font-extrabold tracking-tight leading-tight">{{ headline }}</h1>

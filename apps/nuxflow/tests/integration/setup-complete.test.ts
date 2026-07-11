@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { eq } from 'drizzle-orm'
-import { sites, userSiteRoles } from '@nuxflow/db/schema'
+import { sites, userSiteRoles, users } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite } from '../helpers/seed'
@@ -36,7 +36,16 @@ function payload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-beforeAll(initTestDb)
+beforeAll(async () => {
+  await initTestDb()
+  const db = getCurrentTestDb()
+  // Seed a dummy user so that userCount > 0 and we can test secondary site setup
+  await db.insert(users).values({
+    id: 'dummy-user',
+    name: 'Dummy User',
+    email: 'dummy@test.com',
+  })
+})
 afterAll(teardownTestDb)
 
 describe('POST /api/v1/setup/complete — pre-created secondary sites', () => {

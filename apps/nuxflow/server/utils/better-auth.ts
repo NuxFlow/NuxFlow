@@ -10,7 +10,7 @@ import { nuxflowPasswordHasher } from './pw'
 // Isolate-level auth instance cache with 5-minute TTL so newly-registered
 // custom domains start working without a redeployment.
 interface CachedBetterAuth {
-  instance: { handler: (request: Request) => Response | Promise<Response> }
+  instance: Awaited<ReturnType<typeof buildBetterAuthInstance>>
   expiry: number
 }
 let _cachedBetterAuth: CachedBetterAuth | null = null

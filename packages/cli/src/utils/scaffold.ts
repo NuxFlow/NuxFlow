@@ -239,43 +239,76 @@ export async function scaffoldTheme(dir: string, name: string) {
  * ${name} — NuxFlow CSS Theme
  *
  * This stylesheet is injected into the <head> of every SSR page render.
- * Use CSS custom properties to override design tokens, or write any CSS you need.
+ * Use the selectors and custom properties below, or write any CSS you need.
  *
  * Deploy:  nuxflow theme deploy --site https://your-site.com
  * Update:  nuxflow theme update --site https://your-site.com  (after first deploy)
+ *
+ * Full token/selector reference: themes/default/assets/css/theme.css in the
+ * NuxFlow repo (also covers admin-dashboard chrome, which this starter omits).
  */
 
-:root {
-  /* ── Brand colours ─────────────────────────────────────── */
-  --color-primary-50:  #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
 
-  /* ── Typography ────────────────────────────────────────── */
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+/* ─────────────────────────────────────────────────────────────────────────────
+   Appearance settings bridge
+   ─────────────────────────────────────────────────────────────────────────────
+   Two custom properties are injected automatically into every public page from
+   Admin → Themes → Appearance — reference them so a single admin setting can
+   drive your whole theme. Both ship with a safe fallback.
 
-  /* ── Border radius ─────────────────────────────────────── */
-  --radius-sm:   0.25rem;
-  --radius-md:   0.5rem;
-  --radius-lg:   0.75rem;
-  --radius-xl:   1rem;
-  --radius-2xl:  1.5rem;
-}
+     --nuxflow-primary   The "Accent colour" value chosen in the picker.
+     --nuxflow-font      The "Body font" value (font-family stack).
 
-/* Example overrides — uncomment and edit as needed:
+   Example: .canvas-hero a { background: var(--nuxflow-primary, #6366f1); }
+   ───────────────────────────────────────────────────────────────────────────── */
 
-body {
-  font-family: var(--font-sans);
-}
 
-.btn-primary {
-  background-color: var(--color-primary-500);
-  border-radius: var(--radius-lg);
-}
+/* ─────────────────────────────────────────────────────────────────────────────
+   Canvas block selectors
+   ─────────────────────────────────────────────────────────────────────────────
+   Every Canvas block renders with a semantic class on its root element. Target
+   these to style pages built with the visual page builder. All blocks sit
+   inside .nux-blocks. (canvas-video has no stable wrapper class yet — inspect
+   the rendered HTML if you need to target it.)
 
-*/
+     .canvas-hero          Hero / banner section
+     .canvas-text          Rich text / prose block
+     .canvas-image         Image block (figure inside holds the image)
+     .canvas-columns       Multi-column layout block
+     .canvas-container     Generic container / nesting block
+     .canvas-features      Feature grid section
+     .canvas-testimonial   Testimonial / quote card block
+     .canvas-cta           Call-to-action banner block
+     .canvas-spacer        Vertical spacer / divider block
+     .canvas-gdpr          Cookie / GDPR consent banner block
+     .canvas-footer        Footer block
+     .canvas-button        Standalone button block
+     .canvas-accordion     Accordion / FAQ block
+     .canvas-pricing       Pricing table block
+     .canvas-gallery       Image gallery block
+     .canvas-carousel      Carousel / slider block
+     .canvas-calendar      Calendar / events block
+
+   Canvas pages render full-width with no container — add max-width constraints
+   inside your own selectors for large-screen layouts.
+
+   .nux-content wraps TipTap-rendered rich text on non-Canvas pages (blog posts,
+   simple content pages).
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Style the hero headline with gradient text: */
+/* .canvas-hero h1 {
+  background: linear-gradient(135deg, #fff 30%, var(--nuxflow-primary, #6366f1) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+} */
+
+/* Body copy follows the admin-configured font automatically: */
+/* body { font-family: var(--nuxflow-font, system-ui, -apple-system, sans-serif); } */
+
+.nux-content a       { color: var(--nuxflow-primary, #6366f1); }
+.nux-content blockquote { border-left-color: var(--nuxflow-primary, #6366f1); }
 `,
 
     'README.md': `# ${name}
@@ -301,6 +334,26 @@ so the update command knows which theme to patch.
 
 The CSS in \`theme.css\` is stored in Cloudflare KV and injected into the HTML
 \`<head>\` on every server-rendered page — no redeploy required.
+
+## Bundling demo content (optional)
+
+A theme can ship with seed content — pages, posts, menus, forms — that the
+admin can one-click import after activating the theme (Admin → Themes →
+Import demo content). To include it:
+
+1. Build the pages/posts/menus/forms you want to ship on a real NuxFlow site.
+2. Export them: \`GET /api/v1/backup\` on that site (admin-only) downloads a zip
+   containing \`backup.json\` + an \`images/\` folder.
+3. Copy \`backup.json\` into this folder as \`demo.json\`, and copy the \`images/\`
+   folder alongside it.
+4. Run \`nuxflow theme deploy\` again — the CLI automatically zips
+   \`theme.css\` + \`theme.json\` + \`demo.json\` + \`images/\` and uploads the
+   bundle instead of a bare CSS payload whenever \`demo.json\` or \`images/\`
+   is present.
+
+Bundled (zip) deploys always create a new theme — the \`update\` command only
+patches CSS on an existing theme, since demo content is a one-time import, not
+something that's re-synced.
 `,
   }
 

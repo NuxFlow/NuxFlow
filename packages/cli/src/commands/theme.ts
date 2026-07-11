@@ -1,16 +1,23 @@
 import { defineCommand } from 'citty'
 import { intro, text, confirm, outro, spinner } from '@clack/prompts'
 import { consola } from 'consola'
-import { readFile, writeFile } from 'fs/promises'
+import { readFile, writeFile, readdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join, resolve } from 'path'
-import { authenticate, apiPost, apiPatch, resolveAuth } from '../utils/api'
+import { zipSync } from 'fflate'
+import { authenticate, apiPost, apiPatch, apiPostZip, resolveAuth } from '../utils/api'
 import { scaffoldTheme } from '../utils/scaffold'
 
 interface ThemeManifest {
   name: string
   version: string
   deployedId?: string
+}
+
+interface DeployResponse {
+  id?: string
+  hasDemoContent?: boolean
+  failedImages?: string[]
 }
 
 async function readManifest(dir: string): Promise<ThemeManifest> {
@@ -23,6 +30,34 @@ async function readCss(dir: string): Promise<string> {
   const p = join(dir, 'theme.css')
   if (!existsSync(p)) throw new Error('theme.css not found — run this command from a theme directory')
   return readFile(p, 'utf-8')
+}
+
+// A theme becomes a "bundled" (zip) deploy the moment it carries demo content —
+// bare CSS themes stay on the plain JSON path the API also supports.
+async function buildBundleZip(dir: string, manifest: ThemeManifest, css: string): Promise<Uint8Array | null> {
+  const demoPath = join(dir, 'demo.json')
+  const imagesDir = join(dir, 'images')
+  const hasDemo = existsSync(demoPath)
+  const hasImages = existsSync(imagesDir)
+  if (!hasDemo && !hasImages) return null
+
+  const files: Record<string, Uint8Array> = {
+    'theme.css': new TextEncoder().encode(css),
+    'theme.json': new TextEncoder().encode(JSON.stringify({ name: manifest.name, version: manifest.version }, null, 2)),
+  }
+
+  if (hasDemo) {
+    files['demo.json'] = new TextEncoder().encode(await readFile(demoPath, 'utf-8'))
+  }
+
+  if (hasImages) {
+    for (const entry of await readdir(imagesDir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue
+      files[`images/${entry.name}`] = await readFile(join(imagesDir, entry.name))
+    }
+  }
+
+  return zipSync(files)
 }
 
 export const themeCommand = defineCommand({
@@ -86,6 +121,8 @@ export const themeCommand = defineCommand({
           consola.error(e.message); process.exit(1)
         }) as string
 
+        const bundleZip = await buildBundleZip(dir, manifest, css)
+
         const s = spinner()
         s.start('Authenticating…')
 
@@ -100,14 +137,18 @@ export const themeCommand = defineCommand({
           process.exit(1)
         }
 
-        s.message(`Uploading "${manifest.name}" v${manifest.version}…`)
+        s.message(bundleZip
+          ? `Uploading "${manifest.name}" v${manifest.version} (with demo content)…`
+          : `Uploading "${manifest.name}" v${manifest.version}…`)
 
         try {
-          const res = await apiPost(site, '/api/v1/themes', cookie, {
-            name: manifest.name,
-            version: manifest.version,
-            css,
-          }) as { id?: string }
+          const res = bundleZip
+            ? await apiPostZip(site, '/api/v1/themes', cookie, `${manifest.name.toLowerCase().replace(/\s+/g, '-')}.zip`, bundleZip) as DeployResponse
+            : await apiPost(site, '/api/v1/themes', cookie, {
+                name: manifest.name,
+                version: manifest.version,
+                css,
+              }) as DeployResponse
 
           // Persist the server-assigned ID so future `update` calls work without UI
           if (res.id) {
@@ -116,6 +157,9 @@ export const themeCommand = defineCommand({
           }
 
           s.stop('Deployed!')
+
+          if (res.hasDemoContent) consola.info('Demo content uploaded — import it from Admin → Themes after activating.')
+          if (res.failedImages?.length) consola.warn(`Some demo images failed to upload: ${res.failedImages.join(', ')}`)
         } catch (e: unknown) {
           s.stop('Deploy failed.')
           consola.error((e as Error).message)

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 
 declare const useFetch: <T = any>(url: string | (() => string), options?: any) => any
@@ -87,7 +88,7 @@ const wrapperStyle = computed(() => {
             >
             <template v-else>
               <div v-if="logoIcon" class="logo-icon-bg">
-                <span :class="logoIcon" class="logo-icon"></span>
+                <UIcon :name="logoIcon" mode="svg" class="logo-icon" />
               </div>
               <span class="logo-text">{{ displayLogoText }}</span>
             </template>
@@ -119,7 +120,7 @@ const wrapperStyle = computed(() => {
       <div class="footer-bottom">
         <div class="copyright">{{ displayCopyright }}</div>
         <div class="attribution">
-          <span class="i-lucide-zap attribution-icon"></span>
+          <UIcon name="i-lucide-zap" mode="svg" class="attribution-icon" />
           Built on NuxFlow CMS
         </div>
       </div>

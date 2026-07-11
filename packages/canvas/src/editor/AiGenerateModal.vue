@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { CanvasContent } from '../types'
 
 const props = defineProps<{ hasBlocks: boolean }>()
@@ -68,11 +69,11 @@ async function generate() {
       <!-- Header -->
       <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-800">
         <div class="flex items-center gap-2">
-          <span class="i-lucide-sparkles w-4 h-4 text-primary-500" />
+          <UIcon name="i-lucide-sparkles" mode="svg" class="w-4 h-4 text-primary-500" />
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">Generate page with AI</h2>
         </div>
         <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" @click="emit('close')">
-          <span class="i-lucide-x w-4 h-4" />
+          <UIcon name="i-lucide-x" mode="svg" class="w-4 h-4" />
         </button>
       </div>
 
@@ -112,12 +113,12 @@ async function generate() {
         </div>
 
         <p v-if="error" class="text-sm text-red-500 flex items-center gap-1.5">
-          <span class="i-lucide-alert-circle w-4 h-4" />
+          <UIcon name="i-lucide-alert-circle" mode="svg" class="w-4 h-4" />
           {{ error }}
         </p>
 
         <p v-if="hasBlocks" class="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-          <span class="i-lucide-triangle-alert w-3.5 h-3.5" />
+          <UIcon name="i-lucide-triangle-alert" mode="svg" class="w-3.5 h-3.5" />
           Existing blocks will be replaced.
         </p>
       </div>
@@ -135,8 +136,8 @@ async function generate() {
           class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           @click="generate"
         >
-          <span v-if="loading" class="i-lucide-loader-2 w-4 h-4 animate-spin" />
-          <span v-else class="i-lucide-sparkles w-4 h-4" />
+          <UIcon v-if="loading" name="i-lucide-loader-2" mode="svg" class="w-4 h-4 animate-spin" />
+          <UIcon v-else name="i-lucide-sparkles" mode="svg" class="w-4 h-4" />
           {{ loading ? 'Generating…' : 'Generate page' }}
         </button>
       </div>

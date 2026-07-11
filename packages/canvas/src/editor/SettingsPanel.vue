@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { CanvasBlockData, CanvasBlockDefinition } from '../types'
 import FieldRenderer from './FieldRenderer.vue'
 
@@ -28,7 +29,7 @@ const visibleFields = computed(() =>
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
       <div class="flex items-center gap-2">
-        <span :class="`${definition.icon} w-4 h-4 text-primary-500 shrink-0`" />
+        <UIcon :name="definition.icon" mode="svg" class="w-4 h-4 text-primary-500 shrink-0" />
         <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ definition.name }}</span>
       </div>
       <button

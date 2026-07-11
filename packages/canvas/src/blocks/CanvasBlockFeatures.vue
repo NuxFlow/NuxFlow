@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 
 const props = withDefaults(defineProps<{
@@ -141,8 +142,10 @@ const cardStyle  = computed(() => hasBg.value ? {
           :class="align === 'center' ? 'mx-auto mb-4' : style === 'icon-top' ? 'mb-4' : ''"
           :style="{ backgroundColor: iconBgColor }"
         >
-          <span
-            :class="`${feat.icon} w-5 h-5`"
+          <UIcon
+            :name="feat.icon"
+            mode="svg"
+            class="w-5 h-5"
             :style="{ color: iconColor ?? '#6366f1' }"
           />
         </div>

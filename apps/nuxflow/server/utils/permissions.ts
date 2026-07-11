@@ -19,7 +19,7 @@ export function roleAtLeast(role: Role, minimum: Role): boolean {
 }
 
 export async function requireAuth(event: H3Event): Promise<{ userId: string; role: Role }> {
-  const session = await requireUserSession(event)
+  const session = await requireSession(event)
 
   const siteId = event.context.siteId
   if (!siteId) throw createError({ statusCode: 400, message: 'Unknown site' })
@@ -39,7 +39,7 @@ export async function requireRole(event: H3Event, minimum: Role) {
 }
 
 export async function requireSuperAdmin(event: H3Event): Promise<{ userId: string }> {
-  const session = await requireUserSession(event)
+  const session = await requireSession(event)
 
   const db = useDb(event)
   const roleRow = await db.query.userSiteRoles.findFirst({

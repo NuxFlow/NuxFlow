@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 
 const props = withDefaults(defineProps<{
@@ -62,8 +63,10 @@ const containerStyle = computed(() => {
             @click="toggle(index)"
           >
             <span>{{ item.question }}</span>
-            <span
-              class="i-lucide-chevron-down w-5 h-5 transition-transform duration-300 shrink-0 ml-4 text-gray-400"
+            <UIcon
+              name="i-lucide-chevron-down"
+              mode="svg"
+              class="w-5 h-5 transition-transform duration-300 shrink-0 ml-4 text-gray-400"
               :class="activeIndex === index ? 'rotate-180 text-primary-500' : ''"
             />
           </button>

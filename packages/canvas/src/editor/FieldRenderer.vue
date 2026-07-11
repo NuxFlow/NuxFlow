@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { FieldSchema, SpacingValue } from '../types'
 import RichTextInput from './RichTextInput.vue'
 import { useAiImprove, AI_IMPROVE_ACTIONS, type AiInstruction } from './useAiImprove'
@@ -91,8 +92,8 @@ function applyAlternative(alt: string) {
           class="h-full px-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-primary-500 hover:border-primary-400 disabled:opacity-30 transition-colors"
           @click.stop="showAiMenu = !showAiMenu"
         >
-          <span v-if="aiLoading" class="i-lucide-loader-2 w-3.5 h-3.5 animate-spin block" />
-          <span v-else class="i-lucide-sparkles w-3.5 h-3.5 block" />
+          <UIcon v-if="aiLoading" name="i-lucide-loader-2" mode="svg" class="w-3.5 h-3.5 animate-spin block" />
+          <UIcon v-else name="i-lucide-sparkles" mode="svg" class="w-3.5 h-3.5 block" />
         </button>
         <div
           v-if="showAiMenu"
@@ -149,7 +150,7 @@ function applyAlternative(alt: string) {
         class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 disabled:opacity-40 transition-colors"
         @click="triggerAi(action.value)"
       >
-        <span v-if="aiLoading" class="i-lucide-loader-2 w-2.5 h-2.5 animate-spin" />
+        <UIcon v-if="aiLoading" name="i-lucide-loader-2" mode="svg" class="w-2.5 h-2.5 animate-spin" />
         {{ action.icon }} {{ action.label }}
       </button>
     </div>
@@ -274,7 +275,7 @@ function applyAlternative(alt: string) {
           class="w-10 h-10 object-cover rounded shrink-0"
         />
         <div v-else class="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded shrink-0 flex items-center justify-center">
-          <span class="i-lucide-image w-4 h-4 text-gray-400" />
+          <UIcon name="i-lucide-image" mode="svg" class="w-4 h-4 text-gray-400" />
         </div>
         <input
           :value="img.alt"
@@ -288,7 +289,7 @@ function applyAlternative(alt: string) {
           title="Remove image"
           @click="removeImage(i)"
         >
-          <span class="i-lucide-trash-2 w-3.5 h-3.5 block" />
+          <UIcon name="i-lucide-trash-2" mode="svg" class="w-3.5 h-3.5 block" />
         </button>
       </div>
     </div>

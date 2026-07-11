@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import { CANVAS_BLOCKS, getDynamicBlockDefinitions } from '../blocks/definitions'
 
 
@@ -48,7 +49,7 @@ const extensionBlocks = computed(() => getDynamicBlockDefinitions())
               :key="block.id"
               class="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
             >
-              <span :class="`${block.icon} w-5 h-5 mt-0.5 shrink-0`" />
+              <UIcon :name="block.icon" mode="svg" class="w-5 h-5 mt-0.5 shrink-0" />
               <div>
                 <p class="text-sm font-medium text-gray-900 dark:text-white">{{ block.name }}</p>
                 <p v-if="block.description" class="text-xs text-gray-400 mt-0.5">{{ block.description }}</p>
@@ -66,7 +67,7 @@ const extensionBlocks = computed(() => getDynamicBlockDefinitions())
             :key="block.id"
             class="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
           >
-            <span :class="`${block.icon} w-5 h-5 mt-0.5 shrink-0`" />
+            <UIcon :name="block.icon" mode="svg" class="w-5 h-5 mt-0.5 shrink-0" />
             <div>
               <p class="text-sm font-medium text-gray-900 dark:text-white">{{ block.name }}</p>
               <p v-if="block.description" class="text-xs text-gray-400 mt-0.5">{{ block.description }}</p>

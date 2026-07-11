@@ -925,7 +925,7 @@ var require_universalify = __commonJS({
         if (typeof args[args.length - 1] === "function") fn.apply(this, args);
         else {
           return new Promise((resolve3, reject) => {
-            args.push((err, res) => err != null ? reject(err) : resolve3(res));
+            args.push((err2, res) => err2 != null ? reject(err2) : resolve3(res));
             fn.apply(this, args);
           });
         }
@@ -1036,29 +1036,29 @@ var require_polyfills = __commonJS({
         })(fs.rename);
       }
       fs.read = typeof fs.read !== "function" ? fs.read : (function(fs$read) {
-        function read(fd, buffer, offset, length, position, callback_) {
+        function read(fd2, buffer, offset, length, position, callback_) {
           var callback;
           if (callback_ && typeof callback_ === "function") {
             var eagCounter = 0;
             callback = function(er, _4, __) {
               if (er && er.code === "EAGAIN" && eagCounter < 10) {
                 eagCounter++;
-                return fs$read.call(fs, fd, buffer, offset, length, position, callback);
+                return fs$read.call(fs, fd2, buffer, offset, length, position, callback);
               }
               callback_.apply(this, arguments);
             };
           }
-          return fs$read.call(fs, fd, buffer, offset, length, position, callback);
+          return fs$read.call(fs, fd2, buffer, offset, length, position, callback);
         }
         if (Object.setPrototypeOf) Object.setPrototypeOf(read, fs$read);
         return read;
       })(fs.read);
       fs.readSync = typeof fs.readSync !== "function" ? fs.readSync : /* @__PURE__ */ (function(fs$readSync) {
-        return function(fd, buffer, offset, length, position) {
+        return function(fd2, buffer, offset, length, position) {
           var eagCounter = 0;
           while (true) {
             try {
-              return fs$readSync.call(fs, fd, buffer, offset, length, position);
+              return fs$readSync.call(fs, fd2, buffer, offset, length, position);
             } catch (er) {
               if (er.code === "EAGAIN" && eagCounter < 10) {
                 eagCounter++;
@@ -1075,34 +1075,34 @@ var require_polyfills = __commonJS({
             path,
             constants.O_WRONLY | constants.O_SYMLINK,
             mode,
-            function(err, fd) {
-              if (err) {
-                if (callback) callback(err);
+            function(err2, fd2) {
+              if (err2) {
+                if (callback) callback(err2);
                 return;
               }
-              fs2.fchmod(fd, mode, function(err2) {
-                fs2.close(fd, function(err22) {
-                  if (callback) callback(err2 || err22);
+              fs2.fchmod(fd2, mode, function(err3) {
+                fs2.close(fd2, function(err22) {
+                  if (callback) callback(err3 || err22);
                 });
               });
             }
           );
         };
         fs2.lchmodSync = function(path, mode) {
-          var fd = fs2.openSync(path, constants.O_WRONLY | constants.O_SYMLINK, mode);
+          var fd2 = fs2.openSync(path, constants.O_WRONLY | constants.O_SYMLINK, mode);
           var threw = true;
           var ret;
           try {
-            ret = fs2.fchmodSync(fd, mode);
+            ret = fs2.fchmodSync(fd2, mode);
             threw = false;
           } finally {
             if (threw) {
               try {
-                fs2.closeSync(fd);
+                fs2.closeSync(fd2);
               } catch (er) {
               }
             } else {
-              fs2.closeSync(fd);
+              fs2.closeSync(fd2);
             }
           }
           return ret;
@@ -1111,39 +1111,39 @@ var require_polyfills = __commonJS({
       function patchLutimes(fs2) {
         if (constants.hasOwnProperty("O_SYMLINK") && fs2.futimes) {
           fs2.lutimes = function(path, at, mt, cb) {
-            fs2.open(path, constants.O_SYMLINK, function(er, fd) {
+            fs2.open(path, constants.O_SYMLINK, function(er, fd2) {
               if (er) {
                 if (cb) cb(er);
                 return;
               }
-              fs2.futimes(fd, at, mt, function(er2) {
-                fs2.close(fd, function(er22) {
+              fs2.futimes(fd2, at, mt, function(er2) {
+                fs2.close(fd2, function(er22) {
                   if (cb) cb(er2 || er22);
                 });
               });
             });
           };
           fs2.lutimesSync = function(path, at, mt) {
-            var fd = fs2.openSync(path, constants.O_SYMLINK);
+            var fd2 = fs2.openSync(path, constants.O_SYMLINK);
             var ret;
             var threw = true;
             try {
-              ret = fs2.futimesSync(fd, at, mt);
+              ret = fs2.futimesSync(fd2, at, mt);
               threw = false;
             } finally {
               if (threw) {
                 try {
-                  fs2.closeSync(fd);
+                  fs2.closeSync(fd2);
                 } catch (er) {
                 }
               } else {
-                fs2.closeSync(fd);
+                fs2.closeSync(fd2);
               }
             }
             return ret;
           };
         } else if (fs2.futimes) {
-          fs2.lutimes = function(_a, _b, _c, cb) {
+          fs2.lutimes = function(_a2, _b2, _c, cb) {
             if (cb) process.nextTick(cb);
           };
           fs2.lutimesSync = function() {
@@ -1280,14 +1280,14 @@ var require_legacy_streams = __commonJS({
           });
           return;
         }
-        fs.open(this.path, this.flags, this.mode, function(err, fd) {
-          if (err) {
-            self.emit("error", err);
+        fs.open(this.path, this.flags, this.mode, function(err2, fd2) {
+          if (err2) {
+            self.emit("error", err2);
             self.readable = false;
             return;
           }
-          self.fd = fd;
-          self.emit("open", fd);
+          self.fd = fd2;
+          self.emit("open", fd2);
           self._read();
         });
       }
@@ -1390,9 +1390,9 @@ var require_graceful_fs = __commonJS({
       queue2 = global[gracefulQueue] || [];
       publishQueue(fs, queue2);
       fs.close = (function(fs$close) {
-        function close(fd, cb) {
-          return fs$close.call(fs, fd, function(err) {
-            if (!err) {
+        function close(fd2, cb) {
+          return fs$close.call(fs, fd2, function(err2) {
+            if (!err2) {
               resetQueue();
             }
             if (typeof cb === "function")
@@ -1405,7 +1405,7 @@ var require_graceful_fs = __commonJS({
         return close;
       })(fs.close);
       fs.closeSync = (function(fs$closeSync) {
-        function closeSync(fd) {
+        function closeSync(fd2) {
           fs$closeSync.apply(fs, arguments);
           resetQueue();
         }
@@ -1442,9 +1442,9 @@ var require_graceful_fs = __commonJS({
           cb = options, options = null;
         return go$readFile(path, options, cb);
         function go$readFile(path2, options2, cb2, startTime) {
-          return fs$readFile(path2, options2, function(err) {
-            if (err && (err.code === "EMFILE" || err.code === "ENFILE"))
-              enqueue([go$readFile, [path2, options2, cb2], err, startTime || Date.now(), Date.now()]);
+          return fs$readFile(path2, options2, function(err2) {
+            if (err2 && (err2.code === "EMFILE" || err2.code === "ENFILE"))
+              enqueue([go$readFile, [path2, options2, cb2], err2, startTime || Date.now(), Date.now()]);
             else {
               if (typeof cb2 === "function")
                 cb2.apply(this, arguments);
@@ -1459,9 +1459,9 @@ var require_graceful_fs = __commonJS({
           cb = options, options = null;
         return go$writeFile(path, data, options, cb);
         function go$writeFile(path2, data2, options2, cb2, startTime) {
-          return fs$writeFile(path2, data2, options2, function(err) {
-            if (err && (err.code === "EMFILE" || err.code === "ENFILE"))
-              enqueue([go$writeFile, [path2, data2, options2, cb2], err, startTime || Date.now(), Date.now()]);
+          return fs$writeFile(path2, data2, options2, function(err2) {
+            if (err2 && (err2.code === "EMFILE" || err2.code === "ENFILE"))
+              enqueue([go$writeFile, [path2, data2, options2, cb2], err2, startTime || Date.now(), Date.now()]);
             else {
               if (typeof cb2 === "function")
                 cb2.apply(this, arguments);
@@ -1477,9 +1477,9 @@ var require_graceful_fs = __commonJS({
           cb = options, options = null;
         return go$appendFile(path, data, options, cb);
         function go$appendFile(path2, data2, options2, cb2, startTime) {
-          return fs$appendFile(path2, data2, options2, function(err) {
-            if (err && (err.code === "EMFILE" || err.code === "ENFILE"))
-              enqueue([go$appendFile, [path2, data2, options2, cb2], err, startTime || Date.now(), Date.now()]);
+          return fs$appendFile(path2, data2, options2, function(err2) {
+            if (err2 && (err2.code === "EMFILE" || err2.code === "ENFILE"))
+              enqueue([go$appendFile, [path2, data2, options2, cb2], err2, startTime || Date.now(), Date.now()]);
             else {
               if (typeof cb2 === "function")
                 cb2.apply(this, arguments);
@@ -1497,9 +1497,9 @@ var require_graceful_fs = __commonJS({
         }
         return go$copyFile(src2, dest, flags, cb);
         function go$copyFile(src3, dest2, flags2, cb2, startTime) {
-          return fs$copyFile(src3, dest2, flags2, function(err) {
-            if (err && (err.code === "EMFILE" || err.code === "ENFILE"))
-              enqueue([go$copyFile, [src3, dest2, flags2, cb2], err, startTime || Date.now(), Date.now()]);
+          return fs$copyFile(src3, dest2, flags2, function(err2) {
+            if (err2 && (err2.code === "EMFILE" || err2.code === "ENFILE"))
+              enqueue([go$copyFile, [src3, dest2, flags2, cb2], err2, startTime || Date.now(), Date.now()]);
             else {
               if (typeof cb2 === "function")
                 cb2.apply(this, arguments);
@@ -1508,9 +1508,9 @@ var require_graceful_fs = __commonJS({
         }
       }
       var fs$readdir = fs2.readdir;
-      fs2.readdir = readdir;
+      fs2.readdir = readdir2;
       var noReaddirOptionVersions = /^v[0-5]\./;
-      function readdir(path, options, cb) {
+      function readdir2(path, options, cb) {
         if (typeof options === "function")
           cb = options, options = null;
         var go$readdir = noReaddirOptionVersions.test(process.version) ? function go$readdir2(path2, options2, cb2, startTime) {
@@ -1530,12 +1530,12 @@ var require_graceful_fs = __commonJS({
         };
         return go$readdir(path, options, cb);
         function fs$readdirCallback(path2, options2, cb2, startTime) {
-          return function(err, files) {
-            if (err && (err.code === "EMFILE" || err.code === "ENFILE"))
+          return function(err2, files) {
+            if (err2 && (err2.code === "EMFILE" || err2.code === "ENFILE"))
               enqueue([
                 go$readdir,
                 [path2, options2, cb2],
-                err,
+                err2,
                 startTime || Date.now(),
                 Date.now()
               ]);
@@ -1543,7 +1543,7 @@ var require_graceful_fs = __commonJS({
               if (files && files.sort)
                 files.sort();
               if (typeof cb2 === "function")
-                cb2.call(this, err, files);
+                cb2.call(this, err2, files);
             }
           };
         }
@@ -1613,14 +1613,14 @@ var require_graceful_fs = __commonJS({
       }
       function ReadStream$open() {
         var that = this;
-        open(that.path, that.flags, that.mode, function(err, fd) {
-          if (err) {
+        open(that.path, that.flags, that.mode, function(err2, fd2) {
+          if (err2) {
             if (that.autoClose)
               that.destroy();
-            that.emit("error", err);
+            that.emit("error", err2);
           } else {
-            that.fd = fd;
-            that.emit("open", fd);
+            that.fd = fd2;
+            that.emit("open", fd2);
             that.read();
           }
         });
@@ -1633,13 +1633,13 @@ var require_graceful_fs = __commonJS({
       }
       function WriteStream$open() {
         var that = this;
-        open(that.path, that.flags, that.mode, function(err, fd) {
-          if (err) {
+        open(that.path, that.flags, that.mode, function(err2, fd2) {
+          if (err2) {
             that.destroy();
-            that.emit("error", err);
+            that.emit("error", err2);
           } else {
-            that.fd = fd;
-            that.emit("open", fd);
+            that.fd = fd2;
+            that.emit("open", fd2);
           }
         });
       }
@@ -1656,9 +1656,9 @@ var require_graceful_fs = __commonJS({
           cb = mode, mode = null;
         return go$open(path, flags, mode, cb);
         function go$open(path2, flags2, mode2, cb2, startTime) {
-          return fs$open(path2, flags2, mode2, function(err, fd) {
-            if (err && (err.code === "EMFILE" || err.code === "ENFILE"))
-              enqueue([go$open, [path2, flags2, mode2, cb2], err, startTime || Date.now(), Date.now()]);
+          return fs$open(path2, flags2, mode2, function(err2, fd2) {
+            if (err2 && (err2.code === "EMFILE" || err2.code === "ENFILE"))
+              enqueue([go$open, [path2, flags2, mode2, cb2], err2, startTime || Date.now(), Date.now()]);
             else {
               if (typeof cb2 === "function")
                 cb2.apply(this, arguments);
@@ -1692,7 +1692,7 @@ var require_graceful_fs = __commonJS({
       var elem = fs[gracefulQueue].shift();
       var fn = elem[0];
       var args = elem[1];
-      var err = elem[2];
+      var err2 = elem[2];
       var startTime = elem[3];
       var lastTime = elem[4];
       if (startTime === void 0) {
@@ -1702,7 +1702,7 @@ var require_graceful_fs = __commonJS({
         debug("TIMEOUT", fn.name, args);
         var cb = args.pop();
         if (typeof cb === "function")
-          cb.call(null, err);
+          cb.call(null, err2);
       } else {
         var sinceAttempt = Date.now() - lastTime;
         var sinceStart = Math.max(lastTime - startTime, 1);
@@ -1781,46 +1781,46 @@ var require_fs = __commonJS({
         return fs.exists(filename, resolve3);
       });
     };
-    exports2.read = function(fd, buffer, offset, length, position, callback) {
+    exports2.read = function(fd2, buffer, offset, length, position, callback) {
       if (typeof callback === "function") {
-        return fs.read(fd, buffer, offset, length, position, callback);
+        return fs.read(fd2, buffer, offset, length, position, callback);
       }
       return new Promise((resolve3, reject) => {
-        fs.read(fd, buffer, offset, length, position, (err, bytesRead, buffer2) => {
-          if (err) return reject(err);
+        fs.read(fd2, buffer, offset, length, position, (err2, bytesRead, buffer2) => {
+          if (err2) return reject(err2);
           resolve3({ bytesRead, buffer: buffer2 });
         });
       });
     };
-    exports2.write = function(fd, buffer, ...args) {
+    exports2.write = function(fd2, buffer, ...args) {
       if (typeof args[args.length - 1] === "function") {
-        return fs.write(fd, buffer, ...args);
+        return fs.write(fd2, buffer, ...args);
       }
       return new Promise((resolve3, reject) => {
-        fs.write(fd, buffer, ...args, (err, bytesWritten, buffer2) => {
-          if (err) return reject(err);
+        fs.write(fd2, buffer, ...args, (err2, bytesWritten, buffer2) => {
+          if (err2) return reject(err2);
           resolve3({ bytesWritten, buffer: buffer2 });
         });
       });
     };
-    exports2.readv = function(fd, buffers, ...args) {
+    exports2.readv = function(fd2, buffers, ...args) {
       if (typeof args[args.length - 1] === "function") {
-        return fs.readv(fd, buffers, ...args);
+        return fs.readv(fd2, buffers, ...args);
       }
       return new Promise((resolve3, reject) => {
-        fs.readv(fd, buffers, ...args, (err, bytesRead, buffers2) => {
-          if (err) return reject(err);
+        fs.readv(fd2, buffers, ...args, (err2, bytesRead, buffers2) => {
+          if (err2) return reject(err2);
           resolve3({ bytesRead, buffers: buffers2 });
         });
       });
     };
-    exports2.writev = function(fd, buffers, ...args) {
+    exports2.writev = function(fd2, buffers, ...args) {
       if (typeof args[args.length - 1] === "function") {
-        return fs.writev(fd, buffers, ...args);
+        return fs.writev(fd2, buffers, ...args);
       }
       return new Promise((resolve3, reject) => {
-        fs.writev(fd, buffers, ...args, (err, bytesWritten, buffers2) => {
-          if (err) return reject(err);
+        fs.writev(fd2, buffers, ...args, (err2, bytesWritten, buffers2) => {
+          if (err2) return reject(err2);
           resolve3({ bytesWritten, buffers: buffers2 });
         });
       });
@@ -1925,15 +1925,15 @@ var require_utimes = __commonJS({
     var fs = require_fs();
     var u4 = require_universalify().fromPromise;
     async function utimesMillis(path, atime, mtime) {
-      const fd = await fs.open(path, "r+");
+      const fd2 = await fs.open(path, "r+");
       let error = null;
       try {
-        await fs.futimes(fd, atime, mtime);
+        await fs.futimes(fd2, atime, mtime);
       } catch (futimesErr) {
         error = futimesErr;
       } finally {
         try {
-          await fs.close(fd);
+          await fs.close(fd2);
         } catch (closeErr) {
           if (!error) error = closeErr;
         }
@@ -1943,15 +1943,15 @@ var require_utimes = __commonJS({
       }
     }
     function utimesMillisSync(path, atime, mtime) {
-      const fd = fs.openSync(path, "r+");
+      const fd2 = fs.openSync(path, "r+");
       let error = null;
       try {
-        fs.futimesSync(fd, atime, mtime);
+        fs.futimesSync(fd2, atime, mtime);
       } catch (futimesErr) {
         error = futimesErr;
       } finally {
         try {
-          fs.closeSync(fd);
+          fs.closeSync(fd2);
         } catch (closeErr) {
           if (!error) error = closeErr;
         }
@@ -1978,9 +1978,9 @@ var require_stat = __commonJS({
       const statFunc = opts.dereference ? (file) => fs.stat(file, { bigint: true }) : (file) => fs.lstat(file, { bigint: true });
       return Promise.all([
         statFunc(src2),
-        statFunc(dest).catch((err) => {
-          if (err.code === "ENOENT") return null;
-          throw err;
+        statFunc(dest).catch((err2) => {
+          if (err2.code === "ENOENT") return null;
+          throw err2;
         })
       ]).then(([srcStat, destStat]) => ({ srcStat, destStat }));
     }
@@ -1990,9 +1990,9 @@ var require_stat = __commonJS({
       const srcStat = statFunc(src2);
       try {
         destStat = statFunc(dest);
-      } catch (err) {
-        if (err.code === "ENOENT") return { srcStat, destStat: null };
-        throw err;
+      } catch (err2) {
+        if (err2.code === "ENOENT") return { srcStat, destStat: null };
+        throw err2;
       }
       return { srcStat, destStat };
     }
@@ -2049,9 +2049,9 @@ var require_stat = __commonJS({
       let destStat;
       try {
         destStat = await fs.stat(destParent, { bigint: true });
-      } catch (err) {
-        if (err.code === "ENOENT") return;
-        throw err;
+      } catch (err2) {
+        if (err2.code === "ENOENT") return;
+        throw err2;
       }
       if (areIdentical(srcStat, destStat)) {
         throw new Error(errMsg(src2, dest, funcName));
@@ -2065,9 +2065,9 @@ var require_stat = __commonJS({
       let destStat;
       try {
         destStat = fs.statSync(destParent, { bigint: true });
-      } catch (err) {
-        if (err.code === "ENOENT") return;
-        throw err;
+      } catch (err2) {
+        if (err2.code === "ENOENT") return;
+        throw err2;
       }
       if (areIdentical(srcStat, destStat)) {
         throw new Error(errMsg(src2, dest, funcName));
@@ -2109,7 +2109,7 @@ var require_async = __commonJS({
         promises.push(
           fn(item).then(
             () => null,
-            (err) => err ?? new Error("unknown error")
+            (err2) => err2 ?? new Error("unknown error")
           )
         );
       }
@@ -2365,9 +2365,9 @@ var require_copy_sync = __commonJS({
         let resolvedDest;
         try {
           resolvedDest = fs.readlinkSync(dest);
-        } catch (err) {
-          if (err.code === "EINVAL" || err.code === "UNKNOWN") return fs.symlinkSync(resolvedSrc, dest);
-          throw err;
+        } catch (err2) {
+          if (err2.code === "EINVAL" || err2.code === "UNKNOWN") return fs.symlinkSync(resolvedSrc, dest);
+          throw err2;
         }
         if (opts.dereference) {
           resolvedDest = path.resolve(process.cwd(), resolvedDest);
@@ -2480,13 +2480,13 @@ var require_file = __commonJS({
       let dirStats = null;
       try {
         dirStats = await fs.stat(dir);
-      } catch (err) {
-        if (err.code === "ENOENT") {
+      } catch (err2) {
+        if (err2.code === "ENOENT") {
           await mkdir2.mkdirs(dir);
           await fs.writeFile(file, "");
           return;
         } else {
-          throw err;
+          throw err2;
         }
       }
       if (dirStats.isDirectory()) {
@@ -2507,9 +2507,9 @@ var require_file = __commonJS({
         if (!fs.statSync(dir).isDirectory()) {
           fs.readdirSync(dir);
         }
-      } catch (err) {
-        if (err && err.code === "ENOENT") mkdir2.mkdirsSync(dir);
-        else throw err;
+      } catch (err2) {
+        if (err2 && err2.code === "ENOENT") mkdir2.mkdirsSync(dir);
+        else throw err2;
       }
       fs.writeFileSync(file, "");
     }
@@ -2539,9 +2539,9 @@ var require_link = __commonJS({
       let srcStat;
       try {
         srcStat = await fs.lstat(srcpath, { bigint: true });
-      } catch (err) {
-        err.message = err.message.replace("lstat", "ensureLink");
-        throw err;
+      } catch (err2) {
+        err2.message = err2.message.replace("lstat", "ensureLink");
+        throw err2;
       }
       if (dstStat && areIdentical(srcStat, dstStat)) return;
       const dir = path.dirname(dstpath);
@@ -2560,9 +2560,9 @@ var require_link = __commonJS({
       try {
         const srcStat = fs.lstatSync(srcpath, { bigint: true });
         if (dstStat && areIdentical(srcStat, dstStat)) return;
-      } catch (err) {
-        err.message = err.message.replace("lstat", "ensureLink");
-        throw err;
+      } catch (err2) {
+        err2.message = err2.message.replace("lstat", "ensureLink");
+        throw err2;
       }
       const dir = path.dirname(dstpath);
       const dirExists = fs.existsSync(dir);
@@ -2589,9 +2589,9 @@ var require_symlink_paths = __commonJS({
       if (path.isAbsolute(srcpath)) {
         try {
           await fs.lstat(srcpath);
-        } catch (err) {
-          err.message = err.message.replace("lstat", "ensureSymlink");
-          throw err;
+        } catch (err2) {
+          err2.message = err2.message.replace("lstat", "ensureSymlink");
+          throw err2;
         }
         return {
           toCwd: srcpath,
@@ -2609,9 +2609,9 @@ var require_symlink_paths = __commonJS({
       }
       try {
         await fs.lstat(srcpath);
-      } catch (err) {
-        err.message = err.message.replace("lstat", "ensureSymlink");
-        throw err;
+      } catch (err2) {
+        err2.message = err2.message.replace("lstat", "ensureSymlink");
+        throw err2;
       }
       return {
         toCwd: srcpath,
@@ -2832,10 +2832,10 @@ var require_jsonfile = __commonJS({
       let obj;
       try {
         obj = JSON.parse(data, options ? options.reviver : null);
-      } catch (err) {
+      } catch (err2) {
         if (shouldThrow) {
-          err.message = `${file}: ${err.message}`;
-          throw err;
+          err2.message = `${file}: ${err2.message}`;
+          throw err2;
         } else {
           return null;
         }
@@ -2853,10 +2853,10 @@ var require_jsonfile = __commonJS({
         let content = fs.readFileSync(file, options);
         content = stripBom(content);
         return JSON.parse(content, options.reviver);
-      } catch (err) {
+      } catch (err2) {
         if (shouldThrow) {
-          err.message = `${file}: ${err.message}`;
-          throw err;
+          err2.message = `${file}: ${err2.message}`;
+          throw err2;
         } else {
           return null;
         }
@@ -3005,9 +3005,9 @@ var require_move = __commonJS({
       }
       try {
         await fs.rename(src2, dest);
-      } catch (err) {
-        if (err.code !== "EXDEV") {
-          throw err;
+      } catch (err2) {
+        if (err2.code !== "EXDEV") {
+          throw err2;
         }
         await moveAcrossDevice(src2, dest, overwrite);
       }
@@ -3060,8 +3060,8 @@ var require_move_sync = __commonJS({
     function rename(src2, dest, overwrite) {
       try {
         fs.renameSync(src2, dest);
-      } catch (err) {
-        if (err.code !== "EXDEV") throw err;
+      } catch (err2) {
+        if (err2.code !== "EXDEV") throw err2;
         return moveAcrossDevice(src2, dest, overwrite);
       }
     }
@@ -3638,12 +3638,12 @@ var BasicReporter = class {
     return indent + parseStack(stack, message).join(`
 ${indent}`);
   }
-  formatError(err, opts) {
-    const message = err.message ?? (0, import_node_util.formatWithOptions)(opts, err);
-    const stack = err.stack ? this.formatStack(err.stack, message, opts) : "";
+  formatError(err2, opts) {
+    const message = err2.message ?? (0, import_node_util.formatWithOptions)(opts, err2);
+    const stack = err2.stack ? this.formatStack(err2.stack, message, opts) : "";
     const level = opts?.errorLevel || 0;
     const causedPrefix = level > 0 ? `${"  ".repeat(level)}[cause]: ` : "";
-    const causedError = err.cause ? "\n\n" + this.formatError(err.cause, { ...opts, errorLevel: level + 1 }) : "";
+    const causedError = err2.cause ? "\n\n" + this.formatError(err2.cause, { ...opts, errorLevel: level + 1 }) : "";
     return causedPrefix + message + "\n" + stack + causedError;
   }
   formatArgs(args, opts) {
@@ -5194,6 +5194,21 @@ async function request(method, site, path, cookie, body) {
 var apiPost = (site, path, cookie, body) => request("POST", site, path, cookie, body);
 var apiPatch = (site, path, cookie, body) => request("PATCH", site, path, cookie, body);
 var apiDelete = (site, path, cookie) => request("DELETE", site, path, cookie);
+async function apiPostZip(site, path, cookie, filename, data) {
+  const form = new FormData();
+  form.append("file", new Blob([data]), filename);
+  const res = await fetch(`${site}${path}`, {
+    method: "POST",
+    headers: { "Cookie": cookie, "Origin": site },
+    body: form
+  });
+  const data2 = await res.json().catch(() => ({ error: res.statusText }));
+  if (!res.ok) {
+    const msg = data2.message ?? data2.error ?? res.statusText;
+    throw new Error(`API error (${res.status}): ${msg}`);
+  }
+  return data2;
+}
 function resolveAuth(opts) {
   const site = (opts.site ?? process.env.NUXFLOW_SITE ?? "").replace(/\/$/, "");
   const email = opts.email ?? process.env.NUXFLOW_EMAIL ?? "";
@@ -5550,43 +5565,76 @@ async function scaffoldTheme(dir, name) {
  * ${name} \u2014 NuxFlow CSS Theme
  *
  * This stylesheet is injected into the <head> of every SSR page render.
- * Use CSS custom properties to override design tokens, or write any CSS you need.
+ * Use the selectors and custom properties below, or write any CSS you need.
  *
  * Deploy:  nuxflow theme deploy --site https://your-site.com
  * Update:  nuxflow theme update --site https://your-site.com  (after first deploy)
+ *
+ * Full token/selector reference: themes/default/assets/css/theme.css in the
+ * NuxFlow repo (also covers admin-dashboard chrome, which this starter omits).
  */
 
-:root {
-  /* \u2500\u2500 Brand colours \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-  --color-primary-50:  #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
 
-  /* \u2500\u2500 Typography \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   Appearance settings bridge
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   Two custom properties are injected automatically into every public page from
+   Admin \u2192 Themes \u2192 Appearance \u2014 reference them so a single admin setting can
+   drive your whole theme. Both ship with a safe fallback.
 
-  /* \u2500\u2500 Border radius \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-  --radius-sm:   0.25rem;
-  --radius-md:   0.5rem;
-  --radius-lg:   0.75rem;
-  --radius-xl:   1rem;
-  --radius-2xl:  1.5rem;
-}
+     --nuxflow-primary   The "Accent colour" value chosen in the picker.
+     --nuxflow-font      The "Body font" value (font-family stack).
 
-/* Example overrides \u2014 uncomment and edit as needed:
+   Example: .canvas-hero a { background: var(--nuxflow-primary, #6366f1); }
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
-body {
-  font-family: var(--font-sans);
-}
 
-.btn-primary {
-  background-color: var(--color-primary-500);
-  border-radius: var(--radius-lg);
-}
+/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   Canvas block selectors
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   Every Canvas block renders with a semantic class on its root element. Target
+   these to style pages built with the visual page builder. All blocks sit
+   inside .nux-blocks. (canvas-video has no stable wrapper class yet \u2014 inspect
+   the rendered HTML if you need to target it.)
 
-*/
+     .canvas-hero          Hero / banner section
+     .canvas-text          Rich text / prose block
+     .canvas-image         Image block (figure inside holds the image)
+     .canvas-columns       Multi-column layout block
+     .canvas-container     Generic container / nesting block
+     .canvas-features      Feature grid section
+     .canvas-testimonial   Testimonial / quote card block
+     .canvas-cta           Call-to-action banner block
+     .canvas-spacer        Vertical spacer / divider block
+     .canvas-gdpr          Cookie / GDPR consent banner block
+     .canvas-footer        Footer block
+     .canvas-button        Standalone button block
+     .canvas-accordion     Accordion / FAQ block
+     .canvas-pricing       Pricing table block
+     .canvas-gallery       Image gallery block
+     .canvas-carousel      Carousel / slider block
+     .canvas-calendar      Calendar / events block
+
+   Canvas pages render full-width with no container \u2014 add max-width constraints
+   inside your own selectors for large-screen layouts.
+
+   .nux-content wraps TipTap-rendered rich text on non-Canvas pages (blog posts,
+   simple content pages).
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+/* Style the hero headline with gradient text: */
+/* .canvas-hero h1 {
+  background: linear-gradient(135deg, #fff 30%, var(--nuxflow-primary, #6366f1) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+} */
+
+/* Body copy follows the admin-configured font automatically: */
+/* body { font-family: var(--nuxflow-font, system-ui, -apple-system, sans-serif); } */
+
+.nux-content a       { color: var(--nuxflow-primary, #6366f1); }
+.nux-content blockquote { border-left-color: var(--nuxflow-primary, #6366f1); }
 `,
     "README.md": `# ${name}
 
@@ -5611,6 +5659,26 @@ so the update command knows which theme to patch.
 
 The CSS in \`theme.css\` is stored in Cloudflare KV and injected into the HTML
 \`<head>\` on every server-rendered page \u2014 no redeploy required.
+
+## Bundling demo content (optional)
+
+A theme can ship with seed content \u2014 pages, posts, menus, forms \u2014 that the
+admin can one-click import after activating the theme (Admin \u2192 Themes \u2192
+Import demo content). To include it:
+
+1. Build the pages/posts/menus/forms you want to ship on a real NuxFlow site.
+2. Export them: \`GET /api/v1/backup\` on that site (admin-only) downloads a zip
+   containing \`backup.json\` + an \`images/\` folder.
+3. Copy \`backup.json\` into this folder as \`demo.json\`, and copy the \`images/\`
+   folder alongside it.
+4. Run \`nuxflow theme deploy\` again \u2014 the CLI automatically zips
+   \`theme.css\` + \`theme.json\` + \`demo.json\` + \`images/\` and uploads the
+   bundle instead of a bare CSS payload whenever \`demo.json\` or \`images/\`
+   is present.
+
+Bundled (zip) deploys always create a new theme \u2014 the \`update\` command only
+patches CSS on an existing theme, since demo content is a one-time import, not
+something that's re-synced.
 `
   };
   for (const [filePath, content] of Object.entries(files)) {
@@ -5908,6 +5976,724 @@ var pluginCommand = defineCommand({
 var import_promises3 = require("fs/promises");
 var import_fs3 = require("fs");
 var import_path4 = require("path");
+
+// ../../node_modules/.pnpm/fflate@0.8.3/node_modules/fflate/esm/index.mjs
+var import_module = require("module");
+var require2 = (0, import_module.createRequire)("/");
+var _a;
+var Worker;
+var isMarkedAsUntransferable;
+try {
+  _a = require2("worker_threads"), Worker = _a.Worker, isMarkedAsUntransferable = _a.isMarkedAsUntransferable;
+} catch (e3) {
+}
+var u8 = Uint8Array;
+var u16 = Uint16Array;
+var i32 = Int32Array;
+var fleb = new u8([
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  2,
+  2,
+  2,
+  2,
+  3,
+  3,
+  3,
+  3,
+  4,
+  4,
+  4,
+  4,
+  5,
+  5,
+  5,
+  5,
+  0,
+  /* unused */
+  0,
+  0,
+  /* impossible */
+  0
+]);
+var fdeb = new u8([
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  2,
+  2,
+  3,
+  3,
+  4,
+  4,
+  5,
+  5,
+  6,
+  6,
+  7,
+  7,
+  8,
+  8,
+  9,
+  9,
+  10,
+  10,
+  11,
+  11,
+  12,
+  12,
+  13,
+  13,
+  /* unused */
+  0,
+  0
+]);
+var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
+var freb = function(eb, start) {
+  var b3 = new u16(31);
+  for (var i2 = 0; i2 < 31; ++i2) {
+    b3[i2] = start += 1 << eb[i2 - 1];
+  }
+  var r4 = new i32(b3[30]);
+  for (var i2 = 1; i2 < 30; ++i2) {
+    for (var j3 = b3[i2]; j3 < b3[i2 + 1]; ++j3) {
+      r4[j3] = j3 - b3[i2] << 5 | i2;
+    }
+  }
+  return { b: b3, r: r4 };
+};
+var _a = freb(fleb, 2);
+var fl = _a.b;
+var revfl = _a.r;
+fl[28] = 258, revfl[258] = 28;
+var _b = freb(fdeb, 0);
+var fd = _b.b;
+var revfd = _b.r;
+var rev = new u16(32768);
+for (i2 = 0; i2 < 32768; ++i2) {
+  x3 = (i2 & 43690) >> 1 | (i2 & 21845) << 1;
+  x3 = (x3 & 52428) >> 2 | (x3 & 13107) << 2;
+  x3 = (x3 & 61680) >> 4 | (x3 & 3855) << 4;
+  rev[i2] = ((x3 & 65280) >> 8 | (x3 & 255) << 8) >> 1;
+}
+var x3;
+var i2;
+var hMap = (function(cd, mb, r4) {
+  var s2 = cd.length;
+  var i2 = 0;
+  var l3 = new u16(mb);
+  for (; i2 < s2; ++i2) {
+    if (cd[i2])
+      ++l3[cd[i2] - 1];
+  }
+  var le3 = new u16(mb);
+  for (i2 = 1; i2 < mb; ++i2) {
+    le3[i2] = le3[i2 - 1] + l3[i2 - 1] << 1;
+  }
+  var co;
+  if (r4) {
+    co = new u16(1 << mb);
+    var rvb = 15 - mb;
+    for (i2 = 0; i2 < s2; ++i2) {
+      if (cd[i2]) {
+        var sv = i2 << 4 | cd[i2];
+        var r_1 = mb - cd[i2];
+        var v3 = le3[cd[i2] - 1]++ << r_1;
+        for (var m4 = v3 | (1 << r_1) - 1; v3 <= m4; ++v3) {
+          co[rev[v3] >> rvb] = sv;
+        }
+      }
+    }
+  } else {
+    co = new u16(s2);
+    for (i2 = 0; i2 < s2; ++i2) {
+      if (cd[i2]) {
+        co[i2] = rev[le3[cd[i2] - 1]++] >> 15 - cd[i2];
+      }
+    }
+  }
+  return co;
+});
+var flt = new u8(288);
+for (i2 = 0; i2 < 144; ++i2)
+  flt[i2] = 8;
+var i2;
+for (i2 = 144; i2 < 256; ++i2)
+  flt[i2] = 9;
+var i2;
+for (i2 = 256; i2 < 280; ++i2)
+  flt[i2] = 7;
+var i2;
+for (i2 = 280; i2 < 288; ++i2)
+  flt[i2] = 8;
+var i2;
+var fdt = new u8(32);
+for (i2 = 0; i2 < 32; ++i2)
+  fdt[i2] = 5;
+var i2;
+var flm = /* @__PURE__ */ hMap(flt, 9, 0);
+var fdm = /* @__PURE__ */ hMap(fdt, 5, 0);
+var shft = function(p2) {
+  return (p2 + 7) / 8 | 0;
+};
+var slc = function(v3, s2, e3) {
+  if (s2 == null || s2 < 0)
+    s2 = 0;
+  if (e3 == null || e3 > v3.length)
+    e3 = v3.length;
+  return new u8(v3.subarray(s2, e3));
+};
+var ec = [
+  "unexpected EOF",
+  "invalid block type",
+  "invalid length/literal",
+  "invalid distance",
+  "stream finished",
+  "no stream handler",
+  ,
+  // determined by compression function
+  "no callback",
+  "invalid UTF-8 data",
+  "extra field too long",
+  "date not in range 1980-2099",
+  "filename too long",
+  "stream finishing",
+  "invalid zip data"
+  // determined by unknown compression method
+];
+var err = function(ind, msg, nt) {
+  var e3 = new Error(msg || ec[ind]);
+  e3.code = ind;
+  if (Error.captureStackTrace)
+    Error.captureStackTrace(e3, err);
+  if (!nt)
+    throw e3;
+  return e3;
+};
+var wbits = function(d3, p2, v3) {
+  v3 <<= p2 & 7;
+  var o3 = p2 / 8 | 0;
+  d3[o3] |= v3;
+  d3[o3 + 1] |= v3 >> 8;
+};
+var wbits16 = function(d3, p2, v3) {
+  v3 <<= p2 & 7;
+  var o3 = p2 / 8 | 0;
+  d3[o3] |= v3;
+  d3[o3 + 1] |= v3 >> 8;
+  d3[o3 + 2] |= v3 >> 16;
+};
+var hTree = function(d3, mb) {
+  var t2 = [];
+  for (var i2 = 0; i2 < d3.length; ++i2) {
+    if (d3[i2])
+      t2.push({ s: i2, f: d3[i2] });
+  }
+  var s2 = t2.length;
+  var t22 = t2.slice();
+  if (!s2)
+    return { t: et, l: 0 };
+  if (s2 == 1) {
+    var v3 = new u8(t2[0].s + 1);
+    v3[t2[0].s] = 1;
+    return { t: v3, l: 1 };
+  }
+  t2.sort(function(a3, b3) {
+    return a3.f - b3.f;
+  });
+  t2.push({ s: -1, f: 25001 });
+  var l3 = t2[0], r4 = t2[1], i0 = 0, i1 = 1, i22 = 2;
+  t2[0] = { s: -1, f: l3.f + r4.f, l: l3, r: r4 };
+  while (i1 != s2 - 1) {
+    l3 = t2[t2[i0].f < t2[i22].f ? i0++ : i22++];
+    r4 = t2[i0 != i1 && t2[i0].f < t2[i22].f ? i0++ : i22++];
+    t2[i1++] = { s: -1, f: l3.f + r4.f, l: l3, r: r4 };
+  }
+  var maxSym = t22[0].s;
+  for (var i2 = 1; i2 < s2; ++i2) {
+    if (t22[i2].s > maxSym)
+      maxSym = t22[i2].s;
+  }
+  var tr = new u16(maxSym + 1);
+  var mbt = ln(t2[i1 - 1], tr, 0);
+  if (mbt > mb) {
+    var i2 = 0, dt = 0;
+    var lft = mbt - mb, cst = 1 << lft;
+    t22.sort(function(a3, b3) {
+      return tr[b3.s] - tr[a3.s] || a3.f - b3.f;
+    });
+    for (; i2 < s2; ++i2) {
+      var i2_1 = t22[i2].s;
+      if (tr[i2_1] > mb) {
+        dt += cst - (1 << mbt - tr[i2_1]);
+        tr[i2_1] = mb;
+      } else
+        break;
+    }
+    dt >>= lft;
+    while (dt > 0) {
+      var i2_2 = t22[i2].s;
+      if (tr[i2_2] < mb)
+        dt -= 1 << mb - tr[i2_2]++ - 1;
+      else
+        ++i2;
+    }
+    for (; i2 >= 0 && dt; --i2) {
+      var i2_3 = t22[i2].s;
+      if (tr[i2_3] == mb) {
+        --tr[i2_3];
+        ++dt;
+      }
+    }
+    mbt = mb;
+  }
+  return { t: new u8(tr), l: mbt };
+};
+var ln = function(n2, l3, d3) {
+  return n2.s == -1 ? Math.max(ln(n2.l, l3, d3 + 1), ln(n2.r, l3, d3 + 1)) : l3[n2.s] = d3;
+};
+var lc = function(c4) {
+  var s2 = c4.length;
+  while (s2 && !c4[--s2])
+    ;
+  var cl = new u16(++s2);
+  var cli = 0, cln = c4[0], cls = 1;
+  var w3 = function(v3) {
+    cl[cli++] = v3;
+  };
+  for (var i2 = 1; i2 <= s2; ++i2) {
+    if (c4[i2] == cln && i2 != s2)
+      ++cls;
+    else {
+      if (!cln && cls > 2) {
+        for (; cls > 138; cls -= 138)
+          w3(32754);
+        if (cls > 2) {
+          w3(cls > 10 ? cls - 11 << 5 | 28690 : cls - 3 << 5 | 12305);
+          cls = 0;
+        }
+      } else if (cls > 3) {
+        w3(cln), --cls;
+        for (; cls > 6; cls -= 6)
+          w3(8304);
+        if (cls > 2)
+          w3(cls - 3 << 5 | 8208), cls = 0;
+      }
+      while (cls--)
+        w3(cln);
+      cls = 1;
+      cln = c4[i2];
+    }
+  }
+  return { c: cl.subarray(0, cli), n: s2 };
+};
+var clen = function(cf, cl) {
+  var l3 = 0;
+  for (var i2 = 0; i2 < cl.length; ++i2)
+    l3 += cf[i2] * cl[i2];
+  return l3;
+};
+var wfblk = function(out, pos, dat) {
+  var s2 = dat.length;
+  var o3 = shft(pos + 2);
+  out[o3] = s2 & 255;
+  out[o3 + 1] = s2 >> 8;
+  out[o3 + 2] = out[o3] ^ 255;
+  out[o3 + 3] = out[o3 + 1] ^ 255;
+  for (var i2 = 0; i2 < s2; ++i2)
+    out[o3 + i2 + 4] = dat[i2];
+  return (o3 + 4 + s2) * 8;
+};
+var wblk = function(dat, out, final, syms, lf, df, eb, li, bs, bl, p2) {
+  wbits(out, p2++, final);
+  ++lf[256];
+  var _a2 = hTree(lf, 15), dlt = _a2.t, mlb = _a2.l;
+  var _b2 = hTree(df, 15), ddt = _b2.t, mdb = _b2.l;
+  var _c = lc(dlt), lclt = _c.c, nlc = _c.n;
+  var _d = lc(ddt), lcdt = _d.c, ndc = _d.n;
+  var lcfreq = new u16(19);
+  for (var i2 = 0; i2 < lclt.length; ++i2)
+    ++lcfreq[lclt[i2] & 31];
+  for (var i2 = 0; i2 < lcdt.length; ++i2)
+    ++lcfreq[lcdt[i2] & 31];
+  var _e = hTree(lcfreq, 7), lct = _e.t, mlcb = _e.l;
+  var nlcc = 19;
+  for (; nlcc > 4 && !lct[clim[nlcc - 1]]; --nlcc)
+    ;
+  var flen = bl + 5 << 3;
+  var ftlen = clen(lf, flt) + clen(df, fdt) + eb;
+  var dtlen = clen(lf, dlt) + clen(df, ddt) + eb + 14 + 3 * nlcc + clen(lcfreq, lct) + 2 * lcfreq[16] + 3 * lcfreq[17] + 7 * lcfreq[18];
+  if (bs >= 0 && flen <= ftlen && flen <= dtlen)
+    return wfblk(out, p2, dat.subarray(bs, bs + bl));
+  var lm, ll, dm, dl;
+  wbits(out, p2, 1 + (dtlen < ftlen)), p2 += 2;
+  if (dtlen < ftlen) {
+    lm = hMap(dlt, mlb, 0), ll = dlt, dm = hMap(ddt, mdb, 0), dl = ddt;
+    var llm = hMap(lct, mlcb, 0);
+    wbits(out, p2, nlc - 257);
+    wbits(out, p2 + 5, ndc - 1);
+    wbits(out, p2 + 10, nlcc - 4);
+    p2 += 14;
+    for (var i2 = 0; i2 < nlcc; ++i2)
+      wbits(out, p2 + 3 * i2, lct[clim[i2]]);
+    p2 += 3 * nlcc;
+    var lcts = [lclt, lcdt];
+    for (var it = 0; it < 2; ++it) {
+      var clct = lcts[it];
+      for (var i2 = 0; i2 < clct.length; ++i2) {
+        var len = clct[i2] & 31;
+        wbits(out, p2, llm[len]), p2 += lct[len];
+        if (len > 15)
+          wbits(out, p2, clct[i2] >> 5 & 127), p2 += clct[i2] >> 12;
+      }
+    }
+  } else {
+    lm = flm, ll = flt, dm = fdm, dl = fdt;
+  }
+  for (var i2 = 0; i2 < li; ++i2) {
+    var sym = syms[i2];
+    if (sym > 255) {
+      var len = sym >> 18 & 31;
+      wbits16(out, p2, lm[len + 257]), p2 += ll[len + 257];
+      if (len > 7)
+        wbits(out, p2, sym >> 23 & 31), p2 += fleb[len];
+      var dst = sym & 31;
+      wbits16(out, p2, dm[dst]), p2 += dl[dst];
+      if (dst > 3)
+        wbits16(out, p2, sym >> 5 & 8191), p2 += fdeb[dst];
+    } else {
+      wbits16(out, p2, lm[sym]), p2 += ll[sym];
+    }
+  }
+  wbits16(out, p2, lm[256]);
+  return p2 + ll[256];
+};
+var deo = /* @__PURE__ */ new i32([65540, 131080, 131088, 131104, 262176, 1048704, 1048832, 2114560, 2117632]);
+var et = /* @__PURE__ */ new u8(0);
+var dflt = function(dat, lvl, plvl, pre, post, st) {
+  var s2 = st.z || dat.length;
+  var o3 = new u8(pre + s2 + 5 * (1 + Math.ceil(s2 / 7e3)) + post);
+  var w3 = o3.subarray(pre, o3.length - post);
+  var lst = st.l;
+  var pos = (st.r || 0) & 7;
+  if (lvl) {
+    if (pos)
+      w3[0] = st.r >> 3;
+    var opt = deo[lvl - 1];
+    var n2 = opt >> 13, c4 = opt & 8191;
+    var msk_1 = (1 << plvl) - 1;
+    var prev = st.p || new u16(32768), head = st.h || new u16(msk_1 + 1);
+    var bs1_1 = Math.ceil(plvl / 3), bs2_1 = 2 * bs1_1;
+    var hsh = function(i3) {
+      return (dat[i3] ^ dat[i3 + 1] << bs1_1 ^ dat[i3 + 2] << bs2_1) & msk_1;
+    };
+    var syms = new i32(25e3);
+    var lf = new u16(288), df = new u16(32);
+    var lc_1 = 0, eb = 0, i2 = st.i || 0, li = 0, wi = st.w || 0, bs = 0;
+    for (; i2 + 2 < s2; ++i2) {
+      var hv = hsh(i2);
+      var imod = i2 & 32767, pimod = head[hv];
+      prev[imod] = pimod;
+      head[hv] = imod;
+      if (wi <= i2) {
+        var rem = s2 - i2;
+        if ((lc_1 > 7e3 || li > 24576) && (rem > 423 || !lst)) {
+          pos = wblk(dat, w3, 0, syms, lf, df, eb, li, bs, i2 - bs, pos);
+          li = lc_1 = eb = 0, bs = i2;
+          for (var j3 = 0; j3 < 286; ++j3)
+            lf[j3] = 0;
+          for (var j3 = 0; j3 < 30; ++j3)
+            df[j3] = 0;
+        }
+        var l3 = 2, d3 = 0, ch_1 = c4, dif = imod - pimod & 32767;
+        if (rem > 2 && hv == hsh(i2 - dif)) {
+          var maxn = Math.min(n2, rem) - 1;
+          var maxd = Math.min(32767, i2);
+          var ml = Math.min(258, rem);
+          while (dif <= maxd && --ch_1 && imod != pimod) {
+            if (dat[i2 + l3] == dat[i2 + l3 - dif]) {
+              var nl = 0;
+              for (; nl < ml && dat[i2 + nl] == dat[i2 + nl - dif]; ++nl)
+                ;
+              if (nl > l3) {
+                l3 = nl, d3 = dif;
+                if (nl > maxn)
+                  break;
+                var mmd = Math.min(dif, nl - 2);
+                var md = 0;
+                for (var j3 = 0; j3 < mmd; ++j3) {
+                  var ti = i2 - dif + j3 & 32767;
+                  var pti = prev[ti];
+                  var cd = ti - pti & 32767;
+                  if (cd > md)
+                    md = cd, pimod = ti;
+                }
+              }
+            }
+            imod = pimod, pimod = prev[imod];
+            dif += imod - pimod & 32767;
+          }
+        }
+        if (d3) {
+          syms[li++] = 268435456 | revfl[l3] << 18 | revfd[d3];
+          var lin = revfl[l3] & 31, din = revfd[d3] & 31;
+          eb += fleb[lin] + fdeb[din];
+          ++lf[257 + lin];
+          ++df[din];
+          wi = i2 + l3;
+          ++lc_1;
+        } else {
+          syms[li++] = dat[i2];
+          ++lf[dat[i2]];
+        }
+      }
+    }
+    for (i2 = Math.max(i2, wi); i2 < s2; ++i2) {
+      syms[li++] = dat[i2];
+      ++lf[dat[i2]];
+    }
+    pos = wblk(dat, w3, lst, syms, lf, df, eb, li, bs, i2 - bs, pos);
+    if (!lst) {
+      st.r = pos & 7 | w3[pos / 8 | 0] << 3;
+      pos -= 7;
+      st.h = head, st.p = prev, st.i = i2, st.w = wi;
+    }
+  } else {
+    for (var i2 = st.w || 0; i2 < s2 + lst; i2 += 65535) {
+      var e3 = i2 + 65535;
+      if (e3 >= s2) {
+        w3[pos / 8 | 0] = lst;
+        e3 = s2;
+      }
+      pos = wfblk(w3, pos + 1, dat.subarray(i2, e3));
+    }
+    st.i = s2;
+  }
+  return slc(o3, 0, pre + shft(pos) + post);
+};
+var crct = /* @__PURE__ */ (function() {
+  var t2 = new Int32Array(256);
+  for (var i2 = 0; i2 < 256; ++i2) {
+    var c4 = i2, k3 = 9;
+    while (--k3)
+      c4 = (c4 & 1 && -306674912) ^ c4 >>> 1;
+    t2[i2] = c4;
+  }
+  return t2;
+})();
+var crc = function() {
+  var c4 = -1;
+  return {
+    p: function(d3) {
+      var cr = c4;
+      for (var i2 = 0; i2 < d3.length; ++i2)
+        cr = crct[cr & 255 ^ d3[i2]] ^ cr >>> 8;
+      c4 = cr;
+    },
+    d: function() {
+      return ~c4;
+    }
+  };
+};
+var dopt = function(dat, opt, pre, post, st) {
+  if (!st) {
+    st = { l: 1 };
+    if (opt.dictionary) {
+      var dict = opt.dictionary.subarray(-32768);
+      var newDat = new u8(dict.length + dat.length);
+      newDat.set(dict);
+      newDat.set(dat, dict.length);
+      dat = newDat;
+      st.w = dict.length;
+    }
+  }
+  return dflt(dat, opt.level == null ? 6 : opt.level, opt.mem == null ? st.l ? Math.ceil(Math.max(8, Math.min(13, Math.log(dat.length))) * 1.5) : 20 : 12 + opt.mem, pre, post, st);
+};
+var mrg = function(a3, b3) {
+  var o3 = {};
+  for (var k3 in a3)
+    o3[k3] = a3[k3];
+  for (var k3 in b3)
+    o3[k3] = b3[k3];
+  return o3;
+};
+var wbytes = function(d3, b3, v3) {
+  for (; v3; ++b3)
+    d3[b3] = v3, v3 >>>= 8;
+};
+function deflateSync(data, opts) {
+  return dopt(data, opts || {}, 0, 0);
+}
+var fltn = function(d3, p2, t2, o3) {
+  for (var k3 in d3) {
+    var val = d3[k3], n2 = p2 + k3, op = o3;
+    if (Array.isArray(val))
+      op = mrg(o3, val[1]), val = val[0];
+    if (ArrayBuffer.isView(val))
+      t2[n2] = [val, op];
+    else {
+      t2[n2 += "/"] = [new u8(0), op];
+      fltn(val, n2, t2, o3);
+    }
+  }
+};
+var te2 = typeof TextEncoder != "undefined" && /* @__PURE__ */ new TextEncoder();
+var td = typeof TextDecoder != "undefined" && /* @__PURE__ */ new TextDecoder();
+var tds = 0;
+try {
+  td.decode(et, { stream: true });
+  tds = 1;
+} catch (e3) {
+}
+function strToU8(str, latin1) {
+  if (latin1) {
+    var ar_1 = new u8(str.length);
+    for (var i2 = 0; i2 < str.length; ++i2)
+      ar_1[i2] = str.charCodeAt(i2);
+    return ar_1;
+  }
+  if (te2)
+    return te2.encode(str);
+  var l3 = str.length;
+  var ar = new u8(str.length + (str.length >> 1));
+  var ai = 0;
+  var w3 = function(v3) {
+    ar[ai++] = v3;
+  };
+  for (var i2 = 0; i2 < l3; ++i2) {
+    if (ai + 5 > ar.length) {
+      var n2 = new u8(ai + 8 + (l3 - i2 << 1));
+      n2.set(ar);
+      ar = n2;
+    }
+    var c4 = str.charCodeAt(i2);
+    if (c4 < 128 || latin1)
+      w3(c4);
+    else if (c4 < 2048)
+      w3(192 | c4 >> 6), w3(128 | c4 & 63);
+    else if (c4 > 55295 && c4 < 57344)
+      c4 = 65536 + (c4 & 1023 << 10) | str.charCodeAt(++i2) & 1023, w3(240 | c4 >> 18), w3(128 | c4 >> 12 & 63), w3(128 | c4 >> 6 & 63), w3(128 | c4 & 63);
+    else
+      w3(224 | c4 >> 12), w3(128 | c4 >> 6 & 63), w3(128 | c4 & 63);
+  }
+  return slc(ar, 0, ai);
+}
+var exfl = function(ex) {
+  var le3 = 0;
+  if (ex) {
+    for (var k3 in ex) {
+      var l3 = ex[k3].length;
+      if (l3 > 65535)
+        err(9);
+      le3 += l3 + 4;
+    }
+  }
+  return le3;
+};
+var wzh = function(d3, b3, f4, fn, u4, c4, ce3, co) {
+  var fl2 = fn.length, ex = f4.extra, col = co && co.length;
+  var exl = exfl(ex);
+  wbytes(d3, b3, ce3 != null ? 33639248 : 67324752), b3 += 4;
+  if (ce3 != null)
+    d3[b3++] = 20, d3[b3++] = f4.os;
+  d3[b3] = 20, b3 += 2;
+  d3[b3++] = f4.flag << 1 | (c4 < 0 && 8), d3[b3++] = u4 && 8;
+  d3[b3++] = f4.compression & 255, d3[b3++] = f4.compression >> 8;
+  var dt = new Date(f4.mtime == null ? Date.now() : f4.mtime), y5 = dt.getFullYear() - 1980;
+  if (y5 < 0 || y5 > 119)
+    err(10);
+  wbytes(d3, b3, y5 << 25 | dt.getMonth() + 1 << 21 | dt.getDate() << 16 | dt.getHours() << 11 | dt.getMinutes() << 5 | dt.getSeconds() >> 1), b3 += 4;
+  if (c4 != -1) {
+    wbytes(d3, b3, f4.crc);
+    wbytes(d3, b3 + 4, c4 < 0 ? -c4 - 2 : c4);
+    wbytes(d3, b3 + 8, f4.size);
+  }
+  wbytes(d3, b3 + 12, fl2);
+  wbytes(d3, b3 + 14, exl), b3 += 16;
+  if (ce3 != null) {
+    wbytes(d3, b3, col);
+    wbytes(d3, b3 + 6, f4.attrs);
+    wbytes(d3, b3 + 10, ce3), b3 += 14;
+  }
+  d3.set(fn, b3);
+  b3 += fl2;
+  if (exl) {
+    for (var k3 in ex) {
+      var exf = ex[k3], l3 = exf.length;
+      wbytes(d3, b3, +k3);
+      wbytes(d3, b3 + 2, l3);
+      d3.set(exf, b3 + 4), b3 += 4 + l3;
+    }
+  }
+  if (col)
+    d3.set(co, b3), b3 += col;
+  return b3;
+};
+var wzf = function(o3, b3, c4, d3, e3) {
+  wbytes(o3, b3, 101010256);
+  wbytes(o3, b3 + 8, c4);
+  wbytes(o3, b3 + 10, c4);
+  wbytes(o3, b3 + 12, d3);
+  wbytes(o3, b3 + 16, e3);
+};
+function zipSync(data, opts) {
+  if (!opts)
+    opts = {};
+  var r4 = {};
+  var files = [];
+  fltn(data, "", r4, opts);
+  var o3 = 0;
+  var tot = 0;
+  for (var fn in r4) {
+    var _a2 = r4[fn], file = _a2[0], p2 = _a2[1];
+    var compression = p2.level == 0 ? 0 : 8;
+    var f4 = strToU8(fn), s2 = f4.length;
+    var com = p2.comment, m4 = com && strToU8(com), ms = m4 && m4.length;
+    var exl = exfl(p2.extra);
+    if (s2 > 65535)
+      err(11);
+    var d3 = compression ? deflateSync(file, p2) : file, l3 = d3.length;
+    var c4 = crc();
+    c4.p(file);
+    files.push(mrg(p2, {
+      size: file.length,
+      crc: c4.d(),
+      c: d3,
+      f: f4,
+      m: m4,
+      u: s2 != fn.length || m4 && com.length != ms,
+      o: o3,
+      compression
+    }));
+    o3 += 30 + s2 + exl + l3;
+    tot += 76 + 2 * (s2 + exl) + (ms || 0) + l3;
+  }
+  var out = new u8(tot + 22), oe2 = o3, cdl = tot - o3;
+  for (var i2 = 0; i2 < files.length; ++i2) {
+    var f4 = files[i2];
+    wzh(out, f4.o, f4, f4.f, f4.u, f4.c.length);
+    var badd = 30 + f4.f.length + exfl(f4.extra);
+    out.set(f4.c, f4.o + badd);
+    wzh(out, o3, f4, f4.f, f4.u, f4.c.length, f4.o, f4.m), o3 += 16 + badd + (f4.m ? f4.m.length : 0);
+  }
+  wzf(out, o3, files.length, cdl, oe2);
+  return out;
+}
+
+// src/commands/theme.ts
 async function readManifest2(dir) {
   const raw = await (0, import_promises3.readFile)((0, import_path4.join)(dir, "nuxflow.theme.json"), "utf-8").catch(() => null);
   if (!raw) throw new Error("nuxflow.theme.json not found \u2014 run this command from a theme directory");
@@ -5917,6 +6703,27 @@ async function readCss(dir) {
   const p2 = (0, import_path4.join)(dir, "theme.css");
   if (!(0, import_fs3.existsSync)(p2)) throw new Error("theme.css not found \u2014 run this command from a theme directory");
   return (0, import_promises3.readFile)(p2, "utf-8");
+}
+async function buildBundleZip(dir, manifest, css) {
+  const demoPath = (0, import_path4.join)(dir, "demo.json");
+  const imagesDir = (0, import_path4.join)(dir, "images");
+  const hasDemo = (0, import_fs3.existsSync)(demoPath);
+  const hasImages = (0, import_fs3.existsSync)(imagesDir);
+  if (!hasDemo && !hasImages) return null;
+  const files = {
+    "theme.css": new TextEncoder().encode(css),
+    "theme.json": new TextEncoder().encode(JSON.stringify({ name: manifest.name, version: manifest.version }, null, 2))
+  };
+  if (hasDemo) {
+    files["demo.json"] = new TextEncoder().encode(await (0, import_promises3.readFile)(demoPath, "utf-8"));
+  }
+  if (hasImages) {
+    for (const entry of await (0, import_promises3.readdir)(imagesDir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      files[`images/${entry.name}`] = await (0, import_promises3.readFile)((0, import_path4.join)(imagesDir, entry.name));
+    }
+  }
+  return zipSync(files);
 }
 var themeCommand = defineCommand({
   meta: { description: "Manage NuxFlow CSS themes" },
@@ -5976,6 +6783,7 @@ var themeCommand = defineCommand({
           consola.error(e3.message);
           process.exit(1);
         });
+        const bundleZip = await buildBundleZip(dir, manifest, css);
         const s2 = L4();
         s2.start("Authenticating\u2026");
         let site, cookie;
@@ -5988,9 +6796,9 @@ var themeCommand = defineCommand({
           consola.error(e3.message);
           process.exit(1);
         }
-        s2.message(`Uploading "${manifest.name}" v${manifest.version}\u2026`);
+        s2.message(bundleZip ? `Uploading "${manifest.name}" v${manifest.version} (with demo content)\u2026` : `Uploading "${manifest.name}" v${manifest.version}\u2026`);
         try {
-          const res = await apiPost(site, "/api/v1/themes", cookie, {
+          const res = bundleZip ? await apiPostZip(site, "/api/v1/themes", cookie, `${manifest.name.toLowerCase().replace(/\s+/g, "-")}.zip`, bundleZip) : await apiPost(site, "/api/v1/themes", cookie, {
             name: manifest.name,
             version: manifest.version,
             css
@@ -6000,6 +6808,8 @@ var themeCommand = defineCommand({
             await (0, import_promises3.writeFile)((0, import_path4.join)(dir, "nuxflow.theme.json"), JSON.stringify(updated, null, 2) + "\n");
           }
           s2.stop("Deployed!");
+          if (res.hasDemoContent) consola.info("Demo content uploaded \u2014 import it from Admin \u2192 Themes after activating.");
+          if (res.failedImages?.length) consola.warn(`Some demo images failed to upload: ${res.failedImages.join(", ")}`);
         } catch (e3) {
           s2.stop("Deploy failed.");
           consola.error(e3.message);

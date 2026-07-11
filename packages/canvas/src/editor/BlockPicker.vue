@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { inject, computed } from 'vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import { CANVAS_BLOCKS, getDynamicBlockDefinitions } from '../blocks/definitions'
 
 const emit = defineEmits<{ pick: [typeId: string]; close: [] }>()
@@ -73,8 +74,10 @@ const extensionBlocks = computed(() => [
                 :style="{ backgroundColor: block.thumbnailColor ?? '#f9fafb' }"
                 @click="emit('pick', block.id)"
               >
-                <span
-                  :class="`${block.icon} w-7 h-7 text-gray-600 dark:text-gray-300 group-hover:text-primary-600 transition-colors`"
+                <UIcon
+                  :name="block.icon ?? 'i-lucide-box'"
+                  mode="svg"
+                  class="w-7 h-7 text-gray-600 dark:text-gray-300 group-hover:text-primary-600 transition-colors"
                 />
                 <span class="text-xs font-medium text-gray-700 dark:text-gray-300 group-hover:text-primary-700 transition-colors leading-tight">
                   {{ block.name }}
@@ -95,8 +98,10 @@ const extensionBlocks = computed(() => [
               :style="{ backgroundColor: block.thumbnailColor ?? '#f0fdf4' }"
               @click="emit('pick', block.id)"
             >
-              <span
-                :class="`${('icon' in block ? block.icon : undefined) ?? 'i-lucide-box'} w-7 h-7 text-gray-600 dark:text-gray-300 group-hover:text-primary-600 transition-colors`"
+              <UIcon
+                :name="('icon' in block ? block.icon : undefined) ?? 'i-lucide-box'"
+                mode="svg"
+                class="w-7 h-7 text-gray-600 dark:text-gray-300 group-hover:text-primary-600 transition-colors"
               />
               <span class="text-xs font-medium text-gray-700 dark:text-gray-300 group-hover:text-primary-700 transition-colors leading-tight">
                 {{ block.name }}

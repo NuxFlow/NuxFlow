@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 
 interface SlideImage {
@@ -155,7 +156,7 @@ const containerStyle = computed(() => {
           aria-label="Previous slide"
           @click="prev"
         >
-          <span class="i-lucide-chevron-left w-5 h-5" />
+          <UIcon name="i-lucide-chevron-left" mode="svg" class="w-5 h-5" />
         </button>
         <button
           type="button"
@@ -163,7 +164,7 @@ const containerStyle = computed(() => {
           aria-label="Next slide"
           @click="next"
         >
-          <span class="i-lucide-chevron-right w-5 h-5" />
+          <UIcon name="i-lucide-chevron-right" mode="svg" class="w-5 h-5" />
         </button>
       </template>
 
@@ -189,7 +190,7 @@ const containerStyle = computed(() => {
       class="flex items-center justify-center h-40 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700"
     >
       <div class="text-center">
-        <span class="i-lucide-gallery-horizontal w-8 h-8 text-gray-300 mx-auto block mb-2" />
+        <UIcon name="i-lucide-gallery-horizontal" mode="svg" class="w-8 h-8 text-gray-300 mx-auto block mb-2" />
         <span class="text-sm text-gray-400">No images — edit this block to add slides</span>
       </div>
     </div>

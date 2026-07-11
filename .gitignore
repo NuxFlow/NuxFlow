@@ -61,12 +61,6 @@ apps/nuxflow/tests/integration/demo-reset.test.ts
 # Claude Code
 .claude/settings.local.json
 
-# Private NuxFlow Marketing Site (Ignored)
-/nuxflow-marketing-site/
-/nuxflow-marketing-site.zip
-
-# Custom Dynamic Landing Theme (Ignored)
-/nuxflow-marketing-landing/
-
-
+# Personal scratch space (themes-in-progress, demo assets, etc.) — never pushed
+/MYSTUFF/
 

@@ -45,6 +45,26 @@ export const apiPost   = (site: string, path: string, cookie: string, body: unkn
 export const apiPatch  = (site: string, path: string, cookie: string, body: unknown) => request('PATCH',  site, path, cookie, body)
 export const apiDelete = (site: string, path: string, cookie: string)                => request('DELETE', site, path, cookie)
 
+export async function apiPostZip(site: string, path: string, cookie: string, filename: string, data: Uint8Array): Promise<unknown> {
+  const form = new FormData()
+  form.append('file', new Blob([data as unknown as BlobPart]), filename)
+
+  const res = await fetch(`${site}${path}`, {
+    method: 'POST',
+    headers: { 'Cookie': cookie, 'Origin': site },
+    body: form,
+  })
+
+  const data2 = await res.json().catch(() => ({ error: res.statusText })) as Record<string, unknown>
+
+  if (!res.ok) {
+    const msg = (data2.message ?? data2.error ?? res.statusText) as string
+    throw new Error(`API error (${res.status}): ${msg}`)
+  }
+
+  return data2
+}
+
 export function resolveAuth(opts: Record<string, unknown>) {
   const site = ((opts.site as string | undefined) ?? process.env.NUXFLOW_SITE ?? '').replace(/\/$/, '')
   const email = (opts.email as string | undefined) ?? process.env.NUXFLOW_EMAIL ?? ''

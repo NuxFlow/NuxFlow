@@ -48,7 +48,13 @@ async function scryptVerify(storedHash: string, password: string): Promise<boole
 export const nuxflowPasswordHasher = {
   hash: async (password: string): Promise<string> => {
     const argon2 = getArgon2()
-    if (argon2) return argon2.hash(password)
+    if (argon2) {
+      try {
+        return await argon2.hash(password)
+      } catch (err) {
+        console.warn('[nuxflow:pw] ARGON2 service binding hash failed, falling back to scrypt:', err)
+      }
+    }
     return scryptHash(password)
   },
 
@@ -56,8 +62,14 @@ export const nuxflowPasswordHasher = {
     // Argon2id PHC strings always start with "$argon2"
     if (hash.startsWith('$argon2')) {
       const argon2 = getArgon2()
-      if (argon2) return argon2.verify(hash, password)
-      // Binding absent in dev — can't verify a production Argon2id hash locally
+      if (argon2) {
+        try {
+          return await argon2.verify(hash, password)
+        } catch (err) {
+          console.warn('[nuxflow:pw] ARGON2 service binding verify failed:', err)
+        }
+      }
+      // Binding absent or failed in dev — can't verify a production Argon2id hash locally
       return false
     }
     // Legacy/dev scrypt format: saltHex:keyHex

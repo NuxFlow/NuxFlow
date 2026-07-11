@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 
 const props = withDefaults(defineProps<{
@@ -166,7 +167,7 @@ const containerStyle = computed(() => {
                 :key="fIdx"
                 class="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-300"
               >
-                <span class="i-lucide-check w-4 h-4 text-primary-500 shrink-0 mt-0.5" />
+                <UIcon name="i-lucide-check" mode="svg" class="w-4 h-4 text-primary-500 shrink-0 mt-0.5" />
                 <span>{{ feat }}</span>
               </li>
             </ul>
