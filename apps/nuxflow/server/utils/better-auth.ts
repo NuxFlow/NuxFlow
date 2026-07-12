@@ -227,14 +227,23 @@ async function buildBetterAuthInstance(event: H3Event) {
 }
 
 export async function getOrCreateBetterAuth(event: H3Event) {
-  // Cache key is the full Host header (not just the hostname): in local `wrangler dev`,
-  // some requests arrive with a port-less Host ("localhost") while others correctly
-  // include it ("localhost:8787") — an observed quirk of that dev server, not something
-  // this app controls. Keying on hostname alone let a port-less build (which computes a
-  // passkey origin missing the port) get cached and served to later, correctly-ported
-  // requests for the rest of the 5-minute TTL, breaking WebAuthn's exact-origin check.
-  // Keying on the full string means a malformed build can't poison a well-formed one.
-  const host = getHeader(event, 'host') || 'default'
+  // Cache key is the hostname only (no port) for real requests — the production
+  // baseURL/allowedHosts computation in buildBetterAuthInstance doesn't depend on
+  // the request's exact Host string at all (it's derived from config + the sites
+  // table), so keying on anything finer than the hostname only fragments the cache
+  // for no benefit, forcing needless rebuilds (extra D1 round-trips) on every
+  // request whose Host happens to vary in a way that doesn't matter.
+  //
+  // The one exception is local `wrangler dev`, where the origin genuinely *is*
+  // derived per-request (see buildBetterAuthInstance) and the port matters for
+  // WebAuthn's exact-origin check — keep the full host there, since that dev
+  // server has also been observed to occasionally omit the port on some request
+  // types, and keying on hostname alone would let that port-less build get cached
+  // and served to later, correctly-ported requests for the rest of the TTL.
+  const rawHost = getHeader(event, 'host') || 'default'
+  const hostname = rawHost.split(':')[0] ?? rawHost
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+  const host = isLocal ? rawHost : hostname
   const now = Date.now()
   const cached = _cachedBetterAuth.get(host)
   if (cached && now < cached.expiry) return cached.instance
