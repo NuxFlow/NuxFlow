@@ -5,6 +5,7 @@ import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { saveSetting } from '../../../utils/settings'
 import { clearAppearanceCache } from '../../../plugins/site-settings-resolver'
+import { writeAuditLog } from '../../../utils/audit'
 
 const bodySchema = z.object({
   // Site columns
@@ -57,7 +58,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'admin')
+  const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const body = await readValidatedBody(event, bodySchema.parse)
@@ -130,6 +131,22 @@ export default defineEventHandler(async (event) => {
   const appearanceKeys = new Set(['theme.dark_mode', 'theme.primary_color', 'theme.font_sans'])
   const touchedAppearance = body.settings && Object.keys(body.settings).some(k => appearanceKeys.has(k))
   if (touchedAppearance) clearAppearanceCache(siteId)
+
+  // Records which keys changed, never the values — several of them (payment
+  // provider keys, AI provider keys, OAuth client secrets) are secrets, and the
+  // audit trail exists to answer "who changed the Stripe key and when", not to
+  // become a second place those secrets are stored in plaintext.
+  const changedKeys = [
+    ...Object.keys(siteUpdate),
+    ...(body.settings ? Object.keys(body.settings) : []),
+    ...(body.ai ? Object.entries(body.ai).filter(([, v]) => v !== undefined).map(([k]) => `ai.${k}`) : []),
+    ...(body.cloudflare ? Object.entries(body.cloudflare).filter(([, v]) => v !== undefined).map(([k]) => `cloudflare.${k}`) : []),
+    ...(body.media ? Object.entries(body.media).filter(([, v]) => v !== undefined).map(([k]) => `media.${k}`) : []),
+    ...(body.auth ? Object.entries(body.auth).filter(([, v]) => v !== undefined).map(([k]) => `auth.${k}`) : []),
+  ]
+  if (changedKeys.length > 0) {
+    await writeAuditLog(event, userId, { action: 'update', resource: 'settings', after: { keys: changedKeys } })
+  }
 
   return { success: true }
 })
