@@ -32,11 +32,13 @@
     "feat-stream-config-check",
     "feat-stream-video-memberships-and-canvas",
     "feat-visual-customizer-theme-system-and-content-gating",
+    "fix-auth-cache-fragmentation",
     "fix-auth-session-unification",
     "fix-canvas-icon-rendering",
     "fix-lint-and-kysely",
     "fix-linux-build-heap-limit",
     "fix-multi-domain-oauth",
+    "fix-production-login-session-invalidation",
     "fix-ssr-setup-onboarding",
     "refactor-canvas-architecture-and-migrate-squash",
     "security-enhancements-and-new-canvas-blocks"
