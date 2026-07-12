@@ -51,24 +51,40 @@ async function buildBetterAuthInstance(event: H3Event) {
     resolveSetting(event, 'auth.github_client_secret', 'githubClientSecret'),
   ])
 
-  // `wrangler dev` always performs a production-mode build (see CLAUDE.md), so
-  // process.env.NODE_ENV is 'production' locally too — it cannot be used to detect
-  // "am I running against a local dev server". Cloudflare's own runtime-config
-  // auto-detection also isn't reliable here: config.public.siteUrl resolves to
-  // workerd's own loopback bind address (e.g. http://127.0.0.1:8787) in local dev,
-  // which the browser's actual origin (http://localhost:8787 — a *different*
-  // hostname, even though both reach the same server) doesn't match. WebAuthn
-  // requires the RP origin to equal the page's real origin, so binding passkeys to
-  // either the production domain or workerd's bind address breaks them locally.
-  // Instead, detect "local dev" the same way the rest of this file already does
-  // (see trustedOrigins below): the incoming request's own Host header is loopback.
-  const isLocalRequest = requestHostname === 'localhost' || requestHostname === '127.0.0.1' || requestHostname === '::1'
-  const primaryUrl = isLocalRequest
-    ? `${requestProto ?? 'http'}://${requestHost}`
-    : (config.public.siteUrl || 'https://nuxflow.dev').replace(/\/$/, '')
+  // Whether this is a local dev deployment is a property of the *deployment*, not
+  // of any single request: it must NOT be derived from the current request's Host
+  // header. Nitro dispatches internal self-fetches (e.g. @onmax/nuxt-better-auth's
+  // SSR session check, which runs on every page load) without forwarding the real
+  // Host — it defaults to "localhost", even inside a fully deployed production
+  // Worker. An earlier version of this function branched baseURL/cookie-protocol on
+  // requestHostname === 'localhost', which made those internal SSR calls
+  // intermittently flip into non-secure-cookie mode: they'd look for the session
+  // under the wrong cookie name, fail to find it, and clear it — sign-in would
+  // succeed, then the very next page's SSR session check would silently invalidate
+  // it. A genuine local dev database always has its own site domain set to
+  // "localhost" (see server/api/v1/setup/complete.post.ts), which production never
+  // does — that's a stable, request-independent signal.
+  const sites = await db.query.sites.findMany({ columns: { domain: true } })
+  const siteDomains = sites.map(s => s.domain).filter(Boolean) as string[]
+  const isLocalDeployment = siteDomains.some(d => d === 'localhost' || d === '127.0.0.1' || d === '::1')
 
-  // Passkeys are WebAuthn relying-party scoped — bind them to the primary domain.
-  // Users on secondary custom domains can still use email/password and Google/GitHub OAuth.
+  const primaryConfiguredUrl = (config.public.siteUrl || 'https://nuxflow.dev').replace(/\/$/, '')
+
+  // Passkeys are WebAuthn relying-party scoped — bind them to the browser's actual
+  // origin. `wrangler dev` always performs a production-mode build (see CLAUDE.md),
+  // so NODE_ENV can't detect local dev either, and config.public.siteUrl is a static
+  // deployment-wide value that never matches the floating localhost port dev runs
+  // on. Per-request Host is safe to use here specifically because a passkey
+  // ceremony only ever originates from a genuine top-level/XHR browser request —
+  // never from Nitro's internal self-fetches — so it isn't exposed to the
+  // inconsistency described above. Gated on isLocalDeployment so a production
+  // request can never be misread as local dev just because some internal call
+  // happens to present Host: localhost.
+  const requestIsLoopback = requestHostname === 'localhost' || requestHostname === '127.0.0.1' || requestHostname === '::1'
+  const primaryUrl = (isLocalDeployment && requestIsLoopback)
+    ? `${requestProto ?? 'http'}://${requestHost}`
+    : primaryConfiguredUrl
+
   let passkeyRpID: string | undefined
   let passkeyOrigin: string | undefined
   try {
@@ -78,33 +94,24 @@ async function buildBetterAuthInstance(event: H3Event) {
   }
   catch { /* passkey falls back to Better Auth's resolved baseURL */ }
 
-  // Dev: simple string baseURL (single domain). Prod: allowedHosts object so
-  // Better Auth resolves redirect_uri from the incoming Host header per-request,
-  // enabling correct OAuth flows on all registered custom domains.
-  type BaseURLConfig = string | { allowedHosts: string[]; protocol: 'https' | 'http' | 'auto'; fallback: string }
-  let baseURL: BaseURLConfig
-
-  if (isLocalRequest) {
-    baseURL = primaryUrl
+  // allowedHosts/protocol are computed once from stable, request-independent
+  // sources (the sites table + the deployment's configured URL) so every build
+  // — real request or internal self-fetch alike — resolves identically.
+  const domains = new Set(siteDomains)
+  try {
+    const configuredHost = new URL(primaryConfiguredUrl).hostname
+    if (configuredHost) domains.add(configuredHost)
   }
-  else {
-    const sites = await db.query.sites.findMany({ columns: { domain: true } })
-    const domains = sites.map(s => s.domain).filter(Boolean) as string[]
-    try {
-      const primaryHost = new URL(primaryUrl).hostname
-      if (primaryHost && !domains.includes(primaryHost)) domains.push(primaryHost)
-    }
-    catch { /* ignore malformed URL */ }
+  catch { /* ignore malformed URL */ }
 
-    baseURL = {
-      allowedHosts: domains,
-      protocol: 'https',
-      fallback: primaryUrl,
-    }
+  const baseURL: { allowedHosts: string[]; protocol: 'https' | 'http' | 'auto'; fallback: string } = {
+    allowedHosts: [...domains],
+    protocol: isLocalDeployment ? 'http' : 'https',
+    fallback: primaryUrl,
   }
 
   return betterAuth({
-    baseURL: baseURL as string,
+    baseURL,
     secret: config.betterAuthSecret,
     advanced: { trustedProxyHeaders: true },
     trustedOrigins: async (request) => {
