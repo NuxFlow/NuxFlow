@@ -24,6 +24,7 @@
     "feat-membership-auth-pages-and-test-suite",
     "feat-memberships-pricing-block-and-pausing",
     "feat-nightly-prune-task",
+    "feat-per-site-social-login-and-auth-unification",
     "feat-push-notifications",
     "feat-seo-fields-and-structured-data",
     "feat-sms-scaffold",
