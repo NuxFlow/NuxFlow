@@ -1,5 +1,41 @@
 # @nuxflow/app
 
+## 2.0.0-beta.6
+
+### Minor Changes
+
+- 59e0152: feat: self-service site deletion with main/addon-aware blocking
+
+  Settings → Danger Zone's delete button called the wrong endpoint (the super-admin cross-site route, which explicitly refuses to delete the site you're currently viewing) and had no error handling, so it silently 409'd on every attempt. Added a proper self-service `DELETE /api/v1/settings` endpoint scoped to the caller's current site.
+
+  In a multi-site install, deletion is now aware of which site is "main" (the oldest one — there's no separate flag for it): deleting the last remaining site resets to fresh-install onboarding as before, but deleting the main site while other sites still exist is blocked with a 409 and the list of sites that must go first (shown in the UI up front, not just as an error after clicking). Deleting an addon site is a full delete like any other — an earlier iteration kept the row around in a reset state to hand back an instant new setup link, but that left it permanently counting as a "blocking" sibling for the main site, so it's a straightforward delete now; re-provisioning an addon domain goes through the normal Super Admin → Sites → New flow.
+
+  Every successful delete now signs the admin out: a session cookie for a domain that no longer has any site is meaningless, and doesn't carry over to the admin's other domains anyway since they're separate origins with separate cookie jars, not subdomains of one parent. Lands on `/setup` or `/login` depending on whether it was the last site, after a brief countdown so the confirmation is actually readable.
+
+  Also restricts the multi-site single-site-fallback's domain self-heal to `/admin` traffic only. Previously any request to an unmatched host — including a bot hitting `/robots.txt` — could silently reassign the sole site's stored domain away from its real production domain if a second, never-onboarded domain was also routed to the same Worker.
+
+  `docs/multi-site.md` documents both site-deletion paths (Super Admin → Sites cross-site vs. Settings → Danger Zone self-service) and the main/addon blocking behavior.
+
+### Patch Changes
+
+- 0bccc08: fix: Cloudflare Email binding rejects a from address with no display name
+
+  `sendViaCloudflareEmail` always sent `from: { email: from }` — an `EmailAddress` object with no `name` key. Cloudflare's `send_email` binding validates that object stricter than its published types suggest (`name` is marked optional) and rejects it with "Incorrect type for the 'name' field on 'EmailAddress'" when `name` is absent entirely. There's no display-name setting to attach here, so `from` is now passed as a plain string instead — `SendEmailMessage` already supports that shape, and it sidesteps the broken object entirely. This also fixes the same bug in the password-reset email path, which shares this function.
+
+  Also corrects `docs/installation.md`'s Cloudflare Email section, which conflated the `wrangler.toml` binding (already ships with NuxFlow, deployment-wide, nothing to add) with `wrangler email sending enable <domain>` (a genuinely per-domain step) into one instruction, and overstated the latter as a hard requirement — sends go through without it, so it's now framed as recommended for deliverability (SPF/DKIM) rather than mandatory, and called out as needed once per site's sending domain in a multi-site install.
+
+- dda2bf4: fix: onboarding Enter-key on site name and Cloudflare-first email defaults
+
+  Step 1 (site name) was the only onboarding field with no `@keyup.enter` handler, so Enter silently did nothing there while it worked one step later on the admin-account step.
+
+  Also traced the Email step: nothing in onboarding actually depends on email working (no verification email or password-reset email is ever sent during setup — the wizard's provider choice only seeds the `email.provider` site setting, identical to configuring it in Settings afterward). Given that, it's safe to lead with the zero-setup option: defaults to `cloudflare` instead of `console`, and drops the dev-only Console entry from the onboarding picker (still available in Settings → Email for local dev use).
+
+- 94b71bc: fix: restore Nuxt UI semantic color slots and migrate off raw color names
+
+  `nuxt.config.ts` registered a custom `ui.theme.colors` list (`['green', 'red', 'blue', 'yellow', 'orange', 'gray']`) that silently replaced Nuxt UI's built-in semantic slots instead of extending them — only `primary` and `neutral` survive an override like this, so `secondary`, `success`, `info`, `warning`, and `error` were dropped project-wide. Every "danger/success/info" UI element in the app had been written against the raw color names instead, since that was the only palette that actually worked — a fragile, undocumented side-channel with no guarantee the module keeps generating CSS for it. One of these (the Danger Zone delete button) had already silently lost its styling entirely and rendered with no visible color.
+
+  Restored the semantic slots and migrated ~190 call sites (buttons, badges, alerts, toasts, and a couple of local `Color` type unions) across the app to use them (`red`→`error`, `green`→`success`, `blue`→`info`, `yellow`→`warning`, `gray`→`neutral`). `orange` has no semantic equivalent and stays registered as a genuine custom color in the few places it's used for a distinction that isn't error/success/warning/info.
+
 ## 2.0.0-beta.5
 
 ### Patch Changes
