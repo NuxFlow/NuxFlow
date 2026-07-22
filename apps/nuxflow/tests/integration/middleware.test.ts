@@ -13,7 +13,8 @@ import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole } from '../helpers/seed'
-import { apiKeys } from '@nuxflow/db/schema'
+import { apiKeys, sites } from '@nuxflow/db/schema'
+import { eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import multiSiteMiddleware from '../../server/middleware/02.multi-site'
 import apiKeyMiddleware from '../../server/middleware/03.api-key-auth'
@@ -143,6 +144,44 @@ describe('02.multi-site middleware', () => {
     const event = mkSiteEvent({ host: 'site-b.localhost', path: '/api/v1/content' })
     const result = await (multiSiteMiddleware as MiddlewareFn)(event)
     expect(result).toBeUndefined()
+  })
+
+  describe('single-site fallback self-heal (exactly one site in the DB)', () => {
+    // Isolate this block to exactly one site by temporarily removing SITE_B —
+    // the self-heal write only fires when the fallback matched exactly one site.
+    beforeAll(async () => {
+      await getCurrentTestDb().delete(sites).where(eq(sites.id, SITE_B))
+    })
+
+    afterAll(async () => {
+      await seedSite(getCurrentTestDb(), { id: SITE_B, domain: 'site-b.localhost', status: 'maintenance', setupCompleted: true })
+    })
+
+    it('rewrites the site domain on an unmatched host for /admin paths', async () => {
+      const event = mkSiteEvent({ host: 'new-domain.localhost', path: '/admin/settings' })
+      await (multiSiteMiddleware as MiddlewareFn)(event)
+      const ctx = (event as unknown as { context: Record<string, unknown> }).context
+      expect(ctx.siteId).toBe(SITE_A)
+
+      const row = await getCurrentTestDb().query.sites.findFirst({ where: eq(sites.id, SITE_A) })
+      expect(row?.domain).toBe('new-domain.localhost')
+
+      // Restore for the next test in this block
+      await getCurrentTestDb().update(sites).set({ domain: 'site-a.localhost' }).where(eq(sites.id, SITE_A))
+    })
+
+    it('does NOT rewrite the site domain on an unmatched host for public paths (e.g. a crawler hitting an unrelated domain)', async () => {
+      const event = mkSiteEvent({ host: 'some-crawler-hit.localhost', path: '/robots.txt' })
+      await (multiSiteMiddleware as MiddlewareFn)(event)
+      const ctx = (event as unknown as { context: Record<string, unknown> }).context
+
+      // Still served via fallback so the request doesn't 404 outright...
+      expect(ctx.siteId).toBe(SITE_A)
+
+      // ...but the real domain must be left untouched.
+      const row = await getCurrentTestDb().query.sites.findFirst({ where: eq(sites.id, SITE_A) })
+      expect(row?.domain).toBe('site-a.localhost')
+    })
   })
 })
 

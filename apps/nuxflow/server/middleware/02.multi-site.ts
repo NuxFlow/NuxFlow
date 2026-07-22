@@ -36,7 +36,14 @@ export default defineEventHandler(async (event) => {
         // Self-Healing Domain Migration: If this is a public domain in production,
         // automatically update the database record to match the active request host.
         // This ensures sitemaps, RSS feeds, and user invite email links heal automatically!
-        if (host && host !== 'localhost' && host !== '127.0.0.1' && host !== '::1' && site.domain !== host) {
+        //
+        // Gated to /admin traffic only — a real operator navigating the dashboard on
+        // the new domain is a plausible deliberate migration; a bot hitting /robots.txt
+        // or /sitemap.xml on some unrelated, never-onboarded domain that also happens to
+        // be routed to this Worker is not, and used to be enough to silently steal the
+        // site's domain out from under the actual production domain (and back again on
+        // the next real visit), causing the site to intermittently "lose" its identity.
+        if (path.startsWith('/admin') && host && host !== 'localhost' && host !== '127.0.0.1' && host !== '::1' && site.domain !== host) {
           await db.update(sites)
             .set({ domain: host, updatedAt: sql`(datetime('now'))` })
             .where(eq(sites.id, site.id))

@@ -253,9 +253,9 @@ async function generateVapidKeys() {
   try {
     const { publicKey } = await $fetch<{ publicKey: string }>('/api/v1/push/vapid-keys', { method: 'POST' })
     push.vapidPublicKey = publicKey
-    toast.add({ title: 'VAPID keys generated', color: 'green' })
+    toast.add({ title: 'VAPID keys generated', color: 'success' })
   } catch {
-    toast.add({ title: 'Failed to generate VAPID keys', color: 'red' })
+    toast.add({ title: 'Failed to generate VAPID keys', color: 'error' })
   } finally {
     generatingVapid.value = false
   }
@@ -265,9 +265,9 @@ async function sendTestPush() {
   sendingTestPush.value = true
   try {
     await $fetch('/api/v1/push/test', { method: 'POST' })
-    toast.add({ title: 'Test notification sent', color: 'green' })
+    toast.add({ title: 'Test notification sent', color: 'success' })
   } catch {
-    toast.add({ title: 'Failed — make sure you have subscribed to push notifications', color: 'red' })
+    toast.add({ title: 'Failed — make sure you have subscribed to push notifications', color: 'error' })
   } finally {
     sendingTestPush.value = false
   }
@@ -288,9 +288,9 @@ async function sendBroadcast() {
     broadcastTitle.value = ''
     broadcastBody.value = ''
     broadcastUrl.value = ''
-    toast.add({ title: 'Notification broadcast sent', color: 'green' })
+    toast.add({ title: 'Notification broadcast sent', color: 'success' })
   } catch {
-    toast.add({ title: 'Broadcast failed', color: 'red' })
+    toast.add({ title: 'Broadcast failed', color: 'error' })
   } finally {
     broadcasting.value = false
   }
@@ -456,10 +456,10 @@ async function save() {
         },
       },
     })
-    toast.add({ title: 'Settings saved', color: 'green' })
+    toast.add({ title: 'Settings saved', color: 'success' })
     await refresh()
   } catch {
-    toast.add({ title: 'Failed to save settings', color: 'red' })
+    toast.add({ title: 'Failed to save settings', color: 'error' })
   } finally {
     saving.value = false
   }
@@ -477,15 +477,15 @@ const redirectCountdown = ref(3)
 
 async function changePassword() {
   if (!security.currentPassword || !security.newPassword) {
-    toast.add({ title: 'Please fill in all password fields', color: 'red' })
+    toast.add({ title: 'Please fill in all password fields', color: 'error' })
     return
   }
   if (security.newPassword !== security.confirmPassword) {
-    toast.add({ title: 'New passwords do not match', color: 'red' })
+    toast.add({ title: 'New passwords do not match', color: 'error' })
     return
   }
   if (security.newPassword.length < 8) {
-    toast.add({ title: 'Password must be at least 8 characters long', color: 'red' })
+    toast.add({ title: 'Password must be at least 8 characters long', color: 'error' })
     return
   }
 
@@ -507,7 +507,7 @@ async function changePassword() {
     
     // Set success state
     passwordChangedSuccess.value = true
-    toast.add({ title: 'Password updated successfully!', color: 'green' })
+    toast.add({ title: 'Password updated successfully!', color: 'success' })
     
     // Set a countdown to sign out and log back in
     const interval = setInterval(() => {
@@ -519,7 +519,7 @@ async function changePassword() {
     }, 1000)
   } catch (err: unknown) {
     const errMsg = (err as { data?: { message?: string } })?.data?.message ?? 'Failed to update password. Verify your current password.'
-    toast.add({ title: errMsg, color: 'red' })
+    toast.add({ title: errMsg, color: 'error' })
   } finally {
     changingPassword.value = false
   }
@@ -528,14 +528,73 @@ async function changePassword() {
 // ── Danger zone ───────────────────────────────────────────────────────────────
 const deleteConfirm = ref('')
 const deleting = ref(false)
+const siteDeleted = ref(false)
+const deletedWasLastSite = ref(false)
+const deleteCountdown = ref(3)
+
+// Every site sharing this deployment — fetched lazily the first time the tab
+// is opened. "Main" is simply the oldest site (no separate flag for it); the
+// server applies the exact same rule, this is only for showing the blocking
+// message up front instead of making the admin click delete to find out.
+interface SiteRow { id: string; name: string; domain: string; createdAt: string }
+const allSites = ref<SiteRow[]>([])
+const loadingAllSites = ref(false)
+const allSitesLoaded = ref(false)
+
+async function loadAllSites() {
+  if (allSitesLoaded.value || loadingAllSites.value) return
+  loadingAllSites.value = true
+  try {
+    const res = await $fetch<{ sites: SiteRow[] }>('/api/v1/admin/sites')
+    allSites.value = res.sites
+    allSitesLoaded.value = true
+  } catch {
+    // Not a cross-site super admin, or the call failed — fall back to the
+    // plain single-site delete flow; the server enforces the real rule anyway.
+    allSitesLoaded.value = true
+  } finally {
+    loadingAllSites.value = false
+  }
+}
+
+watch(active, (tab) => {
+  if (tab === 'Danger zone') loadAllSites()
+}, { immediate: true })
+
+const sortedSites = computed(() => [...allSites.value].sort((a, b) => a.createdAt.localeCompare(b.createdAt)))
+
+const isMainSite = computed(() => {
+  if (allSites.value.length === 0) return false
+  return sortedSites.value[0]?.id === data.value?.site.id
+})
+
+const blockingSites = computed(() => allSites.value.filter(s => s.id !== data.value?.site.id))
 
 async function deleteSite() {
   if (deleteConfirm.value !== data.value?.site.name) return
   deleting.value = true
   try {
-    // Super admin endpoint
-    await $fetch(`/api/v1/admin/sites/${data.value?.site.id}`, { method: 'DELETE' })
-    await navigateTo('/setup')
+    const res = await $fetch<{ id: string; wasLastSite: boolean }>('/api/v1/settings', { method: 'DELETE' })
+    siteDeleted.value = true
+    deletedWasLastSite.value = res.wasLastSite
+    toast.add({ title: 'Site deleted — you will be signed out shortly', color: 'success' })
+
+    // The domain this site lived on no longer has any site at all — a session
+    // cookie here is meaningless either way, so always sign out. Deliberately
+    // NOT using auth.signOut() (which redirects straight to /login) — a
+    // wasLastSite delete needs to land on /setup instead, so this counts down
+    // first and picks the right destination once it fires.
+    const interval = setInterval(async () => {
+      deleteCountdown.value--
+      if (deleteCountdown.value <= 0) {
+        clearInterval(interval)
+        await auth.signOutSilently()
+        await navigateTo(res.wasLastSite ? '/setup' : '/login', { external: true })
+      }
+    }, 1000)
+  } catch (err: unknown) {
+    const errMsg = (err as { data?: { message?: string } })?.data?.message ?? 'Failed to delete site.'
+    toast.add({ title: errMsg, color: 'error' })
   } finally {
     deleting.value = false
   }
@@ -647,7 +706,7 @@ async function deleteSite() {
                 <UButton
                   v-if="appearance.logoUrl"
                   variant="ghost"
-                  color="red"
+                  color="error"
                   icon="i-lucide-trash-2"
                   size="sm"
                   @click="removeLogo"
@@ -684,7 +743,7 @@ async function deleteSite() {
                   <UButton
                     v-if="appearance.faviconUrl"
                     variant="ghost"
-                    color="red"
+                    color="error"
                     icon="i-lucide-trash-2"
                     size="sm"
                     @click="removeFavicon"
@@ -801,16 +860,16 @@ async function deleteSite() {
 
               <template v-if="email.provider === 'cloudflare'">
                 <UAlert
-                  color="blue"
+                  color="info"
                   variant="soft"
                   icon="i-lucide-info"
-                  description="No API key needed. Add a send_email binding (name EMAIL) to wrangler.toml, then run `wrangler email sending enable <your-domain>` for whichever domain your From address uses."
+                  description="No API key needed. Sends can go through even without it, but for reliable inbox delivery run `wrangler email sending enable <your-domain>` once (via Cloudflare's CLI or dashboard) for whichever domain your From address uses — it sets up the SPF/DKIM records recipients check."
                 />
               </template>
 
               <template v-if="email.provider === 'smtp'">
                 <UAlert
-                  color="yellow"
+                  color="warning"
                   variant="soft"
                   icon="i-lucide-triangle-alert"
                   description="Sent via MailChannels' API, not a generic SMTP relay — there are no host/username/password to configure here. MailChannels' free anonymous relay for Cloudflare Workers requires an existing MailChannels account and DNS domain-lockdown records set up outside NuxFlow; most new setups won't have this. Cloudflare Email (above) needs no third-party account."
@@ -1033,7 +1092,7 @@ async function deleteSite() {
 
           <UAlert
             icon="i-lucide-info"
-            color="blue"
+            color="info"
             variant="soft"
             title="How to get these credentials"
           >
@@ -1249,8 +1308,8 @@ async function deleteSite() {
             <template #header>
               <div class="flex items-center justify-between">
                 <p class="text-sm font-semibold text-gray-900 dark:text-white">VAPID keys</p>
-                <UBadge v-if="push.vapidPublicKey" color="green" variant="soft">Configured</UBadge>
-                <UBadge v-else color="gray" variant="soft">Not configured</UBadge>
+                <UBadge v-if="push.vapidPublicKey" color="success" variant="soft">Configured</UBadge>
+                <UBadge v-else color="neutral" variant="soft">Not configured</UBadge>
               </div>
             </template>
             <div class="space-y-4">
@@ -1275,7 +1334,7 @@ async function deleteSite() {
                   v-else
                   icon="i-lucide-refresh-cw"
                   variant="outline"
-                  color="red"
+                  color="error"
                   :loading="generatingVapid"
                   @click="generateVapidKeys"
                 >
@@ -1377,7 +1436,7 @@ async function deleteSite() {
           <UAlert
             v-if="passwordChangedSuccess"
             icon="i-lucide-circle-check"
-            color="green"
+            color="success"
             variant="soft"
             title="Password updated successfully!"
             :description="`Your password has been changed. Logging you out in ${redirectCountdown} seconds to re-authenticate with your new password...`"
@@ -1434,7 +1493,32 @@ async function deleteSite() {
             <template #header>
               <p class="text-sm font-semibold text-red-600 dark:text-red-400">Delete site</p>
             </template>
-            <div class="space-y-4">
+            <!-- Deleted: site and all its data are gone -->
+            <div v-if="siteDeleted" class="space-y-3">
+              <p v-if="deletedWasLastSite" class="text-sm text-gray-600 dark:text-gray-400">
+                This site and all its content, media, users, and settings have been deleted. You're being signed out in {{ deleteCountdown }}… and taken to setup to start fresh.
+              </p>
+              <p v-else class="text-sm text-gray-600 dark:text-gray-400">
+                This site and all its content, media, users, and settings have been deleted. This domain no longer has a site, so you're being signed out in {{ deleteCountdown }}… To manage another site, visit its domain directly and sign in there. To re-provision this domain, create it again from Super Admin → Sites on another site you manage.
+              </p>
+            </div>
+
+            <!-- Blocked: this is the main site and other sites still exist -->
+            <div v-else-if="isMainSite && blockingSites.length > 0" class="space-y-3">
+              <p class="text-sm text-gray-600 dark:text-gray-400">
+                This is the main site for this deployment — delete the other site{{ blockingSites.length === 1 ? '' : 's' }} below first before this one can be deleted.
+              </p>
+              <ul class="space-y-1.5">
+                <li v-for="s in blockingSites" :key="s.id" class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <UIcon name="i-lucide-globe" class="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <span>{{ s.name }}</span>
+                  <span class="font-mono text-xs text-gray-400">{{ s.domain }}</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Normal delete flow -->
+            <div v-else class="space-y-4">
               <p class="text-sm text-gray-600 dark:text-gray-400">
                 Permanently deletes this site and all its content, media, users, and settings. This action cannot be undone.
               </p>
@@ -1448,7 +1532,7 @@ async function deleteSite() {
                   <span v-else>The button below will activate once the name matches.</span>
                 </p>
                 <UButton
-                  color="red"
+                  color="error"
                   :loading="deleting"
                   :disabled="deleteConfirm !== data?.site.name"
                   @click="deleteSite"

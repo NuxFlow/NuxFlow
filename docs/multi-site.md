@@ -6,7 +6,9 @@ A single NuxFlow deployment can host any number of independent websites, each on
 
 Every incoming request carries a `Host` header. The multi-site middleware reads that header and looks up a matching record in the `sites` table. Everything downstream — content queries, authentication, permissions, and plugins — is scoped to the resolved site.
 
-If no site matches the incoming domain, NuxFlow falls back to a single-site rule: if there is exactly one site in the database, all requests are served by that site regardless of the domain. This allows you to access your admin panel after migrating to a new domain before you have updated the record, and it automatically heals the stored domain to match the live request when running in production.
+If no site matches the incoming domain, NuxFlow falls back to a single-site rule: if there is exactly one site in the database, all requests are served by that site regardless of the domain. This allows you to access your admin panel after migrating to a new domain before you have updated the record.
+
+The stored domain only self-heals to match the live request on `/admin` traffic — not on public pages or crawler requests (`/robots.txt`, `/sitemap.xml`, etc.). This matters if you ever point a second, not-yet-onboarded domain at the same Worker: without this restriction, any stray request to that unclaimed domain (even a bot fetching `/robots.txt`) would silently reassign your real site's domain away from its actual production domain. Visiting `/admin` on the new domain while logged in is what actually confirms the migration.
 
 ::note
 The single-site fallback only triggers when there is **one** site in the database. Once you add a second site, every domain must resolve to an explicit record.
@@ -147,18 +149,30 @@ You must be authenticated as a super admin for this request to succeed.
 
 ## Removing a site
 
-Deleting a site is permanent and cascades to all data owned by that site: content, media, forms, settings, themes, and plugins. Users who exist solely on the deleted site are also removed; users with roles on other sites are left untouched.
+Deleting always wipes everything the site owns: content, media, forms, settings, themes, and plugins. Users who exist solely on the deleted site are also removed; users with roles on other sites are left untouched. What happens to the `sites` row itself depends on which of the two delete paths you use.
 
-To delete a site, send a `DELETE` request to `/api/v1/admin/sites/:id`:
+### Super Admin → Sites (cross-site)
+
+Send a `DELETE` request to `/api/v1/admin/sites/:id`, or use **Super Admin → Sites** in the dashboard:
 
 ```bash
 curl -X DELETE https://yourdomain.com/api/v1/admin/sites/SITE_ID
 ```
 
+You must be viewing a *different* site's domain than the one you're deleting — this endpoint refuses to delete the site you're currently on. It always fully removes the row, regardless of how many other sites exist. There's no confirmation step here and no undo.
+
 After deleting, remove the corresponding Custom Domain or Route from the Cloudflare dashboard to stop routing traffic to the Worker for that hostname.
 
+### Settings → Danger Zone (self-service, per-site)
+
+The Danger Zone tab in **Admin → Settings** always targets whichever site's domain you're currently on, and behaves differently depending on whether that site is the **main** site — the oldest one in the deployment (there's no separate flag for this; it's simply whichever site has been around the longest) — or an **addon** site:
+
+- **Only site in the deployment:** fully deleted, exactly like the cross-site path above. You're signed out and taken to the ordinary fresh-install `/setup` wizard.
+- **Main site, while addon sites still exist:** blocked with a 409 and the list of addon domains that must be deleted first. The UI shows this list up front so you don't have to attempt the delete to find out.
+- **Addon site:** fully deleted, same as the cross-site path — the row is dropped entirely rather than kept around in any reset state, so it doesn't linger as a phantom entry that would block a later main-site deletion. You're signed out here too: this delete only ever targets the domain you're currently on, and once that domain no longer has a site, a session cookie for it is meaningless — cookies don't carry over to your other domains anyway, since they're genuinely separate origins, not subdomains of one parent. You land on `/login` on this domain. To bring the deleted domain back, create it again from **Super Admin → Sites → New** on a site you can still reach — the same flow as adding any other new site — which issues a fresh one-time setup link.
+
 ::warning
-There is no confirmation step and no undo. Ensure you have taken a D1 backup via **Cloudflare Dashboard → D1 → your database → Backups** before deleting a site with live content.
+Whichever path you use, ensure you have taken a D1 backup via **Cloudflare Dashboard → D1 → your database → Backups** before deleting a site with live content — a full delete has no undo.
 ::
 
 ---

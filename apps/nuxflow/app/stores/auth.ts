@@ -16,5 +16,12 @@ export const useAuthStore = defineStore('auth', () => {
     await navigateTo('/login')
   }
 
-  return { user, isAuthenticated: loggedIn, signIn, signOut, fetchUser: fetchSession }
+  // Clears the session without the default redirect to /login — for callers
+  // that need to navigate somewhere else afterward (e.g. to /setup after a
+  // site deletion resets the current domain back to a fresh install).
+  async function signOutSilently() {
+    await _signOut()
+  }
+
+  return { user, isAuthenticated: loggedIn, signIn, signOut, signOutSilently, fetchUser: fetchSession }
 })
