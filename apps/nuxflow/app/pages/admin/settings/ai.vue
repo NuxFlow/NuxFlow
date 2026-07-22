@@ -47,10 +47,10 @@ async function save() {
   saving.value = true
   try {
     await $fetch('/api/v1/settings', { method: 'PATCH', body: { ai: form } })
-    toast.add({ title: 'AI Settings saved successfully', color: 'green' })
+    toast.add({ title: 'AI Settings saved successfully', color: 'success' })
     await refresh()
   } catch {
-    toast.add({ title: 'Failed to save AI Settings', color: 'red' })
+    toast.add({ title: 'Failed to save AI Settings', color: 'error' })
   } finally {
     saving.value = false
   }
@@ -143,7 +143,7 @@ async function test() {
 
     <UAlert
       icon="i-lucide-shield"
-      color="blue"
+      color="info"
       variant="soft"
       title="Security note"
       description="API keys are safely stored in your database using AES-GCM at-rest encryption and are never exposed to the client."

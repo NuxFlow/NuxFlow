@@ -132,7 +132,7 @@ async function deleteTerm(termId: string) {
               <UButton
                 icon="i-lucide-trash-2"
                 size="xs"
-                color="red"
+                color="error"
                 variant="ghost"
                 class="!text-red-500 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-950/20"
                 @click.stop="deleteId = tax.id"
@@ -176,7 +176,7 @@ async function deleteTerm(termId: string) {
                   icon="i-lucide-x"
                   size="xs"
                   variant="ghost"
-                  color="red"
+                  color="error"
                   class="!text-red-500 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-950/20"
                   @click="deleteTerm(term.id)"
                 />

@@ -162,9 +162,9 @@ async function save() {
       body: { name: name.value, location: location.value, items: items.value },
     })
     await refresh()
-    toast.add({ title: 'Menu saved', color: 'green' })
+    toast.add({ title: 'Menu saved', color: 'success' })
   } catch {
-    toast.add({ title: 'Failed to save', color: 'red' })
+    toast.add({ title: 'Failed to save', color: 'error' })
   } finally {
     saving.value = false
   }
@@ -218,7 +218,7 @@ function itemHref(item: MenuItem | ChildItem) {
               <div class="flex items-center gap-1 shrink-0">
                 <UButton variant="ghost" size="xs" icon="i-lucide-chevron-up" :disabled="i === 0" @click="moveItem(i, -1)" />
                 <UButton variant="ghost" size="xs" icon="i-lucide-chevron-down" :disabled="i === items.length - 1" @click="moveItem(i, 1)" />
-                <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="red" class="!text-red-500 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-950/20" @click="removeItem(item.id)" />
+                <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" class="!text-red-500 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-950/20" @click="removeItem(item.id)" />
               </div>
             </div>
 
@@ -240,7 +240,7 @@ function itemHref(item: MenuItem | ChildItem) {
                 <div class="flex items-center gap-1 shrink-0">
                   <UButton variant="ghost" size="xs" icon="i-lucide-chevron-up" :disabled="ci === 0" @click="moveItem(ci, -1, item.id)" />
                   <UButton variant="ghost" size="xs" icon="i-lucide-chevron-down" :disabled="ci === item.children.length - 1" @click="moveItem(ci, 1, item.id)" />
-                  <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="red" class="!text-red-500 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-950/20" @click="removeItem(child.id, item.id)" />
+                  <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" class="!text-red-500 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-950/20" @click="removeItem(child.id, item.id)" />
                 </div>
               </div>
             </div>

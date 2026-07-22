@@ -52,7 +52,7 @@ const permissionDescriptions: Record<string, string> = {
 
     <div class="flex justify-end gap-2 pt-2">
       <UButton variant="ghost" @click="emit('close')">Decline</UButton>
-      <UButton color="yellow" :loading="loading" @click="approve">Approve & enable</UButton>
+      <UButton color="warning" :loading="loading" @click="approve">Approve & enable</UButton>
     </div>
   </div>
 </template>

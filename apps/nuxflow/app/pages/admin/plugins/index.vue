@@ -39,7 +39,7 @@ function handlePasteJson() {
   try {
     const parsed = JSON.parse(jsonPayloadText.value)
     if (!parsed.id) {
-      toast.add({ title: 'Invalid JSON: id is required', color: 'red' })
+      toast.add({ title: 'Invalid JSON: id is required', color: 'error' })
       return
     }
     installForm.id = parsed.id || ''
@@ -52,7 +52,7 @@ function handlePasteJson() {
     installForm.clientChecksum = parsed.clientChecksum || ''
     installForm.publisherPublicKey = parsed.publisherPublicKey || ''
     installForm.signature = parsed.signature || ''
-    toast.add({ title: 'Plugin payload parsed successfully!', color: 'green' })
+    toast.add({ title: 'Plugin payload parsed successfully!', color: 'success' })
   } catch {
     // Ignore typings and partial input
   }
@@ -91,10 +91,10 @@ async function dynInstall() {
       signature: '',
     })
     jsonPayloadText.value = ''
-    toast.add({ title: 'Plugin installed successfully!', color: 'green' })
+    toast.add({ title: 'Plugin installed successfully!', color: 'success' })
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Install failed'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   } finally {
     installLoading.value = false
   }
@@ -105,10 +105,10 @@ async function dynToggle(id: string, isActive: boolean) {
   try {
     await $fetch(`/api/v1/dynamic-plugins/${id}/${action}`, { method: 'POST' })
     await refreshDyn()
-    toast.add({ title: isActive ? 'Plugin disabled' : 'Plugin enabled', color: 'green' })
+    toast.add({ title: isActive ? 'Plugin disabled' : 'Plugin enabled', color: 'success' })
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Action failed'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   }
 }
 
@@ -117,10 +117,10 @@ async function dynUninstall(id: string, name: string) {
   try {
     await $fetch(`/api/v1/dynamic-plugins/${id}`, { method: 'DELETE' })
     await refreshDyn()
-    toast.add({ title: 'Plugin uninstalled', color: 'green' })
+    toast.add({ title: 'Plugin uninstalled', color: 'success' })
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Uninstall failed'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   }
 }
 
@@ -143,10 +143,10 @@ async function dynUninstall(id: string, name: string) {
             <div class="min-w-0">
               <div class="flex items-center gap-2 mb-0.5">
                 <p class="font-semibold text-gray-900 dark:text-white">{{ plugin.name }}</p>
-                <UBadge :color="plugin.isActive ? 'green' : 'neutral'" variant="soft" size="xs">
+                <UBadge :color="plugin.isActive ? 'success' : 'neutral'" variant="soft" size="xs">
                   {{ plugin.isActive ? 'Active' : 'Inactive' }}
                 </UBadge>
-                <UBadge color="blue" variant="soft" size="xs">Dynamic</UBadge>
+                <UBadge color="info" variant="soft" size="xs">Dynamic</UBadge>
               </div>
               <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ plugin.id }} @ {{ plugin.version }}</p>
               <p v-if="plugin.description" class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ plugin.description }}</p>
@@ -172,7 +172,7 @@ async function dynUninstall(id: string, name: string) {
               </UButton>
               <UButton
                 size="xs"
-                color="red"
+                color="error"
                 variant="ghost"
                 icon="i-lucide-trash-2"
                 @click="dynUninstall(plugin.id, plugin.name)"
@@ -229,7 +229,7 @@ async function dynUninstall(id: string, name: string) {
         <div class="space-y-4 p-1 max-h-[80vh] overflow-y-auto pr-2">
           <UAlert
             icon="i-lucide-shield-alert"
-            color="yellow"
+            color="warning"
             variant="soft"
             title="Cryptographic Signature Required"
             description="Dynamic plugins must be signed with an Ed25519 publisher key. Paste the signed JSON bundle from your build output to auto-fill, or manually fill all fields."

@@ -14,10 +14,10 @@ const submissions = computed(() => data.value?.submissions ?? [])
 
 const selected = ref<Submission | null>(null)
 
-const statusColor: Record<string, 'yellow' | 'green' | 'red' | 'neutral'> = {
-  new: 'yellow',
-  read: 'green',
-  spam: 'red',
+const statusColor: Record<string, 'warning' | 'success' | 'error' | 'neutral'> = {
+  new: 'warning',
+  read: 'success',
+  spam: 'error',
   archived: 'neutral',
 }
 
@@ -29,10 +29,10 @@ async function setStatus(id: string, status: Submission['status']) {
     })
     await refresh()
     if (selected.value?.id === id) selected.value = null
-    toast.add({ title: `Marked as ${status}`, color: 'green' })
+    toast.add({ title: `Marked as ${status}`, color: 'success' })
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Update failed'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   }
 }
 
@@ -45,7 +45,7 @@ function formatDate(iso: string) {
   <div class="space-y-4">
     <div class="flex items-center justify-between">
       <h1 class="text-xl font-bold text-gray-900 dark:text-white">Contact Form</h1>
-      <UBadge :color="submissions.filter(s => s.status === 'new').length ? 'yellow' : 'neutral'" variant="soft">
+      <UBadge :color="submissions.filter(s => s.status === 'new').length ? 'warning' : 'neutral'" variant="soft">
         {{ submissions.filter(s => s.status === 'new').length }} new
       </UBadge>
     </div>
@@ -101,9 +101,9 @@ function formatDate(iso: string) {
         </UCard>
 
         <div class="flex flex-wrap gap-2">
-          <UButton v-if="selected.status !== 'read'" size="xs" color="green" variant="outline" icon="i-lucide-check" @click="setStatus(selected.id, 'read')">Mark read</UButton>
+          <UButton v-if="selected.status !== 'read'" size="xs" color="success" variant="outline" icon="i-lucide-check" @click="setStatus(selected.id, 'read')">Mark read</UButton>
           <UButton v-if="selected.status !== 'archived'" size="xs" color="neutral" variant="outline" icon="i-lucide-archive" @click="setStatus(selected.id, 'archived')">Archive</UButton>
-          <UButton v-if="selected.status !== 'spam'" size="xs" color="red" variant="outline" icon="i-lucide-shield-off" @click="setStatus(selected.id, 'spam')">Mark spam</UButton>
+          <UButton v-if="selected.status !== 'spam'" size="xs" color="error" variant="outline" icon="i-lucide-shield-off" @click="setStatus(selected.id, 'spam')">Mark spam</UButton>
           <UButton size="xs" variant="ghost" :href="`mailto:${selected.data.email}`" icon="i-lucide-mail">Reply</UButton>
         </div>
       </div>

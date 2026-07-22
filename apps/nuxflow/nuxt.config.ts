@@ -65,9 +65,12 @@ export default defineNuxtConfig({
   },
 
   ui: {
-    // Nuxt UI Pro configuration — Nuxt green as primary + semantic colors
+    // Restores Nuxt UI's built-in semantic slots (secondary/success/info/warning/error),
+    // which a prior literal-color-name list here had silently dropped project-wide —
+    // only 'primary'/'neutral' are structurally required and survive an override.
+    // 'orange' has no semantic equivalent, so it stays registered as a genuine custom color.
     theme: {
-      colors: ['green', 'red', 'blue', 'yellow', 'orange', 'gray'],
+      colors: ['secondary', 'success', 'info', 'warning', 'error', 'orange'],
     },
   },
 

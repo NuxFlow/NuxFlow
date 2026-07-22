@@ -73,7 +73,7 @@ async function submit() {
         <UInput v-model="form.confirmPassword" type="password" placeholder="••••••••" autocomplete="new-password" class="w-full" />
       </UFormField>
 
-      <UAlert v-if="error" color="red" variant="soft" :description="error" />
+      <UAlert v-if="error" color="error" variant="soft" :description="error" />
 
       <UButton type="submit" block :loading="loading">
         Reset password

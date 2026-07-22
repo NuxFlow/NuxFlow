@@ -98,7 +98,7 @@ async function signInSocial(provider: 'google' | 'github') {
         <NuxtLink to="/forgot-password" class="text-xs text-primary-500 hover:underline">Forgot password?</NuxtLink>
       </div>
 
-      <UAlert v-if="error" color="red" variant="soft" :description="error" />
+      <UAlert v-if="error" color="error" variant="soft" :description="error" />
 
       <div class="flex flex-col gap-2">
         <UButton type="submit" block :loading="loading">Sign in</UButton>

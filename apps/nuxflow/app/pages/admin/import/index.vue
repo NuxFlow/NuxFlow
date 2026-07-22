@@ -331,12 +331,12 @@ const tabs: { value: Tab; label: string; icon: string }[] = [
           </div>
         </UFormField>
 
-        <UAlert v-if="restoreError" icon="i-lucide-circle-x" color="red" variant="soft" :description="restoreError" />
+        <UAlert v-if="restoreError" icon="i-lucide-circle-x" color="error" variant="soft" :description="restoreError" />
 
         <UAlert
           v-if="restoreResult"
           icon="i-lucide-circle-check"
-          color="green"
+          color="success"
           variant="soft"
           title="Restore complete"
         >
@@ -457,12 +457,12 @@ const tabs: { value: Tab; label: string; icon: string }[] = [
           </div>
         </div>
 
-        <UAlert v-if="wpError" icon="i-lucide-circle-x" color="red" variant="soft" :description="wpError" />
+        <UAlert v-if="wpError" icon="i-lucide-circle-x" color="error" variant="soft" :description="wpError" />
 
         <UAlert
           v-if="wpResult"
           icon="i-lucide-circle-check"
-          color="green"
+          color="success"
           variant="soft"
           title="Import complete"
         >

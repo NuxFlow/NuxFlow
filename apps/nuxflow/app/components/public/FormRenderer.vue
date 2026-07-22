@@ -130,7 +130,7 @@ async function submit() {
         </UFormField>
       </template>
 
-      <UAlert v-if="error" color="red" variant="soft" :description="error" />
+      <UAlert v-if="error" color="error" variant="soft" :description="error" />
 
       <NuxtTurnstile v-if="hasTurnstile" v-model="turnstileToken" :site-key="turnstileSiteKey" />
 

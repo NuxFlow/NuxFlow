@@ -99,7 +99,7 @@ async function save() {
             <p class="text-sm font-medium text-gray-900 dark:text-white">{{ field.label }}</p>
             <p class="text-xs text-gray-400">{{ field.type }}<span v-if="field.required" class="text-red-400 ml-1">*</span></p>
           </div>
-          <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="red" @click.stop="removeField(field.id)" />
+          <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" @click.stop="removeField(field.id)" />
         </div>
 
         <div v-if="!fields.length" class="text-center py-12 text-gray-400">

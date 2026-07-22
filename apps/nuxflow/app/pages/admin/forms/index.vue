@@ -5,8 +5,8 @@ type FormRow = { id: string; name: string; status: string; updatedAt: string }
 const { data } = await useFetch<{ forms: FormRow[] }>('/api/v1/forms')
 const items = computed(() => data.value?.forms ?? [])
 
-type Color = 'green' | 'gray' | 'red' | 'primary' | 'neutral'
-const statusColor: Record<string, Color> = { active: 'green', draft: 'gray', closed: 'red' }
+type Color = 'success' | 'neutral' | 'error' | 'primary'
+const statusColor: Record<string, Color> = { active: 'success', draft: 'neutral', closed: 'error' }
 
 const columns = [
   { accessorKey: 'name', header: 'Name' },

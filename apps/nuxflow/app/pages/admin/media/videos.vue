@@ -115,7 +115,7 @@ async function uploadFile(file: File) {
       method: 'POST',
       body: { uid, title: file.name.replace(/\.[^/.]+$/, ''), size: file.size },
     })
-    toast.add({ title: 'Video uploaded!', color: 'green', description: 'Cloudflare Stream is now processing the file.' })
+    toast.add({ title: 'Video uploaded!', color: 'success', description: 'Cloudflare Stream is now processing the file.' })
     await refresh()
     startPoller()
   }
@@ -128,7 +128,7 @@ async function uploadFile(file: File) {
       streamError.value = errorMsg
     }
     else {
-      toast.add({ title: 'Upload failed', color: 'red', description: errorMsg })
+      toast.add({ title: 'Upload failed', color: 'error', description: errorMsg })
     }
   }
   finally {
@@ -151,12 +151,12 @@ async function saveDetail() {
       method: 'PATCH',
       body: { title: editTitle.value },
     })
-    toast.add({ title: 'Video details updated', color: 'green' })
+    toast.add({ title: 'Video details updated', color: 'success' })
     await refresh()
     showDetailModal.value = false
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Unknown error'
-    toast.add({ title: 'Failed to save details', color: 'red', description: errMsg })
+    toast.add({ title: 'Failed to save details', color: 'error', description: errMsg })
   } finally {
     savingDetail.value = false
   }
@@ -168,12 +168,12 @@ async function deleteVideo() {
   deletingDetail.value = true
   try {
     await $fetch(`/api/v1/media/video/${selectedVideo.value.id}`, { method: 'DELETE' })
-    toast.add({ title: 'Video deleted', color: 'green' })
+    toast.add({ title: 'Video deleted', color: 'success' })
     await refresh()
     showDetailModal.value = false
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Unknown error'
-    toast.add({ title: 'Failed to delete video', color: 'red', description: errMsg })
+    toast.add({ title: 'Failed to delete video', color: 'error', description: errMsg })
   } finally {
     deletingDetail.value = false
   }
@@ -182,7 +182,7 @@ async function deleteVideo() {
 async function copyStreamUrl(streamId: string) {
   const url = `https://iframe.videodelivery.net/${streamId}`
   await navigator.clipboard.writeText(url)
-  toast.add({ title: 'URL copied!', description: 'Paste it into a Canvas Video block.', color: 'green' })
+  toast.add({ title: 'URL copied!', description: 'Paste it into a Canvas Video block.', color: 'success' })
 }
 
 function playVideo(video: VideoAsset) {
@@ -249,7 +249,7 @@ function formatDuration(seconds: number | null) {
     <UAlert
       v-if="!streamConfigured"
       icon="i-lucide-triangle-alert"
-      color="yellow"
+      color="warning"
       variant="soft"
       title="Cloudflare Stream is not configured"
       description="Video uploads are disabled until you add your Account ID and Stream API token."
@@ -264,7 +264,7 @@ function formatDuration(seconds: number | null) {
     <UAlert
       v-if="streamError"
       icon="i-lucide-credit-card"
-      color="red"
+      color="error"
       variant="soft"
       title="Cloudflare Stream quota exceeded"
       :description="streamError"
@@ -479,7 +479,7 @@ function formatDuration(seconds: number | null) {
       <template #footer>
         <div class="flex justify-between w-full">
           <UButton
-            color="red"
+            color="error"
             variant="ghost"
             icon="i-lucide-trash-2"
             :loading="deletingDetail"

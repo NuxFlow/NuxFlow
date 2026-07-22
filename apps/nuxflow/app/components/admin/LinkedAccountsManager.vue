@@ -67,7 +67,7 @@ async function linkProvider(providerId: string) {
   }
   catch (err: unknown) {
     const msg = (err as { message?: string })?.message ?? 'Failed to connect provider'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
     linking.value = null
   }
 }
@@ -79,7 +79,7 @@ async function unlinkProvider(providerId: string) {
     toast.add({
       title: 'Cannot disconnect your only login method',
       description: 'Set a password or connect another provider first.',
-      color: 'red',
+      color: 'error',
     })
     return
   }
@@ -88,15 +88,15 @@ async function unlinkProvider(providerId: string) {
   try {
     const res = await client.unlinkAccount({ providerId })
     if (res?.error) {
-      toast.add({ title: res.error.message ?? 'Failed to disconnect provider', color: 'red' })
+      toast.add({ title: res.error.message ?? 'Failed to disconnect provider', color: 'error' })
       return
     }
-    toast.add({ title: 'Provider disconnected successfully', color: 'green' })
+    toast.add({ title: 'Provider disconnected successfully', color: 'success' })
     await fetchAccounts()
   }
   catch (err: unknown) {
     const msg = (err as { message?: string })?.message ?? 'Failed to disconnect provider'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   }
   finally {
     unlinking.value = null
@@ -111,7 +111,7 @@ onMounted(async () => {
       'account-already-linked': 'That provider account is already linked to another user.',
       'provider-not-found': 'Provider not found or not enabled.',
     }
-    toast.add({ title: messages[error] ?? `Could not connect provider: ${error}`, color: 'red' })
+    toast.add({ title: messages[error] ?? `Could not connect provider: ${error}`, color: 'error' })
   }
   await fetchAccounts()
 })
@@ -151,7 +151,7 @@ onMounted(async () => {
               </p>
             </div>
           </div>
-          <UBadge :color="hasPasswordAccount ? 'green' : 'gray'" variant="soft" size="sm">
+          <UBadge :color="hasPasswordAccount ? 'success' : 'neutral'" variant="soft" size="sm">
             {{ hasPasswordAccount ? 'Connected' : 'Not set' }}
           </UBadge>
         </div>
@@ -189,7 +189,7 @@ onMounted(async () => {
             <UButton
               v-else
               size="sm"
-              color="red"
+              color="error"
               variant="ghost"
               :loading="unlinking === provider.id"
               icon="i-lucide-unlink"

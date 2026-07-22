@@ -67,7 +67,7 @@ async function subscribe(tierId: string) {
     window.location.href = url
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Could not start checkout'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   } finally {
     loading.value = null
   }

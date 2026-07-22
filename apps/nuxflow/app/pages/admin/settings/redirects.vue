@@ -80,10 +80,10 @@ const columns = [
           <code class="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{{ row.original.to }}</code>
         </template>
         <template #statusCode-cell="{ row }">
-          <UBadge :color="row.original.statusCode === 301 ? 'blue' : 'gray'" variant="soft" size="xs">{{ row.original.statusCode }}</UBadge>
+          <UBadge :color="row.original.statusCode === 301 ? 'info' : 'neutral'" variant="soft" size="xs">{{ row.original.statusCode }}</UBadge>
         </template>
         <template #actions-cell="{ row }">
-          <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="red" @click="remove(row.original.id)" />
+          <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" @click="remove(row.original.id)" />
         </template>
       </UTable>
     </UCard>

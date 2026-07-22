@@ -5,9 +5,9 @@ type AuditLog = { id: string; action: string; resource: string; resourceId: stri
 const { data } = await useFetch<{ logs: AuditLog[] }>('/api/v1/audit-log')
 const logs = computed(() => data.value?.logs ?? [])
 
-type Color = 'green' | 'blue' | 'red' | 'gray' | 'primary' | 'neutral'
+type Color = 'success' | 'info' | 'error' | 'neutral' | 'primary'
 const actionColor: Record<string, Color> = {
-  create: 'green', update: 'blue', delete: 'red', activate: 'green',
+  create: 'success', update: 'info', delete: 'error', activate: 'success',
 }
 
 const columns = [
@@ -26,7 +26,7 @@ const columns = [
     <UCard>
       <UTable :data="logs" :columns="columns">
         <template #action-cell="{ row }">
-          <UBadge :color="actionColor[row.original.action] ?? 'gray'" variant="soft" size="xs" class="capitalize">
+          <UBadge :color="actionColor[row.original.action] ?? 'neutral'" variant="soft" size="xs" class="capitalize">
             {{ row.original.action }}
           </UBadge>
         </template>

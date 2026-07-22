@@ -42,7 +42,7 @@ const columns = [
     <!-- New key shown once -->
     <UAlert
       v-if="newKey"
-      color="green"
+      color="success"
       variant="soft"
       icon="i-lucide-key"
       title="API key created — copy it now, it won't be shown again"
@@ -76,7 +76,7 @@ const columns = [
           <span class="text-sm text-gray-400">{{ row.original.lastUsedAt ? new Date(row.original.lastUsedAt).toLocaleDateString() : 'Never' }}</span>
         </template>
         <template #actions-cell="{ row }">
-          <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="red" @click="revoke(row.original.id)" />
+          <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" @click="revoke(row.original.id)" />
         </template>
       </UTable>
     </UCard>

@@ -48,7 +48,7 @@ const showAiImageModal = ref(false)
 function onAiImageGenerated(url: string) {
   showAiImageModal.value = false
   refresh()
-  toast.add({ title: 'Image saved to media library', color: 'green', description: url.slice(0, 60) })
+  toast.add({ title: 'Image saved to media library', color: 'success', description: url.slice(0, 60) })
 }
 
 // ── Bulk alt text ─────────────────────────────────────────────────────────────
@@ -66,13 +66,13 @@ async function runBulkAltText() {
     })
     bulkAltResult.value = res
     if (res.processing) {
-      toast.add({ title: `Generating alt text for ${res.total} images in background…`, color: 'blue' })
+      toast.add({ title: `Generating alt text for ${res.total} images in background…`, color: 'info' })
     } else if (res.processed !== undefined) {
-      toast.add({ title: `Alt text generated for ${res.processed} image${res.processed !== 1 ? 's' : ''}`, color: 'green' })
+      toast.add({ title: `Alt text generated for ${res.processed} image${res.processed !== 1 ? 's' : ''}`, color: 'success' })
       await refresh()
     }
   } catch {
-    toast.add({ title: 'Failed to generate alt text', color: 'red' })
+    toast.add({ title: 'Failed to generate alt text', color: 'error' })
   } finally {
     bulkAltLoading.value = false
   }
@@ -344,7 +344,7 @@ function resetFocalPoint() {
               icon="i-lucide-trash-2"
               size="xs"
               variant="ghost"
-              color="red"
+              color="error"
               class="opacity-0 group-hover:opacity-100 -mr-1"
               @click.stop="deleteFolder(folder.id)"
             />
@@ -471,7 +471,7 @@ function resetFocalPoint() {
                 size="xs"
                 variant="outline"
                 :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-                :color="copied ? 'green' : 'neutral'"
+                :color="copied ? 'success' : 'neutral'"
                 class="mt-2"
                 @click="copyUrl(detail.url)"
               >
@@ -480,7 +480,7 @@ function resetFocalPoint() {
               <div v-if="isImage(detail.mimeType)" class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2.5 py-1 rounded mt-2 border border-gray-100 dark:border-gray-800">
                 <span v-if="detailFocalX !== null && detailFocalY !== null">Focal: {{ detailFocalX }}%, {{ detailFocalY }}%</span>
                 <span v-else class="italic text-gray-400">Click preview to set focal point</span>
-                <UButton v-if="detailFocalX !== null || detailFocalY !== null" size="xs" variant="ghost" color="red" icon="i-lucide-trash-2" class="h-5 p-1" @click="resetFocalPoint" />
+                <UButton v-if="detailFocalX !== null || detailFocalY !== null" size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" class="h-5 p-1" @click="resetFocalPoint" />
               </div>
               <!-- EXIF data -->
               <div v-if="detailExif" class="mt-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2.5 py-1.5 rounded border border-gray-100 dark:border-gray-800 space-y-0.5">
@@ -531,7 +531,7 @@ function resetFocalPoint() {
       <template #footer>
         <div class="flex justify-between w-full">
           <UButton
-            color="red"
+            color="error"
             variant="ghost"
             icon="i-lucide-trash-2"
             :loading="deletingDetail"

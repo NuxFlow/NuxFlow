@@ -8,8 +8,8 @@ const currentDomain = import.meta.client ? window.location.hostname : ''
 const isCurrentSite = (site: SiteRow) => site.domain === currentDomain
 const items = computed(() => data.value?.sites ?? [])
 
-type Color = 'green' | 'yellow' | 'red' | 'primary' | 'neutral'
-const statusColor: Record<string, Color> = { active: 'green', maintenance: 'yellow', suspended: 'red' }
+type Color = 'success' | 'warning' | 'error' | 'primary' | 'neutral'
+const statusColor: Record<string, Color> = { active: 'success', maintenance: 'warning', suspended: 'error' }
 
 const columns = [
   { accessorKey: 'name', header: 'Name' },
@@ -119,7 +119,7 @@ async function deleteSite() {
             <UTooltip :text="isCurrentSite(row.original) ? 'Cannot delete the current site' : 'Delete site'">
               <UButton
                 variant="ghost"
-                color="red"
+                color="error"
                 size="xs"
                 icon="i-lucide-trash"
                 :disabled="isCurrentSite(row.original)"
@@ -154,7 +154,7 @@ async function deleteSite() {
               ]"
             />
           </UFormField>
-          <UAlert v-if="saveError" color="red" variant="soft" :description="saveError" />
+          <UAlert v-if="saveError" color="error" variant="soft" :description="saveError" />
         </div>
       </template>
       <template #footer>
@@ -182,7 +182,7 @@ async function deleteSite() {
       <template #footer>
         <UButton variant="ghost" @click="isDeleteOpen = false">Cancel</UButton>
         <UButton
-          color="red"
+          color="error"
           variant="solid"
           class="!bg-red-600 hover:!bg-red-700 !text-white font-semibold shadow-sm transition-colors cursor-pointer"
           :loading="deleting"

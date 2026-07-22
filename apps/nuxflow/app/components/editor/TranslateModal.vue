@@ -81,7 +81,7 @@ async function translate() {
 
     <UAlert
       icon="i-lucide-info"
-      color="blue"
+      color="info"
       variant="soft"
       size="sm"
       description="The translation is created as a draft. Review it before publishing."

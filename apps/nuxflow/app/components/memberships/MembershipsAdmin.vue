@@ -129,16 +129,16 @@ async function saveTier() {
     }
     if (editingTier.value) {
       await $fetch(`/api/v1/memberships/${editingTier.value.id}`, { method: 'PATCH', body })
-      toast.add({ title: 'Tier updated', color: 'green' })
+      toast.add({ title: 'Tier updated', color: 'success' })
     } else {
       await $fetch('/api/v1/memberships', { method: 'POST', body })
-      toast.add({ title: 'Tier created', color: 'green' })
+      toast.add({ title: 'Tier created', color: 'success' })
     }
     await refreshTiers()
     showTierModal.value = false
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Save failed'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   } finally {
     tierLoading.value = false
   }
@@ -149,10 +149,10 @@ async function deleteTier(tier: Tier) {
   try {
     await $fetch(`/api/v1/memberships/${tier.id}`, { method: 'DELETE' })
     await refreshTiers()
-    toast.add({ title: 'Tier deleted', color: 'green' })
+    toast.add({ title: 'Tier deleted', color: 'success' })
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Delete failed'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   }
 }
 
@@ -160,12 +160,12 @@ async function deleteTier(tier: Tier) {
 
 const INTERVAL_LABELS: Record<string, string> = { month: 'mo', year: 'yr', one_time: 'once' }
 
-const statusColor: Record<string, 'green' | 'yellow' | 'red' | 'neutral'> = {
-  active: 'green',
-  trialing: 'yellow',
-  past_due: 'red',
+const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> = {
+  active: 'success',
+  trialing: 'warning',
+  past_due: 'error',
   cancelled: 'neutral',
-  unpaid: 'red',
+  unpaid: 'error',
 }
 
 function syncBadge(tier: Tier) {
@@ -173,7 +173,7 @@ function syncBadge(tier: Tier) {
   const synced = !!(tier.stripePriceId || tier.lsVariantId || tier.paddleProductId)
   return synced
     ? { label: 'Synced', color: 'primary' as const }
-    : { label: 'Unsynced', color: 'red' as const }
+    : { label: 'Unsynced', color: 'error' as const }
 }
 
 function syncTitle(tier: Tier) {
@@ -234,7 +234,7 @@ const tabs = [
             <div class="min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
                 <p class="font-semibold text-gray-900 dark:text-white">{{ tier.name }}</p>
-                <UBadge :color="tier.isActive ? 'green' : 'neutral'" variant="soft" size="xs">
+                <UBadge :color="tier.isActive ? 'success' : 'neutral'" variant="soft" size="xs">
                   {{ tier.isActive ? 'Active' : 'Inactive' }}
                 </UBadge>
                 <UBadge
@@ -260,7 +260,7 @@ const tabs = [
             </div>
             <div class="flex gap-1 shrink-0">
               <UButton size="xs" variant="ghost" icon="i-lucide-pencil" @click="openEditTier(tier)" />
-              <UButton size="xs" variant="ghost" color="red" icon="i-lucide-trash-2" @click="deleteTier(tier)" />
+              <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="deleteTier(tier)" />
             </div>
           </div>
         </UCard>

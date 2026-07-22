@@ -442,7 +442,7 @@ const tools = computed((): ToolGroup[] => {
             <span class="text-green-600 dark:text-green-400 font-medium">{{ c.corrected }}</span>
             <span class="ml-2 text-gray-400">{{ c.reason }}</span>
           </div>
-          <UButton size="xs" variant="ghost" color="green" @click="applyCorrection(c)">Apply</UButton>
+          <UButton size="xs" variant="ghost" color="success" @click="applyCorrection(c)">Apply</UButton>
         </div>
       </div>
     </div>

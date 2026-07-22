@@ -195,7 +195,7 @@ async function publish() {
 async function generatePreviewLink() {
   const result = await $fetch<{ url: string }>(`/api/v1/content/${id.value}/preview-link`, { method: 'POST' })
   await navigator.clipboard.writeText(result.url)
-  useToast().add({ title: 'Preview link copied', description: 'Valid for 48 hours', color: 'green' })
+  useToast().add({ title: 'Preview link copied', description: 'Valid for 48 hours', color: 'success' })
 }
 
 // Belt-and-suspenders: if the fetch hasn't fired yet when the component mounts

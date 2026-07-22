@@ -321,10 +321,10 @@ async function save() {
     })
     customizerThemeId.value = result.themeId
     savedValues.value = { ...toRaw(values) }
-    toast.add({ title: 'Changes published!', icon: 'i-lucide-check-circle', color: 'green' })
+    toast.add({ title: 'Changes published!', icon: 'i-lucide-check-circle', color: 'success' })
   } catch (e) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to publish'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   } finally {
     saving.value = false
   }

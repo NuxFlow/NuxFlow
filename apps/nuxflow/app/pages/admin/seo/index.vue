@@ -76,10 +76,10 @@ async function saveGlobal() {
         },
       },
     })
-    toast.add({ title: 'SEO settings saved', color: 'green' })
+    toast.add({ title: 'SEO settings saved', color: 'success' })
     await refreshSettings()
   } catch {
-    toast.add({ title: 'Failed to save settings', color: 'red' })
+    toast.add({ title: 'Failed to save settings', color: 'error' })
   } finally {
     savingGlobal.value = false
   }
@@ -127,7 +127,7 @@ async function addRedirect() {
     addForm.to = ''
     addForm.statusCode = 301
     await refreshRedirects()
-    toast.add({ title: 'Redirect added', color: 'green' })
+    toast.add({ title: 'Redirect added', color: 'success' })
   } catch {
     addError.value = 'Failed to add redirect. Check for duplicates.'
   } finally {
@@ -142,9 +142,9 @@ async function deleteRedirect(id: string) {
   try {
     await $fetch(`/api/v1/redirects/${id}`, { method: 'DELETE' })
     await refreshRedirects()
-    toast.add({ title: 'Redirect deleted', color: 'green' })
+    toast.add({ title: 'Redirect deleted', color: 'success' })
   } catch {
-    toast.add({ title: 'Failed to delete redirect', color: 'red' })
+    toast.add({ title: 'Failed to delete redirect', color: 'error' })
   } finally {
     deletingId.value = null
   }
@@ -260,7 +260,7 @@ const columns = [
             <div class="space-y-5">
               <UAlert
                 icon="i-lucide-cloud"
-                color="yellow"
+                color="warning"
                 variant="soft"
                 title="Check your Cloudflare dashboard"
                 description="Cloudflare's 'Block AI Scrapers and Crawlers' toggle (Dashboard → your domain → Security → Bots) blocks AI crawlers at the network level before they reach your site — overriding the setting below. Ensure it is turned off if you want GEO visibility."
@@ -283,7 +283,7 @@ const columns = [
 
               <UAlert
                 icon="i-lucide-info"
-                color="blue"
+                color="info"
                 variant="soft"
                 title="What is GEO?"
                 description="Generative Engine Optimization ensures your content appears in answers from AI assistants like ChatGPT, Claude, and Perplexity. Allowing AI crawlers is required for your site to be cited as a source."
@@ -343,7 +343,7 @@ const columns = [
                   <USelect v-model="addForm.statusCode" :items="statusOptions" class="w-full" />
                 </UFormField>
               </div>
-              <UAlert v-if="addError" color="red" variant="soft" :description="addError" />
+              <UAlert v-if="addError" color="error" variant="soft" :description="addError" />
             </div>
             <template #footer>
               <div class="flex justify-end">
@@ -377,7 +377,7 @@ const columns = [
               </template>
               <template #statusCode-cell="{ row }">
                 <UBadge
-                  :color="row.original.statusCode === 301 ? 'blue' : 'yellow'"
+                  :color="row.original.statusCode === 301 ? 'info' : 'warning'"
                   variant="soft"
                   size="sm"
                 >
@@ -388,7 +388,7 @@ const columns = [
                 <div class="flex justify-end">
                   <UButton
                     variant="ghost"
-                    color="red"
+                    color="error"
                     size="xs"
                     icon="i-lucide-trash-2"
                     :loading="deletingId === row.original.id"

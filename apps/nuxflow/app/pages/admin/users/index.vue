@@ -104,7 +104,7 @@ const columns = [
             <UButton
               v-if="row.original.role !== 'super_admin' && row.original.id !== currentUser?.id"
               icon="i-lucide-trash-2"
-              color="red"
+              color="error"
               variant="ghost"
               size="xs"
               :loading="removingId === row.original.id"

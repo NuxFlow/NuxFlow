@@ -41,7 +41,7 @@ const statusOptions = [
           />
         </UFormField>
         <UAlert
-          color="yellow"
+          color="warning"
           variant="soft"
           icon="i-lucide-clock"
           description="Scheduled publishing requires a cron trigger, which is not available on Cloudflare Workers' free tier. Upgrade to the paid Workers plan ($5/mo) to enable it."

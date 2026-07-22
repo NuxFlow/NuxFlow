@@ -18,10 +18,10 @@ interface Comment {
 
 const statusTab = ref<'pending' | 'approved' | 'spam' | 'trash'>('pending')
 const tabs = [
-  { label: 'Pending', value: 'pending', color: 'yellow' },
-  { label: 'Approved', value: 'approved', color: 'green' },
-  { label: 'Spam', value: 'spam', color: 'red' },
-  { label: 'Trash', value: 'trash', color: 'gray' },
+  { label: 'Pending', value: 'pending', color: 'warning' },
+  { label: 'Approved', value: 'approved', color: 'success' },
+  { label: 'Spam', value: 'spam', color: 'error' },
+  { label: 'Trash', value: 'trash', color: 'neutral' },
 ]
 
 const { data, refresh, pending } = await useFetch<{ comments: Comment[] }>('/api/v1/comments', {
@@ -47,12 +47,12 @@ function authorEmail(c: Comment) {
   return c.authorEmail ?? c.guestEmail ?? ''
 }
 
-type UColor = 'yellow' | 'green' | 'red' | 'gray' | 'blue' | 'orange'
+type UColor = 'warning' | 'success' | 'error' | 'neutral' | 'info' | 'orange'
 const statusColors: Record<string, UColor> = {
-  pending: 'yellow',
-  approved: 'green',
-  spam: 'red',
-  trash: 'gray',
+  pending: 'warning',
+  approved: 'success',
+  spam: 'error',
+  trash: 'neutral',
 }
 </script>
 
@@ -121,7 +121,7 @@ const statusColors: Record<string, UColor> = {
           <!-- Actions -->
           <div class="flex items-center gap-2 pt-1">
             <template v-if="comment.status !== 'approved'">
-              <UButton size="xs" color="green" variant="soft" icon="i-lucide-check" @click="setStatus(comment.id, 'approved')">
+              <UButton size="xs" color="success" variant="soft" icon="i-lucide-check" @click="setStatus(comment.id, 'approved')">
                 Approve
               </UButton>
             </template>
@@ -136,11 +136,11 @@ const statusColors: Record<string, UColor> = {
               </UButton>
             </template>
             <template v-if="comment.status !== 'trash'">
-              <UButton size="xs" color="gray" variant="soft" icon="i-lucide-trash-2" @click="setStatus(comment.id, 'trash')">
+              <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-trash-2" @click="setStatus(comment.id, 'trash')">
                 Trash
               </UButton>
             </template>
-            <UButton size="xs" color="red" variant="ghost" icon="i-lucide-x" @click="deleteComment(comment.id)">
+            <UButton size="xs" color="error" variant="ghost" icon="i-lucide-x" @click="deleteComment(comment.id)">
               Delete
             </UButton>
           </div>

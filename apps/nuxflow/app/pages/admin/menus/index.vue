@@ -52,7 +52,7 @@ async function createMenu() {
     newLocation.value = null
     await navigateTo(`/admin/menus/${result.id}`)
   } catch {
-    toast.add({ title: 'Failed to create menu', color: 'red' })
+    toast.add({ title: 'Failed to create menu', color: 'error' })
   } finally {
     creating.value = false
   }
@@ -80,9 +80,9 @@ async function doDelete() {
     await $fetch(`/api/v1/menus/${deleteId.value}`, { method: 'DELETE' })
     deleteId.value = null
     await refresh()
-    toast.add({ title: 'Menu deleted', color: 'green' })
+    toast.add({ title: 'Menu deleted', color: 'success' })
   } catch {
-    toast.add({ title: 'Failed to delete', color: 'red' })
+    toast.add({ title: 'Failed to delete', color: 'error' })
   } finally {
     deleting.value = false
   }
@@ -138,7 +138,7 @@ onMounted(() => { if (!data.value) refresh() })
             variant="ghost"
             size="xs"
             icon="i-lucide-trash-2"
-            color="red"
+            color="error"
             class="shrink-0 !text-red-500 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-950/20"
             @click.prevent="deleteId = menu.id"
           />

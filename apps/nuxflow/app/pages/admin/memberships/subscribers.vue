@@ -4,11 +4,11 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 type Subscriber = { id: string; name: string; email: string; tier: string; status: string; renewsAt: string | null }
 const { data, pending } = await useFetch<{ subscribers: Subscriber[] }>('/api/v1/memberships/subscribers')
 
-type Color = 'green' | 'red' | 'yellow' | 'primary' | 'neutral'
+type Color = 'success' | 'error' | 'warning' | 'primary' | 'neutral'
 function statusColor(status: string): Color {
-  if (status === 'active') return 'green'
-  if (status === 'cancelled') return 'red'
-  return 'yellow'
+  if (status === 'active') return 'success'
+  if (status === 'cancelled') return 'error'
+  return 'warning'
 }
 
 const columns = [

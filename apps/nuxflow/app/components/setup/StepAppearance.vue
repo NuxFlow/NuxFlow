@@ -76,7 +76,7 @@ const templates = [
               <UBadge
                 v-if="t.tag"
                 size="xs"
-                :color="templateModel === t.id ? 'primary' : 'gray'"
+                :color="templateModel === t.id ? 'primary' : 'neutral'"
                 variant="subtle"
                 class="rounded-full font-medium"
               >
@@ -101,7 +101,7 @@ const templates = [
       </div>
     </div>
 
-    <UAlert v-if="error" color="red" variant="soft" :description="error" />
+    <UAlert v-if="error" color="error" variant="soft" :description="error" />
 
     <div class="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800">
       <UButton variant="ghost" @click="$emit('back')">

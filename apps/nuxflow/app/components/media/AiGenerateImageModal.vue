@@ -88,7 +88,7 @@ function useImage() {
     <UAlert
       v-if="!previewUrl"
       icon="i-lucide-info"
-      color="blue"
+      color="info"
       variant="soft"
       size="sm"
       description="Requires an OpenAI (DALL-E 3) or Google Gemini (Imagen 3) API key. Images are saved to your media library."

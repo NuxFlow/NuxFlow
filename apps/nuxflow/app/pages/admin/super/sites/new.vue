@@ -99,7 +99,7 @@ function done() {
         </div>
       </UCard>
 
-      <UAlert v-if="error" color="red" variant="soft" :description="error" />
+      <UAlert v-if="error" color="error" variant="soft" :description="error" />
 
       <div class="flex justify-end">
         <UButton :loading="saving" :disabled="!form.name || !form.domain" @click="create">

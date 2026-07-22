@@ -52,12 +52,12 @@ const { data: items, refresh } = await useFetch<{ items: ContentRow[] }>(
   }
 )
 
-type Color = 'green' | 'gray' | 'blue' | 'yellow' | 'orange' | 'red' | 'primary' | 'neutral'
+type Color = 'success' | 'neutral' | 'info' | 'warning' | 'orange' | 'error' | 'primary'
 const statusColor: Record<string, Color> = {
-  published: 'green',
-  draft: 'gray',
-  scheduled: 'blue',
-  archived: 'yellow',
+  published: 'success',
+  draft: 'neutral',
+  scheduled: 'info',
+  archived: 'warning',
   review: 'orange',
 }
 
@@ -95,9 +95,9 @@ async function doDelete() {
     await $fetch(`/api/v1/content/${deleteId.value}`, { method: 'DELETE' })
     deleteId.value = null
     await refresh()
-    toast.add({ title: 'Content deleted', color: 'green' })
+    toast.add({ title: 'Content deleted', color: 'success' })
   } catch {
-    toast.add({ title: 'Failed to delete', color: 'red' })
+    toast.add({ title: 'Failed to delete', color: 'error' })
   } finally {
     deleting.value = false
   }
@@ -167,7 +167,7 @@ async function doDelete() {
         <template #actions-cell="{ row }">
           <div class="flex items-center gap-1 justify-end">
             <UButton :to="`/admin/content/${row.original.id}`" variant="ghost" size="xs" icon="i-lucide-pencil" />
-            <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="red" @click="confirmDelete(row.original.id)" />
+            <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" @click="confirmDelete(row.original.id)" />
           </div>
         </template>
       </UTable>

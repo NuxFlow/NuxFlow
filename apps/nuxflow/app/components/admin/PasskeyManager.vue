@@ -50,12 +50,12 @@ async function fetchPasskeys() {
 
 async function registerPasskey() {
   if (!passkeyName.value.trim()) {
-    toast.add({ title: 'Please provide a name for this passkey', color: 'red' })
+    toast.add({ title: 'Please provide a name for this passkey', color: 'error' })
     return
   }
 
   if (!client?.passkey) {
-    toast.add({ title: 'Passkey authentication is not configured.', color: 'red' })
+    toast.add({ title: 'Passkey authentication is not configured.', color: 'error' })
     return
   }
 
@@ -66,16 +66,16 @@ async function registerPasskey() {
     })
     
     if (result?.error) {
-      toast.add({ title: result.error.message || 'Failed to register passkey', color: 'red' })
+      toast.add({ title: result.error.message || 'Failed to register passkey', color: 'error' })
       return
     }
 
-    toast.add({ title: 'Passkey registered successfully!', color: 'green' })
+    toast.add({ title: 'Passkey registered successfully!', color: 'success' })
     passkeyName.value = ''
     await fetchPasskeys()
   } catch (err: unknown) {
     const errMsg = (err as { message?: string })?.message || 'Biometric registration cancelled or failed.'
-    toast.add({ title: errMsg, color: 'red' })
+    toast.add({ title: errMsg, color: 'error' })
   } finally {
     registering.value = false
   }
@@ -83,21 +83,21 @@ async function registerPasskey() {
 
 async function deletePasskey(id: string) {
   if (!client?.passkey) {
-    toast.add({ title: 'Passkey authentication is not configured.', color: 'red' })
+    toast.add({ title: 'Passkey authentication is not configured.', color: 'error' })
     return
   }
 
   try {
     const result = await client.passkey.deletePasskey({ id })
     if (result?.error) {
-      toast.add({ title: result.error.message || 'Failed to delete passkey', color: 'red' })
+      toast.add({ title: result.error.message || 'Failed to delete passkey', color: 'error' })
       return
     }
 
-    toast.add({ title: 'Passkey deleted successfully', color: 'green' })
+    toast.add({ title: 'Passkey deleted successfully', color: 'success' })
     await fetchPasskeys()
   } catch {
-    toast.add({ title: 'Failed to delete passkey', color: 'red' })
+    toast.add({ title: 'Failed to delete passkey', color: 'error' })
   }
 }
 
@@ -152,7 +152,7 @@ onMounted(() => {
                 <div class="flex items-center gap-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                   <span>Created {{ formatDate(pk.createdAt) }}</span>
                   <span>•</span>
-                  <UBadge size="sm" variant="soft" :color="pk.deviceType === 'platform' ? 'blue' : 'orange'">
+                  <UBadge size="sm" variant="soft" :color="pk.deviceType === 'platform' ? 'info' : 'orange'">
                     {{ pk.deviceType === 'platform' ? 'Device Biometrics' : 'Security Key' }}
                   </UBadge>
                 </div>
@@ -160,7 +160,7 @@ onMounted(() => {
             </div>
             
             <UButton 
-              color="red" 
+              color="error" 
               variant="ghost" 
               icon="i-lucide-trash-2" 
               size="sm"

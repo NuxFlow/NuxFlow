@@ -58,11 +58,11 @@ const showCancelConfirm = ref(false)
 
 const statusColor = computed(() => {
   switch (subscription.value?.status) {
-    case 'active': return 'green'
-    case 'trialing': return 'blue'
+    case 'active': return 'success'
+    case 'trialing': return 'info'
     case 'past_due': return 'orange'
-    case 'cancelled': return 'red'
-    default: return 'gray'
+    case 'cancelled': return 'error'
+    default: return 'neutral'
   }
 })
 
@@ -93,7 +93,7 @@ async function manageBilling() {
     window.location.href = url
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Could not open billing portal'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   } finally {
     managingBilling.value = false
   }
@@ -104,11 +104,11 @@ async function cancelSubscription() {
   showCancelConfirm.value = false
   try {
     await $fetch('/api/v1/account/subscription', { method: 'DELETE' })
-    toast.add({ title: 'Subscription cancelled', color: 'green' })
+    toast.add({ title: 'Subscription cancelled', color: 'success' })
     await refreshSubscription()
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Could not cancel subscription'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   } finally {
     cancellingSubscription.value = false
   }
@@ -207,7 +207,7 @@ function formatDate(dateStr: string | null) {
           <UButton
             v-if="canCancel"
             variant="outline"
-            color="red"
+            color="error"
             icon="i-lucide-x-circle"
             :loading="cancellingSubscription"
             @click="showCancelConfirm = true"
@@ -239,7 +239,7 @@ function formatDate(dateStr: string | null) {
           </p>
           <div class="flex justify-end gap-2">
             <UButton variant="ghost" @click="showCancelConfirm = false">Keep subscription</UButton>
-            <UButton color="red" :loading="cancellingSubscription" @click="cancelSubscription">
+            <UButton color="error" :loading="cancellingSubscription" @click="cancelSubscription">
               Yes, cancel
             </UButton>
           </div>

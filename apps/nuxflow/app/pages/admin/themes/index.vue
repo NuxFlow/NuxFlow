@@ -30,9 +30,9 @@ async function activate(id: string) {
   try {
     await $fetch(`/api/v1/themes/${id}/activate`, { method: 'POST' })
     await refresh()
-    toast.add({ title: 'Theme activated', color: 'green' })
+    toast.add({ title: 'Theme activated', color: 'success' })
   } catch {
-    toast.add({ title: 'Failed to activate theme', color: 'red' })
+    toast.add({ title: 'Failed to activate theme', color: 'error' })
   } finally {
     activatingId.value = null
   }
@@ -44,7 +44,7 @@ async function preview(id: string) {
     const result = await $fetch<{ previewUrl: string }>(`/api/v1/themes/${id}/preview`, { method: 'POST' })
     window.open(result.previewUrl, '_blank', 'noopener')
   } catch {
-    toast.add({ title: 'Failed to generate preview', color: 'red' })
+    toast.add({ title: 'Failed to generate preview', color: 'error' })
   } finally {
     previewingId.value = null
   }
@@ -55,9 +55,9 @@ async function resetToDefault() {
   try {
     await $fetch('/api/v1/themes/reset', { method: 'POST' })
     await refresh()
-    toast.add({ title: 'Reverted to default theme', color: 'green' })
+    toast.add({ title: 'Reverted to default theme', color: 'success' })
   } catch {
-    toast.add({ title: 'Failed to reset theme', color: 'red' })
+    toast.add({ title: 'Failed to reset theme', color: 'error' })
   } finally {
     resetting.value = false
   }
@@ -88,11 +88,11 @@ async function deleteTheme(theme: Theme) {
     await refresh()
     toast.add({
       title: deleteDemo ? 'Theme and demo content deleted' : 'Theme deleted (content kept)',
-      color: 'green'
+      color: 'success'
     })
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Delete failed'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   } finally {
     deletingId.value = null
   }
@@ -148,11 +148,11 @@ async function uploadTheme() {
       demoOfferThemeId.value = result.id
       demoOfferSummary.value = result.demoSummary
     } else if (!result.failedImages?.length) {
-      toast.add({ title: 'Theme installed', color: 'green' })
+      toast.add({ title: 'Theme installed', color: 'success' })
     }
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Upload failed'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   } finally {
     uploading.value = false
   }
@@ -170,10 +170,10 @@ async function importDemoContent(themeId: string) {
 
     demoOfferThemeId.value = null
     demoOfferSummary.value = null
-    toast.add({ title: `Theme activated and demo content imported successfully!`, color: 'green' })
+    toast.add({ title: `Theme activated and demo content imported successfully!`, color: 'success' })
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Import failed'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   } finally {
     importingDemo.value = false
   }
@@ -200,11 +200,11 @@ async function saveCSS() {
       method: 'PATCH',
       body: { css: editCss.value },
     })
-    toast.add({ title: 'CSS updated — active on next page load', color: 'green' })
+    toast.add({ title: 'CSS updated — active on next page load', color: 'success' })
     editModal.value = false
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Save failed'
-    toast.add({ title: msg, color: 'red' })
+    toast.add({ title: msg, color: 'error' })
   } finally {
     saving.value = false
   }
@@ -262,10 +262,10 @@ async function saveAppearance() {
         },
       },
     })
-    toast.add({ title: 'Appearance saved', color: 'green' })
+    toast.add({ title: 'Appearance saved', color: 'success' })
     await refreshSettings()
   } catch {
-    toast.add({ title: 'Failed to save appearance', color: 'red' })
+    toast.add({ title: 'Failed to save appearance', color: 'error' })
   } finally {
     savingAppearance.value = false
   }
@@ -308,7 +308,7 @@ const swatches = [
             <UBadge
               v-if="defaultIsActive"
               variant="outline"
-              color="green"
+              color="success"
               class="!text-emerald-700 dark:!text-emerald-300 !bg-emerald-50 dark:!bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800"
               size="xs"
             >
@@ -339,7 +339,7 @@ const swatches = [
               class="w-8 h-8 opacity-30"
             />
             <UBadge
-              color="blue"
+              color="info"
               variant="soft"
               size="xs"
               class="absolute top-2 right-2"
@@ -357,7 +357,7 @@ const swatches = [
                 v-if="theme.hasCss"
                 size="xs"
                 variant="ghost"
-                color="gray"
+                color="neutral"
                 class="!text-gray-700 dark:!text-gray-300 hover:!bg-gray-100 dark:hover:!bg-gray-800"
                 icon="i-lucide-pencil"
                 title="Edit CSS"
@@ -367,7 +367,7 @@ const swatches = [
                 v-if="!theme.hasCss"
                 size="xs"
                 variant="ghost"
-                color="gray"
+                color="neutral"
                 class="!text-gray-700 dark:!text-gray-300 hover:!bg-gray-100 dark:hover:!bg-gray-800"
                 icon="i-lucide-eye"
                 :loading="previewingId === theme.id"
@@ -378,7 +378,7 @@ const swatches = [
                 v-if="theme.settings?.hasDemoContent"
                 size="xs"
                 variant="outline"
-                color="blue"
+                color="info"
                 class="!text-blue-700 dark:!text-blue-300 !bg-blue-50 dark:!bg-blue-950/20 hover:!bg-blue-100 dark:hover:!bg-blue-900/30 border border-blue-200 dark:border-blue-800 transition-colors"
                 icon="i-lucide-sparkles"
                 @click="importDemoContent(theme.id)"
@@ -388,7 +388,7 @@ const swatches = [
               <UBadge
                 v-if="theme.isActive"
                 variant="outline"
-                color="green"
+                color="success"
                 class="!text-emerald-700 dark:!text-emerald-300 !bg-emerald-50 dark:!bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800"
                 size="xs"
               >
@@ -398,7 +398,7 @@ const swatches = [
                 v-else
                 size="xs"
                 variant="outline"
-                color="gray"
+                color="neutral"
                 class="!text-gray-700 dark:!text-gray-300 hover:!bg-gray-50 dark:hover:!bg-gray-800 border border-gray-200 dark:border-gray-700 transition-colors"
                 :loading="activatingId === theme.id"
                 @click="activate(theme.id)"
@@ -408,7 +408,7 @@ const swatches = [
               <UButton
                 v-if="theme.hasCss"
                 size="xs"
-                color="red"
+                color="error"
                 variant="ghost"
                 icon="i-lucide-trash-2"
                 class="!text-red-500 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-950/20"
@@ -585,7 +585,7 @@ const swatches = [
           <template v-if="uploadMode === 'zip'">
             <UAlert
               icon="i-lucide-info"
-              color="blue"
+              color="info"
               variant="soft"
               description="A theme package is a .zip file containing theme.css (required), theme.json (metadata), and optionally demo.json (starter content)."
             />
