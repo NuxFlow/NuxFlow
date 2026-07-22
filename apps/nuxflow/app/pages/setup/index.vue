@@ -10,7 +10,7 @@ const totalSteps = 5
 const form = reactive({
   site: { name: '', locale: 'en', timezone: 'UTC' },
   admin: { name: '', email: '', password: '' },
-  email: { provider: 'console' as const },
+  email: { provider: 'cloudflare' as const },
   template: 'landing',
 })
 

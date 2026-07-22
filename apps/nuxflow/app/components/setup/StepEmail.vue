@@ -17,7 +17,6 @@ const providers = [
   { label: 'Brevo (Sendinblue)', value: 'brevo' },
   { label: 'ZeptoMail', value: 'zepto' },
   { label: 'MailChannels (requires an existing account)', value: 'smtp' },
-  { label: 'Console (development only)', value: 'console' },
 ]
 </script>
 
@@ -33,24 +32,16 @@ const providers = [
     </UFormField>
 
     <UAlert
-      v-if="local.provider === 'console'"
-      color="yellow"
-      variant="soft"
-      icon="i-lucide-triangle-alert"
-      description="Console mode only prints emails to server logs. Switch to a real provider before going live."
-    />
-
-    <UAlert
-      v-else-if="local.provider === 'cloudflare'"
-      color="blue"
+      v-if="local.provider === 'cloudflare'"
+      color="info"
       variant="soft"
       icon="i-lucide-info"
-      description="No API key needed — add a send_email binding to wrangler.toml and run `wrangler email sending enable <your-domain>` for your sending domain."
+      description="No API key needed. Sends can go through even without it, but for reliable inbox delivery run `wrangler email sending enable <your-domain>` once for your sending domain (via Cloudflare's CLI or dashboard) — it sets up the SPF/DKIM records recipients check."
     />
 
     <UAlert
       v-else-if="local.provider === 'smtp'"
-      color="yellow"
+      color="warning"
       variant="soft"
       icon="i-lucide-triangle-alert"
       description="MailChannels' free relay requires an existing MailChannels account and DNS domain-lockdown records — most new setups won't have this. Cloudflare Email is the zero-setup option."
@@ -58,7 +49,7 @@ const providers = [
 
     <UAlert
       v-else
-      color="blue"
+      color="info"
       variant="soft"
       icon="i-lucide-info"
       description="Set your provider credentials in the environment variables or Cloudflare dashboard after setup."

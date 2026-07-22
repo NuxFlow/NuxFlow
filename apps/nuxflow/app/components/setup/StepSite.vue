@@ -58,7 +58,7 @@ const timezones = [
     </div>
 
     <UFormField label="Site name" required>
-      <UInput v-model="local.name" placeholder="My Awesome Site" />
+      <UInput v-model="local.name" placeholder="My Awesome Site" @keyup.enter="local.name && emit('next')" />
     </UFormField>
 
     <div class="grid grid-cols-2 gap-4">
