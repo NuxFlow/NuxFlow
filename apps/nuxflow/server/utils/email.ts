@@ -141,7 +141,12 @@ async function sendViaCloudflareEmail(msg: EmailMessage, config: EmailConfig, ev
   const from = msg.from ?? (config.fromAddress || `noreply@${config.domain}`)
   await email.send({
     to: msg.to,
-    from: { email: from },
+    // Cloudflare's send_email binding rejects an EmailAddress object that has
+    // `email` but no `name` — the runtime validator requires both fields to be
+    // present together (unlike the published type, which marks `name` optional).
+    // There's no display-name setting to attach here, so pass a plain string
+    // instead of constructing a partial object.
+    from,
     subject: msg.subject,
     html: msg.html,
     text: msg.text,

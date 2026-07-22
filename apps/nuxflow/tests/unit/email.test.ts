@@ -52,9 +52,9 @@ describe('sendEmailWithConfig — cloudflare', () => {
     )
 
     expect(send).toHaveBeenCalledOnce()
-    const [sent] = send.mock.calls[0] as [{ to: string; from: { email: string }; subject: string }]
+    const [sent] = send.mock.calls[0] as [{ to: string; from: string; subject: string }]
     expect(sent.to).toBe('user@example.com')
-    expect(sent.from).toEqual({ email: 'hello@example.com' })
+    expect(sent.from).toBe('hello@example.com')
     expect(sent.subject).toBe('Hello')
   })
 
@@ -64,8 +64,8 @@ describe('sendEmailWithConfig — cloudflare', () => {
 
     await sendEmailWithConfig({ emailProvider: 'cloudflare', domain: 'example.com' }, msg, event)
 
-    const [sent] = send.mock.calls[0] as [{ from: { email: string } }]
-    expect(sent.from).toEqual({ email: 'noreply@example.com' })
+    const [sent] = send.mock.calls[0] as [{ from: string }]
+    expect(sent.from).toBe('noreply@example.com')
   })
 })
 

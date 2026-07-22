@@ -519,20 +519,17 @@ NuxFlow supports several providers for transactional mail (password resets, noti
 
 #### Cloudflare (recommended)
 
-Uses Cloudflare's native Email Sending Workers binding — no third-party account or API key needed. One-time setup per sending domain:
+Uses Cloudflare's native Email Sending Workers binding — no third-party account or API key needed. The `[[send_email]]` binding (`name = "EMAIL"`) already ships in `apps/nuxflow/wrangler.toml` — it's a one-time, deployment-wide binding shared by every site behind this Worker (one Worker, one binding, regardless of how many sites/domains it serves), so there's nothing to add here yourself.
+
+The one thing that is per-domain is registering your sending domain with Cloudflare's Email Sending product:
 
 ```bash
 wrangler email sending enable yourdomain.com
 ```
 
-Then add a `[[send_email]]` binding to `apps/nuxflow/wrangler.toml`:
+This adds the SPF/DKIM DNS records receiving mail servers (Gmail, Outlook, etc.) check before trusting a message — skip it and sends can still go through, but they're more likely to land in spam or get silently dropped, and Cloudflare's Email Sending product is still in Beta, so unenforced requirements like this one could become hard-enforced later. In a multi-site install, run it once per site's custom sending domain, not once per installation.
 
-```toml
-[[send_email]]
-name = "EMAIL"
-```
-
-Redeploy, then select **Cloudflare** as the email provider in **Admin → Settings → Email**.
+Select **Cloudflare** as the email provider in **Admin → Settings → Email** — no redeploy needed for that part, since the binding is already present.
 
 #### Third-party API key providers
 
