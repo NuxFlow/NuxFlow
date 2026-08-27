@@ -16,13 +16,13 @@ export default defineEventHandler(async (event) => {
 
   const siteId = event.context.siteId!
   const itemId = getRouterParam(event, 'id')!
-  const parsed = await readValidatedBody(event, bodySchema.parse)
+  const parsed = await parseBody(event, bodySchema)
 
   const session = await getAuthSession(event).catch(() => null)
 
   // Guests must supply a name and email; logged-in users do not need to
   if (!session && (!parsed.guestName || !parsed.guestEmail)) {
-    throw createError({ statusCode: 422, message: 'guestName and guestEmail are required for unauthenticated comments' })
+    throw validationError('guestName and guestEmail are required for unauthenticated comments')
   }
 
   const db = useDb(event)

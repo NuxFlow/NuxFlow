@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
   const theme = await db.query.themes.findFirst({
     where: and(eq(themes.id, id), eq(themes.siteId, siteId)),
   })
-  if (!theme) throw createError({ statusCode: 404, message: 'Theme not found' })
+  if (!theme) throw notFound('Theme not found')
 
   // Deactivate all, activate target
   await db.update(themes).set({ isActive: false }).where(eq(themes.siteId, siteId))

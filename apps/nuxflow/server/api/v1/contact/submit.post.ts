@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { forms, formSubmissions, siteSettings, userSiteRoles } from '@nuxflow/db/schema'
+import { forms, formSubmissions, userSiteRoles } from '@nuxflow/db/schema'
 import type { FormField } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -52,11 +52,11 @@ export default defineEventHandler(async (event) => {
 
   const siteId = event.context.siteId as string
   const submitterUserId = (event.context.user as { id?: string } | undefined)?.id ?? null
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const ip = getHeader(event, 'cf-connecting-ip') ?? getHeader(event, 'x-forwarded-for') ?? undefined
   const valid = await verifyTurnstile(body.turnstileToken ?? '', ip)
-  if (!valid) throw createError({ statusCode: 422, message: 'Spam check failed' })
+  if (!valid) throw validationError('Spam check failed')
 
   const db = useDb(event)
   const formId = await getOrCreateContactForm(db, siteId)
@@ -78,11 +78,7 @@ export default defineEventHandler(async (event) => {
 
   // Best-effort email notification
   try {
-    const emailSetting = await db.query.siteSettings.findFirst({
-      where: and(eq(siteSettings.siteId, siteId), eq(siteSettings.key, 'notificationEmail')),
-      columns: { value: true },
-    })
-    let notifyEmail = emailSetting?.value as string | undefined
+    let notifyEmail = (await resolveSetting(event, 'notificationEmail')) as string | undefined
 
     // Fallback: use first admin's email if no notificationEmail is set
     if (!notifyEmail) {

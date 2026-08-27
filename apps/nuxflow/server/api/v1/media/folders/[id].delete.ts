@@ -1,10 +1,11 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
+import { writeAuditLog } from '../../../../utils/audit'
 import { mediaFolders, media } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'editor')
+  const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
@@ -12,7 +13,7 @@ export default defineEventHandler(async (event) => {
   const folder = await db.query.mediaFolders.findFirst({
     where: and(eq(mediaFolders.id, id), eq(mediaFolders.siteId, siteId)),
   })
-  if (!folder) throw createError({ statusCode: 404, message: 'Folder not found' })
+  if (!folder) throw notFound('Folder not found')
 
   // Move files in this folder back to root rather than deleting them
   await db.update(media)
@@ -21,6 +22,13 @@ export default defineEventHandler(async (event) => {
 
   await db.delete(mediaFolders)
     .where(and(eq(mediaFolders.id, id), eq(mediaFolders.siteId, siteId)))
+
+  await writeAuditLog(event, userId, {
+    action: 'delete',
+    resource: 'media_folder',
+    resourceId: id,
+    before: folder,
+  })
 
   return { success: true }
 })

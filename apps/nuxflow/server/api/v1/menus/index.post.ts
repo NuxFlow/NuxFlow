@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireAuth } from '../../../utils/permissions'
+import { writeAuditLog } from '../../../utils/audit'
 import { menus } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
@@ -10,13 +11,20 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  await requireAuth(event)
+  const { userId } = await requireAuth(event)
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const id = ulid()
   await db.insert(menus).values({ id, siteId, name: body.name, location: body.location ?? null, items: [] })
+
+  await writeAuditLog(event, userId, {
+    action: 'create',
+    resource: 'menu',
+    resourceId: id,
+    after: { name: body.name, location: body.location ?? null },
+  })
 
   return { id }
 })

@@ -1,5 +1,6 @@
 import { useDb } from '../../../utils/db'
-import { contentItems, contentTypes } from '@nuxflow/db/schema'
+import { getContentTypeBySlugOrThrow } from '../../../utils/content-queries'
+import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, desc, gt } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -13,10 +14,7 @@ export default defineEventHandler(async (event) => {
   const apiKeyUserId = event.context.apiKeyUserId as string | undefined
   const isAuthenticated = Boolean(session || apiKeyUserId)
 
-  const type = await db.query.contentTypes.findFirst({
-    where: and(eq(contentTypes.siteId, siteId), eq(contentTypes.slug, typeSlug)),
-  })
-  if (!type) throw createError({ statusCode: 404, message: `Content type "${typeSlug}" not found` })
+  const type = await getContentTypeBySlugOrThrow(db, siteId, typeSlug, `Content type "${typeSlug}" not found`)
 
   const conditions = [eq(contentItems.siteId, siteId), eq(contentItems.typeId, type.id)]
 

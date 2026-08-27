@@ -2,6 +2,7 @@ import { userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { useDb } from './db'
+import type { Db } from './db'
 
 export type Role = 'super_admin' | 'admin' | 'editor' | 'author' | 'viewer' | 'member'
 
@@ -36,6 +37,12 @@ export async function requireRole(event: H3Event, minimum: Role) {
   const { userId, role } = await requireAuth(event)
   if (!roleAtLeast(role, minimum)) throw createError({ statusCode: 403, message: 'Forbidden' })
   return { userId, role }
+}
+
+export async function getUserSiteRole(db: Db, userId: string, siteId: string) {
+  return db.query.userSiteRoles.findFirst({
+    where: and(eq(userSiteRoles.userId, userId), eq(userSiteRoles.siteId, siteId)),
+  })
 }
 
 export async function requireSuperAdmin(event: H3Event): Promise<{ userId: string }> {

@@ -873,3 +873,16 @@ export function getDynamicBlockDefinitions(): CanvasBlockDefinition[] {
 export function getBlockDefinition(id: string): CanvasBlockDefinition | undefined {
   return CANVAS_BLOCKS.find(b => b.id === id) ?? _dynamicDefinitions.find(b => b.id === id)
 }
+
+/**
+ * Resolves a block's definition, falling back to a dynamic-plugin registry's
+ * own registered definition when the id isn't a built-in or already-registered
+ * dynamic block. Centralizes the "getBlockDefinition() ?? registry.getDefinition()"
+ * chain needed anywhere a plugin block might carry its own field schema.
+ */
+export function resolveDefinition(
+  typeId: string,
+  registry?: { getDefinition(id: string): unknown },
+): CanvasBlockDefinition | undefined {
+  return getBlockDefinition(typeId) ?? (registry?.getDefinition(typeId) as CanvasBlockDefinition | undefined)
+}

@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const siteId = event.context.siteId as string
   const db = useDb(event)
-  const query = await getValidatedQuery(event, querySchema.parse)
+  const query = await parseQuery(event, querySchema)
 
   const what = query.what.split(',').filter(
     (w): w is RestoreOptions['what'][number] =>

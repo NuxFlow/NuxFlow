@@ -4,6 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
 import { resolveSetting } from '../../../utils/settings'
 import { broadcastPushToSite } from '../../../utils/webpush'
+import { getContentItemOrThrow } from '../../../utils/content-queries'
 import { contentItems, contentRevisions } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -40,12 +41,9 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
-  const existing = await db.query.contentItems.findFirst({
-    where: and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)),
-  })
-  if (!existing) throw createError({ statusCode: 404, message: 'Not found' })
+  const existing = await getContentItemOrThrow(db, siteId, id, 'Not found')
 
   const { expectedVersion, ...updateFields } = body
   if (expectedVersion !== undefined && existing.version !== expectedVersion) {

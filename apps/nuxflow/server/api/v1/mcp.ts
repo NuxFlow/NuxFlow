@@ -18,10 +18,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string | undefined
 
   if (!apiKeyUserId || !siteId) {
-    throw createError({
-      statusCode: 401,
-      message: 'Unauthorized: A valid API Key in the Authorization header is required.'
-    })
+    throw unauthorized('Unauthorized: A valid API Key in the Authorization header is required.')
   }
 
   // 2. Establish SSE Connection (GET)

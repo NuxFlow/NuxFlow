@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const menu = await db.query.menus.findFirst({
     where: and(eq(menus.id, id), eq(menus.siteId, siteId)),
   })
-  if (!menu) throw createError({ statusCode: 404, message: 'Menu not found' })
+  if (!menu) throw notFound('Menu not found')
 
   return menu
 })

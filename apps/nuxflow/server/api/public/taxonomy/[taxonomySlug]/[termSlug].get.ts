@@ -16,13 +16,13 @@ export default defineEventHandler(async (event) => {
     where: and(eq(taxonomies.siteId, siteId), eq(taxonomies.slug, taxonomySlug)),
     columns: { id: true, name: true, slug: true },
   })
-  if (!taxonomy) throw createError({ statusCode: 404, message: 'Taxonomy not found' })
+  if (!taxonomy) throw notFound('Taxonomy not found')
 
   const term = await db.query.taxonomyTerms.findFirst({
     where: and(eq(taxonomyTerms.taxonomyId, taxonomy.id), eq(taxonomyTerms.slug, termSlug)),
     columns: { id: true, name: true, slug: true, description: true },
   })
-  if (!term) throw createError({ statusCode: 404, message: 'Term not found' })
+  if (!term) throw notFound('Term not found')
 
   const matchCondition = and(
     eq(contentTaxonomyTerms.termId, term.id),

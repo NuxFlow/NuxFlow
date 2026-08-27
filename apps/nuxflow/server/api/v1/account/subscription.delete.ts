@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   })
 
   if (!sub) {
-    throw createError({ statusCode: 404, message: 'No active subscription found' })
+    throw notFound('No active subscription found')
   }
 
   const isFree = sub.providerSubscriptionId.startsWith('free_')

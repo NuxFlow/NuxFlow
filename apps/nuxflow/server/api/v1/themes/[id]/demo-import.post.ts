@@ -18,15 +18,15 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const themeId = getRouterParam(event, 'id')!
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const theme = await db.query.themes.findFirst({
     where: and(eq(themes.id, themeId), eq(themes.siteId, siteId)),
   })
-  if (!theme) throw createError({ statusCode: 404, message: 'Theme not found' })
+  if (!theme) throw notFound('Theme not found')
 
   const demoJson = await getThemeDemo(event, siteId, themeId)
-  if (!demoJson) throw createError({ statusCode: 404, message: 'This theme has no demo content' })
+  if (!demoJson) throw notFound('This theme has no demo content')
 
   let backup: NuxFlowBackup
   try {

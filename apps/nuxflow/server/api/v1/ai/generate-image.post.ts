@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 503, message: 'No image generation provider available. Configure an OpenAI or Google Gemini key.' })
   }
 
-  const { prompt, size, quality, saveToLibrary } = await readValidatedBody(event, bodySchema.parse)
+  const { prompt, size, quality, saveToLibrary } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string
 
   let imageUrl: string

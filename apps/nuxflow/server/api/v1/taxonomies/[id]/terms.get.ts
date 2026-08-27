@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const taxonomy = await db.query.taxonomies.findFirst({
     where: and(eq(taxonomies.id, taxonomyId), eq(taxonomies.siteId, siteId)),
   })
-  if (!taxonomy) throw createError({ statusCode: 404, message: 'Taxonomy not found' })
+  if (!taxonomy) throw notFound('Taxonomy not found')
 
   const terms = await db.query.taxonomyTerms.findMany({
     where: eq(taxonomyTerms.taxonomyId, taxonomyId),

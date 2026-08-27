@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
     where: and(eq(contentItems.id, itemId), eq(contentItems.siteId, siteId)),
     columns: { id: true },
   })
-  if (!item) throw createError({ statusCode: 404, message: 'Content item not found' })
+  if (!item) throw notFound('Content item not found')
 
   const rows = await db
     .select({

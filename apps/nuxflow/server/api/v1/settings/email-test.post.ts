@@ -17,7 +17,7 @@ const bodySchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const db = useDb(event)
   const user = await db.query.users.findFirst({
@@ -78,7 +78,7 @@ export default defineEventHandler(async (event) => {
     return { success: true, message: `Test email sent to ${sendTo}` }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    throw createError({ statusCode: 422, message: msg })
+    throw validationError(msg)
   }
 })
 

@@ -1,7 +1,7 @@
 import { useDb } from '../../../utils/db'
 import { userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { requireRole } from '../../../utils/permissions'
+import { requireRole, getUserSiteRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
 
 export default defineEventHandler(async (event) => {
@@ -15,16 +15,14 @@ export default defineEventHandler(async (event) => {
 
   const db = useDb(event)
 
-  const existing = await db.query.userSiteRoles.findFirst({
-    where: and(eq(userSiteRoles.userId, targetId), eq(userSiteRoles.siteId, siteId)),
-  })
+  const existing = await getUserSiteRole(db, targetId, siteId)
 
   if (!existing) {
-    throw createError({ statusCode: 404, message: 'User not found in this site' })
+    throw notFound('User not found in this site')
   }
 
   if (existing.role === 'super_admin') {
-    throw createError({ statusCode: 403, message: 'Cannot remove a super admin' })
+    throw forbidden('Cannot remove a super admin')
   }
 
   await db

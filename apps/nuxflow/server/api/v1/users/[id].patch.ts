@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { requireRole } from '../../../utils/permissions'
+import { requireRole, getUserSiteRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
 
 const bodySchema = z.object({
@@ -14,13 +14,11 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId!
   const targetId = getRouterParam(event, 'id')!
 
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
   const db = useDb(event)
 
   if (body.role) {
-    const existing = await db.query.userSiteRoles.findFirst({
-      where: and(eq(userSiteRoles.userId, targetId), eq(userSiteRoles.siteId, siteId)),
-    })
+    const existing = await getUserSiteRole(db, targetId, siteId)
 
     await db
       .update(userSiteRoles)

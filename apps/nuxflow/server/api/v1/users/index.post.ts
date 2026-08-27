@@ -2,8 +2,8 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { userSiteRoles, sites } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
-import { and, eq } from 'drizzle-orm'
-import { requireRole } from '../../../utils/permissions'
+import { eq } from 'drizzle-orm'
+import { requireRole, getUserSiteRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
 import { sendEmail, escapeHtml } from '../../../utils/email'
 import { rateLimit } from '../../../utils/rate-limit'
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const siteId = event.context.siteId!
 
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const db = useDb(event)
 
@@ -31,11 +31,9 @@ export default defineEventHandler(async (event) => {
 
   if (existingUser) {
     // Check they aren't already a member of this site
-    const alreadyMember = await db.query.userSiteRoles.findFirst({
-      where: and(eq(userSiteRoles.userId, existingUser.id), eq(userSiteRoles.siteId, siteId)),
-    })
+    const alreadyMember = await getUserSiteRole(db, existingUser.id, siteId)
     if (alreadyMember) {
-      throw createError({ statusCode: 409, message: 'This user is already a member of this site' })
+      throw conflict('This user is already a member of this site')
     }
   } else {
     const auth = await getOrCreateBetterAuth(event)

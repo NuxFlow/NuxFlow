@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   const model = await getAiSdkModel(event, 'fast')
   if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
 
-  const { text, instruction } = await readValidatedBody(event, bodySchema.parse)
+  const { text, instruction } = await parseBody(event, bodySchema)
 
   const instructions: Record<string, string> = {
     improve: 'Improve this text for clarity and impact',

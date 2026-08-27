@@ -14,11 +14,11 @@ const bodySchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const registrationEnabled = await resolveSetting(event, 'auth.allow_public_registration')
   if (registrationEnabled !== 'true') {
-    throw createError({ statusCode: 403, message: 'Public registration is not enabled for this site' })
+    throw forbidden('Public registration is not enabled for this site')
   }
 
   const db = useDb(event)
@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
   })
 
   if (existing) {
-    throw createError({ statusCode: 422, message: 'An account with this email already exists' })
+    throw validationError('An account with this email already exists')
   }
 
   // Create user and credential account directly — same approach as the setup wizard.

@@ -2,6 +2,7 @@ import { subscriptions, users, membershipTiers } from '@nuxflow/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
+import { parsePagination } from '../../../utils/pagination'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
@@ -9,8 +10,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const query = getQuery(event)
 
-  const page = Math.max(1, Number(query.page ?? 1))
-  const perPage = 50
+  const { page, perPage, limit, offset } = parsePagination(query)
 
   const rows = await db
     .select({
@@ -32,8 +32,8 @@ export default defineEventHandler(async (event) => {
     .leftJoin(membershipTiers, eq(subscriptions.tierId, membershipTiers.id))
     .where(eq(subscriptions.siteId, siteId))
     .orderBy(desc(subscriptions.createdAt))
-    .limit(perPage)
-    .offset((page - 1) * perPage)
+    .limit(limit)
+    .offset(offset)
 
   return { subscribers: rows, page, perPage }
 })

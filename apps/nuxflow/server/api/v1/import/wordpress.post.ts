@@ -205,7 +205,7 @@ export default defineEventHandler(async (event) => {
         where: and(eq(contentTypes.siteId, siteId), eq(contentTypes.slug, 'post')),
       })
       if (!pageType || !postType)
-        throw createError({ statusCode: 422, message: 'Content types not found — run setup first' })
+        throw validationError('Content types not found — run setup first')
 
       let catTaxonomy = await db.query.taxonomies.findFirst({
         where: and(eq(taxonomies.siteId, siteId), eq(taxonomies.slug, 'category')),

@@ -106,7 +106,7 @@ export default defineEventHandler(async (event) => {
   const model = await getAiSdkModel(event, 'smart')
   if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
 
-  const { description, tone, pageGoal } = await readValidatedBody(event, bodySchema.parse)
+  const { description, tone, pageGoal } = await parseBody(event, bodySchema)
 
   const prompt = `Generate a ${pageGoal} page for: "${description}". Tone: ${tone}.`
 

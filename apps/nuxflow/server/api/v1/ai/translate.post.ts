@@ -123,14 +123,14 @@ export default defineEventHandler(async (event) => {
   const model = await getAiSdkModel(event, 'smart')
   if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
 
-  const { contentItemId, targetLocale, targetSlugSuffix } = await readValidatedBody(event, bodySchema.parse)
+  const { contentItemId, targetLocale, targetSlugSuffix } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string
   const db = useDb(event)
 
   const source = await db.query.contentItems.findFirst({
     where: and(eq(contentItems.id, contentItemId), eq(contentItems.siteId, siteId))!,
   })
-  if (!source) throw createError({ statusCode: 404, message: 'Content item not found' })
+  if (!source) throw notFound('Content item not found')
 
   // Build a map of { key -> original text } for everything needing translation
   const strings = new Map<string, string>()

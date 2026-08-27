@@ -115,12 +115,3 @@ export const aiGenerationJobs = sqliteTable('ai_generation_jobs', {
 // See migrations/0002_search_index.sql. Kept in sync automatically by AFTER
 // INSERT/UPDATE/DELETE triggers on content_items — no application code indexes
 // content explicitly; only published + public items are searchable.
-export const searchIndexSql = `
-CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
-  content_item_id UNINDEXED,
-  site_id UNINDEXED,
-  title,
-  body,
-  tokenize = 'porter ascii'
-);
-`

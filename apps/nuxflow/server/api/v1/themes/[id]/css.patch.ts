@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
     where: and(eq(themes.id, id), eq(themes.siteId, siteId)),
     columns: { id: true, hasCss: true },
   })
-  if (!theme) throw createError({ statusCode: 404, message: 'Theme not found' })
+  if (!theme) throw notFound('Theme not found')
   if (!theme.hasCss) throw createError({ statusCode: 400, message: 'Only CSS themes can be updated this way' })
 
   await putThemeCSS(event, siteId, id, css.trim())

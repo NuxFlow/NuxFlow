@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   await requireSuperAdmin(event)
   const db = useDb(event)
   const id = getRouterParam(event, 'id')!
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   await db.update(sites).set({ ...body, updatedAt: sql`(datetime('now'))` }).where(eq(sites.id, id))
   return { id }

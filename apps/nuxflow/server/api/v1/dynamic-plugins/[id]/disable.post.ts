@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const plugin = await db.query.dynamicPlugins.findFirst({
     where: and(eq(dynamicPlugins.id, id), eq(dynamicPlugins.siteId, siteId)),
   })
-  if (!plugin) throw createError({ statusCode: 404, message: 'Dynamic plugin not found' })
+  if (!plugin) throw notFound('Dynamic plugin not found')
 
   await db.update(dynamicPlugins)
     .set({ isActive: false })

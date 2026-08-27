@@ -1,17 +1,9 @@
 <script setup lang="ts">
+import { isCanvasContent } from '@nuxflow/canvas'
 import { isBlocksContent } from '~/types/blocks'
 import type { NuxBlockData } from '~/types/blocks'
 
 const props = defineProps<{ content: unknown }>()
-
-function isCanvasContent(val: unknown): val is { type: 'canvas'; blocks: NuxBlockData[] } {
-  return (
-    typeof val === 'object' &&
-    val !== null &&
-    (val as { type: string }).type === 'canvas' &&
-    Array.isArray((val as { blocks: unknown[] }).blocks)
-  )
-}
 
 const isBlocks = computed(() => isBlocksContent(props.content))
 const isCanvas = computed(() => isCanvasContent(props.content))

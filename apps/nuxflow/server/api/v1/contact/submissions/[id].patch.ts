@@ -13,13 +13,13 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const submission = await db.query.formSubmissions.findFirst({
     where: and(eq(formSubmissions.id, id), eq(formSubmissions.siteId, siteId)),
     columns: { id: true },
   })
-  if (!submission) throw createError({ statusCode: 404, message: 'Submission not found' })
+  if (!submission) throw notFound('Submission not found')
 
   await db.update(formSubmissions)
     .set({ status: body.status })

@@ -17,17 +17,17 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const formIdentifier = getRouterParam(event, 'formIdentifier')!
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const form = await db.query.forms.findFirst({
     where: and(eq(forms.siteId, siteId), eq(forms.slug, formIdentifier)),
   })
-  if (!form) throw createError({ statusCode: 404, message: 'Form not found' })
-  if (form.status !== 'active') throw createError({ statusCode: 403, message: 'This form is not accepting submissions' })
+  if (!form) throw notFound('Form not found')
+  if (form.status !== 'active') throw forbidden('This form is not accepting submissions')
 
   const ip = getHeader(event, 'cf-connecting-ip') ?? getHeader(event, 'x-forwarded-for') ?? undefined
   const valid = await verifyTurnstile(body.turnstileToken ?? '', ip)
-  if (!valid) throw createError({ statusCode: 422, message: 'Spam check failed' })
+  if (!valid) throw validationError('Spam check failed')
 
   const id = ulid()
   await db.insert(formSubmissions).values({

@@ -6,7 +6,7 @@ import { requireSuperAdmin } from '../utils/permissions'
 
 export default defineEventHandler(async (event) => {
   if (process.env.NODE_ENV !== 'development') {
-    throw createError({ statusCode: 404, message: 'Not found' })
+    throw notFound('Not found')
   }
 
   await requireSuperAdmin(event)
@@ -16,13 +16,13 @@ export default defineEventHandler(async (event) => {
   // 1. Get the first active site
   const site = await db.query.sites.findFirst()
   if (!site) {
-    throw createError({ statusCode: 404, message: 'No sites found. Please complete site setup first.' })
+    throw notFound('No sites found. Please complete site setup first.')
   }
 
   // 2. Get the first user (author/admin)
   const user = await db.query.users.findFirst()
   if (!user) {
-    throw createError({ statusCode: 404, message: 'No users found. Please complete site setup first.' })
+    throw notFound('No users found. Please complete site setup first.')
   }
 
   // 3. Get the "page" content type
@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
     where: eq(contentTypes.slug, 'page')
   })
   if (!pageType) {
-    throw createError({ statusCode: 404, message: 'Page content type not found.' })
+    throw notFound('Page content type not found.')
   }
 
   // 4. Define the 4 custom test pages

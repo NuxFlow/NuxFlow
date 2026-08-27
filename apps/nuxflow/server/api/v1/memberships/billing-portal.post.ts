@@ -12,7 +12,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const session = await requireSession(event)
   const siteId = event.context.siteId as string
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const stripeSecretKey = await resolveSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
   if (!stripeSecretKey) {
@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
   })
 
   if (!sub?.providerCustomerId) {
-    throw createError({ statusCode: 404, message: 'No active Stripe subscription found' })
+    throw notFound('No active Stripe subscription found')
   }
 
   const stripe = new StripeProvider(stripeSecretKey as string)

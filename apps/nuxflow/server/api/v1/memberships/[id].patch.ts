@@ -26,12 +26,12 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const tier = await db.query.membershipTiers.findFirst({
     where: and(eq(membershipTiers.id, id), eq(membershipTiers.siteId, siteId)),
   })
-  if (!tier) throw createError({ statusCode: 404, message: 'Membership tier not found' })
+  if (!tier) throw notFound('Membership tier not found')
 
   let stripeProductId = body.stripeProductId !== undefined ? body.stripeProductId : tier.stripeProductId
   let stripePriceId = body.stripePriceId !== undefined ? body.stripePriceId : tier.stripePriceId

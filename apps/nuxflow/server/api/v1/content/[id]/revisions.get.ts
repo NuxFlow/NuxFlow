@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
     where: and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)),
     columns: { id: true },
   })
-  if (!item) throw createError({ statusCode: 404, message: 'Not found' })
+  if (!item) throw notFound('Not found')
 
   const revisions = await db.query.contentRevisions.findMany({
     where: eq(contentRevisions.itemId, id),

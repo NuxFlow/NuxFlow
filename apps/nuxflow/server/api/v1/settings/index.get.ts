@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     columns: { id: true, name: true, domain: true, locale: true, timezone: true, status: true },
   })
 
-  if (!site) throw createError({ statusCode: 404, message: 'Site not found' })
+  if (!site) throw notFound('Site not found')
 
   const settingRows = await db.query.siteSettings.findMany({
     where: and(eq(siteSettings.siteId, siteId)),

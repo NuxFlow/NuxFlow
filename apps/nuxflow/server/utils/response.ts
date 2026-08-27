@@ -14,7 +14,7 @@ export function noContent(event: H3Event) {
   return null
 }
 
-export function notFound(message = 'Not found') {
+export function notFound(message = 'Not found'): never {
   throw createError({ statusCode: 404, message })
 }
 

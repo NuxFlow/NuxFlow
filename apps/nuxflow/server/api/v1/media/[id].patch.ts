@@ -18,12 +18,12 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const existing = await db.query.media.findFirst({
     where: and(eq(media.id, id), eq(media.siteId, siteId)),
   })
-  if (!existing) throw createError({ statusCode: 404, message: 'Not found' })
+  if (!existing) throw notFound('Not found')
 
   await db.update(media).set(body).where(and(eq(media.id, id), eq(media.siteId, siteId)))
 

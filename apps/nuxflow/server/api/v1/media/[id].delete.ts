@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   const file = await db.query.media.findFirst({
     where: and(eq(media.id, id), eq(media.siteId, siteId)),
   })
-  if (!file) throw createError({ statusCode: 404, message: 'Not found' })
+  if (!file) throw notFound('Not found')
 
   const provider = await getActiveProvider(event)
   await provider.delete(file.storageKey)

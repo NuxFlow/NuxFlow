@@ -10,7 +10,7 @@ const bodySchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireAuth(event)
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
   const db = useDb(event)
 
   await db.delete(pushSubscriptions)

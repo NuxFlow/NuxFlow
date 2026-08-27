@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
   const model = await getAiSdkModel(event, 'fast')
   if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
 
-  const { description, tone, format } = await readValidatedBody(event, bodySchema.parse)
+  const { description, tone, format } = await parseBody(event, bodySchema)
 
   const prompt = `Write ${tone} content about: "${description}". ${FORMAT_INSTRUCTIONS[format]}`
 

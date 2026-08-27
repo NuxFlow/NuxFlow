@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   })
 
   if (!asset) {
-    throw createError({ statusCode: 404, message: 'Video asset not found' })
+    throw notFound('Video asset not found')
   }
 
   // Delete from Cloudflare Stream if configured

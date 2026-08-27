@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
+import { writeAuditLog } from '../../../../utils/audit'
 import { taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -13,16 +14,16 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'editor')
+  const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const taxonomyId = getRouterParam(event, 'id')!
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const taxonomy = await db.query.taxonomies.findFirst({
     where: and(eq(taxonomies.id, taxonomyId), eq(taxonomies.siteId, siteId)),
   })
-  if (!taxonomy) throw createError({ statusCode: 404, message: 'Taxonomy not found' })
+  if (!taxonomy) throw notFound('Taxonomy not found')
 
   const id = ulid()
   await db.insert(taxonomyTerms).values({
@@ -32,6 +33,13 @@ export default defineEventHandler(async (event) => {
     name: body.name,
     description: body.description ?? null,
     parentId: body.parentId ?? null,
+  })
+
+  await writeAuditLog(event, userId, {
+    action: 'create',
+    resource: 'taxonomy_term',
+    resourceId: id,
+    after: body,
   })
 
   setResponseStatus(event, 201)

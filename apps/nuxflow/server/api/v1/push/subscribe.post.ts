@@ -14,7 +14,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireAuth(event)
   const siteId = event.context.siteId as string
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
   const db = useDb(event)
 
   // Upsert: replace any existing subscription for this user+endpoint pair

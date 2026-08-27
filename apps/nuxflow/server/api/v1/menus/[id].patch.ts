@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireAuth } from '../../../utils/permissions'
+import { writeAuditLog } from '../../../utils/audit'
 import { menus } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 
@@ -32,17 +33,16 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  await requireAuth(event)
+  const { userId } = await requireAuth(event)
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const existing = await db.query.menus.findFirst({
     where: and(eq(menus.id, id), eq(menus.siteId, siteId)),
-    columns: { id: true },
   })
-  if (!existing) throw createError({ statusCode: 404, message: 'Menu not found' })
+  if (!existing) throw notFound('Menu not found')
 
   await db.update(menus)
     .set({
@@ -52,6 +52,14 @@ export default defineEventHandler(async (event) => {
       updatedAt: sql`(datetime('now'))`,
     })
     .where(and(eq(menus.id, id), eq(menus.siteId, siteId)))
+
+  await writeAuditLog(event, userId, {
+    action: 'update',
+    resource: 'menu',
+    resourceId: id,
+    before: existing,
+    after: body,
+  })
 
   return { ok: true }
 })

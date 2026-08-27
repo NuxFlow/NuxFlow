@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   })
 
   if (!asset) {
-    throw createError({ statusCode: 404, message: 'Video asset not found' })
+    throw notFound('Video asset not found')
   }
 
   // If the video is still processing/uploading, sync status with Cloudflare Stream

@@ -1,5 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
+import { parsePagination } from '../../../../utils/pagination'
 import { formSubmissions, forms } from '@nuxflow/db/schema'
 import { and, eq, desc } from 'drizzle-orm'
 
@@ -14,16 +15,15 @@ export default defineEventHandler(async (event) => {
     where: and(eq(forms.id, formIdentifier), eq(forms.siteId, siteId)),
     columns: { id: true, name: true, fields: true },
   })
-  if (!form) throw createError({ statusCode: 404, message: 'Form not found' })
+  if (!form) throw notFound('Form not found')
 
-  const page = Number(query.page ?? 1)
-  const perPage = 50
+  const { page, perPage, limit, offset } = parsePagination(query)
 
   const submissions = await db.query.formSubmissions.findMany({
     where: and(eq(formSubmissions.formId, formIdentifier), eq(formSubmissions.siteId, siteId)),
     orderBy: [desc(formSubmissions.createdAt)],
-    limit: perPage,
-    offset: (page - 1) * perPage,
+    limit,
+    offset,
   })
 
   return { form, submissions, page, perPage }

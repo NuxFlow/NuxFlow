@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { getBlockDefinition, type CanvasBlockDefinition } from '@nuxflow/canvas'
+import { resolveDefinition } from '@nuxflow/canvas'
 import type { NuxBlockData } from '~/types/blocks'
 
 defineProps<{ blocks: NuxBlockData[] }>()
@@ -8,10 +8,9 @@ const { resolve, getDefinition } = useBlockRegistry()
 
 // Built-in canvas blocks carry their slot metadata in @nuxflow/canvas's own
 // definitions; dynamic plugin blocks register it into the app-level registry
-// instead (mirrors the exact fallback used by useCanvas.ts / CanvasBlock.vue).
+// instead — see resolveDefinition() in @nuxflow/canvas, shared with useCanvas.ts.
 function slotsFor(type: string) {
-  const def = getBlockDefinition(type) ?? (getDefinition(type) as CanvasBlockDefinition | undefined)
-  return def?.slots ?? []
+  return resolveDefinition(type, { getDefinition })?.slots ?? []
 }
 
 function childrenFor(block: NuxBlockData, slotId: string): NuxBlockData[] {

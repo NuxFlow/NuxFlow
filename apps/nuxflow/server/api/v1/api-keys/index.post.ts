@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
+import { writeAuditLog } from '../../../utils/audit'
 import { apiKeys } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
@@ -14,7 +15,7 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   // Generate a cryptographically random API key using Web Crypto API (Cloudflare Workers compatible)
   const rawBytes = crypto.getRandomValues(new Uint8Array(32))
@@ -33,6 +34,13 @@ export default defineEventHandler(async (event) => {
     keyHash,
     scopes: body.scopes,
     expiresAt: body.expiresAt,
+  })
+
+  await writeAuditLog(event, userId, {
+    action: 'create',
+    resource: 'api_key',
+    resourceId: id,
+    after: { name: body.name, scopes: body.scopes },
   })
 
   setResponseStatus(event, 201)

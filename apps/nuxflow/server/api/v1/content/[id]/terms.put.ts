@@ -13,13 +13,13 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const itemId = getRouterParam(event, 'id')!
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const item = await db.query.contentItems.findFirst({
     where: and(eq(contentItems.id, itemId), eq(contentItems.siteId, siteId)),
     columns: { id: true },
   })
-  if (!item) throw createError({ statusCode: 404, message: 'Content item not found' })
+  if (!item) throw notFound('Content item not found')
 
   // Replace all term assignments atomically
   await db.delete(contentTaxonomyTerms).where(eq(contentTaxonomyTerms.contentItemId, itemId))

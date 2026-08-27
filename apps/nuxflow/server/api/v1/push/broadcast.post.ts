@@ -11,7 +11,7 @@ const bodySchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
-  const input = await readValidatedBody(event, bodySchema.parse)
+  const input = await parseBody(event, bodySchema)
 
   await broadcastPushToSite(event, {
     title: input.title,

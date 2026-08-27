@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
     columns: { slug: true },
   })
 
-  if (!item) throw createError({ statusCode: 404, message: 'Invalid or expired preview link' })
+  if (!item) throw notFound('Invalid or expired preview link')
 
   setCookie(event, '__nuxflow_preview', token, { maxAge: 3600, path: '/', httpOnly: false })
   return sendRedirect(event, `/${item.slug}?preview=1`, 302)

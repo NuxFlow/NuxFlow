@@ -43,7 +43,7 @@ export default defineEventHandler(async (event) => {
 
 async function _handleSetup(event: H3Event) {
   const db = useDb(event)
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   let host = getHeader(event, 'host')?.split(':')[0] ?? ''
   if (host === '127.0.0.1' || host === '::1') {
@@ -101,21 +101,21 @@ async function _handleSetup(event: H3Event) {
     })
 
     if (!site) {
-      throw createError({ statusCode: 404, message: `Site for domain ${host} not found.` })
+      throw notFound(`Site for domain ${host} not found.`)
     }
 
     if (site.setupCompleted) {
-      throw createError({ statusCode: 409, message: 'Setup already completed for this site.' })
+      throw conflict('Setup already completed for this site.')
     }
 
     // Secondary sites can only be claimed with the one-time token issued when the super
     // admin created the site record — completing setup grants super_admin, so this must
     // never be reachable by an unauthenticated request that merely knows the domain.
     if (!site.setupTokenHash) {
-      throw createError({ statusCode: 403, message: 'This site has no setup link. Ask a super admin to generate one.' })
+      throw forbidden('This site has no setup link. Ask a super admin to generate one.')
     }
     if (!body.setupToken || (await hashSetupToken(body.setupToken)) !== site.setupTokenHash) {
-      throw createError({ statusCode: 403, message: 'Invalid or missing setup token.' })
+      throw forbidden('Invalid or missing setup token.')
     }
 
     siteId = site.id

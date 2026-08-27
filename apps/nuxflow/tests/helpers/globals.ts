@@ -81,6 +81,66 @@ globalThis.getRequestURL = (event: Record<string, unknown>): URL => {
 }
 
 // ---------------------------------------------------------------------------
+// server/utils/response.ts and server/utils/validate.ts auto-imports
+//
+// These are app-level (not h3/Nitro-provided) `server/utils/*` helpers, but
+// they're consumed unimported by route handlers the same way h3's own
+// auto-imports are (Nitro's build-time auto-import transform covers both).
+// Vitest doesn't run that transform, so — like every other auto-import above —
+// they need an explicit globalThis stub mirroring the real implementation.
+// ---------------------------------------------------------------------------
+
+globalThis.ok = (data: unknown) => data
+
+globalThis.created = (event: Record<string, unknown>, data: unknown) => {
+  globalThis.setResponseStatus(event, 201)
+  return data
+}
+
+globalThis.noContent = (event: Record<string, unknown>) => {
+  globalThis.setResponseStatus(event, 204)
+  return null
+}
+
+globalThis.notFound = (message = 'Not found') => {
+  throw globalThis.createError({ statusCode: 404, message })
+}
+
+globalThis.unauthorized = (message = 'Unauthorized') => {
+  throw globalThis.createError({ statusCode: 401, message })
+}
+
+globalThis.forbidden = (message = 'Forbidden') => {
+  throw globalThis.createError({ statusCode: 403, message })
+}
+
+globalThis.conflict = (message = 'Conflict') => {
+  throw globalThis.createError({ statusCode: 409, message })
+}
+
+globalThis.validationError = (message = 'Validation error', data?: unknown) => {
+  throw globalThis.createError({ statusCode: 422, message, data })
+}
+
+globalThis.parseBody = async (event: Record<string, unknown>, schema: { safeParse: (v: unknown) => { success: boolean; data?: unknown; error?: { flatten: () => unknown } } }) => {
+  const body = await globalThis.readBody(event)
+  const result = schema.safeParse(body)
+  if (!result.success) {
+    throw globalThis.createError({ statusCode: 422, message: 'Validation error', data: result.error?.flatten() })
+  }
+  return result.data
+}
+
+globalThis.parseQuery = (event: Record<string, unknown>, schema: { safeParse: (v: unknown) => { success: boolean; data?: unknown; error?: { flatten: () => unknown } } }) => {
+  const query = globalThis.getQuery(event)
+  const result = schema.safeParse(query)
+  if (!result.success) {
+    throw globalThis.createError({ statusCode: 422, message: 'Validation error', data: result.error?.flatten() })
+  }
+  return result.data
+}
+
+// ---------------------------------------------------------------------------
 // Nuxt/Nitro auto-imports
 // ---------------------------------------------------------------------------
 

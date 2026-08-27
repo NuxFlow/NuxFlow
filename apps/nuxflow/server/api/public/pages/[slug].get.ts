@@ -153,7 +153,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  if (!page) throw createError({ statusCode: 404, message: 'Not found' })
+  if (!page) throw notFound('Not found')
 
   const gate = await checkContentAccess(event, { visibility: page.visibility, settings: page.settings as Record<string, unknown> | null }, siteId)
   if (gate?.blocked) {

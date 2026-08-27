@@ -3,6 +3,7 @@ import { membershipTiers } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
+import { writeAuditLog } from '../../../utils/audit'
 import { resolveSetting } from '../../../utils/settings'
 import { StripeProvider } from '../../../utils/payments/stripe'
 import { LemonSqueezyProvider } from '../../../utils/payments/lemonsqueezy'
@@ -22,10 +23,10 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'admin')
+  const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   let stripeProductId = body.stripeProductId
   let stripePriceId = body.stripePriceId
@@ -92,6 +93,13 @@ export default defineEventHandler(async (event) => {
 
   const tier = await db.query.membershipTiers.findFirst({
     where: (t, { eq: eq_ }) => eq_(t.id, id),
+  })
+
+  await writeAuditLog(event, userId, {
+    action: 'create',
+    resource: 'membership_tier',
+    resourceId: id,
+    after: { name: body.name, price: body.price, currency: body.currency, interval: body.interval },
   })
 
   setResponseStatus(event, 201)

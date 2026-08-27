@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
+import { writeAuditLog } from '../../../utils/audit'
 import { taxonomies } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -12,18 +13,25 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'editor')
+  const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const existing = await db.query.taxonomies.findFirst({
     where: and(eq(taxonomies.siteId, siteId), eq(taxonomies.slug, body.slug)),
   })
-  if (existing) throw createError({ statusCode: 409, message: `Taxonomy slug "${body.slug}" already exists` })
+  if (existing) throw conflict(`Taxonomy slug "${body.slug}" already exists`)
 
   const id = ulid()
   await db.insert(taxonomies).values({ id, siteId, ...body })
+
+  await writeAuditLog(event, userId, {
+    action: 'create',
+    resource: 'taxonomy',
+    resourceId: id,
+    after: body,
+  })
 
   setResponseStatus(event, 201)
   return { id }

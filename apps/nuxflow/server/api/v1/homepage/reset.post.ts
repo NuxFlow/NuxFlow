@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
     where: and(eq(contentTypes.siteId, siteId), eq(contentTypes.slug, 'page')),
     columns: { id: true },
   })
-  if (!type) throw createError({ statusCode: 404, message: 'Page content type not found' })
+  if (!type) throw notFound('Page content type not found')
 
   const page = await db.query.contentItems.findFirst({
     where: and(
@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
     ),
     columns: { id: true },
   })
-  if (!page) throw createError({ statusCode: 404, message: 'Homepage not found' })
+  if (!page) throw notFound('Homepage not found')
 
   await db.update(contentItems)
     .set({ content: null, updatedAt: new Date().toISOString() })

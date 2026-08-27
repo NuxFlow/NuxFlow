@@ -14,7 +14,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   await requireSuperAdmin(event)
   const db = useDb(event)
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const id = ulid()
 

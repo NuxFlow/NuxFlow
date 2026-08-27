@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   const model = await getAiSdkModel(event, 'fast')
   if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
 
-  const { mediaIds } = await readValidatedBody(event, bodySchema.parse)
+  const { mediaIds } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string
   const db = useDb(event)
 

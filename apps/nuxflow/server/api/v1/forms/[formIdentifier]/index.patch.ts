@@ -19,12 +19,12 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const formIdentifier = getRouterParam(event, 'formIdentifier')!
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const form = await db.query.forms.findFirst({
     where: and(eq(forms.id, formIdentifier), eq(forms.siteId, siteId)),
   })
-  if (!form) throw createError({ statusCode: 404, message: 'Form not found' })
+  if (!form) throw notFound('Form not found')
 
   await db.update(forms)
     .set({

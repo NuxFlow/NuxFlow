@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
   const id = ulid()
   await db.insert(forms).values({

@@ -15,7 +15,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const session = await requireSession(event)
   const siteId = event.context.siteId as string
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
   const config = useRuntimeConfig()
 
   const db = useDb(event)
@@ -23,14 +23,14 @@ export default defineEventHandler(async (event) => {
   const signupsDisabled = await resolveSetting(event, 'payments.signups_disabled')
   if (signupsDisabled === 'true') {
     const msg = await resolveSetting(event, 'payments.signups_disabled_message')
-    throw createError({ statusCode: 403, message: (msg as string | null) || 'New signups are temporarily paused.' })
+    throw forbidden((msg as string | null) || 'New signups are temporarily paused.')
   }
 
   const tier = await db.query.membershipTiers.findFirst({
     where: and(eq(membershipTiers.id, body.tierId), eq(membershipTiers.siteId, siteId)),
   })
-  if (!tier) throw createError({ statusCode: 404, message: 'Membership tier not found' })
-  if (!tier.isActive) throw createError({ statusCode: 409, message: 'This membership tier is no longer available' })
+  if (!tier) throw notFound('Membership tier not found')
+  if (!tier.isActive) throw conflict('This membership tier is no longer available')
 
   const userId = session.user.id as string
   const userEmail = session.user.email as string
@@ -79,7 +79,7 @@ export default defineEventHandler(async (event) => {
   const paddleApiKey = await resolveSetting(event, 'payments.paddle_api_key', 'paddleApiKey')
 
   if (stripeSecretKey) {
-    if (!tier.stripePriceId) throw createError({ statusCode: 409, message: 'This tier has not been synced to Stripe' })
+    if (!tier.stripePriceId) throw conflict('This tier has not been synced to Stripe')
     const stripe = new StripeProvider(stripeSecretKey as string)
     const customers = await stripe.listCustomersByEmail(userEmail)
     let customerId = customers[0]?.id
@@ -98,7 +98,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (lsApiKey && lsStoreId) {
-    if (!tier.lsVariantId) throw createError({ statusCode: 409, message: 'This tier has not been synced to Lemon Squeezy' })
+    if (!tier.lsVariantId) throw conflict('This tier has not been synced to Lemon Squeezy')
     const ls = new LemonSqueezyProvider(lsApiKey as string, lsStoreId as string)
     const result = await ls.createCheckout({
       variantId: tier.lsVariantId,
@@ -109,7 +109,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (paddleApiKey) {
-    if (!tier.paddleProductId) throw createError({ statusCode: 409, message: 'This tier has not been synced to Paddle' })
+    if (!tier.paddleProductId) throw conflict('This tier has not been synced to Paddle')
     const siteUrl = (config.public.siteUrl as string) || 'https://example.com'
     const checkoutUrl = new URL('/checkout', siteUrl)
     checkoutUrl.searchParams.set('product', tier.paddleProductId)

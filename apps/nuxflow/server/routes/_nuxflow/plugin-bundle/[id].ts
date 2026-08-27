@@ -13,17 +13,17 @@ export default defineEventHandler(async (event) => {
     where: eq(sites.domain, host),
     columns: { id: true },
   })
-  if (!site) throw createError({ statusCode: 404, message: 'Site not found' })
+  if (!site) throw notFound('Site not found')
 
   const plugin = await db.query.dynamicPlugins.findFirst({
     where: and(eq(dynamicPlugins.id, pluginId), eq(dynamicPlugins.siteId, site.id)),
   })
   if (!plugin || !plugin.isActive || !plugin.hasClient) {
-    throw createError({ statusCode: 404, message: 'Plugin bundle not found' })
+    throw notFound('Plugin bundle not found')
   }
 
   const bundle = await getPluginClientBundle(event, site.id, pluginId)
-  if (!bundle) throw createError({ statusCode: 404, message: 'Plugin bundle not found in KV' })
+  if (!bundle) throw notFound('Plugin bundle not found in KV')
 
   // Verify KV content against the checksum stored in D1 at install time.
   // A mismatch means the KV entry was modified after the signed install — hard stop.

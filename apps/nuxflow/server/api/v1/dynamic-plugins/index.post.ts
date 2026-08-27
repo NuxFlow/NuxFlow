@@ -55,7 +55,7 @@ export default defineEventHandler(async (event) => {
   const existing = await db.query.dynamicPlugins.findFirst({
     where: and(eq(dynamicPlugins.id, body.id), eq(dynamicPlugins.siteId, siteId)),
   })
-  if (existing) throw createError({ statusCode: 409, message: 'Plugin already installed' })
+  if (existing) throw conflict('Plugin already installed')
 
   // ── Decode bundles ──────────────────────────────────────────────────────────
   const serverCode = body.serverModule ? decodeBase64(body.serverModule) : null

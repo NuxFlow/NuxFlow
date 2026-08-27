@@ -1,18 +1,13 @@
+import type { CanvasBlockData } from '@nuxflow/canvas'
+
 /**
  * A single block instance stored in page content when using the page-builder format.
- * The `type` maps to a PluginBlock.id registered via useBlockRegistry.
+ * Same shape as CanvasBlockData — the page-builder and canvas content formats
+ * share one block model, differing only in the top-level `type` discriminator
+ * ('blocks' vs 'canvas'). The `type` field on the block itself maps to a
+ * PluginBlock.id registered via useBlockRegistry.
  */
-export interface NuxBlockData {
-  /** Unique instance ID (ulid) — stable across edits */
-  id: string
-  /** Block type identifier, e.g. 'page-builder/hero' or 'contact-form/form' */
-  type: string
-  /** Block-specific configuration props passed directly to the block component */
-  props: Record<string, unknown>
-  /** Child blocks nested inside this block's named slots (e.g. Columns' col1..col4).
-   * Mirrors CanvasBlockData.children from @nuxflow/canvas. */
-  children?: Record<string, NuxBlockData[]>
-}
+export type NuxBlockData = CanvasBlockData
 
 /**
  * Top-level content structure used by the page builder.

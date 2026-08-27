@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
     where: and(eq(membershipTiers.id, id), eq(membershipTiers.siteId, siteId)),
     columns: { id: true },
   })
-  if (!tier) throw createError({ statusCode: 404, message: 'Membership tier not found' })
+  if (!tier) throw notFound('Membership tier not found')
 
   await db.delete(membershipTiers).where(and(eq(membershipTiers.id, id), eq(membershipTiers.siteId, siteId)))
 

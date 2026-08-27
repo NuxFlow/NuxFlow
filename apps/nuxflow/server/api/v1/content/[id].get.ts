@@ -1,7 +1,8 @@
 import { useDb } from '../../../utils/db'
 import { requireAuth } from '../../../utils/permissions'
-import { contentItems, contentTypes } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { getContentItemOrThrow } from '../../../utils/content-queries'
+import { contentTypes } from '@nuxflow/db/schema'
+import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
@@ -9,11 +10,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
 
-  const item = await db.query.contentItems.findFirst({
-    where: and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)),
-  })
-
-  if (!item) throw createError({ statusCode: 404, message: 'Not found' })
+  const item = await getContentItemOrThrow(db, siteId, id, 'Not found')
 
   const type = await db.query.contentTypes.findFirst({
     where: eq(contentTypes.id, item.typeId),

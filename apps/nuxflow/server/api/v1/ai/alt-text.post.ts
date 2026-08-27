@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   const model = await getAiSdkModel(event, 'fast')
   if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
 
-  const { mediaId } = await readValidatedBody(event, bodySchema.parse)
+  const { mediaId } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string
   const db = useDb(event)
 
@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
     where: and(eq(media.id, mediaId), eq(media.siteId, siteId))!,
     columns: { originalName: true, url: true, mimeType: true },
   })
-  if (!file) throw createError({ statusCode: 404, message: 'Media not found' })
+  if (!file) throw notFound('Media not found')
 
   const prompt = `Generate alt text for an image with filename: "${file.originalName}"`
 

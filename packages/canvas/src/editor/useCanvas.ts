@@ -1,7 +1,7 @@
 import { ref, computed, inject } from 'vue'
 import type { CanvasContent, CanvasBlockData, CanvasBlockDefinition } from '../types'
 import { emptyCanvas } from '../types'
-import { getBlockDefinition } from '../blocks/definitions'
+import { resolveDefinition } from '../blocks/definitions'
 import { findParentList, findBlockById, isDescendant, cloneWithNewIds } from '../tree'
 
 interface BlockRegistryLike {
@@ -34,12 +34,8 @@ export function useCanvas(initial?: CanvasContent) {
 
   const selectedDefinition = computed((): CanvasBlockDefinition | null => {
     if (!selectedBlock.value) return null
-    const def = getBlockDefinition(selectedBlock.value.type)
+    const def = resolveDefinition(selectedBlock.value.type, registry ?? undefined)
     if (def) return def
-    // Dynamic plugin block — check if the plugin registered a full definition
-    // (with fields) so the settings panel renders proper field editors.
-    const regDef = registry?.getDefinition(selectedBlock.value.type)
-    if (regDef) return regDef as CanvasBlockDefinition
     // Fall back to a minimal shell using registry metadata (name + icon only)
     // so the settings panel at least renders with move/delete controls.
     const regMeta = registry?.meta(selectedBlock.value.type)
@@ -158,14 +154,11 @@ export function useCanvas(initial?: CanvasContent) {
   // ── Mutations ─────────────────────────────────────────────────────────────
 
   function addBlock(typeId: string, target?: { parentId: string | null; slot: string | null; index?: number }) {
-    const def = getBlockDefinition(typeId)
-    // For dynamic plugin blocks: use the registered definition's defaultProps if
-    // available so the block renders with sensible initial values.
-    const regDef = !def ? registry?.getDefinition(typeId) as CanvasBlockDefinition | undefined : undefined
+    const def = resolveDefinition(typeId, registry ?? undefined)
     const block: CanvasBlockData = {
       id: uuid(),
       type: typeId,
-      props: def ? { ...def.defaultProps } : regDef ? { ...regDef.defaultProps } : {},
+      props: def ? { ...def.defaultProps } : {},
     }
 
     const targetList = target ? getListFor(target.parentId, target.slot) : canvas.value.blocks

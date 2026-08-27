@@ -2,8 +2,9 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
-import { contentItems, contentTypes, sites } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { getContentTypeBySlugOrThrow } from '../../../utils/content-queries'
+import { contentItems, sites } from '@nuxflow/db/schema'
+import { eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 
 const bodySchema = z.object({
@@ -27,12 +28,9 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  const body = await readValidatedBody(event, bodySchema.parse)
+  const body = await parseBody(event, bodySchema)
 
-  const type = await db.query.contentTypes.findFirst({
-    where: and(eq(contentTypes.siteId, siteId), eq(contentTypes.slug, body.typeSlug)),
-  })
-  if (!type) throw createError({ statusCode: 404, message: 'Content type not found' })
+  const type = await getContentTypeBySlugOrThrow(db, siteId, body.typeSlug, 'Content type not found')
 
   // Resolve default site locale
   const site = await db.query.sites.findFirst({

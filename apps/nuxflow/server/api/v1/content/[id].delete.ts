@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     where: and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)),
     columns: { id: true, title: true },
   })
-  if (!existing) throw createError({ statusCode: 404, message: 'Not found' })
+  if (!existing) throw notFound('Not found')
 
   await db.delete(contentItems)
     .where(and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)))

@@ -16,9 +16,9 @@ export default defineEventHandler(async (event) => {
   const plugin = await db.query.dynamicPlugins.findFirst({
     where: and(eq(dynamicPlugins.id, pluginId), eq(dynamicPlugins.siteId, siteId)),
   })
-  if (!plugin) throw createError({ statusCode: 404, message: 'Plugin not found' })
-  if (!plugin.isActive) throw createError({ statusCode: 403, message: 'Plugin is not active' })
-  if (!plugin.hasServer) throw createError({ statusCode: 404, message: 'Plugin has no server module' })
+  if (!plugin) throw notFound('Plugin not found')
+  if (!plugin.isActive) throw forbidden('Plugin is not active')
+  if (!plugin.hasServer) throw notFound('Plugin has no server module')
 
   const cacheId = `${pluginId}:${plugin.version}`
   const worker = spawnPluginWorker(event, cacheId, async (): Promise<string> => {

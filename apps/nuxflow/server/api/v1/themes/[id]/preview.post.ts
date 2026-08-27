@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
     where: and(eq(themes.id, id), eq(themes.siteId, siteId)),
     columns: { id: true, packageName: true },
   })
-  if (!theme) throw createError({ statusCode: 404, message: 'Theme not found' })
+  if (!theme) throw notFound('Theme not found')
 
   const config = useRuntimeConfig()
   const token = Buffer.from(`${id}:${Date.now()}`).toString('base64url')
