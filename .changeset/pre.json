@@ -46,6 +46,7 @@
     "fix-settings-audit-log",
     "fix-ssr-setup-onboarding",
     "refactor-canvas-architecture-and-migrate-squash",
+    "refactor-server-api-consistency-and-dead-code",
     "security-enhancements-and-new-canvas-blocks"
   ]
 }
