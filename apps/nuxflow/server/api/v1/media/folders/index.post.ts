@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { writeAuditLog } from '../../../../utils/audit'
+import { buildAuditLogInsert } from '../../../../utils/audit'
 import { mediaFolders } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
@@ -16,14 +16,16 @@ export default defineEventHandler(async (event) => {
   const body = await parseBody(event, bodySchema)
 
   const id = ulid()
-  await db.insert(mediaFolders).values({ id, siteId, name: body.name })
+  const folderInsert = db.insert(mediaFolders).values({ id, siteId, name: body.name })
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'create',
     resource: 'media_folder',
     resourceId: id,
     after: { name: body.name },
   })
+
+  await db.batch(auditInsert ? [folderInsert, auditInsert] : [folderInsert])
 
   setResponseStatus(event, 201)
   return { id, name: body.name }

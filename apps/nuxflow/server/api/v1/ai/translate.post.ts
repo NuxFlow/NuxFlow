@@ -7,7 +7,7 @@ import { useDb } from '../../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 
 const bodySchema = z.object({
   contentItemId: z.string(),
@@ -198,7 +198,7 @@ export default defineEventHandler(async (event) => {
 
   if (existing) {
     // Update the existing translation
-    await db.update(contentItems)
+    const itemUpdate = db.update(contentItems)
       .set({
         title: translatedTitle,
         content: translatedContent,
@@ -209,13 +209,14 @@ export default defineEventHandler(async (event) => {
       })
       .where(eq(contentItems.id, existing.id))
 
-    await writeAuditLog(event, userId, { action: 'update', resource: 'content_item', resourceId: existing.id })
+    const updateAudit = buildAuditLogInsert(event, userId, { action: 'update', resource: 'content_item', resourceId: existing.id })
+    await db.batch(updateAudit ? [itemUpdate, updateAudit] : [itemUpdate])
     return { id: existing.id, locale: targetLocale, updated: true }
   }
 
   // Create a new translated content item
   const newId = ulid()
-  await db.insert(contentItems).values({
+  const itemInsert = db.insert(contentItems).values({
     id: newId,
     siteId,
     typeId: source.typeId,
@@ -232,7 +233,8 @@ export default defineEventHandler(async (event) => {
     sourceItemId: source.id,
   })
 
-  await writeAuditLog(event, userId, { action: 'create', resource: 'content_item', resourceId: newId })
+  const createAudit = buildAuditLogInsert(event, userId, { action: 'create', resource: 'content_item', resourceId: newId })
+  await db.batch(createAudit ? [itemInsert, createAudit] : [itemInsert])
 
   return { id: newId, locale: targetLocale, slug: newSlug, updated: false }
 })

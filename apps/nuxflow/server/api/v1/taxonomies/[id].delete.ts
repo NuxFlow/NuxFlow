@@ -1,6 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { taxonomies } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -15,14 +15,16 @@ export default defineEventHandler(async (event) => {
   })
   if (!existing) throw notFound('Taxonomy not found')
 
-  await db.delete(taxonomies).where(and(eq(taxonomies.id, id), eq(taxonomies.siteId, siteId)))
+  const taxonomyDelete = db.delete(taxonomies).where(and(eq(taxonomies.id, id), eq(taxonomies.siteId, siteId)))
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',
     resource: 'taxonomy',
     resourceId: id,
     before: existing,
   })
+
+  await db.batch(auditInsert ? [taxonomyDelete, auditInsert] : [taxonomyDelete])
 
   return { success: true }
 })

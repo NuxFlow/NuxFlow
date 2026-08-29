@@ -2,27 +2,7 @@ import { useDb } from '../utils/db'
 import { siteSettings } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { H3Event } from 'h3'
-
-// ── Per-isolate cache ─────────────────────────────────────────────────────────
-// Stores resolved appearance settings per site so we don't hit the DB on every
-// SSR render. TTL of 60 s is a good tradeoff: changes are reflected within a
-// minute without adding a DB round-trip to every page load.
-
-interface AppearanceCache {
-  darkMode: string
-  primaryColor: string
-  fontSans: string
-  customHeadHtml: string
-  customBodyHtml: string
-  ts: number
-}
-
-const _cache = new Map<string, AppearanceCache>()
-const CACHE_TTL = 60_000
-
-export function clearAppearanceCache(siteId: string): void {
-  _cache.delete(siteId)
-}
+import { type AppearanceCache, _appearanceCache, APPEARANCE_CACHE_TTL } from '../utils/appearance-cache'
 
 // ── Sanitization ─────────────────────────────────────────────────────────────
 
@@ -45,8 +25,8 @@ const FONT_QUERY: Record<string, string> = {
 
 async function resolveAppearance(event: H3Event, siteId: string): Promise<AppearanceCache> {
   const now = Date.now()
-  const cached = _cache.get(siteId)
-  if (cached && now - cached.ts < CACHE_TTL) return cached
+  const cached = _appearanceCache.get(siteId)
+  if (cached && now - cached.ts < APPEARANCE_CACHE_TTL) return cached
 
   const db = useDb(event)
   const rows = await db
@@ -68,7 +48,7 @@ async function resolveAppearance(event: H3Event, siteId: string): Promise<Appear
     customBodyHtml: map['appearance.custom_body_html'] ?? '',
     ts: now,
   }
-  _cache.set(siteId, entry)
+  _appearanceCache.set(siteId, entry)
   return entry
 }
 

@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { useDb } from './db'
+import { clearSiteCache } from '../middleware/02.multi-site'
 import { getActiveProvider } from './media-providers/index'
 import {
   sites, users, userSiteRoles, contentItems, contentTypes,
@@ -74,4 +75,5 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string) {
 
   // 4. Finally delete the site itself
   await db.delete(sites).where(eq(sites.id, siteId))
+  clearSiteCache()
 }

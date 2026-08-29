@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { resolveSetting } from '../../../utils/settings'
 import { broadcastPushToSite } from '../../../utils/webpush'
 import { getContentItemOrThrow } from '../../../utils/content-queries'
@@ -57,7 +57,7 @@ export default defineEventHandler(async (event) => {
   const nextVersion = existing.version + 1
 
   // Snapshot revision before update
-  await db.insert(contentRevisions).values({
+  const revisionInsert = db.insert(contentRevisions).values({
     id: ulid(),
     itemId: id,
     authorId: userId,
@@ -65,7 +65,7 @@ export default defineEventHandler(async (event) => {
     content: existing.content,
   })
 
-  await db.update(contentItems)
+  const itemUpdate = db.update(contentItems)
     .set({
       ...updateFields,
       version: nextVersion,
@@ -76,13 +76,17 @@ export default defineEventHandler(async (event) => {
     })
     .where(and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)))
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',
     resource: 'content_item',
     resourceId: id,
     before: existing,
     after: updateFields,
   })
+
+  // One D1 round trip instead of three — none of these writes depend on
+  // each other's result, only on `existing`, which is already loaded above.
+  await db.batch(auditInsert ? [revisionInsert, itemUpdate, auditInsert] : [revisionInsert, itemUpdate])
 
   // Push broadcast when content is first published
   const isFirstPublish = updateFields.status === 'published' && existing.status !== 'published'

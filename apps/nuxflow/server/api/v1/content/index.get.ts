@@ -1,5 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { getContentTypeBySlugOrThrow } from '../../../utils/content-queries'
+import { parsePagination } from '../../../utils/pagination'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, desc, gt } from 'drizzle-orm'
 
@@ -37,13 +38,18 @@ export default defineEventHandler(async (event) => {
     conditions.push(gt(contentItems.updatedAt, query.updatedAfter as string))
   }
 
+  // Delta sync clients (updatedAfter) rely on getting every changed row back
+  // in one response, so pagination only applies to the normal listing case.
+  const { page, limit, offset } = parsePagination(query, 50)
+
   const items = await db.query.contentItems.findMany({
     where: and(...conditions),
     orderBy: [desc(contentItems.updatedAt)],
     columns: {
       id: true, title: true, slug: true, status: true, publishedAt: true, updatedAt: true, authorId: true, version: true, locale: true, sourceItemId: true,
     },
+    ...(query.updatedAfter ? {} : { limit, offset }),
   })
 
-  return { items, type }
+  return { items, type, page, limit }
 })

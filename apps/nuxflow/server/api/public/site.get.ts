@@ -24,6 +24,10 @@ export default defineEventHandler(async (event) => {
   const canonicalSetting = (kvMap['seo.canonical_url'] as string | undefined)?.trim()
   const canonicalBase = canonicalSetting || `https://${site.domain}`
 
+  // Header/footer chrome settings — fetched on most page loads, changes only
+  // via the admin settings page, so this is safe to cache at the edge.
+  setHeader(event, 'Cache-Control', 'public, max-age=300, stale-while-revalidate=3600')
+
   return {
     ...site,
     showHeader: (kvMap['frontend.show_header'] as boolean | undefined) !== false,

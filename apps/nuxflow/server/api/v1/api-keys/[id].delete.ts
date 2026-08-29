@@ -1,6 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { apiKeys } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -15,14 +15,16 @@ export default defineEventHandler(async (event) => {
     columns: { id: true, name: true, scopes: true },
   })
 
-  await db.delete(apiKeys).where(and(eq(apiKeys.id, id), eq(apiKeys.siteId, siteId)))
+  const keyDelete = db.delete(apiKeys).where(and(eq(apiKeys.id, id), eq(apiKeys.siteId, siteId)))
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',
     resource: 'api_key',
     resourceId: id,
     before: existing,
   })
+
+  await db.batch(auditInsert ? [keyDelete, auditInsert] : [keyDelete])
 
   return { success: true }
 })

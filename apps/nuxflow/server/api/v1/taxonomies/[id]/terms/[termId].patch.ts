@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../../../utils/db'
 import { requireRole } from '../../../../../utils/permissions'
-import { writeAuditLog } from '../../../../../utils/audit'
+import { buildAuditLogInsert } from '../../../../../utils/audit'
 import { taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -29,15 +29,17 @@ export default defineEventHandler(async (event) => {
   })
   if (!term) throw notFound('Term not found')
 
-  await db.update(taxonomyTerms).set(body).where(eq(taxonomyTerms.id, termId))
+  const termUpdate = db.update(taxonomyTerms).set(body).where(eq(taxonomyTerms.id, termId))
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',
     resource: 'taxonomy_term',
     resourceId: termId,
     before: term,
     after: body,
   })
+
+  await db.batch(auditInsert ? [termUpdate, auditInsert] : [termUpdate])
 
   return { id: termId }
 })

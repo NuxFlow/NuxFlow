@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, customType } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, index, uniqueIndex, customType } from 'drizzle-orm/sqlite-core'
 import { relations, sql } from 'drizzle-orm'
 import { sites } from './sites'
 
@@ -45,6 +45,12 @@ export const accounts = sqliteTable('accounts', {
   id: text('id').primaryKey(),
   accountId: text('account_id').notNull(),
   providerId: text('provider_id').notNull(),
+  // Better Auth 1.7+ scopes account identity by (issuer, accountId) rather than
+  // (providerId, accountId) alone — see migrations/0004 for the backfill of this
+  // column on pre-1.7 rows. Built-in OAuth providers with no OIDC issuer of their
+  // own (google, github) get the synthetic `local:oauth:<providerId>` issuer;
+  // email/password accounts get `local:credential`.
+  issuer: text('issuer').notNull().default(''),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   accessToken: text('access_token'),
   refreshToken: text('refresh_token'),
@@ -60,6 +66,7 @@ export const accounts = sqliteTable('accounts', {
 }, (t) => [
   index('idx_accounts_user').on(t.userId),
   index('idx_accounts_provider').on(t.providerId, t.accountId),
+  uniqueIndex('idx_accounts_issuer_account_id').on(t.issuer, t.accountId),
 ])
 
 export const verifications = sqliteTable('verifications', {

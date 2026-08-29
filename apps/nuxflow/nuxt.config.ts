@@ -6,7 +6,7 @@ const _dirname = fileURLToPath(new URL('.', import.meta.url))
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   future: { compatibilityVersion: 4 },
-  compatibilityDate: '2025-01-01',
+  compatibilityDate: '2026-08-27',
 
   css: ['~/assets/css/main.css'],
 
@@ -22,6 +22,10 @@ export default defineNuxtConfig({
     '@nuxt/ui',
     '@nuxtjs/i18n',
     '@nuxtjs/turnstile',
+    // Pinned via the "alpha" dist-tag in package.json — do not bump to the 0.1.2+
+    // stable release without checking CLAUDE.md's "Auth and permissions" section
+    // first. 0.1.2 breaks nuxt typecheck's $fetch() method-literal inference for
+    // unrelated /api/v1/** routes; already investigated and not a quick fix.
     '@onmax/nuxt-better-auth',
     '@pinia/nuxt',
     'nuxt-seo-utils',

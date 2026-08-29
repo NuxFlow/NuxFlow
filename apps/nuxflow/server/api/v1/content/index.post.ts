@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { getContentTypeBySlugOrThrow } from '../../../utils/content-queries'
 import { contentItems, sites } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
   const siteLocale = site?.locale || 'en'
 
   const id = ulid()
-  await db.insert(contentItems).values({
+  const itemInsert = db.insert(contentItems).values({
     id,
     siteId,
     typeId: type.id,
@@ -60,7 +60,9 @@ export default defineEventHandler(async (event) => {
     eventAllDay: body.eventAllDay || null,
   })
 
-  await writeAuditLog(event, userId, { action: 'create', resource: 'content_item', resourceId: id })
+  const auditInsert = buildAuditLogInsert(event, userId, { action: 'create', resource: 'content_item', resourceId: id })
+
+  await db.batch(auditInsert ? [itemInsert, auditInsert] : [itemInsert])
 
   setResponseStatus(event, 201)
   return { id }

@@ -3,7 +3,7 @@ import { membershipTiers } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { resolveSetting } from '../../../utils/settings'
 import { StripeProvider } from '../../../utils/payments/stripe'
 import { LemonSqueezyProvider } from '../../../utils/payments/lemonsqueezy'
@@ -75,7 +75,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const id = ulid()
-  await db.insert(membershipTiers).values({
+  const tierInsert = db.insert(membershipTiers).values({
     id,
     siteId,
     name: body.name,
@@ -91,15 +91,20 @@ export default defineEventHandler(async (event) => {
     paddleProductId: body.paddleProductId || null,
   })
 
-  const tier = await db.query.membershipTiers.findFirst({
-    where: (t, { eq: eq_ }) => eq_(t.id, id),
-  })
-
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'create',
     resource: 'membership_tier',
     resourceId: id,
     after: { name: body.name, price: body.price, currency: body.currency, interval: body.interval },
+  })
+
+  // The response needs the full row back (server-generated defaults like
+  // createdAt), so the SELECT stays a separate round trip — but the insert
+  // and audit log no longer need one each.
+  await db.batch(auditInsert ? [tierInsert, auditInsert] : [tierInsert])
+
+  const tier = await db.query.membershipTiers.findFirst({
+    where: (t, { eq: eq_ }) => eq_(t.id, id),
   })
 
   setResponseStatus(event, 201)

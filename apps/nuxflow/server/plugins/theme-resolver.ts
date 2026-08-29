@@ -3,6 +3,7 @@ import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getCfBindings, getThemeCSS } from '../utils/cf-env'
 import { sanitizeThemeCss } from '../utils/security'
+import { type ActiveTheme, getCachedActiveTheme, setCachedActiveTheme } from '../utils/theme-cache'
 
 export default defineNitroPlugin((nitro) => {
   nitro.hooks.hook('request', async (event) => {
@@ -22,13 +23,21 @@ export default defineNitroPlugin((nitro) => {
     if (getRequestURL(event).pathname.startsWith('/admin')) return
 
     try {
-      // We must query the DB here instead of the 'request' hook because 'siteId'
-      // is set by the multi-site middleware, which runs AFTER the 'request' hook.
-      const db = useDb(event)
-      const active = await db.query.themes.findFirst({
-        where: and(eq(themes.siteId, siteId), eq(themes.isActive, true)),
-        columns: { id: true, hasCss: true },
-      })
+      let active: ActiveTheme
+      const cached = getCachedActiveTheme(siteId)
+      if (cached !== undefined) {
+        active = cached
+      } else {
+        // We must query the DB here instead of the 'request' hook because 'siteId'
+        // is set by the multi-site middleware, which runs AFTER the 'request' hook.
+        const db = useDb(event)
+        const row = await db.query.themes.findFirst({
+          where: and(eq(themes.siteId, siteId), eq(themes.isActive, true)),
+          columns: { id: true, hasCss: true },
+        })
+        active = row ?? null
+        setCachedActiveTheme(siteId, active)
+      }
 
       if (!active || !active.hasCss) return
 

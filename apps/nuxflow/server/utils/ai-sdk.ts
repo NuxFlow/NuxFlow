@@ -38,10 +38,12 @@ export async function getAiSdkModel(event: H3Event, quality: 'fast' | 'smart' = 
       return deepseek('deepseek-chat')
     }
     case 'ollama': {
-      const url = (await resolveSetting(event, 'ai.ollama_base_url', 'ollamaUrl') as string) || 'http://localhost:11434'
-      const model = (await resolveSetting(event, 'ai.ollama_model', 'ollamaModel') as string) || 'llama3.2'
-      const ollama = createOpenAI({ apiKey: 'ollama', baseURL: `${url}/v1` })
-      return ollama(model)
+      const [url, model] = await Promise.all([
+        resolveSetting(event, 'ai.ollama_base_url', 'ollamaUrl') as Promise<string>,
+        resolveSetting(event, 'ai.ollama_model', 'ollamaModel') as Promise<string>,
+      ])
+      const ollama = createOpenAI({ apiKey: 'ollama', baseURL: `${url || 'http://localhost:11434'}/v1` })
+      return ollama(model || 'llama3.2')
     }
     default:
       return null

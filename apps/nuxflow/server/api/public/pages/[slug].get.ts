@@ -163,12 +163,29 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const type = page.typeId
-    ? await db.query.contentTypes.findFirst({
-        where: eq(contentTypes.id, page.typeId),
-        columns: { hasComments: true },
-      })
-    : null
+  // Content type, author, and source-page lookups are all independent of each
+  // other (they only need `page`, already resolved above), so run them as one
+  // round trip each in parallel instead of three sequential ones.
+  const [type, authorUser, sourcePageResolved] = await Promise.all([
+    page.typeId
+      ? db.query.contentTypes.findFirst({
+          where: eq(contentTypes.id, page.typeId),
+          columns: { hasComments: true },
+        })
+      : Promise.resolve(null),
+    page.authorId
+      ? db.query.users.findFirst({
+          where: eq(users.id, page.authorId),
+          columns: { name: true, image: true },
+        })
+      : Promise.resolve(null),
+    page.sourceItemId
+      ? db.query.contentItems.findFirst({
+          where: eq(contentItems.id, page.sourceItemId),
+          columns: { locale: true, slug: true },
+        })
+      : Promise.resolve(null),
+  ])
 
   // Per-item override takes precedence; null means "inherit from content type"
   const hasComments = page.allowComments !== null && page.allowComments !== undefined
@@ -186,23 +203,13 @@ export default defineEventHandler(async (event) => {
 
   trackPageView(event, { siteId, slug })
 
-  let author: { name: string; image: string | null } | null = null
-  if (page.authorId) {
-    const authorUser = await db.query.users.findFirst({
-      where: eq(users.id, page.authorId),
-      columns: { name: true, image: true },
-    })
-    author = authorUser ?? null
-  }
+  const author: { name: string; image: string | null } | null = authorUser ?? null
 
   // Resolve available translations for the switcher
   const availableLocales: Array<{ locale: string; slug: string; rawSlug: string }> = []
   const sourceId = page.sourceItemId || page.id
   const sourcePage = page.sourceItemId
-    ? await db.query.contentItems.findFirst({
-        where: eq(contentItems.id, page.sourceItemId),
-        columns: { locale: true, slug: true },
-      })
+    ? sourcePageResolved
     : page
 
   if (sourcePage) {

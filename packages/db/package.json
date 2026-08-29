@@ -13,10 +13,10 @@
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
-    "ulid": "^2.4.0"
+    "ulid": "^3.0.2"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.30.6",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^5.9.3"
   }
 }

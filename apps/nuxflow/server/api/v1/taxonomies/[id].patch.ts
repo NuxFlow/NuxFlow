@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { taxonomies } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -22,15 +22,17 @@ export default defineEventHandler(async (event) => {
   })
   if (!existing) throw notFound('Taxonomy not found')
 
-  await db.update(taxonomies).set(body).where(and(eq(taxonomies.id, id), eq(taxonomies.siteId, siteId)))
+  const taxonomyUpdate = db.update(taxonomies).set(body).where(and(eq(taxonomies.id, id), eq(taxonomies.siteId, siteId)))
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',
     resource: 'taxonomy',
     resourceId: id,
     before: existing,
     after: body,
   })
+
+  await db.batch(auditInsert ? [taxonomyUpdate, auditInsert] : [taxonomyUpdate])
 
   return { id }
 })

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { redirects } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
@@ -18,14 +18,16 @@ export default defineEventHandler(async (event) => {
   const body = await parseBody(event, bodySchema)
 
   const id = ulid()
-  await db.insert(redirects).values({ id, siteId, ...body })
+  const redirectInsert = db.insert(redirects).values({ id, siteId, ...body })
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'create',
     resource: 'redirect',
     resourceId: id,
     after: body,
   })
+
+  await db.batch(auditInsert ? [redirectInsert, auditInsert] : [redirectInsert])
 
   setResponseStatus(event, 201)
   return { id }

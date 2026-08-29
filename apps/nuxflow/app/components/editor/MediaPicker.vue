@@ -9,7 +9,9 @@ interface MediaFile {
   mimeType: string
 }
 
-const { data } = await useFetch<{ files?: MediaFile[] }>('/api/v1/media')
+// limit=500 (the server-side cap) — this is a searchable picker grid, not a
+// paged table, so it needs effectively the whole library to search over.
+const { data } = await useFetch<{ files?: MediaFile[] }>('/api/v1/media?limit=500')
 const files = computed<MediaFile[]>(() => data.value?.files ?? [])
 
 const search = ref('')

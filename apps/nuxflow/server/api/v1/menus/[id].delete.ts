@@ -1,6 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireAuth } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { menus } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -14,14 +14,16 @@ export default defineEventHandler(async (event) => {
     where: and(eq(menus.id, id), eq(menus.siteId, siteId)),
   })
 
-  await db.delete(menus).where(and(eq(menus.id, id), eq(menus.siteId, siteId)))
+  const menuDelete = db.delete(menus).where(and(eq(menus.id, id), eq(menus.siteId, siteId)))
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',
     resource: 'menu',
     resourceId: id,
     before: existing,
   })
+
+  await db.batch(auditInsert ? [menuDelete, auditInsert] : [menuDelete])
 
   return { ok: true }
 })

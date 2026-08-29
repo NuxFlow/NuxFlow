@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireAuth } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { menus } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 
@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
   })
   if (!existing) throw notFound('Menu not found')
 
-  await db.update(menus)
+  const menuUpdate = db.update(menus)
     .set({
       ...(body.name !== undefined && { name: body.name }),
       ...('location' in body && { location: body.location ?? null }),
@@ -53,13 +53,15 @@ export default defineEventHandler(async (event) => {
     })
     .where(and(eq(menus.id, id), eq(menus.siteId, siteId)))
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',
     resource: 'menu',
     resourceId: id,
     before: existing,
     after: body,
   })
+
+  await db.batch(auditInsert ? [menuUpdate, auditInsert] : [menuUpdate])
 
   return { ok: true }
 })

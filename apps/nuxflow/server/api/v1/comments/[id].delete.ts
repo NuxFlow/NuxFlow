@@ -1,6 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { comments } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -15,14 +15,16 @@ export default defineEventHandler(async (event) => {
   })
   if (!existing) throw notFound('Comment not found')
 
-  await db.delete(comments).where(eq(comments.id, id))
+  const commentDelete = db.delete(comments).where(eq(comments.id, id))
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',
     resource: 'comment',
     resourceId: id,
     before: existing,
   })
+
+  await db.batch(auditInsert ? [commentDelete, auditInsert] : [commentDelete])
 
   return { success: true }
 })

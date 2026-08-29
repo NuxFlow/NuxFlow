@@ -4,7 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { saveSetting } from '../../../utils/settings'
-import { clearAppearanceCache } from '../../../plugins/site-settings-resolver'
+import { clearAppearanceCache } from '../../../utils/appearance-cache'
 import { writeAuditLog } from '../../../utils/audit'
 
 const bodySchema = z.object({

@@ -14,5 +14,9 @@ export default defineEventHandler(async (event) => {
     columns: { id: true, name: true, items: true },
   })
 
+  // Navigation changes only via the admin menu editor, so this is safe to
+  // cache at the edge like the other mostly-static public chrome endpoints.
+  setHeader(event, 'Cache-Control', 'public, max-age=300, stale-while-revalidate=3600')
+
   return menu ?? null
 })

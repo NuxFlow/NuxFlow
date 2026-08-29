@@ -6,7 +6,8 @@ import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../../utils/db'
 import type { NuxFlowBackup } from '../../../../utils/backup'
-import { writeAuditLog } from '../../../../utils/audit'
+import { buildAuditLogInsert } from '../../../../utils/audit'
+import { clearActiveThemeCache } from '../../../../utils/theme-cache'
 
 const bodySchema = z.object({
   what: z.array(z.enum(['content', 'taxonomies', 'menus', 'forms', 'settings'])).default(['content', 'taxonomies', 'menus', 'forms', 'settings']),
@@ -41,10 +42,13 @@ export default defineEventHandler(async (event) => {
   })
 
   // Automatically activate the theme since we are importing its content
-  await db.update(themes).set({ isActive: false }).where(eq(themes.siteId, siteId))
-  await db.update(themes).set({ isActive: true }).where(and(eq(themes.id, themeId), eq(themes.siteId, siteId)))
+  const deactivateAll = db.update(themes).set({ isActive: false }).where(eq(themes.siteId, siteId))
+  const activateTarget = db.update(themes).set({ isActive: true }).where(and(eq(themes.id, themeId), eq(themes.siteId, siteId)))
 
-  await writeAuditLog(event, userId, { action: 'activate', resource: 'theme', resourceId: themeId })
+  const auditInsert = buildAuditLogInsert(event, userId, { action: 'activate', resource: 'theme', resourceId: themeId })
+
+  await db.batch(auditInsert ? [deactivateAll, activateTarget, auditInsert] : [deactivateAll, activateTarget])
+  clearActiveThemeCache(siteId)
 
   return { success: true, result }
 })

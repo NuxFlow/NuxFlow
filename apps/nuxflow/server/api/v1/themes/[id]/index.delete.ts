@@ -1,5 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
+import { clearActiveThemeCache } from '../../../../utils/theme-cache'
 import { deleteThemeCSS, deleteThemeDemo, getThemeDemo } from '../../../../utils/cf-env'
 import { themes, contentItems, menus, forms } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -66,6 +67,7 @@ export default defineEventHandler(async (event) => {
     deleteThemeDemo(event, siteId, id),
   ])
   await db.delete(themes).where(and(eq(themes.id, id), eq(themes.siteId, siteId)))
+  clearActiveThemeCache(siteId)
 
   return { success: true }
 })

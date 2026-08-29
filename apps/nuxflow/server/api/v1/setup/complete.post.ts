@@ -179,6 +179,9 @@ async function _handleSetup(event: H3Event) {
       id: ulid(),
       accountId: adminUserId,
       providerId: 'credential',
+      // Must match Better Auth's own createLocalAccountIssuer('credential') —
+      // sign-in looks accounts up by (issuer, accountId), not providerId.
+      issuer: 'local:credential',
       userId: adminUserId,
       password: passwordHash,
     })

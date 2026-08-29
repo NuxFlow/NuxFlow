@@ -2,6 +2,20 @@ import { useDb } from '../utils/db'
 import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 
+type SiteLookup = { id: string; status: string; setupCompleted: boolean; domain?: string }
+
+// Per-isolate cache: domain -> site rarely changes (only admin site
+// create/update/delete, or the self-healing domain migration below), but
+// without this every single request — public page, admin, API — paid a full
+// D1 round trip for it before any other logic ran.
+const _siteCache = new Map<string, { site: SiteLookup | undefined; expires: number }>()
+const SITE_CACHE_TTL = 30_000
+
+export function clearSiteCache(host?: string): void {
+  if (host) _siteCache.delete(host)
+  else _siteCache.clear()
+}
+
 export default defineEventHandler(async (event) => {
   // Let setup & auth API paths through before touching the DB — the schema
   // may not exist yet (fresh install / wiped DB awaiting migrations).
@@ -14,48 +28,56 @@ export default defineEventHandler(async (event) => {
   if (host === '127.0.0.1' || host === '::1') {
     host = 'localhost'
   }
-  const db = useDb(event)
 
-  let site: { id: string; status: string; setupCompleted: boolean; domain?: string } | undefined
-  try {
-    site = await db.query.sites.findFirst({
-      where: eq(sites.domain, host),
-      columns: { id: true, status: true, setupCompleted: true },
-    })
-    
-    // Resilient Fallback: If no site matches the request domain but there is
-    // exactly one site in D1, use that site. This prevents locking the user
-    // out of their admin dashboard when migrating from localhost/.workers.dev to a custom domain.
-    if (!site) {
-      const allSites = await db.query.sites.findMany({
-        columns: { id: true, status: true, setupCompleted: true, domain: true },
+  const cached = _siteCache.get(host)
+  let site: SiteLookup | undefined
+  if (cached && cached.expires > Date.now()) {
+    site = cached.site
+  } else {
+    const db = useDb(event)
+    try {
+      site = await db.query.sites.findFirst({
+        where: eq(sites.domain, host),
+        columns: { id: true, status: true, setupCompleted: true },
       })
-      if (allSites.length === 1) {
-        site = allSites[0]!
 
-        // Self-Healing Domain Migration: If this is a public domain in production,
-        // automatically update the database record to match the active request host.
-        // This ensures sitemaps, RSS feeds, and user invite email links heal automatically!
-        //
-        // Gated to /admin traffic only — a real operator navigating the dashboard on
-        // the new domain is a plausible deliberate migration; a bot hitting /robots.txt
-        // or /sitemap.xml on some unrelated, never-onboarded domain that also happens to
-        // be routed to this Worker is not, and used to be enough to silently steal the
-        // site's domain out from under the actual production domain (and back again on
-        // the next real visit), causing the site to intermittently "lose" its identity.
-        if (path.startsWith('/admin') && host && host !== 'localhost' && host !== '127.0.0.1' && host !== '::1' && site.domain !== host) {
-          await db.update(sites)
-            .set({ domain: host, updatedAt: sql`(datetime('now'))` })
-            .where(eq(sites.id, site.id))
+      // Resilient Fallback: If no site matches the request domain but there is
+      // exactly one site in D1, use that site. This prevents locking the user
+      // out of their admin dashboard when migrating from localhost/.workers.dev to a custom domain.
+      if (!site) {
+        const allSites = await db.query.sites.findMany({
+          columns: { id: true, status: true, setupCompleted: true, domain: true },
+        })
+        if (allSites.length === 1) {
+          site = allSites[0]!
+
+          // Self-Healing Domain Migration: If this is a public domain in production,
+          // automatically update the database record to match the active request host.
+          // This ensures sitemaps, RSS feeds, and user invite email links heal automatically!
+          //
+          // Gated to /admin traffic only — a real operator navigating the dashboard on
+          // the new domain is a plausible deliberate migration; a bot hitting /robots.txt
+          // or /sitemap.xml on some unrelated, never-onboarded domain that also happens to
+          // be routed to this Worker is not, and used to be enough to silently steal the
+          // site's domain out from under the actual production domain (and back again on
+          // the next real visit), causing the site to intermittently "lose" its identity.
+          if (path.startsWith('/admin') && host && host !== 'localhost' && host !== '127.0.0.1' && host !== '::1' && site.domain !== host) {
+            await db.update(sites)
+              .set({ domain: host, updatedAt: sql`(datetime('now'))` })
+              .where(eq(sites.id, site.id))
+            clearSiteCache()
+          }
+        } else if (allSites.length > 1 && (host === 'localhost' || host.endsWith('.workers.dev'))) {
+          // Local/Preview fallback: default to the first site in D1
+          site = allSites[0]!
         }
-      } else if (allSites.length > 1 && (host === 'localhost' || host.endsWith('.workers.dev'))) {
-        // Local/Preview fallback: default to the first site in D1
-        site = allSites[0]!
       }
+      _siteCache.set(host, { site, expires: Date.now() + SITE_CACHE_TTL })
+    } catch {
+      // DB not yet migrated — treat as no site so the setup guard can redirect.
+      // Not cached, so the next request retries once migrations complete.
+      site = undefined
     }
-  } catch {
-    // DB not yet migrated — treat as no site so the setup guard can redirect.
-    site = undefined
   }
 
   event.context.siteId = site?.id ?? null

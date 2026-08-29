@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { apiKeys } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
 
   const id = ulid()
 
-  await db.insert(apiKeys).values({
+  const keyInsert = db.insert(apiKeys).values({
     id,
     siteId,
     userId,
@@ -36,12 +36,14 @@ export default defineEventHandler(async (event) => {
     expiresAt: body.expiresAt,
   })
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'create',
     resource: 'api_key',
     resourceId: id,
     after: { name: body.name, scopes: body.scopes },
   })
+
+  await db.batch(auditInsert ? [keyInsert, auditInsert] : [keyInsert])
 
   setResponseStatus(event, 201)
   // Raw key shown only once — client must copy it

@@ -1,6 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { redirects } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -14,14 +14,16 @@ export default defineEventHandler(async (event) => {
     where: and(eq(redirects.id, id), eq(redirects.siteId, siteId)),
   })
 
-  await db.delete(redirects).where(and(eq(redirects.id, id), eq(redirects.siteId, siteId)))
+  const redirectDelete = db.delete(redirects).where(and(eq(redirects.id, id), eq(redirects.siteId, siteId)))
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',
     resource: 'redirect',
     resourceId: id,
     before: existing,
   })
+
+  await db.batch(auditInsert ? [redirectDelete, auditInsert] : [redirectDelete])
 
   return { success: true }
 })

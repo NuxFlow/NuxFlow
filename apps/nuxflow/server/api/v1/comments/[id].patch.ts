@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { comments } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -21,15 +21,17 @@ export default defineEventHandler(async (event) => {
   })
   if (!existing) throw notFound('Comment not found')
 
-  await db.update(comments).set({ status: body.status }).where(eq(comments.id, id))
+  const commentUpdate = db.update(comments).set({ status: body.status }).where(eq(comments.id, id))
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',
     resource: 'comment',
     resourceId: id,
     before: { status: existing.status },
     after: { status: body.status },
   })
+
+  await db.batch(auditInsert ? [commentUpdate, auditInsert] : [commentUpdate])
 
   return { id, status: body.status }
 })

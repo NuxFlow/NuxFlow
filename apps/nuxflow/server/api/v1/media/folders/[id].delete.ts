@@ -1,6 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { writeAuditLog } from '../../../../utils/audit'
+import { buildAuditLogInsert } from '../../../../utils/audit'
 import { mediaFolders, media } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -16,19 +16,21 @@ export default defineEventHandler(async (event) => {
   if (!folder) throw notFound('Folder not found')
 
   // Move files in this folder back to root rather than deleting them
-  await db.update(media)
+  const unfileMedia = db.update(media)
     .set({ folderId: null })
     .where(and(eq(media.siteId, siteId), eq(media.folderId, id)))
 
-  await db.delete(mediaFolders)
+  const folderDelete = db.delete(mediaFolders)
     .where(and(eq(mediaFolders.id, id), eq(mediaFolders.siteId, siteId)))
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',
     resource: 'media_folder',
     resourceId: id,
     before: folder,
   })
+
+  await db.batch(auditInsert ? [unfileMedia, folderDelete, auditInsert] : [unfileMedia, folderDelete])
 
   return { success: true }
 })

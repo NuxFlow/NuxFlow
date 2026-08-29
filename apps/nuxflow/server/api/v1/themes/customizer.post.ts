@@ -4,7 +4,8 @@ import { ulid } from 'ulid'
 import { requireRole } from '../../../utils/permissions'
 import { resolveSetting, saveSetting } from '../../../utils/settings'
 import { putThemeCSS, getThemeCSS } from '../../../utils/cf-env'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
+import { clearActiveThemeCache } from '../../../utils/theme-cache'
 import { useDb } from '../../../utils/db'
 
 interface CustomizerValues {
@@ -111,9 +112,12 @@ export default defineEventHandler(async (event) => {
   }
 
   // Ensure the customizer theme is active (deactivate all others first)
-  await db.update(themes).set({ isActive: false }).where(eq(themes.siteId, siteId))
-  await db.update(themes).set({ isActive: true }).where(and(eq(themes.id, themeId!), eq(themes.siteId, siteId)))
+  const deactivateAll = db.update(themes).set({ isActive: false }).where(eq(themes.siteId, siteId))
+  const activateTarget = db.update(themes).set({ isActive: true }).where(and(eq(themes.id, themeId!), eq(themes.siteId, siteId)))
 
-  await writeAuditLog(event, userId, { action: 'update', resource: 'theme', resourceId: themeId! })
+  const auditInsert = buildAuditLogInsert(event, userId, { action: 'update', resource: 'theme', resourceId: themeId! })
+
+  await db.batch(auditInsert ? [deactivateAll, activateTarget, auditInsert] : [deactivateAll, activateTarget])
+  clearActiveThemeCache(siteId)
   return { success: true, themeId }
 })

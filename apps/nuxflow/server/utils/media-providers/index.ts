@@ -24,9 +24,28 @@ export interface MediaProvider {
 const LOCAL_PROVIDER_MAX_BYTES = 512 * 1024
 
 export async function getActiveProvider(event: H3Event): Promise<MediaProvider> {
-  const accountId = await resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
-  const imagesToken = await resolveSetting(event, 'cloudflare.images_token', 'cloudflareImagesToken')
-  const deliveryUrl = await resolveSetting(event, 'cloudflare.images_delivery_url', 'cloudflareImagesDeliveryUrl')
+  // All candidate providers' settings are resolved up front in parallel —
+  // each resolveSetting() call is its own D1 round trip (until the 30s
+  // per-isolate cache warms up), and none of these values depend on each
+  // other, so there's no reason to pay for them one at a time.
+  const [
+    accountId, imagesToken, deliveryUrl,
+    s3Bucket, s3AccessKey, s3SecretKey, s3Region, s3Endpoint, s3PublicUrl,
+    bunnyApiKey, bunnyStorageZone, bunnyPullZone,
+  ] = await Promise.all([
+    resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId'),
+    resolveSetting(event, 'cloudflare.images_token', 'cloudflareImagesToken'),
+    resolveSetting(event, 'cloudflare.images_delivery_url', 'cloudflareImagesDeliveryUrl'),
+    resolveSetting(event, 'media.s3_bucket', 's3Bucket'),
+    resolveSetting(event, 'media.s3_access_key', 's3AccessKey'),
+    resolveSetting(event, 'media.s3_secret_key', 's3SecretKey'),
+    resolveSetting(event, 'media.s3_region', 's3Region'),
+    resolveSetting(event, 'media.s3_endpoint', 's3Endpoint'),
+    resolveSetting(event, 'media.s3_public_url', 's3PublicUrl'),
+    resolveSetting(event, 'media.bunny_api_key', 'bunnyApiKey'),
+    resolveSetting(event, 'media.bunny_storage_zone', 'bunnyStorageZone'),
+    resolveSetting(event, 'media.bunny_pull_zone', 'bunnyPullZone'),
+  ])
 
   if (imagesToken && accountId) {
     return new CloudflareImagesProvider(accountId, imagesToken, deliveryUrl)
@@ -36,24 +55,22 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
   // setting first, environment variable fallback — so a multi-site install can give
   // different sites different buckets/zones, not just a single global env var shared
   // by every site.
-  const s3Bucket = await resolveSetting(event, 'media.s3_bucket', 's3Bucket')
   if (s3Bucket) {
     return new S3Provider({
       bucket: s3Bucket,
-      accessKey: await resolveSetting(event, 'media.s3_access_key', 's3AccessKey'),
-      secretKey: await resolveSetting(event, 'media.s3_secret_key', 's3SecretKey'),
-      region: await resolveSetting(event, 'media.s3_region', 's3Region'),
-      endpoint: await resolveSetting(event, 'media.s3_endpoint', 's3Endpoint'),
-      publicUrl: await resolveSetting(event, 'media.s3_public_url', 's3PublicUrl'),
+      accessKey: s3AccessKey,
+      secretKey: s3SecretKey,
+      region: s3Region,
+      endpoint: s3Endpoint,
+      publicUrl: s3PublicUrl,
     })
   }
 
-  const bunnyApiKey = await resolveSetting(event, 'media.bunny_api_key', 'bunnyApiKey')
   if (bunnyApiKey) {
     return new BunnyProvider({
       apiKey: bunnyApiKey,
-      storageZone: await resolveSetting(event, 'media.bunny_storage_zone', 'bunnyStorageZone'),
-      pullZone: await resolveSetting(event, 'media.bunny_pull_zone', 'bunnyPullZone'),
+      storageZone: bunnyStorageZone,
+      pullZone: bunnyPullZone,
     })
   }
 

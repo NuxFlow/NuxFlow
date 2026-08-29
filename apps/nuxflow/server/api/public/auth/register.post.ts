@@ -50,6 +50,9 @@ export default defineEventHandler(async (event) => {
     id: ulid(),
     accountId: userId,
     providerId: 'credential',
+    // Must match Better Auth's own createLocalAccountIssuer('credential') —
+    // sign-in looks accounts up by (issuer, accountId), not providerId.
+    issuer: 'local:credential',
     userId,
     password: passwordHash,
   })

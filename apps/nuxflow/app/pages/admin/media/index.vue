@@ -27,12 +27,43 @@ const { data: folderData, refresh: refreshFolders } = await useFetch<FolderPaylo
 const folders = computed<Folder[]>(() => folderData.value?.folders ?? [])
 const unfolderedCount = computed(() => folderData.value?.unfolderedCount ?? 0)
 
-const mediaUrl = computed(() => {
-  if (selectedFolderId.value === undefined) return '/api/v1/media'
-  return `/api/v1/media?folderId=${selectedFolderId.value === null ? 'null' : selectedFolderId.value}`
+const MEDIA_PAGE_SIZE = 60
+const mediaPage = ref(1)
+const files = ref<MediaFile[]>([])
+const hasMoreMedia = ref(false)
+const loadingMoreMedia = ref(false)
+
+function folderQuery(): Record<string, string> {
+  const q: Record<string, string> = { limit: String(MEDIA_PAGE_SIZE) }
+  if (selectedFolderId.value !== undefined) q.folderId = selectedFolderId.value === null ? 'null' : selectedFolderId.value
+  return q
+}
+
+const { data, refresh: refreshMedia } = await useFetch<{ files: MediaFile[] }>('/api/v1/media', {
+  query: computed(() => folderQuery()),
+  watch: [selectedFolderId],
 })
-const { data, refresh: refreshMedia } = await useFetch<{ files: MediaFile[] }>(mediaUrl)
-const files = computed<MediaFile[]>(() => data.value?.files ?? [])
+
+watch(data, (val) => {
+  files.value = val?.files ?? []
+  mediaPage.value = 1
+  hasMoreMedia.value = (val?.files?.length ?? 0) === MEDIA_PAGE_SIZE
+}, { immediate: true })
+
+async function loadMoreMedia() {
+  loadingMoreMedia.value = true
+  try {
+    const next = mediaPage.value + 1
+    const res = await $fetch<{ files: MediaFile[] }>('/api/v1/media', {
+      query: { ...folderQuery(), page: String(next) },
+    })
+    files.value = [...files.value, ...res.files]
+    mediaPage.value = next
+    hasMoreMedia.value = res.files.length === MEDIA_PAGE_SIZE
+  } finally {
+    loadingMoreMedia.value = false
+  }
+}
 
 async function refresh() {
   await Promise.all([refreshFolders(), refreshMedia()])
@@ -423,7 +454,13 @@ function resetFocalPoint() {
           </div>
         </div>
 
-        <div v-else class="text-center py-12 text-gray-400">
+        <div v-if="hasMoreMedia" class="flex justify-center pt-2">
+          <UButton variant="outline" color="neutral" size="sm" :loading="loadingMoreMedia" @click="loadMoreMedia">
+            Load more
+          </UButton>
+        </div>
+
+        <div v-else-if="!files.length" class="text-center py-12 text-gray-400">
           <UIcon name="i-lucide-image" class="w-10 h-10 mx-auto mb-2 opacity-50" />
           <p class="text-sm">{{ selectedFolderId !== undefined ? 'No files in this folder' : 'No media uploaded yet' }}</p>
         </div>

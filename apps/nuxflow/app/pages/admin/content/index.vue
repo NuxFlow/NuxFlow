@@ -38,11 +38,17 @@ const localeOptions = [
   { label: 'Hindi', value: 'hi' },
 ]
 
-const { data: items, refresh } = await useFetch<{ items: ContentRow[] }>(
+const PAGE_SIZE = 50
+const page = ref(1)
+const accumulated = ref<ContentRow[]>([])
+const hasMore = ref(false)
+const loadingMore = ref(false)
+
+const { data: items, refresh: refreshFirstPage } = await useFetch<{ items: ContentRow[] }>(
   () => '/api/v1/content',
   {
     query: computed(() => {
-      const q: Record<string, string> = { type: typeSlug.value }
+      const q: Record<string, string> = { type: typeSlug.value, page: '1', limit: String(PAGE_SIZE) }
       if (selectedLocale.value && selectedLocale.value !== 'all') {
         q.locale = selectedLocale.value
       }
@@ -51,6 +57,33 @@ const { data: items, refresh } = await useFetch<{ items: ContentRow[] }>(
     watch: [selectedLocale, typeSlug],
   }
 )
+
+watch(items, (val) => {
+  accumulated.value = val?.items ?? []
+  page.value = 1
+  hasMore.value = (val?.items?.length ?? 0) === PAGE_SIZE
+}, { immediate: true })
+
+async function refresh() {
+  await refreshFirstPage()
+}
+
+async function loadMore() {
+  loadingMore.value = true
+  try {
+    const next = page.value + 1
+    const q: Record<string, string> = { type: typeSlug.value, page: String(next), limit: String(PAGE_SIZE) }
+    if (selectedLocale.value && selectedLocale.value !== 'all') {
+      q.locale = selectedLocale.value
+    }
+    const res = await $fetch<{ items: ContentRow[] }>('/api/v1/content', { query: q })
+    accumulated.value = [...accumulated.value, ...res.items]
+    page.value = next
+    hasMore.value = res.items.length === PAGE_SIZE
+  } finally {
+    loadingMore.value = false
+  }
+}
 
 type Color = 'success' | 'neutral' | 'info' | 'warning' | 'orange' | 'error' | 'primary'
 const statusColor: Record<string, Color> = {
@@ -122,7 +155,7 @@ async function doDelete() {
     </div>
 
     <UCard>
-      <UTable :data="items?.items ?? []" :columns="columns">
+      <UTable :data="accumulated" :columns="columns">
         <template #title-cell="{ row }">
           <div class="flex items-center gap-2">
             <NuxtLink
@@ -171,6 +204,11 @@ async function doDelete() {
           </div>
         </template>
       </UTable>
+      <div v-if="hasMore" class="flex justify-center pt-3">
+        <UButton variant="outline" color="neutral" size="sm" :loading="loadingMore" @click="loadMore">
+          Load more
+        </UButton>
+      </div>
     </UCard>
 
     <!-- Delete confirmation modal -->

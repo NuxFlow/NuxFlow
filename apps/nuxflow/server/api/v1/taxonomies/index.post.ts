@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { taxonomies } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -24,14 +24,16 @@ export default defineEventHandler(async (event) => {
   if (existing) throw conflict(`Taxonomy slug "${body.slug}" already exists`)
 
   const id = ulid()
-  await db.insert(taxonomies).values({ id, siteId, ...body })
+  const taxonomyInsert = db.insert(taxonomies).values({ id, siteId, ...body })
 
-  await writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'create',
     resource: 'taxonomy',
     resourceId: id,
     after: body,
   })
+
+  await db.batch(auditInsert ? [taxonomyInsert, auditInsert] : [taxonomyInsert])
 
   setResponseStatus(event, 201)
   return { id }

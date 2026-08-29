@@ -74,8 +74,10 @@ watch(menuData, (val) => {
 }, { immediate: true })
 
 // ── Content picker ────────────────────────────────────────────────────────────
+// limit=500 (the server-side cap) so the picker still lists effectively every
+// page for realistic site sizes — this is a select dropdown, not a paged table.
 const { data: contentData, refresh: refreshContent } = await useAsyncData('nav-content-picker', () =>
-  $fetch<{ items: Array<{ id: string; title: string; slug: string; status: string }> }>('/api/v1/content?type=page'),
+  $fetch<{ items: Array<{ id: string; title: string; slug: string; status: string }> }>('/api/v1/content?type=page&limit=500'),
   { server: false },
 )
 // USelect only accepts { label, value } — slug is looked up separately in addItem()

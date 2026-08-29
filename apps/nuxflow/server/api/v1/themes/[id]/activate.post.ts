@@ -1,6 +1,7 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { writeAuditLog } from '../../../../utils/audit'
+import { buildAuditLogInsert } from '../../../../utils/audit'
+import { clearActiveThemeCache } from '../../../../utils/theme-cache'
 import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -16,9 +17,12 @@ export default defineEventHandler(async (event) => {
   if (!theme) throw notFound('Theme not found')
 
   // Deactivate all, activate target
-  await db.update(themes).set({ isActive: false }).where(eq(themes.siteId, siteId))
-  await db.update(themes).set({ isActive: true }).where(and(eq(themes.id, id), eq(themes.siteId, siteId)))
+  const deactivateAll = db.update(themes).set({ isActive: false }).where(eq(themes.siteId, siteId))
+  const activateTarget = db.update(themes).set({ isActive: true }).where(and(eq(themes.id, id), eq(themes.siteId, siteId)))
 
-  await writeAuditLog(event, userId, { action: 'activate', resource: 'theme', resourceId: id })
+  const auditInsert = buildAuditLogInsert(event, userId, { action: 'activate', resource: 'theme', resourceId: id })
+
+  await db.batch(auditInsert ? [deactivateAll, activateTarget, auditInsert] : [deactivateAll, activateTarget])
+  clearActiveThemeCache(siteId)
   return { success: true }
 })
