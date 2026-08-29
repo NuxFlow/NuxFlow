@@ -45,6 +45,7 @@
     "fix-restore-semantic-colors",
     "fix-settings-audit-log",
     "fix-ssr-setup-onboarding",
+    "perf-request-batching-and-dep-security-audit",
     "refactor-canvas-architecture-and-migrate-squash",
     "refactor-server-api-consistency-and-dead-code",
     "security-enhancements-and-new-canvas-blocks"
