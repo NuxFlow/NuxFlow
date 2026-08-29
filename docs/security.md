@@ -23,14 +23,9 @@ These parameters exceed OWASP's minimum recommendation (m=19456 KiB, t=2, p=1) a
 
 ### Why a Separate Worker?
 
-Cloudflare Workers' WebAssembly runtime blocks `WebAssembly.compile()` on dynamic byte arrays at request time — only statically imported `.wasm` modules pre-compiled at bundle time by Wrangler are permitted. This prevents the common pattern of downloading or generating Wasm at runtime.
+NuxFlow runs Argon2id hashing in a dedicated `nuxflow-argon2` Cloudflare Worker, exposed to the main app Worker via Cloudflare **service binding RPC** — a zero-network-cost private channel between two Workers on the same account. This keeps the hashing implementation swappable in isolation from the main app (it has already been swapped once — see below) and keeps the CPU-intensive hash/verify work out of the main request-handling Worker.
 
-NuxFlow solves this with a dedicated `nuxflow-argon2` Cloudflare Worker that:
-1. Imports `argon2.wasm` statically at build time (pre-compiled by Wrangler into a `WebAssembly.Module`)
-2. Instantiates the module on the first request within each Worker isolate and caches it for the lifetime of the isolate
-3. Exposes `hash()` and `verify()` methods via Cloudflare **service binding RPC** — a zero-network-cost private channel between two Workers on the same account
-
-The Wasm binary (`argon2.wasm`) comes from the [`argon2-browser`](https://github.com/nicktacular/argon2-browser) npm package, which wraps the [official argon2 reference implementation](https://github.com/P-H-C/phc-winner-argon2) compiled via Emscripten. The source is fully open and auditable; any deployer can rebuild the binary and verify it matches the shipped file.
+The implementation uses [`@noble/hashes`](https://github.com/paulmillr/noble-hashes)'s pure TypeScript/JavaScript Argon2id (audited, zero dependencies, no WebAssembly). An earlier version used a WebAssembly binary from the `argon2-browser` npm package; that was replaced because the package had been unmaintained since 2022 and its build step depended on reverse-engineering its minified Emscripten export names. The switch is transparent to stored hashes: both implementations produce the same public, implementation-independent [PHC string format](https://github.com/P-H-C/phc-string-format/blob/master/phc-sf-spec.md) (`$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>`), so no data migration was needed.
 
 ### Fallback (Free Plan / Local Development)
 
@@ -56,7 +51,7 @@ scrypt is OWASP's second-choice recommendation and remains a strong algorithm. T
 
 ## Session Management
 
-Sessions are handled by [Better Auth](https://www.better-auth.com/) v1.6.x via the `@onmax/nuxt-better-auth` Nuxt module.
+Sessions are handled directly by the [Better Auth](https://www.better-auth.com/) v1.7.x package (there is no Nuxt auth module in this codebase — the client and server integration are hand-rolled directly on top of `better-auth`).
 
 - Sessions are stored in the database (`sessions` table) and referenced by an opaque token in a `HttpOnly; Secure; SameSite=Lax` cookie — the token is never readable by JavaScript running on the page
 - Session tokens are generated with `crypto.getRandomValues()` — cryptographically random

@@ -125,7 +125,11 @@ async function doDelete() {
   if (!deleteId.value) return
   deleting.value = true
   try {
-    await $fetch(`/api/v1/content/${deleteId.value}`, { method: 'DELETE' })
+    // See the matching comment in admin/content/[id].vue's save() — plain
+    // `string` widening works around a Nitro $fetch type-inference bug for
+    // this specific route (unrelated to any auth module).
+    const contentUrl: string = `/api/v1/content/${deleteId.value}`
+    await $fetch(contentUrl, { method: 'DELETE' })
     deleteId.value = null
     await refresh()
     toast.add({ title: 'Content deleted', color: 'success' })

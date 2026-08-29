@@ -152,7 +152,7 @@ globalThis.useRuntimeConfig = () => ({
 })
 
 // ---------------------------------------------------------------------------
-// nuxt-better-auth auto-imports
+// Session test doubles
 // ---------------------------------------------------------------------------
 
 globalThis.getUserSession = async (event: Record<string, unknown>) =>
@@ -168,10 +168,9 @@ globalThis.requireUserSession = async (event: Record<string, unknown>) => {
 }
 
 // server/utils/auth.ts's requireSession/getAuthSession — the app's own session
-// helpers (backed by getOrCreateBetterAuth, see server/utils/better-auth.ts) that
-// superseded the nuxt-better-auth-provided requireUserSession/getUserSession above
-// for all server-side checks. Same test-double shape/behaviour so existing test
-// fixtures (event.context._session) keep working unchanged.
+// helpers (backed by getOrCreateBetterAuth, see server/utils/better-auth.ts) —
+// reuse the same test-double shape/behaviour as the fixtures above so existing
+// test fixtures (event.context._session) keep working unchanged.
 globalThis.requireSession = globalThis.requireUserSession
 globalThis.getAuthSession = globalThis.getUserSession
 

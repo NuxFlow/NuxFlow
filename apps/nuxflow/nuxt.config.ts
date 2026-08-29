@@ -22,11 +22,6 @@ export default defineNuxtConfig({
     '@nuxt/ui',
     '@nuxtjs/i18n',
     '@nuxtjs/turnstile',
-    // Pinned via the "alpha" dist-tag in package.json — do not bump to the 0.1.2+
-    // stable release without checking CLAUDE.md's "Auth and permissions" section
-    // first. 0.1.2 breaks nuxt typecheck's $fetch() method-literal inference for
-    // unrelated /api/v1/** routes; already investigated and not a quick fix.
-    '@onmax/nuxt-better-auth',
     '@pinia/nuxt',
     'nuxt-seo-utils',
   ],
@@ -91,15 +86,6 @@ export default defineNuxtConfig({
     locales: [{ code: 'en', file: 'en.json', name: 'English' }],
     langDir: resolve(_dirname, 'app/locales'),
     strategy: 'no_prefix',
-  },
-
-  auth: {
-    redirects: {
-      login: '/login',
-      guest: '/admin',
-      logout: '/login',
-    },
-    preserveRedirect: true,
   },
 
   runtimeConfig: {

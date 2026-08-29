@@ -1,12 +1,11 @@
 <script setup lang="ts">
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const client = useAuthClient() as any
+const client = useAuthClient()
 const toast = useToast()
 
 interface Passkey {
   id: string
   name?: string
-  createdAt: string
+  createdAt: Date | string
   deviceType: string
 }
 
@@ -15,7 +14,7 @@ const loading = ref(true)
 const registering = ref(false)
 const passkeyName = ref('')
 
-function formatDate(dateStr?: string) {
+function formatDate(dateStr?: Date | string) {
   if (!dateStr) return 'N/A'
   const date = new Date(dateStr)
   if (Number.isNaN(date.getTime())) return 'N/A'

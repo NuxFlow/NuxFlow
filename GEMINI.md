@@ -27,7 +27,7 @@ NuxFlow is designed to bridge the gap between two key target audiences:
 | **Database ORM**     | Drizzle ORM (scoped queries, type-safe prepared statements)                                |
 | **Database Engine**  | Cloudflare D1 only — no alternate backend                                                  |
 | **UI Components**    | Nuxt UI (free, MIT) — TipTap integrated directly via `@tiptap/vue-3`, admin layout hand-built |
-| **Authentication**   | Better Auth + `@onmax/nuxt-better-auth` integration (Email/Password, Google, GitHub OAuth) |
+| **Authentication**   | Better Auth, hand-rolled integration — no Nuxt auth module (Email/Password, Google, GitHub OAuth) |
 | **Animations**       | Vue's built-in `<Transition>` — no animation library dependency                            |
 | **Multi-Language**   | `@nuxtjs/i18n` with per-item locale mapping                                                |
 | **Monorepo**         | pnpm workspaces + Turborepo for workspace orchestration                                    |
@@ -48,8 +48,7 @@ c:/DEV/NuxFlow/
 │       │   └── stores/               # Pinia stores (auth, content, site)
 │       └── server/                   # Server-side API & Edge middleware
 │           ├── api/v1/               # Core REST API endpoints (CRUD, setup, AI)
-│           ├── auth.config.ts        # Better Auth edge configuration
-│           ├── middleware/           # Auto-migrations, D1-cache, multi-site resolution
+│           ├── middleware/           # Auto-migrations, D1-cache, multi-site resolution, auth override
 │           ├── routes/               # Public XML/TXT feeds (sitemap.xml, robots.txt)
 │           ├── scheduled/            # Edge cron tasks (auto-publish schedule)
 │           └── utils/                # DB clients, rate-limiters, providers, WebCrypto signing

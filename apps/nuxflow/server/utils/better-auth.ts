@@ -53,10 +53,11 @@ async function buildBetterAuthInstance(event: H3Event) {
 
   // Whether this is a local dev deployment is a property of the *deployment*, not
   // of any single request: it must NOT be derived from the current request's Host
-  // header. Nitro dispatches internal self-fetches (e.g. @onmax/nuxt-better-auth's
+  // header. Nitro dispatches internal self-fetches (e.g. app/middleware/session.global.ts's
   // SSR session check, which runs on every page load) without forwarding the real
-  // Host — it defaults to "localhost", even inside a fully deployed production
-  // Worker. An earlier version of this function branched baseURL/cookie-protocol on
+  // Host unless the caller explicitly passes it — it otherwise defaults to
+  // "localhost", even inside a fully deployed production Worker. An earlier
+  // version of this function branched baseURL/cookie-protocol on
   // requestHostname === 'localhost', which made those internal SSR calls
   // intermittently flip into non-secure-cookie mode: they'd look for the session
   // under the wrong cookie name, fail to find it, and clear it — sign-in would

@@ -1,6 +1,5 @@
 <script setup lang="ts">
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const client = useAuthClient() as any
+const client = useAuthClient()
 const toast = useToast()
 const route = useRoute()
 
@@ -8,7 +7,7 @@ interface LinkedAccount {
   id: string
   accountId: string
   providerId: string
-  createdAt: string
+  createdAt: Date | string
 }
 
 const PROVIDERS = [
@@ -24,7 +23,7 @@ const unlinking = ref<string | null>(null)
 const linkedProviderIds = computed(() => new Set(accounts.value.map(a => a.providerId)))
 const hasPasswordAccount = computed(() => linkedProviderIds.value.has('credential'))
 
-function formatDate(dateStr?: string) {
+function formatDate(dateStr?: Date | string) {
   if (!dateStr) return 'N/A'
   const date = new Date(dateStr)
   if (Number.isNaN(date.getTime())) return 'N/A'
@@ -84,9 +83,15 @@ async function unlinkProvider(providerId: string) {
     return
   }
 
+  // unlinkAccount identifies the linked-account row by its own accountId, not
+  // by providerId — passing providerId here was a pre-existing bug, only
+  // surfaced now that the client is properly typed instead of cast to `any`.
+  const account = accounts.value.find(a => a.providerId === providerId)
+  if (!account) return
+
   unlinking.value = providerId
   try {
-    const res = await client.unlinkAccount({ providerId })
+    const res = await client.unlinkAccount({ accountId: account.accountId })
     if (res?.error) {
       toast.add({ title: res.error.message ?? 'Failed to disconnect provider', color: 'error' })
       return

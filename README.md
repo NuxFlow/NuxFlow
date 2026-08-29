@@ -191,7 +191,7 @@ Every feature in the admin is fully functional. The demo resets automatically at
 | Database | Cloudflare D1 |
 | ORM | Drizzle ORM |
 | UI | Nuxt UI (free) — TipTap integrated directly via `@tiptap/vue-3`, admin layout is hand-built |
-| Auth | Better Auth + `@onmax/nuxt-better-auth` |
+| Auth | Better Auth (hand-rolled integration, no Nuxt auth module) |
 | State | Pinia |
 | GraphQL | graphql-yoga |
 | Validation | Zod |

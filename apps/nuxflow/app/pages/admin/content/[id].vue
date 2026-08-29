@@ -178,7 +178,17 @@ async function save(overrideStatus?: string) {
       })
       await navigateTo(`/admin/content/${result.id}`, { replace: true })
     } else {
-      await $fetch(`/api/v1/content/${id.value}`, { method: 'PATCH', body })
+      // Explicit `string` widening works around a Nitro $fetch type-inference
+      // bug specific to this route: /api/v1/content/:id also has sibling
+      // routes nested under a content/[id]/ folder (comments, terms,
+      // revisions), which confuses AvailableRouterMethod's template-literal
+      // route matching for a bare template-literal URL and collapses the
+      // allowed `method` type to "GET" only. Passing a plain-`string`-typed
+      // variable instead of the inline template literal sidesteps that
+      // matching path entirely. Confirmed independent of any Nuxt auth
+      // module — reproduces identically with none installed.
+      const contentUrl: string = `/api/v1/content/${id.value}`
+      await $fetch(contentUrl, { method: 'PATCH', body })
       lastSaved.value = new Date()
     }
   } catch {
