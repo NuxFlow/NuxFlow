@@ -8,6 +8,7 @@ import { contentItems } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { buildAuditLogInsert } from '../../../utils/audit'
+import { getContentItemOrThrow } from '../../../utils/content-queries'
 
 const bodySchema = z.object({
   contentItemId: z.string(),
@@ -126,10 +127,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const db = useDb(event)
 
-  const source = await db.query.contentItems.findFirst({
-    where: and(eq(contentItems.id, contentItemId), eq(contentItems.siteId, siteId))!,
-  })
-  if (!source) throw notFound('Content item not found')
+  const source = await getContentItemOrThrow(db, siteId, contentItemId, 'Content item not found')
 
   // Build a map of { key -> original text } for everything needing translation
   const strings = new Map<string, string>()

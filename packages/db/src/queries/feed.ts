@@ -1,6 +1,6 @@
-import { contentItems, sites, users } from '@nuxflow/db/schema'
+import { contentItems, sites, users } from '../schema'
 import { and, desc, eq } from 'drizzle-orm'
-import type { Db } from './db'
+import type { Db } from './types'
 
 /** Shared by feed.xml.ts and atom.xml.ts — both list the same published/public posts. */
 export async function getPublishedPostsForFeed(db: Db, siteId: string, limit = 20) {

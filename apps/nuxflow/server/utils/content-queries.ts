@@ -17,11 +17,18 @@ export async function getContentItemOrThrow(
   return item
 }
 
-export async function getContentTypeBySlugOrThrow(db: Db, siteId: string, slug: string, message = 'Content type not found', columns?: Record<string, boolean>) {
-  const type = await db.query.contentTypes.findFirst({
+/** Non-throwing lookup — for callers that gracefully degrade (empty list, null
+ * homepage, etc.) when the content type hasn't been seeded yet, as opposed to
+ * `getContentTypeBySlugOrThrow` below for callers where a missing type is an error. */
+export async function getContentTypeBySlug(db: Db, siteId: string, slug: string, columns?: Record<string, boolean>) {
+  return db.query.contentTypes.findFirst({
     where: and(eq(contentTypes.siteId, siteId), eq(contentTypes.slug, slug)),
     columns,
   })
+}
+
+export async function getContentTypeBySlugOrThrow(db: Db, siteId: string, slug: string, message = 'Content type not found', columns?: Record<string, boolean>) {
+  const type = await getContentTypeBySlug(db, siteId, slug, columns)
   if (!type) notFound(message)
   return type
 }

@@ -1,5 +1,6 @@
 import { useDb } from '../../utils/db'
-import { contentItems, contentTypes } from '@nuxflow/db/schema'
+import { getContentTypeBySlug } from '../../utils/content-queries'
+import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, gte, lte, desc } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -14,10 +15,7 @@ export default defineEventHandler(async (event) => {
   const offset = parseInt(query.offset as string || '0')
 
   // Find the event content type ID
-  const type = await db.query.contentTypes.findFirst({
-    where: and(eq(contentTypes.siteId, siteId), eq(contentTypes.slug, 'event')),
-    columns: { id: true },
-  })
+  const type = await getContentTypeBySlug(db, siteId, 'event', { id: true })
   if (!type) return { events: [] }
 
   const conditions = [

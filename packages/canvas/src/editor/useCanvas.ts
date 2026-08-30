@@ -1,16 +1,8 @@
 import { ref, computed, inject, onBeforeUnmount } from 'vue'
-import type { CanvasContent, CanvasBlockData, CanvasBlockDefinition } from '../types'
+import type { CanvasContent, CanvasBlockData, CanvasBlockDefinition, CanvasBlockRegistry } from '../types'
 import { emptyCanvas } from '../types'
 import { resolveDefinition } from '../blocks/definitions'
 import { findParentList, findBlockById, isDescendant, cloneWithNewIds } from '../tree'
-
-interface BlockRegistryLike {
-  meta(id: string): { name: string; icon?: string; description?: string } | undefined
-  resolve(id: string): object | undefined
-  getDefinition(id: string): unknown
-  all(): Array<{ id: string; name: string; icon?: string }>
-  dynamicBlocks(): Array<{ id: string; name: string; icon?: string }>
-}
 
 function uuid(): string {
   return crypto.randomUUID()
@@ -21,7 +13,7 @@ const BURST_DEBOUNCE_MS = 600
 const PROP_COMMIT_DEBOUNCE_MS = 120
 
 export function useCanvas(initial?: CanvasContent) {
-  const registry = inject<BlockRegistryLike | null>('nuxflow:blockRegistry', null)
+  const registry = inject<CanvasBlockRegistry | null>('nuxflow:blockRegistry', null)
 
   const canvas = ref<CanvasContent>(
     initial ? JSON.parse(JSON.stringify(initial)) : emptyCanvas(),
@@ -70,8 +62,12 @@ export function useCanvas(initial?: CanvasContent) {
   const canUndo = computed(() => undoStack.value.length > 0)
   const canRedo = computed(() => redoStack.value.length > 0)
 
-  function snapshot(): CanvasContent {
+  function cloneContent(): CanvasContent {
     return JSON.parse(JSON.stringify(canvas.value))
+  }
+
+  function snapshot(): CanvasContent {
+    return cloneContent()
   }
 
   function pushUndo(snap: CanvasContent) {
@@ -323,7 +319,7 @@ export function useCanvas(initial?: CanvasContent) {
 
   function toJSON(): CanvasContent {
     flushPendingProps()
-    return JSON.parse(JSON.stringify(canvas.value))
+    return cloneContent()
   }
 
   return {

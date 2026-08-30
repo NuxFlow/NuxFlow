@@ -1,6 +1,7 @@
 import { useDb } from '../utils/db'
-import { contentItems, contentTypes, sites } from '@nuxflow/db/schema'
-import { and, eq, gte, desc } from 'drizzle-orm'
+import { getContentTypeBySlug } from '../utils/content-queries'
+import { contentItems, sites } from '@nuxflow/db/schema'
+import { eq, and, gte, desc } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
@@ -13,10 +14,7 @@ export default defineEventHandler(async (event) => {
   })
   if (!site) throw createError({ statusCode: 404 })
 
-  const type = await db.query.contentTypes.findFirst({
-    where: and(eq(contentTypes.siteId, siteId), eq(contentTypes.slug, 'event')),
-    columns: { id: true },
-  })
+  const type = await getContentTypeBySlug(db, siteId, 'event', { id: true })
   if (!type) {
     setHeader(event, 'Content-Type', 'text/calendar; charset=utf-8')
     return `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//NuxFlow//NuxFlow Events//EN\r\nEND:VCALENDAR\r\n`

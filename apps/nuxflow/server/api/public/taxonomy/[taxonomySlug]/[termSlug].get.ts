@@ -1,6 +1,7 @@
 import { useDb } from '../../../../utils/db'
-import { contentItems, contentTaxonomyTerms, taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
-import { and, eq, desc, sql } from 'drizzle-orm'
+import { taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
+import { and, eq } from 'drizzle-orm'
+import { getItemsForTerm } from '@nuxflow/db/queries'
 
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
@@ -24,36 +25,8 @@ export default defineEventHandler(async (event) => {
   })
   if (!term) throw notFound('Term not found')
 
-  const matchCondition = and(
-    eq(contentTaxonomyTerms.termId, term.id),
-    eq(contentItems.siteId, siteId),
-    eq(contentItems.status, 'published'),
-  )
-
-  const [countResult] = await db
-    .select({ total: sql<number>`count(*)` })
-    .from(contentItems)
-    .innerJoin(contentTaxonomyTerms, eq(contentTaxonomyTerms.contentItemId, contentItems.id))
-    .where(matchCondition)
-
-  const total = countResult?.total ?? 0
-
-  const rows = await db
-    .select({
-      id: contentItems.id,
-      title: contentItems.title,
-      slug: contentItems.slug,
-      excerpt: contentItems.excerpt,
-      ogImage: contentItems.ogImage,
-      publishedAt: contentItems.publishedAt,
-    })
-    .from(contentItems)
-    .innerJoin(contentTaxonomyTerms, eq(contentTaxonomyTerms.contentItemId, contentItems.id))
-    .where(matchCondition)
-    .orderBy(desc(contentItems.publishedAt))
-    .limit(limit)
-    .offset(offset)
+  const { items, total } = await getItemsForTerm(db, siteId, term.id, { limit, offset })
 
   setHeader(event, 'Cache-Control', 'public, max-age=300, stale-while-revalidate=3600')
-  return { taxonomy, term, items: rows, total, page, limit, totalPages: Math.ceil(total / limit) }
+  return { taxonomy, term, items, total, page, limit, totalPages: Math.ceil(total / limit) }
 })

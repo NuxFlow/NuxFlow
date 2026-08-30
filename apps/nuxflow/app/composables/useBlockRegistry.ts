@@ -1,4 +1,5 @@
 import type { Component } from 'vue'
+import type { CanvasBlockRegistry } from '@nuxflow/canvas'
 
 interface BlockRegistryEntry {
   name: string
@@ -18,7 +19,10 @@ const _registry = shallowReactive(new Map<string, BlockRegistryEntry>())
 // Plugin IDs (e.g. 'hello-banner') registered by active dynamic plugins.
 const _dynamicPluginIds = shallowReactive(new Set<string>())
 
-export function useBlockRegistry() {
+export function useBlockRegistry(): CanvasBlockRegistry & {
+  register: (blockId: string, entry: BlockRegistryEntry) => void
+  markDynamic: (pluginId: string) => void
+} {
   function register(blockId: string, entry: BlockRegistryEntry) {
     _registry.set(blockId, entry)
   }

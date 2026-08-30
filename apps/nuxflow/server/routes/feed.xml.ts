@@ -1,5 +1,5 @@
 import { useDb } from '../utils/db'
-import { getFeedSite, getPublishedPostsForFeed } from '../utils/feed-queries'
+import { getFeedSite, getPublishedPostsForFeed } from '@nuxflow/db/queries'
 
 function escHtml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')

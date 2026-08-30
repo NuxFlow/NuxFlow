@@ -2,6 +2,7 @@
 import { inject, computed } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import { CANVAS_BLOCKS, getDynamicBlockDefinitions } from '../blocks/definitions'
+import type { CanvasBlockRegistry } from '../types'
 
 const emit = defineEmits<{ pick: [typeId: string]; close: [] }>()
 
@@ -21,12 +22,7 @@ const categoryLabels: Record<string, string> = {
   commerce: 'Commerce',
 }
 
-interface BlockRegistryLike {
-  all(): Array<{ id: string; name: string; icon?: string }>
-  dynamicBlocks(): Array<{ id: string; name: string; icon?: string }>
-}
-
-const registry = inject<BlockRegistryLike | null>('nuxflow:blockRegistry', null)
+const registry = inject<Pick<CanvasBlockRegistry, 'all' | 'dynamicBlocks'> | null>('nuxflow:blockRegistry', null)
 
 // Full definitions registered by active dynamic (external) plugins.
 const dynamicDefs = computed(() => getDynamicBlockDefinitions())

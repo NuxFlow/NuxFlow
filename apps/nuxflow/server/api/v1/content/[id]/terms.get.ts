@@ -1,8 +1,7 @@
 import { useDb } from '../../../../utils/db'
 import { requireAuth } from '../../../../utils/permissions'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
-import { contentTaxonomyTerms, taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
-import { eq } from 'drizzle-orm'
+import { getContentItemTerms } from '@nuxflow/db/queries'
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
@@ -12,19 +11,7 @@ export default defineEventHandler(async (event) => {
 
   await getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true })
 
-  const rows = await db
-    .select({
-      termId: contentTaxonomyTerms.termId,
-      termSlug: taxonomyTerms.slug,
-      termName: taxonomyTerms.name,
-      taxonomyId: taxonomyTerms.taxonomyId,
-      taxonomySlug: taxonomies.slug,
-      taxonomyName: taxonomies.name,
-    })
-    .from(contentTaxonomyTerms)
-    .innerJoin(taxonomyTerms, eq(contentTaxonomyTerms.termId, taxonomyTerms.id))
-    .innerJoin(taxonomies, eq(taxonomyTerms.taxonomyId, taxonomies.id))
-    .where(eq(contentTaxonomyTerms.contentItemId, itemId))
+  const rows = await getContentItemTerms(db, itemId)
 
   return { terms: rows }
 })

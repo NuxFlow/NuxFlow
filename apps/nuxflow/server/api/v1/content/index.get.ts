@@ -1,8 +1,9 @@
 import { useDb } from '../../../utils/db'
 import { getContentTypeBySlugOrThrow } from '../../../utils/content-queries'
 import { parsePagination } from '../../../utils/pagination'
+import { paginate } from '@nuxflow/db/queries'
 import { contentItems } from '@nuxflow/db/schema'
-import { and, eq, desc, gt } from 'drizzle-orm'
+import { and, eq, desc, gt, sql } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
@@ -39,17 +40,25 @@ export default defineEventHandler(async (event) => {
   }
 
   // Delta sync clients (updatedAfter) rely on getting every changed row back
-  // in one response, so pagination only applies to the normal listing case.
+  // in one response, so pagination — and the total count that goes with it —
+  // only applies to the normal listing case.
   const { page, limit, offset } = parsePagination(query, 50)
+  const where = and(...conditions)
+  const columns = {
+    id: true, title: true, slug: true, status: true, publishedAt: true, updatedAt: true, authorId: true, version: true, locale: true, sourceItemId: true,
+  } as const
 
-  const items = await db.query.contentItems.findMany({
-    where: and(...conditions),
-    orderBy: [desc(contentItems.updatedAt)],
-    columns: {
-      id: true, title: true, slug: true, status: true, publishedAt: true, updatedAt: true, authorId: true, version: true, locale: true, sourceItemId: true,
-    },
-    ...(query.updatedAfter ? {} : { limit, offset }),
-  })
+  if (query.updatedAfter) {
+    const items = await db.query.contentItems.findMany({
+      where, orderBy: [desc(contentItems.updatedAt)], columns,
+    })
+    return { items, type, page, limit }
+  }
 
-  return { items, type, page, limit }
+  const { items, total } = await paginate(
+    () => db.select({ total: sql<number>`count(*)` }).from(contentItems).where(where),
+    () => db.query.contentItems.findMany({ where, orderBy: [desc(contentItems.updatedAt)], columns, limit, offset }),
+  )
+
+  return { items, type, page, limit, total }
 })

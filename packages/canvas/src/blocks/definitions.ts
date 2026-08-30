@@ -1,4 +1,4 @@
-import type { CanvasBlockDefinition } from '../types'
+import type { CanvasBlockDefinition, CanvasBlockRegistry } from '../types'
 
 export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
   // ── Hero ──────────────────────────────────────────────────────────────────
@@ -882,7 +882,7 @@ export function getBlockDefinition(id: string): CanvasBlockDefinition | undefine
  */
 export function resolveDefinition(
   typeId: string,
-  registry?: { getDefinition(id: string): unknown },
+  registry?: Pick<CanvasBlockRegistry, 'getDefinition'>,
 ): CanvasBlockDefinition | undefined {
   return getBlockDefinition(typeId) ?? (registry?.getDefinition(typeId) as CanvasBlockDefinition | undefined)
 }

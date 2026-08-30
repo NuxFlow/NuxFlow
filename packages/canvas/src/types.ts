@@ -105,3 +105,30 @@ export function isCanvasContent(value: unknown): value is CanvasContent {
 export function emptyCanvas(): CanvasContent {
   return { type: 'canvas', blocks: [] }
 }
+
+// ── Block registry contract ───────────────────────────────────────────────────
+
+/** Metadata shape returned for one registry entry, without the Vue component
+ * itself — used by places that only need to render a label/icon (block
+ * picker tiles, settings-panel fallback shells). */
+export interface CanvasBlockRegistryMeta {
+  name: string
+  icon?: string
+  description?: string
+}
+
+/**
+ * The contract the host app's block registry (`useBlockRegistry()` in
+ * `apps/nuxflow/app/composables/useBlockRegistry.ts`) must satisfy, injected
+ * at `'nuxflow:blockRegistry'`. Defined once here so every consumer inside
+ * this package (`useCanvas`, `CanvasBlock`, `BlockPicker`, `resolveDefinition`)
+ * checks against the same shape instead of each hand-writing its own subset —
+ * a mismatch used to only surface as a silent runtime `undefined`, not a type error.
+ */
+export interface CanvasBlockRegistry {
+  meta(id: string): CanvasBlockRegistryMeta | undefined
+  resolve(id: string): object | undefined
+  getDefinition(id: string): unknown
+  all(): Array<{ id: string } & CanvasBlockRegistryMeta>
+  dynamicBlocks(): Array<{ id: string } & CanvasBlockRegistryMeta>
+}
