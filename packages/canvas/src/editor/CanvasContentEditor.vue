@@ -100,11 +100,6 @@ const api: CanvasApi = {
   updateBlockProp,
   duplicateBlock,
   moveBlock,
-  moveBlockToSlot: (id, targetParentId, targetSlot, targetIndex) => {
-    // Only reached programmatically (not via drag, which mutates arrays
-    // directly through vuedraggable's v-model) — kept for API completeness.
-    void id; void targetParentId; void targetSlot; void targetIndex
-  },
   recordDiscrete,
   checkMove,
   openPicker,

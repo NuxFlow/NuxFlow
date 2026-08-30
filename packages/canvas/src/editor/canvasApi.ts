@@ -14,7 +14,6 @@ export interface CanvasApi {
   updateBlockProp(id: string, key: string, value: unknown): void
   duplicateBlock(id: string): void
   moveBlock(id: string, direction: 'up' | 'down'): void
-  moveBlockToSlot(id: string, targetParentId: string | null, targetSlot: string | null, targetIndex: number): void
   /** Snapshots current state as one undo step — called at the start of a drag
    * gesture so the whole gesture (however many arrays it touches) undoes as one step. */
   recordDiscrete(): void
