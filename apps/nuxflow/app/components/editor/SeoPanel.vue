@@ -80,13 +80,25 @@ const accessOptions = computed(() => [
   ...(tiersData.value?.tiers ?? []).map(t => ({ value: `tier:${t.id}`, label: t.name })),
 ])
 
+// Nuxt UI's <USelect>/<SelectItem> reserves the empty string internally for "no
+// selection / show placeholder" and throws at runtime if an actual item uses '' as its
+// value ("A <SelectItem /> must have a value prop that is not an empty string"). Keep
+// '' as the wire/DB representation of "no override" (unchanged elsewhere) but never hand
+// the Select component that empty string directly — see metaRobotsSelectValue below.
+const ROBOTS_DEFAULT = '__default__'
+
 const robotsOptions = [
-  { value: '', label: 'Default (inherit global setting)' },
+  { value: ROBOTS_DEFAULT, label: 'Default (inherit global setting)' },
   { value: 'index,follow', label: 'Index, Follow (default)' },
   { value: 'noindex,follow', label: 'No index, Follow' },
   { value: 'noindex,nofollow', label: 'No index, No follow' },
   { value: 'index,nofollow', label: 'Index, No follow' },
 ]
+
+const metaRobotsSelectValue = computed({
+  get: () => local.metaRobots || ROBOTS_DEFAULT,
+  set: (v: string) => { local.metaRobots = v === ROBOTS_DEFAULT ? '' : v },
+})
 </script>
 
 <template>
@@ -156,7 +168,7 @@ const robotsOptions = [
       </UFormField>
 
       <UFormField label="Robots" hint="Override the global robots setting for this page">
-        <USelect v-model="local.metaRobots" :items="robotsOptions" />
+        <USelect v-model="metaRobotsSelectValue" :items="robotsOptions" />
       </UFormField>
 
       <UFormField label="Content access" hint="Who can view this content">

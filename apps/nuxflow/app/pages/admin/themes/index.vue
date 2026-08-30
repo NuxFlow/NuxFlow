@@ -281,23 +281,31 @@ const swatches = [
 // can register a block (same registry Canvas blocks use) and be designated
 // here to own the header/footer chrome instead. See app/layouts/default.vue.
 
+// Nuxt UI's <USelect>/<SelectItem> reserves the empty string internally for "no
+// selection / show placeholder" and throws at runtime if an actual item uses '' as its
+// value ("A <SelectItem /> must have a value prop that is not an empty string") — that
+// uncaught error was breaking interactivity for the rest of this page, not just this
+// select. Use a real sentinel for "built-in default" instead, and translate it to/from
+// null at the settings boundary.
+const DEFAULT_LAYOUT_BLOCK = '__default__'
+
 const layout = reactive({
-  headerBlockId: '',
-  footerBlockId: '',
+  headerBlockId: DEFAULT_LAYOUT_BLOCK,
+  footerBlockId: DEFAULT_LAYOUT_BLOCK,
 })
 
 watch(settingsData, (d) => {
   if (!d) return
   const s = d.settings
-  layout.headerBlockId = (s['layout.header_block'] as string) ?? ''
-  layout.footerBlockId = (s['layout.footer_block'] as string) ?? ''
+  layout.headerBlockId = (s['layout.header_block'] as string) || DEFAULT_LAYOUT_BLOCK
+  layout.footerBlockId = (s['layout.footer_block'] as string) || DEFAULT_LAYOUT_BLOCK
 }, { immediate: true })
 
 const { dynamicBlocks } = useBlockRegistry()
 // Only plugin-registered blocks are offered — built-in Canvas blocks (Hero,
 // Text, etc.) aren't meant for site-wide chrome.
 const layoutBlockOptions = computed(() => [
-  { label: 'Default (built-in)', value: '' },
+  { label: 'Default (built-in)', value: DEFAULT_LAYOUT_BLOCK },
   ...dynamicBlocks().map(b => ({ label: b.name, value: b.id })),
 ])
 
@@ -310,8 +318,8 @@ async function saveLayout() {
       method: 'PATCH',
       body: {
         settings: {
-          'layout.header_block': layout.headerBlockId || null,
-          'layout.footer_block': layout.footerBlockId || null,
+          'layout.header_block': layout.headerBlockId === DEFAULT_LAYOUT_BLOCK ? null : layout.headerBlockId,
+          'layout.footer_block': layout.footerBlockId === DEFAULT_LAYOUT_BLOCK ? null : layout.footerBlockId,
         },
       },
     })
