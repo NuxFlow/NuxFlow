@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
 import { clearSiteCache } from '../../../../middleware/02.multi-site'
+import { created } from '../../../../utils/response'
 import { sites } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
@@ -31,6 +32,5 @@ export default defineEventHandler(async (event) => {
   // A request for this domain made just before creation would have cached a
   // "no site" miss — clear it so the new site is picked up immediately.
   clearSiteCache(body.domain)
-  setResponseStatus(event, 201)
-  return { id, setupToken }
+  return created(event, { id, setupToken })
 })

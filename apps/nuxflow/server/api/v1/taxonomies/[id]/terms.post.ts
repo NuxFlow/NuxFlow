@@ -3,6 +3,7 @@ import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../../utils/audit'
 import { getTaxonomyByIdOrThrow } from '../../../../utils/resource-queries'
+import { created } from '../../../../utils/response'
 import { taxonomyTerms } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
@@ -41,6 +42,5 @@ export default defineEventHandler(async (event) => {
 
   await db.batch(auditInsert ? [termInsert, auditInsert] : [termInsert])
 
-  setResponseStatus(event, 201)
-  return { id }
+  return created(event, { id })
 })

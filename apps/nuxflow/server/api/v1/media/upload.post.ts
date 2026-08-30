@@ -4,6 +4,7 @@ import { getActiveProvider } from '../../../utils/media-providers/index'
 import { extractExif } from '../../../utils/exif'
 import { media } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
+import { created } from '../../../utils/response'
 
 const MAX_SIZE = 20 * 1024 * 1024
 
@@ -51,6 +52,5 @@ export default defineEventHandler(async (event) => {
     ...(metadata ? { metadata } : {}),
   })
 
-  setResponseStatus(event, 201)
-  return { id: fileId, url }
+  return created(event, { id: fileId, url })
 })

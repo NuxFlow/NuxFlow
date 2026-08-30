@@ -2,7 +2,7 @@ import { useDb } from '../../../utils/db'
 import { userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
@@ -25,16 +25,17 @@ export default defineEventHandler(async (event) => {
     throw forbidden('Cannot remove a super admin')
   }
 
-  await db
+  const roleDelete = db
     .delete(userSiteRoles)
     .where(and(eq(userSiteRoles.userId, targetId), eq(userSiteRoles.siteId, siteId)))
 
-  void writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',
     resource: 'user',
     resourceId: targetId,
     before: { role: existing.role },
   })
+  await db.batch(auditInsert ? [roleDelete, auditInsert] : [roleDelete])
 
-  return { success: true }
+  return noContent(event)
 })

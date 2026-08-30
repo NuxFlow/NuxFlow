@@ -1,6 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
 import { media } from '@nuxflow/db/schema'
@@ -16,14 +16,15 @@ export default defineEventHandler(async (event) => {
 
   const provider = await getActiveProvider(event)
   await provider.delete(file.storageKey)
-  await db.delete(media).where(and(eq(media.id, id), eq(media.siteId, siteId)))
+  const mediaDelete = db.delete(media).where(and(eq(media.id, id), eq(media.siteId, siteId)))
 
-  void writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',
     resource: 'media',
     resourceId: id,
     before: { originalName: file.originalName, storageKey: file.storageKey, mimeType: file.mimeType },
   })
+  await db.batch(auditInsert ? [mediaDelete, auditInsert] : [mediaDelete])
 
-  return { success: true }
+  return noContent(event)
 })

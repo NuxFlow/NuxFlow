@@ -1,6 +1,7 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
+import { getApiKeyByIdOrThrow } from '../../../utils/resource-queries'
 import { apiKeys } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -10,10 +11,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
 
-  const existing = await db.query.apiKeys.findFirst({
-    where: and(eq(apiKeys.id, id), eq(apiKeys.siteId, siteId)),
-    columns: { id: true, name: true, scopes: true },
-  })
+  const existing = await getApiKeyByIdOrThrow(db, siteId, id, 'API key not found', { id: true, name: true, scopes: true })
 
   const keyDelete = db.delete(apiKeys).where(and(eq(apiKeys.id, id), eq(apiKeys.siteId, siteId)))
 
@@ -26,5 +24,5 @@ export default defineEventHandler(async (event) => {
 
   await db.batch(auditInsert ? [keyDelete, auditInsert] : [keyDelete])
 
-  return { success: true }
+  return noContent(event)
 })

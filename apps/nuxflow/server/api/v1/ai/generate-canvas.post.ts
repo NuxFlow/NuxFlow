@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { generateObject } from 'ai'
+import { ulid } from 'ulid'
 import { requireAuth } from '../../../utils/permissions'
 import { requireAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
@@ -123,7 +124,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const blocks = object.blocks.map(b => ({
-    id: crypto.randomUUID(),
+    id: ulid(),
     type: b.type,
     props: b.props,
   }))

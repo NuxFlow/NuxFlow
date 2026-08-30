@@ -1,6 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { writeAuditLog } from '../../../../utils/audit'
+import { buildAuditLogInsert } from '../../../../utils/audit'
 import { getVideoAssetByIdOrThrow } from '../../../../utils/resource-queries'
 import { videoAssets } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -20,17 +20,18 @@ export default defineEventHandler(async (event) => {
     throw badRequest('Title is required')
   }
 
-  await db.update(videoAssets)
+  const assetUpdate = db.update(videoAssets)
     .set({ title: title.trim() })
     .where(and(eq(videoAssets.id, id), eq(videoAssets.siteId, siteId)))
 
-  void writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',
     resource: 'video_assets',
     resourceId: id,
     before: { title: asset.title },
     after: { title: title.trim() },
   })
+  await db.batch(auditInsert ? [assetUpdate, auditInsert] : [assetUpdate])
 
   return { success: true }
 })

@@ -63,5 +63,5 @@ export default defineEventHandler(async (event) => {
     .set({ status: 'cancelled', cancelledAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
     .where(eq(subscriptions.id, sub.id))
 
-  return { cancelled: true }
+  return noContent(event)
 })

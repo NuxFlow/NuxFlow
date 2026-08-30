@@ -1,7 +1,7 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { resolveSetting } from '../../../../utils/settings'
-import { writeAuditLog } from '../../../../utils/audit'
+import { buildAuditLogInsert } from '../../../../utils/audit'
 import { getVideoAssetByIdOrThrow } from '../../../../utils/resource-queries'
 import { videoAssets } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -36,14 +36,15 @@ export default defineEventHandler(async (event) => {
   }
 
   // Delete from DB
-  await db.delete(videoAssets).where(and(eq(videoAssets.id, id), eq(videoAssets.siteId, siteId)))
+  const assetDelete = db.delete(videoAssets).where(and(eq(videoAssets.id, id), eq(videoAssets.siteId, siteId)))
 
-  void writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',
     resource: 'video_assets',
     resourceId: id,
     before: { title: asset.title, cloudflareStreamId: asset.cloudflareStreamId },
   })
+  await db.batch(auditInsert ? [assetDelete, auditInsert] : [assetDelete])
 
-  return { success: true }
+  return noContent(event)
 })

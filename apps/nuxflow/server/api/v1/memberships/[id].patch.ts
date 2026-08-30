@@ -3,6 +3,7 @@ import { membershipTiers } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
 import { resolveSetting } from '../../../utils/settings'
 import { StripeProvider } from '../../../utils/payments/stripe'
@@ -24,7 +25,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'admin')
+  const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
@@ -92,7 +93,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  await db.update(membershipTiers)
+  const update = db.update(membershipTiers)
     .set({
       ...body,
       stripeProductId: stripeProductId || null,
@@ -101,6 +102,11 @@ export default defineEventHandler(async (event) => {
       updatedAt: new Date().toISOString(),
     })
     .where(and(eq(membershipTiers.id, id), eq(membershipTiers.siteId, siteId)))
+
+  const auditInsert = buildAuditLogInsert(event, userId, {
+    action: 'update', resource: 'membership_tier', resourceId: id, before: tier, after: body,
+  })
+  await db.batch(auditInsert ? [update, auditInsert] : [update])
 
   const updated = await db.query.membershipTiers.findFirst({
     where: (t, { eq: eq_ }) => eq_(t.id, id),

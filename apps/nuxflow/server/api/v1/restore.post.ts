@@ -72,10 +72,7 @@ export default defineEventHandler(async (event) => {
     for (const item of backup.media) {
       const zipPath = item.zipPath
       if (zipPath && (zipPath.includes('..') || zipPath.startsWith('/') || zipPath.startsWith('\\'))) {
-        throw createError({
-          statusCode: 400,
-          message: `Invalid zipPath in backup metadata: ${zipPath}. Directory traversal is forbidden.`,
-        })
+        throw badRequest(`Invalid zipPath in backup metadata: ${zipPath}. Directory traversal is forbidden.`)
       }
       const rawData = zipPath ? zipFiles[zipPath] : undefined
       if (!zipPath || !rawData) {

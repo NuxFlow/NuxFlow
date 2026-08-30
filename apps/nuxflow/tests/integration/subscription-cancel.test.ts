@@ -90,8 +90,8 @@ describe('DELETE /api/v1/account/subscription', () => {
       status: 'active',
     })
 
-    const result = await (handler as HandlerFn)(mkEvent(userId)) as { cancelled: boolean }
-    expect(result.cancelled).toBe(true)
+    const result = await (handler as HandlerFn)(mkEvent(userId))
+    expect(result).toBeNull()
     expect(mockStripeCancel).toHaveBeenCalledWith('sub_stripe_cancel_001')
 
     const sub = await db.query.subscriptions.findFirst({
@@ -109,8 +109,8 @@ describe('DELETE /api/v1/account/subscription', () => {
       status: 'active',
     })
 
-    const result = await (handler as HandlerFn)(mkEvent(userId2)) as { cancelled: boolean }
-    expect(result.cancelled).toBe(true)
+    const result = await (handler as HandlerFn)(mkEvent(userId2))
+    expect(result).toBeNull()
     expect(mockLsCancel).toHaveBeenCalledWith('ls_sub_cancel_001')
 
     const sub = await db.query.subscriptions.findFirst({
@@ -127,8 +127,8 @@ describe('DELETE /api/v1/account/subscription', () => {
       status: 'active',
     })
 
-    const result = await (handler as HandlerFn)(mkEvent(userId3)) as { cancelled: boolean }
-    expect(result.cancelled).toBe(true)
+    const result = await (handler as HandlerFn)(mkEvent(userId3))
+    expect(result).toBeNull()
     expect(mockPaddleCancel).toHaveBeenCalledWith('pdl_sub_cancel_001')
 
     const sub = await db.query.subscriptions.findFirst({
@@ -146,8 +146,8 @@ describe('DELETE /api/v1/account/subscription', () => {
     })
 
     mockStripeCancel.mockClear()
-    const result = await (handler as HandlerFn)(mkEvent(userId4)) as { cancelled: boolean }
-    expect(result.cancelled).toBe(true)
+    const result = await (handler as HandlerFn)(mkEvent(userId4))
+    expect(result).toBeNull()
     expect(mockStripeCancel).not.toHaveBeenCalled()
 
     const sub = await db.query.subscriptions.findFirst({

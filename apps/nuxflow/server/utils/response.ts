@@ -14,8 +14,8 @@ export function noContent(event: H3Event) {
   return null
 }
 
-export function badRequest(message = 'Bad request'): never {
-  throw createError({ statusCode: 400, message })
+export function badRequest(message = 'Bad request', data?: unknown): never {
+  throw createError({ statusCode: 400, message, data })
 }
 
 export function notFound(message = 'Not found'): never {
@@ -30,8 +30,8 @@ export function forbidden(message = 'Forbidden'): never {
   throw createError({ statusCode: 403, message })
 }
 
-export function conflict(message = 'Conflict'): never {
-  throw createError({ statusCode: 409, message })
+export function conflict(message = 'Conflict', data?: unknown): never {
+  throw createError({ statusCode: 409, message, data })
 }
 
 export function validationError(message = 'Validation error', data?: unknown): never {

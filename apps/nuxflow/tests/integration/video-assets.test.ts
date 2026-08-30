@@ -371,9 +371,9 @@ describe('DELETE /api/v1/media/video/:id', () => {
     const id = await seedVideoAsset(getCurrentTestDb(), SITE, { title: 'To Delete' })
     const result = await (deleteHandler as HandlerFn)(
       mkEvent({ params: { id } }),
-    ) as { success: boolean }
+    )
 
-    expect(result.success).toBe(true)
+    expect(result).toBeNull()
 
     // Confirm it's gone
     await expect(
@@ -400,9 +400,9 @@ describe('DELETE /api/v1/media/video/:id', () => {
     try {
       const result = await (deleteHandler as HandlerFn)(
         mkEvent({ params: { id } }),
-      ) as { success: boolean }
+      )
 
-      expect(result.success).toBe(true)
+      expect(result).toBeNull()
     } finally {
       globalThis.useRuntimeConfig = originalConfig
       vi.unstubAllGlobals()

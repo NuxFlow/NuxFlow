@@ -24,5 +24,5 @@ export default defineEventHandler(async (event) => {
 
   await db.batch(auditInsert ? [taxonomyDelete, auditInsert] : [taxonomyDelete])
 
-  return { success: true }
+  return noContent(event)
 })

@@ -3,6 +3,7 @@ import { useDb } from '../../../../utils/db'
 import { comments } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { rateLimit } from '../../../../utils/rate-limit'
+import { created } from '../../../../utils/response'
 
 const bodySchema = z.object({
   guestName: z.string().min(1).max(100).optional(),
@@ -40,6 +41,5 @@ export default defineEventHandler(async (event) => {
     status: session ? 'approved' : 'pending',
   })
 
-  setResponseStatus(event, 201)
-  return { id, status: session ? 'approved' : 'pending' }
+  return created(event, { id, status: session ? 'approved' : 'pending' })
 })

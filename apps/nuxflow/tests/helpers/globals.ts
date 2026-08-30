@@ -111,8 +111,8 @@ globalThis.noContent = (event: Record<string, unknown>) => {
   return null
 }
 
-globalThis.badRequest = (message = 'Bad request') => {
-  throw globalThis.createError({ statusCode: 400, message })
+globalThis.badRequest = (message = 'Bad request', data?: unknown) => {
+  throw globalThis.createError({ statusCode: 400, message, data })
 }
 
 globalThis.notFound = (message = 'Not found') => {
@@ -127,8 +127,8 @@ globalThis.forbidden = (message = 'Forbidden') => {
   throw globalThis.createError({ statusCode: 403, message })
 }
 
-globalThis.conflict = (message = 'Conflict') => {
-  throw globalThis.createError({ statusCode: 409, message })
+globalThis.conflict = (message = 'Conflict', data?: unknown) => {
+  throw globalThis.createError({ statusCode: 409, message, data })
 }
 
 globalThis.validationError = (message = 'Validation error', data?: unknown) => {

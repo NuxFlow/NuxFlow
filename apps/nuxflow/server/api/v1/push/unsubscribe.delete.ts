@@ -19,6 +19,5 @@ export default defineEventHandler(async (event) => {
       eq(pushSubscriptions.endpoint, body.endpoint),
     ))
 
-  setResponseStatus(event, 204)
-  return null
+  return noContent(event)
 })

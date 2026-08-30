@@ -3,7 +3,8 @@ import { requireRole } from '../../../../utils/permissions'
 import { resolveSetting } from '../../../../utils/settings'
 import { videoAssets } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
-import { writeAuditLog } from '../../../../utils/audit'
+import { buildAuditLogInsert } from '../../../../utils/audit'
+import { created } from '../../../../utils/response'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
@@ -15,10 +16,7 @@ export default defineEventHandler(async (event) => {
   const size = body?.size as number | undefined
 
   if (!uid) {
-    throw createError({
-      statusCode: 400,
-      message: 'Missing video UID (cloudflareStreamId)',
-    })
+    throw badRequest('Missing video UID (cloudflareStreamId)')
   }
 
   const accountId = await resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
@@ -77,7 +75,7 @@ export default defineEventHandler(async (event) => {
   const fileId = ulid()
 
   const db = useDb(event)
-  await db.insert(videoAssets).values({
+  const assetInsert = db.insert(videoAssets).values({
     id: fileId,
     siteId,
     uploadedBy: userId,
@@ -89,18 +87,18 @@ export default defineEventHandler(async (event) => {
     size: size || null,
   })
 
-  void writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'create',
     resource: 'video_assets',
     resourceId: fileId,
     after: { title: finalTitle, cloudflareStreamId: uid },
   })
+  await db.batch(auditInsert ? [assetInsert, auditInsert] : [assetInsert])
 
-  setResponseStatus(event, 201)
-  return {
+  return created(event, {
     id: fileId,
     title: finalTitle,
     cloudflareStreamId: uid,
     status,
-  }
+  })
 })

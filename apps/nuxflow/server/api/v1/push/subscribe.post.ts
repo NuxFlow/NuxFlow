@@ -4,6 +4,7 @@ import { useDb } from '../../../utils/db'
 import { pushSubscriptions } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { created } from '../../../utils/response'
 
 const bodySchema = z.object({
   endpoint: z.string().url(),
@@ -41,6 +42,5 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  setResponseStatus(event, 201)
-  return { subscribed: true }
+  return created(event, { subscribed: true })
 })

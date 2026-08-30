@@ -1,5 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
+import { writeAuditLog } from '../../../utils/audit'
 import { putPluginServerCode, putPluginClientBundle } from '../../../utils/cf-env'
 import { verifyPluginSignature, computeSha256 } from '../../../utils/plugin-signing'
 import { dynamicPlugins, dynamicPluginTrust } from '@nuxflow/db/schema'
@@ -30,7 +31,7 @@ function decodeBase64(encoded: string): string {
 }
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'admin')
+  const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const body = await readBody<InstallBody>(event)
@@ -107,10 +108,7 @@ export default defineEventHandler(async (event) => {
     where: and(eq(dynamicPluginTrust.siteId, siteId), eq(dynamicPluginTrust.pluginId, body.id)),
   })
   if (trust && trust.publisherPublicKey !== body.publisherPublicKey) {
-    throw createError({
-      statusCode: 409,
-      message: `Plugin "${body.id}" was previously installed under a different publisher key. If this is an intentional key rotation by the same publisher, a super admin must reset its trust record first (DELETE /api/v1/dynamic-plugins/${body.id}/trust).`,
-    })
+    throw conflict(`Plugin "${body.id}" was previously installed under a different publisher key. If this is an intentional key rotation by the same publisher, a super admin must reset its trust record first (DELETE /api/v1/dynamic-plugins/${body.id}/trust).`)
   }
 
   // ── Store in KV + D1 ────────────────────────────────────────────────────────
@@ -140,6 +138,8 @@ export default defineEventHandler(async (event) => {
       publisherPublicKey: body.publisherPublicKey,
     })
   }
+
+  await writeAuditLog(event, userId, { action: 'install', resource: 'dynamic_plugin', resourceId: body.id, after: { name: body.name, version: body.version } })
 
   return { success: true }
 })

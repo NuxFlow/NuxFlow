@@ -3,6 +3,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
 import { getContentTypeBySlugOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
+import { created } from '../../../utils/response'
 import { contentItems, sites } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -67,6 +68,5 @@ export default defineEventHandler(async (event) => {
 
   await db.batch(auditInsert ? [itemInsert, auditInsert] : [itemInsert])
 
-  setResponseStatus(event, 201)
-  return { id }
+  return created(event, { id })
 })

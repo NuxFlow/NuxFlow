@@ -263,9 +263,9 @@ describe('DELETE /api/v1/content/[id]', () => {
     })
   })
 
-  it('removes the item and returns { success: true }', async () => {
-    const result = await (deleteHandler as HandlerFn)(mkDeleteEvent(deleteTargetId)) as { success: boolean }
-    expect(result.success).toBe(true)
+  it('removes the item and returns 204 No Content', async () => {
+    const result = await (deleteHandler as HandlerFn)(mkDeleteEvent(deleteTargetId))
+    expect(result).toBeNull()
 
     const item = await getCurrentTestDb().query.contentItems.findFirst({
       where: eq(contentItems.id, deleteTargetId),

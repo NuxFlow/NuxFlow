@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
+import { created } from '../../../utils/response'
 import { taxonomies } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -35,6 +36,5 @@ export default defineEventHandler(async (event) => {
 
   await db.batch(auditInsert ? [taxonomyInsert, auditInsert] : [taxonomyInsert])
 
-  setResponseStatus(event, 201)
-  return { id }
+  return created(event, { id })
 })

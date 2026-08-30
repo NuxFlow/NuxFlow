@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
 import { media, mediaFolders } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -31,15 +31,16 @@ export default defineEventHandler(async (event) => {
     if (!folder) throw notFound('Folder not found')
   }
 
-  await db.update(media).set(body).where(and(eq(media.id, id), eq(media.siteId, siteId)))
+  const mediaUpdate = db.update(media).set(body).where(and(eq(media.id, id), eq(media.siteId, siteId)))
 
-  void writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',
     resource: 'media',
     resourceId: id,
     before: { altText: existing.altText, caption: existing.caption, folderId: existing.folderId, focalX: existing.focalX, focalY: existing.focalY },
     after: body,
   })
+  await db.batch(auditInsert ? [mediaUpdate, auditInsert] : [mediaUpdate])
 
   return { id }
 })

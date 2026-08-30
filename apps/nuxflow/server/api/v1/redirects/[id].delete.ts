@@ -1,6 +1,7 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
+import { getRedirectByIdOrThrow } from '../../../utils/resource-queries'
 import { redirects } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -10,10 +11,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
 
-  const existing = await db.query.redirects.findFirst({
-    where: and(eq(redirects.id, id), eq(redirects.siteId, siteId)),
-  })
-  if (!existing) throw notFound('Redirect not found')
+  const existing = await getRedirectByIdOrThrow(db, siteId, id)
 
   const redirectDelete = db.delete(redirects).where(and(eq(redirects.id, id), eq(redirects.siteId, siteId)))
 
@@ -26,5 +24,5 @@ export default defineEventHandler(async (event) => {
 
   await db.batch(auditInsert ? [redirectDelete, auditInsert] : [redirectDelete])
 
-  return { success: true }
+  return noContent(event)
 })

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../../utils/audit'
+import { created } from '../../../../utils/response'
 import { mediaFolders } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
@@ -27,6 +28,5 @@ export default defineEventHandler(async (event) => {
 
   await db.batch(auditInsert ? [folderInsert, auditInsert] : [folderInsert])
 
-  setResponseStatus(event, 201)
-  return { id, name: body.name }
+  return created(event, { id, name: body.name })
 })

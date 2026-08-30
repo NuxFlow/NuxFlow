@@ -4,6 +4,7 @@ import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
+import { created } from '../../../utils/response'
 import { resolveSetting } from '../../../utils/settings'
 import { StripeProvider } from '../../../utils/payments/stripe'
 import { LemonSqueezyProvider } from '../../../utils/payments/lemonsqueezy'
@@ -96,6 +97,5 @@ export default defineEventHandler(async (event) => {
     where: (t, { eq: eq_ }) => eq_(t.id, id),
   })
 
-  setResponseStatus(event, 201)
-  return tier
+  return created(event, tier)
 })

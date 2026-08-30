@@ -4,9 +4,10 @@ import { userSiteRoles, sites } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 import { sendEmail, escapeHtml } from '../../../utils/email'
 import { rateLimit } from '../../../utils/rate-limit'
+import { created } from '../../../utils/response'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -37,7 +38,7 @@ export default defineEventHandler(async (event) => {
     }
   } else {
     const auth = await getOrCreateBetterAuth(event)
-    const tempPassword = crypto.randomUUID()
+    const tempPassword = ulid()
     await auth.api.signUpEmail({
       body: { name: body.name, email: body.email, password: tempPassword },
     })
@@ -50,19 +51,20 @@ export default defineEventHandler(async (event) => {
 
   const newUser = existingUser
 
-  await db.insert(userSiteRoles).values({
+  const roleInsert = db.insert(userSiteRoles).values({
     id: ulid(),
     userId: newUser.id,
     siteId,
     role: body.role,
   })
 
-  void writeAuditLog(event, userId, {
+  const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'invite',
     resource: 'user',
     resourceId: newUser.id,
     after: { role: body.role, email: body.email },
   })
+  await db.batch(auditInsert ? [roleInsert, auditInsert] : [roleInsert])
 
   // Send invitation email
   const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { name: true, domain: true } })
@@ -75,6 +77,5 @@ export default defineEventHandler(async (event) => {
     text: `Hi ${body.name}, you have been invited to join ${site?.name ?? 'NuxFlow'} as ${body.role}. Visit https://${site?.domain ?? 'nuxflow.app'}/login to sign in.`,
   }).catch(err => console.error('[invite] Email delivery failed:', err))
 
-  setResponseStatus(event, 201)
-  return { id: newUser.id, name: body.name, email: body.email, role: body.role }
+  return created(event, { id: newUser.id, name: body.name, email: body.email, role: body.role })
 })

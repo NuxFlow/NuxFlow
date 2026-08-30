@@ -3,7 +3,7 @@ import { useDb } from '../../../utils/db'
 import { userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole } from '../../../utils/permissions'
-import { writeAuditLog } from '../../../utils/audit'
+import { buildAuditLogInsert } from '../../../utils/audit'
 
 const bodySchema = z.object({
   role: z.enum(['admin', 'editor', 'author', 'viewer', 'member']).optional(),
@@ -20,18 +20,19 @@ export default defineEventHandler(async (event) => {
   if (body.role) {
     const existing = await getUserSiteRole(db, targetId, siteId)
 
-    await db
+    const roleUpdate = db
       .update(userSiteRoles)
       .set({ role: body.role })
       .where(and(eq(userSiteRoles.userId, targetId), eq(userSiteRoles.siteId, siteId)))
 
-    void writeAuditLog(event, userId, {
+    const auditInsert = buildAuditLogInsert(event, userId, {
       action: 'update',
       resource: 'user',
       resourceId: targetId,
       before: existing ? { role: existing.role } : undefined,
       after: { role: body.role },
     })
+    await db.batch(auditInsert ? [roleUpdate, auditInsert] : [roleUpdate])
   }
 
   return { success: true }

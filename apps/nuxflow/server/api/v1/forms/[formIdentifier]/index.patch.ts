@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
+import { buildAuditLogInsert } from '../../../../utils/audit'
 import { forms } from '@nuxflow/db/schema'
 import type { FormField, ConditionalLogic } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
@@ -16,15 +17,15 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'editor')
+  const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const formIdentifier = getRouterParam(event, 'formIdentifier')!
   const body = await parseBody(event, bodySchema)
 
-  await getFormByIdOrThrow(db, siteId, formIdentifier)
+  const existing = await getFormByIdOrThrow(db, siteId, formIdentifier)
 
-  await db.update(forms)
+  const update = db.update(forms)
     .set({
       ...body,
       fields: body.fields as FormField[] | undefined,
@@ -32,6 +33,11 @@ export default defineEventHandler(async (event) => {
       updatedAt: sql`(datetime('now'))`,
     })
     .where(and(eq(forms.id, formIdentifier), eq(forms.siteId, siteId)))
+
+  const auditInsert = buildAuditLogInsert(event, userId, {
+    action: 'update', resource: 'form', resourceId: formIdentifier, before: existing, after: body,
+  })
+  await db.batch(auditInsert ? [update, auditInsert] : [update])
 
   return { id: formIdentifier }
 })

@@ -6,6 +6,7 @@ import { formSubmissions } from '@nuxflow/db/schema'
 import type { FormField } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { getFormBySlugOrThrow } from '../../../../utils/resource-queries'
+import { created } from '../../../../utils/response'
 
 const bodySchema = z.object({
   turnstileToken: z.string().optional(),
@@ -78,6 +79,5 @@ export default defineEventHandler(async (event) => {
     status: 'new',
   })
 
-  setResponseStatus(event, 201)
-  return { success: true, redirectUrl: form.redirectUrl }
+  return created(event, { success: true, redirectUrl: form.redirectUrl })
 })

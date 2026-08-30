@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { defineAsyncComponent, computed, inject } from 'vue'
 import draggable from 'vuedraggable'
-import type { CanvasBlockData } from '../types'
+import type { CanvasBlockData, CanvasBlockRegistry } from '../types'
 import { getBlockDefinition } from '../blocks/definitions'
 import { getSlotChildren } from '../tree'
 import { canvasApiKey } from './canvasApi'
-
-interface BlockRegistryLike { resolve(id: string): object | undefined }
 
 import CanvasBlockHero from '../blocks/CanvasBlockHero.vue'
 import CanvasBlockText from '../blocks/CanvasBlockText.vue'
@@ -22,7 +20,18 @@ import CanvasBlockButton from '../blocks/CanvasBlockButton.vue'
 import CanvasBlockAccordion from '../blocks/CanvasBlockAccordion.vue'
 import CanvasBlockPricing from '../blocks/CanvasBlockPricing.vue'
 import CanvasBlockCalendar from '../blocks/CanvasBlockCalendar.vue'
+import CanvasBlockGdpr from '../blocks/CanvasBlockGdpr.vue'
+import CanvasBlockFooter from '../blocks/CanvasBlockFooter.vue'
+import CanvasBlockGallery from '../blocks/CanvasBlockGallery.vue'
+import CanvasBlockCarousel from '../blocks/CanvasBlockCarousel.vue'
+import HtmlBlock from '../blocks/HtmlBlock.vue'
 
+// Every block whose component lives in this package is listed here so the
+// editor can render it without depending on the host app's block registry —
+// that registry is reserved for genuinely external blocks (dynamic plugins,
+// and the handful of app-owned built-ins like ContactFormBlock/MembershipsBlock
+// that can't be imported from this package). Registry lookup below is the
+// fallback for exactly those, not a substitute for keeping this map complete.
 const COMPONENTS: Record<string, ReturnType<typeof defineAsyncComponent> | object> = {
   CanvasBlockHero,
   CanvasBlockText,
@@ -38,6 +47,11 @@ const COMPONENTS: Record<string, ReturnType<typeof defineAsyncComponent> | objec
   CanvasBlockAccordion,
   CanvasBlockPricing,
   CanvasBlockCalendar,
+  CanvasBlockGdpr,
+  CanvasBlockFooter,
+  CanvasBlockGallery,
+  CanvasBlockCarousel,
+  HtmlBlock,
 }
 
 const props = defineProps<{
@@ -48,7 +62,7 @@ const props = defineProps<{
   isLast?: boolean
 }>()
 
-const registry = inject<BlockRegistryLike | null>('nuxflow:blockRegistry', null)
+const registry = inject<Pick<CanvasBlockRegistry, 'resolve'> | null>('nuxflow:blockRegistry', null)
 const api = inject(canvasApiKey, null)
 
 const definition = computed(() => getBlockDefinition(props.block.type))

@@ -1,4 +1,4 @@
-import { media, comments, menus, taxonomies, taxonomyTerms, themes, dynamicPlugins, videoAssets, membershipTiers, forms } from '@nuxflow/db/schema'
+import { media, comments, menus, taxonomies, taxonomyTerms, themes, dynamicPlugins, videoAssets, membershipTiers, forms, apiKeys, redirects, formSubmissions } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type { Db } from './db'
 
@@ -89,6 +89,32 @@ export async function getFormByIdOrThrow(db: Db, siteId: string, id: string, mes
 export async function getFormBySlugOrThrow(db: Db, siteId: string, slug: string, message = 'Form not found') {
   const item = await db.query.forms.findFirst({
     where: and(eq(forms.siteId, siteId), eq(forms.slug, slug)),
+  })
+  if (!item) notFound(message)
+  return item
+}
+
+export async function getApiKeyByIdOrThrow(db: Db, siteId: string, id: string, message = 'API key not found', columns?: Record<string, boolean>) {
+  const item = await db.query.apiKeys.findFirst({
+    where: and(eq(apiKeys.id, id), eq(apiKeys.siteId, siteId)),
+    columns,
+  })
+  if (!item) notFound(message)
+  return item
+}
+
+export async function getRedirectByIdOrThrow(db: Db, siteId: string, id: string, message = 'Redirect not found') {
+  const item = await db.query.redirects.findFirst({
+    where: and(eq(redirects.id, id), eq(redirects.siteId, siteId)),
+  })
+  if (!item) notFound(message)
+  return item
+}
+
+export async function getFormSubmissionByIdOrThrow(db: Db, siteId: string, id: string, message = 'Submission not found', columns?: Record<string, boolean>) {
+  const item = await db.query.formSubmissions.findFirst({
+    where: and(eq(formSubmissions.id, id), eq(formSubmissions.siteId, siteId)),
+    columns,
   })
   if (!item) notFound(message)
   return item

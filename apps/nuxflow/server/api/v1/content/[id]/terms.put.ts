@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
+import { buildAuditLogInsert } from '../../../../utils/audit'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { contentTaxonomyTerms, taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -10,7 +11,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'author')
+  const { userId } = await requireRole(event, 'author')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const itemId = getRouterParam(event, 'id')!
@@ -33,12 +34,17 @@ export default defineEventHandler(async (event) => {
   }
 
   // Replace all term assignments atomically
-  await db.delete(contentTaxonomyTerms).where(eq(contentTaxonomyTerms.contentItemId, itemId))
+  const termsDelete = db.delete(contentTaxonomyTerms).where(eq(contentTaxonomyTerms.contentItemId, itemId))
+
+  const auditInsert = buildAuditLogInsert(event, userId, {
+    action: 'update_terms', resource: 'content_item', resourceId: itemId, after: { termIds: body.termIds },
+  })
 
   if (body.termIds.length > 0) {
-    await db.insert(contentTaxonomyTerms).values(
-      body.termIds.map(termId => ({ contentItemId: itemId, termId })),
-    )
+    const termsInsert = db.insert(contentTaxonomyTerms).values(body.termIds.map(termId => ({ contentItemId: itemId, termId })))
+    await db.batch(auditInsert ? [termsDelete, termsInsert, auditInsert] : [termsDelete, termsInsert])
+  } else {
+    await db.batch(auditInsert ? [termsDelete, auditInsert] : [termsDelete])
   }
 
   return { success: true }

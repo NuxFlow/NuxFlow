@@ -47,11 +47,7 @@ export default defineEventHandler(async (event) => {
 
   const { expectedVersion, ...updateFields } = body
   if (expectedVersion !== undefined && existing.version !== expectedVersion) {
-    throw createError({
-      statusCode: 409,
-      message: 'Content has been modified since you last loaded it',
-      data: { currentVersion: existing.version },
-    })
+    throw conflict('Content has been modified since you last loaded it', { currentVersion: existing.version })
   }
 
   const nextVersion = existing.version + 1

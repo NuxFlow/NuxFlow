@@ -8,6 +8,7 @@ import { verifyTurnstile } from '../../../utils/turnstile'
 import { rateLimit } from '../../../utils/rate-limit'
 import { sendEmail, escapeHtml } from '../../../utils/email'
 import { resolveSetting } from '../../../utils/settings'
+import { created } from '../../../utils/response'
 import { sendNotification } from '../../../utils/notify'
 
 const CONTACT_SLUG = 'contact'
@@ -128,6 +129,5 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  setResponseStatus(event, 201)
-  return { success: true }
+  return created(event, { success: true })
 })

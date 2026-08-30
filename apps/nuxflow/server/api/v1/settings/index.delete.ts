@@ -5,7 +5,7 @@ import { sites } from '@nuxflow/db/schema'
 import { asc } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'super_admin')
+  const { userId } = await requireRole(event, 'super_admin')
   const siteId = event.context.siteId as string
   const db = useDb(event)
 
@@ -21,11 +21,10 @@ export default defineEventHandler(async (event) => {
 
   if (isMain && allSites.length > 1) {
     const blockingSites = allSites.filter(s => s.id !== siteId)
-    throw createError({
-      statusCode: 409,
-      message: `This is the main site — delete the other ${blockingSites.length} site${blockingSites.length === 1 ? '' : 's'} first: ${blockingSites.map(s => s.domain).join(', ')}`,
-      data: { blockingSites },
-    })
+    throw conflict(
+      `This is the main site — delete the other ${blockingSites.length} site${blockingSites.length === 1 ? '' : 's'} first: ${blockingSites.map(s => s.domain).join(', ')}`,
+      { blockingSites },
+    )
   }
 
   // Always a full delete — main site when it's the last one left, or any
@@ -33,6 +32,6 @@ export default defineEventHandler(async (event) => {
   // domain afterward goes through the normal Super Admin → Sites → New flow,
   // the same as adding any other new site.
   const wasLastSite = allSites.length === 1
-  await deleteSiteCompletely(event, siteId)
+  await deleteSiteCompletely(event, siteId, userId)
   return { id: siteId, wasLastSite }
 })

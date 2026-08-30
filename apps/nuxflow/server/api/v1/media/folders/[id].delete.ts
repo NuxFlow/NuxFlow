@@ -32,5 +32,5 @@ export default defineEventHandler(async (event) => {
 
   await db.batch(auditInsert ? [unfileMedia, folderDelete, auditInsert] : [unfileMedia, folderDelete])
 
-  return { success: true }
+  return noContent(event)
 })

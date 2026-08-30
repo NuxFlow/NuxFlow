@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { useDb } from './db'
 import { clearSiteCache } from '../middleware/02.multi-site'
 import { getActiveProvider } from './media-providers/index'
+import { writeAuditLog } from './audit'
 import {
   sites, users, userSiteRoles, contentItems, contentTypes,
   taxonomies, siteSettings, dynamicPlugins, themes,
@@ -14,9 +15,23 @@ import { eq, and, ne, inArray } from 'drizzle-orm'
  * Permanently deletes a site and every record scoped to it, including users who
  * have no role on any other site. Callers are responsible for authorization —
  * this performs no permission checks of its own.
+ *
+ * `actorUserId` is recorded both as a structured console line (survives even
+ * when `siteId` is the site currently in request context, since step 2 below
+ * deletes that site's own `audit_logs` rows as part of teardown) and, when the
+ * acting request context is scoped to a *different* site than the one being
+ * deleted, as a real audit log row that outlives the deletion.
  */
-export async function deleteSiteCompletely(event: H3Event, siteId: string) {
+export async function deleteSiteCompletely(event: H3Event, siteId: string, actorUserId: string) {
   const db = useDb(event)
+
+  console.warn(JSON.stringify({
+    event: 'site.delete', siteId, actorUserId, at: new Date().toISOString(),
+  }))
+
+  if (event.context.siteId && event.context.siteId !== siteId) {
+    await writeAuditLog(event, actorUserId, { action: 'delete', resource: 'site', resourceId: siteId })
+  }
 
   // 1. Delete physical media files
   const allMedia = await db.select({ storageKey: media.storageKey }).from(media).where(eq(media.siteId, siteId))

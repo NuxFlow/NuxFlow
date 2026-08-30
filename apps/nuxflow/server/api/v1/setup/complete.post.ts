@@ -5,6 +5,7 @@ import { sites, users, accounts, userSiteRoles, contentTypes, contentItems, taxo
 import { ulid } from 'ulid'
 import { count, eq, and } from 'drizzle-orm'
 import { nuxflowPasswordHasher } from '../../../utils/pw'
+import { created } from '../../../utils/response'
 
 const bodySchema = z.object({
   site: z.object({
@@ -495,6 +496,5 @@ async function _handleSetup(event: H3Event) {
     })
   }
 
-  setResponseStatus(event, 201)
-  return { success: true, siteId }
+  return created(event, { success: true, siteId })
 }

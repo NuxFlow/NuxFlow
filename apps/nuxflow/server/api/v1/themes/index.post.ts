@@ -1,4 +1,5 @@
 import { requireRole } from '../../../utils/permissions'
+import { writeAuditLog } from '../../../utils/audit'
 import { putThemeCSS, putThemeDemo } from '../../../utils/cf-env'
 import { themes, media } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -181,6 +182,8 @@ export default defineEventHandler(async (event) => {
   const demoSummary = hasDemoContent
     ? parseDemoSummary(JSON.parse(demoJson!) as NuxFlowBackup)
     : null
+
+  await writeAuditLog(event, userId, { action: 'create', resource: 'theme', resourceId: id, after: { name, version } })
 
   return { success: true, id, hasDemoContent, demoSummary, failedImages }
 })

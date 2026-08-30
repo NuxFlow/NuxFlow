@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
+import { created } from '../../../utils/response'
 import { redirects } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
@@ -29,6 +30,5 @@ export default defineEventHandler(async (event) => {
 
   await db.batch(auditInsert ? [redirectInsert, auditInsert] : [redirectInsert])
 
-  setResponseStatus(event, 201)
-  return { id }
+  return created(event, { id })
 })

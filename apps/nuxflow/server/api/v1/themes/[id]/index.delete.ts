@@ -1,5 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
+import { writeAuditLog } from '../../../../utils/audit'
 import { clearActiveThemeCache } from '../../../../utils/theme-cache'
 import { deleteThemeCSS, deleteThemeDemo, getThemeDemo } from '../../../../utils/cf-env'
 import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
@@ -8,7 +9,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import type { NuxFlowBackup } from '../../../../utils/backup'
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'admin')
+  const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
@@ -66,5 +67,7 @@ export default defineEventHandler(async (event) => {
   await db.delete(themes).where(and(eq(themes.id, id), eq(themes.siteId, siteId)))
   clearActiveThemeCache(siteId)
 
-  return { success: true }
+  await writeAuditLog(event, userId, { action: 'delete', resource: 'theme', resourceId: id, before: theme })
+
+  return noContent(event)
 })

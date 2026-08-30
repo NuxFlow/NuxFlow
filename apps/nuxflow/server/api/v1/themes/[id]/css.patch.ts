@@ -1,12 +1,13 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
+import { writeAuditLog } from '../../../../utils/audit'
 import { putThemeCSS } from '../../../../utils/cf-env'
 import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'admin')
+  const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
@@ -24,6 +25,8 @@ export default defineEventHandler(async (event) => {
       .set({ version: version.trim() })
       .where(and(eq(themes.id, id), eq(themes.siteId, siteId)))
   }
+
+  await writeAuditLog(event, userId, { action: 'update_css', resource: 'theme', resourceId: id })
 
   return { success: true }
 })
