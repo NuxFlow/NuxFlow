@@ -1,4 +1,5 @@
 import { useDb } from '../../utils/db'
+import { roleAtLeast, type Role } from '../../utils/permissions'
 import { contentItems, contentTypes } from '@nuxflow/db/schema'
 import { and, eq, desc } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -64,7 +65,7 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event)
 
     if (!body || typeof body !== 'object' || body.jsonrpc !== '2.0') {
-      throw createError({ statusCode: 400, message: 'Invalid JSON-RPC 2.0 payload.' })
+      throw badRequest('Invalid JSON-RPC 2.0 payload.')
     }
 
     const { id, method: rpcMethod, params } = body
@@ -230,8 +231,7 @@ export default defineEventHandler(async (event) => {
           }
 
           else if (name === 'create_content') {
-            const AUTHOR_ROLES = ['super_admin', 'admin', 'editor', 'author']
-            if (!AUTHOR_ROLES.includes(apiKeyRole ?? '')) {
+            if (!roleAtLeast((apiKeyRole ?? 'viewer') as Role, 'author')) {
               result = { content: [{ type: 'text', text: `Error: Role "${apiKeyRole}" is unauthorized to create content.` }] }
               break
             }
@@ -286,8 +286,7 @@ export default defineEventHandler(async (event) => {
           }
 
           else if (name === 'update_content') {
-            const AUTHOR_ROLES = ['super_admin', 'admin', 'editor', 'author']
-            if (!AUTHOR_ROLES.includes(apiKeyRole ?? '')) {
+            if (!roleAtLeast((apiKeyRole ?? 'viewer') as Role, 'author')) {
               result = { content: [{ type: 'text', text: `Error: Role "${apiKeyRole}" is unauthorized to update content.` }] }
               break
             }
@@ -314,8 +313,7 @@ export default defineEventHandler(async (event) => {
             if (parsedUpdate.data.slug !== undefined) updates.slug = parsedUpdate.data.slug
             if (parsedUpdate.data.content !== undefined) updates.content = parsedUpdate.data.content
             if (parsedUpdate.data.status !== undefined) {
-              const PUBLISH_ROLES = ['super_admin', 'admin', 'editor']
-              if (parsedUpdate.data.status === 'published' && !PUBLISH_ROLES.includes(apiKeyRole ?? '')) {
+              if (parsedUpdate.data.status === 'published' && !roleAtLeast((apiKeyRole ?? 'viewer') as Role, 'editor')) {
                 result = { content: [{ type: 'text', text: `Error: Role "${apiKeyRole}" is unauthorized to publish content.` }] }
                 break
               }
@@ -346,8 +344,8 @@ export default defineEventHandler(async (event) => {
               break
             }
 
-            // Enforce author / editor role minimum to perform deletions
-            if (apiKeyRole !== 'admin' && apiKeyRole !== 'super_admin' && apiKeyRole !== 'editor') {
+            // Enforce editor role minimum to perform deletions
+            if (!roleAtLeast((apiKeyRole ?? 'viewer') as Role, 'editor')) {
               result = { content: [{ type: 'text', text: `Error: Role "${apiKeyRole}" is unauthorized to perform deletions.` }] }
               break
             }

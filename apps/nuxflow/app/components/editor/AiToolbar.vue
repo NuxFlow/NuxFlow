@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import { useAiImprove, type AiInstruction } from '@nuxflow/canvas'
+
 const emit = defineEmits<{ replace: [text: string] }>()
 const props = defineProps<{ selectedText: string }>()
 
-const loading = ref(false)
-const alternatives = ref<string[]>([])
-const instruction = ref<'improve' | 'shorten' | 'expand' | 'simplify'>('improve')
+const { aiLoading, aiAlternatives, triggerAi } = useAiImprove()
+const instruction = ref<AiInstruction>('improve')
 
 const actions = [
   { label: 'Improve', value: 'improve' as const, icon: 'i-lucide-sparkles' },
@@ -13,21 +14,10 @@ const actions = [
   { label: 'Simplify', value: 'simplify' as const, icon: 'i-lucide-zap' },
 ]
 
-async function generate(inst: typeof instruction.value) {
+async function generate(inst: AiInstruction) {
   instruction.value = inst
-  loading.value = true
-  alternatives.value = []
-  try {
-    const res = await $fetch<{ alternatives: string[] }>('/api/v1/ai/improve', {
-      method: 'POST',
-      body: { text: props.selectedText, instruction: inst },
-    })
-    alternatives.value = res.alternatives
-  } finally {
-    loading.value = false
-  }
+  await triggerAi(inst, props.selectedText)
 }
-
 </script>
 
 <template>
@@ -44,17 +34,17 @@ async function generate(inst: typeof instruction.value) {
         size="xs"
         :variant="instruction === action.value ? 'solid' : 'outline'"
         :icon="action.icon"
-        :loading="loading && instruction === action.value"
+        :loading="aiLoading && instruction === action.value"
         @click="generate(action.value)"
       >
         {{ action.label }}
       </UButton>
     </div>
 
-    <div v-if="alternatives.length" class="space-y-2">
+    <div v-if="aiAlternatives.length" class="space-y-2">
       <p class="text-xs font-medium text-gray-500">Pick an alternative:</p>
       <button
-        v-for="(alt, i) in alternatives"
+        v-for="(alt, i) in aiAlternatives"
         :key="i"
         class="w-full text-left p-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950 transition-colors"
         @click="emit('replace', alt)"

@@ -50,6 +50,15 @@ export async function getAiSdkModel(event: H3Event, quality: 'fast' | 'smart' = 
   }
 }
 
+/** Same as getAiSdkModel, but throws the standard 503 instead of returning null. */
+export async function requireAiSdkModel(event: H3Event, quality: 'fast' | 'smart' = 'fast'): Promise<LanguageModel> {
+  const model = await getAiSdkModel(event, quality)
+  if (!model) {
+    throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
+  }
+  return model
+}
+
 /** Extracts a human-readable message from a provider SDK error. */
 export function aiErrorMessage(err: unknown): string {
   if (err && typeof err === 'object') {

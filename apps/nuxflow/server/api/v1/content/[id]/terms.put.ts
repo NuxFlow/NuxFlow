@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { contentTaxonomyTerms, contentItems, taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
+import { getContentItemOrThrow } from '../../../../utils/content-queries'
+import { contentTaxonomyTerms, taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 
 const bodySchema = z.object({
@@ -15,11 +16,7 @@ export default defineEventHandler(async (event) => {
   const itemId = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 
-  const item = await db.query.contentItems.findFirst({
-    where: and(eq(contentItems.id, itemId), eq(contentItems.siteId, siteId)),
-    columns: { id: true },
-  })
-  if (!item) throw notFound('Content item not found')
+  await getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true })
 
   // Terms must belong to a taxonomy owned by this site — otherwise a caller could link
   // content to another tenant's taxonomy term by supplying its (unguessable but not

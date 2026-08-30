@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
   })
 
   const sendTo = body.sendTo || user?.email
-  if (!sendTo) throw createError({ statusCode: 400, message: 'No recipient email address' })
+  if (!sendTo) throw badRequest('No recipient email address')
 
   if (body.provider === 'console') {
     return { success: true, message: 'Console provider — check your server logs' }

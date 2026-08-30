@@ -42,6 +42,15 @@ const { mockGetAiSdkModel, mockGenerateText } = vi.hoisted(() => ({
 
 vi.mock('../../server/utils/ai-sdk', () => ({
   getAiSdkModel: mockGetAiSdkModel,
+  requireAiSdkModel: async (...args: unknown[]) => {
+    const model = await mockGetAiSdkModel(...args)
+    if (!model) {
+      const err = new Error('No AI provider configured. Add an API key in Settings → AI.') as Error & { statusCode: number }
+      err.statusCode = 503
+      throw err
+    }
+    return model
+  },
   aiErrorMessage: (err: unknown) => (err instanceof Error ? err.message : String(err)),
 }))
 

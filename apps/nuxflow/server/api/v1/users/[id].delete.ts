@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   const targetId = getRouterParam(event, 'id')!
 
   if (targetId === userId) {
-    throw createError({ statusCode: 400, message: 'You cannot remove yourself' })
+    throw badRequest('You cannot remove yourself')
   }
 
   const db = useDb(event)

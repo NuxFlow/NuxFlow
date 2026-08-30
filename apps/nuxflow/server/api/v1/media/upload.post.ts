@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
   const formData = await readFormData(event)
   const file = formData.get('file') as File | null
 
-  if (!file) throw createError({ statusCode: 400, message: 'No file provided' })
+  if (!file) throw badRequest('No file provided')
   if (file.size > MAX_SIZE) throw createError({ statusCode: 413, message: 'File too large (max 20 MB)' })
 
   const fileId = ulid()

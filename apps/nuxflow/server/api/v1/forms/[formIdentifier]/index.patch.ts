@@ -4,6 +4,7 @@ import { requireRole } from '../../../../utils/permissions'
 import { forms } from '@nuxflow/db/schema'
 import type { FormField, ConditionalLogic } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
+import { getFormByIdOrThrow } from '../../../../utils/resource-queries'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -21,10 +22,7 @@ export default defineEventHandler(async (event) => {
   const formIdentifier = getRouterParam(event, 'formIdentifier')!
   const body = await parseBody(event, bodySchema)
 
-  const form = await db.query.forms.findFirst({
-    where: and(eq(forms.id, formIdentifier), eq(forms.siteId, siteId)),
-  })
-  if (!form) throw notFound('Form not found')
+  await getFormByIdOrThrow(db, siteId, formIdentifier)
 
   await db.update(forms)
     .set({

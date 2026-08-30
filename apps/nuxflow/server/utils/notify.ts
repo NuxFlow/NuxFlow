@@ -17,6 +17,8 @@ interface NotifyOptions {
   sendEmailNotification?: boolean
   /** Also send a browser push notification (requires VAPID keys configured). */
   sendPush?: boolean
+  /** Deep link opened when the push notification is clicked. */
+  pushUrl?: string
 }
 
 export async function sendNotification(opts: NotifyOptions, event: H3Event) {
@@ -52,6 +54,7 @@ export async function sendNotification(opts: NotifyOptions, event: H3Event) {
     await sendPushToUser(event, opts.userId, {
       title: opts.title,
       body: opts.body,
+      url: opts.pushUrl,
       data: opts.data,
     }).catch(err => console.error('[notify] Push delivery failed:', err))
   }

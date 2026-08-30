@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
 
   if (isMultipart) {
     const formData = await readMultipartFormData(event)
-    if (!formData) throw createError({ statusCode: 400, message: 'No form data' })
+    if (!formData) throw badRequest('No form data')
 
     const fileField = formData.find(f => f.name === 'file')
 
@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
         rawFiles = unzipSync(fileField.data)
       } catch (e: unknown) {
         if (e && typeof e === 'object' && 'statusCode' in e) throw e
-        throw createError({ statusCode: 400, message: 'Invalid zip file' })
+        throw badRequest('Invalid zip file')
       }
 
       // Normalize zip entry paths to forward-slashes to support Windows-packaged ZIP archives
@@ -71,7 +71,7 @@ export default defineEventHandler(async (event) => {
       )
 
       const cssFile = files['theme.css']
-      if (!cssFile) throw createError({ statusCode: 400, message: 'theme.css not found in zip' })
+      if (!cssFile) throw badRequest('theme.css not found in zip')
       css = new TextDecoder().decode(cssFile)
 
       const metaFile = files['theme.json']
@@ -153,8 +153,8 @@ export default defineEventHandler(async (event) => {
     css = body.css?.trim() ?? ''
   }
 
-  if (!name) throw createError({ statusCode: 400, message: 'Theme name is required' })
-  if (!css) throw createError({ statusCode: 400, message: 'theme.css is required' })
+  if (!name) throw badRequest('Theme name is required')
+  if (!css) throw badRequest('theme.css is required')
 
   const id = ulid()
   await putThemeCSS(event, siteId, id, css)

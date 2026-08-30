@@ -16,6 +16,13 @@ import { parseBody, parseQuery } from '../../server/utils/validate'
 ;(globalThis as Record<string, unknown>).getQuery = (event: Record<string, unknown>) =>
   (event as { _query?: Record<string, string> })._query ?? {}
 
+;(globalThis as Record<string, unknown>).validationError = (message?: string, data?: unknown) => {
+  const err = new Error(message ?? 'Validation error') as Error & { statusCode: number; data: unknown }
+  err.statusCode = 422
+  err.data = data
+  throw err
+}
+
 const PersonSchema = z.object({
   name: z.string().min(1),
   age: z.number().int().positive(),

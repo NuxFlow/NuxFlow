@@ -5,18 +5,13 @@ import * as schema from '@nuxflow/db/schema'
 export type Db = ReturnType<typeof drizzle<typeof schema>>
 
 // Module-level D1 binding cache — stable within a CF Workers isolate.
-// Populated by useDb(event) on first request (via the 01.d1-cache middleware),
-// then readable by auth.config.ts which has no per-request event access.
+// Populated by useDb(event) on first request (via the 01.d1-cache middleware)
+// so later calls (e.g. from scheduled tasks with no live event) can still
+// find a binding via the globalThis fallback below.
 let _d1: unknown = null
-export function getD1(): unknown { return _d1 }
 
 // Pass the H3Event explicitly so Cloudflare D1 binding is always accessible —
 // useEvent() does not reliably propagate event context in CF Workers utility functions.
-//
-// Future (multi-DB sharding): event.context.shardIndex (number) is the reserved field
-// for selecting which D1 binding to use. When sharding is implemented this function
-// will read that value and return drizzle(env['DB' + shardIndex], ...) for index > 0.
-// See docs/roadmap.md — "Multi-DB Sharding" for the full design.
 export function useDb(event?: H3Event): Db {
   // useEvent() throws when called outside a request context (e.g. scheduled tasks).
   // Isolate it so the globalThis.__env__ fallback is always reachable.

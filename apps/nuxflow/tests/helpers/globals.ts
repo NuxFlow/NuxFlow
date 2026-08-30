@@ -111,6 +111,10 @@ globalThis.noContent = (event: Record<string, unknown>) => {
   return null
 }
 
+globalThis.badRequest = (message = 'Bad request') => {
+  throw globalThis.createError({ statusCode: 400, message })
+}
+
 globalThis.notFound = (message = 'Not found') => {
   throw globalThis.createError({ statusCode: 404, message })
 }

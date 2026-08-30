@@ -6,6 +6,7 @@ import { passkey } from '@better-auth/passkey'
 import { eq, and } from 'drizzle-orm'
 import * as schema from '@nuxflow/db/schema'
 import { nuxflowPasswordHasher } from './pw'
+import { createIsolateCache } from './isolate-cache'
 
 // Per-host auth instance cache with 5-minute TTL so newly-registered custom
 // domains — and per-site social-login credential changes — start working
@@ -17,12 +18,7 @@ import { nuxflowPasswordHasher } from './pw'
 // because socialProviders below can now differ per site — a single cache slot
 // would let one site's request silently serve its Google/GitHub credentials to
 // every other site sharing the isolate for the next 5 minutes.
-interface CachedBetterAuth {
-  instance: Awaited<ReturnType<typeof buildBetterAuthInstance>>
-  expiry: number
-}
-const _cachedBetterAuth = new Map<string, CachedBetterAuth>()
-const BETTER_AUTH_CACHE_TTL_MS = 5 * 60 * 1000
+const _cachedBetterAuth = createIsolateCache<Awaited<ReturnType<typeof buildBetterAuthInstance>>>(5 * 60 * 1000)
 
 async function buildBetterAuthInstance(event: H3Event) {
   const config = useRuntimeConfig(event)
@@ -252,11 +248,10 @@ export async function getOrCreateBetterAuth(event: H3Event) {
   const hostname = rawHost.split(':')[0] ?? rawHost
   const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
   const host = isLocal ? rawHost : hostname
-  const now = Date.now()
   const cached = _cachedBetterAuth.get(host)
-  if (cached && now < cached.expiry) return cached.instance
+  if (cached) return cached
   const instance = await buildBetterAuthInstance(event)
-  _cachedBetterAuth.set(host, { instance, expiry: now + BETTER_AUTH_CACHE_TTL_MS })
+  _cachedBetterAuth.set(host, instance)
   return instance
 }
 
@@ -268,3 +263,4 @@ export async function getOrCreateBetterAuth(event: H3Event) {
 export function clearBetterAuthCache(): void {
   _cachedBetterAuth.clear()
 }
+

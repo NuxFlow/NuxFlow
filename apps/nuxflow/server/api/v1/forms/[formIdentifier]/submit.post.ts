@@ -2,10 +2,10 @@ import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { verifyTurnstile } from '../../../../utils/turnstile'
 import { rateLimit } from '../../../../utils/rate-limit'
-import { forms, formSubmissions } from '@nuxflow/db/schema'
+import { formSubmissions } from '@nuxflow/db/schema'
 import type { FormField } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { getFormBySlugOrThrow } from '../../../../utils/resource-queries'
 
 const bodySchema = z.object({
   turnstileToken: z.string().optional(),
@@ -57,10 +57,7 @@ export default defineEventHandler(async (event) => {
   const formIdentifier = getRouterParam(event, 'formIdentifier')!
   const body = await parseBody(event, bodySchema)
 
-  const form = await db.query.forms.findFirst({
-    where: and(eq(forms.siteId, siteId), eq(forms.slug, formIdentifier)),
-  })
-  if (!form) throw notFound('Form not found')
+  const form = await getFormBySlugOrThrow(db, siteId, formIdentifier)
   if (form.status !== 'active') throw forbidden('This form is not accepting submissions')
 
   const validationErr = validateSubmissionData(body.data, form.fields)

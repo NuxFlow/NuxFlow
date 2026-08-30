@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { generateText } from 'ai'
 import { requireAuth } from '../../../utils/permissions'
-import { getAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 
 const bodySchema = z.object({
@@ -31,8 +31,7 @@ export default defineEventHandler(async (event) => {
   await requireAuth(event)
   await rateLimit(event, { limit: 15, windowMs: 60_000, keyPrefix: 'ai-content' })
 
-  const model = await getAiSdkModel(event, 'fast')
-  if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
+  const model = await requireAiSdkModel(event, 'fast')
 
   const { description, tone, format } = await parseBody(event, bodySchema)
 

@@ -96,25 +96,3 @@ export async function signPayload(privateKeyB64Url: string, payload: SigningPayl
   )
   return toBase64Url(signature)
 }
-
-// ── Verify ────────────────────────────────────────────────────────────────────
-
-export async function verifyPayload(
-  publicKeyB64Url: string,
-  payload: SigningPayload,
-  signatureB64Url: string,
-): Promise<boolean> {
-  const publicKey = await crypto.subtle.importKey(
-    'spki',
-    fromBase64Url(publicKeyB64Url),
-    { name: 'Ed25519' },
-    false,
-    ['verify'],
-  )
-  return crypto.subtle.verify(
-    { name: 'Ed25519' },
-    publicKey,
-    fromBase64Url(signatureB64Url),
-    canonicalInput(payload),
-  )
-}

@@ -1,7 +1,8 @@
 import { useDb } from '../../../../utils/db'
 import { requireAuth } from '../../../../utils/permissions'
-import { contentTaxonomyTerms, taxonomyTerms, taxonomies, contentItems } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { getContentItemOrThrow } from '../../../../utils/content-queries'
+import { contentTaxonomyTerms, taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
+import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
@@ -9,11 +10,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const itemId = getRouterParam(event, 'id')!
 
-  const item = await db.query.contentItems.findFirst({
-    where: and(eq(contentItems.id, itemId), eq(contentItems.siteId, siteId)),
-    columns: { id: true },
-  })
-  if (!item) throw notFound('Content item not found')
+  await getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true })
 
   const rows = await db
     .select({

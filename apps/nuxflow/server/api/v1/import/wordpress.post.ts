@@ -114,7 +114,7 @@ export default defineEventHandler(async (event) => {
 
   const formData = await readMultipartFormData(event)
   const xmlFile = formData?.find(f => f.name === 'file')
-  if (!xmlFile) throw createError({ statusCode: 400, message: 'No file uploaded' })
+  if (!xmlFile) throw badRequest('No file uploaded')
 
   const xml = new TextDecoder().decode(xmlFile.data)
   const { items, attachments, categories, tags } = parseWxr(xml)

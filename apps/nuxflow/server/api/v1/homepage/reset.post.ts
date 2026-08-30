@@ -1,18 +1,15 @@
-import { contentItems, contentTypes } from '@nuxflow/db/schema'
+import { contentItems } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
+import { getContentTypeBySlugOrThrow } from '../../../utils/content-queries'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = event.context.siteId as string
 
-  const type = await db.query.contentTypes.findFirst({
-    where: and(eq(contentTypes.siteId, siteId), eq(contentTypes.slug, 'page')),
-    columns: { id: true },
-  })
-  if (!type) throw notFound('Page content type not found')
+  const type = await getContentTypeBySlugOrThrow(db, siteId, 'page', 'Page content type not found', { id: true })
 
   const page = await db.query.contentItems.findFirst({
     where: and(

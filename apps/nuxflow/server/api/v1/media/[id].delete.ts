@@ -2,6 +2,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
 import { getActiveProvider } from '../../../utils/media-providers/index'
+import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
 import { media } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -11,10 +12,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
 
-  const file = await db.query.media.findFirst({
-    where: and(eq(media.id, id), eq(media.siteId, siteId)),
-  })
-  if (!file) throw notFound('Not found')
+  const file = await getMediaByIdOrThrow(db, siteId, id)
 
   const provider = await getActiveProvider(event)
   await provider.delete(file.storageKey)

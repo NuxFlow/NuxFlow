@@ -2,6 +2,7 @@ import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../../utils/audit'
 import { clearActiveThemeCache } from '../../../../utils/theme-cache'
+import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -11,10 +12,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
 
-  const theme = await db.query.themes.findFirst({
-    where: and(eq(themes.id, id), eq(themes.siteId, siteId)),
-  })
-  if (!theme) throw notFound('Theme not found')
+  await getThemeByIdOrThrow(db, siteId, id)
 
   // Deactivate all, activate target
   const deactivateAll = db.update(themes).set({ isActive: false }).where(eq(themes.siteId, siteId))

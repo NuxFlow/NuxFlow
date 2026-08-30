@@ -4,7 +4,7 @@ import { ulid } from 'ulid'
 import { membershipTiers, subscriptions } from '@nuxflow/db/schema'
 import { useDb } from '../db'
 import { resolveSetting } from '../settings'
-import { sendPushToUser } from '../webpush'
+import { sendNotification } from '../notify'
 import type { PaymentProviderName, SubscriptionStatus } from './types'
 
 // The column each provider's webhook payload actually resolves a membership tier by.
@@ -40,14 +40,18 @@ export interface SubscriptionCancellation {
   cancelledAt?: string
 }
 
-async function maybeSendPaymentPush(event: H3Event, userId: string, tierName: string | undefined) {
+async function maybeSendPaymentPush(event: H3Event, siteId: string, userId: string, tierName: string | undefined) {
   const enabled = await resolveSetting(event, 'push.events.payment_confirmation')
   if (enabled !== 'true') return
-  sendPushToUser(event, userId, {
+  await sendNotification({
+    siteId,
+    userId,
+    type: 'payment_confirmation',
     title: 'Subscription confirmed',
     body: tierName ? `You're now subscribed to ${tierName}.` : 'Your subscription is now active.',
-    url: '/account',
-  }).catch(err => console.error('[push] Payment push failed:', err))
+    sendPush: true,
+    pushUrl: '/account',
+  }, event).catch(err => console.error('[notify] Payment notification failed:', err))
 }
 
 /**
@@ -100,7 +104,7 @@ export async function upsertSubscriptionFromWebhook(event: H3Event, evt: Subscri
   })
 
   if (evt.pushOnActivation && (evt.status === 'active' || evt.status === 'trialing')) {
-    await maybeSendPaymentPush(event, evt.userId, tier?.name)
+    await maybeSendPaymentPush(event, siteId, evt.userId, tier?.name)
   }
 }
 

@@ -1,8 +1,9 @@
 import { z } from 'zod'
-import { membershipTiers, subscriptions } from '@nuxflow/db/schema'
+import { subscriptions } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
+import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
 import { resolveSetting } from '../../../utils/settings'
 import { StripeProvider } from '../../../utils/payments/stripe'
 import { LemonSqueezyProvider } from '../../../utils/payments/lemonsqueezy'
@@ -26,10 +27,7 @@ export default defineEventHandler(async (event) => {
     throw forbidden((msg as string | null) || 'New signups are temporarily paused.')
   }
 
-  const tier = await db.query.membershipTiers.findFirst({
-    where: and(eq(membershipTiers.id, body.tierId), eq(membershipTiers.siteId, siteId)),
-  })
-  if (!tier) throw notFound('Membership tier not found')
+  const tier = await getMembershipTierByIdOrThrow(db, siteId, body.tierId)
   if (!tier.isActive) throw conflict('This membership tier is no longer available')
 
   const userId = session.user.id as string

@@ -37,19 +37,19 @@ export default defineEventHandler(async (event) => {
 
   // ── Field presence ──────────────────────────────────────────────────────────
   if (!body.id || !body.name || !body.version) {
-    throw createError({ statusCode: 400, message: 'id, name, and version are required' })
+    throw badRequest('id, name, and version are required')
   }
   if (!body.serverModule && !body.clientBundle) {
-    throw createError({ statusCode: 400, message: 'At least one of serverModule or clientBundle is required' })
+    throw badRequest('At least one of serverModule or clientBundle is required')
   }
   if (!body.publisherPublicKey || !body.signature) {
-    throw createError({ statusCode: 400, message: 'publisherPublicKey and signature are required — build with `nuxflow plugin build` and deploy with `nuxflow plugin deploy`' })
+    throw badRequest('publisherPublicKey and signature are required — build with `nuxflow plugin build` and deploy with `nuxflow plugin deploy`')
   }
   if (body.serverModule && !body.serverChecksum) {
-    throw createError({ statusCode: 400, message: 'serverChecksum is required when serverModule is present' })
+    throw badRequest('serverChecksum is required when serverModule is present')
   }
   if (body.clientBundle && !body.clientChecksum) {
-    throw createError({ statusCode: 400, message: 'clientChecksum is required when clientBundle is present' })
+    throw badRequest('clientChecksum is required when clientBundle is present')
   }
 
   // ── Duplicate check ─────────────────────────────────────────────────────────
@@ -67,13 +67,13 @@ export default defineEventHandler(async (event) => {
   if (serverCode && body.serverChecksum) {
     const actual = await computeSha256(serverCode)
     if (actual !== body.serverChecksum) {
-      throw createError({ statusCode: 400, message: 'serverModule checksum mismatch — payload may be corrupted or tampered' })
+      throw badRequest('serverModule checksum mismatch — payload may be corrupted or tampered')
     }
   }
   if (clientCode && body.clientChecksum) {
     const actual = await computeSha256(clientCode)
     if (actual !== body.clientChecksum) {
-      throw createError({ statusCode: 400, message: 'clientBundle checksum mismatch — payload may be corrupted or tampered' })
+      throw badRequest('clientBundle checksum mismatch — payload may be corrupted or tampered')
     }
   }
 
@@ -91,11 +91,11 @@ export default defineEventHandler(async (event) => {
   try {
     signatureValid = await verifyPluginSignature(body.publisherPublicKey, signingPayload, body.signature)
   } catch {
-    throw createError({ statusCode: 400, message: 'Invalid publisherPublicKey format' })
+    throw badRequest('Invalid publisherPublicKey format')
   }
 
   if (!signatureValid) {
-    throw createError({ statusCode: 400, message: 'Plugin signature verification failed — the payload was not signed by the declared publisher key' })
+    throw badRequest('Plugin signature verification failed — the payload was not signed by the declared publisher key')
   }
 
   // ── Step 3: Pin publisher key across reinstalls ─────────────────────────────

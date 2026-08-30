@@ -1,7 +1,8 @@
 import { useDb } from '../../../../utils/db'
 import { requireAuth } from '../../../../utils/permissions'
-import { taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { getTaxonomyByIdOrThrow } from '../../../../utils/resource-queries'
+import { taxonomyTerms } from '@nuxflow/db/schema'
+import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
@@ -9,10 +10,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const taxonomyId = getRouterParam(event, 'id')!
 
-  const taxonomy = await db.query.taxonomies.findFirst({
-    where: and(eq(taxonomies.id, taxonomyId), eq(taxonomies.siteId, siteId)),
-  })
-  if (!taxonomy) throw notFound('Taxonomy not found')
+  await getTaxonomyByIdOrThrow(db, siteId, taxonomyId)
 
   const terms = await db.query.taxonomyTerms.findMany({
     where: eq(taxonomyTerms.taxonomyId, taxonomyId),

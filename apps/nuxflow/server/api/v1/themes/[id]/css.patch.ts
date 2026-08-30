@@ -1,6 +1,7 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { putThemeCSS } from '../../../../utils/cf-env'
+import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -11,14 +12,10 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   const { css, version } = await readBody<{ css: string; version?: string }>(event)
 
-  if (!css?.trim()) throw createError({ statusCode: 400, message: 'css is required' })
+  if (!css?.trim()) throw badRequest('css is required')
 
-  const theme = await db.query.themes.findFirst({
-    where: and(eq(themes.id, id), eq(themes.siteId, siteId)),
-    columns: { id: true, hasCss: true },
-  })
-  if (!theme) throw notFound('Theme not found')
-  if (!theme.hasCss) throw createError({ statusCode: 400, message: 'Only CSS themes can be updated this way' })
+  const theme = await getThemeByIdOrThrow(db, siteId, id, 'Theme not found', { id: true, hasCss: true })
+  if (!theme.hasCss) throw badRequest('Only CSS themes can be updated this way')
 
   await putThemeCSS(event, siteId, id, css.trim())
 

@@ -1,15 +1,18 @@
 import { useDb } from '../utils/db'
 import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
+import { createIsolateCache } from '../utils/isolate-cache'
 
 type SiteLookup = { id: string; status: string; setupCompleted: boolean; domain?: string }
 
 // Per-isolate cache: domain -> site rarely changes (only admin site
 // create/update/delete, or the self-healing domain migration below), but
 // without this every single request — public page, admin, API — paid a full
-// D1 round trip for it before any other logic ran.
-const _siteCache = new Map<string, { site: SiteLookup | undefined; expires: number }>()
-const SITE_CACHE_TTL = 30_000
+// D1 round trip for it before any other logic ran. Cached "no site found for
+// this host" is stored as `null` (a real cached value) rather than `undefined`
+// (which createIsolateCache also returns for "nothing cached yet") so a
+// never-onboarded domain doesn't defeat the cache on every request.
+const _siteCache = createIsolateCache<SiteLookup | null>(30_000)
 
 export function clearSiteCache(host?: string): void {
   if (host) _siteCache.delete(host)
@@ -31,8 +34,8 @@ export default defineEventHandler(async (event) => {
 
   const cached = _siteCache.get(host)
   let site: SiteLookup | undefined
-  if (cached && cached.expires > Date.now()) {
-    site = cached.site
+  if (cached !== undefined) {
+    site = cached ?? undefined
   } else {
     const db = useDb(event)
     try {
@@ -72,7 +75,7 @@ export default defineEventHandler(async (event) => {
           site = allSites[0]!
         }
       }
-      _siteCache.set(host, { site, expires: Date.now() + SITE_CACHE_TTL })
+      _siteCache.set(host, site ?? null)
     } catch {
       // DB not yet migrated — treat as no site so the setup guard can redirect.
       // Not cached, so the next request retries once migrations complete.

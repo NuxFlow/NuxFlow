@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
+import { getCommentByIdOrThrow } from '../../../utils/resource-queries'
 import { comments } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -16,10 +17,7 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 
-  const existing = await db.query.comments.findFirst({
-    where: and(eq(comments.id, id), eq(comments.siteId, siteId)),
-  })
-  if (!existing) throw notFound('Comment not found')
+  const existing = await getCommentByIdOrThrow(db, siteId, id)
 
   const commentUpdate = db.update(comments).set({ status: body.status }).where(and(eq(comments.id, id), eq(comments.siteId, siteId)))
 

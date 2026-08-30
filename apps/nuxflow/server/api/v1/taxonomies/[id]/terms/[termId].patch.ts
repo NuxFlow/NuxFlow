@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { useDb } from '../../../../../utils/db'
 import { requireRole } from '../../../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../../../utils/audit'
-import { taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
+import { getTaxonomyByIdOrThrow, getTaxonomyTermByIdOrThrow } from '../../../../../utils/resource-queries'
+import { taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 const bodySchema = z.object({
@@ -19,15 +20,8 @@ export default defineEventHandler(async (event) => {
   const termId = getRouterParam(event, 'termId')!
   const body = await parseBody(event, bodySchema)
 
-  const taxonomy = await db.query.taxonomies.findFirst({
-    where: and(eq(taxonomies.id, taxonomyId), eq(taxonomies.siteId, siteId)),
-  })
-  if (!taxonomy) throw notFound('Taxonomy not found')
-
-  const term = await db.query.taxonomyTerms.findFirst({
-    where: and(eq(taxonomyTerms.id, termId), eq(taxonomyTerms.taxonomyId, taxonomyId)),
-  })
-  if (!term) throw notFound('Term not found')
+  await getTaxonomyByIdOrThrow(db, siteId, taxonomyId)
+  const term = await getTaxonomyTermByIdOrThrow(db, taxonomyId, termId)
 
   const termUpdate = db.update(taxonomyTerms).set(body).where(and(eq(taxonomyTerms.id, termId), eq(taxonomyTerms.taxonomyId, taxonomyId)))
 

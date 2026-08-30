@@ -1,10 +1,9 @@
 import { z } from 'zod'
 import { generateText } from 'ai'
 import { requireAuth } from '../../../utils/permissions'
-import { getAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
 import { useDb } from '../../../utils/db'
-import { media } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
 
 const bodySchema = z.object({ mediaId: z.string() })
 
@@ -12,18 +11,13 @@ const SYSTEM = `You are an accessibility expert. Write concise, descriptive alt 
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
-  const model = await getAiSdkModel(event, 'fast')
-  if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
+  const model = await requireAiSdkModel(event, 'fast')
 
   const { mediaId } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string
   const db = useDb(event)
 
-  const file = await db.query.media.findFirst({
-    where: and(eq(media.id, mediaId), eq(media.siteId, siteId))!,
-    columns: { originalName: true, url: true, mimeType: true },
-  })
-  if (!file) throw notFound('Media not found')
+  const file = await getMediaByIdOrThrow(db, siteId, mediaId, 'Media not found', { originalName: true, url: true, mimeType: true })
 
   const prompt = `Generate alt text for an image with filename: "${file.originalName}"`
 

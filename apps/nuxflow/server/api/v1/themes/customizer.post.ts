@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
 
   const { values, css } = await readBody<{ values: CustomizerValues; css: string }>(event)
-  if (!css?.trim()) throw createError({ statusCode: 400, message: 'css is required' })
+  if (!css?.trim()) throw badRequest('css is required')
 
   // Persist all values so both the customizer and the themes-page dropdowns stay in sync
   await saveSetting(event, 'theme.customizer_values', JSON.stringify(values))

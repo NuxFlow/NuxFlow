@@ -2,6 +2,7 @@ import { membershipTiers } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
+import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
@@ -9,11 +10,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
 
-  const tier = await db.query.membershipTiers.findFirst({
-    where: and(eq(membershipTiers.id, id), eq(membershipTiers.siteId, siteId)),
-    columns: { id: true },
-  })
-  if (!tier) throw notFound('Membership tier not found')
+  await getMembershipTierByIdOrThrow(db, siteId, id, 'Membership tier not found', { id: true })
 
   await db.delete(membershipTiers).where(and(eq(membershipTiers.id, id), eq(membershipTiers.siteId, siteId)))
 

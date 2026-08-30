@@ -1,6 +1,7 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
+import { getTaxonomyByIdOrThrow } from '../../../utils/resource-queries'
 import { taxonomies } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -10,10 +11,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
 
-  const existing = await db.query.taxonomies.findFirst({
-    where: and(eq(taxonomies.id, id), eq(taxonomies.siteId, siteId)),
-  })
-  if (!existing) throw notFound('Taxonomy not found')
+  const existing = await getTaxonomyByIdOrThrow(db, siteId, id)
 
   const taxonomyDelete = db.delete(taxonomies).where(and(eq(taxonomies.id, id), eq(taxonomies.siteId, siteId)))
 

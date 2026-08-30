@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
+import { getTaxonomyByIdOrThrow } from '../../../utils/resource-queries'
 import { taxonomies } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -17,10 +18,7 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 
-  const existing = await db.query.taxonomies.findFirst({
-    where: and(eq(taxonomies.id, id), eq(taxonomies.siteId, siteId)),
-  })
-  if (!existing) throw notFound('Taxonomy not found')
+  const existing = await getTaxonomyByIdOrThrow(db, siteId, id)
 
   const taxonomyUpdate = db.update(taxonomies).set(body).where(and(eq(taxonomies.id, id), eq(taxonomies.siteId, siteId)))
 

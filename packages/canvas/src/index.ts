@@ -1,6 +1,8 @@
 export * from './types'
 export * from './blocks/definitions'
 export { useCanvas } from './editor/useCanvas'
+export { useAiImprove, AI_IMPROVE_ACTIONS } from './editor/useAiImprove'
+export type { AiInstruction, AiImproveAction } from './editor/useAiImprove'
 
 // Vue components
 export { default as CanvasContentEditor } from './editor/CanvasContentEditor.vue'

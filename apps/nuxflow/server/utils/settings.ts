@@ -4,10 +4,10 @@ import { siteSettings } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { encryptText, decryptText } from './encryption'
+import { createIsolateCache } from './isolate-cache'
 
-// Simple in-memory cache to prevent redundant D1 lookups on every request
-const settingsCache = new Map<string, { value: unknown; expires: number }>()
-const CACHE_TTL = 30_000 // 30 seconds
+// Per-isolate cache to prevent redundant D1 lookups on every request
+const settingsCache = createIsolateCache<unknown>(30_000)
 
 export const SENSITIVE_SETTING_KEYS = new Set([
   'email.resend_api_key',
@@ -53,8 +53,8 @@ export async function resolveSetting(event: H3Event, key: string, envKey?: strin
   if (siteId) {
     const cacheKey = `${siteId}:${key}`
     const cached = settingsCache.get(cacheKey)
-    if (cached && cached.expires > Date.now()) {
-      return cached.value
+    if (cached !== undefined) {
+      return cached
     }
 
     try {
@@ -78,7 +78,7 @@ export async function resolveSetting(event: H3Event, key: string, envKey?: strin
             console.warn(`[settings] Could not decrypt ${key}, using raw stored value`)
           }
         }
-        settingsCache.set(cacheKey, { value: val, expires: Date.now() + CACHE_TTL })
+        settingsCache.set(cacheKey, val)
         return val
       }
     } catch (e) {
@@ -99,7 +99,7 @@ export async function resolveSetting(event: H3Event, key: string, envKey?: strin
  */
 export async function saveSetting(event: H3Event, key: string, value: unknown): Promise<void> {
   const siteId = event.context.siteId as string
-  if (!siteId) throw createError({ statusCode: 400, message: 'Missing site ID in context' })
+  if (!siteId) throw badRequest('Missing site ID in context')
 
   const rc = useRuntimeConfig()
   const db = useDb(event)
@@ -118,7 +118,7 @@ export async function saveSetting(event: H3Event, key: string, value: unknown): 
   let finalValue = value
   if (SENSITIVE_SETTING_KEYS.has(key)) {
     if (typeof value !== 'string') {
-      throw createError({ statusCode: 400, message: `Sensitive setting ${key} must be a string` })
+      throw badRequest(`Sensitive setting ${key} must be a string`)
     }
     // If it's already the mask, do not update (keep existing)
     if (value === SECRET_MASK) {

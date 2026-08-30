@@ -2,7 +2,7 @@ import { useDb } from '../utils/db'
 import { siteSettings } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { H3Event } from 'h3'
-import { type AppearanceCache, _appearanceCache, APPEARANCE_CACHE_TTL } from '../utils/appearance-cache'
+import { type AppearanceCache, getCachedAppearance, setCachedAppearance } from '../utils/appearance-cache'
 
 // ── Sanitization ─────────────────────────────────────────────────────────────
 
@@ -24,9 +24,8 @@ const FONT_QUERY: Record<string, string> = {
 }
 
 async function resolveAppearance(event: H3Event, siteId: string): Promise<AppearanceCache> {
-  const now = Date.now()
-  const cached = _appearanceCache.get(siteId)
-  if (cached && now - cached.ts < APPEARANCE_CACHE_TTL) return cached
+  const cached = getCachedAppearance(siteId)
+  if (cached) return cached
 
   const db = useDb(event)
   const rows = await db
@@ -46,9 +45,8 @@ async function resolveAppearance(event: H3Event, siteId: string): Promise<Appear
     fontSans: map['theme.font_sans'] ?? 'system',
     customHeadHtml: map['appearance.custom_head_html'] ?? '',
     customBodyHtml: map['appearance.custom_body_html'] ?? '',
-    ts: now,
   }
-  _appearanceCache.set(siteId, entry)
+  setCachedAppearance(siteId, entry)
   return entry
 }
 

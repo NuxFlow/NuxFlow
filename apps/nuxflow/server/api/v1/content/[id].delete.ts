@@ -1,6 +1,7 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
+import { getContentItemOrThrow } from '../../../utils/content-queries'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -10,11 +11,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
 
-  const existing = await db.query.contentItems.findFirst({
-    where: and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)),
-    columns: { id: true, title: true },
-  })
-  if (!existing) throw notFound('Not found')
+  const existing = await getContentItemOrThrow(db, siteId, id, 'Not found', { id: true, title: true })
 
   const itemDelete = db.delete(contentItems)
     .where(and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)))

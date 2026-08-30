@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
 
   const formData = await readMultipartFormData(event)
   const file = formData?.find(f => f.name === 'file')
-  if (!file) throw createError({ statusCode: 400, message: 'No file uploaded' })
+  if (!file) throw badRequest('No file uploaded')
 
   if (file.data.byteLength > MAX_UPLOAD_BYTES) {
     throw createError({ statusCode: 413, message: 'Backup file exceeds 100 MB limit' })
@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
     rawZipFiles = unzipSync(file.data)
   } catch (e: unknown) {
     if (e && typeof e === 'object' && 'statusCode' in e) throw e
-    throw createError({ statusCode: 400, message: 'Invalid zip file — upload a NuxFlow .zip backup' })
+    throw badRequest('Invalid zip file — upload a NuxFlow .zip backup')
   }
   // Normalize zip entry paths to forward-slashes to support Windows-packaged ZIP archives
   const zipFiles = Object.fromEntries(
@@ -49,17 +49,17 @@ export default defineEventHandler(async (event) => {
   )
 
   const backupFile = zipFiles['backup.json']
-  if (!backupFile) throw createError({ statusCode: 400, message: 'backup.json not found in zip' })
+  if (!backupFile) throw badRequest('backup.json not found in zip')
 
   let backup: NuxFlowBackup
   try {
     backup = JSON.parse(new TextDecoder().decode(backupFile)) as NuxFlowBackup
   } catch {
-    throw createError({ statusCode: 400, message: 'backup.json is not valid JSON' })
+    throw badRequest('backup.json is not valid JSON')
   }
 
   if (backup.version !== '1') {
-    throw createError({ statusCode: 400, message: `Unsupported backup version: ${backup.version}` })
+    throw badRequest(`Unsupported backup version: ${backup.version}`)
   }
 
   const mediaResult = { uploaded: 0, skipped: 0 }

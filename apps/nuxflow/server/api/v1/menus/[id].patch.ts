@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireAuth } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
+import { getMenuByIdOrThrow } from '../../../utils/resource-queries'
 import { menus } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 
@@ -39,10 +40,7 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 
-  const existing = await db.query.menus.findFirst({
-    where: and(eq(menus.id, id), eq(menus.siteId, siteId)),
-  })
-  if (!existing) throw notFound('Menu not found')
+  const existing = await getMenuByIdOrThrow(db, siteId, id)
 
   const menuUpdate = db.update(menus)
     .set({

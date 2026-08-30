@@ -8,7 +8,7 @@ import { verifyTurnstile } from '../../../utils/turnstile'
 import { rateLimit } from '../../../utils/rate-limit'
 import { sendEmail, escapeHtml } from '../../../utils/email'
 import { resolveSetting } from '../../../utils/settings'
-import { sendPushToUser } from '../../../utils/webpush'
+import { sendNotification } from '../../../utils/notify'
 
 const CONTACT_SLUG = 'contact'
 
@@ -117,10 +117,14 @@ export default defineEventHandler(async (event) => {
   if (submitterUserId) {
     const pushEnabled = await resolveSetting(event, 'push.events.form_submission')
     if (pushEnabled === 'true') {
-      sendPushToUser(event, submitterUserId, {
+      sendNotification({
+        siteId,
+        userId: submitterUserId,
+        type: 'form_submission',
         title: 'Message received',
         body: 'Thanks for your message. We\'ll be in touch soon.',
-      }).catch(err => console.error('[push] Form submission push failed:', err))
+        sendPush: true,
+      }, event).catch(err => console.error('[notify] Form submission notification failed:', err))
     }
   }
 

@@ -1,7 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { themes } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
@@ -9,11 +8,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
 
-  const theme = await db.query.themes.findFirst({
-    where: and(eq(themes.id, id), eq(themes.siteId, siteId)),
-    columns: { id: true, packageName: true },
-  })
-  if (!theme) throw notFound('Theme not found')
+  await getThemeByIdOrThrow(db, siteId, id, 'Theme not found', { id: true, packageName: true })
 
   // The real access control lives in server/middleware/theme-preview.ts, which
   // only honors `__theme_id` for an authenticated admin (or higher) of this

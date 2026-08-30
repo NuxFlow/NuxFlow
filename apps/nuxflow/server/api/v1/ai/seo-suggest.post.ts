@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { generateText } from 'ai'
 import { requireAuth } from '../../../utils/permissions'
-import { getAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
 
 const bodySchema = z.object({
   title: z.string().min(1),
@@ -12,8 +12,7 @@ const SYSTEM = `You are an SEO expert. Return ONLY valid JSON with keys "title" 
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
-  const model = await getAiSdkModel(event, 'fast')
-  if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
+  const model = await requireAiSdkModel(event, 'fast')
 
   const { title, body } = await parseBody(event, bodySchema)
   const prompt = `Generate an SEO title and meta description for this content:\nTitle: ${title}\n${body ? `Content: ${body.slice(0, 2000)}` : ''}`

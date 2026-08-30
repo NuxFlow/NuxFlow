@@ -1,7 +1,8 @@
 import { useDb } from '../../../../../utils/db'
 import { requireRole } from '../../../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../../../utils/audit'
-import { taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
+import { getTaxonomyByIdOrThrow, getTaxonomyTermByIdOrThrow } from '../../../../../utils/resource-queries'
+import { taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -11,14 +12,8 @@ export default defineEventHandler(async (event) => {
   const taxonomyId = getRouterParam(event, 'id')!
   const termId = getRouterParam(event, 'termId')!
 
-  const taxonomy = await db.query.taxonomies.findFirst({
-    where: and(eq(taxonomies.id, taxonomyId), eq(taxonomies.siteId, siteId)),
-  })
-  if (!taxonomy) throw notFound('Taxonomy not found')
-
-  const term = await db.query.taxonomyTerms.findFirst({
-    where: and(eq(taxonomyTerms.id, termId), eq(taxonomyTerms.taxonomyId, taxonomyId)),
-  })
+  await getTaxonomyByIdOrThrow(db, siteId, taxonomyId)
+  const term = await getTaxonomyTermByIdOrThrow(db, taxonomyId, termId)
 
   const termDelete = db.delete(taxonomyTerms).where(and(eq(taxonomyTerms.id, termId), eq(taxonomyTerms.taxonomyId, taxonomyId)))
 

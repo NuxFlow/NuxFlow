@@ -5,11 +5,7 @@ export async function parseBody<T>(event: H3Event, schema: ZodSchema<T>): Promis
   const body = await readBody(event)
   const result = schema.safeParse(body)
   if (!result.success) {
-    throw createError({
-      statusCode: 422,
-      message: 'Validation error',
-      data: result.error.flatten(),
-    })
+    validationError('Validation error', result.error.flatten())
   }
   return result.data
 }
@@ -18,11 +14,7 @@ export function parseQuery<T>(event: H3Event, schema: ZodSchema<T>): T {
   const query = getQuery(event)
   const result = schema.safeParse(query)
   if (!result.success) {
-    throw createError({
-      statusCode: 422,
-      message: 'Validation error',
-      data: result.error.flatten(),
-    })
+    validationError('Validation error', result.error.flatten())
   }
   return result.data
 }

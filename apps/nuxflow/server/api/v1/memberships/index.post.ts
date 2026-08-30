@@ -7,6 +7,7 @@ import { buildAuditLogInsert } from '../../../utils/audit'
 import { resolveSetting } from '../../../utils/settings'
 import { StripeProvider } from '../../../utils/payments/stripe'
 import { LemonSqueezyProvider } from '../../../utils/payments/lemonsqueezy'
+import { syncPaymentProvider } from '../../../utils/payments/sync'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -37,19 +38,13 @@ export default defineEventHandler(async (event) => {
     if (!stripePriceId) {
       const stripeSecretKey = await resolveSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
       if (stripeSecretKey) {
-        try {
+        await syncPaymentProvider('Stripe', 'tier creation', async () => {
           const stripe = new StripeProvider(stripeSecretKey)
           const product = await stripe.createProduct(body.name, body.description || undefined)
           const price = await stripe.createPrice(product.id, body.price, body.currency, body.interval)
           stripeProductId = product.id
           stripePriceId = price.id
-        } catch (err) {
-          console.error('[stripe] Auto-sync failed on tier creation:', err)
-          throw createError({
-            statusCode: 400,
-            message: `Stripe synchronization failed: ${(err as Error).message}`,
-          })
-        }
+        })
       }
     }
 
@@ -58,18 +53,12 @@ export default defineEventHandler(async (event) => {
       const lsApiKey = await resolveSetting(event, 'payments.ls_api_key', 'lsApiKey')
       const lsStoreId = await resolveSetting(event, 'payments.ls_store_id', 'lsStoreId')
       if (lsApiKey && lsStoreId) {
-        try {
+        await syncPaymentProvider('Lemon Squeezy', 'tier creation', async () => {
           const ls = new LemonSqueezyProvider(lsApiKey, lsStoreId)
           const product = await ls.createProduct(body.name, body.description || undefined)
           const variant = await ls.createVariant(product.data.id, body.name, body.price, body.interval)
           lsVariantId = variant.data.id
-        } catch (err) {
-          console.error('[lemonsqueezy] Auto-sync failed on tier creation:', err)
-          throw createError({
-            statusCode: 400,
-            message: `Lemon Squeezy synchronization failed: ${(err as Error).message}`,
-          })
-        }
+        })
       }
     }
   }

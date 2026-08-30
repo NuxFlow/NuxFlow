@@ -3,9 +3,11 @@ import { membershipTiers } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
+import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
 import { resolveSetting } from '../../../utils/settings'
 import { StripeProvider } from '../../../utils/payments/stripe'
 import { LemonSqueezyProvider } from '../../../utils/payments/lemonsqueezy'
+import { syncPaymentProvider } from '../../../utils/payments/sync'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -28,10 +30,7 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 
-  const tier = await db.query.membershipTiers.findFirst({
-    where: and(eq(membershipTiers.id, id), eq(membershipTiers.siteId, siteId)),
-  })
-  if (!tier) throw notFound('Membership tier not found')
+  const tier = await getMembershipTierByIdOrThrow(db, siteId, id)
 
   let stripeProductId = body.stripeProductId !== undefined ? body.stripeProductId : tier.stripeProductId
   let stripePriceId = body.stripePriceId !== undefined ? body.stripePriceId : tier.stripePriceId
@@ -47,7 +46,7 @@ export default defineEventHandler(async (event) => {
     // ── Stripe sync ────────────────────────────────────────────────────────
     const stripeSecretKey = await resolveSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
     if (stripeSecretKey) {
-      try {
+      await syncPaymentProvider('Stripe', 'tier update', async () => {
         const stripe = new StripeProvider(stripeSecretKey)
         if (!stripeProductId) {
           const product = await stripe.createProduct(targetName, targetDescription)
@@ -66,20 +65,14 @@ export default defineEventHandler(async (event) => {
             stripePriceId = price.id
           }
         }
-      } catch (err) {
-        console.error('[stripe] Auto-sync failed on tier update:', err)
-        throw createError({
-          statusCode: 400,
-          message: `Stripe synchronization failed: ${(err as Error).message}`,
-        })
-      }
+      })
     }
 
     // ── Lemon Squeezy sync ────────────────────────────────────────────────
     const lsApiKey = await resolveSetting(event, 'payments.ls_api_key', 'lsApiKey')
     const lsStoreId = await resolveSetting(event, 'payments.ls_store_id', 'lsStoreId')
     if (lsApiKey && lsStoreId) {
-      try {
+      await syncPaymentProvider('Lemon Squeezy', 'tier update', async () => {
         const ls = new LemonSqueezyProvider(lsApiKey, lsStoreId)
         const priceChanged = body.price !== undefined && body.price !== tier.price
         const intervalChanged = body.interval !== undefined && body.interval !== tier.interval
@@ -95,13 +88,7 @@ export default defineEventHandler(async (event) => {
           const variant = await ls.createVariant(product.data.id, targetName, targetPrice, targetInterval)
           lsVariantId = variant.data.id
         }
-      } catch (err) {
-        console.error('[lemonsqueezy] Auto-sync failed on tier update:', err)
-        throw createError({
-          statusCode: 400,
-          message: `Lemon Squeezy synchronization failed: ${(err as Error).message}`,
-        })
-      }
+      })
     }
   }
 

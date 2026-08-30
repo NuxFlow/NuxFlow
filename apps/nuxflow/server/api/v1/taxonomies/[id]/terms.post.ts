@@ -2,8 +2,8 @@ import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../../utils/audit'
-import { taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { getTaxonomyByIdOrThrow } from '../../../../utils/resource-queries'
+import { taxonomyTerms } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
 const bodySchema = z.object({
@@ -20,10 +20,7 @@ export default defineEventHandler(async (event) => {
   const taxonomyId = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 
-  const taxonomy = await db.query.taxonomies.findFirst({
-    where: and(eq(taxonomies.id, taxonomyId), eq(taxonomies.siteId, siteId)),
-  })
-  if (!taxonomy) throw notFound('Taxonomy not found')
+  await getTaxonomyByIdOrThrow(db, siteId, taxonomyId)
 
   const id = ulid()
   const termInsert = db.insert(taxonomyTerms).values({

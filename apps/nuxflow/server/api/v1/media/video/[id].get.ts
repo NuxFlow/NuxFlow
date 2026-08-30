@@ -1,6 +1,7 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { resolveSetting } from '../../../../utils/settings'
+import { getVideoAssetByIdOrThrow } from '../../../../utils/resource-queries'
 import { videoAssets } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -10,13 +11,7 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   const db = useDb(event)
 
-  const asset = await db.query.videoAssets.findFirst({
-    where: and(eq(videoAssets.id, id), eq(videoAssets.siteId, siteId)),
-  })
-
-  if (!asset) {
-    throw notFound('Video asset not found')
-  }
+  const asset = await getVideoAssetByIdOrThrow(db, siteId, id)
 
   // If the video is still processing/uploading, sync status with Cloudflare Stream
   if (asset.status === 'processing' || asset.status === 'uploading') {

@@ -8,6 +8,7 @@ import { useDb } from '../../../../utils/db'
 import type { NuxFlowBackup } from '../../../../utils/backup'
 import { buildAuditLogInsert } from '../../../../utils/audit'
 import { clearActiveThemeCache } from '../../../../utils/theme-cache'
+import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 
 const bodySchema = z.object({
   what: z.array(z.enum(['content', 'taxonomies', 'menus', 'forms', 'settings'])).default(['content', 'taxonomies', 'menus', 'forms', 'settings']),
@@ -21,10 +22,7 @@ export default defineEventHandler(async (event) => {
   const themeId = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 
-  const theme = await db.query.themes.findFirst({
-    where: and(eq(themes.id, themeId), eq(themes.siteId, siteId)),
-  })
-  if (!theme) throw notFound('Theme not found')
+  await getThemeByIdOrThrow(db, siteId, themeId)
 
   const demoJson = await getThemeDemo(event, siteId, themeId)
   if (!demoJson) throw notFound('This theme has no demo content')

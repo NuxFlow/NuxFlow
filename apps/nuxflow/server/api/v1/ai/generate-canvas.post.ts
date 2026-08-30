@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { generateObject } from 'ai'
 import { requireAuth } from '../../../utils/permissions'
-import { getAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 
 const bodySchema = z.object({
@@ -103,8 +103,7 @@ export default defineEventHandler(async (event) => {
   await requireAuth(event)
   await rateLimit(event, { limit: 10, windowMs: 60_000, keyPrefix: 'ai-canvas' })
 
-  const model = await getAiSdkModel(event, 'smart')
-  if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
+  const model = await requireAiSdkModel(event, 'smart')
 
   const { description, tone, pageGoal } = await parseBody(event, bodySchema)
 

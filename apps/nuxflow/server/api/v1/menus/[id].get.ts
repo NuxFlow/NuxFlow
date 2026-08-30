@@ -1,7 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireAuth } from '../../../utils/permissions'
-import { menus } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { getMenuByIdOrThrow } from '../../../utils/resource-queries'
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
@@ -9,10 +8,5 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
 
-  const menu = await db.query.menus.findFirst({
-    where: and(eq(menus.id, id), eq(menus.siteId, siteId)),
-  })
-  if (!menu) throw notFound('Menu not found')
-
-  return menu
+  return getMenuByIdOrThrow(db, siteId, id)
 })

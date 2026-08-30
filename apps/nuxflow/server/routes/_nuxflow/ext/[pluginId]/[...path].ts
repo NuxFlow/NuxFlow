@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string | null
   const pluginId = getRouterParam(event, 'pluginId')!
 
-  if (!siteId) throw createError({ statusCode: 400, message: 'Unknown site' })
+  if (!siteId) throw badRequest('Unknown site')
 
   const plugin = await db.query.dynamicPlugins.findFirst({
     where: and(eq(dynamicPlugins.id, pluginId), eq(dynamicPlugins.siteId, siteId)),

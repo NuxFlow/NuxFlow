@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
+import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
 import { media, mediaFolders } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -20,10 +21,7 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 
-  const existing = await db.query.media.findFirst({
-    where: and(eq(media.id, id), eq(media.siteId, siteId)),
-  })
-  if (!existing) throw notFound('Not found')
+  const existing = await getMediaByIdOrThrow(db, siteId, id)
 
   if (body.folderId) {
     const folder = await db.query.mediaFolders.findFirst({

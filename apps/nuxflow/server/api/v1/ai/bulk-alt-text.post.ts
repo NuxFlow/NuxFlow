@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { generateText } from 'ai'
 import { requireRole } from '../../../utils/permissions'
-import { getAiSdkModel } from '../../../utils/ai-sdk'
+import { requireAiSdkModel } from '../../../utils/ai-sdk'
 import { useDb } from '../../../utils/db'
 import { media } from '@nuxflow/db/schema'
 import { and, eq, isNull, or } from 'drizzle-orm'
@@ -16,8 +16,7 @@ const SYSTEM = `You are an accessibility expert. Write concise, descriptive alt 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
 
-  const model = await getAiSdkModel(event, 'fast')
-  if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
+  const model = await requireAiSdkModel(event, 'fast')
 
   const { mediaIds } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string

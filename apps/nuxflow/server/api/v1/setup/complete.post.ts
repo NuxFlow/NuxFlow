@@ -161,7 +161,7 @@ async function _handleSetup(event: H3Event) {
   } else {
     // If creating a new user, name and password are required.
     if (!body.admin.name || !body.admin.password || body.admin.password.length < 8) {
-      throw createError({ statusCode: 400, message: 'A name and password of at least 8 characters are required for new accounts.' })
+      throw badRequest('A name and password of at least 8 characters are required for new accounts.')
     }
 
     // Create admin user directly

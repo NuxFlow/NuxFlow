@@ -1,6 +1,5 @@
 import { useDb } from '../utils/db'
-import { contentItems, sites, users } from '@nuxflow/db/schema'
-import { and, desc, eq } from 'drizzle-orm'
+import { getFeedSite, getPublishedPostsForFeed } from '../utils/feed-queries'
 
 function escHtml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -50,30 +49,9 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const config = useRuntimeConfig()
 
-  const site = await db.query.sites.findFirst({
-    where: eq(sites.id, siteId),
-    columns: { name: true, domain: true },
-  })
-
+  const site = await getFeedSite(db, siteId)
   const baseUrl = site ? `https://${site.domain}` : config.public.siteUrl
-
-  const posts = await db
-    .select({
-      id: contentItems.id,
-      title: contentItems.title,
-      slug: contentItems.slug,
-      excerpt: contentItems.excerpt,
-      content: contentItems.content,
-      ogImage: contentItems.ogImage,
-      publishedAt: contentItems.publishedAt,
-      updatedAt: contentItems.updatedAt,
-      authorName: users.name,
-    })
-    .from(contentItems)
-    .leftJoin(users, eq(contentItems.authorId, users.id))
-    .where(and(eq(contentItems.siteId, siteId), eq(contentItems.status, 'published'), eq(contentItems.visibility, 'public')))
-    .orderBy(desc(contentItems.publishedAt))
-    .limit(20)
+  const posts = await getPublishedPostsForFeed(db, siteId)
 
   const items = posts.map((p) => {
     const contentObj = p.content as Record<string, unknown> | null

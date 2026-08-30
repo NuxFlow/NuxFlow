@@ -2,6 +2,7 @@ import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { clearActiveThemeCache } from '../../../../utils/theme-cache'
 import { deleteThemeCSS, deleteThemeDemo, getThemeDemo } from '../../../../utils/cf-env'
+import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 import { themes, contentItems, menus, forms } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { NuxFlowBackup } from '../../../../utils/backup'
@@ -14,12 +15,8 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const deleteDemo = query.deleteDemo === 'true'
 
-  const theme = await db.query.themes.findFirst({
-    where: and(eq(themes.id, id), eq(themes.siteId, siteId)),
-    columns: { id: true, hasCss: true },
-  })
-  if (!theme) throw notFound('Theme not found')
-  if (!theme.hasCss) throw createError({ statusCode: 400, message: 'Only CSS themes can be deleted. Bundled themes are removed by redeploying without the package.' })
+  const theme = await getThemeByIdOrThrow(db, siteId, id, 'Theme not found', { id: true, hasCss: true })
+  if (!theme.hasCss) throw badRequest('Only CSS themes can be deleted. Bundled themes are removed by redeploying without the package.')
 
   if (deleteDemo) {
     const demoJson = await getThemeDemo(event, siteId, id)

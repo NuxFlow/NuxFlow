@@ -15,6 +15,11 @@ const fieldTypes = [
   { label: 'Checkbox', type: 'checkbox', icon: 'i-lucide-check-square' },
   { label: 'Date', type: 'date', icon: 'i-lucide-calendar' },
   { label: 'File upload', type: 'file', icon: 'i-lucide-upload' },
+  // FormField.formula exists on the schema (packages/db/src/schema/forms.ts), but
+  // nothing evaluates it yet — the only formula evaluator (safeEvaluateFormula) lived
+  // in the never-mounted FormRenderer.vue, since removed as dead code. This editor
+  // also has no UI to set a field's formula — added fields render as an
+  // always-empty readonly input until both the evaluator and this UI are built.
   { label: 'Computed', type: 'computed', icon: 'i-lucide-function-square' },
 ]
 

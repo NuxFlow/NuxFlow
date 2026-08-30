@@ -1,5 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
+import { getDynamicPluginByIdOrThrow } from '../../../../utils/resource-queries'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -9,10 +10,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
 
-  const plugin = await db.query.dynamicPlugins.findFirst({
-    where: and(eq(dynamicPlugins.id, id), eq(dynamicPlugins.siteId, siteId)),
-  })
-  if (!plugin) throw notFound('Dynamic plugin not found')
+  await getDynamicPluginByIdOrThrow(db, siteId, id)
 
   await db.update(dynamicPlugins)
     .set({ isActive: false })

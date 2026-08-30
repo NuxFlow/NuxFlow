@@ -27,7 +27,7 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
   try {
     stripeEvent = await stripe.constructWebhookEvent(rawBody, sig, stripeWebhookSecret as string)
   } catch {
-    throw createError({ statusCode: 400, message: 'Invalid Stripe webhook signature' })
+    throw badRequest('Invalid Stripe webhook signature')
   }
 
   const statusMap: Record<string, 'active' | 'cancelled' | 'past_due' | 'trialing' | 'unpaid'> = {
@@ -132,7 +132,7 @@ async function handleLemonSqueezyWebhook(event: H3Event, rawBody: string) {
   const sig = getHeader(event, 'x-signature') ?? ''
 
   const valid = await ls.verifyWebhook(rawBody, sig, lsWebhookSecret as string)
-  if (!valid) throw createError({ statusCode: 400, message: 'Invalid Lemon Squeezy webhook signature' })
+  if (!valid) throw badRequest('Invalid Lemon Squeezy webhook signature')
 
   const payload = JSON.parse(rawBody) as {
     meta: { event_name: string; custom_data?: { user_id?: string } }
@@ -179,7 +179,7 @@ async function handlePaddleWebhook(event: H3Event, rawBody: string) {
   const sig = getHeader(event, 'paddle-signature') ?? ''
 
   const valid = await paddle.verifyWebhook(rawBody, sig, paddleWebhookPublicKey as string)
-  if (!valid) throw createError({ statusCode: 400, message: 'Invalid Paddle webhook signature' })
+  if (!valid) throw badRequest('Invalid Paddle webhook signature')
 
   const payload = JSON.parse(rawBody) as {
     event_type: string
@@ -238,7 +238,7 @@ export default defineEventHandler(async (event) => {
       await handlePaddleWebhook(event, rawBody)
       break
     default:
-      throw createError({ statusCode: 400, message: `Unknown provider: ${provider}` })
+      throw badRequest(`Unknown provider: ${provider}`)
   }
 
   return { received: true }

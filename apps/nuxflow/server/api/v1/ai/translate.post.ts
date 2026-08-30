@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { generateText } from 'ai'
 import { requireAuth } from '../../../utils/permissions'
-import { getAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
@@ -120,8 +120,7 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireAuth(event)
   await rateLimit(event, { limit: 5, windowMs: 60_000, keyPrefix: 'ai-translate' })
 
-  const model = await getAiSdkModel(event, 'smart')
-  if (!model) throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
+  const model = await requireAiSdkModel(event, 'smart')
 
   const { contentItemId, targetLocale, targetSlugSuffix } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string
