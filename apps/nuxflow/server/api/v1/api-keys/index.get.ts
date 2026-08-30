@@ -10,6 +10,7 @@ export default defineEventHandler(async (event) => {
   const keys = await db.query.apiKeys.findMany({
     where: eq(apiKeys.siteId, siteId),
     columns: { id: true, name: true, scopes: true, lastUsedAt: true, expiresAt: true, createdAt: true },
+    limit: 1000,
   })
   return { apiKeys: keys }
 })

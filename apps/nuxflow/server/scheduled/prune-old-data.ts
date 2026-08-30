@@ -32,26 +32,30 @@ export const pruneOldData = async () => {
     .groupBy(contentRevisions.itemId)
     .having(sql`count(*) > ${revisionRetentionCount}`)
 
-  let prunedRevisions = 0
-
-  for (const { itemId, total } of overflowItems) {
-    // Fetch the IDs of the N most-recent revisions — these are the ones to keep
-    const keep = await db.query.contentRevisions.findMany({
+  // Fetch the IDs of the N most-recent revisions to keep, per overflowing item
+  const keepLists = await Promise.all(overflowItems.map(({ itemId }) =>
+    db.query.contentRevisions.findMany({
       where: eq(contentRevisions.itemId, itemId),
       orderBy: (t, { desc }) => [desc(t.createdAt)],
       limit: revisionRetentionCount,
       columns: { id: true },
-    })
+    }),
+  ))
 
-    if (keep.length > 0) {
-      await db.delete(contentRevisions)
-        .where(and(
-          eq(contentRevisions.itemId, itemId),
-          notInArray(contentRevisions.id, keep.map(r => r.id)),
-        ))
-      prunedRevisions += total - keep.length
-    }
+  const deleteStatements = overflowItems
+    .map(({ itemId }, i) => ({ itemId, keep: keepLists[i]! }))
+    .filter(({ keep }) => keep.length > 0)
+    .map(({ itemId, keep }) => db.delete(contentRevisions)
+      .where(and(
+        eq(contentRevisions.itemId, itemId),
+        notInArray(contentRevisions.id, keep.map(r => r.id)),
+      )))
+
+  if (deleteStatements.length > 0) {
+    await db.batch(deleteStatements as [typeof deleteStatements[number], ...typeof deleteStatements])
   }
+
+  const prunedRevisions = overflowItems.reduce((sum, { total }, i) => sum + (total - keepLists[i]!.length), 0)
 
   return { prunedAuditLogs, prunedRevisions }
 }

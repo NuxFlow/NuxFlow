@@ -7,7 +7,7 @@ import {
   menus, forms, media,
 } from '@nuxflow/db/schema'
 import type { FormField, ConditionalLogic } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
 
 // ── Backup format types ───────────────────────────────────────────────────────
@@ -100,13 +100,18 @@ export interface NuxFlowBackup {
   media: BackupMediaItem[]
 }
 
-// Replaces all occurrences of old image URLs with new ones throughout the backup JSON
+// Replaces all occurrences of old image URLs with new ones throughout the backup JSON.
+// Image URLs can appear anywhere in nested TipTap content, form fields, or menu items,
+// so a single serialize/rewrite/parse pass over the whole document is the only reliably
+// correct approach. One combined regex replaces every URL in one string scan instead of
+// N sequential replaceAll() passes (N = urlMap.size), which is what actually scales badly.
 export function rewriteImageUrls(backup: NuxFlowBackup, urlMap: Map<string, string>): NuxFlowBackup {
   if (urlMap.size === 0) return backup
-  let json = JSON.stringify(backup)
-  for (const [oldUrl, newUrl] of urlMap) {
-    json = json.replaceAll(oldUrl, newUrl)
-  }
+  const pattern = new RegExp(
+    [...urlMap.keys()].map(url => url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'),
+    'g',
+  )
+  const json = JSON.stringify(backup).replace(pattern, oldUrl => urlMap.get(oldUrl) ?? oldUrl)
   return JSON.parse(json) as NuxFlowBackup
 }
 
@@ -182,10 +187,20 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
   const backupContent: BackupContentItem[] = []
   const slugById = new Map(itemRows.map(i => [i.id, i.slug]))
 
+  const allAssignments = itemRows.length > 0
+    ? await db.query.contentTaxonomyTerms.findMany({
+        where: inArray(contentTaxonomyTerms.contentItemId, itemRows.map(i => i.id)),
+      })
+    : []
+  const assignmentsByItemId = new Map<string, typeof allAssignments>()
+  for (const a of allAssignments) {
+    const list = assignmentsByItemId.get(a.contentItemId)
+    if (list) list.push(a)
+    else assignmentsByItemId.set(a.contentItemId, [a])
+  }
+
   for (const item of itemRows) {
-    const assignments = await db.query.contentTaxonomyTerms.findMany({
-      where: eq(contentTaxonomyTerms.contentItemId, item.id),
-    })
+    const assignments = assignmentsByItemId.get(item.id) ?? []
     const termSlugs = assignments
       .map(a => termSlugById.get(a.termId))
       .filter((s): s is string => s !== undefined)

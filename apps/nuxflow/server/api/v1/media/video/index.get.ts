@@ -12,6 +12,7 @@ export default defineEventHandler(async (event) => {
     .from(videoAssets)
     .where(eq(videoAssets.siteId, siteId))
     .orderBy(desc(videoAssets.createdAt))
+    .limit(500)
 
   return list
 })

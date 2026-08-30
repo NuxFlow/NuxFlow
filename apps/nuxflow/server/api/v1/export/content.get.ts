@@ -10,8 +10,12 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const format = (query.format as string) ?? 'json'
 
+  // Capped rather than paginated — this is a "download everything" export, so silently
+  // paging would drop content. The cap exists only to keep the response within the
+  // isolate's memory ceiling on very large sites.
   const items = await db.query.contentItems.findMany({
     where: eq(contentItems.siteId, siteId),
+    limit: 20_000,
   })
 
   if (format === 'csv') {
@@ -25,5 +29,5 @@ export default defineEventHandler(async (event) => {
 
   setHeader(event, 'Content-Type', 'application/json')
   setHeader(event, 'Content-Disposition', 'attachment; filename="content-export.json"')
-  return JSON.stringify(items, null, 2)
+  return JSON.stringify(items)
 })

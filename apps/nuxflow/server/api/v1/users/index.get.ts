@@ -11,6 +11,7 @@ export default defineEventHandler(async (event) => {
   const roles = await db.query.userSiteRoles.findMany({
     where: eq(userSiteRoles.siteId, siteId),
     with: { user: { columns: { id: true, name: true, email: true, image: true, createdAt: true } } },
+    limit: 1000,
   })
 
   type UserRow = { id: string; name: string; email: string; image: string | null; createdAt: string }

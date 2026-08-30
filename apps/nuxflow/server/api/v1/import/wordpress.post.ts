@@ -8,6 +8,8 @@ import { ulid } from 'ulid'
 import { isSafeUrl } from '../../../utils/security'
 import { errorMessage } from '../../../utils/errors'
 
+const MAX_WXR_BYTES = 100 * 1024 * 1024 // 100 MB — WXR exports for large sites can be tens of MB
+
 interface WpItem {
   title: string
   slug: string
@@ -87,12 +89,22 @@ function parseWxr(xml: string): { items: WpItem[]; attachments: WpAttachment[]; 
   return { items, attachments, categories, tags }
 }
 
+// cdataOrTag is called several times per item during WXR parsing; caching the compiled
+// regex per tag name avoids recompiling the same pattern on every call across every item.
+const cdataOrTagRegexCache = new Map<string, { cdataRe: RegExp; plainRe: RegExp }>()
+
 function cdataOrTag(block: string, tag: string): string | null {
-  const cdataRe = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>`)
-  const plainRe = new RegExp(`<${tag}[^>]*>([^<]*)<\\/${tag}>`)
-  const cm = block.match(cdataRe)
+  let pair = cdataOrTagRegexCache.get(tag)
+  if (!pair) {
+    pair = {
+      cdataRe: new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>`),
+      plainRe: new RegExp(`<${tag}[^>]*>([^<]*)<\\/${tag}>`),
+    }
+    cdataOrTagRegexCache.set(tag, pair)
+  }
+  const cm = block.match(pair.cdataRe)
   if (cm) return cm[1]!.trim()
-  const pm = block.match(plainRe)
+  const pm = block.match(pair.plainRe)
   return pm ? pm[1]!.trim() : null
 }
 
@@ -116,6 +128,9 @@ export default defineEventHandler(async (event) => {
   const formData = await readMultipartFormData(event)
   const xmlFile = formData?.find(f => f.name === 'file')
   if (!xmlFile) throw badRequest('No file uploaded')
+  if (xmlFile.data.byteLength > MAX_WXR_BYTES) {
+    throw createError({ statusCode: 413, message: 'WXR file exceeds 100 MB limit' })
+  }
 
   const xml = new TextDecoder().decode(xmlFile.data)
   const { items, attachments, categories, tags } = parseWxr(xml)

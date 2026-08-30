@@ -45,15 +45,19 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
 
   // 2. Delete site-owned records manually to ensure they're removed
   // (In case PRAGMA foreign_keys is not ON in the DB environment like D1)
-  await db.delete(contentItems).where(eq(contentItems.siteId, siteId))
-  await db.delete(contentTypes).where(eq(contentTypes.siteId, siteId))
-  await db.delete(taxonomies).where(eq(taxonomies.siteId, siteId))
-  await db.delete(siteSettings).where(eq(siteSettings.siteId, siteId))
-  await db.delete(dynamicPlugins).where(eq(dynamicPlugins.siteId, siteId))
-  await db.delete(themes).where(eq(themes.siteId, siteId))
-  await db.delete(auditLogs).where(eq(auditLogs.siteId, siteId))
-  await db.delete(notifications).where(eq(notifications.siteId, siteId))
-  await db.delete(apiKeys).where(eq(apiKeys.siteId, siteId))
+  // Batched so the 9 deletes are one atomic round trip instead of leaving the
+  // site half-deleted if a later statement fails.
+  await db.batch([
+    db.delete(contentItems).where(eq(contentItems.siteId, siteId)),
+    db.delete(contentTypes).where(eq(contentTypes.siteId, siteId)),
+    db.delete(taxonomies).where(eq(taxonomies.siteId, siteId)),
+    db.delete(siteSettings).where(eq(siteSettings.siteId, siteId)),
+    db.delete(dynamicPlugins).where(eq(dynamicPlugins.siteId, siteId)),
+    db.delete(themes).where(eq(themes.siteId, siteId)),
+    db.delete(auditLogs).where(eq(auditLogs.siteId, siteId)),
+    db.delete(notifications).where(eq(notifications.siteId, siteId)),
+    db.delete(apiKeys).where(eq(apiKeys.siteId, siteId)),
+  ])
 
   // 3. Handle users and roles
   const siteRoles = await db
@@ -79,12 +83,13 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
     const toDelete = siteUserIds.filter(uid => !sharedIds.has(uid))
 
     if (toDelete.length > 0) {
-      // Manually delete user-owned records
-      await db.delete(accounts).where(inArray(accounts.userId, toDelete))
-      await db.delete(sessions).where(inArray(sessions.userId, toDelete))
-      await db.delete(passkeys).where(inArray(passkeys.userId, toDelete))
-      // Delete the users
-      await db.delete(users).where(inArray(users.id, toDelete))
+      // Manually delete user-owned records, then the users themselves, as one batch
+      await db.batch([
+        db.delete(accounts).where(inArray(accounts.userId, toDelete)),
+        db.delete(sessions).where(inArray(sessions.userId, toDelete)),
+        db.delete(passkeys).where(inArray(passkeys.userId, toDelete)),
+        db.delete(users).where(inArray(users.id, toDelete)),
+      ])
     }
   }
 

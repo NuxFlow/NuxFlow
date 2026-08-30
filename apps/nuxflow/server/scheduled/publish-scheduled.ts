@@ -1,23 +1,23 @@
 import { useDb } from '../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
-import { and, eq, lte, sql } from 'drizzle-orm'
+import { and, count, eq, lte, sql } from 'drizzle-orm'
 
 export const publishScheduled = async () => {
   const db = useDb()
 
-  const due = await db.query.contentItems.findMany({
-    where: and(
-      eq(contentItems.status, 'scheduled'),
-      lte(contentItems.scheduledAt, sql`(datetime('now'))`),
-    ),
-    columns: { id: true },
-  })
+  const where = and(
+    eq(contentItems.status, 'scheduled'),
+    lte(contentItems.scheduledAt, sql`(datetime('now'))`),
+  )
 
-  for (const item of due) {
+  const [row] = await db.select({ value: count() }).from(contentItems).where(where)
+  const due = row?.value ?? 0
+
+  if (due > 0) {
     await db.update(contentItems)
       .set({ status: 'published', publishedAt: sql`(datetime('now'))` })
-      .where(eq(contentItems.id, item.id))
+      .where(where)
   }
 
-  return { published: due.length }
+  return { published: due }
 }
