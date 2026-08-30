@@ -25,6 +25,7 @@ export interface MockEventOptions {
   params?: Record<string, string>
   path?: string
   apiKeyUserId?: string
+  cookies?: Record<string, string>
 }
 
 export function createMockEvent(opts: MockEventOptions = {}) {
@@ -45,6 +46,7 @@ export function createMockEvent(opts: MockEventOptions = {}) {
     _responseHeaders: {} as Record<string, string | string[]>,
     _status: undefined as number | undefined,
     _redirect: undefined as { url: string; code: number } | undefined,
+    _cookies: { ...opts.cookies } as Record<string, string>,
   }
 }
 

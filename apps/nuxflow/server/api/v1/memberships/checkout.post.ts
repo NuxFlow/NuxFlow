@@ -66,7 +66,7 @@ export default defineEventHandler(async (event) => {
           currentPeriodEnd: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
           updatedAt: new Date().toISOString(),
         })
-        .where(eq(subscriptions.id, existing.id))
+        .where(and(eq(subscriptions.id, existing.id), eq(subscriptions.siteId, siteId)))
     }
 
     return { url: body.returnUrl }

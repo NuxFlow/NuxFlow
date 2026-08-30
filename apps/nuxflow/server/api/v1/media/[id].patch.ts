@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
-import { media } from '@nuxflow/db/schema'
+import { media, mediaFolders } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 const bodySchema = z.object({
@@ -24,6 +24,14 @@ export default defineEventHandler(async (event) => {
     where: and(eq(media.id, id), eq(media.siteId, siteId)),
   })
   if (!existing) throw notFound('Not found')
+
+  if (body.folderId) {
+    const folder = await db.query.mediaFolders.findFirst({
+      where: and(eq(mediaFolders.id, body.folderId), eq(mediaFolders.siteId, siteId)),
+      columns: { id: true },
+    })
+    if (!folder) throw notFound('Folder not found')
+  }
 
   await db.update(media).set(body).where(and(eq(media.id, id), eq(media.siteId, siteId)))
 

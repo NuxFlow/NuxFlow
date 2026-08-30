@@ -4,7 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
 import { resolveSetting } from '../../../utils/settings'
 import { broadcastPushToSite } from '../../../utils/webpush'
-import { getContentItemOrThrow } from '../../../utils/content-queries'
+import { getContentItemOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
 import { contentItems, contentRevisions } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -56,6 +56,13 @@ export default defineEventHandler(async (event) => {
 
   const nextVersion = existing.version + 1
 
+  // `settings.access` (the editor's "Content access" control) is the source of truth for
+  // gating; `visibility` is what the public gate actually checks, so keep it derived from
+  // settings on every write that touches settings — never left stale at its 'public' default.
+  const visibility = updateFields.settings !== undefined
+    ? deriveVisibilityFromSettings(updateFields.settings)
+    : undefined
+
   // Snapshot revision before update
   const revisionInsert = db.insert(contentRevisions).values({
     id: ulid(),
@@ -68,6 +75,7 @@ export default defineEventHandler(async (event) => {
   const itemUpdate = db.update(contentItems)
     .set({
       ...updateFields,
+      ...(visibility !== undefined ? { visibility } : {}),
       version: nextVersion,
       updatedAt: sql`(datetime('now'))`,
       publishedAt: updateFields.status === 'published' && !existing.publishedAt

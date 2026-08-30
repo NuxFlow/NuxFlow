@@ -35,7 +35,14 @@ const {
   canUndo,
   canRedo,
   recordDiscrete,
+  flushPendingProps,
 } = useCanvas(initial)
+
+// Exposed so the host page (e.g. the admin content editor) can flush any
+// in-flight debounced field edit before it reads the v-model value to save —
+// otherwise a save triggered within the ~120ms debounce window could ship
+// content missing the last keystroke(s). See useCanvas.ts's updateBlockProp.
+defineExpose({ flushPendingProps })
 
 watch(canvas, () => emit('update:modelValue', toJSON()), { deep: true })
 

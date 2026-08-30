@@ -16,6 +16,7 @@ import {
   subscriptions,
   siteSettings,
   media,
+  mediaFolders,
   videoAssets,
 } from '@nuxflow/db/schema'
 import type { TestDb } from './db'
@@ -202,6 +203,21 @@ export async function seedMedia(
     url: `https://example.com/${id.toLowerCase()}.jpg`,
     storageKey: `media/${id.toLowerCase()}.jpg`,
     storageProvider: 'cloudflare',
+    ...overrides,
+  })
+  return id
+}
+
+export async function seedMediaFolder(
+  db: TestDb,
+  siteId: string,
+  overrides: Partial<typeof mediaFolders.$inferInsert> = {},
+) {
+  const id = overrides.id ?? ulid()
+  await db.insert(mediaFolders).values({
+    id,
+    siteId,
+    name: 'Test Folder',
     ...overrides,
   })
   return id

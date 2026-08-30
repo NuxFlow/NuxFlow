@@ -5,7 +5,7 @@
 // (rather than inside plugins/theme-resolver.ts) so mutation routes can
 // import clearActiveThemeCache() without pulling in that file's top-level
 // defineNitroPlugin() call, which only exists inside the Nitro runtime.
-export type ActiveTheme = { id: string; hasCss: boolean } | null
+export type ActiveTheme = { id: string; hasCss: boolean; packageName: string } | null
 
 const _activeThemeCache = new Map<string, { theme: ActiveTheme; expires: number }>()
 const ACTIVE_THEME_CACHE_TTL = 60_000

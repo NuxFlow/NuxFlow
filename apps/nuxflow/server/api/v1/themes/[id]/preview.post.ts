@@ -15,9 +15,12 @@ export default defineEventHandler(async (event) => {
   })
   if (!theme) throw notFound('Theme not found')
 
+  // The real access control lives in server/middleware/theme-preview.ts, which
+  // only honors `__theme_id` for an authenticated admin (or higher) of this
+  // site — this endpoint itself already required that via requireRole above,
+  // so the URL just needs to carry the theme id, not a bearer-style secret.
   const config = useRuntimeConfig()
-  const token = Buffer.from(`${id}:${Date.now()}`).toString('base64url')
-  const previewUrl = `${config.public.siteUrl}/?__theme_preview=${token}&__theme_id=${id}`
+  const previewUrl = `${config.public.siteUrl}/?__theme_id=${id}`
 
-  return { previewUrl, token }
+  return { previewUrl }
 })

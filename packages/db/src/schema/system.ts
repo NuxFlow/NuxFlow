@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 import { sites } from './sites'
 import { users } from './users'
@@ -76,6 +76,20 @@ export const dynamicPlugins = sqliteTable('dynamic_plugins', {
   installedAt: text('installed_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_dynamic_plugins_site').on(t.siteId),
+])
+
+// Pins a plugin id's publisher key per site, independent of the `dynamic_plugins` row
+// lifecycle — a delete+reinstall (the only "update" path today, via `nuxflow plugin update`)
+// must not silently let a different key take over a previously-trusted plugin id. Cleared
+// only via the explicit trust-reset endpoint, for intentional publisher key rotation.
+export const dynamicPluginTrust = sqliteTable('dynamic_plugin_trust', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  pluginId: text('plugin_id').notNull(),
+  publisherPublicKey: text('publisher_public_key').notNull(),
+  firstInstalledAt: text('first_installed_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  uniqueIndex('idx_dynamic_plugin_trust_site_plugin').on(t.siteId, t.pluginId),
 ])
 
 export const pushSubscriptions = sqliteTable('push_subscriptions', {

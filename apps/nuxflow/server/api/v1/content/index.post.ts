@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
-import { getContentTypeBySlugOrThrow } from '../../../utils/content-queries'
+import { getContentTypeBySlugOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
 import { contentItems, sites } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -15,6 +15,7 @@ const bodySchema = z.object({
   content: z.unknown().optional(),
   seoTitle: z.string().max(200).optional(),
   seoDescription: z.string().max(500).optional(),
+  settings: z.record(z.string(), z.unknown()).optional(),
   locale: z.string().max(10).optional(),
   sourceItemId: z.string().optional(),
   eventStartAt: z.string().nullish(),
@@ -48,9 +49,11 @@ export default defineEventHandler(async (event) => {
     title: body.title,
     slug: body.slug,
     status: body.status,
+    visibility: deriveVisibilityFromSettings(body.settings),
     content: body.content,
     seoTitle: body.seoTitle,
     seoDescription: body.seoDescription,
+    settings: body.settings,
     locale: body.locale || siteLocale,
     sourceItemId: body.sourceItemId || null,
     eventStartAt: body.eventStartAt || null,

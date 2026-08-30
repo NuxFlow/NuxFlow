@@ -68,7 +68,7 @@ export default defineEventHandler(async (event) => {
                   duration: duration ?? asset.duration,
                   thumbnailUrl: thumbnailUrl ?? asset.thumbnailUrl,
                 })
-                .where(eq(videoAssets.id, id))
+                .where(and(eq(videoAssets.id, id), eq(videoAssets.siteId, siteId)))
 
               // Return updated object
               return {

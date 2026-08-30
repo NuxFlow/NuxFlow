@@ -9,7 +9,7 @@ export default createConfigForNuxt({
     src: ['./apps/nuxflow'],
   },
 }).append(
-  { ignores: ['apps/nuxflow/server/stubs/**'] },
+  { ignores: ['apps/nuxflow/server/stubs/**', 'apps/nuxflow/worker-configuration.d.ts'] },
   {
     rules: {
       'no-console': ['warn', { allow: ['warn', 'error'] }],

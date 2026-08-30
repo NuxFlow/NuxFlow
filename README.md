@@ -504,19 +504,23 @@ The left panel gives you point-and-click controls for:
 
 The right panel shows a live iframe preview of your actual site, updating as you change controls (300 ms debounce). Use the device toggle to switch between Desktop, Tablet, and Mobile viewports. Click **Publish** to write the generated CSS to a managed theme and activate it instantly.
 
-### Themes (Nuxt layers)
+### Themes (CSS packages)
 
-Themes are [Nuxt layers](https://nuxt.com/docs/guide/going-further/layers) — they can override any component, page, layout, or asset. The active theme is loaded per request; switching themes is instant and does not affect live visitors until Activate is clicked.
+A theme is a CSS file (plus optional `theme.json` metadata and `demo.json` seed content) — not a Nuxt layer or Vue components. Theme CSS is stored in Cloudflare KV and injected as an inline `<style>` block into every SSR response, so activating a theme is instant and needs no redeploy or Worker rebuild.
 
-### Default theme
+### Default theme reference
 
-`themes/default/` includes block renderer components for every built-in block type. Fork it to create your own theme.
+`themes/default/assets/css/theme.css` is the authoritative, heavily-commented reference for every CSS token and selector a theme can target — use it as the starting point for any new theme. `examples/hello-theme/` is a small working example built from it.
 
 ### Creating a theme
 
 ```bash
 npx nuxflow theme create my-theme
 ```
+
+### Layout regions (structural theming)
+
+CSS can restyle the built-in header/footer but can't replace their markup or behavior. For that, a dynamic plugin can register a block (see the [plugin development guide](./docs/plugins.md)) and be designated in **Admin → Themes → Layout regions** to render in place of the built-in header/footer on every public page. Falls back to the built-in components when unset, so this is purely additive.
 
 ---
 

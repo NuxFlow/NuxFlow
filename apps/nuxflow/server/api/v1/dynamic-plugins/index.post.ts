@@ -2,8 +2,9 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { putPluginServerCode, putPluginClientBundle } from '../../../utils/cf-env'
 import { verifyPluginSignature, computeSha256 } from '../../../utils/plugin-signing'
-import { dynamicPlugins } from '@nuxflow/db/schema'
+import { dynamicPlugins, dynamicPluginTrust } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { ulid } from 'ulid'
 
 interface InstallBody {
   id: string
@@ -97,6 +98,21 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Plugin signature verification failed — the payload was not signed by the declared publisher key' })
   }
 
+  // ── Step 3: Pin publisher key across reinstalls ─────────────────────────────
+  // `plugin update` deletes the old row and installs fresh, so without a record that
+  // outlives the row itself, a different key could silently take over a plugin id that
+  // was previously trusted. The trust record survives normal delete/reinstall — only the
+  // dedicated trust-reset endpoint (super admin only) clears it for intentional key rotation.
+  const trust = await db.query.dynamicPluginTrust.findFirst({
+    where: and(eq(dynamicPluginTrust.siteId, siteId), eq(dynamicPluginTrust.pluginId, body.id)),
+  })
+  if (trust && trust.publisherPublicKey !== body.publisherPublicKey) {
+    throw createError({
+      statusCode: 409,
+      message: `Plugin "${body.id}" was previously installed under a different publisher key. If this is an intentional key rotation by the same publisher, a super admin must reset its trust record first (DELETE /api/v1/dynamic-plugins/${body.id}/trust).`,
+    })
+  }
+
   // ── Store in KV + D1 ────────────────────────────────────────────────────────
   if (serverCode) await putPluginServerCode(event, siteId, body.id, serverCode)
   if (clientCode) await putPluginClientBundle(event, siteId, body.id, clientCode)
@@ -115,6 +131,15 @@ export default defineEventHandler(async (event) => {
     publisherPublicKey: body.publisherPublicKey,
     signature: body.signature,
   })
+
+  if (!trust) {
+    await db.insert(dynamicPluginTrust).values({
+      id: ulid(),
+      siteId,
+      pluginId: body.id,
+      publisherPublicKey: body.publisherPublicKey,
+    })
+  }
 
   return { success: true }
 })

@@ -30,19 +30,7 @@
 
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 2 — Legacy colour tokens
-   ─────────────────────────────────────────────────────────────────────────────
-   These are the original design tokens. Third-party themes that pre-date
-   the --nuxflow-primary variable should continue to use these.
-   ───────────────────────────────────────────────────────────────────────────── */
-:root {
-  --color-primary:       #00dc82;
-  --color-primary-hover: #00c274;
-}
-
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 3 — Admin dashboard glass surfaces
+   SECTION 2 — Admin dashboard glass surfaces
    ─────────────────────────────────────────────────────────────────────────────
    Control the sidebar, top header bar, and hoverable card surfaces in the
    admin dashboard. Light-mode values are semi-transparent white; dark-mode
@@ -68,7 +56,7 @@
 
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 4 — Admin page background mesh
+   SECTION 3 — Admin page background mesh
    ─────────────────────────────────────────────────────────────────────────────
    The gradient canvas behind all admin pages. Light mode uses clean white.
    Dark mode uses a deep navy with subtle colour radials at the corners.
@@ -88,7 +76,7 @@
 
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 5 — Sidebar active nav item
+   SECTION 4 — Sidebar active nav item
    ─────────────────────────────────────────────────────────────────────────────
    The highlighted link in the left navigation for the current page.
    color-mix() derives the tinted background and readable text colour from
@@ -107,7 +95,7 @@
 
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 6 — Public page Canvas block selectors
+   SECTION 5 — Public page Canvas block selectors
    ─────────────────────────────────────────────────────────────────────────────
    Every Canvas block renders with a semantic class on its root element.
    Target these selectors in your theme to style the public pages built with
@@ -162,7 +150,7 @@
 
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 7 — Public page content typography
+   SECTION 6 — Public page content typography
    ─────────────────────────────────────────────────────────────────────────────
    .nux-content wraps all TipTap-rendered rich text on pages using the
    standard block editor (not Canvas). Targets blog posts, About pages, etc.

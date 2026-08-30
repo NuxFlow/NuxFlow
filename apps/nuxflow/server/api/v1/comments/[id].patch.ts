@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   })
   if (!existing) throw notFound('Comment not found')
 
-  const commentUpdate = db.update(comments).set({ status: body.status }).where(eq(comments.id, id))
+  const commentUpdate = db.update(comments).set({ status: body.status }).where(and(eq(comments.id, id), eq(comments.siteId, siteId)))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',

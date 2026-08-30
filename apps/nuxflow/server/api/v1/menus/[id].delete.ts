@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
   const existing = await db.query.menus.findFirst({
     where: and(eq(menus.id, id), eq(menus.siteId, siteId)),
   })
+  if (!existing) throw notFound('Menu not found')
 
   const menuDelete = db.delete(menus).where(and(eq(menus.id, id), eq(menus.siteId, siteId)))
 

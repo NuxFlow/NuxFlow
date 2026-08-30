@@ -7,10 +7,6 @@
  */
 
 :root {
-  /* ── Brand colours ─────────────────────────────────────── */
-  --color-primary:       #f97316;
-  --color-primary-hover: #ea580c;
-
   /* ── Glassmorphism — warm peach tints ─────────────────── */
   --glass-bg:           rgba(255, 237, 213, 0.45);
   --glass-border:       rgba(253, 186, 116, 0.65);

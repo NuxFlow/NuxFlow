@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
-import { seedSite, seedUser, seedRole, seedMedia } from '../helpers/seed'
+import { seedSite, seedUser, seedRole, seedMedia, seedMediaFolder } from '../helpers/seed'
 import handler from '../../server/api/v1/media/[id].patch'
 
 vi.mock('../../server/utils/db', () => ({
@@ -102,11 +102,24 @@ describe('PATCH /api/v1/media/:id', () => {
   })
 
   it('updates folderId', async () => {
+    const db = getCurrentTestDb()
+    const folderId = await seedMediaFolder(db, SITE)
+
     const result = await (handler as HandlerFn)(
-      mkEvent(mediaId, { folderId: 'folder-abc' }),
+      mkEvent(mediaId, { folderId }),
     ) as { id: string }
 
     expect(result.id).toBe(mediaId)
+  })
+
+  it('rejects folderId belonging to another site', async () => {
+    const db = getCurrentTestDb()
+    const otherSite = await seedSite(db, { domain: 'media-patch-other.localhost' })
+    const foreignFolderId = await seedMediaFolder(db, otherSite)
+
+    await expect(
+      (handler as HandlerFn)(mkEvent(mediaId, { folderId: foreignFolderId })),
+    ).rejects.toThrow()
   })
 
   it('rejects focalX outside 0–100 range', async () => {

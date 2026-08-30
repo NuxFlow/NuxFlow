@@ -1,4 +1,4 @@
-import { ref, computed, inject } from 'vue'
+import { ref, computed, inject, onBeforeUnmount } from 'vue'
 import type { CanvasContent, CanvasBlockData, CanvasBlockDefinition } from '../types'
 import { emptyCanvas } from '../types'
 import { resolveDefinition } from '../blocks/definitions'
@@ -18,6 +18,7 @@ function uuid(): string {
 
 const MAX_HISTORY = 50
 const BURST_DEBOUNCE_MS = 600
+const PROP_COMMIT_DEBOUNCE_MS = 120
 
 export function useCanvas(initial?: CanvasContent) {
   const registry = inject<BlockRegistryLike | null>('nuxflow:blockRegistry', null)
@@ -99,6 +100,7 @@ export function useCanvas(initial?: CanvasContent) {
   }
 
   function recordDiscrete() {
+    flushPendingProps()
     flushPendingBurst()
     pushUndo(snapshot())
   }
@@ -123,6 +125,7 @@ export function useCanvas(initial?: CanvasContent) {
   }
 
   function undo() {
+    flushPendingProps()
     flushPendingBurst()
     const prev = undoStack.value.pop()
     if (!prev) return
@@ -132,6 +135,7 @@ export function useCanvas(initial?: CanvasContent) {
   }
 
   function redo() {
+    flushPendingProps()
     flushPendingBurst()
     const next = redoStack.value.pop()
     if (!next) return
@@ -186,13 +190,60 @@ export function useCanvas(initial?: CanvasContent) {
     found.list.splice(found.index, 1)
   }
 
-  function updateBlockProp(id: string, key: string, value: unknown) {
+  // Committing every keystroke straight to `canvas` fires the deep watcher in
+  // CanvasContentEditor (full-tree JSON clone) and the parent form's own deep
+  // watcher on every character typed. Coalesce rapid-fire updates to the same
+  // target into one commit, ~120ms after the last one, before they reach the
+  // reactive tree at all — cutting those full-tree traversals down to roughly
+  // once per debounce window instead of once per keystroke.
+  //
+  // `id`/`key`/`value` are captured by value in `pendingPropCommit`, never
+  // re-read from `selectedBlock` or any other live/reactive source when the
+  // timer fires — this is what makes it safe to defer: even if the user
+  // switches to a different block or field before the timer fires, the
+  // deferred commit still lands on the exact block/prop it was meant for.
+  let propCommitTimer: ReturnType<typeof setTimeout> | null = null
+  let pendingPropCommit: { id: string; key: string; value: unknown } | null = null
+
+  function applyPropCommit(id: string, key: string, value: unknown) {
     const found = findParentList(canvas.value.blocks, id)
     if (!found) return
-    recordDebounced(id, key)
     const block = found.list[found.index]!
     block.props = { ...block.props, [key]: value }
   }
+
+  /** Commits any in-flight debounced prop write immediately — must run before
+   * anything reads or replaces `canvas` wholesale (save, undo/redo, reset,
+   * discrete mutations, unmount), or the pending edit would be silently lost. */
+  function flushPendingProps() {
+    if (propCommitTimer !== null) {
+      clearTimeout(propCommitTimer)
+      propCommitTimer = null
+    }
+    if (pendingPropCommit) {
+      const { id, key, value } = pendingPropCommit
+      pendingPropCommit = null
+      applyPropCommit(id, key, value)
+    }
+  }
+
+  function updateBlockProp(id: string, key: string, value: unknown) {
+    recordDebounced(id, key)
+
+    // Switching to a different target mid-burst — flush the previous one now
+    // so it's never dropped or merged into the wrong block/prop.
+    if (pendingPropCommit && (pendingPropCommit.id !== id || pendingPropCommit.key !== key)) {
+      flushPendingProps()
+    }
+    pendingPropCommit = { id, key, value }
+    if (propCommitTimer !== null) clearTimeout(propCommitTimer)
+    propCommitTimer = setTimeout(() => {
+      propCommitTimer = null
+      flushPendingProps()
+    }, PROP_COMMIT_DEBOUNCE_MS)
+  }
+
+  onBeforeUnmount(() => flushPendingProps())
 
   function moveBlock(id: string, direction: 'up' | 'down') {
     const found = findParentList(canvas.value.blocks, id)
@@ -260,6 +311,7 @@ export function useCanvas(initial?: CanvasContent) {
   }
 
   function reset(content: CanvasContent) {
+    flushPendingProps()
     flushPendingBurst()
     canvas.value = JSON.parse(JSON.stringify(content))
     selectedId.value = null
@@ -270,6 +322,7 @@ export function useCanvas(initial?: CanvasContent) {
   // ── Serialise ─────────────────────────────────────────────────────────────
 
   function toJSON(): CanvasContent {
+    flushPendingProps()
     return JSON.parse(JSON.stringify(canvas.value))
   }
 
@@ -288,6 +341,7 @@ export function useCanvas(initial?: CanvasContent) {
     selectBlock,
     reset,
     toJSON,
+    flushPendingProps,
     undo,
     redo,
     canUndo,

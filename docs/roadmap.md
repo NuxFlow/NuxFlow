@@ -242,6 +242,41 @@ In the dashboard Editorial Calendar (`/admin/calendar`), event items query their
 
 ---
 
+## [DEFERRED] Isolated App/Server TypeScript Type-Checking
+
+### Status: Blocked on upstream Nuxt bugs — revisit on Nuxt upgrade
+
+Unlike the feature work above, this is internal tooling debt, not a product feature — tracked here so the reasoning and exit condition aren't lost.
+
+### The situation
+
+`pnpm typecheck` currently type-checks the Vue app (`app/**`) and the Nitro server (`server/**`) as **one shared program** rather than two isolated ones. Nuxt generates separate sub-configs (`.nuxt/tsconfig.server.json` with `webworker` lib, no `dom`) that look like they'd isolate the two, but the root `apps/nuxflow/tsconfig.json` doesn't reference them, so `nuxt typecheck` never actually runs them as a proper composite build — it falls back to a single unified `vue-tsc --noEmit` pass, and server files end up pulled into the same program as app files via Nuxt's typed-`$fetch` route inference.
+
+Practical effect: Cloudflare Workers runtime types (`apps/nuxflow/worker-configuration.d.ts`, added for the security audit's plugin-sandboxing work) are visible from browser-side Vue code too, and vice versa. Mostly harmless, but real — e.g. `Response.json()` returns `Promise<unknown>` (workerd's stricter typing) instead of `Promise<any>` (DOM's) even inside `.vue` components, because both are in the same program. Confirmed empirically, not theoretical — see `apps/nuxflow/tsconfig.json` and the "Cloudflare-specific utilities" section of `CLAUDE.md` for the full account.
+
+### Why not fixed now
+
+Nuxt's own docs confirm the unified pattern is legacy and will be replaced by TypeScript project references (`references: [...]` in the root tsconfig) — that's the correct target architecture, not a workaround. But turning it on today (Nuxt 4.4.x) hits multiple open upstream bugs:
+
+- [nuxt/cli#1224](https://github.com/nuxt/cli/issues/1224) — `-b` build mode fails to resolve `declare global` auto-imports
+- [nuxt/nuxt#34212](https://github.com/nuxt/nuxt/issues/34212) — typecheck errors on auto-imported Vue/Nuxt utils
+- [nuxt/nuxt#35319](https://github.com/nuxt/nuxt/issues/35319) — crash combining `tsconfig.server.json` with certain SSR/typecheck settings
+
+Switching now would trade one small, already-fixed type gap for currently-broken tooling. Not worth it pre-release.
+
+### What to do when ready
+
+This is a mechanical flip, not a redesign, once Nuxt fixes the issues above (or a Nuxt upgrade sidesteps them):
+
+1. Add `"references": [{ "path": "./.nuxt/tsconfig.server.json" }]` (plus any other generated sub-configs worth isolating) to `apps/nuxflow/tsconfig.json`.
+2. Run `pnpm typecheck` — this makes `nuxt typecheck` switch to `vue-tsc -b --noEmit` (composite build mode) automatically.
+3. Confirm auto-imports (`ref`, `useState`, etc.) still resolve and nothing crashes.
+4. If clean: remove the `REVISIT` comment block from `tsconfig.json`, and confirm `worker-configuration.d.ts` is only visible from server-side files (move it under `server/types/` if the isolated server tsconfig's `include` picks it up there instead of needing the project-root location the unified setup required).
+
+No urgency to monitor actively — check when bumping Nuxt to a new major/minor, or if the linked issues show as closed.
+
+---
+
 ## SMS Notifications
 
 ### Vision

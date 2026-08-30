@@ -36,6 +36,20 @@
       "when": 1787820887565,
       "tag": "0004_volatile_revanche",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1788000000000,
+      "tag": "0005_backfill_content_visibility",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788010803491,
+      "tag": "0006_tiresome_killer_shrike",
+      "breakpoints": true
     }
   ]
 }

@@ -177,6 +177,12 @@ The block ID format is `{pluginId}/{blockName}`. The `icon` accepts any [Iconify
 
 The client bundle is compiled for the browser (`platform: browser`, `target: es2020`, minified). Both `server.ts` and `client.ts` are optional — you can have a server-only plugin (API endpoints with no Canvas blocks) or a client-only plugin (Canvas blocks with no server endpoints).
 
+### Structural theming: registering a header or footer
+
+CSS themes (see [Themes & Visual Customizer](../README.md#themes--visual-customizer)) can restyle the built-in site header/footer, but can't replace their markup or behavior — CSS-only themes deliberately can't ship arbitrary code, for the same sandboxing reasons dynamic plugins go through Ed25519 signing and a network-isolated Worker. If a theme needs a structurally different header or footer (not just a different look), ship it as a plugin block using the exact same `registry.register()` call above — there's no separate API. The admin then designates it under **Admin → Themes → Layout regions**, which renders it in place of `PublicSiteHeader`/`PublicSiteFooter` on every public page (`app/layouts/default.vue`).
+
+A block intended for this should be self-contained (fetch whatever data it needs itself, e.g. from `GET /api/public/site`) since it's rendered with no props — it isn't a child of any specific page's content tree the way a normal Canvas block is.
+
 ---
 
 ## Building

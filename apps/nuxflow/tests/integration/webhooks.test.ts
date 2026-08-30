@@ -329,3 +329,48 @@ describe('Paddle webhooks', () => {
     expect(sub!.providerCustomerId).toBe('ctm_paddle_001')
   })
 })
+
+// ── Cross-tenant isolation ────────────────────────────────────────────────────
+// Regression test: a subscription row must only ever be matched/mutated by a webhook
+// scoped to the site it belongs to, even when another site happens to have a row with
+// the same (providerSubscriptionId, provider) pair — e.g. two sites independently
+// configuring webhooks against sandboxed/test provider accounts that reuse IDs.
+
+describe('Webhook cross-tenant isolation', () => {
+  it('does not let a webhook on one site cancel a same-ID subscription on another site', async () => {
+    const db = getCurrentTestDb()
+    const otherSite = await seedSite(db, { domain: 'webhooks-other.localhost' })
+    const otherUserId = await seedUser(db, { email: 'wh-user-other@webhooks.test' })
+    const otherTierId = await seedTier(db, otherSite, { name: 'Other Site Tier', price: 500 })
+
+    const sharedSubId = 'sub_shared_across_sites'
+    await seedSubscription(db, SITE, userId, tierId, {
+      providerSubscriptionId: sharedSubId,
+      provider: 'stripe',
+      status: 'active',
+    })
+    await seedSubscription(db, otherSite, otherUserId, otherTierId, {
+      providerSubscriptionId: sharedSubId,
+      provider: 'stripe',
+      status: 'active',
+    })
+
+    mockConstructEvent.mockReturnValueOnce({
+      type: 'customer.subscription.deleted',
+      data: { object: { id: sharedSubId } },
+    })
+
+    // Fired with event.context.siteId = SITE (the webhook's own resolved site).
+    await (handler as HandlerFn)(mkEvent('stripe', '{}', { 'stripe-signature': 'valid-sig' }))
+
+    const thisSiteSub = await db.query.subscriptions.findFirst({
+      where: and(eq(subscriptions.siteId, SITE), eq(subscriptions.providerSubscriptionId, sharedSubId)),
+    })
+    const otherSiteSub = await db.query.subscriptions.findFirst({
+      where: and(eq(subscriptions.siteId, otherSite), eq(subscriptions.providerSubscriptionId, sharedSubId)),
+    })
+
+    expect(thisSiteSub!.status).toBe('cancelled')
+    expect(otherSiteSub!.status).toBe('active')
+  })
+})

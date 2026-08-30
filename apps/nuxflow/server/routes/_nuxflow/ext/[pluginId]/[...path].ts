@@ -27,9 +27,11 @@ export default defineEventHandler(async (event) => {
 
     // Verify KV content against the checksum stored in D1 at install time.
     // A mismatch means the KV entry was modified after the signed install — hard stop.
-    if (plugin.serverChecksum) {
-      await assertCodeIntegrity(code, plugin.serverChecksum, 'server module')
+    // Fails closed: a plugin marked hasServer must have a recorded checksum to run at all.
+    if (!plugin.serverChecksum) {
+      throw createError({ statusCode: 500, message: 'Plugin server module has no recorded checksum — refusing to execute unverified code.' })
     }
+    await assertCodeIntegrity(code, plugin.serverChecksum, 'server module')
 
     return code
   })

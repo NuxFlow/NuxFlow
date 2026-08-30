@@ -24,12 +24,21 @@ const { data } = await useFetch<FormSubmissionsPayload>(`/api/v1/forms/${id}/sub
 const form = computed(() => data.value?.form)
 const submissions = computed(() => data.value?.submissions ?? [])
 
+// Neutralizes CSV/formula injection (OWASP): a submitted value starting with =, +, -, @,
+// tab, or CR can be interpreted as a formula by Excel/Sheets when the export is opened —
+// prefixing with a literal quote forces it to be read as text instead.
+function sanitizeCsvCell(value: unknown): string {
+  const raw = typeof value === 'string' ? value : JSON.stringify(value ?? '')
+  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
+  return JSON.stringify(safe)
+}
+
 function downloadCsv() {
   if (!submissions.value.length) return
   const fields = Object.keys(submissions.value[0]?.data ?? {})
   const header = ['ID', 'Submitted at', ...fields].join(',')
   const rows = submissions.value.map((s: { id: string; createdAt: string; data: Record<string, unknown> }) =>
-    [s.id, s.createdAt, ...fields.map(f => JSON.stringify(s.data[f] ?? ''))].join(','),
+    [s.id, s.createdAt, ...fields.map(f => sanitizeCsvCell(s.data[f]))].join(','),
   )
   const csv = [header, ...rows].join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })

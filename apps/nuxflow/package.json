@@ -9,6 +9,7 @@
     "build:demo": "cross-env NODE_OPTIONS=--max-old-space-size=4096 NUXT_IS_DEMO_BUILD=true nuxt build",
     "preview": "nuxt preview",
     "typecheck": "nuxt typecheck",
+    "cf-typegen": "wrangler types",
     "lint": "eslint .",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts",

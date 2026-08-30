@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   })
   if (!term) throw notFound('Term not found')
 
-  const termUpdate = db.update(taxonomyTerms).set(body).where(eq(taxonomyTerms.id, termId))
+  const termUpdate = db.update(taxonomyTerms).set(body).where(and(eq(taxonomyTerms.id, termId), eq(taxonomyTerms.taxonomyId, taxonomyId)))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',

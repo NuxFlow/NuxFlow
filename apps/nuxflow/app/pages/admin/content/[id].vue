@@ -146,7 +146,17 @@ watch(form, () => {
   autoSaveTimer = setTimeout(() => save(), 10_000)
 })
 
+// Ref onto the (dynamically-resolved) Canvas editor so we can flush any
+// in-flight debounced field edit before reading `form.content` below — the
+// editor coalesces rapid prop edits for ~120ms (see useCanvas.ts) so a save
+// triggered mid-keystroke doesn't otherwise ship stale content.
+const canvasEditorRef = ref<{ flushPendingProps?: () => void } | null>(null)
+
 async function save(overrideStatus?: string) {
+  if (editorMode.value === 'canvas') {
+    canvasEditorRef.value?.flushPendingProps?.()
+    await nextTick()
+  }
   saving.value = true
   saveError.value = ''
   try {
@@ -312,6 +322,7 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
           <component
             :is="resolveComponent('CanvasContentEditor')"
             v-else-if="editorMode === 'canvas'"
+            ref="canvasEditorRef"
             v-model="form.content"
           />
         </div>

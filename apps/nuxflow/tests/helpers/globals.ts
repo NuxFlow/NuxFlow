@@ -55,6 +55,15 @@ globalThis.setResponseStatus = (event: Record<string, unknown>, status: number):
 globalThis.getRouterParam = (event: Record<string, unknown>, name: string): string | undefined =>
   (event as { _params?: Record<string, string> })._params?.[name]
 
+globalThis.setCookie = (event: Record<string, unknown>, name: string, value: string): void => {
+  const e = event as { _cookies?: Record<string, string> }
+  if (!e._cookies) e._cookies = {}
+  e._cookies[name] = value
+}
+
+globalThis.getCookie = (event: Record<string, unknown>, name: string): string | undefined =>
+  (event as { _cookies?: Record<string, string> })._cookies?.[name]
+
 globalThis.readBody = async (event: Record<string, unknown>): Promise<unknown> =>
   (event as { _body?: unknown })._body
 

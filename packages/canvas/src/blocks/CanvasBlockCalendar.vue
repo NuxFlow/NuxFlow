@@ -34,7 +34,7 @@ async function loadEvents() {
   try {
     const res = await fetch(`/api/public/events?limit=${props.limit}`)
     if (res.ok) {
-      const data = await res.json()
+      const data = await res.json() as { events?: unknown[] }
       events.value = data.events || []
     }
   } catch (err) {

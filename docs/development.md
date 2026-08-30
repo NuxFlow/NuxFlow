@@ -306,15 +306,6 @@ var(--nuxflow-primary)   /* accent colour, e.g. #00dc82 */
 var(--nuxflow-font)      /* font-family stack, e.g. 'Inter', system-ui */
 ```
 
-#### Legacy colour tokens
-
-```css
-:root {
-  --color-primary:       #00dc82;
-  --color-primary-hover: #00c274;
-}
-```
-
 #### Admin dashboard glass surfaces
 
 ```css

@@ -3,6 +3,7 @@ import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getCfBindings, getThemeCSS } from '../utils/cf-env'
 import { sanitizeThemeCss } from '../utils/security'
+import { resolveSetting } from '../utils/settings'
 import { type ActiveTheme, getCachedActiveTheme, setCachedActiveTheme } from '../utils/theme-cache'
 
 export default defineNitroPlugin((nitro) => {
@@ -33,13 +34,32 @@ export default defineNitroPlugin((nitro) => {
         const db = useDb(event)
         const row = await db.query.themes.findFirst({
           where: and(eq(themes.siteId, siteId), eq(themes.isActive, true)),
-          columns: { id: true, hasCss: true },
+          columns: { id: true, hasCss: true, packageName: true },
         })
         active = row ?? null
         setCachedActiveTheme(siteId, active)
       }
 
       if (!active || !active.hasCss) return
+
+      // The Customizer's own KV entry holds only the variables/rules it
+      // generates — never merged with the base theme's CSS at publish time
+      // (see customizer.post.ts), so the base theme stays live: editing it
+      // later is reflected immediately, with no need to re-publish the
+      // customizer. Inject the base theme FIRST so the customizer's explicit
+      // choices win the cascade over any conflicting default the base theme
+      // declares — publishing them pre-merged in the other order used to let
+      // a base theme's own `:root` defaults silently outrank the customizer.
+      const isCustomizerTheme = active.packageName.startsWith('@customizer/')
+      if (isCustomizerTheme) {
+        const baseThemeId = (await resolveSetting(event, 'theme.base_theme_id')) as string | null
+        if (baseThemeId && baseThemeId !== active.id) {
+          const baseCss = await getThemeCSS(event, siteId, baseThemeId)
+          if (baseCss) {
+            html.head.push(`<style data-nuxflow-theme="base">${sanitizeThemeCss(baseCss)}</style>`)
+          }
+        }
+      }
 
       const css = await getThemeCSS(event, siteId, active.id)
       if (css) {

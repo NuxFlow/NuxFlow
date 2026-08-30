@@ -1,3 +1,12 @@
 {
+  // REVISIT: this "extends" pattern is Nuxt's legacy single-program tsconfig — app and
+  // server code are type-checked together in one pass rather than isolated (Nuxt's own
+  // docs say this legacy pattern will eventually be replaced by project references:
+  // "references": [{ "path": "./.nuxt/tsconfig.server.json" }, ...], which properly
+  // isolates them). That's the architecturally correct target, but switching to it today
+  // hits open upstream bugs in this Nuxt version (broken auto-imports, crashes under
+  // vue-tsc -b) — see nuxt/cli#1224, nuxt/nuxt#34212, nuxt/nuxt#35319, and the
+  // "Cloudflare-specific utilities" section of CLAUDE.md for the full writeup. Switch once
+  // those are fixed upstream (check by bumping Nuxt and re-testing `references` here).
   "extends": "./.nuxt/tsconfig.json"
 }

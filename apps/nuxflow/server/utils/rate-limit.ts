@@ -32,7 +32,8 @@ function ensureCleanup() {
 export async function rateLimit(event: H3Event, opts: RateLimitOptions): Promise<void> {
   ensureCleanup()
   const ip = getHeader(event, 'cf-connecting-ip') ?? getHeader(event, 'x-forwarded-for') ?? 'unknown'
-  const key = `${opts.keyPrefix ?? 'rl'}:${ip}`
+  const siteId = (event.context.siteId as string | undefined) ?? 'global'
+  const key = `${opts.keyPrefix ?? 'rl'}:${siteId}:${ip}`
   const now = Date.now()
 
   // 1. Isolate-level memory check: Block rapid attempts instantly without D1 calls

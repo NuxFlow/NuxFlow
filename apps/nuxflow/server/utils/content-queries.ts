@@ -17,3 +17,14 @@ export async function getContentTypeBySlugOrThrow(db: Db, siteId: string, slug: 
   if (!type) notFound(message)
   return type
 }
+
+/**
+ * The public gate (`checkContentAccess` in api/public/pages/[slug].get.ts) branches on the
+ * `visibility` column, but the editor UI only ever writes the access level into
+ * `settings.access` (see SeoPanel.vue). This derives the column that must stay in sync with
+ * that setting so gated content is actually enforced instead of silently defaulting to public.
+ */
+export function deriveVisibilityFromSettings(settings: Record<string, unknown> | null | undefined): 'public' | 'members' {
+  const access = (settings as { access?: string } | null)?.access
+  return access && access !== 'public' ? 'members' : 'public'
+}

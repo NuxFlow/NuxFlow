@@ -37,5 +37,8 @@ export function useDb(event?: H3Event): Db {
   }
 
   _d1 ??= d1
-  return drizzle(d1, { schema })
+  // d1 is read from several untyped sources above (event context, globalThis fallback,
+  // module cache) — TS can't prove it's a real D1Database through that chain, but the
+  // caller-facing guarantee (throw above if absent) is the actual safety check.
+  return drizzle(d1 as D1Database, { schema })
 }

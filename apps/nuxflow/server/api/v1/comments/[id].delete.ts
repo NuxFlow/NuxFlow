@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   })
   if (!existing) throw notFound('Comment not found')
 
-  const commentDelete = db.delete(comments).where(eq(comments.id, id))
+  const commentDelete = db.delete(comments).where(and(eq(comments.id, id), eq(comments.siteId, siteId)))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',

@@ -33,6 +33,8 @@ interface SiteResponse {
   showColorToggle: boolean
   faviconUrl: string | null
   logoUrl: string | null
+  headerBlockId: string | null
+  footerBlockId: string | null
 }
 
 describe('GET /api/public/site', () => {
@@ -82,6 +84,25 @@ describe('GET /api/public/site', () => {
     const event = createMockEvent({ siteId: faviconSite }) as unknown as H3Event
     const result = await (handler as HandlerFn)(event) as SiteResponse
     expect(result.faviconUrl).toBe('https://cdn.example.com/favicon.png')
+  })
+
+  it('returns headerBlockId/footerBlockId: null when unset (built-in chrome renders)', async () => {
+    const result = await (handler as HandlerFn)(mkEvent()) as SiteResponse
+    expect(result.headerBlockId).toBeNull()
+    expect(result.footerBlockId).toBeNull()
+  })
+
+  it('returns headerBlockId/footerBlockId when a plugin has been designated to own layout regions', async () => {
+    const layoutSite = `site-layout-${Date.now()}`
+    const db = getCurrentTestDb()
+    await seedSite(db, { id: layoutSite, domain: `layout-${Date.now()}.localhost`, name: 'Layout Site' })
+    await seedSetting(db, layoutSite, 'layout.header_block', 'my-theme/header')
+    await seedSetting(db, layoutSite, 'layout.footer_block', 'my-theme/footer')
+
+    const event = createMockEvent({ siteId: layoutSite }) as unknown as H3Event
+    const result = await (handler as HandlerFn)(event) as SiteResponse
+    expect(result.headerBlockId).toBe('my-theme/header')
+    expect(result.footerBlockId).toBe('my-theme/footer')
   })
 
   it('throws 404 when siteId is missing from context', async () => {

@@ -16,7 +16,8 @@
     "@tiptap/extension-link": "^3.30.5",
     "@tiptap/starter-kit": "^3.30.5",
     "@tiptap/vue-3": "^3.30.5",
-    "vuedraggable": "^4.1.0"
+    "vuedraggable": "^4.1.0",
+    "xss": "^1.0.15"
   },
   "peerDependencies": {
     "@nuxt/ui": "^3.3.7",

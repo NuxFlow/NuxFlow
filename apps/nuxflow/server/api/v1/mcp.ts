@@ -3,6 +3,23 @@ import { contentItems, contentTypes } from '@nuxflow/db/schema'
 import { and, eq, desc } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { createEventStream } from 'h3'
+import { z } from 'zod'
+
+const CONTENT_STATUS = z.enum(['draft', 'review', 'published', 'scheduled', 'archived'])
+const createContentArgsSchema = z.object({
+  title: z.string().min(1).max(500),
+  slug: z.string().min(1).max(500),
+  content: z.unknown().optional(),
+  type: z.string().optional(),
+  status: CONTENT_STATUS.optional(),
+})
+const updateContentArgsSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1).max(500).optional(),
+  slug: z.string().min(1).max(500).optional(),
+  content: z.unknown().optional(),
+  status: CONTENT_STATUS.optional(),
+})
 
 // Module-level cache for active SSE streams per Workers isolate
 const activeStreams = new Map<string, ReturnType<typeof createEventStream>>()
@@ -219,16 +236,14 @@ export default defineEventHandler(async (event) => {
               break
             }
 
-            const title = args?.title
-            const slugVal = args?.slug
-            const contentVal = args?.content || ''
-            const typeSlug = args?.type || 'page'
-            const statusVal = args?.status || 'draft'
-
-            if (!title || !slugVal) {
-              result = { content: [{ type: 'text', text: 'Error: title and slug are required.' }] }
+            const parsed = createContentArgsSchema.safeParse(args)
+            if (!parsed.success) {
+              result = { content: [{ type: 'text', text: `Error: ${parsed.error.issues.map(i => i.message).join('; ')}` }] }
               break
             }
+            const { title, slug: slugVal, status: statusVal = 'draft' } = parsed.data
+            const contentVal = parsed.data.content ?? ''
+            const typeSlug = parsed.data.type || 'page'
 
             const type = await db.query.contentTypes.findFirst({
               where: and(eq(contentTypes.siteId, siteId), eq(contentTypes.slug, typeSlug))
@@ -277,11 +292,12 @@ export default defineEventHandler(async (event) => {
               break
             }
 
-            const id = args?.id
-            if (!id) {
-              result = { content: [{ type: 'text', text: 'Error: id is required.' }] }
+            const parsedUpdate = updateContentArgsSchema.safeParse(args)
+            if (!parsedUpdate.success) {
+              result = { content: [{ type: 'text', text: `Error: ${parsedUpdate.error.issues.map(i => i.message).join('; ')}` }] }
               break
             }
+            const { id } = parsedUpdate.data
 
             const existing = await db.query.contentItems.findFirst({
               where: and(eq(contentItems.id, id), eq(contentItems.siteId, siteId))
@@ -294,17 +310,17 @@ export default defineEventHandler(async (event) => {
             const updates: Partial<typeof contentItems.$inferSelect> = {
               updatedAt: new Date().toISOString()
             }
-            if (args.title !== undefined) updates.title = args.title
-            if (args.slug !== undefined) updates.slug = args.slug
-            if (args.content !== undefined) updates.content = args.content
-            if (args.status !== undefined) {
+            if (parsedUpdate.data.title !== undefined) updates.title = parsedUpdate.data.title
+            if (parsedUpdate.data.slug !== undefined) updates.slug = parsedUpdate.data.slug
+            if (parsedUpdate.data.content !== undefined) updates.content = parsedUpdate.data.content
+            if (parsedUpdate.data.status !== undefined) {
               const PUBLISH_ROLES = ['super_admin', 'admin', 'editor']
-              if (args.status === 'published' && !PUBLISH_ROLES.includes(apiKeyRole ?? '')) {
+              if (parsedUpdate.data.status === 'published' && !PUBLISH_ROLES.includes(apiKeyRole ?? '')) {
                 result = { content: [{ type: 'text', text: `Error: Role "${apiKeyRole}" is unauthorized to publish content.` }] }
                 break
               }
-              updates.status = args.status
-              if (args.status === 'published' && !existing.publishedAt) {
+              updates.status = parsedUpdate.data.status
+              if (parsedUpdate.data.status === 'published' && !existing.publishedAt) {
                 updates.publishedAt = new Date().toISOString()
               }
             }

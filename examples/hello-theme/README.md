@@ -27,8 +27,6 @@ redeploy of the main app required, and no flash of the default theme on first pa
 
 | Token / selector | Default | Hello Theme |
 |---|---|---|
-| `--color-primary` | `#00DC82` (Nuxt green) | `#f97316` (orange) |
-| `--color-primary-hover` | `#00c274` | `#ea580c` |
 | `--glass-bg` / `--glass-border` | white tint | peach tint |
 | `.mesh-bg` gradient | green / sky / purple | amber / orange / rose |
 | `.nav-active` | green highlight | orange highlight |

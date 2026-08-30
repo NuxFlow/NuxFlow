@@ -25,12 +25,39 @@ describe('useCanvas — root-level mutations (flat regression safety net)', () =
     expect(c.selectedId.value).toBeNull()
   })
 
-  it('updateBlockProp merges into existing props', () => {
+  it('updateBlockProp merges into existing props once the debounce flushes', () => {
     const c = useCanvas()
     c.addBlock('canvas-text')
     const id = c.canvas.value.blocks[0]!.id
     c.updateBlockProp(id, 'text', 'hello')
+    // Reactive commit is debounced (~120ms) so a burst of keystrokes doesn't
+    // trigger a full-tree clone + emit on every character — see useCanvas.ts.
+    expect(c.canvas.value.blocks[0]!.props.text).toBeUndefined()
+
+    vi.runAllTimers()
     expect(c.canvas.value.blocks[0]!.props.text).toBe('hello')
+  })
+
+  it('flushPendingProps() commits a debounced prop edit immediately', () => {
+    const c = useCanvas()
+    c.addBlock('canvas-text')
+    const id = c.canvas.value.blocks[0]!.id
+    c.updateBlockProp(id, 'text', 'hello')
+    c.flushPendingProps()
+    expect(c.canvas.value.blocks[0]!.props.text).toBe('hello')
+  })
+
+  it('switching target mid-debounce flushes the previous prop edit instead of dropping it', () => {
+    const c = useCanvas()
+    c.addBlock('canvas-text')
+    c.addBlock('canvas-image')
+    const [firstId, secondId] = c.canvas.value.blocks.map(b => b.id)
+    c.updateBlockProp(firstId!, 'text', 'first')
+    c.updateBlockProp(secondId!, 'text', 'second') // different block — flushes 'first' immediately
+    expect(c.canvas.value.blocks[0]!.props.text).toBe('first')
+
+    vi.runAllTimers()
+    expect(c.canvas.value.blocks[1]!.props.text).toBe('second')
   })
 
   it('duplicateBlock inserts a clone immediately after the original with a new id', () => {

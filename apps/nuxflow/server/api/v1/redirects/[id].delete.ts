@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
   const existing = await db.query.redirects.findFirst({
     where: and(eq(redirects.id, id), eq(redirects.siteId, siteId)),
   })
+  if (!existing) throw notFound('Redirect not found')
 
   const redirectDelete = db.delete(redirects).where(and(eq(redirects.id, id), eq(redirects.siteId, siteId)))
 

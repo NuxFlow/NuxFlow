@@ -286,6 +286,9 @@ watch(currentCSS, () => {
   if (previewTimer) clearTimeout(previewTimer)
   previewTimer = setTimeout(sendPreviewCSS, 300)
 })
+onBeforeUnmount(() => {
+  if (previewTimer) clearTimeout(previewTimer)
+})
 
 function onIframeLoad() {
   // Re-inject CSS after every iframe navigation (plugin re-initialises on each load)

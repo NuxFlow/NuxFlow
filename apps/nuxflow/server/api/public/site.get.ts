@@ -2,7 +2,7 @@ import { useDb } from '../../utils/db'
 import { sites, siteSettings } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 
-const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'seo.canonical_url', 'integrations.turnstile_site_key'] as const
+const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'seo.canonical_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block'] as const
 
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string | null
@@ -39,5 +39,10 @@ export default defineEventHandler(async (event) => {
     logoUrl: (kvMap['appearance.logo_url'] as string | undefined) ?? null,
     canonicalBase,
     turnstileSiteKey: (kvMap['integrations.turnstile_site_key'] as string | undefined) || null,
+    // Block id (from the block registry — see useBlockRegistry.ts) that a
+    // dynamic plugin registered to own this layout region, e.g. 'my-theme/header'.
+    // Unset/unresolvable → the layout falls back to the built-in component.
+    headerBlockId: (kvMap['layout.header_block'] as string | undefined) || null,
+    footerBlockId: (kvMap['layout.footer_block'] as string | undefined) || null,
   }
 })

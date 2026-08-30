@@ -19,6 +19,14 @@ function esc(str: string): string {
     .replace(/"/g, '&quot;')
 }
 
+// Blocks javascript:/vbscript:/data: URIs in href/src — esc() only escapes HTML metacharacters,
+// it doesn't stop a scheme that executes on click (link) or load (image).
+function escUrl(str: string): string {
+  const trimmed = str.trim()
+  if (/^(?:javascript|vbscript|data):/i.test(trimmed)) return ''
+  return esc(str)
+}
+
 function children(node: TipTapNode): string {
   return (node.content ?? []).map(renderNode).join('')
 }
@@ -34,7 +42,7 @@ function withMarks(text: string, marks: TipTapMark[]): string {
       case 'superscript': return `<sup>${acc}</sup>`
       case 'subscript': return `<sub>${acc}</sub>`
       case 'link': {
-        const href = esc(String(mark.attrs?.href ?? ''))
+        const href = escUrl(String(mark.attrs?.href ?? ''))
         const target = mark.attrs?.target
           ? ` target="${esc(String(mark.attrs.target))}" rel="noopener noreferrer"`
           : ''
@@ -105,7 +113,7 @@ function renderNode(node: TipTapNode): string {
     }
 
     case 'image': {
-      const src = esc(String(node.attrs?.src ?? ''))
+      const src = escUrl(String(node.attrs?.src ?? ''))
       const alt = node.attrs?.alt ? ` alt="${esc(String(node.attrs.alt))}"` : ''
       const title = node.attrs?.title ? ` title="${esc(String(node.attrs.title))}"` : ''
       const width = node.attrs?.width ? ` width="${esc(String(node.attrs.width))}"` : ''

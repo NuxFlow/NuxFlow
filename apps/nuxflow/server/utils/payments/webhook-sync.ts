@@ -67,7 +67,11 @@ export async function upsertSubscriptionFromWebhook(event: H3Event, evt: Subscri
     : null
 
   const existing = await db.query.subscriptions.findFirst({
-    where: and(eq(subscriptions.providerSubscriptionId, evt.providerSubscriptionId), eq(subscriptions.provider, evt.provider)),
+    where: and(
+      eq(subscriptions.siteId, siteId),
+      eq(subscriptions.providerSubscriptionId, evt.providerSubscriptionId),
+      eq(subscriptions.provider, evt.provider),
+    ),
   })
 
   if (existing) {
@@ -78,7 +82,7 @@ export async function upsertSubscriptionFromWebhook(event: H3Event, evt: Subscri
         currentPeriodStart: evt.currentPeriodStart,
         currentPeriodEnd: evt.currentPeriodEnd,
       })
-      .where(eq(subscriptions.id, existing.id))
+      .where(and(eq(subscriptions.id, existing.id), eq(subscriptions.siteId, siteId)))
     return
   }
 
@@ -103,7 +107,12 @@ export async function upsertSubscriptionFromWebhook(event: H3Event, evt: Subscri
 /** Marks a subscription cancelled from a verified webhook event. */
 export async function cancelSubscriptionFromWebhook(event: H3Event, evt: SubscriptionCancellation): Promise<void> {
   const db = useDb(event)
+  const siteId = event.context.siteId as string
   await db.update(subscriptions)
     .set({ status: 'cancelled', cancelledAt: evt.cancelledAt ?? new Date().toISOString() })
-    .where(and(eq(subscriptions.providerSubscriptionId, evt.providerSubscriptionId), eq(subscriptions.provider, evt.provider)))
+    .where(and(
+      eq(subscriptions.siteId, siteId),
+      eq(subscriptions.providerSubscriptionId, evt.providerSubscriptionId),
+      eq(subscriptions.provider, evt.provider),
+    ))
 }
