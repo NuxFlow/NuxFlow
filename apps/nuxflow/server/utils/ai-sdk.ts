@@ -59,6 +59,15 @@ export async function requireAiSdkModel(event: H3Event, quality: 'fast' | 'smart
   return model
 }
 
+/** Runs an AI SDK call, throwing the standard 502 with a provider-friendly message on failure. */
+export async function callAiOrThrow<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (err) {
+    throw createError({ statusCode: 502, message: aiErrorMessage(err) })
+  }
+}
+
 /** Extracts a human-readable message from a provider SDK error. */
 export function aiErrorMessage(err: unknown): string {
   if (err && typeof err === 'object') {

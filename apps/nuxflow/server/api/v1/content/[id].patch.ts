@@ -6,8 +6,9 @@ import { resolveSetting } from '../../../utils/settings'
 import { broadcastPushToSite } from '../../../utils/webpush'
 import { getContentItemOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
 import { contentItems, contentRevisions } from '@nuxflow/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { scopedById } from '../../../utils/db-helpers'
 
 const bodySchema = z.object({
   title: z.string().min(1).max(500).optional(),
@@ -78,7 +79,7 @@ export default defineEventHandler(async (event) => {
         ? sql`(datetime('now'))`
         : existing.publishedAt,
     })
-    .where(and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)))
+    .where(scopedById(contentItems.id, id, contentItems.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',

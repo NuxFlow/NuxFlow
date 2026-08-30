@@ -4,7 +4,7 @@ import { writeAuditLog } from '../../../../utils/audit'
 import { putThemeCSS } from '../../../../utils/cf-env'
 import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 import { themes } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   if (version?.trim()) {
     await db.update(themes)
       .set({ version: version.trim() })
-      .where(and(eq(themes.id, id), eq(themes.siteId, siteId)))
+      .where(scopedById(themes.id, id, themes.siteId, siteId))
   }
 
   await writeAuditLog(event, userId, { action: 'update_css', resource: 'theme', resourceId: id })

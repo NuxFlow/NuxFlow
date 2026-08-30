@@ -1,10 +1,13 @@
 import { useDb } from '../../utils/db'
 import { roleAtLeast, type Role } from '../../utils/permissions'
-import { contentItems, contentTypes } from '@nuxflow/db/schema'
+import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, desc } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { createEventStream } from 'h3'
 import { z } from 'zod'
+import { errorMessage } from '../../utils/errors'
+import { getContentItem, getContentTypeBySlug } from '../../utils/content-queries'
+import { scopedById } from '../../utils/db-helpers'
 
 const CONTENT_STATUS = z.enum(['draft', 'review', 'published', 'scheduled', 'archived'])
 const createContentArgsSchema = z.object({
@@ -169,9 +172,7 @@ export default defineEventHandler(async (event) => {
             const typeSlug = args?.type || 'page'
             const limit = Math.min(Number(args?.limit) || 20, 50)
 
-            const type = await db.query.contentTypes.findFirst({
-              where: and(eq(contentTypes.siteId, siteId), eq(contentTypes.slug, typeSlug))
-            })
+            const type = await getContentTypeBySlug(db, siteId, typeSlug)
             if (!type) {
               result = { content: [{ type: 'text', text: `Error: Content type "${typeSlug}" not found.` }] }
               break
@@ -245,9 +246,7 @@ export default defineEventHandler(async (event) => {
             const contentVal = parsed.data.content ?? ''
             const typeSlug = parsed.data.type || 'page'
 
-            const type = await db.query.contentTypes.findFirst({
-              where: and(eq(contentTypes.siteId, siteId), eq(contentTypes.slug, typeSlug))
-            })
+            const type = await getContentTypeBySlug(db, siteId, typeSlug)
             if (!type) {
               result = { content: [{ type: 'text', text: `Error: Content type "${typeSlug}" not found.` }] }
               break
@@ -298,9 +297,7 @@ export default defineEventHandler(async (event) => {
             }
             const { id } = parsedUpdate.data
 
-            const existing = await db.query.contentItems.findFirst({
-              where: and(eq(contentItems.id, id), eq(contentItems.siteId, siteId))
-            })
+            const existing = await getContentItem(db, siteId, id)
             if (!existing) {
               result = { content: [{ type: 'text', text: `Error: Content item with ID "${id}" not found.` }] }
               break
@@ -325,7 +322,7 @@ export default defineEventHandler(async (event) => {
 
             await db.update(contentItems)
               .set(updates)
-              .where(and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)))
+              .where(scopedById(contentItems.id, id, contentItems.siteId, siteId))
 
             result = {
               content: [
@@ -350,16 +347,14 @@ export default defineEventHandler(async (event) => {
               break
             }
 
-            const existing = await db.query.contentItems.findFirst({
-              where: and(eq(contentItems.id, id), eq(contentItems.siteId, siteId))
-            })
+            const existing = await getContentItem(db, siteId, id)
             if (!existing) {
               result = { content: [{ type: 'text', text: `Error: Content item with ID "${id}" not found.` }] }
               break
             }
 
             await db.delete(contentItems)
-              .where(and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)))
+              .where(scopedById(contentItems.id, id, contentItems.siteId, siteId))
 
             result = {
               content: [
@@ -383,7 +378,7 @@ export default defineEventHandler(async (event) => {
         }
       }
     } catch (err: unknown) {
-      error = { code: -32603, message: err instanceof Error ? err.message : 'Internal error' }
+      error = { code: -32603, message: errorMessage(err, 'Internal error') }
     }
 
     // Format final JSON-RPC response payload

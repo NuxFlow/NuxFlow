@@ -1,6 +1,7 @@
 import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { scopedById } from '../../../utils/db-helpers'
 import { requireRole } from '../../../utils/permissions'
 import { resolveSetting, saveSetting } from '../../../utils/settings'
 import { putThemeCSS } from '../../../utils/cf-env'
@@ -87,7 +88,7 @@ export default defineEventHandler(async (event) => {
     await putThemeCSS(event, siteId, themeId, ownCss)
     await db.update(themes)
       .set({ version: new Date().toISOString().slice(0, 10) })
-      .where(and(eq(themes.id, themeId), eq(themes.siteId, siteId)))
+      .where(scopedById(themes.id, themeId, themes.siteId, siteId))
   }
   else {
     themeId = ulid()
@@ -106,7 +107,7 @@ export default defineEventHandler(async (event) => {
 
   // Ensure the customizer theme is active (deactivate all others first)
   const deactivateAll = db.update(themes).set({ isActive: false }).where(eq(themes.siteId, siteId))
-  const activateTarget = db.update(themes).set({ isActive: true }).where(and(eq(themes.id, themeId!), eq(themes.siteId, siteId)))
+  const activateTarget = db.update(themes).set({ isActive: true }).where(scopedById(themes.id, themeId!, themes.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'update', resource: 'theme', resourceId: themeId! })
 

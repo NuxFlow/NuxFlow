@@ -3,6 +3,7 @@ import { siteSettings } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { type AppearanceCache, getCachedAppearance, setCachedAppearance } from '../utils/appearance-cache'
+import { errorMessage } from '../utils/errors'
 
 // ── Sanitization ─────────────────────────────────────────────────────────────
 
@@ -125,7 +126,7 @@ export default defineNitroPlugin((nitro) => {
       }
     }
     catch (err) {
-      console.error('[nuxflow:site-settings-resolver] Failed:', err instanceof Error ? err.message : err)
+      console.error('[nuxflow:site-settings-resolver] Failed:', errorMessage(err, String(err)))
     }
   })
 })

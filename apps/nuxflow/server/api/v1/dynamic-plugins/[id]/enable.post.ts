@@ -3,7 +3,7 @@ import { requireRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../../utils/audit'
 import { getDynamicPluginByIdOrThrow } from '../../../../utils/resource-queries'
 import { dynamicPlugins } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
 
   const update = db.update(dynamicPlugins)
     .set({ isActive: true })
-    .where(and(eq(dynamicPlugins.id, id), eq(dynamicPlugins.siteId, siteId)))
+    .where(scopedById(dynamicPlugins.id, id, dynamicPlugins.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'enable', resource: 'dynamic_plugin', resourceId: id })
   await db.batch(auditInsert ? [update, auditInsert] : [update])

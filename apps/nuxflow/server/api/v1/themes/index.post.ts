@@ -9,6 +9,7 @@ import { unzipSync } from 'fflate'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import type { NuxFlowBackup } from '../../../utils/backup'
 import { validateZipArchive } from '../../../utils/security'
+import { isHttpError } from '../../../utils/errors'
 
 const MAX_ZIP_BYTES = 50 * 1024 * 1024 // 50 MB
 const IMAGE_EXT = /\.(?:jpg|jpeg|png|webp|gif|svg|avif|ico)$/i
@@ -62,7 +63,7 @@ export default defineEventHandler(async (event) => {
       try {
         rawFiles = unzipSync(fileField.data)
       } catch (e: unknown) {
-        if (e && typeof e === 'object' && 'statusCode' in e) throw e
+        if (isHttpError(e)) throw e
         throw badRequest('Invalid zip file')
       }
 

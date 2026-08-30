@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { formSubmissions } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../../utils/db'
+import { scopedById } from '../../../../utils/db-helpers'
 import { requireRole } from '../../../../utils/permissions'
 import { getFormSubmissionByIdOrThrow } from '../../../../utils/resource-queries'
 
@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
 
   await db.update(formSubmissions)
     .set({ status: body.status })
-    .where(and(eq(formSubmissions.id, id), eq(formSubmissions.siteId, siteId)))
+    .where(scopedById(formSubmissions.id, id, formSubmissions.siteId, siteId))
 
   return { success: true }
 })

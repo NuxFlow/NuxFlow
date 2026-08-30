@@ -3,7 +3,8 @@ import { requireRole } from '../../../../utils/permissions'
 import { getThemeDemo } from '../../../../utils/cf-env'
 import { applyBackup } from '../../../../utils/backup'
 import { themes } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
+import { scopedById } from '../../../../utils/db-helpers'
 import { useDb } from '../../../../utils/db'
 import type { NuxFlowBackup } from '../../../../utils/backup'
 import { buildAuditLogInsert } from '../../../../utils/audit'
@@ -41,7 +42,7 @@ export default defineEventHandler(async (event) => {
 
   // Automatically activate the theme since we are importing its content
   const deactivateAll = db.update(themes).set({ isActive: false }).where(eq(themes.siteId, siteId))
-  const activateTarget = db.update(themes).set({ isActive: true }).where(and(eq(themes.id, themeId), eq(themes.siteId, siteId)))
+  const activateTarget = db.update(themes).set({ isActive: true }).where(scopedById(themes.id, themeId, themes.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'activate', resource: 'theme', resourceId: themeId })
 

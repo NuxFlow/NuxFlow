@@ -5,6 +5,7 @@ import { buildAuditLogInsert } from '../../../utils/audit'
 import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
 import { media, mediaFolders } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../utils/db-helpers'
 
 const bodySchema = z.object({
   altText: z.string().max(500).nullable().optional(),
@@ -31,7 +32,7 @@ export default defineEventHandler(async (event) => {
     if (!folder) throw notFound('Folder not found')
   }
 
-  const mediaUpdate = db.update(media).set(body).where(and(eq(media.id, id), eq(media.siteId, siteId)))
+  const mediaUpdate = db.update(media).set(body).where(scopedById(media.id, id, media.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',

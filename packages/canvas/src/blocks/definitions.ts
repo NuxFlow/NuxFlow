@@ -856,15 +856,12 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
   },
 ]
 
-// Dynamic (externally-installed) plugins register their block definitions here
-// so the Canvas settings panel can render their fields correctly.
+// Nothing currently populates this — dynamic-plugin field schemas flow through
+// useBlockRegistry.ts's register()/getDefinition() instead (see resolveDefinition()
+// below), which BlockPicker.vue's registryDynamic already covers. Kept as an empty,
+// always-safe fallback list rather than removed outright, in case a future dynamic-plugin
+// registration path is added that populates it directly.
 const _dynamicDefinitions: CanvasBlockDefinition[] = []
-
-export function registerBlockDefinition(def: CanvasBlockDefinition): void {
-  if (!_dynamicDefinitions.find(d => d.id === def.id)) {
-    _dynamicDefinitions.push(def)
-  }
-}
 
 export function getDynamicBlockDefinitions(): CanvasBlockDefinition[] {
   return _dynamicDefinitions

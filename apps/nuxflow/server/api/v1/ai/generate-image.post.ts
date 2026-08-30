@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { requireRole } from '../../../utils/permissions'
 import { getImageProvider } from '../../../utils/image-providers/index'
+import { callAiOrThrow } from '../../../utils/ai-sdk'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
@@ -26,13 +27,7 @@ export default defineEventHandler(async (event) => {
   const { prompt, size, quality, saveToLibrary } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string
 
-  let imageUrl: string
-  try {
-    imageUrl = await imageProvider.generate(prompt, { size, quality })
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Image generation failed'
-    throw createError({ statusCode: 502, message: msg })
-  }
+  const imageUrl = await callAiOrThrow(() => imageProvider.generate(prompt, { size, quality }))
 
   if (!saveToLibrary) {
     return { url: imageUrl, saved: false }

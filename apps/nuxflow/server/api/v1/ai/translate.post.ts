@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { generateText } from 'ai'
 import { requireAuth } from '../../../utils/permissions'
-import { requireAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
@@ -150,18 +150,14 @@ export default defineEventHandler(async (event) => {
   strings.forEach((val, key) => { bundle[key] = val })
   const bundleJson = JSON.stringify(bundle, null, 2)
 
-  let rawResult: string
-  try {
-    const result = await generateText({
+  const { text: rawResult } = await callAiOrThrow(() =>
+    generateText({
       model,
       system: `You are a professional translator. You will receive a JSON object where keys are internal identifiers and values are text strings. Translate ALL values to ${targetLocale}. Return ONLY valid JSON with the same keys and translated values. For HTML values, translate only the visible text inside tags, preserving all HTML tags and attributes exactly. For JSON array strings (like feature lists), translate the text values inside the JSON while keeping the JSON structure valid.`,
       prompt: `Translate to ${targetLocale}:\n\n${bundleJson}`,
       maxOutputTokens: Math.min(8192, Math.max(1000, bundleJson.length * 2)),
-    })
-    rawResult = result.text
-  } catch (err) {
-    throw createError({ statusCode: 502, message: aiErrorMessage(err) })
-  }
+    }),
+  )
 
   let translations: Record<string, string>
   try {

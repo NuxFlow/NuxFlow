@@ -6,6 +6,7 @@ import { getActiveProvider } from '../../../utils/media-providers/index'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { isSafeUrl } from '../../../utils/security'
+import { errorMessage } from '../../../utils/errors'
 
 interface WpItem {
   title: string
@@ -310,7 +311,7 @@ export default defineEventHandler(async (event) => {
       })
     }
     catch (err) {
-      await push({ type: 'error', message: err instanceof Error ? err.message : 'Import failed' }).catch(() => {})
+      await push({ type: 'error', message: errorMessage(err, 'Import failed') }).catch(() => {})
     }
     finally {
       await writer.close().catch(() => {})

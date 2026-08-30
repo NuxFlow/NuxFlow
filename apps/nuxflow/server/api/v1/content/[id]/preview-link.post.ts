@@ -1,9 +1,9 @@
 import { useDb } from '../../../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
 import { requireRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../../utils/audit'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
+import { scopedById } from '../../../../utils/db-helpers'
 import { ulid } from 'ulid'
 
 export default defineEventHandler(async (event) => {
@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   const tokenUpdate = db
     .update(contentItems)
     .set({ previewToken: token, previewTokenExpiresAt: expiresAt })
-    .where(and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)))
+    .where(scopedById(contentItems.id, id, contentItems.siteId, siteId))
 
   const config = useRuntimeConfig()
   const baseUrl = config.public.siteUrl || 'http://localhost:3000'

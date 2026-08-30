@@ -4,7 +4,7 @@ import { buildAuditLogInsert } from '../../../../utils/audit'
 import { deletePluginAssets } from '../../../../utils/cf-env'
 import { getDynamicPluginByIdOrThrow } from '../../../../utils/resource-queries'
 import { dynamicPlugins } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   const existing = await getDynamicPluginByIdOrThrow(db, siteId, id)
 
   await deletePluginAssets(event, siteId, id)
-  const pluginDelete = db.delete(dynamicPlugins).where(and(eq(dynamicPlugins.id, id), eq(dynamicPlugins.siteId, siteId)))
+  const pluginDelete = db.delete(dynamicPlugins).where(scopedById(dynamicPlugins.id, id, dynamicPlugins.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete', resource: 'dynamic_plugin', resourceId: id, before: existing,

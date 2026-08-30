@@ -5,8 +5,7 @@ import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
 import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
 import { resolveSetting } from '../../../utils/settings'
-import { StripeProvider } from '../../../utils/payments/stripe'
-import { LemonSqueezyProvider } from '../../../utils/payments/lemonsqueezy'
+import { resolveStripeProvider, resolveLemonSqueezyProvider, resolvePaddleProvider } from '../../../utils/payments/resolve'
 
 const bodySchema = z.object({
   tierId: z.string(),
@@ -70,15 +69,11 @@ export default defineEventHandler(async (event) => {
     return { url: body.returnUrl }
   }
 
-  // Resolve payment integration keys dynamically (per-tenant override of env variables)
-  const stripeSecretKey = await resolveSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
-  const lsApiKey = await resolveSetting(event, 'payments.ls_api_key', 'lsApiKey')
-  const lsStoreId = await resolveSetting(event, 'payments.ls_store_id', 'lsStoreId')
-  const paddleApiKey = await resolveSetting(event, 'payments.paddle_api_key', 'paddleApiKey')
-
-  if (stripeSecretKey) {
+  // Resolve payment integration dynamically (per-tenant override of env variables) —
+  // whichever provider is configured first wins.
+  const stripe = await resolveStripeProvider(event)
+  if (stripe) {
     if (!tier.stripePriceId) throw conflict('This tier has not been synced to Stripe')
-    const stripe = new StripeProvider(stripeSecretKey as string)
     const customers = await stripe.listCustomersByEmail(userEmail)
     let customerId = customers[0]?.id
     if (!customerId) {
@@ -95,9 +90,9 @@ export default defineEventHandler(async (event) => {
     return { url: checkoutSession.url }
   }
 
-  if (lsApiKey && lsStoreId) {
+  const ls = await resolveLemonSqueezyProvider(event)
+  if (ls) {
     if (!tier.lsVariantId) throw conflict('This tier has not been synced to Lemon Squeezy')
-    const ls = new LemonSqueezyProvider(lsApiKey as string, lsStoreId as string)
     const result = await ls.createCheckout({
       variantId: tier.lsVariantId,
       email: userEmail,
@@ -106,7 +101,8 @@ export default defineEventHandler(async (event) => {
     return { url: result.data.attributes.url }
   }
 
-  if (paddleApiKey) {
+  const paddle = await resolvePaddleProvider(event)
+  if (paddle) {
     if (!tier.paddleProductId) throw conflict('This tier has not been synced to Paddle')
     const siteUrl = (config.public.siteUrl as string) || 'https://example.com'
     const checkoutUrl = new URL('/checkout', siteUrl)

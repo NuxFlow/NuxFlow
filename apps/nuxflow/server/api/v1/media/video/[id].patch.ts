@@ -3,7 +3,7 @@ import { requireRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../../utils/audit'
 import { getVideoAssetByIdOrThrow } from '../../../../utils/resource-queries'
 import { videoAssets } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
 
   const assetUpdate = db.update(videoAssets)
     .set({ title: title.trim() })
-    .where(and(eq(videoAssets.id, id), eq(videoAssets.siteId, siteId)))
+    .where(scopedById(videoAssets.id, id, videoAssets.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',

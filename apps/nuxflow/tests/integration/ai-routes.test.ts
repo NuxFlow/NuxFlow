@@ -52,6 +52,15 @@ vi.mock('../../server/utils/ai-sdk', () => ({
     return model
   },
   aiErrorMessage: (err: unknown) => (err instanceof Error ? err.message : String(err)),
+  callAiOrThrow: async <T>(fn: () => Promise<T>): Promise<T> => {
+    try {
+      return await fn()
+    } catch (err) {
+      const e = new Error(err instanceof Error ? err.message : String(err)) as Error & { statusCode: number }
+      e.statusCode = 502
+      throw e
+    }
+  },
 }))
 
 vi.mock('ai', () => ({

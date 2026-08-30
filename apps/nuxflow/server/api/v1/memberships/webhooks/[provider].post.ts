@@ -1,8 +1,7 @@
 /* eslint-disable no-console */
 import type { H3Event } from 'h3'
-import { StripeProvider } from '../../../../utils/payments/stripe'
-import { LemonSqueezyProvider } from '../../../../utils/payments/lemonsqueezy'
-import { PaddleProvider } from '../../../../utils/payments/paddle'
+import type { StripeProvider } from '../../../../utils/payments/stripe'
+import { getStripeProvider, getLemonSqueezyProvider, getPaddleProvider } from '../../../../utils/payments/resolve'
 import { upsertSubscriptionFromWebhook, cancelSubscriptionFromWebhook } from '../../../../utils/payments/webhook-sync'
 import { resolveSetting } from '../../../../utils/settings'
 
@@ -13,14 +12,8 @@ const STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID = {
 // ── Stripe ───────────────────────────────────────────────────────────────────
 
 async function handleStripeWebhook(event: H3Event, rawBody: string) {
-  const stripeSecretKey = await resolveSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
+  const stripe = await getStripeProvider(event)
   const stripeWebhookSecret = await resolveSetting(event, 'payments.stripe_webhook_secret', 'stripeWebhookSecret')
-
-  if (!stripeSecretKey) {
-    throw createError({ statusCode: 503, message: 'Stripe is not configured' })
-  }
-
-  const stripe = new StripeProvider(stripeSecretKey as string)
   const sig = getHeader(event, 'stripe-signature') ?? ''
 
   let stripeEvent: Awaited<ReturnType<StripeProvider['constructWebhookEvent']>>
@@ -120,15 +113,8 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
 // ── Lemon Squeezy ────────────────────────────────────────────────────────────
 
 async function handleLemonSqueezyWebhook(event: H3Event, rawBody: string) {
-  const lsApiKey = await resolveSetting(event, 'payments.ls_api_key', 'lsApiKey')
-  const lsStoreId = await resolveSetting(event, 'payments.ls_store_id', 'lsStoreId')
+  const ls = await getLemonSqueezyProvider(event)
   const lsWebhookSecret = await resolveSetting(event, 'payments.ls_webhook_secret', 'lsWebhookSecret')
-
-  if (!lsApiKey || !lsStoreId) {
-    throw createError({ statusCode: 503, message: 'Lemon Squeezy is not configured' })
-  }
-
-  const ls = new LemonSqueezyProvider(lsApiKey as string, lsStoreId as string)
   const sig = getHeader(event, 'x-signature') ?? ''
 
   const valid = await ls.verifyWebhook(rawBody, sig, lsWebhookSecret as string)
@@ -167,15 +153,8 @@ async function handleLemonSqueezyWebhook(event: H3Event, rawBody: string) {
 // ── Paddle ───────────────────────────────────────────────────────────────────
 
 async function handlePaddleWebhook(event: H3Event, rawBody: string) {
-  const paddleApiKey = await resolveSetting(event, 'payments.paddle_api_key', 'paddleApiKey')
-  const paddleVendorId = await resolveSetting(event, 'payments.paddle_vendor_id', 'paddleVendorId')
+  const paddle = await getPaddleProvider(event)
   const paddleWebhookPublicKey = await resolveSetting(event, 'payments.paddle_webhook_public_key', 'paddleWebhookPublicKey')
-
-  if (!paddleApiKey || !paddleVendorId) {
-    throw createError({ statusCode: 503, message: 'Paddle is not configured' })
-  }
-
-  const paddle = new PaddleProvider(paddleApiKey as string, paddleVendorId as string)
   const sig = getHeader(event, 'paddle-signature') ?? ''
 
   const valid = await paddle.verifyWebhook(rawBody, sig, paddleWebhookPublicKey as string)

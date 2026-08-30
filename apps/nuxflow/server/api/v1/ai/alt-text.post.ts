@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { generateText } from 'ai'
 import { requireAuth } from '../../../utils/permissions'
-import { requireAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 import { useDb } from '../../../utils/db'
 import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
 
@@ -21,10 +21,8 @@ export default defineEventHandler(async (event) => {
 
   const prompt = `Generate alt text for an image with filename: "${file.originalName}"`
 
-  try {
-    const { text } = await generateText({ model, system: SYSTEM, prompt, maxOutputTokens: 100 })
-    return { altText: text.trim() }
-  } catch (err) {
-    throw createError({ statusCode: 502, message: aiErrorMessage(err) })
-  }
+  const { text } = await callAiOrThrow(() =>
+    generateText({ model, system: SYSTEM, prompt, maxOutputTokens: 100 }),
+  )
+  return { altText: text.trim() }
 })

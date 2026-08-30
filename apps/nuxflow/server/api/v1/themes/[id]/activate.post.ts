@@ -4,7 +4,8 @@ import { buildAuditLogInsert } from '../../../../utils/audit'
 import { clearActiveThemeCache } from '../../../../utils/theme-cache'
 import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 import { themes } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
+import { scopedById } from '../../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
@@ -16,7 +17,7 @@ export default defineEventHandler(async (event) => {
 
   // Deactivate all, activate target
   const deactivateAll = db.update(themes).set({ isActive: false }).where(eq(themes.siteId, siteId))
-  const activateTarget = db.update(themes).set({ isActive: true }).where(and(eq(themes.id, id), eq(themes.siteId, siteId)))
+  const activateTarget = db.update(themes).set({ isActive: true }).where(scopedById(themes.id, id, themes.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'activate', resource: 'theme', resourceId: id })
 

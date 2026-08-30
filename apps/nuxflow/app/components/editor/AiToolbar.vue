@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useAiImprove, type AiInstruction } from '@nuxflow/canvas'
+import { useAiImprove, AI_IMPROVE_ACTIONS, type AiInstruction } from '@nuxflow/canvas'
 
 const emit = defineEmits<{ replace: [text: string] }>()
 const props = defineProps<{ selectedText: string }>()
@@ -7,12 +7,16 @@ const props = defineProps<{ selectedText: string }>()
 const { aiLoading, aiAlternatives, triggerAi } = useAiImprove()
 const instruction = ref<AiInstruction>('improve')
 
-const actions = [
-  { label: 'Improve', value: 'improve' as const, icon: 'i-lucide-sparkles' },
-  { label: 'Shorten', value: 'shorten' as const, icon: 'i-lucide-scissors' },
-  { label: 'Expand', value: 'expand' as const, icon: 'i-lucide-expand' },
-  { label: 'Simplify', value: 'simplify' as const, icon: 'i-lucide-zap' },
-]
+// Labels/values come from the shared canvas package so this list can't drift from
+// FieldRenderer.vue/RichTextInput.vue's — only the icon representation differs here
+// (Lucide icon classes for UButton, vs. the emoji text those two render inline).
+const ICONS: Record<AiInstruction, string> = {
+  improve: 'i-lucide-sparkles',
+  shorten: 'i-lucide-scissors',
+  expand: 'i-lucide-expand',
+  simplify: 'i-lucide-zap',
+}
+const actions = AI_IMPROVE_ACTIONS.map(a => ({ ...a, icon: ICONS[a.value] }))
 
 async function generate(inst: AiInstruction) {
   instruction.value = inst

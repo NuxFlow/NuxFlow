@@ -4,7 +4,7 @@ import { resolveSetting } from '../../../../utils/settings'
 import { buildAuditLogInsert } from '../../../../utils/audit'
 import { getVideoAssetByIdOrThrow } from '../../../../utils/resource-queries'
 import { videoAssets } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Delete from DB
-  const assetDelete = db.delete(videoAssets).where(and(eq(videoAssets.id, id), eq(videoAssets.siteId, siteId)))
+  const assetDelete = db.delete(videoAssets).where(scopedById(videoAssets.id, id, videoAssets.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',

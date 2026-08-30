@@ -6,6 +6,7 @@ import { deleteThemeCSS, deleteThemeDemo, getThemeDemo } from '../../../../utils
 import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 import { themes, contentItems, menus, forms } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
+import { scopedById } from '../../../../utils/db-helpers'
 import type { NuxFlowBackup } from '../../../../utils/backup'
 
 export default defineEventHandler(async (event) => {
@@ -64,7 +65,7 @@ export default defineEventHandler(async (event) => {
     deleteThemeCSS(event, siteId, id),
     deleteThemeDemo(event, siteId, id),
   ])
-  await db.delete(themes).where(and(eq(themes.id, id), eq(themes.siteId, siteId)))
+  await db.delete(themes).where(scopedById(themes.id, id, themes.siteId, siteId))
   clearActiveThemeCache(siteId)
 
   await writeAuditLog(event, userId, { action: 'delete', resource: 'theme', resourceId: id, before: theme })

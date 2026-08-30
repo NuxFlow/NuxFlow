@@ -2,8 +2,7 @@ import { z } from 'zod'
 import { subscriptions } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
-import { resolveSetting } from '../../../utils/settings'
-import { StripeProvider } from '../../../utils/payments/stripe'
+import { getStripeProvider } from '../../../utils/payments/resolve'
 
 const bodySchema = z.object({
   returnUrl: z.string().url(),
@@ -14,10 +13,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const body = await parseBody(event, bodySchema)
 
-  const stripeSecretKey = await resolveSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
-  if (!stripeSecretKey) {
-    throw createError({ statusCode: 503, message: 'Stripe is not configured' })
-  }
+  const stripe = await getStripeProvider(event)
 
   const db = useDb(event)
   const userId = session.user.id as string
@@ -35,7 +31,6 @@ export default defineEventHandler(async (event) => {
     throw notFound('No active Stripe subscription found')
   }
 
-  const stripe = new StripeProvider(stripeSecretKey as string)
   const portalSession = await stripe.createBillingPortalSession(sub.providerCustomerId, body.returnUrl)
 
   return { url: portalSession.url }

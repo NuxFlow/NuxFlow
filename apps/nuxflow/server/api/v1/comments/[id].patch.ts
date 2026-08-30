@@ -4,7 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
 import { getCommentByIdOrThrow } from '../../../utils/resource-queries'
 import { comments } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../utils/db-helpers'
 
 const bodySchema = z.object({
   status: z.enum(['pending', 'approved', 'spam', 'trash']),
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
 
   const existing = await getCommentByIdOrThrow(db, siteId, id)
 
-  const commentUpdate = db.update(comments).set({ status: body.status }).where(and(eq(comments.id, id), eq(comments.siteId, siteId)))
+  const commentUpdate = db.update(comments).set({ status: body.status }).where(scopedById(comments.id, id, comments.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',

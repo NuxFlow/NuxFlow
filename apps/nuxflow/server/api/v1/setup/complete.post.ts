@@ -6,6 +6,7 @@ import { ulid } from 'ulid'
 import { count, eq, and } from 'drizzle-orm'
 import { nuxflowPasswordHasher } from '../../../utils/pw'
 import { created } from '../../../utils/response'
+import { isHttpError } from '../../../utils/errors'
 
 const bodySchema = z.object({
   site: z.object({
@@ -36,7 +37,7 @@ export default defineEventHandler(async (event) => {
   } catch (e: unknown) {
     // Re-throw H3 errors (createError) as-is; wrap everything else so the actual
     // message is visible in the browser console during debugging.
-    if (e && typeof e === 'object' && 'statusCode' in e) throw e
+    if (isHttpError(e)) throw e
     const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e)
     throw createError({ statusCode: 500, message: msg })
   }

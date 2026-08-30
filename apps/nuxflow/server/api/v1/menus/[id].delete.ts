@@ -3,7 +3,7 @@ import { requireAuth } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
 import { getMenuByIdOrThrow } from '../../../utils/resource-queries'
 import { menus } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireAuth(event)
@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
 
   const existing = await getMenuByIdOrThrow(db, siteId, id)
 
-  const menuDelete = db.delete(menus).where(and(eq(menus.id, id), eq(menus.siteId, siteId)))
+  const menuDelete = db.delete(menus).where(scopedById(menus.id, id, menus.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',

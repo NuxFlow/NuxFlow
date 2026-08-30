@@ -3,6 +3,7 @@ import { requireRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../../utils/audit'
 import { mediaFolders, media } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
@@ -11,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
 
   const folder = await db.query.mediaFolders.findFirst({
-    where: and(eq(mediaFolders.id, id), eq(mediaFolders.siteId, siteId)),
+    where: scopedById(mediaFolders.id, id, mediaFolders.siteId, siteId),
   })
   if (!folder) throw notFound('Folder not found')
 
@@ -21,7 +22,7 @@ export default defineEventHandler(async (event) => {
     .where(and(eq(media.siteId, siteId), eq(media.folderId, id)))
 
   const folderDelete = db.delete(mediaFolders)
-    .where(and(eq(mediaFolders.id, id), eq(mediaFolders.siteId, siteId)))
+    .where(scopedById(mediaFolders.id, id, mediaFolders.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',

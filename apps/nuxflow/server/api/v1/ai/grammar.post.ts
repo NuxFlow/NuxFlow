@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { generateObject } from 'ai'
 import { requireAuth } from '../../../utils/permissions'
-import { requireAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 
 const bodySchema = z.object({
@@ -33,15 +33,13 @@ export default defineEventHandler(async (event) => {
 
   const { text } = await parseBody(event, bodySchema)
 
-  try {
-    const { object } = await generateObject({
+  const { object } = await callAiOrThrow(() =>
+    generateObject({
       model,
       schema: correctionSchema,
       system: SYSTEM,
       prompt: `Check this text for grammar and style issues:\n\n${text}`,
-    })
-    return object
-  } catch (err) {
-    throw createError({ statusCode: 502, message: aiErrorMessage(err) })
-  }
+    }),
+  )
+  return object
 })

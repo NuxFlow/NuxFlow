@@ -5,6 +5,7 @@ import { users } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { sendEmailWithConfig } from '../../../utils/email'
 import { resolveSetting, SECRET_MASK } from '../../../utils/settings'
+import { errorMessage } from '../../../utils/errors'
 
 const bodySchema = z.object({
   sendTo: z.string().email().optional(),
@@ -77,7 +78,7 @@ export default defineEventHandler(async (event) => {
     )
     return { success: true, message: `Test email sent to ${sendTo}` }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = errorMessage(err, String(err))
     throw validationError(msg)
   }
 })

@@ -4,7 +4,8 @@ import { requireAuth } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
 import { getMenuByIdOrThrow } from '../../../utils/resource-queries'
 import { menus } from '@nuxflow/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
+import { scopedById } from '../../../utils/db-helpers'
 
 const menuItemSchema: z.ZodType<unknown> = z.lazy(() =>
   z.object({
@@ -49,7 +50,7 @@ export default defineEventHandler(async (event) => {
       ...(body.items !== undefined && { items: body.items as unknown[] }),
       updatedAt: sql`(datetime('now'))`,
     })
-    .where(and(eq(menus.id, id), eq(menus.siteId, siteId)))
+    .where(scopedById(menus.id, id, menus.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',

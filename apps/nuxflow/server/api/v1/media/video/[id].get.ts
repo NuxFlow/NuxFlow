@@ -3,7 +3,7 @@ import { requireRole } from '../../../../utils/permissions'
 import { resolveSetting } from '../../../../utils/settings'
 import { getVideoAssetByIdOrThrow } from '../../../../utils/resource-queries'
 import { videoAssets } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'viewer')
@@ -63,7 +63,7 @@ export default defineEventHandler(async (event) => {
                   duration: duration ?? asset.duration,
                   thumbnailUrl: thumbnailUrl ?? asset.thumbnailUrl,
                 })
-                .where(and(eq(videoAssets.id, id), eq(videoAssets.siteId, siteId)))
+                .where(scopedById(videoAssets.id, id, videoAssets.siteId, siteId))
 
               // Return updated object
               return {

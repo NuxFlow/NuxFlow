@@ -4,7 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
 import { getTaxonomyByIdOrThrow } from '../../../utils/resource-queries'
 import { taxonomies } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../utils/db-helpers'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
 
   const existing = await getTaxonomyByIdOrThrow(db, siteId, id)
 
-  const taxonomyUpdate = db.update(taxonomies).set(body).where(and(eq(taxonomies.id, id), eq(taxonomies.siteId, siteId)))
+  const taxonomyUpdate = db.update(taxonomies).set(body).where(scopedById(taxonomies.id, id, taxonomies.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { membershipTiers } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
+import { scopedById } from '../../../utils/db-helpers'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
 import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
@@ -101,7 +101,7 @@ export default defineEventHandler(async (event) => {
       lsVariantId: lsVariantId || null,
       updatedAt: new Date().toISOString(),
     })
-    .where(and(eq(membershipTiers.id, id), eq(membershipTiers.siteId, siteId)))
+    .where(scopedById(membershipTiers.id, id, membershipTiers.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update', resource: 'membership_tier', resourceId: id, before: tier, after: body,

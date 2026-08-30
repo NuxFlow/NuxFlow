@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { generateText } from 'ai'
 import { requireAuth } from '../../../utils/permissions'
-import { requireAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 
 const bodySchema = z.object({
@@ -37,15 +37,13 @@ export default defineEventHandler(async (event) => {
 
   const prompt = `Write ${tone} content about: "${description}". ${FORMAT_INSTRUCTIONS[format]}`
 
-  try {
-    const { text } = await generateText({
+  const { text } = await callAiOrThrow(() =>
+    generateText({
       model,
       system: SYSTEM,
       prompt,
       maxOutputTokens: 1500,
-    })
-    return { html: text.trim() }
-  } catch (err) {
-    throw createError({ statusCode: 502, message: aiErrorMessage(err) })
-  }
+    }),
+  )
+  return { html: text.trim() }
 })

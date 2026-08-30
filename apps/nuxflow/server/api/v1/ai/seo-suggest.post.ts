@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { generateText } from 'ai'
 import { requireAuth } from '../../../utils/permissions'
-import { requireAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 
 const bodySchema = z.object({
   title: z.string().min(1),
@@ -17,13 +17,9 @@ export default defineEventHandler(async (event) => {
   const { title, body } = await parseBody(event, bodySchema)
   const prompt = `Generate an SEO title and meta description for this content:\nTitle: ${title}\n${body ? `Content: ${body.slice(0, 2000)}` : ''}`
 
-  let raw: string
-  try {
-    const { text } = await generateText({ model, system: SYSTEM, prompt, maxOutputTokens: 300 })
-    raw = text
-  } catch (err) {
-    throw createError({ statusCode: 502, message: aiErrorMessage(err) })
-  }
+  const { text: raw } = await callAiOrThrow(() =>
+    generateText({ model, system: SYSTEM, prompt, maxOutputTokens: 300 }),
+  )
 
   try {
     const { title: seoTitle, description } = JSON.parse(raw) as { title: string; description: string }

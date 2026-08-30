@@ -1,5 +1,6 @@
 import { requireRole } from '../../../../utils/permissions'
 import { resolveSetting } from '../../../../utils/settings'
+import { isHttpError } from '../../../../utils/errors'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
@@ -73,7 +74,7 @@ export default defineEventHandler(async (event) => {
     return { uploadUrl: data.result.uploadURL, uid: data.result.uid }
   }
   catch (error: unknown) {
-    if (error && typeof error === 'object' && 'statusCode' in error) throw error
+    if (isHttpError(error)) throw error
     console.error('Fetch error calling Cloudflare Stream API:', error)
     throw createError({ statusCode: 500, message: 'Failed to communicate with Cloudflare Stream API.' })
   }

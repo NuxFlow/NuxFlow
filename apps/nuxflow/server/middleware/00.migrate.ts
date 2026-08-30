@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { useDb } from '../utils/db'
+import { errorMessage } from '../utils/errors'
 
 // Module-level flags per Worker isolate.
 // _migrationsDone lets the common path (already migrated) skip all async overhead.
@@ -15,7 +16,7 @@ export default defineEventHandler(async (event) => {
     _migrationPromise = applyMigrations(event).then(() => {
       _migrationsDone = true
     }).catch((err) => {
-      console.error('[nuxflow:migrate]', err instanceof Error ? err.message : err)
+      console.error('[nuxflow:migrate]', errorMessage(err, String(err)))
       _migrationPromise = null
     })
   }

@@ -8,6 +8,7 @@ import { media } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { useDb } from '../../utils/db'
 import { validateZipArchive } from '../../utils/security'
+import { isHttpError } from '../../utils/errors'
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB
 
@@ -40,7 +41,7 @@ export default defineEventHandler(async (event) => {
   try {
     rawZipFiles = unzipSync(file.data)
   } catch (e: unknown) {
-    if (e && typeof e === 'object' && 'statusCode' in e) throw e
+    if (isHttpError(e)) throw e
     throw badRequest('Invalid zip file — upload a NuxFlow .zip backup')
   }
   // Normalize zip entry paths to forward-slashes to support Windows-packaged ZIP archives

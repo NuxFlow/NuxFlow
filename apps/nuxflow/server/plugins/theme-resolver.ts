@@ -5,6 +5,7 @@ import { getCfBindings, getThemeCSS } from '../utils/cf-env'
 import { sanitizeThemeCss } from '../utils/security'
 import { resolveSetting } from '../utils/settings'
 import { type ActiveTheme, getCachedActiveTheme, setCachedActiveTheme } from '../utils/theme-cache'
+import { errorMessage } from '../utils/errors'
 
 export default defineNitroPlugin((nitro) => {
   nitro.hooks.hook('request', async (event) => {
@@ -70,7 +71,7 @@ export default defineNitroPlugin((nitro) => {
       }
     }
     catch (err) {
-      console.error('[nuxflow:theme-resolver] CSS injection failed:', err instanceof Error ? err.message : err)
+      console.error('[nuxflow:theme-resolver] CSS injection failed:', errorMessage(err, String(err)))
     }
   })
 })

@@ -2,6 +2,7 @@ import { requireRole } from '../../utils/permissions'
 import { buildBackup } from '../../utils/backup'
 import { zipSync } from 'fflate'
 import { isSafeUrl } from '../../utils/security'
+import { isHttpError } from '../../utils/errors'
 
 const MAX_RAW_IMAGE_BYTES = 100 * 1024 * 1024 // 100 MB uncompressed
 
@@ -40,7 +41,7 @@ export default defineEventHandler(async (event) => {
       item.zipPath = `images/${item.id}.${ext}`
       zipFiles[item.zipPath] = bytes
     } catch (err) {
-      if (err && typeof err === 'object' && 'statusCode' in err) throw err
+      if (isHttpError(err)) throw err
       // Network error fetching this image — skip it, zipPath stays null
     }
   }

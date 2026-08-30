@@ -3,7 +3,7 @@ import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
 import { getRedirectByIdOrThrow } from '../../../utils/resource-queries'
 import { redirects } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
 
   const existing = await getRedirectByIdOrThrow(db, siteId, id)
 
-  const redirectDelete = db.delete(redirects).where(and(eq(redirects.id, id), eq(redirects.siteId, siteId)))
+  const redirectDelete = db.delete(redirects).where(scopedById(redirects.id, id, redirects.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',

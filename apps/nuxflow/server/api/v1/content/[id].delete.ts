@@ -3,7 +3,7 @@ import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
 import { getContentItemOrThrow } from '../../../utils/content-queries'
 import { contentItems } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   const existing = await getContentItemOrThrow(db, siteId, id, 'Not found', { id: true, title: true })
 
   const itemDelete = db.delete(contentItems)
-    .where(and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)))
+    .where(scopedById(contentItems.id, id, contentItems.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',

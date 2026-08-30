@@ -4,7 +4,7 @@ import { buildAuditLogInsert } from '../../../utils/audit'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
 import { media } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
 
   const provider = await getActiveProvider(event)
   await provider.delete(file.storageKey)
-  const mediaDelete = db.delete(media).where(and(eq(media.id, id), eq(media.siteId, siteId)))
+  const mediaDelete = db.delete(media).where(scopedById(media.id, id, media.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',

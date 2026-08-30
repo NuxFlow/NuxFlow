@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { generateObject } from 'ai'
 import { ulid } from 'ulid'
 import { requireAuth } from '../../../utils/permissions'
-import { requireAiSdkModel, aiErrorMessage } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 
 const bodySchema = z.object({
@@ -110,18 +110,14 @@ export default defineEventHandler(async (event) => {
 
   const prompt = `Generate a ${pageGoal} page for: "${description}". Tone: ${tone}.`
 
-  let object: z.infer<typeof responseSchema>
-  try {
-    const result = await generateObject({
+  const { object } = await callAiOrThrow(() =>
+    generateObject({
       model,
       schema: responseSchema,
       system: SYSTEM_PROMPT,
       prompt,
-    })
-    object = result.object
-  } catch (err) {
-    throw createError({ statusCode: 502, message: aiErrorMessage(err) })
-  }
+    }),
+  )
 
   const blocks = object.blocks.map(b => ({
     id: ulid(),

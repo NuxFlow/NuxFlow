@@ -234,9 +234,7 @@ The public pages API returns **HTTP 402** with `{ gated: true, requiredTier, tie
 
 ### Canvas block system
 
-Block definitions live in `packages/canvas/src/blocks/definitions.ts`. The file exports a `CANVAS_BLOCKS` array (all built-in blocks) plus two public functions:
-- `registerBlockDefinition(def)` — appends to a module-level `_dynamicDefinitions` array. Called by dynamic plugins to register their block field schemas so the canvas settings panel can render them.
-- `getBlockDefinition(id)` — searches `CANVAS_BLOCKS` first, then `_dynamicDefinitions`.
+Block definitions live in `packages/canvas/src/blocks/definitions.ts`. The file exports a `CANVAS_BLOCKS` array (all built-in blocks) plus `getBlockDefinition(id)`, which searches `CANVAS_BLOCKS` first, then falls back to a dynamic plugin's own registered definition via `resolveDefinition()`. Dynamic plugins register their block field schemas through `registry.register(id, { component, definition, ... })` (`useBlockRegistry.ts`), not a separate definitions-file API.
 
 **`CanvasBlockDefinition`** (from `packages/canvas/src/types.ts`) has:
 - `fields: FieldSchema[]` — each field has `type`, `key`, `label`, and optional `condition?: (props) => boolean` to hide the field based on sibling prop values. Use `condition` for dependent controls (e.g. focal-point sliders only when `fit === 'cover'`).

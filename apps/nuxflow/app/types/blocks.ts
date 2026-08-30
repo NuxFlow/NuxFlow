@@ -13,7 +13,7 @@ export type NuxBlockData = CanvasBlockData
  * Top-level content structure used by the page builder.
  * Distinguishable from TipTap JSON by `type === 'blocks'`.
  */
-export interface NuxBlocksContent {
+interface NuxBlocksContent {
   type: 'blocks'
   blocks: NuxBlockData[]
 }

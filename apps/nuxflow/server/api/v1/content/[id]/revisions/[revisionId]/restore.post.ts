@@ -4,6 +4,7 @@ import { buildAuditLogInsert } from '../../../../../../utils/audit'
 import { getContentItemOrThrow } from '../../../../../../utils/content-queries'
 import { contentRevisions, contentItems } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
+import { scopedById } from '../../../../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
@@ -21,7 +22,7 @@ export default defineEventHandler(async (event) => {
 
   const itemUpdate = db.update(contentItems)
     .set({ title: revision.title, content: revision.content, updatedAt: sql`(datetime('now'))` })
-    .where(and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)))
+    .where(scopedById(contentItems.id, id, contentItems.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'restore', resource: 'content_revision', resourceId: revisionId })
 

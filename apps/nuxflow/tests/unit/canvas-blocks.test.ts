@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   CANVAS_BLOCKS,
   getBlockDefinition,
-  registerBlockDefinition,
-  getDynamicBlockDefinitions,
 } from '../../../../packages/canvas/src/blocks/definitions'
 
 // ---------------------------------------------------------------------------
@@ -392,41 +390,6 @@ describe('getBlockDefinition', () => {
 
   it('returns undefined for an unknown id', () => {
     expect(getBlockDefinition('canvas-does-not-exist')).toBeUndefined()
-  })
-
-  it('returns plugin-registered blocks', () => {
-    registerBlockDefinition({
-      id: 'test-plugin-block',
-      name: 'Test Plugin',
-      description: 'A test block',
-      icon: 'i-lucide-box',
-      category: 'content',
-      component: 'TestPluginBlock',
-      thumbnailColor: '#fff',
-      fields: [],
-      defaultProps: {},
-    })
-
-    const def = getBlockDefinition('test-plugin-block')
-    expect(def).toBeDefined()
-    expect(def?.id).toBe('test-plugin-block')
-  })
-
-  it('does not register the same dynamic block twice', () => {
-    const before = getDynamicBlockDefinitions().length
-    registerBlockDefinition({
-      id: 'test-plugin-block',
-      name: 'Test Plugin',
-      description: 'Duplicate',
-      icon: 'i-lucide-box',
-      category: 'content',
-      component: 'TestPluginBlock',
-      thumbnailColor: '#fff',
-      fields: [],
-      defaultProps: {},
-    })
-
-    expect(getDynamicBlockDefinitions().length).toBe(before)
   })
 })
 

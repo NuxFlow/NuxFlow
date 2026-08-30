@@ -3,7 +3,7 @@ import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert } from '../../../utils/audit'
 import { getApiKeyByIdOrThrow } from '../../../utils/resource-queries'
 import { apiKeys } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { scopedById } from '../../../utils/db-helpers'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
 
   const existing = await getApiKeyByIdOrThrow(db, siteId, id, 'API key not found', { id: true, name: true, scopes: true })
 
-  const keyDelete = db.delete(apiKeys).where(and(eq(apiKeys.id, id), eq(apiKeys.siteId, siteId)))
+  const keyDelete = db.delete(apiKeys).where(scopedById(apiKeys.id, id, apiKeys.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete',

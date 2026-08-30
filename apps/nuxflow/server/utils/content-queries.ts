@@ -2,6 +2,13 @@ import { contentItems, contentTypes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type { Db } from './db'
 
+export async function getContentItem(db: Db, siteId: string, id: string, columns?: Record<string, boolean>) {
+  return db.query.contentItems.findFirst({
+    where: and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)),
+    columns,
+  })
+}
+
 export async function getContentItemOrThrow(
   db: Db,
   siteId: string,
@@ -9,10 +16,7 @@ export async function getContentItemOrThrow(
   message = 'Content item not found',
   columns?: Record<string, boolean>,
 ) {
-  const item = await db.query.contentItems.findFirst({
-    where: and(eq(contentItems.id, id), eq(contentItems.siteId, siteId)),
-    columns,
-  })
+  const item = await getContentItem(db, siteId, id, columns)
   if (!item) notFound(message)
   return item
 }
