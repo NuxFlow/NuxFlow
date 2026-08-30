@@ -21,10 +21,21 @@ export function sanitizeThemeCss(css: string): string {
   // Strip @import (external stylesheet loading). Matches through the first semicolon;
   // over-consuming on malformed input (missing semicolon) fails closed, not open.
   out = out.replace(/@import\b[^;]*;?/gi, '')
-  // Strip url(...) entirely everywhere it appears.
-  out = out.replace(/url\s*\([^)]*\)/gi, 'none')
-  // Strip legacy IE CSS expression() (arbitrary script execution in old IE).
-  out = out.replace(/\bexpression\s*\([^)]*\)/gi, 'none')
+  // Strip url(...) entirely everywhere it appears. Quoted alternatives are tried first
+  // so a data: URI containing a literal ')' inside its quotes (routine for inline SVG —
+  // transform functions, path data) is consumed in full; a naive `[^)]*` stops at that
+  // first embedded ')', replaces only the partial match, and leaves the real remainder
+  // of the value (including the true closing ')' and trailing ';') as unescaped garbage
+  // text in the stylesheet, corrupting parsing from that point on. Each alternative is a
+  // fully self-contained url(...)/expression(...) pattern (not a shared `\s*` suffix
+  // outside the alternation) — a shared trailing quantifier that can also be satisfied by
+  // the fallback branch is exactly the overlapping-repetition shape that enables
+  // super-linear regex backtracking on malformed input.
+  out = out.replace(/url\s*\(\s*"[^"]*"\s*\)|url\s*\(\s*'[^']*'\s*\)|url\s*\([^)]*\)/gi, 'none')
+  // Strip legacy IE CSS expression() (arbitrary script execution in old IE) — same
+  // quoted-string-aware matching, since its argument is a JS-like expression that may
+  // itself contain a quoted string with a ')' inside.
+  out = out.replace(/\bexpression\s*\(\s*"[^"]*"\s*\)|\bexpression\s*\(\s*'[^']*'\s*\)|\bexpression\s*\([^)]*\)/gi, 'none')
   // Prevent breaking out of the <style> block it's injected into.
   out = out.replace(/<\/style>/gi, '')
   return out
