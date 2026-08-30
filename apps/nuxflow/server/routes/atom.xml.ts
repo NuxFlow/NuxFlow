@@ -1,5 +1,7 @@
+import type { H3Event } from 'h3'
 import { useDb } from '../utils/db'
 import { getFeedSite, getPublishedPostsForFeed } from '@nuxflow/db/queries'
+import { withEdgeCache } from '../utils/edge-cache'
 
 function escXml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
@@ -40,6 +42,13 @@ function tiptapToHtml(node: unknown): string {
 }
 
 export default defineEventHandler(async (event) => {
+  setHeader(event, 'Content-Type', 'application/atom+xml; charset=UTF-8')
+  setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
+
+  return withEdgeCache(event, 3600, () => buildAtomFeed(event))
+})
+
+async function buildAtomFeed(event: H3Event) {
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const config = useRuntimeConfig()
@@ -69,9 +78,6 @@ export default defineEventHandler(async (event) => {
   </entry>`
   }).join('\n')
 
-  setHeader(event, 'Content-Type', 'application/atom+xml; charset=UTF-8')
-  setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
-
   return `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
   <title>${escXml(site?.name ?? 'NuxFlow')}</title>
@@ -81,4 +87,4 @@ export default defineEventHandler(async (event) => {
   <updated>${new Date(updated).toISOString()}</updated>
 ${entries}
 </feed>`
-})
+}

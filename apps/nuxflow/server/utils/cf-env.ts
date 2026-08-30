@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { sanitizeThemeCss } from './security'
+import { getCachedThemeCss, setCachedThemeCss, clearCachedThemeCss } from './theme-cache'
 
 // KVNamespace, D1Database, WorkerLoader, WorkerLoaderWorkerCode, WorkerStub, SendEmail, and
 // AnalyticsEngineDataset below are global ambient types from
@@ -59,9 +60,18 @@ export async function deletePluginAssets(event: H3Event, siteId: string, pluginI
 }
 
 export async function getThemeCSS(event: H3Event, siteId: string, themeId: string): Promise<string | null> {
+  const cached = getCachedThemeCss(siteId, themeId)
+  if (cached !== undefined) return cached
+
   const { kv } = getCfBindings(event)
   if (!kv) return null
-  return kv.get(`theme:${siteId}:${themeId}:css`)
+  const raw = await kv.get(`theme:${siteId}:${themeId}:css`)
+  // Sanitize on read too (not just on write) so themes stored before sanitization
+  // existed are protected with no data migration — cached sanitized so this cost is
+  // paid once per TTL window (60s) instead of on every single SSR request.
+  const sanitized = raw !== null ? sanitizeThemeCss(raw) : null
+  setCachedThemeCss(siteId, themeId, sanitized)
+  return sanitized
 }
 
 export async function putThemeCSS(event: H3Event, siteId: string, themeId: string, css: string): Promise<void> {
@@ -69,13 +79,16 @@ export async function putThemeCSS(event: H3Event, siteId: string, themeId: strin
   if (!kv) throw createError({ statusCode: 503, message: 'CSS themes require a Cloudflare KV namespace (PLUGIN_KV). Configure it in wrangler.toml.' })
   // Sanitize here — the single chokepoint every theme write path (upload, patch,
   // customizer) goes through — so it can never be forgotten by a future call site.
-  await kv.put(`theme:${siteId}:${themeId}:css`, sanitizeThemeCss(css))
+  const sanitized = sanitizeThemeCss(css)
+  await kv.put(`theme:${siteId}:${themeId}:css`, sanitized)
+  setCachedThemeCss(siteId, themeId, sanitized)
 }
 
 export async function deleteThemeCSS(event: H3Event, siteId: string, themeId: string): Promise<void> {
   const { kv } = getCfBindings(event)
   if (!kv) return
   await kv.delete(`theme:${siteId}:${themeId}:css`)
+  clearCachedThemeCss(siteId, themeId)
 }
 
 export async function getThemeDemo(event: H3Event, siteId: string, themeId: string): Promise<string | null> {

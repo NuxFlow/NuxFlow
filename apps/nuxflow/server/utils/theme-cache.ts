@@ -19,3 +19,25 @@ export function setCachedActiveTheme(siteId: string, theme: ActiveTheme): void {
 export function clearActiveThemeCache(siteId: string): void {
   cache.delete(siteId)
 }
+
+// Caches the already-sanitized CSS *content* for a theme, not just which theme is
+// active — without this, every public SSR render re-fetched the CSS from KV (and
+// re-ran the sanitizer regexes over it) on every single request. `undefined` = not
+// yet cached; `null` = cached "this theme has no CSS in KV".
+const cssCache = createIsolateCache<string | null>(60_000)
+
+function cssCacheKey(siteId: string, themeId: string): string {
+  return `${siteId}:${themeId}`
+}
+
+export function getCachedThemeCss(siteId: string, themeId: string): string | null | undefined {
+  return cssCache.get(cssCacheKey(siteId, themeId))
+}
+
+export function setCachedThemeCss(siteId: string, themeId: string, css: string | null): void {
+  cssCache.set(cssCacheKey(siteId, themeId), css)
+}
+
+export function clearCachedThemeCss(siteId: string, themeId: string): void {
+  cssCache.delete(cssCacheKey(siteId, themeId))
+}

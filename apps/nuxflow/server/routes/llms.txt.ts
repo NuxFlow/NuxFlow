@@ -1,8 +1,17 @@
+import type { H3Event } from 'h3'
 import { useDb } from '../utils/db'
 import { contentItems, sites, siteSettings } from '@nuxflow/db/schema'
 import { and, desc, eq } from 'drizzle-orm'
+import { withEdgeCache } from '../utils/edge-cache'
 
 export default defineEventHandler(async (event) => {
+  setHeader(event, 'Content-Type', 'text/plain; charset=UTF-8')
+  setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
+
+  return withEdgeCache(event, 3600, () => buildLlmsTxt(event))
+})
+
+async function buildLlmsTxt(event: H3Event) {
   const db = useDb(event)
   const siteId = event.context.siteId as string
 
@@ -28,9 +37,6 @@ export default defineEventHandler(async (event) => {
     return `- [${p.title}](${baseUrl}/${p.slug})${desc}`
   }).join('\n')
 
-  setHeader(event, 'Content-Type', 'text/plain; charset=UTF-8')
-  setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
-
   return `# ${siteName}
 
 > ${siteDesc}
@@ -48,4 +54,4 @@ ${contentLinks || '- No published content yet'}
 - [Posts](${baseUrl}/api/public/posts): Paginated JSON list of all published posts (supports ?page=&limit=)
 - [Site Info](${baseUrl}/api/public/site): Site name, description, and canonical base URL
 `
-})
+}

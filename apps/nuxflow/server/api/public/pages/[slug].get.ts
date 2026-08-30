@@ -1,8 +1,11 @@
 import type { H3Event } from 'h3'
-import { useDb } from '../../../utils/db'
+import { useDb, type Db } from '../../../utils/db'
 import { trackPageView } from '../../../utils/analytics'
 import { contentItems, contentTypes, membershipTiers, redirects, subscriptions, users } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { withEdgeCache } from '../../../utils/edge-cache'
+
+type ContentItemRow = typeof contentItems.$inferSelect
 
 async function checkContentAccess(event: H3Event, page: { visibility: string; settings: Record<string, unknown> | null | undefined }, siteId: string) {
   const visibility = page.visibility ?? 'public'
@@ -163,6 +166,24 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  trackPageView(event, { siteId, slug })
+
+  // Member/password-gated pages that passed the gate are per-caller (the response
+  // depends on the requester's session/subscription, not just the URL), so they must
+  // never be shared via the edge cache — gating is always evaluated fresh above, on
+  // every request, before the cache is ever consulted. Only genuinely public pages are
+  // eligible for the edge cache below.
+  const isGated = page.visibility === 'members' || page.visibility === 'password'
+  if (isGated) {
+    setHeader(event, 'Cache-Control', 'private, no-store')
+    return assemblePageResponse(db, page, siteId)
+  }
+
+  setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
+  return withEdgeCache(event, 3600, () => assemblePageResponse(db, page, siteId))
+})
+
+async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string) {
   // Content type, author, and source-page lookups are all independent of each
   // other (they only need `page`, already resolved above), so run them as one
   // round trip each in parallel instead of three sequential ones.
@@ -191,17 +212,6 @@ export default defineEventHandler(async (event) => {
   const hasComments = page.allowComments !== null && page.allowComments !== undefined
     ? page.allowComments
     : (type?.hasComments ?? false)
-
-  // Member/password-gated pages that passed the gate must not be publicly cached
-  const isGated = page.visibility === 'members' || page.visibility === 'password'
-  if (isGated) {
-    setHeader(event, 'Cache-Control', 'private, no-store')
-  }
-  else {
-    setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
-  }
-
-  trackPageView(event, { siteId, slug })
 
   const author: { name: string; image: string | null } | null = authorUser ?? null
 
@@ -255,4 +265,4 @@ export default defineEventHandler(async (event) => {
     author,
     availableLocales,
   }
-})
+}

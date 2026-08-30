@@ -1,0 +1,88 @@
+import type { H3Event } from 'h3'
+
+// `dom` and `webworker` (both in this project's tsconfig lib list) each declare their own
+// standard CacheStorage — neither has `.default`, which is a Cloudflare-specific extension
+// not in that spec — and that declaration shadows the real one generated into
+// worker-configuration.d.ts. Same class of DOM/workerd global-type collision documented for
+// Response.json() elsewhere in this codebase; worked around the same way, with an explicit
+// cast through a narrow local type covering only what's used here.
+interface EdgeCacheStorage {
+  default: {
+    match(request: RequestInfo | URL): Promise<Response | undefined>
+    put(request: RequestInfo | URL, response: Response): Promise<void>
+  }
+}
+
+/**
+ * Cloudflare's Workers Cache API (`caches.default`) — a real cross-isolate,
+ * cross-request edge cache, unlike an isolate-memory Map.
+ *
+ * The cache key is built from *this event's own* resolved URL (`getRequestURL(event)`),
+ * not from `event.context.cloudflare.request` directly. That distinction matters: Nitro's
+ * `cloudflare-module` preset populates `.cloudflare` once per top-level Worker invocation,
+ * and nested/internal dispatches (e.g. a page component's own server-side fetch of one of
+ * its own API routes during SSR) inherit that same context rather than getting a fresh
+ * one — so `cf.request` still points at the *outer* page's URL, not the nested endpoint's.
+ * Reusing it verbatim as the cache key made every distinct internal fetch issued while
+ * rendering one outer page collide on a single shared key, each one liable to read back
+ * whatever unrelated response another of them had most recently written. Deriving the key
+ * from `getRequestURL(event)` instead keys correctly off the route actually being served,
+ * whether reached externally or via internal dispatch.
+ *
+ * TTL-only, no explicit invalidation on write: the cached response's own Cache-Control
+ * governs how long the edge holds it, matching the same staleness window callers of
+ * these routes are already told to expect via their own Cache-Control header. Cache API
+ * has no cross-colo replication, so this reduces D1 load on a hot colo/isolate rather
+ * than guaranteeing a single global cache.
+ *
+ * Falls back to computing directly wherever the Cloudflare runtime context isn't present
+ * (unit/integration tests, or any non-Workers environment) — `event.context.cloudflare`
+ * is only populated by the `cloudflare-module` Nitro preset.
+ *
+ * Only a successful compute() result is ever cached — a thrown error (e.g. a 404) is
+ * never written to the edge cache.
+ *
+ * A caching layer must never be able to break the request it's optimizing: every Cache
+ * API interaction below is wrapped so a read failure falls through to compute() and a
+ * write failure is swallowed after logging — compute()'s result is always what gets
+ * returned either way.
+ */
+export async function withEdgeCache<T>(
+  event: H3Event,
+  maxAgeSeconds: number,
+  compute: () => Promise<T>,
+): Promise<T> {
+  const cf = event.context.cloudflare
+  if (!cf?.request) return compute()
+
+  const cacheKey = new Request(getRequestURL(event).toString(), { method: 'GET' })
+  const cache = (caches as unknown as EdgeCacheStorage).default
+
+  try {
+    const cached = await cache.match(cacheKey)
+    if (cached) return await (cached.json() as Promise<T>)
+  } catch (err) {
+    console.error('[edge-cache] read failed, falling back to compute()', err)
+  }
+
+  const data = await compute()
+
+  try {
+    const response = new Response(JSON.stringify(data), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': `public, max-age=${maxAgeSeconds}`,
+      },
+    })
+    const put = cache.put(cacheKey, response).catch(err => console.error('[edge-cache] write failed', err))
+    if (cf.ctx?.waitUntil) {
+      cf.ctx.waitUntil(put)
+    } else {
+      await put
+    }
+  } catch (err) {
+    console.error('[edge-cache] write failed', err)
+  }
+
+  return data
+}

@@ -2,7 +2,6 @@ import { useDb } from '../utils/db'
 import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getCfBindings, getThemeCSS } from '../utils/cf-env'
-import { sanitizeThemeCss } from '../utils/security'
 import { resolveSetting } from '../utils/settings'
 import { type ActiveTheme, getCachedActiveTheme, setCachedActiveTheme } from '../utils/theme-cache'
 import { errorMessage } from '../utils/errors'
@@ -52,22 +51,23 @@ export default defineNitroPlugin((nitro) => {
       // declares — publishing them pre-merged in the other order used to let
       // a base theme's own `:root` defaults silently outrank the customizer.
       const isCustomizerTheme = active.packageName.startsWith('@customizer/')
-      if (isCustomizerTheme) {
-        const baseThemeId = (await resolveSetting(event, 'theme.base_theme_id')) as string | null
-        if (baseThemeId && baseThemeId !== active.id) {
-          const baseCss = await getThemeCSS(event, siteId, baseThemeId)
-          if (baseCss) {
-            html.head.push(`<style data-nuxflow-theme="base">${sanitizeThemeCss(baseCss)}</style>`)
-          }
-        }
-      }
+      const baseThemeId = isCustomizerTheme
+        ? (await resolveSetting(event, 'theme.base_theme_id')) as string | null
+        : null
 
-      const css = await getThemeCSS(event, siteId, active.id)
+      // getThemeCSS already sanitizes (on write, and on read as a fallback for CSS
+      // stored before sanitization existed) and caches the sanitized result — fetch
+      // base and active theme CSS in parallel rather than sequentially.
+      const [baseCss, css] = await Promise.all([
+        baseThemeId && baseThemeId !== active.id ? getThemeCSS(event, siteId, baseThemeId) : Promise.resolve(null),
+        getThemeCSS(event, siteId, active.id),
+      ])
+
+      if (baseCss) {
+        html.head.push(`<style data-nuxflow-theme="base">${baseCss}</style>`)
+      }
       if (css) {
-        // Sanitize again at render time (not just on write) so themes stored before
-        // this sanitization existed are protected immediately, with no data migration.
-        // Idempotent — already-clean CSS passes through unchanged.
-        html.head.push(`<style data-nuxflow-theme>${sanitizeThemeCss(css)}</style>`)
+        html.head.push(`<style data-nuxflow-theme>${css}</style>`)
       }
     }
     catch (err) {

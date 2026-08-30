@@ -1,12 +1,22 @@
+import type { H3Event } from 'h3'
 import { useDb } from '../utils/db'
 import { getContentTypeBySlug } from '../utils/content-queries'
 import { contentItems, sites } from '@nuxflow/db/schema'
 import { eq, and, gte, desc } from 'drizzle-orm'
+import { withEdgeCache } from '../utils/edge-cache'
 
 export default defineEventHandler(async (event) => {
-  const db = useDb(event)
   const siteId = event.context.siteId as string
   if (!siteId) throw createError({ statusCode: 404 })
+
+  setHeader(event, 'Content-Type', 'text/calendar; charset=utf-8')
+  setHeader(event, 'Cache-Control', 'public, max-age=3600')
+
+  return withEdgeCache(event, 3600, () => buildEventsIcs(event, siteId))
+})
+
+async function buildEventsIcs(event: H3Event, siteId: string) {
+  const db = useDb(event)
 
   const site = await db.query.sites.findFirst({
     where: eq(sites.id, siteId),
@@ -16,7 +26,6 @@ export default defineEventHandler(async (event) => {
 
   const type = await getContentTypeBySlug(db, siteId, 'event', { id: true })
   if (!type) {
-    setHeader(event, 'Content-Type', 'text/calendar; charset=utf-8')
     return `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//NuxFlow//NuxFlow Events//EN\r\nEND:VCALENDAR\r\n`
   }
 
@@ -103,7 +112,5 @@ export default defineEventHandler(async (event) => {
   ics.push('END:VCALENDAR')
   ics.push('') // final newline
 
-  setHeader(event, 'Content-Type', 'text/calendar; charset=utf-8')
-  setHeader(event, 'Cache-Control', 'public, max-age=3600')
   return ics.join('\r\n')
-})
+}

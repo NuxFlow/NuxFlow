@@ -1,12 +1,21 @@
+import type { H3Event } from 'h3'
 import { useDb } from '../utils/db'
 import { contentItems, sites, siteSettings, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { withEdgeCache } from '../utils/edge-cache'
 
 function escXml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 export default defineEventHandler(async (event) => {
+  setHeader(event, 'Content-Type', 'application/xml')
+  setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
+
+  return withEdgeCache(event, 3600, () => buildSitemap(event))
+})
+
+async function buildSitemap(event: H3Event) {
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const config = useRuntimeConfig()
@@ -58,8 +67,6 @@ export default defineEventHandler(async (event) => {
     <priority>0.6</priority>
   </url>`).join('')
 
-  setHeader(event, 'Content-Type', 'application/xml')
-  setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
@@ -79,4 +86,4 @@ export default defineEventHandler(async (event) => {
     <priority>0.3</priority>
   </url>${contentUrls}${taxUrls}
 </urlset>`
-})
+}
