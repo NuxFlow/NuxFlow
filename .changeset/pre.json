@@ -37,6 +37,7 @@
     "fix-auth-cache-fragmentation",
     "fix-auth-session-unification",
     "fix-canvas-icon-rendering",
+    "fix-canvas-tailwind-source-detection",
     "fix-cloudflare-email-from-address",
     "fix-lint-and-kysely",
     "fix-linux-build-heap-limit",
