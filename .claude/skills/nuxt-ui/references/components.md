@@ -36,6 +36,7 @@
 | [Icon](components/icon.md)                | A component to display any icon from Iconify or another component.                       |
 | [Kbd](components/kbd.md)                  | A kbd element to display a keyboard key.                                                 |
 | [Progress](components/progress.md)        | An indicator showing the progress of a task.                                             |
+| [ProgressGroup](components/progress-group.md) | A progress bar split into multiple segments that add up to a total. (v4.11+)         |
 | [Separator](components/separator.md)      | Separates content horizontally or vertically.                                            |
 | [Skeleton](components/skeleton.md)        | A placeholder to show while content is loading.                                          |
 
@@ -53,8 +54,10 @@
 | [InputDate](components/input-date.md)         | An input component for date selection. (v4.2+)                           |
 | [InputMenu](components/input-menu.md)         | An autocomplete input with real-time suggestions.                        |
 | [InputNumber](components/input-number.md)     | An input for numerical values with a customizable range.                 |
+| [InputRating](components/input-rating.md)     | A component to display and collect ratings from users. (v4.10+)          |
 | [InputTags](components/input-tags.md)         | An input element that displays interactive tags.                         |
 | [InputTime](components/input-time.md)         | An input for selecting a time. (v4.2+)                                   |
+| [Listbox](components/listbox.md)              | A selectable list with built-in search and virtualization support. (v4.7+) |
 | [PinInput](components/pin-input.md)           | An input element to enter a pin.                                         |
 | [RadioGroup](components/radio-group.md)       | A set of radio buttons to select a single option from a list.            |
 | [Select](components/select.md)                | A select element to choose from a list of options.                       |
@@ -73,6 +76,8 @@
 | [Footer](components/footer.md)       | A responsive footer component.                                       |
 | [Header](components/header.md)       | A responsive header component.                                       |
 | [Main](components/main.md)           | A main element that fills the available viewport height.             |
+| [Sidebar](components/sidebar.md)     | A collapsible application sidebar with multiple visual variants. (v4.6+) |
+| [Splitter](components/splitter.md)   | A set of resizable panels separated by draggable handles. (v4.11+)   |
 
 ## Navigation
 
@@ -101,6 +106,9 @@
 | [ChatPalette](components/chat-palette.md)                            | A chat palette to create a chatbot interface inside an overlay.                                                        |         |
 | [ChatPrompt](components/chat-prompt.md)                              | An enhanced Textarea for submitting prompts in AI chat interfaces.                                                     |         |
 | [ChatPromptSubmit](components/chat-prompt-submit.md)                 | A Button for submitting chat prompts with automatic status handling.                                                   |         |
+| [ChatReasoning](components/chat-reasoning.md)                        | A collapsible element displaying an AI model's reasoning process, with auto-open/close during streaming.               | v4.6+   |
+| [ChatShimmer](components/chat-shimmer.md)                            | A text shimmer animation to indicate streaming/loading state in chat interfaces.                                       | v4.6+   |
+| [ChatTool](components/chat-tool.md)                                  | A collapsible element displaying AI tool-call status, with streaming/loading and approval actions.                     | v4.6+   |
 | [ColorModeAvatar](components/color-mode-avatar.md)                   | An Avatar with a different source for light and dark mode.                                                             |         |
 | [ColorModeButton](components/color-mode-button.md)                   | A Button to switch between light and dark mode.                                                                        |         |
 | [ColorModeImage](components/color-mode-image.md)                     | An image element with a different source for light and dark mode.                                                      |         |
