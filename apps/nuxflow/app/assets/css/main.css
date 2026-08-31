@@ -4,6 +4,13 @@
    classes must be registered explicitly or they silently drop from the build. */
 @source '../../../../../packages/canvas/src/**/*.{vue,ts}';
 @import '@nuxt/ui';
+/* CanvasBlockText.vue wraps rich-text block content in `.prose prose-gray
+   dark:prose-invert` (Tailwind Typography's naming convention) to give sanitized
+   HTML (p/h1-h6/ul/li/etc.) sensible default styling without relying on inline
+   style attributes, which sanitize-html.ts deliberately strips from those tags
+   as an XSS/CSS-injection guard. The plugin was never actually installed, so
+   those classes had no CSS behind them. */
+@plugin '@tailwindcss/typography';
 
 /* NuxFlow — Glassmorphism Design System */
 
