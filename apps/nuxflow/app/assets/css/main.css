@@ -1,4 +1,8 @@
 @import 'tailwindcss';
+/* @nuxflow/canvas is a plain workspace dependency, not a Nuxt layer, so Nuxt UI's
+   automatic per-layer @source generation never covers it — its Tailwind utility
+   classes must be registered explicitly or they silently drop from the build. */
+@source '../../../../../packages/canvas/src/**/*.{vue,ts}';
 @import '@nuxt/ui';
 
 /* NuxFlow — Glassmorphism Design System */
