@@ -4,6 +4,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getMenuByIdOrThrow } from '../../../utils/resource-queries'
 import { menus } from '@nuxflow/db/schema'
 import { scopedById } from '../../../utils/db-helpers'
+import { purgeEdgeCache } from '../../../utils/edge-cache'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireAuth(event)
@@ -23,6 +24,8 @@ export default defineEventHandler(async (event) => {
   })
 
   await batchWithAudit(db, [menuDelete], auditInsert)
+
+  if (existing.location) await purgeEdgeCache(event, [`/api/public/menus/${existing.location}`])
 
   return noContent(event)
 })

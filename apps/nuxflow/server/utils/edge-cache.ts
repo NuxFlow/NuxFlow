@@ -10,6 +10,7 @@ interface EdgeCacheStorage {
   default: {
     match(request: RequestInfo | URL): Promise<Response | undefined>
     put(request: RequestInfo | URL, response: Response): Promise<void>
+    delete(request: RequestInfo | URL): Promise<boolean>
   }
 }
 
@@ -85,4 +86,66 @@ export async function withEdgeCache<T>(
   }
 
   return data
+}
+
+/**
+ * Purge-on-write: deletes cached entries for one or more site-relative paths
+ * (e.g. `/api/public/pages/about`) immediately, instead of waiting out their
+ * TTL. Mutation routes call this after a successful write so visitors see the
+ * change on their next request rather than up to an hour later — the TTL in
+ * `withEdgeCache` is a ceiling on staleness, not the only way it clears.
+ *
+ * `event.context.cloudflare.request` gates this the same way `withEdgeCache`
+ * does — a no-op wherever the Cloudflare runtime context isn't present (unit/
+ * integration tests, or any non-Workers environment). Each deletion is
+ * independent and failures are logged, never thrown — a cache purge failing
+ * must not fail the mutation that triggered it.
+ */
+export async function purgeEdgeCache(event: H3Event, paths: string[]): Promise<void> {
+  const cf = event.context.cloudflare
+  if (!cf?.request || paths.length === 0) return
+
+  const cache = (caches as unknown as EdgeCacheStorage).default
+  const origin = getRequestURL(event).origin
+
+  await Promise.all(paths.map(async (path) => {
+    try {
+      await cache.delete(new Request(`${origin}${path}`, { method: 'GET' }))
+    } catch (err) {
+      console.error('[edge-cache] purge failed for', path, err)
+    }
+  }))
+}
+
+// Site-wide views that could include any given content item — cheap to always purge on
+// any content write rather than working out which of them actually changed. Paginated
+// variants (e.g. `/api/public/posts?page=2`) keep their own short TTL and aren't purged
+// individually; only the unparameterized first-page URL is cached under an exact match.
+const GLOBAL_CONTENT_CACHE_PATHS = [
+  '/api/public/posts',
+  '/sitemap.xml',
+  '/sitemap-images.xml',
+  '/feed.xml',
+  '/atom.xml',
+  '/llms.txt',
+]
+
+/**
+ * Purges the edge cache for a content item's own page(s) plus every site-wide
+ * view that could list it (blog index, sitemaps, feeds, llms.txt) and any
+ * taxonomy archive pages it's currently tagged under. Call after any create/
+ * update/delete of a content item.
+ */
+export async function purgeContentCache(
+  event: H3Event,
+  opts: { slugs: string[]; taxonomyTerms?: { taxonomySlug: string; termSlug: string }[] },
+): Promise<void> {
+  const paths = [
+    ...new Set(opts.slugs.filter(Boolean)).values(),
+  ].map(slug => `/api/public/pages/${slug}`)
+
+  const taxonomyPaths = (opts.taxonomyTerms ?? [])
+    .map(t => `/api/public/taxonomy/${t.taxonomySlug}/${t.termSlug}`)
+
+  await purgeEdgeCache(event, [...paths, ...GLOBAL_CONTENT_CACHE_PATHS, ...taxonomyPaths])
 }

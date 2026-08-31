@@ -6,6 +6,7 @@ import { getMenuByIdOrThrow } from '../../../utils/resource-queries'
 import { menus } from '@nuxflow/db/schema'
 import { sql } from 'drizzle-orm'
 import { scopedById } from '../../../utils/db-helpers'
+import { purgeEdgeCache } from '../../../utils/edge-cache'
 
 const menuItemSchema: z.ZodType<unknown> = z.lazy(() =>
   z.object({
@@ -61,6 +62,10 @@ export default defineEventHandler(async (event) => {
   })
 
   await batchWithAudit(db, [menuUpdate], auditInsert)
+
+  const newLocation = 'location' in body ? (body.location ?? null) : existing.location
+  const locations = [...new Set([existing.location, newLocation].filter((l): l is string => Boolean(l)))]
+  await purgeEdgeCache(event, locations.map(l => `/api/public/menus/${l}`))
 
   return { ok: true }
 })

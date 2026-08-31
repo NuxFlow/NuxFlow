@@ -4,6 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getContentTypeBySlugOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
 import { created } from '../../../utils/response'
+import { purgeContentCache } from '../../../utils/edge-cache'
 import { contentItems, sites } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -67,6 +68,10 @@ export default defineEventHandler(async (event) => {
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'create', resource: 'content_item', resourceId: id })
 
   await batchWithAudit(db, [itemInsert], auditInsert)
+
+  // A brand-new slug can't already be cached, but the site-wide views (blog index,
+  // sitemaps, feeds) that could now list it might be — purge those.
+  await purgeContentCache(event, { slugs: [body.slug] })
 
   return created(event, { id })
 })

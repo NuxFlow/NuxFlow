@@ -4,6 +4,7 @@ import { requireAuth } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { menus } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
+import { purgeEdgeCache } from '../../../utils/edge-cache'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -27,6 +28,8 @@ export default defineEventHandler(async (event) => {
   })
 
   await batchWithAudit(db, [menuInsert], auditInsert)
+
+  if (body.location) await purgeEdgeCache(event, [`/api/public/menus/${body.location}`])
 
   return { id }
 })

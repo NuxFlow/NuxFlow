@@ -6,6 +6,7 @@ import { eq, sql } from 'drizzle-orm'
 import { saveSetting } from '../../../utils/settings'
 import { clearAppearanceCache } from '../../../utils/appearance-cache'
 import { writeAuditLog } from '../../../utils/audit'
+import { purgeEdgeCache } from '../../../utils/edge-cache'
 
 const bodySchema = z.object({
   // Site columns
@@ -146,6 +147,10 @@ export default defineEventHandler(async (event) => {
   ]
   if (changedKeys.length > 0) {
     await writeAuditLog(event, userId, { action: 'update', resource: 'settings', after: { keys: changedKeys } })
+  }
+
+  if (Object.keys(siteUpdate).length > 0 || body.settings) {
+    await purgeEdgeCache(event, ['/api/public/site'])
   }
 
   return { success: true }

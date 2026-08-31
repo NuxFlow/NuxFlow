@@ -5,6 +5,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { contentTaxonomyTerms, taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
+import { purgeContentCache } from '../../../../utils/edge-cache'
 
 const bodySchema = z.object({
   termIds: z.array(z.string()),
@@ -17,13 +18,14 @@ export default defineEventHandler(async (event) => {
   const itemId = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 
-  await getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true })
+  const item = await getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true, slug: true })
 
   // Terms must belong to a taxonomy owned by this site — otherwise a caller could link
   // content to another tenant's taxonomy term by supplying its (unguessable but not
   // secret) ULID.
+  let validTerms: { id: string; taxonomySlug: string; termSlug: string }[] = []
   if (body.termIds.length > 0) {
-    const validTerms = await db.select({ id: taxonomyTerms.id })
+    validTerms = await db.select({ id: taxonomyTerms.id, taxonomySlug: taxonomies.slug, termSlug: taxonomyTerms.slug })
       .from(taxonomyTerms)
       .innerJoin(taxonomies, eq(taxonomyTerms.taxonomyId, taxonomies.id))
       .where(and(inArray(taxonomyTerms.id, body.termIds), eq(taxonomies.siteId, siteId)))
@@ -46,6 +48,11 @@ export default defineEventHandler(async (event) => {
   } else {
     await batchWithAudit(db, [termsDelete], auditInsert)
   }
+
+  await purgeContentCache(event, {
+    slugs: [item.slug],
+    taxonomyTerms: validTerms.map(t => ({ taxonomySlug: t.taxonomySlug, termSlug: t.termSlug })),
+  })
 
   return { success: true }
 })

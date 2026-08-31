@@ -9,6 +9,8 @@ import { contentItems, contentRevisions } from '@nuxflow/db/schema'
 import { sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { scopedById } from '../../../utils/db-helpers'
+import { purgeContentCache } from '../../../utils/edge-cache'
+import { getContentItemTerms } from '@nuxflow/db/queries'
 
 const bodySchema = z.object({
   title: z.string().min(1).max(500).optional(),
@@ -92,6 +94,12 @@ export default defineEventHandler(async (event) => {
   // One D1 round trip instead of three — none of these writes depend on
   // each other's result, only on `existing`, which is already loaded above.
   await batchWithAudit(db, [revisionInsert, itemUpdate], auditInsert)
+
+  const terms = await getContentItemTerms(db, id)
+  await purgeContentCache(event, {
+    slugs: [existing.slug, updateFields.slug].filter((s): s is string => Boolean(s)),
+    taxonomyTerms: terms.map(t => ({ taxonomySlug: t.taxonomySlug, termSlug: t.termSlug })),
+  })
 
   // Push broadcast when content is first published
   const isFirstPublish = updateFields.status === 'published' && existing.status !== 'published'
