@@ -20,6 +20,7 @@
     "feat-canvas-text-align",
     "feat-cli-theme-scaffold-and-bundled-deploy",
     "feat-cloudflare-media-settings-ui",
+    "feat-edge-cache-purge-on-write",
     "feat-editorial-calendar-and-events-scaffold",
     "feat-gallery-lightbox-exif-and-seo",
     "feat-membership-auth-pages-and-test-suite",
