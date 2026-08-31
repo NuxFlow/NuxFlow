@@ -58,10 +58,21 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     thumbnailColor: '#f9fafb',
     fields: [
       { key: 'content', label: 'Content', type: 'richtext' },
+      {
+        key: 'align',
+        label: 'Alignment',
+        type: 'select',
+        options: [
+          { label: 'Left', value: 'left' },
+          { label: 'Center', value: 'center' },
+          { label: 'Right', value: 'right' },
+        ],
+      },
       { key: 'padding', label: 'Padding', type: 'spacing' },
     ],
     defaultProps: {
       content: '<p>Start writing your content here.</p>',
+      align: 'left',
       padding: { top: 24, right: 24, bottom: 24, left: 24, unit: 'px' },
     },
   },
