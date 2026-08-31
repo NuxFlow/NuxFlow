@@ -1,6 +1,6 @@
 import { useDb } from '../../../../../../utils/db'
 import { requireRole } from '../../../../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../../../utils/audit'
 import { getContentItemOrThrow } from '../../../../../../utils/content-queries'
 import { contentRevisions, contentItems } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
@@ -26,6 +26,6 @@ export default defineEventHandler(async (event) => {
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'restore', resource: 'content_revision', resourceId: revisionId })
 
-  await db.batch(auditInsert ? [itemUpdate, auditInsert] : [itemUpdate])
+  await batchWithAudit(db, [itemUpdate], auditInsert)
   return { success: true }
 })

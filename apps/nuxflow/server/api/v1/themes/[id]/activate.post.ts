@@ -1,6 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { clearActiveThemeCache } from '../../../../utils/theme-cache'
 import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 import { themes } from '@nuxflow/db/schema'
@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'activate', resource: 'theme', resourceId: id })
 
-  await db.batch(auditInsert ? [deactivateAll, activateTarget, auditInsert] : [deactivateAll, activateTarget])
+  await batchWithAudit(db, [deactivateAll, activateTarget], auditInsert)
   clearActiveThemeCache(siteId)
   return { success: true }
 })

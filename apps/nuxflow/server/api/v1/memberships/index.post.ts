@@ -3,7 +3,7 @@ import { membershipTiers } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { created } from '../../../utils/response'
 import { resolveSetting } from '../../../utils/settings'
 import { StripeProvider } from '../../../utils/payments/stripe'
@@ -91,7 +91,7 @@ export default defineEventHandler(async (event) => {
   // The response needs the full row back (server-generated defaults like
   // createdAt), so the SELECT stays a separate round trip — but the insert
   // and audit log no longer need one each.
-  await db.batch(auditInsert ? [tierInsert, auditInsert] : [tierInsert])
+  await batchWithAudit(db, [tierInsert], auditInsert)
 
   const tier = await db.query.membershipTiers.findFirst({
     where: (t, { eq: eq_ }) => eq_(t.id, id),

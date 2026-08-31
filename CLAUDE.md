@@ -67,7 +67,7 @@ docs/                  # User-facing documentation (markdown)
 
 ### Database layer
 
-Cloudflare D1 is the only supported database — there is no alternate backend. `apps/nuxflow/server/utils/db.ts` — `useDb(event)` returns a Drizzle instance backed by the D1 binding (`event.context.cloudflare.env.DB`), and throws a clear error if no binding is present. It also checks `globalThis.__env__?.DB` so it works inside Nitro scheduled tasks where no H3 event is available. `packages/db` exports only the schema (`@nuxflow/db/schema`) — there is no client factory, since D1 instances can only be constructed from a live binding, not a URL/token pair.
+Cloudflare D1 is the only supported database — there is no alternate backend. `apps/nuxflow/server/utils/db.ts` — `useDb(event)` returns a Drizzle instance backed by the D1 binding (`event.context.cloudflare.env.DB`), and throws a clear error if no binding is present. It also checks `globalThis.__env__?.DB` so it works inside Nitro scheduled tasks where no H3 event is available. `packages/db` exports the schema (`@nuxflow/db/schema`) plus shared, table-aware query builders (`@nuxflow/db/queries` — `paginate()`, `countRows()`, taxonomy/feed helpers) that take an already-built `Db` as a parameter; there is still no client factory, since D1 instances can only be constructed from a live binding, not a URL/token pair. App-specific helpers that need request context (site-scoped `*OrThrow` lookups, pagination query-string parsing) stay in `apps/nuxflow/server/utils/` (`resource-queries.ts`, `content-queries.ts`, `db-helpers.ts`, `pagination.ts`).
 
 **Migrations run automatically** on cold start via `server/middleware/00.migrate.ts`. SQL files are bundled into the Worker as server assets (`packages/db/migrations/`). Never hand-run migrations in production; just deploy. For schema changes: edit `packages/db/src/schema/*.ts`, run `pnpm --filter @nuxflow/db generate`, commit both the schema and the generated SQL. Some migrations (virtual FTS5 tables, triggers) can't be expressed in Drizzle's schema DSL and are hand-written directly as `.sql` files — see `migrations/0002_search_index.sql`.
 
@@ -296,7 +296,7 @@ Other public routes:
 
 `GET /api/public/pages/:slug` returns `{ ..., author: { name, image } | null, excerpt }` in addition to the base fields. The author is looked up from the `users` table via `contentItems.authorId`.
 
-Admin pages live in `app/pages/admin/`. Super-admin-only pages (e.g. multi-site management) live under `app/pages/admin/super/` and are linked in the sidebar only when `/api/v1/users/me` returns `isSuperAdmin: true`. The super admin site-deletion API (`DELETE /api/v1/admin/sites/:id`) blocks deletion of the site currently being accessed (`event.context.siteId`). Pinia stores in `app/stores/` manage auth (`auth.ts`) and content (`content.ts`) state.
+Admin pages live in `app/pages/admin/`. Super-admin-only pages (e.g. multi-site management) live under `app/pages/admin/super/` and are linked in the sidebar only when `/api/v1/users/me` returns `isSuperAdmin: true`. The super admin site-deletion API (`DELETE /api/v1/admin/sites/:id`) blocks deletion of the site currently being accessed (`event.context.siteId`). Pinia stores in `app/stores/` manage auth (`auth.ts`) state — a thin wrapper around `useAuth.ts`'s session composable. There is no content store; content-editing state lives in the editor page's local reactive form plus `@nuxflow/canvas`'s own `useCanvas()`.
 
 ### App utilities (Vue-only scope)
 

@@ -1,7 +1,7 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { resolveSetting } from '../../../../utils/settings'
-import { buildAuditLogInsert } from '../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { getVideoAssetByIdOrThrow } from '../../../../utils/resource-queries'
 import { videoAssets } from '@nuxflow/db/schema'
 import { scopedById } from '../../../../utils/db-helpers'
@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
     resourceId: id,
     before: { title: asset.title, cloudflareStreamId: asset.cloudflareStreamId },
   })
-  await db.batch(auditInsert ? [assetDelete, auditInsert] : [assetDelete])
+  await batchWithAudit(db, [assetDelete], auditInsert)
 
   return noContent(event)
 })

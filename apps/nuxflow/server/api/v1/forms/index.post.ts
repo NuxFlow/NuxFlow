@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { created } from '../../../utils/response'
 import { forms } from '@nuxflow/db/schema'
 import type { FormField, ConditionalLogic } from '@nuxflow/db/schema'
@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
   })
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'create', resource: 'form', resourceId: id, after: body })
-  await db.batch(auditInsert ? [formInsert, auditInsert] : [formInsert])
+  await batchWithAudit(db, [formInsert], auditInsert)
 
   return created(event, { id })
 })

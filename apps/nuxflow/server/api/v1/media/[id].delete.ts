@@ -1,6 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
 import { media } from '@nuxflow/db/schema'
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
     resourceId: id,
     before: { originalName: file.originalName, storageKey: file.storageKey, mimeType: file.mimeType },
   })
-  await db.batch(auditInsert ? [mediaDelete, auditInsert] : [mediaDelete])
+  await batchWithAudit(db, [mediaDelete], auditInsert)
 
   return noContent(event)
 })

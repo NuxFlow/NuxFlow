@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { getTaxonomyByIdOrThrow } from '../../../../utils/resource-queries'
 import { created } from '../../../../utils/response'
 import { taxonomyTerms } from '@nuxflow/db/schema'
@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
     after: body,
   })
 
-  await db.batch(auditInsert ? [termInsert, auditInsert] : [termInsert])
+  await batchWithAudit(db, [termInsert], auditInsert)
 
   return created(event, { id })
 })

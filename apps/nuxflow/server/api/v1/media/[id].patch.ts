@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
 import { media, mediaFolders } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
     before: { altText: existing.altText, caption: existing.caption, folderId: existing.folderId, focalX: existing.focalX, focalY: existing.focalY },
     after: body,
   })
-  await db.batch(auditInsert ? [mediaUpdate, auditInsert] : [mediaUpdate])
+  await batchWithAudit(db, [mediaUpdate], auditInsert)
 
   return { id }
 })

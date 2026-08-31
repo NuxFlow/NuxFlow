@@ -1,6 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getApiKeyByIdOrThrow } from '../../../utils/resource-queries'
 import { apiKeys } from '@nuxflow/db/schema'
 import { scopedById } from '../../../utils/db-helpers'
@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
     before: existing,
   })
 
-  await db.batch(auditInsert ? [keyDelete, auditInsert] : [keyDelete])
+  await batchWithAudit(db, [keyDelete], auditInsert)
 
   return noContent(event)
 })

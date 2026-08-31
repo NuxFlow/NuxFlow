@@ -1,6 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getTaxonomyByIdOrThrow } from '../../../utils/resource-queries'
 import { taxonomies } from '@nuxflow/db/schema'
 import { scopedById } from '../../../utils/db-helpers'
@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
     before: existing,
   })
 
-  await db.batch(auditInsert ? [taxonomyDelete, auditInsert] : [taxonomyDelete])
+  await batchWithAudit(db, [taxonomyDelete], auditInsert)
 
   return noContent(event)
 })

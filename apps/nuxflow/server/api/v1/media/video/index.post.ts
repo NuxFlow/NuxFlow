@@ -3,7 +3,7 @@ import { requireRole } from '../../../../utils/permissions'
 import { resolveSetting } from '../../../../utils/settings'
 import { videoAssets } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
-import { buildAuditLogInsert } from '../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { created } from '../../../../utils/response'
 
 export default defineEventHandler(async (event) => {
@@ -93,7 +93,7 @@ export default defineEventHandler(async (event) => {
     resourceId: fileId,
     after: { title: finalTitle, cloudflareStreamId: uid },
   })
-  await db.batch(auditInsert ? [assetInsert, auditInsert] : [assetInsert])
+  await batchWithAudit(db, [assetInsert], auditInsert)
 
   return created(event, {
     id: fileId,

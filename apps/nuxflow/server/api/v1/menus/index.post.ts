@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireAuth } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { menus } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
     after: { name: body.name, location: body.location ?? null },
   })
 
-  await db.batch(auditInsert ? [menuInsert, auditInsert] : [menuInsert])
+  await batchWithAudit(db, [menuInsert], auditInsert)
 
   return { id }
 })

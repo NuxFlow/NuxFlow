@@ -1,6 +1,6 @@
 import { useDb } from '../../../../../utils/db'
 import { requireRole } from '../../../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../../utils/audit'
 import { getTaxonomyByIdOrThrow, getTaxonomyTermByIdOrThrow } from '../../../../../utils/resource-queries'
 import { taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
     before: term,
   })
 
-  await db.batch(auditInsert ? [termDelete, auditInsert] : [termDelete])
+  await batchWithAudit(db, [termDelete], auditInsert)
 
   return noContent(event)
 })

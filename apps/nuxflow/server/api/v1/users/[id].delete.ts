@@ -2,7 +2,7 @@ import { useDb } from '../../../utils/db'
 import { userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
     resourceId: targetId,
     before: { role: existing.role },
   })
-  await db.batch(auditInsert ? [roleDelete, auditInsert] : [roleDelete])
+  await batchWithAudit(db, [roleDelete], auditInsert)
 
   return noContent(event)
 })

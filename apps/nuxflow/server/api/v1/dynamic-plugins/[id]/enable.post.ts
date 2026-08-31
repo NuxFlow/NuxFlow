@@ -1,6 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { getDynamicPluginByIdOrThrow } from '../../../../utils/resource-queries'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { scopedById } from '../../../../utils/db-helpers'
@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
     .where(scopedById(dynamicPlugins.id, id, dynamicPlugins.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'enable', resource: 'dynamic_plugin', resourceId: id })
-  await db.batch(auditInsert ? [update, auditInsert] : [update])
+  await batchWithAudit(db, [update], auditInsert)
 
   return { success: true }
 })

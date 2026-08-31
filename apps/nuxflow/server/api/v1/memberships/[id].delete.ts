@@ -2,7 +2,7 @@ import { membershipTiers } from '@nuxflow/db/schema'
 import { useDb } from '../../../utils/db'
 import { scopedById } from '../../../utils/db-helpers'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
 
 export default defineEventHandler(async (event) => {
@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   const tierDelete = db.delete(membershipTiers).where(scopedById(membershipTiers.id, id, membershipTiers.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'delete', resource: 'membership_tier', resourceId: id, before: existing })
-  await db.batch(auditInsert ? [tierDelete, auditInsert] : [tierDelete])
+  await batchWithAudit(db, [tierDelete], auditInsert)
 
   return noContent(event)
 })

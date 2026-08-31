@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { contentTaxonomyTerms, taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -42,9 +42,9 @@ export default defineEventHandler(async (event) => {
 
   if (body.termIds.length > 0) {
     const termsInsert = db.insert(contentTaxonomyTerms).values(body.termIds.map(termId => ({ contentItemId: itemId, termId })))
-    await db.batch(auditInsert ? [termsDelete, termsInsert, auditInsert] : [termsDelete, termsInsert])
+    await batchWithAudit(db, [termsDelete, termsInsert], auditInsert)
   } else {
-    await db.batch(auditInsert ? [termsDelete, auditInsert] : [termsDelete])
+    await batchWithAudit(db, [termsDelete], auditInsert)
   }
 
   return { success: true }

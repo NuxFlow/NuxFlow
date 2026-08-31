@@ -1,6 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireAuth } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getMenuByIdOrThrow } from '../../../utils/resource-queries'
 import { menus } from '@nuxflow/db/schema'
 import { scopedById } from '../../../utils/db-helpers'
@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
     before: existing,
   })
 
-  await db.batch(auditInsert ? [menuDelete, auditInsert] : [menuDelete])
+  await batchWithAudit(db, [menuDelete], auditInsert)
 
   return noContent(event)
 })

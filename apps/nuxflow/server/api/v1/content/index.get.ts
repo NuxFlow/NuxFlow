@@ -1,9 +1,9 @@
 import { useDb } from '../../../utils/db'
 import { getContentTypeBySlugOrThrow } from '../../../utils/content-queries'
 import { parsePagination } from '../../../utils/pagination'
-import { paginate } from '@nuxflow/db/queries'
+import { paginate, countRows } from '@nuxflow/db/queries'
 import { contentItems } from '@nuxflow/db/schema'
-import { and, eq, desc, gt, sql } from 'drizzle-orm'
+import { and, eq, desc, gt } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { items, total } = await paginate(
-    () => db.select({ total: sql<number>`count(*)` }).from(contentItems).where(where),
+    countRows(db, contentItems, where),
     () => db.query.contentItems.findMany({ where, orderBy: [desc(contentItems.updatedAt)], columns, limit, offset }),
   )
 

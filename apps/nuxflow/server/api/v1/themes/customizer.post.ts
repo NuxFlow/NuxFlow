@@ -5,7 +5,7 @@ import { scopedById } from '../../../utils/db-helpers'
 import { requireRole } from '../../../utils/permissions'
 import { resolveSetting, saveSetting } from '../../../utils/settings'
 import { putThemeCSS } from '../../../utils/cf-env'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { clearActiveThemeCache } from '../../../utils/theme-cache'
 import { useDb } from '../../../utils/db'
 
@@ -111,7 +111,7 @@ export default defineEventHandler(async (event) => {
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'update', resource: 'theme', resourceId: themeId! })
 
-  await db.batch(auditInsert ? [deactivateAll, activateTarget, auditInsert] : [deactivateAll, activateTarget])
+  await batchWithAudit(db, [deactivateAll, activateTarget], auditInsert)
   clearActiveThemeCache(siteId)
   return { success: true, themeId }
 })

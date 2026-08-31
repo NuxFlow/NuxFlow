@@ -1,6 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { getVideoAssetByIdOrThrow } from '../../../../utils/resource-queries'
 import { videoAssets } from '@nuxflow/db/schema'
 import { scopedById } from '../../../../utils/db-helpers'
@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
     before: { title: asset.title },
     after: { title: title.trim() },
   })
-  await db.batch(auditInsert ? [assetUpdate, auditInsert] : [assetUpdate])
+  await batchWithAudit(db, [assetUpdate], auditInsert)
 
   return { success: true }
 })

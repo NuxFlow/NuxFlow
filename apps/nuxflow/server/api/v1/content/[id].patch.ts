@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { resolveSetting } from '../../../utils/settings'
 import { broadcastPushToSite } from '../../../utils/webpush'
 import { getContentItemOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
@@ -91,7 +91,7 @@ export default defineEventHandler(async (event) => {
 
   // One D1 round trip instead of three — none of these writes depend on
   // each other's result, only on `existing`, which is already loaded above.
-  await db.batch(auditInsert ? [revisionInsert, itemUpdate, auditInsert] : [revisionInsert, itemUpdate])
+  await batchWithAudit(db, [revisionInsert, itemUpdate], auditInsert)
 
   // Push broadcast when content is first published
   const isFirstPublish = updateFields.status === 'published' && existing.status !== 'published'

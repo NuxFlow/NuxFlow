@@ -1,6 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { dynamicPluginTrust } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   const deleteQuery = db.delete(dynamicPluginTrust)
     .where(and(eq(dynamicPluginTrust.siteId, siteId), eq(dynamicPluginTrust.pluginId, id)))
 
-  await db.batch(auditInsert ? [deleteQuery, auditInsert] : [deleteQuery])
+  await batchWithAudit(db, [deleteQuery], auditInsert)
 
   return noContent(event)
 })

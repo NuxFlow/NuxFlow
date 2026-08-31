@@ -1,9 +1,9 @@
 import { useDb } from '../../../utils/db'
 import { requireAuth } from '../../../utils/permissions'
 import { parsePagination } from '../../../utils/pagination'
-import { paginate } from '@nuxflow/db/queries'
+import { paginate, countRows } from '@nuxflow/db/queries'
 import { media } from '@nuxflow/db/schema'
-import { and, eq, isNull, desc, sql } from 'drizzle-orm'
+import { and, eq, isNull, desc } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   const { page, limit, offset } = parsePagination(query, 60)
 
   const { items: files, total } = await paginate(
-    () => db.select({ total: sql<number>`count(*)` }).from(media).where(where),
+    countRows(db, media, where),
     () => db.query.media.findMany({ where, orderBy: [desc(media.createdAt)], limit, offset }),
   )
 

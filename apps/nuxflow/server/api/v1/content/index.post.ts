@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getContentTypeBySlugOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
 import { created } from '../../../utils/response'
 import { contentItems, sites } from '@nuxflow/db/schema'
@@ -66,7 +66,7 @@ export default defineEventHandler(async (event) => {
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'create', resource: 'content_item', resourceId: id })
 
-  await db.batch(auditInsert ? [itemInsert, auditInsert] : [itemInsert])
+  await batchWithAudit(db, [itemInsert], auditInsert)
 
   return created(event, { id })
 })

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getCommentByIdOrThrow } from '../../../utils/resource-queries'
 import { comments } from '@nuxflow/db/schema'
 import { scopedById } from '../../../utils/db-helpers'
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
     after: { status: body.status },
   })
 
-  await db.batch(auditInsert ? [commentUpdate, auditInsert] : [commentUpdate])
+  await batchWithAudit(db, [commentUpdate], auditInsert)
 
   return { id, status: body.status }
 })

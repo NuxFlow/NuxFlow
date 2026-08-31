@@ -3,7 +3,7 @@ import { membershipTiers } from '@nuxflow/db/schema'
 import { useDb } from '../../../utils/db'
 import { scopedById } from '../../../utils/db-helpers'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
 import { resolveSetting } from '../../../utils/settings'
 import { StripeProvider } from '../../../utils/payments/stripe'
@@ -106,7 +106,7 @@ export default defineEventHandler(async (event) => {
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update', resource: 'membership_tier', resourceId: id, before: tier, after: body,
   })
-  await db.batch(auditInsert ? [update, auditInsert] : [update])
+  await batchWithAudit(db, [update], auditInsert)
 
   const updated = await db.query.membershipTiers.findFirst({
     where: (t, { eq: eq_ }) => eq_(t.id, id),

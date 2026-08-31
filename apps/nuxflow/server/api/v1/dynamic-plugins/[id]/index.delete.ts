@@ -1,6 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { deletePluginAssets } from '../../../../utils/cf-env'
 import { getDynamicPluginByIdOrThrow } from '../../../../utils/resource-queries'
 import { dynamicPlugins } from '@nuxflow/db/schema'
@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'delete', resource: 'dynamic_plugin', resourceId: id, before: existing,
   })
-  await db.batch(auditInsert ? [pluginDelete, auditInsert] : [pluginDelete])
+  await batchWithAudit(db, [pluginDelete], auditInsert)
 
   return noContent(event)
 })

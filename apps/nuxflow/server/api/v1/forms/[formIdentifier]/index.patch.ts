@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { forms } from '@nuxflow/db/schema'
 import type { FormField, ConditionalLogic } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update', resource: 'form', resourceId: formIdentifier, before: existing, after: body,
   })
-  await db.batch(auditInsert ? [update, auditInsert] : [update])
+  await batchWithAudit(db, [update], auditInsert)
 
   return { id: formIdentifier }
 })

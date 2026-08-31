@@ -1,6 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { mediaFolders, media } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { scopedById } from '../../../../utils/db-helpers'
@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
     before: folder,
   })
 
-  await db.batch(auditInsert ? [unfileMedia, folderDelete, auditInsert] : [unfileMedia, folderDelete])
+  await batchWithAudit(db, [unfileMedia, folderDelete], auditInsert)
 
   return noContent(event)
 })

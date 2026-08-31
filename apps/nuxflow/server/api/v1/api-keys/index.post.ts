@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { created } from '../../../utils/response'
 import { apiKeys } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
     after: { name: body.name, scopes: body.scopes },
   })
 
-  await db.batch(auditInsert ? [keyInsert, auditInsert] : [keyInsert])
+  await batchWithAudit(db, [keyInsert], auditInsert)
 
   // Raw key shown only once — client must copy it
   return created(event, { id, key: rawKey })

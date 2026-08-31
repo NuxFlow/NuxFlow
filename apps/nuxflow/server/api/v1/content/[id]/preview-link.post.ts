@@ -1,7 +1,7 @@
 import { useDb } from '../../../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
 import { requireRole } from '../../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { scopedById } from '../../../../utils/db-helpers'
 import { ulid } from 'ulid'
@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
     resource: 'preview_link',
     resourceId: id,
   })
-  await db.batch(auditInsert ? [tokenUpdate, auditInsert] : [tokenUpdate])
+  await batchWithAudit(db, [tokenUpdate], auditInsert)
 
   return { url: `${baseUrl}/api/preview/${token}` }
 })

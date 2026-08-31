@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm'
 import { scopedById } from '../../../../utils/db-helpers'
 import { useDb } from '../../../../utils/db'
 import type { NuxFlowBackup } from '../../../../utils/backup'
-import { buildAuditLogInsert } from '../../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { clearActiveThemeCache } from '../../../../utils/theme-cache'
 import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 
@@ -46,7 +46,7 @@ export default defineEventHandler(async (event) => {
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'activate', resource: 'theme', resourceId: themeId })
 
-  await db.batch(auditInsert ? [deactivateAll, activateTarget, auditInsert] : [deactivateAll, activateTarget])
+  await batchWithAudit(db, [deactivateAll, activateTarget], auditInsert)
   clearActiveThemeCache(siteId)
 
   return { success: true, result }

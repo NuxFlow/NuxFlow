@@ -1,6 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { clearActiveThemeCache } from '../../../utils/theme-cache'
 import { themes } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'reset', resource: 'theme', resourceId: 'default' })
 
-  await db.batch(auditInsert ? [deactivateAll, auditInsert] : [deactivateAll])
+  await batchWithAudit(db, [deactivateAll], auditInsert)
   clearActiveThemeCache(siteId)
   return { success: true }
 })

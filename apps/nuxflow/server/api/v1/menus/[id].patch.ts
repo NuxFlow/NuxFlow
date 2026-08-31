@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireAuth } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getMenuByIdOrThrow } from '../../../utils/resource-queries'
 import { menus } from '@nuxflow/db/schema'
 import { sql } from 'drizzle-orm'
@@ -60,7 +60,7 @@ export default defineEventHandler(async (event) => {
     after: body,
   })
 
-  await db.batch(auditInsert ? [menuUpdate, auditInsert] : [menuUpdate])
+  await batchWithAudit(db, [menuUpdate], auditInsert)
 
   return { ok: true }
 })

@@ -1,7 +1,9 @@
 import { useDb } from './db'
+import type { Db } from './db'
 import { auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import type { H3Event } from 'h3'
+import type { BatchItem } from 'drizzle-orm/batch'
 
 interface AuditOptions {
   action: string
@@ -36,4 +38,15 @@ export function buildAuditLogInsert(event: H3Event, userId: string, opts: AuditO
 export async function writeAuditLog(event: H3Event, userId: string, opts: AuditOptions) {
   const insert = buildAuditLogInsert(event, userId, opts)
   if (insert) await insert
+}
+
+// Folds the audit-log insert (possibly null, when there's no site in context) into the
+// same db.batch() as the primary write(s) instead of every mutation route repeating the
+// `auditInsert ? [...writes, auditInsert] : writes` ternary by hand.
+export async function batchWithAudit(
+  db: Db,
+  writes: readonly [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]],
+  auditInsert: ReturnType<typeof buildAuditLogInsert>,
+): Promise<void> {
+  await db.batch(auditInsert ? [...writes, auditInsert] : writes)
 }

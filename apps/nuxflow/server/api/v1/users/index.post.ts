@@ -4,7 +4,7 @@ import { userSiteRoles, sites } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole } from '../../../utils/permissions'
-import { buildAuditLogInsert } from '../../../utils/audit'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { sendEmail, escapeHtml } from '../../../utils/email'
 import { rateLimit } from '../../../utils/rate-limit'
 import { created } from '../../../utils/response'
@@ -64,7 +64,7 @@ export default defineEventHandler(async (event) => {
     resourceId: newUser.id,
     after: { role: body.role, email: body.email },
   })
-  await db.batch(auditInsert ? [roleInsert, auditInsert] : [roleInsert])
+  await batchWithAudit(db, [roleInsert], auditInsert)
 
   // Send invitation email
   const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { name: true, domain: true } })

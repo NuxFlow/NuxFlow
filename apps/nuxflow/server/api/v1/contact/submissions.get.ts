@@ -1,9 +1,9 @@
 import { forms, formSubmissions } from '@nuxflow/db/schema'
-import { and, eq, desc, sql } from 'drizzle-orm'
+import { and, eq, desc } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { parsePagination } from '../../../utils/pagination'
-import { paginate } from '@nuxflow/db/queries'
+import { paginate, countRows } from '@nuxflow/db/queries'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
   const where = and(eq(formSubmissions.formId, form.id), eq(formSubmissions.siteId, siteId))
 
   const { items: submissions, total } = await paginate(
-    () => db.select({ total: sql<number>`count(*)` }).from(formSubmissions).where(where),
+    countRows(db, formSubmissions, where),
     () => db.query.formSubmissions.findMany({ where, orderBy: [desc(formSubmissions.createdAt)], limit, offset }),
   )
 
