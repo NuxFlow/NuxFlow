@@ -41,6 +41,7 @@
     "fix-cloudflare-email-from-address",
     "fix-lint-and-kysely",
     "fix-linux-build-heap-limit",
+    "fix-missing-typography-plugin",
     "fix-multi-domain-oauth",
     "fix-onboarding-email-defaults",
     "fix-production-login-session-invalidation",
