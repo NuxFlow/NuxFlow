@@ -1,5 +1,12 @@
 # @nuxflow/app
 
+## 2.0.0-beta.12
+
+### Patch Changes
+
+- Updated dependencies [5de7709]
+  - @nuxflow/canvas@2.0.0-beta.6
+
 ## 2.0.0-beta.11
 
 ### Patch Changes
