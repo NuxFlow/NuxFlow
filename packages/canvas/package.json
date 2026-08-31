@@ -20,11 +20,11 @@
     "xss": "^1.0.15"
   },
   "peerDependencies": {
-    "@nuxt/ui": "^3.3.7",
+    "@nuxt/ui": "^4.11.0",
     "vue": "^3.5.0"
   },
   "devDependencies": {
-    "@nuxt/ui": "^3.3.7",
+    "@nuxt/ui": "^4.11.0",
     "@vue/runtime-core": "^3.5.39",
     "typescript": "^5.9.3",
     "vue": "^3.5.39",

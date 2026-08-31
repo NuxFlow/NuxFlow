@@ -8,7 +8,9 @@ license: MIT
 
 Component library for Vue 3 and Nuxt 4+ built on Reka UI (headless) + Tailwind CSS v4 + Tailwind Variants.
 
-**Current stable version:** v4.4.0 (January 2026)
+**Current stable version:** v4.11.0 (confirmed via npm `latest` dist-tag, August 2026)
+
+This project pins `@nuxt/ui` to `^4.11.0` (see `apps/nuxflow/package.json` and `packages/canvas/package.json`) — upgraded from v3.3.7 on 2026-08-31. All v4-specific guidance below applies directly.
 
 ## When to Use
 

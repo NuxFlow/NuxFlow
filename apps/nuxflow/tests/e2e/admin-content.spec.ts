@@ -16,7 +16,7 @@ async function loginAsAdmin(page: Page): Promise<void> {
   await page.waitForSelector('input[type="email"]', { timeout: 15_000 })
   await page.fill('input[type="email"]', ADMIN_EMAIL)
   await page.fill('input[type="password"]', ADMIN_PASSWORD)
-  await page.getByRole('button', { name: /sign in/i }).click()
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await page.waitForURL(/\/admin/, { timeout: 20_000 })
 }
 

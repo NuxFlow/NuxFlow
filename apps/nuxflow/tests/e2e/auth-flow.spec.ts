@@ -16,7 +16,7 @@ test.describe('Login flow', () => {
     await page.waitForSelector('input[type="email"]')
     await expect(page.locator('input[type="email"]')).toBeVisible()
     await expect(page.locator('input[type="password"]')).toBeVisible()
-    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
   })
 
   test('shows a link to register', async ({ page }) => {
@@ -31,7 +31,7 @@ test.describe('Login flow', () => {
 
     await page.fill('input[type="email"]', ADMIN_EMAIL)
     await page.fill('input[type="password"]', ADMIN_PASSWORD)
-    await page.getByRole('button', { name: /sign in/i }).click()
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
 
     // After login, admin should land in the admin dashboard
     await page.waitForURL(/\/admin/, { timeout: 20_000 })
@@ -44,7 +44,7 @@ test.describe('Login flow', () => {
 
     await page.fill('input[type="email"]', 'wrong@example.com')
     await page.fill('input[type="password"]', 'wrongpassword')
-    await page.getByRole('button', { name: /sign in/i }).click()
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
 
     // An error alert or message should appear
     await page.waitForSelector('[role="alert"], .error, [data-test="error"]', { timeout: 10_000 })
