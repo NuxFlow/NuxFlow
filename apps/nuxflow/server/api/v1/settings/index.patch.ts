@@ -6,7 +6,8 @@ import { eq, sql } from 'drizzle-orm'
 import { saveSetting } from '../../../utils/settings'
 import { clearAppearanceCache } from '../../../utils/appearance-cache'
 import { writeAuditLog } from '../../../utils/audit'
-import { purgeEdgeCache } from '../../../utils/edge-cache'
+import { purgeEdgeCache, purgeAllPublicPages } from '../../../utils/edge-cache'
+import { waitUntil } from '../../../utils/cf-env'
 
 const bodySchema = z.object({
   // Site columns
@@ -37,6 +38,7 @@ const bodySchema = z.object({
   // S3-compatible and Bunny.net media storage — per-site overrides of the env-var
   // fallbacks in nuxt.config.ts, resolved the same way as the Cloudflare settings above.
   media: z.object({
+    r2PublicUrl: z.string().optional(),
     s3Bucket: z.string().optional(),
     s3AccessKey: z.string().optional(),
     s3SecretKey: z.string().optional(),
@@ -105,6 +107,7 @@ export default defineEventHandler(async (event) => {
 
   if (body.media) {
     const m = body.media
+    if (m.r2PublicUrl !== undefined) await saveSetting(event, 'media.r2_public_url', m.r2PublicUrl)
     if (m.s3Bucket !== undefined) await saveSetting(event, 'media.s3_bucket', m.s3Bucket)
     if (m.s3AccessKey !== undefined) await saveSetting(event, 'media.s3_access_key', m.s3AccessKey)
     if (m.s3SecretKey !== undefined) await saveSetting(event, 'media.s3_secret_key', m.s3SecretKey)
@@ -151,6 +154,21 @@ export default defineEventHandler(async (event) => {
 
   if (Object.keys(siteUpdate).length > 0 || body.settings) {
     await purgeEdgeCache(event, ['/api/public/site'])
+  }
+
+  // A site column (name/domain/etc.) or ANY site setting can end up rendered into every
+  // single page's shared chrome — not just the three keys touchedAppearance recognizes
+  // (theme.dark_mode/primary_color/font_sans); layout.header_block/footer_block are one
+  // example of a setting that affects every page without being an "appearance" key. Reuse
+  // the same broad condition the existing /api/public/site purge above already uses,
+  // rather than trying to enumerate exactly which settings matter — a purge sweep that
+  // turns out to be unnecessary is cheap (backgrounded, mostly no-ops against nothing
+  // cached); a page silently left stale because a new site-wide setting wasn't added to
+  // an allowlist here is a real, easy-to-miss bug.
+  if (Object.keys(siteUpdate).length > 0 || body.settings) {
+    waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
+      console.error('[settings] Failed to purge page cache after settings change:', err)
+    }))
   }
 
   return { success: true }

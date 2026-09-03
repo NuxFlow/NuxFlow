@@ -63,6 +63,7 @@ function handleClick() {
         class="w-full"
         :class="[{ 'rounded-xl': rounded }, lightbox ? 'cursor-zoom-in' : '']"
         :style="{ objectPosition: `${focalX}% ${focalY}%` }"
+        loading="lazy"
         @click="handleClick"
       />
       <div

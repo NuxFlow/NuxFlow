@@ -23,6 +23,8 @@ export interface NuxFlowCloudflareEnv {
   AE?: AnalyticsEngineDataset
   ARGON2?: ArgonHasherBinding
   EMAIL?: SendEmail
+  /** Optional R2 bucket for the native media storage provider (server/utils/media-providers/r2.ts). */
+  MEDIA_BUCKET?: R2Bucket
   [key: string]: unknown
 }
 

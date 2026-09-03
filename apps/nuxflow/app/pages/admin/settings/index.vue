@@ -210,6 +210,10 @@ const cloudflare = reactive({
   imagesDeliveryUrl: '',
 })
 
+const r2 = reactive({
+  publicUrl: '',
+})
+
 const s3 = reactive({
   bucket: '',
   accessKey: '',
@@ -365,6 +369,8 @@ watch(data, (d) => {
   cloudflare.imagesToken = (s['cloudflare.images_token'] as string) ?? ''
   cloudflare.imagesDeliveryUrl = (s['cloudflare.images_delivery_url'] as string) ?? ''
 
+  r2.publicUrl = (s['media.r2_public_url'] as string) ?? ''
+
   s3.bucket = (s['media.s3_bucket'] as string) ?? ''
   s3.accessKey = (s['media.s3_access_key'] as string) ?? ''
   s3.secretKey = (s['media.s3_secret_key'] as string) ?? ''
@@ -438,6 +444,7 @@ async function save() {
           imagesDeliveryUrl: cloudflare.imagesDeliveryUrl,
         },
         media: {
+          r2PublicUrl: r2.publicUrl,
           s3Bucket: s3.bucket,
           s3AccessKey: s3.accessKey,
           s3SecretKey: s3.secretKey,
@@ -1112,8 +1119,29 @@ async function deleteSite() {
             icon="i-lucide-arrow-down-up"
             color="neutral"
             variant="soft"
-            description="Only one image storage provider is active at a time, checked in this order: Cloudflare Images above → S3 below → Bunny.net below that. The first one with credentials configured wins. If none are configured, uploads fall back to storing small files directly in the database — fine for a quick test, not for real use."
+            description="Only one image storage provider is active at a time, checked in this order: Cloudflare Images above → R2 below → S3 below that → Bunny.net below that. The first one with credentials configured wins. If none are configured, uploads fall back to storing small files directly in the database — fine for a quick test, not for real use."
           />
+
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-2">
+                <UIcon name="i-lucide-cloud" class="w-4 h-4 text-primary-500" />
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">Cloudflare R2 storage</p>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Cloudflare's own object storage — zero egress fees, no API keys. Requires a `MEDIA_BUCKET` R2 bucket binding in wrangler.toml (see wrangler.toml.example) and a public URL below, since R2 buckets are private by default. Used when Cloudflare Images above isn't configured.</p>
+            </template>
+            <div class="space-y-4">
+              <UFormField label="Public URL" hint="A custom domain connected to the bucket, or its r2.dev subdomain — enable one in the Cloudflare dashboard under R2 → your bucket → Settings">
+                <UInput v-model="r2.publicUrl" placeholder="https://media.yourdomain.com" />
+              </UFormField>
+            </div>
+            <template #footer>
+              <div class="flex items-center justify-between">
+                <p class="text-xs text-gray-400">No credentials to store — access is via the Worker's own bucket binding.</p>
+                <UButton :loading="saving" @click="save">Save</UButton>
+              </div>
+            </template>
+          </UCard>
 
           <UCard>
             <template #header>
@@ -1121,7 +1149,7 @@ async function deleteSite() {
                 <UIcon name="i-lucide-database" class="w-4 h-4 text-primary-500" />
                 <p class="text-sm font-semibold text-gray-900 dark:text-white">S3-compatible storage</p>
               </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">AWS S3, Cloudflare R2, Backblaze B2, or any S3-compatible bucket. Used when Cloudflare Images above isn't configured.</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">AWS S3, Backblaze B2, or any S3-compatible bucket (including R2's own S3-compatible endpoint, if you'd rather use access-key auth than the native binding above). Used when Cloudflare Images and R2 above aren't configured.</p>
             </template>
             <div class="space-y-4">
               <UFormField label="Bucket name">
@@ -1161,7 +1189,7 @@ async function deleteSite() {
                 <UIcon name="i-lucide-zap" class="w-4 h-4 text-primary-500" />
                 <p class="text-sm font-semibold text-gray-900 dark:text-white">Bunny.net storage</p>
               </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Bunny.net Edge Storage + CDN. Used when neither Cloudflare Images nor S3 above are configured.</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Bunny.net Edge Storage + CDN. Used when none of Cloudflare Images, R2, or S3 above are configured.</p>
             </template>
             <div class="space-y-4">
               <UFormField label="API key" hint="Storage zone password, found in the Bunny.net dashboard under your storage zone → FTP & API Access">

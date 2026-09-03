@@ -29,6 +29,10 @@ async function buildImageSitemap(event: H3Event) {
       where: and(eq(siteSettings.siteId, siteId), eq(siteSettings.key, 'seo.canonical_url')),
       columns: { value: true },
     }),
+    // The image-sitemap extension caps a single <url> entry at 1,000 <image:image>
+    // children — this route puts every image under one <url> entry (the site root), so
+    // that cap applies directly. It also bounds what was previously an unbounded query
+    // (and unbounded response) on a media-heavy site.
     db.select({
       url: media.url,
       altText: media.altText,
@@ -38,7 +42,7 @@ async function buildImageSitemap(event: H3Event) {
         eq(media.siteId, siteId),
         like(media.mimeType, 'image/%'),
       ),
-    ),
+    ).limit(1000),
   ])
 
   const domainBase = site ? `https://${site.domain}` : config.public.siteUrl

@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { membershipTiers, subscriptions } from '@nuxflow/db/schema'
 import { useDb } from '../db'
@@ -70,28 +70,22 @@ export async function upsertSubscriptionFromWebhook(event: H3Event, evt: Subscri
       })
     : null
 
-  const existing = await db.query.subscriptions.findFirst({
-    where: and(
-      eq(subscriptions.siteId, siteId),
-      eq(subscriptions.providerSubscriptionId, evt.providerSubscriptionId),
-      eq(subscriptions.provider, evt.provider),
-    ),
-  })
-
-  if (existing) {
-    await db.update(subscriptions)
-      .set({
-        status: evt.status,
-        tierId: tier?.id ?? null,
-        currentPeriodStart: evt.currentPeriodStart,
-        currentPeriodEnd: evt.currentPeriodEnd,
-      })
-      .where(and(eq(subscriptions.id, existing.id), eq(subscriptions.siteId, siteId)))
-    return
-  }
-
-  await db.insert(subscriptions).values({
-    id: ulid(),
+  // Providers redeliver webhooks with no ordering guarantee — Stripe always sends both
+  // checkout.session.completed and customer.subscription.created for one checkout, and
+  // either can arrive first or arrive concurrently. A separate existence-check-then-write
+  // (the previous approach here) lets two concurrent deliveries both see "no existing
+  // row" before either commits, inserting duplicate subscription rows and double-sending
+  // the activation push. This does the whole thing as one atomic upsert instead: the
+  // unique index on (site_id, provider, provider_subscription_id) makes a genuine insert
+  // and a conflict-triggered update mutually exclusive at the SQLite level, so only one
+  // concurrent delivery for the same subscription can ever "win" the insert.
+  //
+  // `newId` lets us tell which branch actually happened without a second read: on a real
+  // insert `RETURNING id` is the id we just generated; on a conflict, `id` is left
+  // untouched by the SET clause below, so it comes back as the pre-existing row's id.
+  const newId = ulid()
+  const [row] = await db.insert(subscriptions).values({
+    id: newId,
     siteId,
     userId: evt.userId,
     tierId: tier?.id ?? null,
@@ -102,8 +96,21 @@ export async function upsertSubscriptionFromWebhook(event: H3Event, evt: Subscri
     currentPeriodStart: evt.currentPeriodStart,
     currentPeriodEnd: evt.currentPeriodEnd,
   })
+    .onConflictDoUpdate({
+      target: [subscriptions.siteId, subscriptions.provider, subscriptions.providerSubscriptionId],
+      set: {
+        status: evt.status,
+        tierId: tier?.id ?? null,
+        currentPeriodStart: evt.currentPeriodStart,
+        currentPeriodEnd: evt.currentPeriodEnd,
+        updatedAt: sql`(datetime('now'))`,
+      },
+    })
+    .returning({ id: subscriptions.id })
 
-  if (evt.pushOnActivation && (evt.status === 'active' || evt.status === 'trialing')) {
+  const wasInsert = row?.id === newId
+
+  if (wasInsert && evt.pushOnActivation && (evt.status === 'active' || evt.status === 'trialing')) {
     await maybeSendPaymentPush(event, siteId, evt.userId, tier?.name)
   }
 }

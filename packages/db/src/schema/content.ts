@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 import { sites } from './sites'
@@ -111,6 +111,11 @@ export const contentTaxonomyTerms = sqliteTable('content_taxonomy_terms', {
 }, (t) => [
   index('idx_ctt_item').on(t.contentItemId),
   index('idx_ctt_term').on(t.termId),
+  // Nothing previously stopped a duplicate (item, term) pair from being inserted — every
+  // current write path happens to avoid it by construction (delete-then-insert, or a
+  // first-seen map), but the schema itself gave no guarantee, and a duplicate silently
+  // double-counts that item in every taxonomy-archive listing/count.
+  uniqueIndex('idx_ctt_item_term').on(t.contentItemId, t.termId),
 ])
 
 export const menus = sqliteTable('menus', {

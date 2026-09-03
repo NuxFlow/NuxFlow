@@ -50,6 +50,27 @@
       "when": 1788010803491,
       "tag": "0006_tiresome_killer_shrike",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1788444969970,
+      "tag": "0007_many_senator_kelly",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788445694267,
+      "tag": "0008_breezy_harrier",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1788446000000,
+      "tag": "0009_search_index_trigger_optimization",
+      "breakpoints": true
     }
   ]
 }

@@ -66,6 +66,28 @@ export async function releaseMigrationLock(db: ReturnType<typeof useDb>): Promis
   await db.run(sql`DELETE FROM _nuxflow_migration_lock WHERE id = 1`).catch(() => {})
 }
 
+const MIGRATION_WAIT_POLL_ATTEMPTS = 15
+const MIGRATION_WAIT_POLL_DELAY_MS = 400
+
+// Polls until every file in `expectedKeys` shows up in `_nuxflow_migrations`, i.e. the
+// isolate that holds the lock has actually finished. Returns false (not an error) on
+// timeout so the caller can fail open rather than hang the request indefinitely.
+async function waitForMigrationsToComplete(db: ReturnType<typeof useDb>, expectedKeys: string[]): Promise<boolean> {
+  for (let attempt = 0; attempt < MIGRATION_WAIT_POLL_ATTEMPTS; attempt++) {
+    try {
+      const rows = await db.values<[string]>(
+        sql`SELECT filename FROM _nuxflow_migrations`,
+      )
+      const applied = new Set(rows.map(r => r[0]))
+      if (expectedKeys.every(k => applied.has(k))) return true
+    } catch {
+      // _nuxflow_migrations doesn't exist yet — the winner hasn't created it. Keep polling.
+    }
+    await new Promise(resolve => setTimeout(resolve, MIGRATION_WAIT_POLL_DELAY_MS))
+  }
+  return false
+}
+
 async function applyMigrations(event: H3Event) {
   const storage = useStorage('assets/migrations')
   const keys = (await storage.getKeys()).filter(k => !k.startsWith('meta:')).sort()
@@ -75,11 +97,20 @@ async function applyMigrations(event: H3Event) {
 
   const acquired = await acquireMigrationLock(db)
   if (!acquired) {
-    // Another isolate is already migrating (or crashed mid-migration and the lock
-    // hasn't gone stale yet). Don't block this request indefinitely — the schema is
-    // very likely already in, or about to be in, the state the other isolate is
-    // bringing it to.
-    console.warn('[nuxflow:migrate] Another isolate holds the migration lock — skipping')
+    // Another isolate is already migrating. acquireMigrationLock already spent
+    // MIGRATION_LOCK_ACQUIRE_ATTEMPTS * MIGRATION_LOCK_RETRY_DELAY_MS (~1s) trying to
+    // get the lock itself — that budget is fine for *acquiring* a free lock, but a real
+    // migration run (multiple ALTER/CREATE statements) can easily take longer than 1s
+    // total, especially on a large existing database. Rather than assume the winner is
+    // done and let this request straight through to route handlers that may query a
+    // schema that isn't there yet, poll until every known migration file is recorded as
+    // applied (bounded, so a genuinely crashed winner — lock will go stale after
+    // MIGRATION_LOCK_STALE_SECONDS and the next request will re-acquire and retry —
+    // doesn't hang this request forever).
+    const winnerDone = await waitForMigrationsToComplete(db, keys)
+    if (!winnerDone) {
+      console.warn('[nuxflow:migrate] Timed out waiting for another isolate to finish migrating — proceeding anyway')
+    }
     return
   }
 

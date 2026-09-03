@@ -1,0 +1,1 @@
+ALTER TABLE `themes` ADD `css_version` integer DEFAULT 0 NOT NULL;

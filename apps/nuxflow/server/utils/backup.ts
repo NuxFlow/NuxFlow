@@ -9,6 +9,9 @@ import {
 import type { FormField, ConditionalLogic } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { saveSetting, SENSITIVE_SETTING_KEYS } from './settings'
+import { clearBetterAuthCache } from './better-auth'
+import { decryptText } from './encryption'
 
 // ── Backup format types ───────────────────────────────────────────────────────
 
@@ -224,8 +227,26 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
     })
   }
 
+  // Sensitive settings are stored encrypted under this deployment's own betterAuthSecret
+  // (see settings.ts). Exporting the raw ciphertext would make it undecryptable on any
+  // other deployment (a different secret) or if this deployment's secret ever rotates —
+  // restore would then silently treat that garbage as if it were the real plaintext
+  // secret. Decrypt on export the same way resolveSetting() does on every normal read, so
+  // the backup always carries the real plaintext and restore can re-encrypt it correctly
+  // under whatever secret is active at import time.
+  const rc = useRuntimeConfig()
   const settingsMap: Record<string, unknown> = {}
-  for (const row of settingRows) settingsMap[row.key] = row.value
+  for (const row of settingRows) {
+    let val = row.value
+    if (SENSITIVE_SETTING_KEYS.has(row.key) && typeof val === 'string') {
+      try {
+        val = await decryptText(val, rc.betterAuthSecret as string)
+      } catch {
+        // Stored before encryption was enforced — already plaintext, export as-is.
+      }
+    }
+    settingsMap[row.key] = val
+  }
 
   return {
     version: '1',
@@ -297,21 +318,29 @@ export async function applyBackup(
   }
 
   // ── Settings ─────────────────────────────────────────────────────────────
+  // Routed through saveSetting() rather than a raw insert/update — that's the single
+  // chokepoint that (a) encrypts sensitive keys under this deployment's own secret (the
+  // backup carries plaintext, decrypted on export above), and (b) busts the 30s
+  // per-isolate settings cache on write. Bypassing it (the previous behavior here) meant
+  // a restored setting could keep serving its pre-restore cached value for up to 30s on
+  // the isolate that served the restore. clearBetterAuthCache() below covers the same gap
+  // for OAuth credentials specifically — Better Auth caches a built instance per Host for
+  // 5 minutes, and restoring auth.google_client_id/auth.github_client_secret etc. would
+  // otherwise silently keep using pre-restore credentials for up to 5 minutes post-restore.
   if (opts.what.includes('settings') && backup.settings) {
+    let touchedAuthSettings = false
     for (const [key, value] of Object.entries(backup.settings)) {
       const existing = await db.query.siteSettings.findFirst({
         where: and(eq(siteSettings.siteId, siteId), eq(siteSettings.key, key)),
+        columns: { id: true },
       })
-      if (existing) {
-        if (opts.conflictMode === 'overwrite') {
-          await db.update(siteSettings).set({ value }).where(and(eq(siteSettings.siteId, siteId), eq(siteSettings.key, key)))
-          result.settings.updated++
-        }
-      } else {
-        await db.insert(siteSettings).values({ id: ulid(), siteId, key, value })
-        result.settings.updated++
-      }
+      if (existing && opts.conflictMode !== 'overwrite') continue
+
+      await saveSetting(event, key, value)
+      result.settings.updated++
+      if (key.startsWith('auth.')) touchedAuthSettings = true
     }
+    if (touchedAuthSettings) clearBetterAuthCache()
   }
 
   // ── Taxonomies + terms ────────────────────────────────────────────────────
@@ -392,14 +421,23 @@ export async function applyBackup(
 
     const idBySlug = new Map<string, string>()
 
+    // One prefetch instead of one findFirst() per backup item — a backup with a few
+    // thousand items previously meant a few thousand sequential existence-check round
+    // trips before any write even happened.
+    const existingBySlug = new Map<string, { id: string; title: string }>()
+    if (backup.content.length > 0) {
+      const existingItems = await db.query.contentItems.findMany({
+        where: and(eq(contentItems.siteId, siteId), inArray(contentItems.slug, backup.content.map(i => i.slug))),
+        columns: { id: true, title: true, slug: true },
+      })
+      for (const item of existingItems) existingBySlug.set(item.slug, { id: item.id, title: item.title })
+    }
+
     for (const backupItem of backup.content) {
       const typeId = typeIdBySlug.get(backupItem.typeSlug)
       if (!typeId) continue
 
-      const existing = await db.query.contentItems.findFirst({
-        where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, backupItem.slug)),
-        columns: { id: true, title: true },
-      })
+      const existing = existingBySlug.get(backupItem.slug)
 
       if (existing) {
         idBySlug.set(backupItem.slug, existing.id)

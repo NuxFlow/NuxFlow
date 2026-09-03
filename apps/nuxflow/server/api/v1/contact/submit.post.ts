@@ -10,6 +10,7 @@ import { sendEmail, escapeHtml } from '../../../utils/email'
 import { resolveSetting } from '../../../utils/settings'
 import { created } from '../../../utils/response'
 import { sendNotification } from '../../../utils/notify'
+import { waitUntil } from '../../../utils/cf-env'
 
 const CONTACT_SLUG = 'contact'
 
@@ -118,14 +119,14 @@ export default defineEventHandler(async (event) => {
   if (submitterUserId) {
     const pushEnabled = await resolveSetting(event, 'push.events.form_submission')
     if (pushEnabled === 'true') {
-      sendNotification({
+      waitUntil(event, sendNotification({
         siteId,
         userId: submitterUserId,
         type: 'form_submission',
         title: 'Message received',
         body: 'Thanks for your message. We\'ll be in touch soon.',
         sendPush: true,
-      }, event).catch(err => console.error('[notify] Form submission notification failed:', err))
+      }, event).catch(err => console.error('[notify] Form submission notification failed:', err)))
     }
   }
 

@@ -6,6 +6,8 @@ import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 import { themes } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { scopedById } from '../../../../utils/db-helpers'
+import { purgeAllPublicPages } from '../../../../utils/edge-cache'
+import { waitUntil } from '../../../../utils/cf-env'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
@@ -23,5 +25,13 @@ export default defineEventHandler(async (event) => {
 
   await batchWithAudit(db, [deactivateAll, activateTarget], auditInsert)
   clearActiveThemeCache(siteId)
+
+  // Theme CSS is baked directly into every cached page's <style> block — switching
+  // themes needs every currently page-cached page invalidated, not just the isolate
+  // cache clearActiveThemeCache() above handles for fresh renders.
+  waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
+    console.error('[themes] Failed to purge page cache after theme activation:', err)
+  }))
+
   return { success: true }
 })

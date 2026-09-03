@@ -4,7 +4,8 @@ import { requireAuth } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { menus } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
-import { purgeEdgeCache } from '../../../utils/edge-cache'
+import { purgeEdgeCache, purgeAllPublicPages } from '../../../utils/edge-cache'
+import { waitUntil } from '../../../utils/cf-env'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -29,7 +30,17 @@ export default defineEventHandler(async (event) => {
 
   await batchWithAudit(db, [menuInsert], auditInsert)
 
-  if (body.location) await purgeEdgeCache(event, [`/api/public/menus/${body.location}`])
+  if (body.location) {
+    await purgeEdgeCache(event, [`/api/public/menus/${body.location}`])
+    // header/footer menus render into every page's shared chrome via the layout — a
+    // single named path isn't enough once full pages (not just their own JSON data) are
+    // cached. See purgeAllPublicPages' own docs for why this can't be more targeted.
+    if (body.location === 'header' || body.location === 'footer') {
+      waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
+        console.error('[menus] Failed to purge page cache after menu create:', err)
+      }))
+    }
+  }
 
   return { id }
 })

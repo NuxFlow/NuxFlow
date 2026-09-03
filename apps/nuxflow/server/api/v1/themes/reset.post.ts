@@ -4,6 +4,8 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { clearActiveThemeCache } from '../../../utils/theme-cache'
 import { themes } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
+import { purgeAllPublicPages } from '../../../utils/edge-cache'
+import { waitUntil } from '../../../utils/cf-env'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
@@ -16,5 +18,10 @@ export default defineEventHandler(async (event) => {
 
   await batchWithAudit(db, [deactivateAll], auditInsert)
   clearActiveThemeCache(siteId)
+
+  waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
+    console.error('[themes] Failed to purge page cache after theme reset:', err)
+  }))
+
   return { success: true }
 })

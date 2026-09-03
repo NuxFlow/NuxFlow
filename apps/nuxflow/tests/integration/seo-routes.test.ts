@@ -63,6 +63,35 @@ beforeAll(async () => {
     visibility: 'members',
   })
 
+  // Public post whose TipTap content carries a javascript: URL in both a
+  // link mark and an image node — must be neutralized in the RSS output.
+  await seedContentItem(db, SITE, typeId, {
+    slug: 'xss-post',
+    title: 'XSS Post',
+    status: 'published',
+    visibility: 'public',
+    content: {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'text',
+              text: 'Click',
+              marks: [{ type: 'link', attrs: { href: 'javascript:alert(1)' } }],
+            },
+          ],
+        },
+        {
+          type: 'image',
+          attrs: { src: 'javascript:alert(2)', alt: 'evil' },
+        },
+      ],
+    },
+    publishedAt: new Date(Date.now() - 30_000).toISOString(),
+  })
+
   await seedSetting(db, SITE, 'seo.description', 'A great test site for SEO testing')
 })
 
@@ -234,6 +263,13 @@ describe('GET /feed.xml', () => {
     const result = await (feedHandler as HandlerFn)(mkEvent()) as string
     expect(result).toContain('rel="alternate" type="application/atom+xml"')
     expect(result).toContain('/atom.xml')
+  })
+
+  it('strips javascript: URLs from links and images in TipTap content', async () => {
+    const result = await (feedHandler as HandlerFn)(mkEvent()) as string
+    expect(result).not.toContain('javascript:alert')
+    expect(result).toContain('<a href="">Click</a>')
+    expect(result).toContain('<img src="" alt="evil">')
   })
 })
 

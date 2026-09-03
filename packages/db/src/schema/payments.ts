@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 import { sites } from './sites'
 import { users } from './users'
@@ -42,4 +42,11 @@ export const subscriptions = sqliteTable('subscriptions', {
   index('idx_subscriptions_site_user').on(t.siteId, t.userId),
   index('idx_subscriptions_provider_id').on(t.provider, t.providerSubscriptionId),
   index('idx_subscriptions_site_status').on(t.siteId, t.status),
+  // Providers redeliver webhooks (e.g. Stripe always sends both
+  // checkout.session.completed and customer.subscription.created for one checkout, with
+  // no ordering guarantee) — without a uniqueness constraint here, two concurrent
+  // upserts for the same subscription can both miss each other's not-yet-committed row
+  // and insert duplicates. This backs the atomic `ON CONFLICT` upsert in
+  // upsertSubscriptionFromWebhook.
+  uniqueIndex('idx_subscriptions_unique_provider_sub').on(t.siteId, t.provider, t.providerSubscriptionId),
 ])

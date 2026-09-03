@@ -18,7 +18,7 @@ import { eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import multiSiteMiddleware from '../../server/middleware/02.multi-site'
 import apiKeyMiddleware from '../../server/middleware/03.api-key-auth'
-import themePreviewMiddleware from '../../server/middleware/theme-preview'
+import themePreviewMiddleware from '../../server/middleware/06.theme-preview'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -148,20 +148,40 @@ describe('02.multi-site middleware', () => {
   })
 
   describe('single-site fallback self-heal (exactly one site in the DB)', () => {
+    let adminUserId: string
+
     // Isolate this block to exactly one site by temporarily removing SITE_B —
     // the self-heal write only fires when the fallback matched exactly one site.
     beforeAll(async () => {
       await getCurrentTestDb().delete(sites).where(eq(sites.id, SITE_B))
+      adminUserId = await seedUser(getCurrentTestDb(), { email: 'self-heal-admin@middleware.test' })
+      await seedRole(getCurrentTestDb(), adminUserId, SITE_A, 'admin')
     })
 
     afterAll(async () => {
       await seedSite(getCurrentTestDb(), { id: SITE_B, domain: 'site-b.localhost', status: 'maintenance', setupCompleted: true })
     })
 
-    it('rewrites the site domain on an unmatched host for /admin paths', async () => {
-      const event = mkSiteEvent({ host: 'new-domain.localhost', path: '/admin/settings' })
+    it('does NOT rewrite the site domain on /admin paths without an authenticated admin session', async () => {
+      // `Host` is fully attacker-controlled on a Worker with no custom-domain route
+      // configured — without a session check, this exact request (an unauthenticated
+      // hit on /admin with a forged Host header) used to silently steal the site's
+      // domain out from under its real one.
+      const event = mkSiteEvent({ host: 'attacker-domain.localhost', path: '/admin/settings' })
       await (multiSiteMiddleware as MiddlewareFn)(event)
       const ctx = (event as unknown as { context: Record<string, unknown> }).context
+      expect(ctx.siteId).toBe(SITE_A)
+
+      const row = await getCurrentTestDb().query.sites.findFirst({ where: eq(sites.id, SITE_A) })
+      expect(row?.domain).toBe('site-a.localhost')
+    })
+
+    it('rewrites the site domain on an unmatched host for /admin paths when signed in as an admin on this site', async () => {
+      const event = mkSiteEvent({ host: 'new-domain.localhost', path: '/admin/settings' }) as unknown as
+        { context: Record<string, unknown> }
+      event.context._session = { user: { id: adminUserId } }
+      await (multiSiteMiddleware as MiddlewareFn)(event as unknown as H3Event)
+      const ctx = event.context
       expect(ctx.siteId).toBe(SITE_A)
 
       const row = await getCurrentTestDb().query.sites.findFirst({ where: eq(sites.id, SITE_A) })

@@ -5,7 +5,7 @@ import { contentTypes, contentItems, taxonomies, taxonomyTerms, contentTaxonomyT
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
-import { isSafeUrl } from '../../../utils/security'
+import { isSafeUrl, safeFetch } from '../../../utils/security'
 import { errorMessage } from '../../../utils/errors'
 
 const MAX_WXR_BYTES = 100 * 1024 * 1024 // 100 MB — WXR exports for large sites can be tens of MB
@@ -173,7 +173,7 @@ export default defineEventHandler(async (event) => {
 
         const results = await Promise.allSettled(
           batch.map(async (remoteUrl) => {
-            const res = await fetch(remoteUrl)
+            const res = await safeFetch(remoteUrl)
             if (!res.ok) throw new Error(`HTTP ${res.status}`)
             const buffer = await res.arrayBuffer()
             const contentType = res.headers.get('content-type') ?? 'image/jpeg'

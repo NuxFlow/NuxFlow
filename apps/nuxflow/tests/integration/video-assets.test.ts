@@ -133,25 +133,103 @@ describe('POST /api/v1/media/video', () => {
     ).rejects.toMatchObject({ statusCode: 400 })
   })
 
-  it('creates a video asset with processing status when no CF config', async () => {
+  it('returns 501 when Cloudflare Stream is not configured', async () => {
     const uid = 'deadbeef1234567890abcdef12345678'
-    const result = await (registerHandler as HandlerFn)(
-      mkEvent({ userId: authorUserId, body: { uid, title: 'New Upload' } }),
-    ) as { id: string; title: string; cloudflareStreamId: string; status: string }
-
-    expect(result.cloudflareStreamId).toBe(uid)
-    expect(result.title).toBe('New Upload')
-    expect(result.status).toBe('processing')
-    expect(typeof result.id).toBe('string')
+    await expect(
+      (registerHandler as HandlerFn)(
+        mkEvent({ userId: authorUserId, body: { uid, title: 'New Upload' } }),
+      ),
+    ).rejects.toMatchObject({ statusCode: 501 })
   })
 
-  it('uses Untitled Video as fallback title when none provided', async () => {
-    const uid = 'cafebabe1234567890abcdef12345678'
-    const result = await (registerHandler as HandlerFn)(
-      mkEvent({ userId: authorUserId, body: { uid } }),
-    ) as { title: string }
+  it('does not insert a stuck video_assets row when the CF Stream lookup returns non-ok', async () => {
+    const uid = 'badbad001234567890abcdef12345678'
+    const originalConfig = globalThis.useRuntimeConfig
 
-    expect(result.title).toBe('Untitled Video')
+    globalThis.useRuntimeConfig = () => ({
+      ...originalConfig(),
+      cloudflareAccountId: 'acct-reg-fail',
+      cloudflareStreamToken: 'tok-reg-fail',
+    })
+
+    const mockFetch = vi.fn().mockResolvedValue({ ok: false, status: 404, text: async () => 'Not Found' })
+    vi.stubGlobal('fetch', mockFetch)
+
+    try {
+      await expect(
+        (registerHandler as HandlerFn)(
+          mkEvent({ userId: authorUserId, body: { uid } }),
+        ),
+      ).rejects.toMatchObject({ statusCode: 404 })
+
+      const result = await (listHandler as HandlerFn)(mkEvent({ userId: viewerUserId })) as { cloudflareStreamId: string }[]
+      expect(result.some(v => v.cloudflareStreamId === uid)).toBe(false)
+    } finally {
+      globalThis.useRuntimeConfig = originalConfig
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('returns 502 when the CF Stream lookup response is unsuccessful during registration', async () => {
+    const uid = 'badbad021234567890abcdef12345678'
+    const originalConfig = globalThis.useRuntimeConfig
+
+    globalThis.useRuntimeConfig = () => ({
+      ...originalConfig(),
+      cloudflareAccountId: 'acct-reg-fail-2',
+      cloudflareStreamToken: 'tok-reg-fail-2',
+    })
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: false }),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    try {
+      await expect(
+        (registerHandler as HandlerFn)(
+          mkEvent({ userId: authorUserId, body: { uid } }),
+        ),
+      ).rejects.toMatchObject({ statusCode: 502 })
+    } finally {
+      globalThis.useRuntimeConfig = originalConfig
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('uses Untitled Video as fallback title when none provided and CF is configured', async () => {
+    const uid = 'cafebabe1234567890abcdef12345678'
+    const originalConfig = globalThis.useRuntimeConfig
+
+    globalThis.useRuntimeConfig = () => ({
+      ...originalConfig(),
+      cloudflareAccountId: 'acct-fallback',
+      cloudflareStreamToken: 'tok-fallback',
+    })
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        result: {
+          duration: 10,
+          status: { state: 'ready' },
+        },
+      }),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    try {
+      const result = await (registerHandler as HandlerFn)(
+        mkEvent({ userId: authorUserId, body: { uid } }),
+      ) as { title: string }
+
+      expect(result.title).toBe('Untitled Video')
+    } finally {
+      globalThis.useRuntimeConfig = originalConfig
+      vi.unstubAllGlobals()
+    }
   })
 
   it('creates a video asset with CF-provided metadata when CF is configured', async () => {

@@ -11,6 +11,15 @@ export const themes = sqliteTable('themes', {
   version: text('version').notNull(),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(false),
   hasCss: integer('has_css', { mode: 'boolean' }).notNull().default(false),
+  // Bumped on every CSS publish (putThemeCSS in cf-env.ts) and folded into the KV key
+  // the CSS is stored under (theme:{siteId}:{themeId}:css:v{cssVersion}) — see cf-env.ts
+  // for why: publishing to the SAME key is subject to both this isolate's own 60s CSS
+  // cache and KV's own eventual-consistency propagation on other isolates/colos, which
+  // could compound to leave a visitor seeing stale theme CSS for up to ~2 minutes after a
+  // publish. A version bump makes each publish a brand-new key that has only ever been
+  // written once, so re-reading it is never stale — only the (much smaller, single,
+  // well-understood) isolate-cache TTL on the version pointer itself remains.
+  cssVersion: integer('css_version').notNull().default(0),
   settings: text('settings', { mode: 'json' }).$type<Record<string, unknown>>(),
   installedAt: text('installed_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [

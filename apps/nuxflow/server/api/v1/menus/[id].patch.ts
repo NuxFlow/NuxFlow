@@ -6,7 +6,8 @@ import { getMenuByIdOrThrow } from '../../../utils/resource-queries'
 import { menus } from '@nuxflow/db/schema'
 import { sql } from 'drizzle-orm'
 import { scopedById } from '../../../utils/db-helpers'
-import { purgeEdgeCache } from '../../../utils/edge-cache'
+import { purgeEdgeCache, purgeAllPublicPages } from '../../../utils/edge-cache'
+import { waitUntil } from '../../../utils/cf-env'
 
 const menuItemSchema: z.ZodType<unknown> = z.lazy(() =>
   z.object({
@@ -66,6 +67,14 @@ export default defineEventHandler(async (event) => {
   const newLocation = 'location' in body ? (body.location ?? null) : existing.location
   const locations = [...new Set([existing.location, newLocation].filter((l): l is string => Boolean(l)))]
   await purgeEdgeCache(event, locations.map(l => `/api/public/menus/${l}`))
+
+  // header/footer menus render into every page's shared chrome — covers both a location
+  // change and an in-place items edit on a menu that's already assigned to header/footer.
+  if (locations.includes('header') || locations.includes('footer')) {
+    waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
+      console.error('[menus] Failed to purge page cache after menu update:', err)
+    }))
+  }
 
   return { ok: true }
 })

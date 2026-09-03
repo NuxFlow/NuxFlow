@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
 
   await getThemeByIdOrThrow(db, siteId, id, 'Theme not found', { id: true, packageName: true })
 
-  // The real access control lives in server/middleware/theme-preview.ts, which
+  // The real access control lives in server/middleware/06.theme-preview.ts, which
   // only honors `__theme_id` for an authenticated admin (or higher) of this
   // site — this endpoint itself already required that via requireRole above,
   // so the URL just needs to carry the theme id, not a bearer-style secret.

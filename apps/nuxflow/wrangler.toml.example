@@ -33,8 +33,9 @@ directory = ".output/public"
 # NUXT_BUNNY_PULL_ZONE =
 
 [triggers]
-# Scheduled publish — runs every minute
-crons = ["* * * * *"]
+# publish-scheduled runs every minute; prune-old-data runs nightly at 3 AM UTC;
+# reconcile-stuck-videos runs hourly
+crons = ["* * * * *", "0 3 * * *", "0 * * * *"]
 
 # Dynamic plugin KV store — run to create:
 #   wrangler kv namespace create PLUGIN_KV
@@ -48,6 +49,16 @@ preview_id = "your-kv-preview-namespace-id"
 # Requires compatibility_date >= 2026-03-02.
 [[worker_loaders]]
 binding = "LOADER"
+
+# Cloudflare R2 bucket (optional) — native object storage for the media system, checked
+# right after Cloudflare Images in server/utils/media-providers/index.ts. Zero egress
+# fees, no API keys. Create with: wrangler r2 bucket create nuxflow-media
+# Then enable public access on it (a custom domain, or its r2.dev subdomain) via the
+# Cloudflare dashboard, and set that URL in Settings → Media → Cloudflare R2 storage
+# (or the NUXT_R2_PUBLIC_URL env var).
+# [[r2_buckets]]
+# binding = "MEDIA_BUCKET"
+# bucket_name = "nuxflow-media"
 
 # Cloudflare Analytics Engine (optional — included in Workers Paid plan).
 # Enables edge-native, cookie-free page view and event analytics.

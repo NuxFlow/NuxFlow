@@ -12,25 +12,12 @@ import { rateLimit } from '../../server/utils/rate-limit'
 }
 ;(globalThis as Record<string, unknown>).getHeader = (_: unknown, __: string): string | null => null
 
-// cf-env: return no KV so execution falls through to the DB tier
-vi.mock('../../server/utils/cf-env', () => ({
-  getCfBindings: () => ({ kv: null, loader: null }),
-}))
-
-// DB: return a no-op implementation sufficient for tier-3 path.
+// rate-limit.ts now does a single atomic `db.get(sql\`INSERT ... ON CONFLICT ... RETURNING\`)`
+// call instead of a separate read-then-write — mock just that one entry point.
 // NOTE: useDb in rate-limit.ts is a Nuxt auto-import (not an explicit named import),
 // so we must set it on globalThis rather than using vi.mock.
-const mockFindFirst = vi.fn()
-const mockInsertValues = vi.fn().mockResolvedValue(undefined)
-const mockUpdateSet = vi.fn()
-const mockUpdateSetWhere = vi.fn().mockResolvedValue(undefined)
-mockUpdateSet.mockReturnValue({ where: mockUpdateSetWhere })
-
-;(globalThis as Record<string, unknown>).useDb = () => ({
-  query: { rateLimits: { findFirst: mockFindFirst } },
-  insert: () => ({ values: mockInsertValues }),
-  update: () => ({ set: mockUpdateSet }),
-})
+const mockGet = vi.fn()
+;(globalThis as Record<string, unknown>).useDb = () => ({ get: mockGet })
 
 function mkEvent(ip = '127.0.0.1') {
   return {
@@ -39,58 +26,68 @@ function mkEvent(ip = '127.0.0.1') {
   } as unknown as H3Event
 }
 
-describe('rateLimit — memory tier', () => {
+function farFutureResetAt() {
+  return new Date(Date.now() + 60_000).toISOString()
+}
+
+describe('rateLimit', () => {
   beforeEach(() => {
-    mockFindFirst.mockResolvedValue(null)
-    mockInsertValues.mockResolvedValue(undefined)
-    mockUpdateSet.mockReturnValue({ where: mockUpdateSetWhere })
-    mockUpdateSetWhere.mockResolvedValue(undefined)
-    vi.clearAllMocks()
-    mockFindFirst.mockResolvedValue(null)
-    mockInsertValues.mockResolvedValue(undefined)
-    mockUpdateSet.mockReturnValue({ where: mockUpdateSetWhere })
-    mockUpdateSetWhere.mockResolvedValue(undefined)
+    mockGet.mockReset()
   })
 
   it('allows a request within the limit', async () => {
-    const event = mkEvent('10.0.0.1')
-    await expect(rateLimit(event, { limit: 5, windowMs: 60_000, keyPrefix: 'unit-a' })).resolves.toBeUndefined()
+    mockGet.mockResolvedValueOnce({ count: 1, reset_at: farFutureResetAt() })
+    await expect(rateLimit(mkEvent('10.0.0.1'), { limit: 5, windowMs: 60_000, keyPrefix: 'unit-a' }))
+      .resolves.toBeUndefined()
   })
 
-  it('allows exactly N requests before blocking', async () => {
+  it('allows exactly N requests before blocking, then throws 429 on the N+1th', async () => {
     const ip = '10.0.0.2'
     const opts = { limit: 3, windowMs: 60_000, keyPrefix: 'unit-b' }
+    const resetAt = farFutureResetAt()
+
+    mockGet
+      .mockResolvedValueOnce({ count: 1, reset_at: resetAt })
+      .mockResolvedValueOnce({ count: 2, reset_at: resetAt })
+      .mockResolvedValueOnce({ count: 3, reset_at: resetAt })
 
     for (let i = 0; i < 3; i++) {
       await expect(rateLimit(mkEvent(ip), opts)).resolves.toBeUndefined()
     }
-  })
 
-  it('throws 429 after the limit is exceeded in memory', async () => {
-    // The memory cache throws when cached.count > limit, so with limit=1:
-    //  call 1 → cache miss → count=1
-    //  call 2 → count=1, 1>1 is false → count→2, DB runs (no-op)
-    //  call 3 → count=2, 2>1 is true  → THROW 429
-    const ip = '10.0.0.3'
-    const opts = { limit: 1, windowMs: 60_000, keyPrefix: 'unit-c' }
-
-    await rateLimit(mkEvent(ip), opts)
-    await rateLimit(mkEvent(ip), opts)
-
+    mockGet.mockResolvedValueOnce({ count: 4, reset_at: resetAt })
     await expect(rateLimit(mkEvent(ip), opts)).rejects.toMatchObject({ statusCode: 429 })
   })
 
   it('rejects with retryAfter data attached to the error', async () => {
-    const ip = '10.0.0.4'
-    const opts = { limit: 1, windowMs: 60_000, keyPrefix: 'unit-d' }
+    mockGet.mockResolvedValueOnce({ count: 2, reset_at: farFutureResetAt() })
 
-    await rateLimit(mkEvent(ip), opts)
-    await rateLimit(mkEvent(ip), opts)
-
-    await rateLimit(mkEvent(ip), opts).catch(err => {
+    await rateLimit(mkEvent('10.0.0.4'), { limit: 1, windowMs: 60_000, keyPrefix: 'unit-d' }).catch((err) => {
       expect(err.statusCode).toBe(429)
       expect(err.data).toHaveProperty('retryAfter')
       expect(typeof err.data.retryAfter).toBe('number')
     })
+  })
+
+  it('fast-rejects from the isolate-local blocked cache without a second D1 call once blocked', async () => {
+    const ip = '10.0.0.5'
+    const opts = { limit: 1, windowMs: 60_000, keyPrefix: 'unit-e' }
+
+    mockGet.mockResolvedValueOnce({ count: 2, reset_at: farFutureResetAt() })
+    await expect(rateLimit(mkEvent(ip), opts)).rejects.toMatchObject({ statusCode: 429 })
+
+    mockGet.mockClear()
+    await expect(rateLimit(mkEvent(ip), opts)).rejects.toMatchObject({ statusCode: 429 })
+    expect(mockGet).not.toHaveBeenCalled()
+  })
+
+  it('different keys (site/IP/prefix) are tracked independently', async () => {
+    mockGet.mockResolvedValueOnce({ count: 1, reset_at: farFutureResetAt() })
+    await expect(rateLimit(mkEvent('10.0.0.6'), { limit: 1, windowMs: 60_000, keyPrefix: 'unit-f' }))
+      .resolves.toBeUndefined()
+
+    mockGet.mockResolvedValueOnce({ count: 1, reset_at: farFutureResetAt() })
+    await expect(rateLimit(mkEvent('10.0.0.7'), { limit: 1, windowMs: 60_000, keyPrefix: 'unit-f' }))
+      .resolves.toBeUndefined()
   })
 })

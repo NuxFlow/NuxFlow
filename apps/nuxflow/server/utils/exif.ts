@@ -95,7 +95,11 @@ export function extractExif(buffer: ArrayBuffer): ExifData | null {
     return s.trim()
   }
 
-  function rational(off: number): number {
+  // valOff comes from file content (an attacker/corruption-controlled 32-bit offset) —
+  // bounds-check it against the buffer before letting DataView read at it, the same way
+  // the segment/IFD walk above bounds-checks every offset it follows.
+  function rational(off: number): number | undefined {
+    if (tiff + off + 8 > view.byteLength) return undefined
     const n = r32(off)
     const d = r32(off + 4)
     return d === 0 ? 0 : n / d
@@ -110,12 +114,15 @@ export function extractExif(buffer: ArrayBuffer): ExifData | null {
   function getShort(map: Map<number, Entry>, tag: number): number | undefined {
     const e = map.get(tag)
     if (!e || e.type !== 3) return undefined
+    if (tiff + e.valOff + 2 > view.byteLength) return undefined
     return r16(e.valOff)
   }
 
   function getLong(map: Map<number, Entry>, tag: number): number | undefined {
     const e = map.get(tag)
     if (!e || (e.type !== 4 && e.type !== 3)) return undefined
+    const size = e.type === 4 ? 4 : 2
+    if (tiff + e.valOff + size > view.byteLength) return undefined
     return e.type === 4 ? r32(e.valOff) : r16(e.valOff)
   }
 

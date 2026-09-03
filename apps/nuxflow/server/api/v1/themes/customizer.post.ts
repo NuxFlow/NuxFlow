@@ -4,10 +4,11 @@ import { ulid } from 'ulid'
 import { scopedById } from '../../../utils/db-helpers'
 import { requireRole } from '../../../utils/permissions'
 import { resolveSetting, saveSetting } from '../../../utils/settings'
-import { putThemeCSS } from '../../../utils/cf-env'
+import { putThemeCSS, waitUntil } from '../../../utils/cf-env'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { clearActiveThemeCache } from '../../../utils/theme-cache'
 import { useDb } from '../../../utils/db'
+import { purgeAllPublicPages } from '../../../utils/edge-cache'
 
 interface CustomizerValues {
   colorMode: 'auto' | 'light' | 'dark'
@@ -113,5 +114,13 @@ export default defineEventHandler(async (event) => {
 
   await batchWithAudit(db, [deactivateAll, activateTarget], auditInsert)
   clearActiveThemeCache(siteId)
+
+  // Publishes both new theme CSS and appearance settings (dark mode/primary color/font)
+  // directly via saveSetting() above, bypassing settings/index.patch.ts's own purge logic
+  // entirely — needs the same full-page purge that route does, for the same reason.
+  waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
+    console.error('[themes] Failed to purge page cache after customizer publish:', err)
+  }))
+
   return { success: true, themeId }
 })

@@ -2,6 +2,14 @@ import { useDb } from '../utils/db'
 import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { createIsolateCache } from '../utils/isolate-cache'
+import { getUserSiteRole, roleAtLeast, type Role } from '../utils/permissions'
+
+// getAuthSession is deliberately called as a Nitro auto-import (not an explicit import
+// from '../utils/auth') — every other call site in this codebase does the same (see
+// permissions.ts's requireAuth calling requireSession the same way), and the test harness
+// mocks it via globalThis rather than vi.mock() on that module path. An explicit import
+// bypasses that mock and calls the real getOrCreateBetterAuth(), which has no Cloudflare
+// bindings available outside a real Worker/Wrangler context.
 
 type SiteLookup = { id: string; status: string; setupCompleted: boolean; domain?: string }
 
@@ -58,17 +66,36 @@ export default defineEventHandler(async (event) => {
           // automatically update the database record to match the active request host.
           // This ensures sitemaps, RSS feeds, and user invite email links heal automatically!
           //
-          // Gated to /admin traffic only — a real operator navigating the dashboard on
-          // the new domain is a plausible deliberate migration; a bot hitting /robots.txt
-          // or /sitemap.xml on some unrelated, never-onboarded domain that also happens to
-          // be routed to this Worker is not, and used to be enough to silently steal the
-          // site's domain out from under the actual production domain (and back again on
-          // the next real visit), causing the site to intermittently "lose" its identity.
+          // Gated to /admin traffic AND an authenticated admin+ session on this exact
+          // site. `Host` is fully attacker-controlled on a Worker reachable at its raw
+          // *.workers.dev hostname (no custom-domain route configured), and this
+          // middleware runs before auth — without the session check, an unauthenticated
+          // request with a forged Host header could silently rewrite sites.domain to
+          // arbitrary attacker-chosen text, which every SEO surface (feed/sitemap/
+          // robots.txt) and every invite email then treats as trusted. A real operator
+          // navigating the dashboard on the new domain while signed in is a plausible
+          // deliberate migration; nothing else is.
           if (path.startsWith('/admin') && host && host !== 'localhost' && host !== '127.0.0.1' && host !== '::1' && site.domain !== host) {
-            await db.update(sites)
-              .set({ domain: host, updatedAt: sql`(datetime('now'))` })
-              .where(eq(sites.id, site.id))
-            clearSiteCache()
+            // Isolated from the outer try/catch on purpose: that catch treats any
+            // failure as "DB not yet migrated" and nulls out siteId for the whole
+            // request. A session-check failure here (Better Auth misconfigured, no
+            // session cookie, etc.) must only skip the self-heal — it must never take
+            // down site resolution for the entire request.
+            try {
+              const session = await getAuthSession(event)
+              if (session) {
+                const roleRow = await getUserSiteRole(db, session.user.id, site.id)
+                const role = (roleRow?.role ?? 'viewer') as Role
+                if (roleAtLeast(role, 'admin')) {
+                  await db.update(sites)
+                    .set({ domain: host, updatedAt: sql`(datetime('now'))` })
+                    .where(eq(sites.id, site.id))
+                  clearSiteCache()
+                }
+              }
+            } catch (err) {
+              console.error('[multi-site] Skipping domain self-heal — session check failed', err)
+            }
           }
         } else if (allSites.length > 1 && (host === 'localhost' || host.endsWith('.workers.dev'))) {
           // Local/Preview fallback: default to the first site in D1

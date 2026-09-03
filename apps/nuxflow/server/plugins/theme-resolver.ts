@@ -34,7 +34,7 @@ export default defineNitroPlugin((nitro) => {
         const db = useDb(event)
         const row = await db.query.themes.findFirst({
           where: and(eq(themes.siteId, siteId), eq(themes.isActive, true)),
-          columns: { id: true, hasCss: true, packageName: true },
+          columns: { id: true, hasCss: true, packageName: true, cssVersion: true },
         })
         active = row ?? null
         setCachedActiveTheme(siteId, active)
@@ -60,7 +60,7 @@ export default defineNitroPlugin((nitro) => {
       // base and active theme CSS in parallel rather than sequentially.
       const [baseCss, css] = await Promise.all([
         baseThemeId && baseThemeId !== active.id ? getThemeCSS(event, siteId, baseThemeId) : Promise.resolve(null),
-        getThemeCSS(event, siteId, active.id),
+        getThemeCSS(event, siteId, active.id, active.cssVersion),
       ])
 
       if (baseCss) {

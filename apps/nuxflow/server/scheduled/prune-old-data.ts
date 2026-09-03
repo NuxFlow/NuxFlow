@@ -1,6 +1,6 @@
 import { useDb } from '../utils/db'
-import { auditLogs, contentRevisions } from '@nuxflow/db/schema'
-import { and, count, eq, lt, notInArray, sql } from 'drizzle-orm'
+import { auditLogs, contentRevisions, rateLimits, notifications } from '@nuxflow/db/schema'
+import { and, count, eq, lt, notInArray, sql, isNotNull, or } from 'drizzle-orm'
 
 export const pruneOldData = async () => {
   const db = useDb()
@@ -57,5 +57,42 @@ export const pruneOldData = async () => {
 
   const prunedRevisions = overflowItems.reduce((sum, { total }, i) => sum + (total - keepLists[i]!.length), 0)
 
-  return { prunedAuditLogs, prunedRevisions }
+  // --- Rate limit rows ---
+  // The D1 fallback tier of rateLimit() upserts one row per distinct (keyPrefix, siteId,
+  // ip) it ever sees — bounded by distinct keys, not request volume, but still unbounded
+  // over a public site's life (bot/scraper traffic naturally rotates IPs). Nothing else
+  // ever deletes an expired row, so this is the only cleanup path for this table.
+  const [rateLimitRow] = await db
+    .select({ value: count() })
+    .from(rateLimits)
+    .where(sql`datetime(${rateLimits.resetAt}) < datetime('now')`)
+  const prunedRateLimits = rateLimitRow?.value ?? 0
+  if (prunedRateLimits > 0) {
+    await db.delete(rateLimits).where(sql`datetime(${rateLimits.resetAt}) < datetime('now')`)
+  }
+
+  // --- Notifications ---
+  // No retention policy existed for this table at all — every content-published/
+  // payment-confirmed/etc. event inserts a permanent row with no expiry. Read
+  // notifications are pruned quickly (their in-app purpose is done once seen); unread
+  // ones get the same longer cutoff as audit logs as a hard cap so an inactive user
+  // can't accumulate notifications forever.
+  const notificationReadCutoff = new Date(Date.now() - 30 * 86_400_000)
+    .toISOString().replace('T', ' ').slice(0, 19)
+  const notificationHardCutoff = cutoffDate
+
+  const notificationsWhere = or(
+    and(isNotNull(notifications.readAt), lt(notifications.createdAt, notificationReadCutoff)),
+    lt(notifications.createdAt, notificationHardCutoff),
+  )
+  const [notificationRow] = await db
+    .select({ value: count() })
+    .from(notifications)
+    .where(notificationsWhere)
+  const prunedNotifications = notificationRow?.value ?? 0
+  if (prunedNotifications > 0) {
+    await db.delete(notifications).where(notificationsWhere)
+  }
+
+  return { prunedAuditLogs, prunedRevisions, prunedRateLimits, prunedNotifications }
 }

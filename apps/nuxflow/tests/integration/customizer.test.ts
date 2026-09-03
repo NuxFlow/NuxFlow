@@ -20,6 +20,10 @@ vi.mock('../../server/utils/cf-env', () => ({
   putThemeCSS: (...args: unknown[]) => putThemeCSSMock(...args),
   getCfBindings: () => ({ kv: null }),
   getAnalyticsEngine: () => null,
+  // Real waitUntil falls back to firing the promise inline when there's no Cloudflare
+  // ctx — matches that same fallback so purgeAllPublicPages (a genuine no-op here, since
+  // the mock event has no event.context.cloudflare) still gets awaited correctly.
+  waitUntil: (_event: unknown, promise: Promise<unknown>) => { void promise },
 }))
 
 // ── Lazy handler imports (after mocks are in place) ───────────────────────────

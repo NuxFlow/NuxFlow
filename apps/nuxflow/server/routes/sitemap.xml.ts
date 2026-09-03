@@ -34,6 +34,14 @@ async function buildSitemap(event: H3Event) {
   const domainBase = site ? `https://${site.domain}` : config.public.siteUrl
   const baseUrl = (canonicalSetting?.value as string | undefined)?.trim() || domainBase
 
+  // The sitemap protocol caps a single file at 50,000 URLs. This route only ever emits
+  // one file (no sitemap-index pagination), so without a bound, an increasingly large
+  // catalog would eventually produce a spec-violating file and re-run this same unbounded
+  // scan on every cache-miss. Capped well under the real limit — a site that reaches it
+  // needs true sitemap-index pagination, which this intentionally doesn't attempt; the
+  // warning below is the signal that it's needed.
+  const SITEMAP_URL_CAP = 45_000
+
   const [pages, taxRows] = await Promise.all([
     db.query.contentItems.findMany({
       // Only public visibility — gated/private pages must not be indexed
@@ -43,13 +51,19 @@ async function buildSitemap(event: H3Event) {
         eq(contentItems.visibility, 'public'),
       ),
       columns: { slug: true, updatedAt: true, ogImage: true },
+      limit: SITEMAP_URL_CAP,
     }),
     db
       .select({ taxSlug: taxonomies.slug, termSlug: taxonomyTerms.slug })
       .from(taxonomyTerms)
-      .innerJoin(taxonomies, eq(taxonomyTerms.taxonomyId, taxonomies.id))
-      .where(eq(taxonomies.siteId, siteId)),
+      .innerJoin(taxonomies, eq(taxonomies.id, taxonomyTerms.taxonomyId))
+      .where(eq(taxonomies.siteId, siteId))
+      .limit(SITEMAP_URL_CAP),
   ])
+
+  if (pages.length >= SITEMAP_URL_CAP || taxRows.length >= SITEMAP_URL_CAP) {
+    console.warn(`[sitemap.xml] Truncated at ${SITEMAP_URL_CAP} URLs for site ${siteId} — this site needs paginated sitemap-index support.`)
+  }
 
   const contentUrls = pages.map(p => `
   <url>

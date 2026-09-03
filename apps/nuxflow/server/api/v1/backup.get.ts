@@ -1,7 +1,7 @@
 import { requireRole } from '../../utils/permissions'
 import { buildBackup } from '../../utils/backup'
 import { zipSync } from 'fflate'
-import { isSafeUrl } from '../../utils/security'
+import { isSafeUrl, safeFetch } from '../../utils/security'
 import { isHttpError } from '../../utils/errors'
 
 const MAX_RAW_IMAGE_BYTES = 100 * 1024 * 1024 // 100 MB uncompressed
@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
     }
 
     try {
-      const res = await fetch(item.url)
+      const res = await safeFetch(item.url)
       if (!res.ok) continue
       const bytes = new Uint8Array(await res.arrayBuffer())
 

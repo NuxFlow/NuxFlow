@@ -1,4 +1,7 @@
 import type { H3Event } from 'h3'
+import { and, eq } from 'drizzle-orm'
+import { contentItems } from '@nuxflow/db/schema'
+import { useDb } from './db'
 
 // `dom` and `webworker` (both in this project's tsconfig lib list) each declare their own
 // standard CacheStorage — neither has `.default`, which is a Cloudflare-specific extension
@@ -6,7 +9,7 @@ import type { H3Event } from 'h3'
 // worker-configuration.d.ts. Same class of DOM/workerd global-type collision documented for
 // Response.json() elsewhere in this codebase; worked around the same way, with an explicit
 // cast through a narrow local type covering only what's used here.
-interface EdgeCacheStorage {
+export interface EdgeCacheStorage {
   default: {
     match(request: RequestInfo | URL): Promise<Response | undefined>
     put(request: RequestInfo | URL, response: Response): Promise<void>
@@ -121,14 +124,25 @@ export async function purgeEdgeCache(event: H3Event, paths: string[]): Promise<v
 // any content write rather than working out which of them actually changed. Paginated
 // variants (e.g. `/api/public/posts?page=2`) keep their own short TTL and aren't purged
 // individually; only the unparameterized first-page URL is cached under an exact match.
+// Includes both the JSON data view and (now that server/plugins/page-cache.ts caches full
+// rendered pages too) the actual page(s) built from it — `/blog` didn't need an entry here
+// before that existed, since nothing cached its rendered HTML at all.
 const GLOBAL_CONTENT_CACHE_PATHS = [
   '/api/public/posts',
+  '/blog',
   '/sitemap.xml',
   '/sitemap-images.xml',
   '/feed.xml',
   '/atom.xml',
   '/llms.txt',
 ]
+
+// The homepage is a special case: its content item has slug 'home', but it's actually
+// served (and, now, page-cached) at the site root, not at /home — see app/pages/index.vue,
+// which hardcodes fetching '/api/public/pages/home' regardless of the requested path.
+function pagePathForSlug(slug: string): string {
+  return slug === 'home' ? '/' : `/${slug}`
+}
 
 /**
  * Purges the edge cache for a content item's own page(s) plus every site-wide
@@ -140,12 +154,53 @@ export async function purgeContentCache(
   event: H3Event,
   opts: { slugs: string[]; taxonomyTerms?: { taxonomySlug: string; termSlug: string }[] },
 ): Promise<void> {
-  const paths = [
-    ...new Set(opts.slugs.filter(Boolean)).values(),
-  ].map(slug => `/api/public/pages/${slug}`)
+  const uniqueSlugs = [...new Set(opts.slugs.filter(Boolean)).values()]
+  const jsonPaths = uniqueSlugs.map(slug => `/api/public/pages/${slug}`)
+  const pagePaths = uniqueSlugs.map(pagePathForSlug)
 
-  const taxonomyPaths = (opts.taxonomyTerms ?? [])
+  const taxonomyJsonPaths = (opts.taxonomyTerms ?? [])
     .map(t => `/api/public/taxonomy/${t.taxonomySlug}/${t.termSlug}`)
+  const taxonomyPagePaths = (opts.taxonomyTerms ?? [])
+    .map(t => `/${t.taxonomySlug}/${t.termSlug}`)
 
-  await purgeEdgeCache(event, [...paths, ...GLOBAL_CONTENT_CACHE_PATHS, ...taxonomyPaths])
+  await purgeEdgeCache(event, [
+    ...jsonPaths, ...pagePaths,
+    ...GLOBAL_CONTENT_CACHE_PATHS,
+    ...taxonomyJsonPaths, ...taxonomyPagePaths,
+  ])
+}
+
+/**
+ * Purges every published/public page's cached HTML for a site, plus the site-wide views.
+ *
+ * Page-level caching (server/plugins/page-cache.ts) caches the FULL rendered document —
+ * header, footer, and every other piece of shared site chrome included — not just a
+ * content item's own data the way the JSON layer does. That means a change to something
+ * that renders on *every* page (site name/appearance settings, or a menu assigned to the
+ * header/footer location) can't be purged by naming a handful of known paths the way
+ * purgeContentCache does for a single content item's own change; every currently-cached
+ * page needs invalidating, since every one of them has that same stale chrome baked in.
+ *
+ * Cloudflare's Cache API has no bulk/prefix purge — only purge-by-exact-URL — so this
+ * enumerates every published, public content item's slug and purges each individually.
+ * Call sites should route this through `waitUntil` rather than awaiting it inline: it's
+ * only triggered by relatively rare admin actions (saving appearance settings, editing a
+ * header/footer menu), and there's no reason to make the admin's save wait on it.
+ */
+export async function purgeAllPublicPages(event: H3Event, siteId: string): Promise<void> {
+  const cf = event.context.cloudflare
+  if (!cf?.request) return
+
+  const db = useDb(event)
+  const rows = await db.query.contentItems.findMany({
+    where: and(
+      eq(contentItems.siteId, siteId),
+      eq(contentItems.status, 'published'),
+      eq(contentItems.visibility, 'public'),
+    ),
+    columns: { slug: true },
+  })
+
+  const pagePaths = rows.map(r => pagePathForSlug(r.slug))
+  await purgeEdgeCache(event, [...new Set(['/', ...pagePaths, ...GLOBAL_CONTENT_CACHE_PATHS])])
 }

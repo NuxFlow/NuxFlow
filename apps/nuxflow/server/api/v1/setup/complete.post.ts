@@ -116,14 +116,23 @@ async function _handleSetup(event: H3Event) {
     if (!site.setupTokenHash) {
       throw forbidden('This site has no setup link. Ask a super admin to generate one.')
     }
-    if (!body.setupToken || (await hashSetupToken(body.setupToken)) !== site.setupTokenHash) {
+    if (!body.setupToken) {
       throw forbidden('Invalid or missing setup token.')
     }
 
     siteId = site.id
-    // Update the site details with anything the user might have updated in the wizard, and
-    // burn the setup token so it cannot be replayed.
-    await db.update(sites)
+    const providedTokenHash = await hashSetupToken(body.setupToken)
+
+    // Claim the token and burn it in one atomic, conditional statement — the WHERE clause
+    // re-checks setupTokenHash against the *current* row, not the value read a moment ago.
+    // Two concurrent requests both carrying a valid (e.g. leaked/observed) token would
+    // otherwise both pass the earlier read-based check and both proceed to seed content
+    // and grant super_admin, before either write landed. D1 serialises this single UPDATE,
+    // so only one request's WHERE clause can match — `.returning()` (portable across the
+    // D1 and libSQL/better-sqlite3 drivers, unlike D1's own `.meta.changes`) comes back
+    // empty for the request that lost the race, which is rejected exactly like a token
+    // that was already burned.
+    const claimed = await db.update(sites)
       .set({
         name: body.site.name,
         locale: body.site.locale,
@@ -131,7 +140,12 @@ async function _handleSetup(event: H3Event) {
         setupCompleted: true,
         setupTokenHash: null,
       })
-      .where(eq(sites.id, siteId))
+      .where(and(eq(sites.id, siteId), eq(sites.setupTokenHash, providedTokenHash)))
+      .returning({ id: sites.id })
+
+    if (claimed.length === 0) {
+      throw forbidden('Invalid or missing setup token.')
+    }
   }
 
   // Seed initial site settings from setup choices

@@ -22,54 +22,68 @@ export default defineEventHandler(async (event) => {
   const accountId = await resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
   const streamToken = await resolveSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')
 
-  let duration: number | null = null
-  let thumbnailUrl: string | null = null
-  let status: 'uploading' | 'processing' | 'ready' | 'failed' = 'processing'
+  if (!accountId || !streamToken) {
+    throw createError({
+      statusCode: 501,
+      message: 'Cloudflare Stream is not configured. Add your Account ID and Stream API token in Settings → Media.',
+    })
+  }
 
-  if (accountId && streamToken) {
-    try {
-      const response = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/${uid}`,
-        {
-          headers: { Authorization: `Bearer ${streamToken}` },
-        }
-      )
-
-      if (response.ok) {
-        interface CloudflareStreamDetailsResponse {
-          success: boolean
-          result?: {
-            duration?: number
-            thumbnail?: string
-            status?: {
-              state: string
-            }
-            meta?: {
-              name?: string
-            }
-          }
-        }
-        const data = (await response.json()) as CloudflareStreamDetailsResponse
-        if (data.success && data.result) {
-          const res = data.result
-          if (!title && res.meta?.name) title = res.meta.name
-          duration = res.duration ? Math.round(res.duration) : null
-          thumbnailUrl = res.thumbnail || null
-
-          const cfState = res.status?.state
-          if (cfState === 'ready') {
-            status = 'ready'
-          } else if (cfState === 'error') {
-            status = 'failed'
-          } else {
-            status = 'processing'
-          }
-        }
+  // The `uid` is client-supplied and never verified against what token.post.ts actually
+  // issued. Requiring this lookup to succeed before inserting anything is the whole
+  // fix here: previously any failure (bad uid, network error, non-2xx) fell through
+  // silently and still inserted a video_assets row stuck at status:'processing'
+  // forever, since nothing ever revisits it. Fail the request instead.
+  interface CloudflareStreamDetailsResponse {
+    success: boolean
+    result?: {
+      duration?: number
+      thumbnail?: string
+      status?: {
+        state: string
       }
-    } catch (err) {
-      console.error('Error fetching stream details during registration:', err)
+      meta?: {
+        name?: string
+      }
     }
   }
+
+  let response: Response
+  try {
+    response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/${uid}`,
+      {
+        headers: { Authorization: `Bearer ${streamToken}` },
+      }
+    )
+  } catch (err) {
+    console.error('Error fetching stream details during registration:', err)
+    throw createError({ statusCode: 502, message: 'Failed to communicate with Cloudflare Stream API while verifying the upload.' })
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '')
+    console.error('Cloudflare Stream lookup HTTP error during registration:', response.status, errText)
+    throw createError({
+      statusCode: response.status === 404 ? 404 : 502,
+      message: 'Cloudflare Stream did not recognize this upload UID. It may not have finished uploading yet, or belongs to a different account.',
+    })
+  }
+
+  const data = (await response.json()) as CloudflareStreamDetailsResponse
+  if (!data.success || !data.result) {
+    console.error('Cloudflare Stream lookup returned an unsuccessful response during registration:', JSON.stringify(data))
+    throw createError({ statusCode: 502, message: 'Cloudflare Stream returned an unexpected response while verifying the upload.' })
+  }
+
+  const res = data.result
+  if (!title && res.meta?.name) title = res.meta.name
+  const duration = res.duration ? Math.round(res.duration) : null
+  const thumbnailUrl = res.thumbnail || null
+
+  const cfState = res.status?.state
+  const status: 'uploading' | 'processing' | 'ready' | 'failed'
+    = cfState === 'ready' ? 'ready' : cfState === 'error' ? 'failed' : 'processing'
 
   const finalTitle = title || 'Untitled Video'
   const fileId = ulid()

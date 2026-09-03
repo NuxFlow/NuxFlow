@@ -11,6 +11,8 @@ import { ulid } from 'ulid'
 import { scopedById } from '../../../utils/db-helpers'
 import { purgeContentCache } from '../../../utils/edge-cache'
 import { getContentItemTerms } from '@nuxflow/db/queries'
+import { waitUntil } from '../../../utils/cf-env'
+import type { BatchItem } from 'drizzle-orm/batch'
 
 const bodySchema = z.object({
   title: z.string().min(1).max(500).optional(),
@@ -62,14 +64,15 @@ export default defineEventHandler(async (event) => {
     ? deriveVisibilityFromSettings(updateFields.settings)
     : undefined
 
-  // Snapshot revision before update
-  const revisionInsert = db.insert(contentRevisions).values({
-    id: ulid(),
-    itemId: id,
-    authorId: userId,
-    title: existing.title,
-    content: existing.content,
-  })
+  // Snapshot a revision only when this edit actually changes title/content — the editor
+  // autosaves every 10s of idle time regardless of whether anything changed, and every
+  // other field (SEO, settings, scheduling, etc.) already has its own history via the
+  // audit log, so snapshotting the full title+content pair on every such no-op autosave
+  // just inflates content_revisions without capturing anything new.
+  const titleChanged = updateFields.title !== undefined && updateFields.title !== existing.title
+  const contentChanged = updateFields.content !== undefined
+    && JSON.stringify(updateFields.content) !== JSON.stringify(existing.content)
+  const shouldSnapshotRevision = titleChanged || contentChanged
 
   const itemUpdate = db.update(contentItems)
     .set({
@@ -93,7 +96,16 @@ export default defineEventHandler(async (event) => {
 
   // One D1 round trip instead of three — none of these writes depend on
   // each other's result, only on `existing`, which is already loaded above.
-  await batchWithAudit(db, [revisionInsert, itemUpdate], auditInsert)
+  const writes: [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]] = shouldSnapshotRevision
+    ? [db.insert(contentRevisions).values({
+        id: ulid(),
+        itemId: id,
+        authorId: userId,
+        title: existing.title,
+        content: existing.content,
+      }), itemUpdate]
+    : [itemUpdate]
+  await batchWithAudit(db, writes, auditInsert)
 
   const terms = await getContentItemTerms(db, id)
   await purgeContentCache(event, {
@@ -106,11 +118,11 @@ export default defineEventHandler(async (event) => {
   if (isFirstPublish) {
     const enabled = await resolveSetting(event, 'push.events.content_published')
     if (enabled === 'true') {
-      broadcastPushToSite(event, {
+      waitUntil(event, broadcastPushToSite(event, {
         title: body.title ?? existing.title,
         body: 'New content has been published.',
         url: `/${updateFields.slug ?? existing.slug}`,
-      }).catch(err => console.error('[push] Content publish broadcast failed:', err))
+      }).catch(err => console.error('[push] Content publish broadcast failed:', err)))
     }
   }
 

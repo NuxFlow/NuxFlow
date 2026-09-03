@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { H3Event } from 'h3'
-import { withEdgeCache } from '../../server/utils/edge-cache'
+
+// purgeAllPublicPages queries contentItems via an explicit `useDb` import (unlike the rest
+// of this file's functions, which touch only the Cache API) — mocked here so its tests
+// don't need a real D1/libSQL database, just a controllable list of "published" rows.
+const findManyMock = vi.fn()
+vi.mock('../../server/utils/db', () => ({
+  useDb: () => ({ query: { contentItems: { findMany: findManyMock } } }),
+}))
+
+const { withEdgeCache, purgeContentCache, purgeAllPublicPages } = await import('../../server/utils/edge-cache')
 
 // getRequestURL is a Nitro/H3 auto-import in real server code (see e.g.
 // theme-resolver.ts, which calls it with no explicit import) — not a Node/Vitest global,
@@ -154,5 +163,89 @@ describe('withEdgeCache', () => {
 
     await expect(withEdgeCache(event, 60, compute)).rejects.toMatchObject({ statusCode: 404 })
     expect(put).not.toHaveBeenCalled()
+  })
+})
+
+describe('purgeContentCache', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('purges both the JSON path and the rendered page path for each slug', async () => {
+    const del = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('caches', { default: { delete: del } })
+
+    const event = mkEvent()
+    await purgeContentCache(event, { slugs: ['about'] })
+
+    const purged = del.mock.calls.map(([req]: [Request]) => new URL(req.url).pathname)
+    expect(purged).toContain('/api/public/pages/about')
+    expect(purged).toContain('/about')
+  })
+
+  // The homepage content item's slug is literally 'home', but app/pages/index.vue
+  // hardcodes fetching it at the site root — the rendered page (and therefore its
+  // page-cache entry) lives at '/', not '/home'. Purging the wrong path would leave
+  // the actual homepage's stale cache entry untouched after every edit.
+  it('purges "/" (not "/home") for a content item whose slug is "home"', async () => {
+    const del = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('caches', { default: { delete: del } })
+
+    const event = mkEvent()
+    await purgeContentCache(event, { slugs: ['home'] })
+
+    const purged = del.mock.calls.map(([req]: [Request]) => new URL(req.url).pathname)
+    expect(purged).toContain('/')
+    expect(purged).not.toContain('/home')
+  })
+
+  it('purges both the JSON and page path for each tagged taxonomy term', async () => {
+    const del = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('caches', { default: { delete: del } })
+
+    const event = mkEvent()
+    await purgeContentCache(event, {
+      slugs: [],
+      taxonomyTerms: [{ taxonomySlug: 'category', termSlug: 'news' }],
+    })
+
+    const purged = del.mock.calls.map(([req]: [Request]) => new URL(req.url).pathname)
+    expect(purged).toContain('/api/public/taxonomy/category/news')
+    expect(purged).toContain('/category/news')
+  })
+})
+
+describe('purgeAllPublicPages', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals()
+    findManyMock.mockReset()
+  })
+
+  it('purges every published, public content item\'s page path plus "/"', async () => {
+    findManyMock.mockResolvedValue([{ slug: 'about' }, { slug: 'pricing' }, { slug: 'home' }])
+    const del = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('caches', { default: { delete: del } })
+
+    const event = mkEvent()
+    await purgeAllPublicPages(event, 'site-1')
+
+    const purged = del.mock.calls.map(([req]: [Request]) => new URL(req.url).pathname)
+    expect(purged).toContain('/about')
+    expect(purged).toContain('/pricing')
+    expect(purged).toContain('/') // both the explicit root purge and 'home''s mapped path
+    expect(purged).not.toContain('/home')
+  })
+
+  it('is a no-op when there is no Cloudflare context (never queries the DB)', async () => {
+    const event = mkEvent({ noCloudflareContext: true })
+    await purgeAllPublicPages(event, 'site-1')
+    expect(findManyMock).not.toHaveBeenCalled()
+  })
+
+  it('does not throw when the underlying purge fails', async () => {
+    findManyMock.mockResolvedValue([{ slug: 'about' }])
+    vi.stubGlobal('caches', { default: { delete: vi.fn().mockRejectedValue(new Error('boom')) } })
+
+    await expect(purgeAllPublicPages(mkEvent(), 'site-1')).resolves.toBeUndefined()
   })
 })

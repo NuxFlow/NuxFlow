@@ -67,6 +67,7 @@ export default defineEventHandler(async (event) => {
 
   // Same for the non-sensitive S3/Bunny env vars
   const nonSensitiveMediaEnv: Record<string, string> = {
+    'media.r2_public_url': 'r2PublicUrl',
     'media.s3_bucket': 's3Bucket',
     'media.s3_access_key': 's3AccessKey',
     'media.s3_region': 's3Region',

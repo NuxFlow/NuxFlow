@@ -14,16 +14,23 @@
  *   2. Import the admin component here and register it globally (client-only).
  */
 
-import {
-  CanvasContentEditor,
-} from '@nuxflow/canvas'
+import { defineAsyncComponent } from 'vue'
 
 import ContactFormAdmin from '~/components/forms/ContactFormAdmin.vue'
 import MembershipsAdmin from '~/components/memberships/MembershipsAdmin.vue'
 
 export default defineNuxtPlugin((nuxtApp) => {
   // ── @nuxflow/canvas editor ────────────────────────────────────────
-  nuxtApp.vueApp.component('CanvasContentEditor', CanvasContentEditor)
+  // Registered as a lazy async component rather than an eager static import:
+  // this plugin is universal (bundled for every route), but the editor
+  // (vuedraggable, BlockPicker, SettingsPanel, AiGenerateModal) is only ever
+  // rendered on the admin content-edit page via `resolveComponent('CanvasContentEditor')`.
+  // Deferring the import means its chunk is fetched only when an admin
+  // actually renders it, not shipped to every anonymous public-page visitor.
+  nuxtApp.vueApp.component(
+    'CanvasContentEditor',
+    defineAsyncComponent(() => import('@nuxflow/canvas').then(m => m.CanvasContentEditor)),
+  )
 
   // ── Contact Forms ────────────────────────────────────────────────────────
   nuxtApp.vueApp.component('ContactFormAdmin', ContactFormAdmin)

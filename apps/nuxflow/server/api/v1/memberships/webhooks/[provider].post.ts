@@ -49,8 +49,15 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         headers: { Authorization: `Bearer ${stripeSecretKeyFull}` },
       })
       if (!subRes.ok) {
-        console.error('[stripe-webhook] Failed to fetch subscription', await subRes.text())
-        break
+        const detail = await subRes.text()
+        console.error('[stripe-webhook] Failed to fetch subscription', detail)
+        // A transient failure here (rate limit, network blip) must not be swallowed as a
+        // 200 — Stripe treats 2xx as "delivered" and stops retrying, which would
+        // permanently leave this subscription unsynced despite a successful payment.
+        // Throwing surfaces a non-2xx response so Stripe's own retry/backoff picks it
+        // back up; the redelivery is safe to reprocess now that the upsert is an atomic
+        // conflict-safe operation (see webhook-sync.ts).
+        throw createError({ statusCode: 502, message: `Failed to fetch Stripe subscription ${session.subscription}: ${detail}` })
       }
       const stripeSub = await subRes.json() as {
         id: string; customer: string; status: string

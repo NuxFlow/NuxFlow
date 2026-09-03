@@ -1,6 +1,9 @@
 import type { H3Event } from 'h3'
 import { sanitizeThemeCss } from './security'
 import { getCachedThemeCss, setCachedThemeCss, clearCachedThemeCss } from './theme-cache'
+import { useDb } from './db'
+import { themes } from '@nuxflow/db/schema'
+import { and, eq, sql } from 'drizzle-orm'
 
 // KVNamespace, D1Database, WorkerLoader, WorkerLoaderWorkerCode, WorkerStub, SendEmail, and
 // AnalyticsEngineDataset below are global ambient types from
@@ -10,19 +13,23 @@ import { getCachedThemeCss, setCachedThemeCss, clearCachedThemeCss } from './the
 interface CfBindings {
   kv: KVNamespace | null
   loader: WorkerLoader | null
+  r2: R2Bucket | null
 }
 
 let _kv: KVNamespace | null = null
 let _loader: WorkerLoader | null = null
+let _r2: R2Bucket | null = null
 
 export function getCfBindings(event: H3Event): CfBindings {
   const env = event?.context?.cloudflare?.env
   if (env?.PLUGIN_KV) _kv = env.PLUGIN_KV as KVNamespace
   if (env?.LOADER) _loader = env.LOADER as WorkerLoader
+  if (env?.MEDIA_BUCKET) _r2 = env.MEDIA_BUCKET as R2Bucket
 
   return {
     kv: (env?.PLUGIN_KV as KVNamespace | undefined) ?? _kv ?? null,
     loader: (env?.LOADER as WorkerLoader | undefined) ?? _loader ?? null,
+    r2: (env?.MEDIA_BUCKET as R2Bucket | undefined) ?? _r2 ?? null,
   }
 }
 
@@ -59,13 +66,58 @@ export async function deletePluginAssets(event: H3Event, siteId: string, pluginI
   ])
 }
 
-export async function getThemeCSS(event: H3Event, siteId: string, themeId: string): Promise<string | null> {
+// KV key includes the theme row's cssVersion — see the comment on `themes.cssVersion` in
+// packages/db/src/schema/system.ts for why a version bump (rather than overwriting a
+// fixed key) is what actually closes the staleness window on publish.
+function themeCssKey(siteId: string, themeId: string, version: number): string {
+  return `theme:${siteId}:${themeId}:css:v${version}`
+}
+
+// Pre-versioning key format. Any theme published before the `cssVersion` migration has
+// its real CSS sitting under this key, not a versioned one — the migration backfills
+// `cssVersion` to 0 for existing rows, but there was never a data migration to actually
+// move (or copy) the KV content itself to the new `:v0` key, since KV writes can't be
+// bundled into a D1 schema migration. Without this fallback, every theme published
+// before this change goes dark (getThemeCSS returns null, no CSS is ever injected) the
+// moment this code ships, until someone happens to re-publish it.
+function legacyThemeCssKey(siteId: string, themeId: string): string {
+  return `theme:${siteId}:${themeId}:css`
+}
+
+async function getThemeCssVersion(event: H3Event, siteId: string, themeId: string): Promise<number> {
+  const db = useDb(event)
+  const row = await db.query.themes.findFirst({
+    where: and(eq(themes.id, themeId), eq(themes.siteId, siteId)),
+    columns: { cssVersion: true },
+  })
+  return row?.cssVersion ?? 0
+}
+
+export async function getThemeCSS(event: H3Event, siteId: string, themeId: string, knownVersion?: number): Promise<string | null> {
   const cached = getCachedThemeCss(siteId, themeId)
   if (cached !== undefined) return cached
 
   const { kv } = getCfBindings(event)
   if (!kv) return null
-  const raw = await kv.get(`theme:${siteId}:${themeId}:css`)
+
+  // Callers that already have the theme row in hand (theme-resolver.ts, for the active
+  // theme) pass its cssVersion directly to skip this extra lookup; anything else (e.g.
+  // resolving a base theme by id alone) falls back to reading it here.
+  const version = knownVersion ?? await getThemeCssVersion(event, siteId, themeId)
+
+  let raw = await kv.get(themeCssKey(siteId, themeId, version))
+  if (raw === null && version === 0) {
+    // Never republished since the versioning migration — fall back to the pre-versioning
+    // key. Copy it forward to the versioned key (best-effort; a failure here just means
+    // this same fallback runs again next cache-miss, not a functional problem) so future
+    // reads hit the fast path and every isolate converges on the same key going forward.
+    raw = await kv.get(legacyThemeCssKey(siteId, themeId))
+    if (raw !== null) {
+      await kv.put(themeCssKey(siteId, themeId, version), raw).catch((err) => {
+        console.error('[cf-env] Failed to copy legacy theme CSS forward to versioned key', err)
+      })
+    }
+  }
   // Sanitize on read too (not just on write) so themes stored before sanitization
   // existed are protected with no data migration — cached sanitized so this cost is
   // paid once per TTL window (60s) instead of on every single SSR request.
@@ -80,14 +132,27 @@ export async function putThemeCSS(event: H3Event, siteId: string, themeId: strin
   // Sanitize here — the single chokepoint every theme write path (upload, patch,
   // customizer) goes through — so it can never be forgotten by a future call site.
   const sanitized = sanitizeThemeCss(css)
-  await kv.put(`theme:${siteId}:${themeId}:css`, sanitized)
+
+  const db = useDb(event)
+  const [row] = await db.update(themes)
+    .set({ cssVersion: sql`css_version + 1` })
+    .where(and(eq(themes.id, themeId), eq(themes.siteId, siteId)))
+    .returning({ cssVersion: themes.cssVersion })
+  const version = row?.cssVersion ?? 0
+
+  await kv.put(themeCssKey(siteId, themeId, version), sanitized)
+  // Set (not clear) so the publishing isolate's own next render is immediately correct —
+  // other isolates still converge via their own cssCache TTL, but each of them now reads
+  // a key that has only ever held this new content, so that convergence can never observe
+  // a stale value once it happens.
   setCachedThemeCss(siteId, themeId, sanitized)
 }
 
 export async function deleteThemeCSS(event: H3Event, siteId: string, themeId: string): Promise<void> {
   const { kv } = getCfBindings(event)
   if (!kv) return
-  await kv.delete(`theme:${siteId}:${themeId}:css`)
+  const version = await getThemeCssVersion(event, siteId, themeId)
+  await kv.delete(themeCssKey(siteId, themeId, version))
   clearCachedThemeCss(siteId, themeId)
 }
 
@@ -107,6 +172,26 @@ export async function deleteThemeDemo(event: H3Event, siteId: string, themeId: s
   const { kv } = getCfBindings(event)
   if (!kv) return
   await kv.delete(`theme:${siteId}:${themeId}:demo`)
+}
+
+/**
+ * Registers a non-critical-path promise (push notification, best-effort email, etc.) with
+ * the Worker's `ctx.waitUntil()` so it keeps running after the response is sent, instead of
+ * being silently cancelled. An un-awaited, un-registered promise in workerd is only
+ * guaranteed to run until the response is returned — once the isolate is free to be
+ * reused for the next request, an in-flight fire-and-forget promise can be torn down
+ * before it resolves, and its `.catch()` never even runs, so the failure isn't just
+ * unhandled, it's invisible. Falls back to awaiting inline wherever `ctx.waitUntil` isn't
+ * present (unit/integration tests, non-Workers environments), matching the equivalent
+ * fallback in `withEdgeCache`.
+ */
+export function waitUntil(event: H3Event, promise: Promise<unknown>): void {
+  const ctx = event.context.cloudflare?.ctx
+  if (ctx?.waitUntil) {
+    ctx.waitUntil(promise)
+  } else {
+    void promise
+  }
 }
 
 export function getAnalyticsEngine(event: H3Event): AnalyticsEngineDataset | null {

@@ -64,6 +64,9 @@ globalThis.setCookie = (event: Record<string, unknown>, name: string, value: str
 globalThis.getCookie = (event: Record<string, unknown>, name: string): string | undefined =>
   (event as { _cookies?: Record<string, string> })._cookies?.[name]
 
+globalThis.parseCookies = (event: Record<string, unknown>): Record<string, string> =>
+  ({ ...(event as { _cookies?: Record<string, string> })._cookies })
+
 globalThis.readBody = async (event: Record<string, unknown>): Promise<unknown> =>
   (event as { _body?: unknown })._body
 
@@ -162,6 +165,9 @@ globalThis.useRuntimeConfig = () => ({
   cloudflareAccountId: '',
   cloudflareStreamToken: '',
   nuxtPublic: {},
+  public: {
+    i18n: { defaultLocale: 'en' },
+  },
 })
 
 // ---------------------------------------------------------------------------

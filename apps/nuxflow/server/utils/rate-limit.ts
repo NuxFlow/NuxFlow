@@ -1,7 +1,5 @@
 import type { H3Event } from 'h3'
-import { rateLimits } from '@nuxflow/db/schema'
-import { eq } from 'drizzle-orm'
-import { getCfBindings } from './cf-env'
+import { sql } from 'drizzle-orm'
 
 interface RateLimitOptions {
   limit: number
@@ -9,21 +7,41 @@ interface RateLimitOptions {
   keyPrefix?: string
 }
 
-// Memory cache stable within a Cloudflare Workers isolate
-const _memoryCache = new Map<string, { count: number; resetAt: number }>()
+// Previously this had a two-tier design: an isolate-local in-memory counter, then either
+// a KV or D1 read-then-increment-then-write. Both increment steps were a plain read
+// followed by a separate write with no compare-and-swap — under real concurrent traffic
+// (the exact "isolate churn" scenario this utility exists to survive; see
+// 04.auth-override.ts, which disables Better Auth's own in-memory limiter specifically
+// because it doesn't hold up across isolates) N simultaneous requests for the same key
+// could all read the same pre-increment count before any write landed, letting the
+// effective limit be exceeded by roughly the number of in-flight concurrent requests,
+// every window. KV additionally can't fix this even in principle — it's eventually
+// consistent by design, not a coordination primitive.
+//
+// This version replaces both increment paths with a single atomic SQL statement: an
+// `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` against D1. D1 routes all writes for a
+// database through one primary and executes each statement as one atomic unit against
+// SQLite's own row-level serialisation — two concurrent requests for the same key cannot
+// observe an interleaved pre-increment value the way two separate read-then-write round
+// trips could, because there is only one round trip and no read step to race against.
+//
+// The isolate-local Map below is now purely a fast-fail cache: it is only ever populated
+// with a key already confirmed over-limit by D1, so it can reject a sustained burst
+// hitting the same isolate without a D1 round trip on every single request, but it can
+// never cause an under-count — every request that isn't already known-blocked always goes
+// through the atomic D1 statement.
+const _blockedUntil = new Map<string, number>()
 let _cleanupInterval: ReturnType<typeof setInterval> | null = null
 
 function ensureCleanup() {
   if (_cleanupInterval) return
   _cleanupInterval = setInterval(() => {
     const now = Date.now()
-    for (const [key, val] of _memoryCache.entries()) {
-      if (val.resetAt <= now) {
-        _memoryCache.delete(key)
-      }
+    for (const [key, resetAt] of _blockedUntil.entries()) {
+      if (resetAt <= now) _blockedUntil.delete(key)
     }
   }, 60000)
-  
+
   if (typeof _cleanupInterval?.unref === 'function') {
     _cleanupInterval.unref()
   }
@@ -36,78 +54,37 @@ export async function rateLimit(event: H3Event, opts: RateLimitOptions): Promise
   const key = `${opts.keyPrefix ?? 'rl'}:${siteId}:${ip}`
   const now = Date.now()
 
-  // 1. Isolate-level memory check: Block rapid attempts instantly without D1 calls
-  const cached = _memoryCache.get(key)
-  if (cached && cached.resetAt > now) {
-    if (cached.count > opts.limit) {
-      const retryAfter = Math.ceil((cached.resetAt - now) / 1000)
-      throw createError({ statusCode: 429, message: 'Too many requests', data: { retryAfter } })
-    }
-    cached.count++
-  } else {
-    _memoryCache.set(key, { count: 1, resetAt: now + opts.windowMs })
+  const blockedAt = _blockedUntil.get(key)
+  if (blockedAt && blockedAt > now) {
+    throw createError({
+      statusCode: 429,
+      message: 'Too many requests',
+      data: { retryAfter: Math.ceil((blockedAt - now) / 1000) },
+    })
   }
 
-  // 2. Cloudflare KV check: Bypass D1 queries on edge when KV is configured
-  const { kv } = getCfBindings(event)
-  if (kv) {
-    const kvVal = await kv.get(key)
-    let count = 1
-    if (kvVal) {
-      count = Number.parseInt(kvVal, 10) + 1
-    }
-
-    // Expiration TTL for KV keys must be at least 60 seconds.
-    const ttl = Math.max(60, Math.ceil(opts.windowMs / 1000))
-    await kv.put(key, String(count), { expirationTtl: ttl })
-
-    // Sync memory cache
-    const currentMemory = _memoryCache.get(key)
-    if (currentMemory) {
-      currentMemory.count = Math.max(currentMemory.count, count)
-    }
-
-    if (count > opts.limit) {
-      throw createError({
-        statusCode: 429,
-        message: 'Too many requests',
-        data: { retryAfter: Math.ceil(opts.windowMs / 1000) },
-      })
-    }
-    return
-  }
-
-  // 3. Database fallback: Fetch global rate limits for multi-isolate consistency (local dev / no KV)
   const db = useDb(event)
-  const existing = await db.query.rateLimits.findFirst({ where: eq(rateLimits.key, key) })
+  const candidateResetAt = new Date(now + opts.windowMs).toISOString()
 
-  let count: number
-  let windowResetAt: string
+  // `datetime(...)` normalises both sides before comparing — reset_at is stored as a JS
+  // `toISOString()` value ("...T...Z"), which does not lexically compare correctly
+  // against SQLite's own `datetime('now')` output ("... ...", space-separated, no "Z")
+  // without normalisation.
+  const result = await db.get<{ count: number; reset_at: string }>(sql`
+    INSERT INTO rate_limits (key, count, reset_at) VALUES (${key}, 1, ${candidateResetAt})
+    ON CONFLICT(key) DO UPDATE SET
+      count = CASE WHEN datetime(reset_at) <= datetime('now') THEN 1 ELSE count + 1 END,
+      reset_at = CASE WHEN datetime(reset_at) <= datetime('now') THEN ${candidateResetAt} ELSE reset_at END
+    RETURNING count, reset_at
+  `)
 
-  if (!existing || new Date(existing.resetAt).getTime() <= now) {
-    const resetAt = new Date(now + opts.windowMs).toISOString()
-    if (existing) {
-      await db.update(rateLimits).set({ count: 1, resetAt }).where(eq(rateLimits.key, key))
-    } else {
-      await db.insert(rateLimits).values({ key, count: 1, resetAt })
-    }
-    count = 1
-    windowResetAt = resetAt
-  } else {
-    count = (existing.count ?? 0) + 1
-    windowResetAt = existing.resetAt
-    await db.update(rateLimits).set({ count }).where(eq(rateLimits.key, key))
-  }
-
-  // Sync memory cache with DB count
-  const currentMemory = _memoryCache.get(key)
-  if (currentMemory) {
-    currentMemory.count = Math.max(currentMemory.count, count)
-    currentMemory.resetAt = new Date(windowResetAt).getTime()
-  }
+  const count = result?.count ?? 1
+  const windowResetAt = result?.reset_at ?? candidateResetAt
 
   if (count > opts.limit) {
-    const retryAfter = Math.ceil((new Date(windowResetAt).getTime() - now) / 1000)
+    const resetMs = new Date(windowResetAt).getTime()
+    _blockedUntil.set(key, resetMs)
+    const retryAfter = Math.ceil((resetMs - now) / 1000)
     throw createError({ statusCode: 429, message: 'Too many requests', data: { retryAfter } })
   }
 }

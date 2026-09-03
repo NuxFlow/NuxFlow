@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import { useDb, type Db } from '../../../utils/db'
 import { trackPageView } from '../../../utils/analytics'
 import { contentItems, contentTypes, membershipTiers, redirects, subscriptions, users } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { withEdgeCache } from '../../../utils/edge-cache'
 
 type ContentItemRow = typeof contentItems.$inferSelect
@@ -31,11 +31,19 @@ async function checkContentAccess(event: H3Event, page: { visibility: string; se
     const db = useDb(event)
     const requiredTierId = access.startsWith('tier:') ? access.slice(5) : null
 
+    // `status` alone is only as fresh as the last webhook delivery — a failed card during
+    // dunning, or a delayed/dropped webhook, would otherwise leave `status: 'active'`
+    // (and therefore full access) indefinitely. currentPeriodEnd is already stored on
+    // every subscription row (webhook-sync.ts, checkout.post.ts's free-tier path included)
+    // and needs no extra network call, so require it to still be in the future too —
+    // access fails closed when the webhook stream stalls, rather than staying open until
+    // one eventually arrives. `isNull` covers legacy/free rows with no period recorded.
     const activeSub = await db.query.subscriptions.findFirst({
       where: and(
         eq(subscriptions.userId, userId),
         eq(subscriptions.siteId, siteId),
         eq(subscriptions.status, 'active'),
+        or(isNull(subscriptions.currentPeriodEnd), sql`datetime(${subscriptions.currentPeriodEnd}) > datetime('now')`),
       ),
     })
 

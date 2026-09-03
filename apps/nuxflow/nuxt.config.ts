@@ -57,6 +57,9 @@ export default defineNuxtConfig({
       '* * * * *': ['publish-scheduled', 'demo-reset'],
       // Nightly at 3 AM UTC — prune old data; demo instances also wipe and reseed.
       '0 3 * * *': ['prune-old-data', 'demo-nightly-reset'],
+      // Hourly — sweep video_assets rows stuck at status:'processing' (a failed/never-
+      // completed Cloudflare Stream upload) past a 2-hour TTL and mark them 'failed'.
+      '0 * * * *': ['reconcile-stuck-videos'],
     },
     serverAssets: [
       { baseName: 'migrations', dir: resolve(_dirname, '../../packages/db/migrations') },
@@ -98,6 +101,10 @@ export default defineNuxtConfig({
     cloudflareAccountId: '',
     cloudflareStreamToken: '',
     cloudflareImagesDeliveryUrl: '',
+    // Cloudflare R2 media storage — env-var fallback for resolveSetting(); requires the
+    // MEDIA_BUCKET binding in wrangler.toml plus this public base URL (a custom domain or
+    // the bucket's r2.dev subdomain — R2 buckets are private by default).
+    r2PublicUrl: '',
     // S3-compatible media storage — env-var fallback for resolveSetting(); the admin
     // Settings → Media UI writes real per-site overrides to the DB on top of these.
     s3Bucket: '',

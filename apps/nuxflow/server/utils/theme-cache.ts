@@ -4,7 +4,7 @@
 // which already caches for the same reason.
 import { createIsolateCache } from './isolate-cache'
 
-export type ActiveTheme = { id: string; hasCss: boolean; packageName: string } | null
+export type ActiveTheme = { id: string; hasCss: boolean; packageName: string; cssVersion: number } | null
 
 const cache = createIsolateCache<ActiveTheme>(60_000)
 

@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX `idx_ctt_item_term` ON `content_taxonomy_terms` (`content_item_id`,`term_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_subscriptions_unique_provider_sub` ON `subscriptions` (`site_id`,`provider`,`provider_subscription_id`);

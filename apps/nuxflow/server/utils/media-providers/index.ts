@@ -1,8 +1,10 @@
 import type { H3Event } from 'h3'
 import { CloudflareImagesProvider } from './cloudflare-images'
+import { R2Provider } from './r2'
 import { S3Provider } from './s3'
 import { BunnyProvider } from './bunny'
 import { resolveSetting } from '../settings'
+import { getCfBindings } from '../cf-env'
 
 export interface UploadResult {
   url: string
@@ -30,12 +32,14 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
   // other, so there's no reason to pay for them one at a time.
   const [
     accountId, imagesToken, deliveryUrl,
+    r2PublicUrl,
     s3Bucket, s3AccessKey, s3SecretKey, s3Region, s3Endpoint, s3PublicUrl,
     bunnyApiKey, bunnyStorageZone, bunnyPullZone,
   ] = await Promise.all([
     resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId'),
     resolveSetting(event, 'cloudflare.images_token', 'cloudflareImagesToken'),
     resolveSetting(event, 'cloudflare.images_delivery_url', 'cloudflareImagesDeliveryUrl'),
+    resolveSetting(event, 'media.r2_public_url', 'r2PublicUrl'),
     resolveSetting(event, 'media.s3_bucket', 's3Bucket'),
     resolveSetting(event, 'media.s3_access_key', 's3AccessKey'),
     resolveSetting(event, 'media.s3_secret_key', 's3SecretKey'),
@@ -49,6 +53,16 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
 
   if (imagesToken && accountId) {
     return new CloudflareImagesProvider(accountId, imagesToken, deliveryUrl)
+  }
+
+  // R2 comes next, ahead of S3/Bunny — it's Cloudflare's own object storage (zero egress
+  // fees, no third-party account), and needs only the `MEDIA_BUCKET` binding plus a public
+  // URL (a custom domain or the bucket's r2.dev subdomain — R2 buckets are private by
+  // default, wrangler.toml can't express that access grant, so it's a setting, not
+  // inferred from the binding's presence alone).
+  const { r2 } = getCfBindings(event)
+  if (r2 && r2PublicUrl) {
+    return new R2Provider({ bucket: r2, publicUrl: r2PublicUrl })
   }
 
   // S3 and Bunny are resolved the same way as Cloudflare Images above — per-site DB

@@ -7,6 +7,16 @@ function escHtml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
+// Blocks javascript:/vbscript:/data: URIs in href/src — escHtml() only escapes HTML
+// metacharacters, it doesn't stop a scheme that executes on click (link) or load (image).
+// Mirrors app/utils/render-tiptap.ts's escUrl(); duplicated here since that file is
+// scoped to the Vue app bundle and can't be imported from Nitro server routes.
+function escUrl(s: string) {
+  const trimmed = s.trim()
+  if (/^(?:javascript|vbscript|data):/i.test(trimmed)) return ''
+  return escHtml(s)
+}
+
 function tiptapToHtml(node: unknown): string {
   if (!node || typeof node !== 'object') return ''
   const n = node as Record<string, unknown>
@@ -24,7 +34,7 @@ function tiptapToHtml(node: unknown): string {
         case 'code': result = `<code>${result}</code>`; break
         case 'underline': result = `<u>${result}</u>`; break
         case 'strike': result = `<s>${result}</s>`; break
-        case 'link': result = `<a href="${escHtml(attrs.href ?? '')}">${result}</a>`; break
+        case 'link': result = `<a href="${escUrl(attrs.href ?? '')}">${result}</a>`; break
       }
     }
   }
@@ -41,7 +51,7 @@ function tiptapToHtml(node: unknown): string {
     case 'codeBlock': return `<pre><code>${result}</code></pre>`
     case 'hardBreak': return '<br>'
     case 'horizontalRule': return '<hr>'
-    case 'image': return `<img src="${escHtml(String(attrs.src ?? ''))}" alt="${escHtml(String(attrs.alt ?? ''))}">`
+    case 'image': return `<img src="${escUrl(String(attrs.src ?? ''))}" alt="${escHtml(String(attrs.alt ?? ''))}">`
     default: return result
   }
 }
