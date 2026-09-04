@@ -12,6 +12,16 @@ vi.mock('../../server/utils/db', () => ({
   getD1: () => null,
 }))
 
+const { mockCreateTransaction } = vi.hoisted(() => ({
+  mockCreateTransaction: vi.fn(),
+}))
+
+vi.mock('../../server/utils/payments/paddle', () => ({
+  PaddleProvider: vi.fn().mockImplementation(function () {
+    return { createTransaction: mockCreateTransaction }
+  }),
+}))
+
 const SITE = 'site-checkout-01'
 let userId: string
 let freeTierId: string
@@ -75,5 +85,57 @@ describe('POST /api/v1/memberships/checkout', () => {
     await expect(
       (checkoutHandler as HandlerFn)(event),
     ).rejects.toMatchObject({ statusCode: 409, message: 'This tier has not been synced to Stripe' })
+  })
+})
+
+// ── Paddle checkout ──────────────────────────────────────────────────────────
+// Separate site with only Paddle configured (no Stripe/LS secrets), since checkout.post.ts
+// tries providers in order and the first configured one wins.
+
+describe('POST /api/v1/memberships/checkout — Paddle', () => {
+  const PADDLE_SITE = 'site-checkout-paddle-01'
+  let paddleUserId: string
+  let paddleTierId: string
+  let unsyncedTierId: string
+
+  beforeAll(async () => {
+    const db = getCurrentTestDb()
+    await seedSite(db, { id: PADDLE_SITE, domain: 'checkout-paddle.localhost' })
+    await seedSetting(db, PADDLE_SITE, 'payments.paddle_api_key', 'pdl_key_test')
+    await seedSetting(db, PADDLE_SITE, 'payments.paddle_vendor_id', '67890')
+    paddleUserId = await seedUser(db, { email: 'paddle-checkout-user@sub.test' })
+    paddleTierId = await seedTier(db, PADDLE_SITE, {
+      name: 'Paddle Plan', price: 15, currency: 'USD', interval: 'month', paddleProductId: 'pri_test_001',
+    })
+    unsyncedTierId = await seedTier(db, PADDLE_SITE, { name: 'Unsynced Plan', price: 20, currency: 'USD', interval: 'month' })
+  })
+
+  function mkPaddleEvent(tierId: string, returnUrl = 'http://localhost/success') {
+    return createMockEvent({
+      siteId: PADDLE_SITE,
+      session: { user: { id: paddleUserId, name: 'Paddle User', email: 'paddle-checkout-user@sub.test' } },
+      body: { tierId, returnUrl },
+    }) as unknown as H3Event
+  }
+
+  it('throws 409 for a tier not synced to Paddle', async () => {
+    await expect(
+      (checkoutHandler as HandlerFn)(mkPaddleEvent(unsyncedTierId)),
+    ).rejects.toMatchObject({ statusCode: 409, message: 'This tier has not been synced to Paddle' })
+  })
+
+  it('creates a Paddle transaction and returns its hosted checkout URL', async () => {
+    mockCreateTransaction.mockResolvedValueOnce({
+      data: { checkout: { url: 'https://checkout.paddle.com/txn/abc123' } },
+    })
+
+    const result = await (checkoutHandler as HandlerFn)(mkPaddleEvent(paddleTierId, 'http://localhost/return')) as { url: string }
+
+    expect(result.url).toBe('https://checkout.paddle.com/txn/abc123')
+    expect(mockCreateTransaction).toHaveBeenCalledWith({
+      priceId: 'pri_test_001',
+      customData: { user_id: paddleUserId, site_id: PADDLE_SITE, tier_id: paddleTierId },
+      returnUrl: 'http://localhost/return',
+    })
   })
 })

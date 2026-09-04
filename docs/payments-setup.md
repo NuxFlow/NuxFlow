@@ -179,6 +179,14 @@ Use your provider's test mode to verify end-to-end:
 4. Complete the LS checkout with a test card (e.g. `4242 4242 4242 4242`).
 5. LS fires `subscription_created` → NuxFlow activates the subscription.
 
+**Paddle test flow:**
+1. Use a [Paddle sandbox account](https://developer.paddle.com/concepts/sandbox) (`sandbox-api.paddle.com` credentials, separate from live).
+2. Create a Product and Price manually in the Paddle sandbox dashboard.
+3. Edit your Tier in NuxFlow and paste the **Paddle Price ID** (e.g. `pri_...`).
+4. Click **Subscribe** on the paywall while logged in — NuxFlow creates a Paddle transaction via the API and redirects to Paddle's hosted checkout.
+5. Complete checkout with a [Paddle test card](https://developer.paddle.com/concepts/payment-methods/credit-debit-card#test-cards) (e.g. `4242 4242 4242 4242`).
+6. Paddle fires `subscription.activated` → NuxFlow activates the subscription.
+
 ---
 
 ## Subscription management

@@ -38,13 +38,23 @@ export class PaddleProvider implements PaymentProvider {
     return res.json() as Promise<T>
   }
 
-  async createTransaction(opts: { priceId: string; customData?: Record<string, unknown> }) {
+  /**
+   * Creates a Paddle transaction and returns its hosted checkout URL — the API-driven
+   * equivalent of Stripe's `checkout.sessions.create`/LS's `createCheckout`. `customData`
+   * is copied by Paddle onto the subscription (and every other entity) it creates from
+   * this transaction once paid, which is how the webhook handler recovers `site_id` for
+   * tenant-scoping (see `assertWebhookSiteMatch` in `webhook-sync.ts`) — always pass it.
+   * `returnUrl`, if given, becomes the transaction's `checkout.url`; Paddle redirects the
+   * customer there after a successful payment (appending its own `_ptxn` query param).
+   * Omitting it falls back to the seller's account-level default payment link.
+   */
+  async createTransaction(opts: { priceId: string; customData?: Record<string, unknown>; returnUrl?: string }) {
     return this.request<{ data: { checkout: { url: string } } }>('/transactions', {
       method: 'POST',
       body: JSON.stringify({
         items: [{ price_id: opts.priceId, quantity: 1 }],
         custom_data: opts.customData,
-        checkout: { url: null },
+        checkout: { url: opts.returnUrl ?? null },
       }),
     })
   }

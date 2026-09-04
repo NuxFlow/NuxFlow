@@ -16,7 +16,6 @@ export default defineEventHandler(async (event) => {
   const session = await requireSession(event)
   const siteId = event.context.siteId as string
   const body = await parseBody(event, bodySchema)
-  const config = useRuntimeConfig()
 
   const db = useDb(event)
 
@@ -104,12 +103,12 @@ export default defineEventHandler(async (event) => {
   const paddle = await resolvePaddleProvider(event)
   if (paddle) {
     if (!tier.paddleProductId) throw conflict('This tier has not been synced to Paddle')
-    const siteUrl = (config.public.siteUrl as string) || 'https://example.com'
-    const checkoutUrl = new URL('/checkout', siteUrl)
-    checkoutUrl.searchParams.set('product', tier.paddleProductId)
-    checkoutUrl.searchParams.set('user_id', userId)
-    checkoutUrl.searchParams.set('site_id', siteId)
-    return { url: checkoutUrl.toString() }
+    const transaction = await paddle.createTransaction({
+      priceId: tier.paddleProductId,
+      customData: { user_id: userId, site_id: siteId, tier_id: tier.id },
+      returnUrl: body.returnUrl,
+    })
+    return { url: transaction.data.checkout.url }
   }
 
   throw createError({ statusCode: 503, message: 'No payment provider is configured' })
