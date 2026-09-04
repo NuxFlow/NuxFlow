@@ -1,5 +1,65 @@
 # @nuxflow/app
 
+## 2.0.0-beta.15
+
+### Minor Changes
+
+- 4d5024a: feat: complete the Paddle checkout flow via the Transactions API
+
+  `POST /api/v1/memberships/checkout` never actually worked for Paddle — it built a URL to
+  `/checkout?product=...&user_id=...&site_id=...`, a page that didn't exist anywhere in the
+  app, so a Paddle subscribe click had nowhere to go. `PaddleProvider` already had a working
+  `createTransaction()` method wired up to Paddle's real Transactions API; it just wasn't
+  being called.
+
+  The checkout route now calls `paddle.createTransaction()` and redirects to the hosted
+  checkout URL Paddle returns — the same pattern already used for Stripe's checkout session
+  and Lemon Squeezy's checkout, so `Paywall.vue`/`MembershipsBlock.vue` needed no changes at
+  all (they already just do `window.location.href = url`).
+
+  - `createTransaction()` now accepts a `returnUrl`, passed as the transaction's
+    `checkout.url` so Paddle redirects back after a successful payment.
+  - `customData` now includes `site_id` alongside `user_id`/`tier_id` — Paddle copies
+    `custom_data` onto the subscription it creates, which the webhook handler's
+    `assertWebhookSiteMatch()` (see the security-sweep changeset) now requires.
+  - Corrected stale comments/docs in `payments/types.ts` and `CLAUDE.md` claiming Paddle
+    checkout "is not API-driven" — it now is, same as Stripe and Lemon Squeezy.
+  - Added a Paddle test flow to `docs/payments-setup.md`, matching the existing Stripe/LS
+    sections.
+
+- e79152b: fix: close 8 vulnerabilities found in a full-codebase security sweep
+
+  **Authorization**
+
+  - `PATCH /api/v1/users/:id` no longer lets an `admin` demote or reassign a `super_admin`'s role on that site — the guard already present on the equivalent `DELETE` route was missing here.
+  - `POST`/`PATCH /api/v1/content` now require `editor`+ to set `status: 'published'`/`'scheduled'` directly — an `author` (the floor for content-write access) was previously able to self-publish unreviewed content, matching the guard already enforced for the MCP `update_content` tool.
+
+  **Dynamic plugins**
+
+  - The `/_nuxflow/ext/{pluginId}/*` proxy now forwards only an explicit allowlist of headers to plugin Workers (Content-Type, Accept, etc.) instead of the full incoming header set — it previously forwarded `Cookie`/`Authorization` verbatim to third-party plugin code, which only needs a self-signed Ed25519 key to install.
+  - The Worker Loader cache key now includes `siteId` — two unrelated tenants installing byte-identical plugin code could previously share the same spawned Worker instance (and whatever in-memory state a prior request left behind).
+
+  **Canvas / stored XSS**
+
+  - Added `safeHref()` (scheme allowlist, matching the existing `javascript:`/`vbscript:`/`data:` guard in `render-tiptap.ts`) and wired it into every link-bearing block prop (Button, Hero, CTA, Footer, Pricing, GDPR banner, Calendar) — these bound straight to `:href` with no scheme validation, unlike the `richtext`/`html` fields which already went through an XSS-filter sanitizer.
+
+  **Payments**
+
+  - New `assertWebhookSiteMatch()` — every Stripe/LemonSqueezy/Paddle webhook must now carry a `siteId`/`site_id` in its signed payload metadata matching the site the request resolved to (via the `Host` header) before any subscription row is written or cancelled. A valid provider signature only proves the payload came from that provider using _some_ site's configured secret, not which tenant it was meant for; two sites sharing a provider account/secret could previously have a webhook meant for one site applied to whichever site the request's Host header resolved to.
+
+  **Theme CSS**
+
+  - `sanitizeThemeCss` now decodes CSS escape sequences (`\75rl(...)` → `url(...)`) before stripping `url()`/`@import`/`expression()` — closes an escape-based bypass of the CSS attribute-selector exfiltration guard.
+
+  **CLI**
+
+  - `nuxflow plugin/theme deploy --site <url>` now refuses a non-`https://` site URL (except localhost/loopback) — it previously sent the admin email/password/session cookie in the clear over whatever scheme was given.
+
+### Patch Changes
+
+- Updated dependencies [e79152b]
+  - @nuxflow/canvas@2.0.0-beta.8
+
 ## 2.0.0-beta.14
 
 ### Minor Changes
