@@ -28,6 +28,7 @@
     "feat-memberships-pricing-block-and-pausing",
     "feat-nightly-prune-task",
     "feat-nuxt-ui-v4-upgrade-and-cloudflare-skills",
+    "feat-paddle-checkout-transactions-api",
     "feat-per-site-social-login-and-auth-unification",
     "feat-pre-release-security-and-architecture-audit",
     "feat-push-notifications",
@@ -55,6 +56,7 @@
     "perf-request-batching-and-dep-security-audit",
     "refactor-canvas-architecture-and-migrate-squash",
     "refactor-server-api-consistency-and-dead-code",
-    "security-enhancements-and-new-canvas-blocks"
+    "security-enhancements-and-new-canvas-blocks",
+    "security-sweep-fixes"
   ]
 }
