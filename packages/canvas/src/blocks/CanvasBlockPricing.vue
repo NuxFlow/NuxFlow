@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
+import { safeHref } from '../utils/sanitize-html'
 
 const props = withDefaults(defineProps<{
   title?: string
@@ -176,7 +177,7 @@ const containerStyle = computed(() => {
           <div class="mt-8 pt-4">
             <a
               v-if="plan.btnLabel"
-              :href="plan.btnUrl"
+              :href="safeHref(plan.btnUrl)"
               class="block w-full text-center font-bold px-6 py-3 rounded-xl transition-all duration-200 text-sm active:scale-[0.98]"
               :class="[
                 plan.popular

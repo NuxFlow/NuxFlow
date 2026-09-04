@@ -5209,6 +5209,7 @@ async function apiPostZip(site, path, cookie, filename, data) {
   }
   return data2;
 }
+var LOCAL_HTTP_HOSTS = /* @__PURE__ */ new Set(["localhost", "127.0.0.1", "[::1]"]);
 function resolveAuth(opts) {
   const site = (opts.site ?? process.env.NUXFLOW_SITE ?? "").replace(/\/$/, "");
   const email = opts.email ?? process.env.NUXFLOW_EMAIL ?? "";
@@ -5216,6 +5217,15 @@ function resolveAuth(opts) {
   if (!site) throw new Error("--site is required (or set NUXFLOW_SITE)");
   if (!email) throw new Error("--email is required (or set NUXFLOW_EMAIL)");
   if (!password) throw new Error("--password is required (or set NUXFLOW_PASSWORD)");
+  let parsed;
+  try {
+    parsed = new URL(site);
+  } catch {
+    throw new Error(`--site must be a valid URL: ${site}`);
+  }
+  if (parsed.protocol !== "https:" && !LOCAL_HTTP_HOSTS.has(parsed.hostname)) {
+    throw new Error(`--site must use https:// (got ${parsed.protocol}//${parsed.hostname}) \u2014 refusing to send credentials over an insecure connection`);
+  }
   return { site, email, password };
 }
 

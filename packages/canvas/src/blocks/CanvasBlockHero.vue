@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
+import { safeHref } from '../utils/sanitize-html'
 
 const props = withDefaults(defineProps<{
   headline?: string
@@ -107,7 +108,7 @@ const logoStyle = computed(() => {
       >
         <a
           v-if="ctaLabel"
-          :href="ctaUrl"
+          :href="safeHref(ctaUrl)"
           class="inline-flex items-center px-7 py-3.5 rounded-xl font-semibold text-sm shadow-lg transition-opacity hover:opacity-90"
           :style="{ backgroundColor: primaryCtaBg, color: primaryCtaColor }"
         >
@@ -115,7 +116,7 @@ const logoStyle = computed(() => {
         </a>
         <a
           v-if="cta2Label"
-          :href="cta2Url"
+          :href="safeHref(cta2Url)"
           class="inline-flex items-center px-7 py-3.5 rounded-xl font-semibold text-sm border transition-colors hover:bg-white/10"
           style="border-color: rgba(255,255,255,0.2);"
         >

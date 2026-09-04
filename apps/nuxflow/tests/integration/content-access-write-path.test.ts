@@ -25,6 +25,7 @@ vi.mock('../../server/utils/analytics', () => ({
 
 const SITE = 'site-content-access-write-01'
 let authorUserId: string
+let editorUserId: string
 let typeId: string
 
 beforeAll(async () => {
@@ -34,6 +35,8 @@ beforeAll(async () => {
   await seedSite(db, { id: SITE, domain: 'content-access-write.localhost' })
   authorUserId = await seedUser(db, { email: 'author@content-access-write.test' })
   await seedRole(db, authorUserId, SITE, 'author')
+  editorUserId = await seedUser(db, { email: 'editor@content-access-write.test' })
+  await seedRole(db, editorUserId, SITE, 'editor')
   typeId = await seedContentType(db, SITE, { slug: 'page', name: 'Page', singularName: 'Page' })
 })
 
@@ -41,10 +44,13 @@ afterAll(teardownTestDb)
 
 type HandlerFn = (e: H3Event) => Promise<unknown>
 
-function mkEvent(body: unknown, id?: string) {
+function mkEvent(body: unknown, id?: string, role: 'author' | 'editor' = 'author') {
+  const user = role === 'editor'
+    ? { id: editorUserId, name: 'Editor', email: 'editor@content-access-write.test' }
+    : { id: authorUserId, name: 'Author', email: 'author@content-access-write.test' }
   return createMockEvent({
     siteId: SITE,
-    session: { user: { id: authorUserId, name: 'Author', email: 'author@content-access-write.test' } },
+    session: { user },
     body,
     params: id ? { id } : undefined,
   }) as unknown as H3Event
@@ -105,15 +111,16 @@ describe('PATCH /api/v1/content/:id — visibility derived from settings.access'
 
 describe('POST /api/v1/content — visibility derived from settings.access on create', () => {
   it('creates a members-gated page directly when settings.access is provided', async () => {
+    // Publishing directly requires editor+ (author is limited to draft/review).
     const created = await (postHandler as HandlerFn)(mkEvent({
       title: 'New Gated Page',
       slug: 'post-gated-page',
       typeSlug: 'page',
       status: 'published',
       settings: { access: 'members' },
-    })) as { id: string }
+    }, undefined, 'editor')) as { id: string }
 
-    await (patchHandler as HandlerFn)(mkEvent({ status: 'published' }, created.id))
+    await (patchHandler as HandlerFn)(mkEvent({ status: 'published' }, created.id, 'editor'))
 
     await expect(
       (publicPageHandler as HandlerFn)(mkPublicEvent('post-gated-page')),

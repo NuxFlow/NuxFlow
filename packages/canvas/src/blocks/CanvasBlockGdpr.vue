@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import type { SpacingValue } from '../types'
+import { safeHref } from '../utils/sanitize-html'
 
 declare const useState: <T>(key: string, init?: () => T) => { value: T }
 declare const useRequestEvent: () => unknown
@@ -130,7 +131,7 @@ const wrapperStyle = computed(() => {
       <div class="w-full flex flex-col sm:flex-row items-center justify-between gap-4">
         <div class="text-sm flex-1 opacity-90 leading-relaxed text-center sm:text-left">
           {{ text }}
-          <a v-if="policyLabel" :href="policyUrl" class="underline underline-offset-2 opacity-80 hover:opacity-100 transition-opacity ml-1 whitespace-nowrap">
+          <a v-if="policyLabel" :href="safeHref(policyUrl)" class="underline underline-offset-2 opacity-80 hover:opacity-100 transition-opacity ml-1 whitespace-nowrap">
             {{ policyLabel }}
           </a>
         </div>

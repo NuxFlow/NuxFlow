@@ -2,7 +2,7 @@
 import type { H3Event } from 'h3'
 import type { StripeProvider } from '../../../../utils/payments/stripe'
 import { getStripeProvider, getLemonSqueezyProvider, getPaddleProvider } from '../../../../utils/payments/resolve'
-import { upsertSubscriptionFromWebhook, cancelSubscriptionFromWebhook } from '../../../../utils/payments/webhook-sync'
+import { upsertSubscriptionFromWebhook, cancelSubscriptionFromWebhook, assertWebhookSiteMatch } from '../../../../utils/payments/webhook-sync'
 import { resolveSetting } from '../../../../utils/settings'
 
 const STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID = {
@@ -42,6 +42,7 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         console.warn('[stripe-webhook] checkout.session.completed missing userId in metadata')
         break
       }
+      assertWebhookSiteMatch(event, session.metadata?.siteId)
 
       // Fetch the subscription from Stripe to get full details
       const stripeSecretKeyFull = await resolveSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
@@ -93,6 +94,7 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         console.warn('[stripe-webhook] subscription event missing userId in metadata')
         break
       }
+      assertWebhookSiteMatch(event, sub.metadata?.siteId)
 
       await upsertSubscriptionFromWebhook(event, {
         provider: 'stripe',
@@ -108,7 +110,8 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
       break
     }
     case 'customer.subscription.deleted': {
-      const sub = stripeEvent.data.object as { id: string }
+      const sub = stripeEvent.data.object as { id: string; metadata?: Record<string, string> }
+      assertWebhookSiteMatch(event, sub.metadata?.siteId)
       await cancelSubscriptionFromWebhook(event, { provider: 'stripe', providerSubscriptionId: sub.id })
       break
     }
@@ -128,12 +131,13 @@ async function handleLemonSqueezyWebhook(event: H3Event, rawBody: string) {
   if (!valid) throw badRequest('Invalid Lemon Squeezy webhook signature')
 
   const payload = JSON.parse(rawBody) as {
-    meta: { event_name: string; custom_data?: { user_id?: string } }
+    meta: { event_name: string; custom_data?: { user_id?: string; site_id?: string } }
     data: { id: string; attributes: { status: string; customer_id: number; variant_id: number; renews_at: string | null } }
   }
 
   const userId = payload.meta.custom_data?.user_id
   if (!userId) return
+  assertWebhookSiteMatch(event, payload.meta.custom_data?.site_id)
 
   const eventName = payload.meta.event_name
   const sub = payload.data
@@ -171,7 +175,7 @@ async function handlePaddleWebhook(event: H3Event, rawBody: string) {
     event_type: string
     data: {
       id: string; status: string; customer_id: string
-      custom_data?: { user_id?: string }
+      custom_data?: { user_id?: string; site_id?: string }
       items?: Array<{ price: { id: string } }>
       current_billing_period?: { starts_at: string; ends_at: string } | null
       canceled_at?: string | null
@@ -180,6 +184,7 @@ async function handlePaddleWebhook(event: H3Event, rawBody: string) {
 
   const userId = payload.data.custom_data?.user_id
   if (!userId) return
+  assertWebhookSiteMatch(event, payload.data.custom_data?.site_id)
 
   const sub = payload.data
 

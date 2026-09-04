@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
+import { safeHref } from '../utils/sanitize-html'
 
 declare const useFetch: <T = any>(url: string | (() => string), options?: any) => any
 declare const useRequestHeaders: any
@@ -101,7 +102,7 @@ const wrapperStyle = computed(() => {
             <h4 class="column-title">{{ col1Title }}</h4>
             <ul class="links-list">
               <li v-for="(link, i) in parsedCol1" :key="i">
-                <a :href="link.url" class="footer-link">{{ link.label }}</a>
+                <a :href="safeHref(link.url)" class="footer-link">{{ link.label }}</a>
               </li>
             </ul>
           </div>
@@ -110,7 +111,7 @@ const wrapperStyle = computed(() => {
             <h4 class="column-title">{{ col2Title }}</h4>
             <ul class="links-list">
               <li v-for="(link, i) in parsedCol2" :key="i">
-                <a :href="link.url" class="footer-link">{{ link.label }}</a>
+                <a :href="safeHref(link.url)" class="footer-link">{{ link.label }}</a>
               </li>
             </ul>
           </div>

@@ -13,8 +13,30 @@ import { URL } from 'node:url'
  * purely from CSS matching, no JavaScript required — plus @import-based external
  * stylesheet loading and the legacy IE `expression()` code-execution vector.
  */
+// CSS lets any character be escaped as `\` + 1-6 hex digits (+ one optional trailing
+// whitespace) or `\` + the literal character itself, and browsers decode these during
+// tokenizing — so `\75rl(...)` parses identically to `url(...)`, and `@\69mport`
+// identically to `@import`. Decoding escapes before the literal-text strips below closes
+// that bypass; run this first so a payload can't use escapes to also hide/split a
+// dangerous construct across a comment the way `sanitizeThemeCss` already guards against
+// for the unescaped case.
+function decodeCssEscapes(css: string): string {
+  return css.replace(/\\([0-9a-f]{1,6})[ \t\n\r\f]?|\\([\s\S])/gi, (_match, hex: string | undefined, lit: string | undefined) => {
+    if (hex !== undefined) {
+      const codePoint = Number.parseInt(hex, 16)
+      if (Number.isNaN(codePoint) || codePoint > 0x10FFFF) return ''
+      try {
+        return String.fromCodePoint(codePoint)
+      } catch {
+        return ''
+      }
+    }
+    return lit ?? ''
+  })
+}
+
 export function sanitizeThemeCss(css: string): string {
-  let out = css
+  let out = decodeCssEscapes(css)
   // Strip comments first so a payload can't hide/split a dangerous construct across
   // one (e.g. "@im/* */port").
   out = out.replace(/\/\*[\s\S]*?\*\//g, '')

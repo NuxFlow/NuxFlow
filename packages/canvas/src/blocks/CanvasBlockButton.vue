@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { SpacingValue } from '../types'
+import { safeHref } from '../utils/sanitize-html'
 
 const props = withDefaults(defineProps<{
   label?: string
@@ -50,7 +51,7 @@ const buttonStyle = computed(() => {
       }"
     >
       <a
-        :href="url"
+        :href="safeHref(url)"
         class="inline-flex items-center justify-center font-semibold transition-all duration-200 hover:opacity-90 active:scale-[0.98] shadow-sm"
         :style="buttonStyle"
         :class="[

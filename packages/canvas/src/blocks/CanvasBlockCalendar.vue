@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import type { SpacingValue } from '../types'
+import { safeHref } from '../utils/sanitize-html'
 
 const props = withDefaults(defineProps<{
   title?: string
@@ -232,7 +233,7 @@ const activeEvents = computed(() => {
                 <button @click="downloadIcal(event)" class="text-[11px] font-semibold text-gray-600 dark:text-gray-400 hover:text-primary-500 cursor-pointer flex items-center gap-1">
                   📅 Add to Calendar
                 </button>
-                <a v-if="event.eventUrl" :href="event.eventUrl" target="_blank" class="text-[11px] font-semibold text-primary-500 hover:underline">
+                <a v-if="event.eventUrl" :href="safeHref(event.eventUrl)" target="_blank" class="text-[11px] font-semibold text-primary-500 hover:underline">
                   Register →
                 </a>
               </div>
@@ -275,7 +276,7 @@ const activeEvents = computed(() => {
                 </button>
                 <a
                   v-if="event.eventUrl"
-                  :href="event.eventUrl"
+                  :href="safeHref(event.eventUrl)"
                   target="_blank"
                   class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-xs font-semibold text-white hover:bg-primary-600 transition-colors cursor-pointer select-none"
                 >

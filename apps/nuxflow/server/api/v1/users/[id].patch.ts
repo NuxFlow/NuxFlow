@@ -20,6 +20,10 @@ export default defineEventHandler(async (event) => {
   if (body.role) {
     const existing = await getUserSiteRole(db, targetId, siteId)
 
+    // Mirrors the guard in [id].delete.ts: an `admin` must never be able to touch a
+    // super_admin's access on this site (demote them, or reassign their role away).
+    if (existing?.role === 'super_admin') forbidden('Cannot modify a super admin\'s role')
+
     const roleUpdate = db
       .update(userSiteRoles)
       .set({ role: body.role })

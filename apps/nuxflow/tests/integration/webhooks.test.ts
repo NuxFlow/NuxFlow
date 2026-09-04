@@ -113,7 +113,7 @@ describe('Stripe webhooks', () => {
           items: { data: [{ price: { id: STRIPE_PRICE_ID } }] },
           current_period_start: 1717286400,
           current_period_end: 1719878400,
-          metadata: { userId },
+          metadata: { userId, siteId: SITE },
         },
       },
     })
@@ -134,6 +134,27 @@ describe('Stripe webhooks', () => {
     expect(sub!.providerCustomerId).toBe('cus_wh_001')
   })
 
+  it('throws 400 when the subscription event metadata siteId does not match the request site', async () => {
+    mockConstructEvent.mockReturnValueOnce({
+      type: 'customer.subscription.created',
+      data: {
+        object: {
+          id: 'sub_wrong_site',
+          customer: 'cus_wh_001',
+          status: 'active',
+          items: { data: [{ price: { id: STRIPE_PRICE_ID } }] },
+          current_period_start: 1717286400,
+          current_period_end: 1719878400,
+          metadata: { userId, siteId: 'some-other-site' },
+        },
+      },
+    })
+
+    await expect(
+      (handler as HandlerFn)(mkEvent('stripe', '{}', { 'stripe-signature': 'valid-sig' })),
+    ).rejects.toMatchObject({ statusCode: 400 })
+  })
+
   it('updates an existing subscription on customer.subscription.updated', async () => {
     const subId = 'sub_wh_created_001' // same ID as above — already in DB
     mockConstructEvent.mockReturnValueOnce({
@@ -146,7 +167,7 @@ describe('Stripe webhooks', () => {
           items: { data: [{ price: { id: STRIPE_PRICE_ID } }] },
           current_period_start: 1717286400,
           current_period_end: 1719878400,
-          metadata: { userId },
+          metadata: { userId, siteId: SITE },
         },
       },
     })
@@ -170,7 +191,7 @@ describe('Stripe webhooks', () => {
 
     mockConstructEvent.mockReturnValueOnce({
       type: 'customer.subscription.deleted',
-      data: { object: { id: subId } },
+      data: { object: { id: subId, metadata: { siteId: SITE } } },
     })
 
     await (handler as HandlerFn)(mkEvent('stripe', '{}', { 'stripe-signature': 'valid-sig' }))
@@ -240,7 +261,7 @@ describe('LemonSqueezy webhooks', () => {
     const rawBody = JSON.stringify({
       meta: {
         event_name: 'subscription_created',
-        custom_data: { user_id: userId },
+        custom_data: { user_id: userId, site_id: SITE },
       },
       data: {
         id: lsSubId,
@@ -302,7 +323,7 @@ describe('Paddle webhooks', () => {
         id: paddleSubId,
         status: 'active',
         customer_id: 'ctm_paddle_001',
-        custom_data: { user_id: userId },
+        custom_data: { user_id: userId, site_id: SITE },
         items: [{ price: { id: 'pri_paddle_001' } }],
         current_billing_period: {
           starts_at: '2025-01-01T00:00:00Z',
@@ -357,10 +378,11 @@ describe('Webhook cross-tenant isolation', () => {
 
     mockConstructEvent.mockReturnValueOnce({
       type: 'customer.subscription.deleted',
-      data: { object: { id: sharedSubId } },
+      data: { object: { id: sharedSubId, metadata: { siteId: SITE } } },
     })
 
-    // Fired with event.context.siteId = SITE (the webhook's own resolved site).
+    // Fired with event.context.siteId = SITE (the webhook's own resolved site), and a
+    // matching siteId in the (verified) payload metadata.
     await (handler as HandlerFn)(mkEvent('stripe', '{}', { 'stripe-signature': 'valid-sig' }))
 
     const thisSiteSub = await db.query.subscriptions.findFirst({

@@ -65,6 +65,8 @@ export async function apiPostZip(site: string, path: string, cookie: string, fil
   return data2
 }
 
+const LOCAL_HTTP_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
+
 export function resolveAuth(opts: Record<string, unknown>) {
   const site = ((opts.site as string | undefined) ?? process.env.NUXFLOW_SITE ?? '').replace(/\/$/, '')
   const email = (opts.email as string | undefined) ?? process.env.NUXFLOW_EMAIL ?? ''
@@ -73,6 +75,20 @@ export function resolveAuth(opts: Record<string, unknown>) {
   if (!site)     throw new Error('--site is required (or set NUXFLOW_SITE)')
   if (!email)    throw new Error('--email is required (or set NUXFLOW_EMAIL)')
   if (!password) throw new Error('--password is required (or set NUXFLOW_PASSWORD)')
+
+  // authenticate()/request() send the admin email/password and session cookie in the
+  // clear over whatever scheme `site` uses — reject plain http:// (except an explicit
+  // localhost/loopback target, the normal case for local dev against `wrangler dev`)
+  // rather than silently leaking credentials to anyone on the network path.
+  let parsed: URL
+  try {
+    parsed = new URL(site)
+  } catch {
+    throw new Error(`--site must be a valid URL: ${site}`)
+  }
+  if (parsed.protocol !== 'https:' && !LOCAL_HTTP_HOSTS.has(parsed.hostname)) {
+    throw new Error(`--site must use https:// (got ${parsed.protocol}//${parsed.hostname}) — refusing to send credentials over an insecure connection`)
+  }
 
   return { site, email, password }
 }

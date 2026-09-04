@@ -48,3 +48,16 @@ export function sanitizeRichText(html: string | null | undefined): string {
 export function sanitizeCustomHtml(html: string | null | undefined): string {
   return customHtmlFilter.process(html ?? '')
 }
+
+// Link-type block props (Button/Hero/CTA/Footer/Pricing/GDPR/Calendar) bind straight to
+// `:href` with no surrounding HTML for the xss-library filters above to sanitize — content
+// is stored as opaque, unvalidated JSON (block `props` have no server-side shape/scheme
+// validation), so a `javascript:` URL in any of these fields would otherwise execute on
+// click. Only the URI scheme needs blocking here, matching the same javascript:/vbscript:/
+// data: blocklist used for TipTap links/images in app/utils/render-tiptap.ts.
+export function safeHref(url: string | null | undefined): string {
+  const trimmed = (url ?? '').trim()
+  if (!trimmed) return ''
+  if (/^(?:javascript|vbscript|data):/i.test(trimmed)) return '#'
+  return trimmed
+}

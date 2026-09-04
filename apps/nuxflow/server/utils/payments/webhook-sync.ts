@@ -40,6 +40,27 @@ export interface SubscriptionCancellation {
   cancelledAt?: string
 }
 
+/**
+ * Verifies the tenant a webhook event claims to belong to (read from a field the
+ * provider actually signed — Stripe/LS/Paddle metadata set at checkout, see
+ * memberships/checkout.post.ts) matches the site this request resolved to
+ * (`event.context.siteId`, derived from the — attacker-controllable — `Host` header).
+ *
+ * A valid provider signature only proves the payload came from that provider using
+ * some site's configured secret; it says nothing about which tenant the event was
+ * meant for. Two sites sharing a provider account/secret (a shared payment account, or
+ * the documented env-var fallback in `resolveSetting`) would otherwise let a webhook
+ * for Site A's subscription be applied to whatever site the request's Host header
+ * currently resolves to — including a replay of a legitimately-signed payload against
+ * a different Host. Call this before every DB write these handlers make.
+ */
+export function assertWebhookSiteMatch(event: H3Event, payloadSiteId: string | undefined | null): void {
+  const contextSiteId = event.context.siteId as string | undefined
+  if (!payloadSiteId || !contextSiteId || payloadSiteId !== contextSiteId) {
+    throw createError({ statusCode: 400, message: 'Webhook event site does not match the request site' })
+  }
+}
+
 async function maybeSendPaymentPush(event: H3Event, siteId: string, userId: string, tierName: string | undefined) {
   const enabled = await resolveSetting(event, 'push.events.payment_confirmation')
   if (enabled !== 'true') return

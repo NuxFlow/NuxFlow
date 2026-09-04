@@ -63,8 +63,12 @@ function asEditor() {
   return { user: { id: editorId, name: 'Editor', email: 'editor@crud.test' } }
 }
 
-function mkCreateEvent(body: unknown) {
-  return createMockEvent({ siteId: SITE, session: asAuthor(), body }) as unknown as H3Event
+function mkCreateEvent(body: unknown, role: 'author' | 'editor' = 'author') {
+  return createMockEvent({
+    siteId: SITE,
+    session: role === 'editor' ? asEditor() : asAuthor(),
+    body,
+  }) as unknown as H3Event
 }
 
 function mkPatchEvent(body: unknown, id = existingItemId, role: 'author' | 'editor' = 'author') {
@@ -117,10 +121,16 @@ describe('POST /api/v1/content', () => {
   })
 
   it('accepts an explicit status', async () => {
-    const event = mkCreateEvent({ title: 'Published Post', slug: 'pub-post', typeSlug: 'post', status: 'published' })
+    // Publishing directly requires editor+ (author is limited to draft/review).
+    const event = mkCreateEvent({ title: 'Published Post', slug: 'pub-post', typeSlug: 'post', status: 'published' }, 'editor')
     const { id } = await (createHandler as HandlerFn)(event) as { id: string }
     const item = await getCurrentTestDb().query.contentItems.findFirst({ where: eq(contentItems.id, id) })
     expect(item!.status).toBe('published')
+  })
+
+  it('returns 403 when an author tries to create content already published', async () => {
+    const event = mkCreateEvent({ title: 'Sneaky Post', slug: 'sneaky-post', typeSlug: 'post', status: 'published' })
+    await expect((createHandler as HandlerFn)(event)).rejects.toMatchObject({ statusCode: 403 })
   })
 
   it('returns 404 when the typeSlug does not exist', async () => {
@@ -178,13 +188,26 @@ describe('PATCH /api/v1/content/[id] — basic updates', () => {
       publishedAt: null,
     })
 
-    await (patchHandler as HandlerFn)(mkPatchEvent({ status: 'published' }, freshId))
+    // Publishing directly requires editor+ (author is limited to draft/review).
+    await (patchHandler as HandlerFn)(mkPatchEvent({ status: 'published' }, freshId, 'editor'))
 
     const item = await getCurrentTestDb().query.contentItems.findFirst({
       where: eq(contentItems.id, freshId),
     })
     expect(item!.status).toBe('published')
     expect(item!.publishedAt).toBeTruthy()
+  })
+
+  it('returns 403 when an author tries to publish directly via PATCH', async () => {
+    const freshId = await seedContentItem(getCurrentTestDb(), SITE, typeId, {
+      slug: 'author-publish-blocked',
+      title: 'Author Publish Blocked',
+      status: 'draft',
+      publishedAt: null,
+    })
+    await expect(
+      (patchHandler as HandlerFn)(mkPatchEvent({ status: 'published' }, freshId)),
+    ).rejects.toMatchObject({ statusCode: 403 })
   })
 
   it('snapshots a revision record before each update', async () => {

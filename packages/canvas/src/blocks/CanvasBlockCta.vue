@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { SpacingValue } from '../types'
+import { safeHref } from '../utils/sanitize-html'
 
 const props = withDefaults(defineProps<{
   headline?: string
@@ -40,7 +41,7 @@ const containerStyle = computed(() => {
       <p v-if="subtext" class="text-base opacity-80 mb-6">{{ subtext }}</p>
       <a
         v-if="btnLabel"
-        :href="btnUrl"
+        :href="safeHref(btnUrl)"
         class="inline-block px-6 py-3 rounded-lg font-semibold text-sm transition-opacity hover:opacity-90"
         :style="{ backgroundColor: btnColor, color: bgColor }"
       >

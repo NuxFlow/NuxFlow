@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
-import { requireRole } from '../../../utils/permissions'
+import { requireRole, roleAtLeast } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { resolveSetting } from '../../../utils/settings'
 import { broadcastPushToSite } from '../../../utils/webpush'
@@ -42,11 +42,17 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const { userId } = await requireRole(event, 'author')
+  const { userId, role } = await requireRole(event, 'author')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
+
+  // Only editor+ may publish/schedule directly — mirrors the identical check already
+  // enforced for the MCP `update_content` tool and for content creation.
+  if ((body.status === 'published' || body.status === 'scheduled') && !roleAtLeast(role, 'editor')) {
+    forbidden('Only an editor or higher can publish or schedule content')
+  }
 
   const existing = await getContentItemOrThrow(db, siteId, id, 'Not found')
 
