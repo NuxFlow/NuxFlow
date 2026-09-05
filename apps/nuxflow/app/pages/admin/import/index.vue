@@ -16,7 +16,7 @@ async function downloadBackup() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `nuxflow-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `nuxflow-backup-${new Date().toISOString().slice(0, 10)}.zip`
     a.click()
     URL.revokeObjectURL(url)
   } finally {
@@ -31,6 +31,7 @@ const restoreConflict = ref<'skip' | 'overwrite'>('skip')
 const restoring = ref(false)
 const restoreResult = ref<{
   result: {
+    site: { updated: boolean }
     content: { created: number; skipped: number }
     taxonomies: { created: number }
     terms: { created: number }
@@ -48,6 +49,7 @@ const restoreWhatOptions = [
   { value: 'menus', label: 'Menus' },
   { value: 'forms', label: 'Forms' },
   { value: 'settings', label: 'Site settings' },
+  { value: 'site', label: 'Site info (name, locale, timezone)' },
 ]
 
 function onRestoreFile(e: Event) {
@@ -342,6 +344,7 @@ const tabs: { value: Tab; label: string; icon: string }[] = [
         >
           <template #description>
             <ul class="text-sm space-y-0.5 mt-1">
+              <li v-if="restoreResult.result.site.updated">Site info: updated</li>
               <li>Content: {{ restoreResult.result.content.created }} created, {{ restoreResult.result.content.skipped }} skipped</li>
               <li>Taxonomies: {{ restoreResult.result.taxonomies.created }} created, {{ restoreResult.result.terms.created }} terms</li>
               <li>Menus: {{ restoreResult.result.menus.created }} created</li>

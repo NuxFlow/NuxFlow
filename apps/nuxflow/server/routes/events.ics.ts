@@ -44,6 +44,16 @@ async function buildEventsIcs(event: H3Event, siteId: string) {
     limit: 100
   })
 
+  // RFC 5545 §3.3.11 TEXT escaping for SUMMARY/DESCRIPTION/LOCATION values. Order matters:
+  // backslash must be escaped first, or the backslashes inserted by the later replacements
+  // would themselves get escaped again.
+  const escapeIcsText = (text: string): string =>
+    text
+      .replace(/\\/g, '\\\\')
+      .replace(/;/g, '\\;')
+      .replace(/,/g, '\\,')
+      .replace(/\n/g, '\\n')
+
   // Format Helper to convert Date/ISO to iCal stamp YYYYMMDDTHHMMSSZ or YYYYMMDD
   const formatStamp = (isoStr: string | null | undefined, allDay: boolean): string => {
     if (!isoStr) return ''
@@ -96,12 +106,12 @@ async function buildEventsIcs(event: H3Event, siteId: string) {
       ics.push(`DTSTART:${dtStart}`)
       ics.push(`DTEND:${dtEnd}`)
     }
-    ics.push(`SUMMARY:${row.title}`)
+    ics.push(`SUMMARY:${escapeIcsText(row.title)}`)
     if (row.excerpt) {
-      ics.push(`DESCRIPTION:${row.excerpt.replace(/\n/g, '\\n')}`)
+      ics.push(`DESCRIPTION:${escapeIcsText(row.excerpt)}`)
     }
     if (row.eventLocation) {
-      ics.push(`LOCATION:${row.eventLocation}`)
+      ics.push(`LOCATION:${escapeIcsText(row.eventLocation)}`)
     }
     if (row.eventUrl) {
       ics.push(`URL:${row.eventUrl}`)

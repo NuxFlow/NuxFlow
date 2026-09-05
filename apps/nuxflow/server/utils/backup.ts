@@ -286,11 +286,18 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
 // ── Restore options ───────────────────────────────────────────────────────────
 
 export interface RestoreOptions {
-  what: ('content' | 'settings' | 'menus' | 'taxonomies' | 'forms')[]
+  // 'site' is intentionally its own flag, separate from 'settings' — a theme's bundled
+  // demo.json is also a NuxFlowBackup and always carries a placeholder `site` block (see
+  // docs/development.md's demo.json example), but demo-import.post.ts never includes
+  // 'site' in the `what` it passes to applyBackup(), so importing a theme's demo content
+  // can never overwrite the live site's name/locale/timezone. Only the real restore route
+  // (restore.post.ts) opts into 'site'.
+  what: ('content' | 'settings' | 'menus' | 'taxonomies' | 'forms' | 'site')[]
   conflictMode: 'skip' | 'overwrite' | 'archive'
 }
 
 export interface RestoreResult {
+  site: { updated: boolean }
   content: { created: number; skipped: number }
   taxonomies: { created: number }
   terms: { created: number }
@@ -309,12 +316,27 @@ export async function applyBackup(
 ): Promise<RestoreResult> {
   const db = useDb(event)
   const result: RestoreResult = {
+    site: { updated: false },
     content: { created: 0, skipped: 0 },
     taxonomies: { created: 0 },
     terms: { created: 0 },
     menus: { created: 0 },
     forms: { created: 0 },
     settings: { updated: 0 },
+  }
+
+  // ── Site metadata ────────────────────────────────────────────────────────
+  // Mirrors what buildBackup() exports (name/locale/timezone — see the `site` field
+  // above) back onto the target site's own row. Gated on its own 'site' flag rather
+  // than always running or piggybacking on 'settings' (see the RestoreOptions comment).
+  if (opts.what.includes('site') && backup.site) {
+    await db.update(sites).set({
+      name: backup.site.name,
+      locale: backup.site.locale,
+      timezone: backup.site.timezone,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(sites.id, siteId))
+    result.site.updated = true
   }
 
   // ── Settings ─────────────────────────────────────────────────────────────

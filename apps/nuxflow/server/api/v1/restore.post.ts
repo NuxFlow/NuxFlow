@@ -13,7 +13,7 @@ import { isHttpError } from '../../utils/errors'
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB
 
 const querySchema = z.object({
-  what: z.string().default('content,taxonomies,menus,forms,settings'),
+  what: z.string().default('content,taxonomies,menus,forms,settings,site'),
   conflictMode: z.enum(['skip', 'overwrite']).default('skip'),
 })
 
@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
 
   const what = query.what.split(',').filter(
     (w): w is RestoreOptions['what'][number] =>
-      ['content', 'taxonomies', 'menus', 'forms', 'settings'].includes(w),
+      ['content', 'taxonomies', 'menus', 'forms', 'settings', 'site'].includes(w),
   )
 
   const formData = await readMultipartFormData(event)

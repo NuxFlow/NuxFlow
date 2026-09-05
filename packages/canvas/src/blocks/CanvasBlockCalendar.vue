@@ -71,6 +71,19 @@ function getEventMonth(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short' })
 }
 
+// RFC 5545 §3.3.11 TEXT escaping for SUMMARY/DESCRIPTION/LOCATION values. Order matters:
+// backslash must be escaped first, or the backslashes inserted by the later replacements
+// would themselves get escaped again. Duplicated (not imported) from the sibling
+// server-side implementation in apps/nuxflow/server/routes/events.ics.ts — the canvas
+// package and the app are separate packages with no shared utility module for this.
+function escapeIcsText(text: string): string {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\n/g, '\\n')
+}
+
 // Client-Side iCal (.ics) Generator
 function downloadIcal(event: any) {
   const cleanStamp = (dStr: string) => dStr.replace(/[-:]/g, '').split('.')[0] + 'Z'
@@ -85,10 +98,10 @@ function downloadIcal(event: any) {
     `DTSTAMP:${cleanStamp(new Date().toISOString())}`,
     `DTSTART:${start}`,
     `DTEND:${end}`,
-    `SUMMARY:${event.title}`,
+    `SUMMARY:${escapeIcsText(event.title)}`,
   ]
-  if (event.excerpt) icsLines.push(`DESCRIPTION:${event.excerpt.replace(/\n/g, '\\n')}`)
-  if (event.eventLocation) icsLines.push(`LOCATION:${event.eventLocation}`)
+  if (event.excerpt) icsLines.push(`DESCRIPTION:${escapeIcsText(event.excerpt)}`)
+  if (event.eventLocation) icsLines.push(`LOCATION:${escapeIcsText(event.eventLocation)}`)
   if (event.eventUrl) icsLines.push(`URL:${event.eventUrl}`)
   icsLines.push('END:VEVENT', 'END:VCALENDAR')
 
