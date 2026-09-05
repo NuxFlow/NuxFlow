@@ -3,7 +3,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
-import { saveSetting } from '../../../utils/settings'
+import { resolveSetting, saveSetting } from '../../../utils/settings'
 import { clearAppearanceCache } from '../../../utils/appearance-cache'
 import { writeAuditLog } from '../../../utils/audit'
 import { purgeEdgeCache, purgeAllPublicPages } from '../../../utils/edge-cache'
@@ -99,6 +99,26 @@ export default defineEventHandler(async (event) => {
 
   if (body.cloudflare) {
     const cf = body.cloudflare
+
+    // Cloudflare Images needs the account ID, API token, AND the delivery URL together —
+    // getActiveProvider() only selects the Images provider once all three are present, and
+    // CloudflareImagesProvider.getUrl() builds `${deliveryUrl}/${storageKey}/public`, so a
+    // missing delivery URL would otherwise silently produce a broken relative-path URL for
+    // every upload instead of a clear error at save time. Resolve the values this save
+    // *would* leave in place (incoming body value where provided, current effective value
+    // otherwise) and reject before writing anything if that combination is incomplete.
+    const [currentAccountId, currentImagesToken, currentDeliveryUrl] = await Promise.all([
+      resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId'),
+      resolveSetting(event, 'cloudflare.images_token', 'cloudflareImagesToken'),
+      resolveSetting(event, 'cloudflare.images_delivery_url', 'cloudflareImagesDeliveryUrl'),
+    ])
+    const nextAccountId = cf.accountId !== undefined ? cf.accountId : currentAccountId
+    const nextImagesToken = cf.imagesToken !== undefined ? cf.imagesToken : currentImagesToken
+    const nextDeliveryUrl = cf.imagesDeliveryUrl !== undefined ? cf.imagesDeliveryUrl : currentDeliveryUrl
+    if (nextAccountId && nextImagesToken && !nextDeliveryUrl) {
+      validationError('Cloudflare Images requires a delivery URL to build working image links. Set "Images delivery URL" before (or while) saving the account ID and API token — otherwise uploaded images will silently get broken URLs.')
+    }
+
     if (cf.accountId !== undefined) await saveSetting(event, 'cloudflare.account_id', cf.accountId)
     if (cf.streamToken !== undefined) await saveSetting(event, 'cloudflare.stream_token', cf.streamToken)
     if (cf.imagesToken !== undefined) await saveSetting(event, 'cloudflare.images_token', cf.imagesToken)

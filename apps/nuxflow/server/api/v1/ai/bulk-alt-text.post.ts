@@ -61,12 +61,14 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  const targetIds = imageTargets.map(f => f.id)
+
   if (cfCtx?.waitUntil) {
     cfCtx.waitUntil(run())
-    return { processing: true, total: imageTargets.length }
+    return { processing: true, total: imageTargets.length, mediaIds: targetIds }
   }
 
   // Fallback: run inline (local dev / non-CF environments)
   await run()
-  return { processed, skipped, total: imageTargets.length }
+  return { processed, skipped, total: imageTargets.length, mediaIds: targetIds }
 })

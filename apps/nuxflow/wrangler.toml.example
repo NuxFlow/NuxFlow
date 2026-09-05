@@ -31,6 +31,16 @@ directory = ".output/public"
 # NUXT_BUNNY_API_KEY =
 # NUXT_BUNNY_STORAGE_ZONE =
 # NUXT_BUNNY_PULL_ZONE =
+#
+# AI provider: openai | anthropic | gemini | deepseek | ollama — also configurable
+# per-site in Settings → AI, which takes priority over these.
+# NUXT_AI_PROVIDER =
+# NUXT_OPENAI_API_KEY =
+# NUXT_ANTHROPIC_API_KEY =
+# NUXT_GEMINI_API_KEY =
+# NUXT_DEEPSEEK_API_KEY =
+# NUXT_OLLAMA_URL =
+# NUXT_OLLAMA_MODEL =
 
 [triggers]
 # publish-scheduled runs every minute; prune-old-data runs nightly at 3 AM UTC;

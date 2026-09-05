@@ -117,6 +117,16 @@ export default defineNuxtConfig({
     bunnyApiKey: '',
     bunnyStorageZone: '',
     bunnyPullZone: '',
+    // AI providers — env-var fallback for resolveSetting(); the admin Settings → AI UI
+    // writes real per-site overrides to the DB (ai.provider / ai.*_api_key / etc.) on
+    // top of these, same DB-first-env-fallback pattern as every other subsystem here.
+    aiProvider: '',
+    openaiApiKey: '',
+    anthropicApiKey: '',
+    geminiApiKey: '',
+    deepseekApiKey: '',
+    ollamaUrl: '',
+    ollamaModel: '',
     emailProvider: 'console',
     emailFromAddress: '',
     resendApiKey: '',

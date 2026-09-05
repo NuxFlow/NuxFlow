@@ -51,7 +51,11 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
     resolveSetting(event, 'media.bunny_pull_zone', 'bunnyPullZone'),
   ])
 
-  if (imagesToken && accountId) {
+  // deliveryUrl is required alongside the token/account — without it, getUrl() builds a
+  // broken relative-path URL (`${deliveryUrl}/${storageKey}/public`) for every uploaded
+  // image with no error at upload time. Falling through to the next provider mirrors the
+  // R2 check just below (`r2 && r2PublicUrl`), which requires its own delivery URL too.
+  if (imagesToken && accountId && deliveryUrl) {
     return new CloudflareImagesProvider(accountId, imagesToken, deliveryUrl)
   }
 

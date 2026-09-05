@@ -33,11 +33,27 @@ describe('getActiveProvider — selection priority', () => {
     expect(provider.name).toBe('local')
   })
 
-  it('picks Cloudflare Images when account + token are set', async () => {
+  it('picks Cloudflare Images when account + token + delivery URL are set', async () => {
+    settings.set('cloudflare.account_id', 'acct123')
+    settings.set('cloudflare.images_token', 'tok123')
+    settings.set('cloudflare.images_delivery_url', 'https://imagedelivery.net/abc123')
+    const provider = await getActiveProvider(mkEvent())
+    expect(provider.name).toBe('cloudflare')
+  })
+
+  it('falls through to the next provider when Cloudflare Images is missing its delivery URL', async () => {
+    settings.set('cloudflare.account_id', 'acct123')
+    settings.set('cloudflare.images_token', 'tok123')
+    settings.set('media.s3_bucket', 'my-bucket')
+    const provider = await getActiveProvider(mkEvent())
+    expect(provider.name).toBe('s3')
+  })
+
+  it('falls all the way back to local when Cloudflare Images is missing its delivery URL and nothing else is configured', async () => {
     settings.set('cloudflare.account_id', 'acct123')
     settings.set('cloudflare.images_token', 'tok123')
     const provider = await getActiveProvider(mkEvent())
-    expect(provider.name).toBe('cloudflare')
+    expect(provider.name).toBe('local')
   })
 
   it('picks S3 when Cloudflare Images is not configured', async () => {
@@ -59,6 +75,7 @@ describe('getActiveProvider — selection priority', () => {
   it('prefers Cloudflare Images over S3 and Bunny when all three are configured', async () => {
     settings.set('cloudflare.account_id', 'acct123')
     settings.set('cloudflare.images_token', 'tok123')
+    settings.set('cloudflare.images_delivery_url', 'https://imagedelivery.net/abc123')
     settings.set('media.s3_bucket', 'my-bucket')
     settings.set('media.bunny_api_key', 'bunny-key')
     const provider = await getActiveProvider(mkEvent())

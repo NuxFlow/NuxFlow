@@ -84,20 +84,71 @@ function onAiImageGenerated(url: string) {
 
 // ── Bulk alt text ─────────────────────────────────────────────────────────────
 const bulkAltLoading = ref(false)
-const bulkAltResult = ref<{ processed?: number; total?: number; processing?: boolean } | null>(null)
+const bulkAltPolling = ref(false)
+const bulkAltResult = ref<{ processed?: number; total?: number; processing?: boolean; mediaIds?: string[] } | null>(null)
 const toast = useToast()
+
+let bulkAltPoller: ReturnType<typeof setInterval> | null = null
+
+onBeforeUnmount(() => {
+  if (bulkAltPoller) clearInterval(bulkAltPoller)
+})
+
+// The bulk alt-text endpoint fires a background `waitUntil` job on Cloudflare and
+// returns immediately with `{ processing: true, mediaIds }` — there's no push/webhook
+// telling us when it finishes, so poll the media list (mirrors the video-processing
+// poller in videos.vue) until every targeted item has non-empty alt text, or bail out
+// after a couple of minutes with a "still processing" toast rather than polling forever.
+const BULK_ALT_POLL_INTERVAL_MS = 5000
+const BULK_ALT_POLL_TIMEOUT_MS = 2 * 60 * 1000
+
+function startBulkAltPoller(targetIds: string[]) {
+  if (bulkAltPoller) clearInterval(bulkAltPoller)
+  if (!targetIds.length) return
+
+  bulkAltPolling.value = true
+  const startedAt = Date.now()
+
+  bulkAltPoller = setInterval(async () => {
+    await refresh()
+    const allDone = targetIds.every((id) => {
+      const file = files.value.find(f => f.id === id)
+      return !!file?.altText
+    })
+
+    if (allDone) {
+      if (bulkAltPoller) clearInterval(bulkAltPoller)
+      bulkAltPoller = null
+      bulkAltPolling.value = false
+      toast.add({ title: 'Alt text generation complete', color: 'success' })
+      return
+    }
+
+    if (Date.now() - startedAt > BULK_ALT_POLL_TIMEOUT_MS) {
+      if (bulkAltPoller) clearInterval(bulkAltPoller)
+      bulkAltPoller = null
+      bulkAltPolling.value = false
+      toast.add({
+        title: 'Still processing',
+        description: 'Alt text generation is taking longer than expected — refresh the page later to see the results.',
+        color: 'warning',
+      })
+    }
+  }, BULK_ALT_POLL_INTERVAL_MS)
+}
 
 async function runBulkAltText() {
   bulkAltLoading.value = true
   bulkAltResult.value = null
   try {
-    const res = await $fetch<{ processed?: number; total?: number; processing?: boolean }>('/api/v1/ai/bulk-alt-text', {
+    const res = await $fetch<{ processed?: number; total?: number; processing?: boolean; mediaIds?: string[] }>('/api/v1/ai/bulk-alt-text', {
       method: 'POST',
       body: {},
     })
     bulkAltResult.value = res
     if (res.processing) {
       toast.add({ title: `Generating alt text for ${res.total} images in background…`, color: 'info' })
+      startBulkAltPoller(res.mediaIds ?? [])
     } else if (res.processed !== undefined) {
       toast.add({ title: `Alt text generated for ${res.processed} image${res.processed !== 1 ? 's' : ''}`, color: 'success' })
       await refresh()
@@ -193,6 +244,7 @@ const savingDetail = ref(false)
 const deletingDetail = ref(false)
 const copied = ref(false)
 const detailAiLoading = ref(false)
+const detailLoading = ref(false)
 
 async function generateDetailAltText() {
   if (!detail.value) return
@@ -210,7 +262,7 @@ async function generateDetailAltText() {
   }
 }
 
-function openDetail(file: MediaFile) {
+async function openDetail(file: MediaFile) {
   detail.value = file
   detailAltText.value = file.altText ?? ''
   detailCaption.value = file.caption ?? ''
@@ -219,6 +271,22 @@ function openDetail(file: MediaFile) {
   detailFocalY.value = file.focalY ?? null
   showDetail.value = true
   copied.value = false
+
+  // The list projection (`GET /api/v1/media`) deliberately excludes `metadata` (EXIF) to
+  // keep the grid payload small — fetch the full row here so the detail modal can show it.
+  detailLoading.value = true
+  try {
+    const full = await $fetch<MediaFile>(`/api/v1/media/${file.id}`)
+    // Guard against the user opening a different file before this resolves.
+    if (detail.value?.id === file.id) {
+      detail.value = full
+    }
+  } catch {
+    // Keep the list-projection fallback already applied above — worst case, EXIF
+    // just doesn't show for this file.
+  } finally {
+    detailLoading.value = false
+  }
 }
 
 async function saveDetail() {
@@ -316,8 +384,9 @@ function resetFocalPoint() {
           icon="i-lucide-sparkles"
           variant="outline"
           size="sm"
-          :loading="bulkAltLoading"
-          title="Generate alt text for all images missing it"
+          :loading="bulkAltLoading || bulkAltPolling"
+          :disabled="bulkAltPolling"
+          :title="bulkAltPolling ? 'Alt text is generating in the background…' : 'Generate alt text for all images missing it'"
           @click="runBulkAltText"
         >
           Auto alt text
@@ -520,6 +589,7 @@ function resetFocalPoint() {
                 <UButton v-if="detailFocalX !== null || detailFocalY !== null" size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" class="h-5 p-1" @click="resetFocalPoint" />
               </div>
               <!-- EXIF data -->
+              <p v-if="detailLoading && isImage(detail.mimeType) && !detailExif" class="text-gray-400 text-xs mt-2 italic">Loading details…</p>
               <div v-if="detailExif" class="mt-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2.5 py-1.5 rounded border border-gray-100 dark:border-gray-800 space-y-0.5">
                 <p v-if="detailExif.make || detailExif.model" class="font-medium text-gray-600 dark:text-gray-300">
                   {{ [detailExif.make, detailExif.model].filter(Boolean).join(' ') }}
