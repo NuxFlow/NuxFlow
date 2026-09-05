@@ -2,6 +2,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { extractExif } from '../../../utils/exif'
+import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { media } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { created } from '../../../utils/response'
@@ -38,7 +39,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = useDb(event)
-  await db.insert(media).values({
+  const mediaInsert = db.insert(media).values({
     id: fileId,
     siteId,
     uploadedBy: userId,
@@ -51,6 +52,14 @@ export default defineEventHandler(async (event) => {
     storageKey,
     ...(metadata ? { metadata } : {}),
   })
+
+  const auditInsert = buildAuditLogInsert(event, userId, {
+    action: 'create',
+    resource: 'media',
+    resourceId: fileId,
+    after: { originalName: file.name, storageKey, mimeType: file.type },
+  })
+  await batchWithAudit(db, [mediaInsert], auditInsert)
 
   return created(event, { id: fileId, url })
 })

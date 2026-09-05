@@ -5,6 +5,7 @@ import { ulid } from 'ulid'
 import { rateLimit } from '../../../../utils/rate-limit'
 import { created } from '../../../../utils/response'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 
 const bodySchema = z.object({
   guestName: z.string().min(1).max(100).optional(),
@@ -35,7 +36,7 @@ export default defineEventHandler(async (event) => {
 
   const id = ulid()
 
-  await db.insert(comments).values({
+  const commentInsert = db.insert(comments).values({
     id,
     siteId,
     itemId,
@@ -46,6 +47,20 @@ export default defineEventHandler(async (event) => {
     body: parsed.body,
     status: session ? 'approved' : 'pending',
   })
+
+  // Guest comments have no userId to attribute the action to, so only
+  // authenticated submissions get an audit entry — matching the moderation
+  // routes' actor-based pattern.
+  const auditInsert = session?.user?.id
+    ? buildAuditLogInsert(event, session.user.id, {
+        action: 'create',
+        resource: 'comment',
+        resourceId: id,
+        after: { itemId, status: session ? 'approved' : 'pending' },
+      })
+    : null
+
+  await batchWithAudit(db, [commentInsert], auditInsert)
 
   return created(event, { id, status: session ? 'approved' : 'pending' })
 })
