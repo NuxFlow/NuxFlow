@@ -14,10 +14,11 @@ const sent = ref(false)
 async function submit() {
   loading.value = true
   try {
-    await $fetch('/api/auth/forget-password', {
-      method: 'POST',
-      body: { email: state.email, redirectTo: '/reset-password' },
-    })
+    // Uses the typed auth client method (rather than a hardcoded fetch path) so a
+    // future Better Auth endpoint rename fails typecheck instead of silently 404ing —
+    // this exact page previously broke that way when the underlying endpoint was
+    // renamed from /forget-password to /request-password-reset.
+    await useAuthClient().requestPasswordReset({ email: state.email, redirectTo: '/reset-password' })
     sent.value = true
   } catch {
     // Always show success to prevent email enumeration

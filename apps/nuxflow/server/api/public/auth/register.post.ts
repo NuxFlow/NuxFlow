@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { nuxflowPasswordHasher } from '../../../utils/pw'
 import { useDb } from '../../../utils/db'
 import { resolveSetting } from '../../../utils/settings'
+import { rateLimit } from '../../../utils/rate-limit'
 import { ulid } from 'ulid'
 
 const bodySchema = z.object({
@@ -13,6 +14,14 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  // This route creates a user + credential account directly rather than going through
+  // Better Auth's own /api/auth/sign-up/email handler (see the comment below on why), which
+  // means it never passes through 04.auth-override.ts's per-path rate limiting either — that
+  // limiter is keyed by exact request path and only ever sees "/api/auth/sign-up/email".
+  // Mirror the same 5/hour-per-IP limit here so this parallel signup door isn't a completely
+  // unthrottled way to mass-create accounts or enumerate existing emails via the check below.
+  await rateLimit(event, { limit: 5, windowMs: 60 * 60_000, keyPrefix: 'public-register' })
+
   const siteId = event.context.siteId as string
   const body = await parseBody(event, bodySchema)
 

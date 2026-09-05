@@ -7,6 +7,7 @@ import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser } from '../helpers/seed'
 import handler from '../../server/api/public/auth/register.post'
 import { resolveSetting } from '../../server/utils/settings'
+import { rateLimit } from '../../server/utils/rate-limit'
 
 vi.mock('../../server/utils/settings', () => ({
   resolveSetting: vi.fn(),
@@ -18,6 +19,10 @@ vi.mock('../../server/utils/settings', () => ({
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
   getD1: () => null,
+}))
+
+vi.mock('../../server/utils/rate-limit', () => ({
+  rateLimit: vi.fn().mockResolvedValue(undefined),
 }))
 
 const SITE = 'site-reg-01'
@@ -47,6 +52,22 @@ function mkEvent(body: unknown, siteId = SITE) {
 void existingUserId
 
 describe('POST /api/public/auth/register', () => {
+  it('rate-limits by IP before doing anything else, mirroring the 5/hour limit on the Better Auth sign-up path', async () => {
+    vi.mocked(resolveSetting).mockResolvedValue('true')
+    vi.mocked(rateLimit).mockRejectedValueOnce(
+      Object.assign(new Error('Too many requests'), { statusCode: 429 }),
+    )
+
+    await expect(
+      (handler as HandlerFn)(mkEvent({ name: 'Rl', email: 'rl@example.com', password: 'password123' })),
+    ).rejects.toMatchObject({ statusCode: 429 })
+
+    expect(rateLimit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ limit: 5, windowMs: 60 * 60_000, keyPrefix: 'public-register' }),
+    )
+  })
+
   describe('when registration is disabled', () => {
     beforeAll(() => {
       vi.mocked(resolveSetting).mockResolvedValue('false')

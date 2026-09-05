@@ -11,7 +11,7 @@ import { rateLimit } from '../utils/rate-limit'
 const AUTH_RATE_LIMITS: Record<string, { limit: number; windowMs: number }> = {
   '/api/auth/sign-in/email': { limit: 10, windowMs: 10 * 60_000 },
   '/api/auth/sign-up/email': { limit: 5, windowMs: 60 * 60_000 },
-  '/api/auth/forget-password': { limit: 3, windowMs: 15 * 60_000 },
+  '/api/auth/request-password-reset': { limit: 3, windowMs: 15 * 60_000 },
   '/api/auth/reset-password': { limit: 10, windowMs: 15 * 60_000 },
 }
 
