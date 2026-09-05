@@ -216,7 +216,7 @@ All three `implements PaymentProvider` (`payments/types.ts`) for the one operati
 
 `server/utils/payments/webhook-sync.ts` — `upsertSubscriptionFromWebhook()` and `cancelSubscriptionFromWebhook()` hold the DB-write logic (tier lookup, existing-row check, insert/update, activation push) that used to be duplicated three times in the webhook handler. Each provider's webhook handler only parses its own raw payload into a `SubscriptionUpsert`/`SubscriptionCancellation` and calls the shared function — `pushOnActivation` is computed per-provider since each vocabulary differs on which specific event type should trigger a push (e.g. Lemon Squeezy/Paddle only push on their "created"/"activated" event, not "updated"/"resumed", even though those share the same upsert path).
 
-`server/utils/payments/gate.ts` — `resolveContentGate(event, settings)` checks `settings.access` (`'public'`, `'members'`, `'tier:<tierId>'`) against the caller's active subscription. Returns `GateResult | null` (null = access granted). Used internally by the public pages API.
+Content gating logic lives inline as `checkContentAccess()` in `apps/nuxflow/server/api/public/pages/[slug].get.ts` (not a separate `server/utils/payments/` module) — it checks `settings.access` (`'public'`, `'members'`, `'tier:<tierId>'`) against the caller's active subscription (requiring `status === 'active'` and an unexpired `currentPeriodEnd`) and returns a blocked-access result or `null` (null = access granted).
 
 Membership tiers and subscriptions live in the core DB schema (`packages/db/src/schema/payments.ts`).
 

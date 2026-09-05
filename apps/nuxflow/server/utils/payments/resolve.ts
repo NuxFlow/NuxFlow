@@ -36,7 +36,9 @@ export async function getLemonSqueezyProvider(event: H3Event): Promise<LemonSque
 export async function resolvePaddleProvider(event: H3Event): Promise<PaddleProvider | null> {
   const apiKey = await resolveSetting(event, 'payments.paddle_api_key', 'paddleApiKey')
   const vendorId = await resolveSetting(event, 'payments.paddle_vendor_id', 'paddleVendorId')
-  return apiKey && vendorId ? new PaddleProvider(apiKey, vendorId) : null
+  if (!apiKey || !vendorId) return null
+  const sandbox = await resolveSetting(event, 'payments.paddle_sandbox')
+  return new PaddleProvider(apiKey, vendorId, sandbox === 'true')
 }
 
 /** Same as resolvePaddleProvider, but throws the standard 503 instead of returning null. */

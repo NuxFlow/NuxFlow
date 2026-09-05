@@ -191,6 +191,7 @@ const payments = reactive({
   paddleApiKey: '',
   paddleVendorId: '',
   paddleWebhookPublicKey: '',
+  paddleSandbox: false,
 })
 
 const ai = reactive({
@@ -350,6 +351,7 @@ watch(data, (d) => {
   payments.paddleApiKey = (s['payments.paddle_api_key'] as string) ?? ''
   payments.paddleVendorId = (s['payments.paddle_vendor_id'] as string) ?? ''
   payments.paddleWebhookPublicKey = (s['payments.paddle_webhook_public_key'] as string) ?? ''
+  payments.paddleSandbox = s['payments.paddle_sandbox'] === 'true'
 
   ai.provider = (s['ai.provider'] as string) ?? 'openai'
   ai.openaiApiKey = (s['ai.openai_api_key'] as string) ?? ''
@@ -418,6 +420,7 @@ async function save() {
       'payments.paddle_api_key': payments.paddleApiKey,
       'payments.paddle_vendor_id': payments.paddleVendorId,
       'payments.paddle_webhook_public_key': payments.paddleWebhookPublicKey,
+      'payments.paddle_sandbox': payments.paddleSandbox ? 'true' : 'false',
     }
     await $fetch('/api/v1/settings', {
       method: 'PATCH',
@@ -465,8 +468,9 @@ async function save() {
     })
     toast.add({ title: 'Settings saved', color: 'success' })
     await refresh()
-  } catch {
-    toast.add({ title: 'Failed to save settings', color: 'error' })
+  } catch (e: unknown) {
+    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to save settings'
+    toast.add({ title: 'Failed to save settings', description: msg, color: 'error' })
   } finally {
     saving.value = false
   }
@@ -1029,8 +1033,18 @@ async function deleteSite() {
                     <UInput v-model="payments.paddleVendorId" placeholder="e.g. 98765" class="w-full" />
                   </UFormField>
                 </div>
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <p class="text-sm font-medium text-gray-900 dark:text-white">Sandbox mode</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Route Paddle checkout and API calls to sandbox-api.paddle.com for testing before going live.
+                      Use a sandbox API key/vendor ID above while this is on.
+                    </p>
+                  </div>
+                  <USwitch v-model="payments.paddleSandbox" />
+                </div>
                 <p class="text-xs text-gray-400">
-                  Webhook URL for Paddle dashboard: 
+                  Webhook URL for Paddle dashboard:
                   <code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded font-mono break-all select-all">
                     https://{{ general.domain || 'yourdomain.com' }}/api/v1/memberships/webhooks/paddle
                   </code>

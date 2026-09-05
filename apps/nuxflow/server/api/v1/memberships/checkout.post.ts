@@ -6,6 +6,7 @@ import { useDb } from '../../../utils/db'
 import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
 import { resolveSetting } from '../../../utils/settings'
 import { resolveStripeProvider, resolveLemonSqueezyProvider, resolvePaddleProvider } from '../../../utils/payments/resolve'
+import { conflict } from '../../../utils/response'
 
 const bodySchema = z.object({
   tierId: z.string(),
@@ -31,6 +32,21 @@ export default defineEventHandler(async (event) => {
   const userId = session.user.id as string
   const userEmail = session.user.email as string
   const userName = (session.user.name ?? '') as string
+
+  // Guard against a user holding multiple concurrent subscriptions (any tier, any
+  // provider) on this site. Resubmitting for the *same* tier stays idempotent — it
+  // falls through to the free-tier reactivation branch below, or (for paid tiers) simply
+  // re-runs checkout against a provider that will recognize the existing customer.
+  const existingActiveSub = await db.query.subscriptions.findFirst({
+    where: and(
+      eq(subscriptions.siteId, siteId),
+      eq(subscriptions.userId, userId),
+      eq(subscriptions.status, 'active'),
+    ),
+  })
+  if (existingActiveSub && existingActiveSub.tierId !== tier.id) {
+    throw conflict('You already have an active membership subscription. Manage or cancel it from your account page before subscribing to a different plan.')
+  }
 
   // If the tier is free (price = 0), activate the subscription locally immediately
   if (tier.price === 0) {
@@ -68,11 +84,20 @@ export default defineEventHandler(async (event) => {
     return { url: body.returnUrl }
   }
 
-  // Resolve payment integration dynamically (per-tenant override of env variables) —
-  // whichever provider is configured first wins.
-  const stripe = await resolveStripeProvider(event)
-  if (stripe) {
-    if (!tier.stripePriceId) throw conflict('This tier has not been synced to Stripe')
+  // Resolve payment integration dynamically (per-tenant override of env variables).
+  // A tier can only be checked out through the provider it is actually synced to
+  // (stripePriceId / lsVariantId / paddleProductId) — picking by global "whichever
+  // provider has credentials first" priority instead would fail a tier that's fully
+  // synced to, say, Paddle just because Stripe also happens to be configured. When a
+  // tier is synced to more than one provider, prefer Stripe > Lemon Squeezy > Paddle
+  // among only the ones it's actually synced to.
+  const [stripe, ls, paddle] = await Promise.all([
+    resolveStripeProvider(event),
+    resolveLemonSqueezyProvider(event),
+    resolvePaddleProvider(event),
+  ])
+
+  if (stripe && tier.stripePriceId) {
     const customers = await stripe.listCustomersByEmail(userEmail)
     let customerId = customers[0]?.id
     if (!customerId) {
@@ -89,9 +114,7 @@ export default defineEventHandler(async (event) => {
     return { url: checkoutSession.url }
   }
 
-  const ls = await resolveLemonSqueezyProvider(event)
-  if (ls) {
-    if (!tier.lsVariantId) throw conflict('This tier has not been synced to Lemon Squeezy')
+  if (ls && tier.lsVariantId) {
     const result = await ls.createCheckout({
       variantId: tier.lsVariantId,
       email: userEmail,
@@ -100,9 +123,7 @@ export default defineEventHandler(async (event) => {
     return { url: result.data.attributes.url }
   }
 
-  const paddle = await resolvePaddleProvider(event)
-  if (paddle) {
-    if (!tier.paddleProductId) throw conflict('This tier has not been synced to Paddle')
+  if (paddle && tier.paddleProductId) {
     const transaction = await paddle.createTransaction({
       priceId: tier.paddleProductId,
       customData: { user_id: userId, site_id: siteId, tier_id: tier.id },
@@ -111,5 +132,9 @@ export default defineEventHandler(async (event) => {
     return { url: transaction.data.checkout.url }
   }
 
-  throw createError({ statusCode: 503, message: 'No payment provider is configured' })
+  if (!stripe && !ls && !paddle) {
+    throw createError({ statusCode: 503, message: 'No payment provider is configured' })
+  }
+
+  throw conflict(`"${tier.name}" has not been synced to any of the currently configured payment providers. Sync this tier to a configured provider (or configure the provider it's already synced to) before selling it.`)
 })

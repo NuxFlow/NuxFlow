@@ -24,6 +24,7 @@ vi.mock('../../server/utils/payments/paddle', () => ({
 
 const SITE = 'site-checkout-01'
 let userId: string
+let unsyncedUserId: string
 let freeTierId: string
 let paidTierId: string
 
@@ -34,6 +35,11 @@ beforeAll(async () => {
   await seedSite(db, { id: SITE, domain: 'checkout.localhost' })
   await seedSetting(db, SITE, 'payments.stripe_secret_key', 'sk_test_123')
   userId = await seedUser(db, { email: 'checkout-user@sub.test' })
+  // Separate user for the "unsynced tier" test below — `userId` ends up with an active
+  // free-tier subscription from an earlier test, and the concurrent-subscription guard
+  // (fix #2) would otherwise block *any* further checkout for that user before the
+  // provider-sync check even runs.
+  unsyncedUserId = await seedUser(db, { email: 'checkout-unsynced-user@sub.test' })
   freeTierId = await seedTier(db, SITE, { name: 'Free Plan', price: 0, currency: 'USD', interval: 'month' })
   paidTierId = await seedTier(db, SITE, { name: 'Paid Plan', price: 10, currency: 'USD', interval: 'month' })
 })
@@ -81,10 +87,21 @@ describe('POST /api/v1/memberships/checkout', () => {
   })
 
   it('throws 409 for unsynced paid tier', async () => {
+    const event = mkEvent(unsyncedUserId, { tierId: paidTierId, returnUrl: 'http://localhost/success' })
+    await expect(
+      (checkoutHandler as HandlerFn)(event),
+    ).rejects.toMatchObject({ statusCode: 409, message: '"Paid Plan" has not been synced to any of the currently configured payment providers. Sync this tier to a configured provider (or configure the provider it\'s already synced to) before selling it.' })
+  })
+
+  it('throws 409 when the user already has an active subscription on a different tier', async () => {
+    // `userId` already holds an active free-tier subscription from the test above.
     const event = mkEvent(userId, { tierId: paidTierId, returnUrl: 'http://localhost/success' })
     await expect(
       (checkoutHandler as HandlerFn)(event),
-    ).rejects.toMatchObject({ statusCode: 409, message: 'This tier has not been synced to Stripe' })
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'You already have an active membership subscription. Manage or cancel it from your account page before subscribing to a different plan.',
+    })
   })
 })
 
@@ -121,7 +138,7 @@ describe('POST /api/v1/memberships/checkout — Paddle', () => {
   it('throws 409 for a tier not synced to Paddle', async () => {
     await expect(
       (checkoutHandler as HandlerFn)(mkPaddleEvent(unsyncedTierId)),
-    ).rejects.toMatchObject({ statusCode: 409, message: 'This tier has not been synced to Paddle' })
+    ).rejects.toMatchObject({ statusCode: 409, message: '"Unsynced Plan" has not been synced to any of the currently configured payment providers. Sync this tier to a configured provider (or configure the provider it\'s already synced to) before selling it.' })
   })
 
   it('creates a Paddle transaction and returns its hosted checkout URL', async () => {

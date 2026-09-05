@@ -15,6 +15,7 @@ export const membershipTiers = sqliteTable('membership_tiers', {
   // Provider-specific IDs set when tier is synced to payment provider
   stripeProductId: text('stripe_product_id'),
   stripePriceId: text('stripe_price_id'),
+  lsProductId: text('ls_product_id'),
   lsVariantId: text('ls_variant_id'),
   paddleProductId: text('paddle_product_id'),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),

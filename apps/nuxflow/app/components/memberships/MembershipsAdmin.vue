@@ -14,6 +14,7 @@ interface Tier {
   isActive: boolean
   stripeProductId?: string | null
   stripePriceId?: string | null
+  lsProductId?: string | null
   lsVariantId?: string | null
   paddleProductId?: string | null
   createdAt: string
@@ -57,6 +58,7 @@ const tierForm = reactive({
   isActive: true,
   stripeProductId: '',
   stripePriceId: '',
+  lsProductId: '',
   lsVariantId: '',
   paddleProductId: '',
 })
@@ -76,6 +78,7 @@ function openNewTier() {
     isActive: true,
     stripeProductId: '',
     stripePriceId: '',
+    lsProductId: '',
     lsVariantId: '',
     paddleProductId: '',
   })
@@ -95,6 +98,7 @@ function openEditTier(tier: Tier) {
     isActive: tier.isActive,
     stripeProductId: tier.stripeProductId ?? '',
     stripePriceId: tier.stripePriceId ?? '',
+    lsProductId: tier.lsProductId ?? '',
     lsVariantId: tier.lsVariantId ?? '',
     paddleProductId: tier.paddleProductId ?? '',
   })
@@ -124,6 +128,7 @@ async function saveTier() {
       isActive: tierForm.isActive,
       stripeProductId: tierForm.stripeProductId || undefined,
       stripePriceId: tierForm.stripePriceId || undefined,
+      lsProductId: tierForm.lsProductId || undefined,
       lsVariantId: tierForm.lsVariantId || undefined,
       paddleProductId: tierForm.paddleProductId || undefined,
     }
@@ -145,7 +150,7 @@ async function saveTier() {
 }
 
 async function deleteTier(tier: Tier) {
-  if (!confirm(`Delete "${tier.name}"? Existing subscribers will not be affected.`)) return
+  if (!confirm(`Delete "${tier.name}"? This is blocked if any subscriber still has an active subscription on this tier — they must be migrated or cancelled first.`)) return
   try {
     await $fetch(`/api/v1/memberships/${tier.id}`, { method: 'DELETE' })
     await refreshTiers()
@@ -389,9 +394,14 @@ const tabs = [
                 </UFormField>
               </div>
               <div class="grid grid-cols-2 gap-3">
+                <UFormField label="Lemon Squeezy Product ID">
+                  <UInput v-model="tierForm.lsProductId" placeholder="e.g. 6789" class="w-full text-xs" />
+                </UFormField>
                 <UFormField label="Lemon Squeezy Variant ID">
                   <UInput v-model="tierForm.lsVariantId" placeholder="e.g. 12345" class="w-full text-xs" />
                 </UFormField>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
                 <UFormField label="Paddle Price ID">
                   <UInput v-model="tierForm.paddleProductId" placeholder="pri_..." class="w-full text-xs" />
                 </UFormField>

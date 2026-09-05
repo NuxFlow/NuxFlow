@@ -20,6 +20,7 @@ const bodySchema = z.object({
   isActive: z.boolean().default(true),
   stripeProductId: z.string().optional(),
   stripePriceId: z.string().optional(),
+  lsProductId: z.string().optional(),
   lsVariantId: z.string().optional(),
   paddleProductId: z.string().optional(),
 })
@@ -32,6 +33,7 @@ export default defineEventHandler(async (event) => {
 
   let stripeProductId = body.stripeProductId
   let stripePriceId = body.stripePriceId
+  let lsProductId = body.lsProductId
   let lsVariantId = body.lsVariantId
 
   if (body.price > 0) {
@@ -58,6 +60,7 @@ export default defineEventHandler(async (event) => {
           const ls = new LemonSqueezyProvider(lsApiKey, lsStoreId)
           const product = await ls.createProduct(body.name, body.description || undefined)
           const variant = await ls.createVariant(product.data.id, body.name, body.price, body.interval)
+          lsProductId = product.data.id
           lsVariantId = variant.data.id
         })
       }
@@ -77,6 +80,7 @@ export default defineEventHandler(async (event) => {
     isActive: body.isActive,
     stripeProductId: stripeProductId || null,
     stripePriceId: stripePriceId || null,
+    lsProductId: lsProductId || null,
     lsVariantId: lsVariantId || null,
     paddleProductId: body.paddleProductId || null,
   })

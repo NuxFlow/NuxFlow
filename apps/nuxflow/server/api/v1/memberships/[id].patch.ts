@@ -20,6 +20,7 @@ const bodySchema = z.object({
   isActive: z.boolean().optional(),
   stripeProductId: z.string().optional(),
   stripePriceId: z.string().optional(),
+  lsProductId: z.string().optional(),
   lsVariantId: z.string().optional(),
   paddleProductId: z.string().optional(),
 })
@@ -35,6 +36,7 @@ export default defineEventHandler(async (event) => {
 
   let stripeProductId = body.stripeProductId !== undefined ? body.stripeProductId : tier.stripeProductId
   let stripePriceId = body.stripePriceId !== undefined ? body.stripePriceId : tier.stripePriceId
+  let lsProductId = body.lsProductId !== undefined ? body.lsProductId : tier.lsProductId
   let lsVariantId = body.lsVariantId !== undefined ? body.lsVariantId : tier.lsVariantId
 
   const targetPrice = body.price !== undefined ? body.price : tier.price
@@ -78,15 +80,20 @@ export default defineEventHandler(async (event) => {
         const priceChanged = body.price !== undefined && body.price !== tier.price
         const intervalChanged = body.interval !== undefined && body.interval !== tier.interval
 
-        if (!lsVariantId) {
-          // No variant yet — create product + variant
+        // Reuse the existing LS product across edits (mirrors the Stripe path above) —
+        // only the first-ever sync should mint a new product. Without a stored
+        // `lsProductId`, every price/interval change used to create a brand-new product
+        // because there was nowhere to persist the id returned by the first sync.
+        if (!lsProductId) {
           const product = await ls.createProduct(targetName, targetDescription)
-          const variant = await ls.createVariant(product.data.id, targetName, targetPrice, targetInterval)
-          lsVariantId = variant.data.id
-        } else if (priceChanged || intervalChanged) {
-          // Price or interval changed — create a new product + variant (existing subscriptions keep the old one)
-          const product = await ls.createProduct(targetName, targetDescription)
-          const variant = await ls.createVariant(product.data.id, targetName, targetPrice, targetInterval)
+          lsProductId = product.data.id
+        }
+
+        if (!lsVariantId || priceChanged || intervalChanged) {
+          // First variant, or price/interval changed — mint a new variant under the
+          // existing product; existing subscriptions keep the old variant so their price
+          // doesn't change retroactively.
+          const variant = await ls.createVariant(lsProductId, targetName, targetPrice, targetInterval)
           lsVariantId = variant.data.id
         }
       })
@@ -98,6 +105,7 @@ export default defineEventHandler(async (event) => {
       ...body,
       stripeProductId: stripeProductId || null,
       stripePriceId: stripePriceId || null,
+      lsProductId: lsProductId || null,
       lsVariantId: lsVariantId || null,
       updatedAt: new Date().toISOString(),
     })

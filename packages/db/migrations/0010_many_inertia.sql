@@ -1,0 +1,1 @@
+ALTER TABLE `membership_tiers` ADD `ls_product_id` text;
