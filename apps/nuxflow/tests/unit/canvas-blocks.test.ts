@@ -30,6 +30,7 @@ describe('CANVAS_BLOCKS registry', () => {
     expect(ids).toContain('canvas-carousel')
     expect(ids).toContain('canvas-calendar')
     expect(ids).toContain('contact-form/form')
+    expect(ids).toContain('dynamic-form/form')
     expect(ids).toContain('html-block/html')
     expect(ids).toContain('payments/memberships')
   })
@@ -330,6 +331,39 @@ describe('contact-form/form block definition', () => {
     expect(keys).toContain('title')
     expect(keys).toContain('description')
     expect(keys).toContain('submitLabel')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Dynamic Form block
+// ---------------------------------------------------------------------------
+
+describe('dynamic-form/form block definition', () => {
+  const block = CANVAS_BLOCKS.find(b => b.id === 'dynamic-form/form')!
+
+  it('exists in the registry', () => {
+    expect(block).toBeDefined()
+  })
+
+  it('is in the forms category', () => {
+    expect(block.category).toBe('forms')
+  })
+
+  it('has a formSlug field to pick which form to embed', () => {
+    const formSlug = block.fields.find(f => f.key === 'formSlug')
+    expect(formSlug).toBeDefined()
+    expect(formSlug?.type).toBe('text')
+  })
+
+  it('has title, description, and submitLabel fields', () => {
+    const keys = block.fields.map(f => f.key)
+    expect(keys).toContain('title')
+    expect(keys).toContain('description')
+    expect(keys).toContain('submitLabel')
+  })
+
+  it('defaults formSlug to an empty string', () => {
+    expect(block.defaultProps.formSlug).toBe('')
   })
 })
 

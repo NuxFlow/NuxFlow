@@ -33,6 +33,7 @@ import {
 } from '@nuxflow/canvas'
 
 import ContactFormBlock from '~/components/forms/ContactFormBlock.vue'
+import DynamicFormBlock from '~/components/forms/DynamicFormBlock.vue'
 import MembershipsBlock from '~/components/memberships/MembershipsBlock.vue'
 import Paywall from '~/components/memberships/Paywall.vue'
 
@@ -61,6 +62,7 @@ export default defineNuxtPlugin((nuxtApp) => {
 
   // ── Forms blocks ──────────────────────────────────────────────────────────
   registry.register('contact-form/form', { name: 'Contact Form', icon: 'i-lucide-mail', component: ContactFormBlock })
+  registry.register('dynamic-form/form', { name: 'Form', icon: 'i-lucide-list-checks', component: DynamicFormBlock })
 
   // ── Commerce blocks ───────────────────────────────────────────────────────
   registry.register('payments/memberships', { name: 'Membership Pricing', icon: 'i-lucide-badge-dollar-sign', component: MembershipsBlock })

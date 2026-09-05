@@ -14,6 +14,10 @@ const bodySchema = z.object({
   logic: z.array(z.unknown()).optional(),
   status: z.enum(['active', 'draft', 'closed']).optional(),
   redirectUrl: z.string().url().optional(),
+  notifications: z.object({
+    enabled: z.boolean().default(false),
+    email: z.string().email().optional(),
+  }).optional(),
 })
 
 export default defineEventHandler(async (event) => {

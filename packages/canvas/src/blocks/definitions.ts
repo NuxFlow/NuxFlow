@@ -812,6 +812,33 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     },
   },
 
+  // ── Dynamic Form ──────────────────────────────────────────────────────────
+  {
+    id: 'dynamic-form/form',
+    name: 'Form',
+    description: 'Embed a form built in Admin → Forms.',
+    icon: 'i-lucide-list-checks',
+    category: 'forms',
+    component: 'DynamicFormBlock',
+    thumbnailColor: '#eef2ff',
+    fields: [
+      { key: 'formSlug', label: 'Form (slug)', type: 'text', placeholder: 'contact' },
+      { key: 'title', label: 'Title', type: 'text', placeholder: 'Get in touch' },
+      { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Fill out the form below.' },
+      { key: 'submitLabel', label: 'Submit button label', type: 'text', placeholder: 'Submit' },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      formSlug: '',
+      title: '',
+      description: '',
+      submitLabel: 'Submit',
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
   // ── HTML Block ─────────────────────────────────────────────────────────────
   {
     id: 'html-block/html',

@@ -2,11 +2,19 @@ import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { verifyTurnstile } from '../../../../utils/turnstile'
 import { rateLimit } from '../../../../utils/rate-limit'
-import { formSubmissions } from '@nuxflow/db/schema'
+import { sendEmail, escapeHtml } from '../../../../utils/email'
+import { resolveSetting } from '../../../../utils/settings'
+import { formSubmissions, userSiteRoles } from '@nuxflow/db/schema'
 import type { FormField } from '@nuxflow/db/schema'
+import { and, eq, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { getFormBySlugOrThrow } from '../../../../utils/resource-queries'
 import { created } from '../../../../utils/response'
+
+interface FormNotificationsConfig {
+  enabled?: boolean
+  email?: string
+}
 
 const bodySchema = z.object({
   turnstileToken: z.string().optional(),
@@ -78,6 +86,48 @@ export default defineEventHandler(async (event) => {
     userAgent: getHeader(event, 'user-agent') ?? null,
     status: 'new',
   })
+
+  // Best-effort admin notification email — mirrors the contact form's own
+  // notification logic (server/api/v1/contact/submit.post.ts). The form's
+  // `notifications` column is a minimal { enabled, email? } config set from
+  // the form builder's settings panel; when no explicit email is configured,
+  // fall back to the site's notificationEmail setting, then the first admin.
+  const notifyConfig = form.notifications as FormNotificationsConfig | null
+  if (notifyConfig?.enabled) {
+    try {
+      let notifyEmail = notifyConfig.email || (await resolveSetting(event, 'notificationEmail')) as string | undefined
+
+      if (!notifyEmail) {
+        const firstAdmin = await db.query.userSiteRoles.findFirst({
+          where: and(eq(userSiteRoles.siteId, siteId), inArray(userSiteRoles.role, ['admin', 'super_admin'])),
+          with: {
+            user: {
+              columns: { email: true }
+            }
+          }
+        })
+        notifyEmail = firstAdmin?.user?.email
+      }
+
+      if (!notifyEmail) {
+        throw new Error('No notification email address is configured, and no admin users were found to use as a fallback.')
+      }
+
+      const dataEntries = Object.entries(body.data)
+        .map(([key, value]) => `<p><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(value))}</p>`)
+        .join('')
+
+      await sendEmail(event, {
+        to: notifyEmail,
+        subject: `New submission: ${form.name}`,
+        html: `<p>A new submission was received for <strong>${escapeHtml(form.name)}</strong>.</p>${dataEntries}`,
+        text: `New submission for ${form.name}:\n\n${Object.entries(body.data).map(([k, v]) => `${k}: ${v}`).join('\n')}`,
+      })
+    } catch (err: unknown) {
+      console.error('Failed to send form submission notification email:', err)
+      // Intentionally swallowed — the submission itself already succeeded.
+    }
+  }
 
   return created(event, { success: true, redirectUrl: form.redirectUrl })
 })

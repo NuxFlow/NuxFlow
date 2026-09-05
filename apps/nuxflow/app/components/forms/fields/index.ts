@@ -1,6 +1,7 @@
 // Field component registry — maps field type slug to component name
 export const FIELD_COMPONENTS: Record<string, string> = {
   text: 'FormsFieldsTextField',
+  textarea: 'FormsFieldsTextareaField',
   number: 'FormsFieldsNumberField',
   email: 'FormsFieldsEmailField',
   select: 'FormsFieldsSelectField',
@@ -10,6 +11,7 @@ export const FIELD_COMPONENTS: Record<string, string> = {
   file: 'FormsFieldsFileField',
   computed: 'FormsFieldsComputedField',
   signature: 'FormsFieldsSignatureField',
+  hidden: 'FormsFieldsHiddenField',
 }
 
 export interface FormFieldDefinition {
