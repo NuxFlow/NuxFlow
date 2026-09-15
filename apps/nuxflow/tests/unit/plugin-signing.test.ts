@@ -35,6 +35,7 @@ async function signPayload(privateKey: CryptoKey, payload: SigningPayload): Prom
     payload.version,
     payload.serverChecksum,
     payload.clientChecksum,
+    payload.definitionsChecksum,
   ].join('\n')
   const sig = await crypto.subtle.sign(
     'Ed25519' as unknown as AlgorithmIdentifier,
@@ -102,6 +103,7 @@ describe('verifyPluginSignature', () => {
     version: '2.1.0',
     serverChecksum: 'abc123def456',
     clientChecksum: 'none',
+    definitionsChecksum: 'none',
   }
 
   it('returns true for a valid Ed25519 signature', async () => {

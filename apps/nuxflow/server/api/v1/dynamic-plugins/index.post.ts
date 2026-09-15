@@ -16,10 +16,14 @@ interface InstallBody {
   serverModule?: string
   /** SHA-256 hex of the raw decoded serverModule. */
   serverChecksum?: string
-  /** Base64-encoded ES module (exports `register(app: App): void`). */
+  /** Base64-encoded ES module (exports `renderBlock(blockId, vue)`). */
   clientBundle?: string
   /** SHA-256 hex of the raw decoded clientBundle. */
   clientChecksum?: string
+  /** Base64-encoded raw text of src/blocks.json (plain data, never executed). */
+  blockDefinitions?: string
+  /** SHA-256 hex of the raw decoded blockDefinitions text. */
+  definitionsChecksum?: string
   /** base64url SPKI Ed25519 public key of the plugin publisher. */
   publisherPublicKey: string
   /** base64url Ed25519 signature of the canonical payload (id + version + checksums). */
@@ -52,6 +56,9 @@ export default defineEventHandler(async (event) => {
   if (body.clientBundle && !body.clientChecksum) {
     throw badRequest('clientChecksum is required when clientBundle is present')
   }
+  if (body.blockDefinitions && !body.definitionsChecksum) {
+    throw badRequest('definitionsChecksum is required when blockDefinitions is present')
+  }
 
   // ── Duplicate check ─────────────────────────────────────────────────────────
   const existing = await db.query.dynamicPlugins.findFirst({
@@ -62,6 +69,7 @@ export default defineEventHandler(async (event) => {
   // ── Decode bundles ──────────────────────────────────────────────────────────
   const serverCode = body.serverModule ? decodeBase64(body.serverModule) : null
   const clientCode = body.clientBundle ? decodeBase64(body.clientBundle) : null
+  const definitionsText = body.blockDefinitions ? decodeBase64(body.blockDefinitions) : null
 
   // ── Step 1: Verify SHA-256 checksums match the decoded code ─────────────────
   // Ensures the base64 payload was not corrupted or swapped in transit.
@@ -77,15 +85,40 @@ export default defineEventHandler(async (event) => {
       throw badRequest('clientBundle checksum mismatch — payload may be corrupted or tampered')
     }
   }
+  if (definitionsText && body.definitionsChecksum) {
+    const actual = await computeSha256(definitionsText)
+    if (actual !== body.definitionsChecksum) {
+      throw badRequest('blockDefinitions checksum mismatch — payload may be corrupted or tampered')
+    }
+  }
+
+  // ── Parse + shape-check blockDefinitions ─────────────────────────────────────
+  // Plain data, never executed — but still validated so a malformed payload fails
+  // loudly here rather than surfacing as a broken block picker later.
+  let blockDefinitions: Record<string, unknown>[] | null = null
+  if (definitionsText) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(definitionsText)
+    } catch {
+      throw badRequest('blockDefinitions is not valid JSON')
+    }
+    if (!Array.isArray(parsed) || parsed.some(b => typeof b !== 'object' || b === null || typeof (b as Record<string, unknown>).id !== 'string' || typeof (b as Record<string, unknown>).name !== 'string')) {
+      throw badRequest('blockDefinitions must be an array of objects each with at least string "id" and "name" fields')
+    }
+    blockDefinitions = parsed as Record<string, unknown>[]
+  }
 
   // ── Step 2: Verify Ed25519 signature ────────────────────────────────────────
-  // The signature covers id + version + both checksums, so it is cryptographically
-  // bound to this exact version of this exact code. Any modification invalidates it.
+  // The signature covers id + version + all three checksums, so it is
+  // cryptographically bound to this exact version of this exact code and metadata.
+  // Any modification invalidates it.
   const signingPayload = {
     id: body.id,
     version: body.version,
     serverChecksum: body.serverChecksum ?? 'none',
     clientChecksum: body.clientChecksum ?? 'none',
+    definitionsChecksum: body.definitionsChecksum ?? 'none',
   }
 
   let signatureValid: boolean
@@ -126,6 +159,8 @@ export default defineEventHandler(async (event) => {
     hasClient: Boolean(clientCode),
     serverChecksum: body.serverChecksum ?? null,
     clientChecksum: body.clientChecksum ?? null,
+    blockDefinitions,
+    definitionsChecksum: body.definitionsChecksum ?? null,
     publisherPublicKey: body.publisherPublicKey,
     signature: body.signature,
   })

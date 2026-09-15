@@ -78,6 +78,14 @@ export const dynamicPlugins = sqliteTable('dynamic_plugins', {
   // Verified on every retrieval to detect KV tampering.
   serverChecksum: text('server_checksum'),
   clientChecksum: text('client_checksum'),
+  // Block field-schema metadata (CanvasBlockDefinition[] shape) — plain JSON, never
+  // executed. Read directly by the trusted app (block picker, settings panel) so a
+  // block's fields are known before any instance is ever rendered; the actual
+  // rendering code (src/client.ts) only ever runs inside a sandboxed iframe. See
+  // server/utils/plugin-signing.ts — checksummed and covered by the same Ed25519
+  // signature as the server/client code checksums.
+  blockDefinitions: text('block_definitions', { mode: 'json' }).$type<Record<string, unknown>[]>(),
+  definitionsChecksum: text('definitions_checksum'),
   // Ed25519 publisher identity — stored on first install, verified on every update.
   // An empty string means the plugin pre-dates signing (should never occur post-launch).
   publisherPublicKey: text('publisher_public_key').notNull().default(''),

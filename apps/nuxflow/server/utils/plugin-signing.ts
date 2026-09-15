@@ -7,6 +7,7 @@ export interface SigningPayload {
   version: string
   serverChecksum: string  // SHA-256 hex, or 'none'
   clientChecksum: string  // SHA-256 hex, or 'none'
+  definitionsChecksum: string  // SHA-256 hex of serialized blockDefinitions JSON, or 'none'
 }
 
 // ── Encoding helpers ──────────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ function canonicalInput(payload: SigningPayload): ArrayBuffer {
     payload.version,
     payload.serverChecksum,
     payload.clientChecksum,
+    payload.definitionsChecksum,
   ].join('\n')
   return new TextEncoder().encode(text).buffer as ArrayBuffer
 }

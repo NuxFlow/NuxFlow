@@ -126,6 +126,18 @@ export interface BackupDynamicPlugin {
   hasClient: boolean
   serverChecksum: string | null
   clientChecksum: string | null
+  // Plain block field-schema metadata (never executed) — carried through as the D1
+  // row's own parsed value, not re-derived from raw text. definitionsChecksum is the
+  // *original* checksum recorded at install time (needed to reproduce a valid
+  // signature on restore); restore deliberately does not re-verify it against
+  // blockDefinitions' content the way server/clientChecksum are re-verified against
+  // their code, since only the parsed value survives into the backup, not the exact
+  // original bytes the checksum was computed over — see the restore-path comment.
+  // Low severity either way: this data is never executed, only rendered as inert
+  // settings-panel text, so at worst a tampered backup.json shows misleading field
+  // labels, not code execution.
+  blockDefinitions: Record<string, unknown>[] | null
+  definitionsChecksum: string | null
   publisherPublicKey: string
   signature: string
   serverCode: string | null
@@ -272,6 +284,8 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
       hasClient: p.hasClient,
       serverChecksum: p.serverChecksum,
       clientChecksum: p.clientChecksum,
+      blockDefinitions: p.blockDefinitions,
+      definitionsChecksum: p.definitionsChecksum,
       publisherPublicKey: p.publisherPublicKey,
       signature: p.signature,
       serverCode: p.hasServer ? await getPluginServerCode(event, siteId, p.id) : null,
@@ -873,6 +887,7 @@ export async function applyBackup(
           version: backupPlugin.version,
           serverChecksum: backupPlugin.serverChecksum ?? 'none',
           clientChecksum: backupPlugin.clientChecksum ?? 'none',
+          definitionsChecksum: backupPlugin.definitionsChecksum ?? 'none',
         }, backupPlugin.signature)
       } catch {
         signatureValid = false
@@ -917,6 +932,8 @@ export async function applyBackup(
           hasClient: Boolean(backupPlugin.clientBundle),
           serverChecksum: backupPlugin.serverChecksum,
           clientChecksum: backupPlugin.clientChecksum,
+          blockDefinitions: backupPlugin.blockDefinitions,
+          definitionsChecksum: backupPlugin.definitionsChecksum,
           publisherPublicKey: backupPlugin.publisherPublicKey,
           signature: backupPlugin.signature,
         }).where(eq(dynamicPlugins.id, existing.id))
@@ -933,6 +950,8 @@ export async function applyBackup(
           hasClient: Boolean(backupPlugin.clientBundle),
           serverChecksum: backupPlugin.serverChecksum,
           clientChecksum: backupPlugin.clientChecksum,
+          blockDefinitions: backupPlugin.blockDefinitions,
+          definitionsChecksum: backupPlugin.definitionsChecksum,
           publisherPublicKey: backupPlugin.publisherPublicKey,
           signature: backupPlugin.signature,
         })

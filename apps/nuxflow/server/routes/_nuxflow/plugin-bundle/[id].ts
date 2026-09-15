@@ -33,5 +33,12 @@ export default defineEventHandler(async (event) => {
 
   setHeader(event, 'content-type', 'application/javascript; charset=utf-8')
   setHeader(event, 'cache-control', 'public, max-age=3600')
+  // Fetched via dynamic import() from inside the sandboxed plugin iframe
+  // (_nuxflow/plugin-frame/...), whose sandbox="allow-scripts" (no allow-same-origin)
+  // gives it an opaque origin — the browser treats that import as cross-origin and
+  // requires this header regardless of it being "our own" domain. Safe to wildcard:
+  // this response is checksum-verified public code, never varies per caller, and
+  // never carries credentials.
+  setHeader(event, 'Access-Control-Allow-Origin', '*')
   return send(event, bundle)
 })

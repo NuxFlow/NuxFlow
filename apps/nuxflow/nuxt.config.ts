@@ -63,6 +63,12 @@ export default defineNuxtConfig({
     },
     serverAssets: [
       { baseName: 'migrations', dir: resolve(_dirname, '../../packages/db/migrations') },
+      // Vue runtime build served to the sandboxed plugin iframe (see
+      // server/routes/_nuxflow/vendor/vue-runtime.js.get.ts) — checked in rather than
+      // read from node_modules at request time, since Cloudflare Workers has no
+      // filesystem access at runtime. Regenerate after bumping the `vue` dependency:
+      //   cp node_modules/vue/dist/vue.runtime.esm-browser.prod.js server/assets/vendor/vue-runtime.js
+      { baseName: 'vendor', dir: resolve(_dirname, 'server/assets/vendor') },
     ],
   },
 

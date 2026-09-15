@@ -79,7 +79,8 @@ my-plugin/
 ├── nuxflow.plugin.json   # Plugin manifest (id, name, version, description)
 ├── src/
 │   ├── server.ts         # Cloudflare Worker — handles HTTP requests
-│   └── client.ts         # Browser bundle — registers Canvas blocks
+│   ├── blocks.json       # Block metadata — name, icon, fields, defaultProps
+│   └── client.ts         # Renders each block — runs inside a sandboxed iframe
 ├── package.json
 └── tsconfig.json
 ```
@@ -134,52 +135,74 @@ The server module is compiled as a fully self-contained ESM bundle for Cloudflar
 
 ---
 
-## Writing the Client Bundle
+## Client bundles run sandboxed
 
-`src/client.ts` exports a `register` function that NuxFlow calls once on app boot in the browser. Use it to add blocks to the Canvas page builder.
+Before writing any client-side code, it matters how it actually runs: `src/client.ts` never executes in the main NuxFlow app, in the admin dashboard, or anywhere with access to a real user's session. Every dynamic-plugin block instance renders inside its own `<iframe sandbox="allow-scripts">`, with `allow-same-origin` deliberately omitted. That gives the iframe an **opaque origin** — no cookies, no `localStorage`, and any `fetch()` it makes (including to the plugin's own `src/server.ts` endpoints) is a credential-less, cross-origin request, even though it's hitting the same domain. Ed25519 signing and SHA-256 checksums prove your code hasn't been tampered with in transit; the sandbox is what limits what it can do once it runs. This applies everywhere a block renders, including the admin Canvas editor's live preview — not just public pages.
+
+The only channel between your block and the page it's embedded in is `postMessage`: the current field values come in as props, and NuxFlow reads back the rendered height to auto-size the iframe. There's no way to reach outside the frame beyond that.
+
+## Block Metadata (`src/blocks.json`)
+
+Because the block picker has to list your blocks — name, icon, category — before any instance of one exists on a page, that metadata can't live inside the sandboxed `src/client.ts`; there's no iframe to ask yet at that point. It's declared instead as plain JSON that NuxFlow reads directly, never executed:
+
+```json
+// src/blocks.json
+[
+  {
+    "id": "my-plugin/banner",
+    "name": "My Banner",
+    "icon": "i-lucide-megaphone",
+    "category": "cta",
+    "fields": [
+      { "key": "headline", "label": "Headline", "type": "text", "default": "Hello!" },
+      { "key": "bgColor", "label": "Background colour", "type": "color", "default": "#4f46e5" }
+    ],
+    "defaultProps": { "headline": "Hello!", "bgColor": "#4f46e5" }
+  }
+]
+```
+
+The block ID format is `{pluginId}/{blockName}`. The `icon` accepts any [Iconify](https://icon-sets.iconify.design/) icon string (e.g. `i-lucide-box`). `fields` uses the same shape documented in `packages/canvas/src/types.ts`'s `FieldSchema` (`type` is one of `text`, `textarea`, `richtext`, `number`, `color`, `select`, `toggle`, `image`, `images`, `url`, `spacing`).
+
+## Writing the Client Bundle (`src/client.ts`)
+
+`src/client.ts` exports a `renderBlock(blockId, vue)` function. NuxFlow calls it once per rendered block instance, inside the sandbox iframe, and expects back the Vue component for that block id (or `null` if this plugin doesn't recognise it).
 
 Vue is passed in as an argument — do not `import` it as a bare specifier, as the bundle must not include a second copy of Vue.
 
 ```typescript
 // src/client.ts
-export function register(
-  _app: unknown,
-  registry: {
-    register: (id: string, entry: { name: string; icon?: string; component: unknown }) => void
-  },
+export function renderBlock(
+  blockId: string,
   { defineComponent, h }: {
     defineComponent: (opts: object) => unknown
     h: (tag: string | object, props?: object | null, children?: unknown) => unknown
   },
 ) {
-  registry.register('my-plugin/banner', {
-    name: 'My Banner',
-    icon: 'i-lucide-megaphone',
-    component: defineComponent({
-      props: {
-        headline: { type: String, default: 'Hello!' },
-        bgColor: { type: String, default: '#4f46e5' },
-      },
-      setup(props: Record<string, string>) {
-        return () =>
-          h('section', {
-            style: { backgroundColor: props.bgColor, padding: '48px', textAlign: 'center' }
-          }, [
-            h('h2', { style: { color: '#fff', fontSize: '2rem' } }, props.headline),
-          ])
-      },
-    }),
+  if (blockId !== 'my-plugin/banner') return null
+
+  return defineComponent({
+    props: {
+      headline: { type: String, default: 'Hello!' },
+      bgColor: { type: String, default: '#4f46e5' },
+    },
+    setup(props: Record<string, string>) {
+      return () =>
+        h('section', {
+          style: { backgroundColor: props.bgColor, padding: '48px', textAlign: 'center' }
+        }, [
+          h('h2', { style: { color: '#fff', fontSize: '2rem' } }, props.headline),
+        ])
+    },
   })
 }
 ```
 
-The block ID format is `{pluginId}/{blockName}`. The `icon` accepts any [Iconify](https://icon-sets.iconify.design/) icon string (e.g. `i-lucide-box`).
-
-The client bundle is compiled for the browser (`platform: browser`, `target: es2020`, minified). Both `server.ts` and `client.ts` are optional — you can have a server-only plugin (API endpoints with no Canvas blocks) or a client-only plugin (Canvas blocks with no server endpoints).
+The client bundle is compiled for the browser (`platform: browser`, `target: es2020`, minified). `server.ts`, `blocks.json`, and `client.ts` are all optional — you can have a server-only plugin (API endpoints with no Canvas blocks), or ship `blocks.json` + `client.ts` with no server module at all.
 
 ### Structural theming: registering a header or footer
 
-CSS themes (see [Themes & Visual Customizer](../README.md#themes--visual-customizer)) can restyle the built-in site header/footer, but can't replace their markup or behavior — CSS-only themes deliberately can't ship arbitrary code, for the same sandboxing reasons dynamic plugins go through Ed25519 signing and a network-isolated Worker. If a theme needs a structurally different header or footer (not just a different look), ship it as a plugin block using the exact same `registry.register()` call above — there's no separate API. The admin then designates it under **Admin → Themes → Layout regions**, which renders it in place of `PublicSiteHeader`/`PublicSiteFooter` on every public page (`app/layouts/default.vue`).
+CSS themes (see [Themes & Visual Customizer](../README.md#themes--visual-customizer)) can restyle the built-in site header/footer, but can't replace their markup or behavior — CSS-only themes deliberately can't ship arbitrary code, for the same sandboxing reasons dynamic plugin blocks always render inside an iframe. If a theme needs a structurally different header or footer (not just a different look), ship it as a plugin block the exact same way any other block is declared — an entry in `blocks.json` plus a matching case in `renderBlock()` — there's no separate API. The admin then designates it under **Admin → Themes → Layout regions**, which renders it in place of `PublicSiteHeader`/`PublicSiteFooter` on every public page (`app/layouts/default.vue`).
 
 A block intended for this should be self-contained (fetch whatever data it needs itself, e.g. from `GET /api/public/site`) since it's rendered with no props — it isn't a child of any specific page's content tree the way a normal Canvas block is.
 
@@ -247,7 +270,7 @@ This removes the old plugin entry and re-installs the new version. If the plugin
 
 To prevent unauthorized or arbitrary code execution on your Cloudflare Workers edge environment, NuxFlow enforces strict cryptographic constraints:
 
-1. **Ed25519 Publisher Signing**: Every plugin deployment payload must be signed by the publisher's private key. The deployment payload contains the SPKI Ed25519 `publisherPublicKey` and an Ed25519 `signature` of the canonical payload (`id + version + serverChecksum + clientChecksum`).
+1. **Ed25519 Publisher Signing**: Every plugin deployment payload must be signed by the publisher's private key. The deployment payload contains the SPKI Ed25519 `publisherPublicKey` and an Ed25519 `signature` of the canonical payload (`id + version + serverChecksum + clientChecksum + definitionsChecksum`) — covering `blocks.json` alongside both code bundles, even though it's inert data, so the "everything in this deploy is signed" guarantee holds without a pure-data exception.
 2. **WebCrypto API Validation**: Verification runs entirely on Cloudflare Workers using the native **Web Crypto API** (`globalThis.crypto.subtle`), ensuring high-speed validation without heavy external libraries.
 3. **KV Code Integrity Checks**: When proxying requests to dynamic plugins, `assertCodeIntegrity()` compares the raw KV source code SHA-256 checksum against the signed D1 database checksum. Any mismatch throws a hard 500 error, blocking tampered KV entries immediately.
 
@@ -367,7 +390,8 @@ Then make a request to `/_nuxflow/ext/{pluginId}/...` and watch the log output f
 
 ### Canvas block does not appear after enabling
 
-Open the browser dev tools console and look for errors during the `register()` call. Common causes:
-- `import 'vue'` inside `src/client.ts` — remove it and use the `vue` argument passed to `register` instead
+First check `src/blocks.json` — the block picker only lists ids declared there, and only ids present in `blockDefinitions` are ever requested from `renderBlock()`. If the block is listed but renders as a "failed to render" message, open the *iframe's own* dev tools console (right-click inside the block on the page → Inspect, or open the iframe's `src` URL directly in a new tab) — errors inside the sandbox don't surface in the parent page's console. Common causes:
+- `import 'vue'` inside `src/client.ts` — remove it and use the `vue` argument passed to `renderBlock` instead
 - A runtime error in the `defineComponent` setup function
+- `renderBlock()` returning `null` for a valid id — check the id comparison matches exactly what's in `blocks.json`
 - The Canvas plugin is not enabled (dynamic plugin Canvas blocks require the Canvas plugin to be active)

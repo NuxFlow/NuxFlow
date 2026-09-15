@@ -48,6 +48,7 @@ async function buildSigningPayload(
     version: manifest.version,
     serverChecksum: (dist.serverChecksum as string | undefined) ?? 'none',
     clientChecksum: (dist.clientChecksum as string | undefined) ?? 'none',
+    definitionsChecksum: (dist.definitionsChecksum as string | undefined) ?? 'none',
   }
 }
 
@@ -170,7 +171,7 @@ export const pluginCommand = defineCommand({
         s.start(`Building ${manifest.name} v${manifest.version}…`)
 
         try {
-          const { serverModule, serverChecksum, clientBundle, clientChecksum } = await buildPlugin(dir)
+          const { serverModule, serverChecksum, clientBundle, clientChecksum, blockDefinitions, definitionsChecksum } = await buildPlugin(dir)
 
           if (!serverModule && !clientBundle) {
             s.stop('Nothing built — add src/server.ts and/or src/client.ts')
@@ -184,11 +185,12 @@ export const pluginCommand = defineCommand({
             description: manifest.description ?? '',
             ...(serverModule ? { serverModule, serverChecksum } : {}),
             ...(clientBundle ? { clientBundle, clientChecksum } : {}),
+            ...(blockDefinitions ? { blockDefinitions, definitionsChecksum } : {}),
           }
 
           await writeFile(join(dir, 'dist/plugin.json'), JSON.stringify(payload, null, 2) + '\n')
 
-          const parts = [serverModule && 'server', clientBundle && 'client'].filter(Boolean)
+          const parts = [serverModule && 'server', clientBundle && 'client', blockDefinitions && 'block definitions'].filter(Boolean)
           s.stop(`Built: ${parts.join(' + ')} → dist/  (checksums included)`)
         } catch (e: unknown) {
           s.stop('Build failed.')

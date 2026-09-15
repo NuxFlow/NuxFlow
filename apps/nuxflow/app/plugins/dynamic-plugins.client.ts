@@ -1,28 +1,23 @@
-// Dynamically loads client bundles for active dynamic plugins at runtime.
-// This plugin is client-only — dynamic plugin components are not SSR'd.
-// NuxBlocks.vue wraps unknown block types in <ClientOnly> with a skeleton so
-// SSR renders a pulse placeholder and the real block appears after hydration.
-//
-// Each plugin's client bundle must export a named function:
-//   register(app: App, registry: BlockRegistry, vue: typeof import('vue')): void
-//
-// The registry.register() call accepts:
-//   { name, description?, icon?, component, definition? }
-//
-// Pass a `definition` object ({ id, name, icon, category, fields, defaultProps })
-// to enable the Canvas editor settings sidebar for the block. Without it the block
-// renders with no configurable props in the admin editor.
-//
-// Vue is passed as the third argument so plugin bundles don't need to import
-// it as a bare specifier (which would fail without an import map). Destructure
-// any composition API you need: { ref, computed, onMounted, watch, h, ... }.
+// Registers every active dynamic plugin's Canvas blocks at app boot. Unlike the old
+// implementation, no plugin JavaScript ever executes here or anywhere else in the
+// main app — src/client.ts only ever runs inside the sandboxed iframe
+// PluginBlockFrame.vue embeds (see _nuxflow/plugin-frame/[pluginId]/[...blockName].get.ts).
+// This file only reads block metadata (id/name/icon/fields/defaultProps — plain JSON,
+// never executed) from the public plugin listing and registers a generic sandboxed
+// renderer for each declared block id.
+import PluginBlockFrame from '../components/PluginBlockFrame.vue'
 
-import * as vue from 'vue'
+interface PublicDynamicPlugin {
+  id: string
+  isActive: boolean
+  hasClient: boolean
+  blockDefinitions: Array<{ id: string; name: string; icon?: string; description?: string } & Record<string, unknown>>
+}
 
-export default defineNuxtPlugin(async (nuxtApp) => {
-  let plugins: Array<{ id: string; hasClient: boolean }>
+export default defineNuxtPlugin(async () => {
+  let plugins: PublicDynamicPlugin[]
   try {
-    const res = await $fetch<{ plugins: Array<{ id: string; hasClient: boolean; isActive: boolean }> }>('/api/v1/dynamic-plugins')
+    const res = await $fetch<{ plugins: PublicDynamicPlugin[] }>('/api/public/dynamic-plugins')
     plugins = res.plugins.filter(p => p.isActive && p.hasClient)
   } catch {
     return
@@ -32,28 +27,29 @@ export default defineNuxtPlugin(async (nuxtApp) => {
 
   const registry = useBlockRegistry()
 
-  const results = await Promise.allSettled(
-    plugins.map(async (plugin) => {
-      const module = await import(/* @vite-ignore */ `/_nuxflow/plugin-bundle/${plugin.id}`) as {
-        register?: (
-          app: typeof nuxtApp.vueApp,
-          registry: ReturnType<typeof useBlockRegistry>,
-          vueLib: typeof vue,
-        ) => void
-      }
-      if (typeof module.register === 'function') {
-        module.register(nuxtApp.vueApp, registry, vue)
-        // Mark the plugin ID so dynamicBlocks() in the registry can identify
-        // which blocks came from dynamic plugins vs bundled plugins.
-        registry.markDynamic(plugin.id)
-      }
-      return plugin.id
-    }),
-  )
+  for (const plugin of plugins) {
+    for (const def of plugin.blockDefinitions) {
+      if (!def.id) continue
 
-  if (import.meta.dev) {
-    results
-      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-      .forEach((r, i) => console.error(`[dynamic-plugins] Failed to load plugin "${plugins[i]?.id}":`, r.reason))
+      // One small wrapper per block id, closing over its fixed pluginId/blockType so
+      // PluginBlockFrame knows which iframe to point at — every other prop (the
+      // block's own field values) is forwarded straight through via $attrs.
+      const component = defineComponent({
+        name: `PluginBlock_${def.id}`,
+        inheritAttrs: false,
+        setup(_props, { attrs }) {
+          return () => h(PluginBlockFrame, { pluginId: plugin.id, blockType: def.id, ...attrs })
+        },
+      })
+
+      registry.register(def.id, {
+        name: def.name ?? def.id,
+        description: def.description,
+        icon: typeof def.icon === 'string' ? def.icon : undefined,
+        component,
+        definition: def,
+      })
+      registry.markDynamic(plugin.id)
+    }
   }
 })

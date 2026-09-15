@@ -53,7 +53,7 @@ API keys, SMTP passwords, payment provider secrets, and other sensitive settings
 
 ## Plugin Security
 
-Third-party dynamic plugins run as isolated Cloudflare Worker instances. The security model has two layers:
+Third-party dynamic plugins have both a server component (`src/server.ts`) and a client component (`src/client.ts`, rendering Canvas blocks). The security model has three layers — signing proves the code wasn't tampered with in transit; the other two constrain what it can do once it runs, on the server and in the browser respectively.
 
 ### Code Signing (Ed25519)
 
@@ -61,11 +61,19 @@ Every plugin bundle must be signed with the author's Ed25519 private key before 
 - **On install** — the server rejects the bundle if the signature does not match the author's registered public key or if any SHA-256 checksum is wrong
 - **On every request** — the signature and checksums are re-verified each time the plugin Worker is spawned from KV, preventing silent tampering after installation
 
-Authors generate their keypair with `nuxflow plugin keygen`. The private key never leaves the author's machine. Only the public key is embedded in `nuxflow.plugin.json` and registered on the site at install time.
+The signature covers all three of a plugin's artifacts — server code, client code, and block-definition metadata (`blocks.json`) — so nothing in a deployment is unsigned, even the parts that are just data. Authors generate their keypair with `nuxflow plugin keygen`. The private key never leaves the author's machine. Only the public key is embedded in `nuxflow.plugin.json` and registered on the site at install time.
 
-### Isolate Sandboxing
+Signing proves authorship and integrity, not intent — it doesn't stop a legitimately-signed author (or a compromised copy of their tooling) from shipping code that does something malicious. That's what the two isolation layers below are for.
 
-Each plugin runs inside its own Cloudflare Worker isolate, spawned via the Dynamic Workers API (`WorkerLoader`). Isolates share no memory with the main NuxFlow Worker or with each other. A misbehaving plugin cannot read the main app's memory, environment variables, or database connection.
+### Server Isolation
+
+Each plugin's server module runs inside its own Cloudflare Worker isolate, spawned via the Dynamic Workers API (`WorkerLoader`). Isolates share no memory with the main NuxFlow Worker or with each other. A misbehaving plugin cannot read the main app's memory, environment variables, or database connection — no `env` bindings are passed to it at all, and `globalOutbound: null` additionally blocks any outbound network request the plugin's own code might attempt.
+
+### Client Isolation (iframe sandbox)
+
+A plugin's `src/client.ts` never executes in the main app, the admin dashboard, or anywhere with access to a real session — not even in the Canvas editor's own live preview. Every rendered block instance runs inside its own `<iframe sandbox="allow-scripts">`, deliberately without `allow-same-origin`. That gives the iframe an opaque origin: no cookies, no `localStorage`, and any `fetch()` it makes — including to the plugin's own server routes — goes out as a credential-less, cross-origin request even though it's hitting the same domain. The only channel out is `postMessage`, and it's narrow by design: the current block's field values go in, the rendered height comes back out for auto-sizing. There's no path from inside that frame back to the page that embeds it.
+
+Block metadata (name, icon, field schema — what the Canvas block picker and settings panel need) is deliberately kept separate from this, in `blocks.json`, precisely so it never has to execute: the picker needs to know what blocks exist before any instance is ever rendered, so that information is read as plain JSON rather than captured by running untrusted code just to ask it.
 
 ---
 

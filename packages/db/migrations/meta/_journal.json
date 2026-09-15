@@ -85,6 +85,13 @@
       "when": 1789450200020,
       "tag": "0011_silent_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1789454273912,
+      "tag": "0012_cultured_bulldozer",
+      "breakpoints": true
     }
   ]
 }

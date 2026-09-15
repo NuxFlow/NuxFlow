@@ -1,0 +1,26 @@
+[
+  {
+    "id": "hello-banner/banner",
+    "name": "Hello Banner",
+    "icon": "i-lucide-megaphone",
+    "category": "cta",
+    "fields": [
+      { "key": "headline", "label": "Headline", "type": "text", "default": "Welcome to NuxFlow" },
+      { "key": "subtext", "label": "Subtext", "type": "textarea", "default": "This banner was registered by the Hello Banner external plugin." },
+      { "key": "bgColor", "label": "Background colour", "type": "color", "default": "#4f46e5" },
+      { "key": "textColor", "label": "Text colour", "type": "color", "default": "#ffffff" },
+      { "key": "align", "label": "Alignment", "type": "select", "options": [
+        { "label": "Left", "value": "left" },
+        { "label": "Center", "value": "center" },
+        { "label": "Right", "value": "right" }
+      ], "default": "center" }
+    ],
+    "defaultProps": {
+      "headline": "Welcome to NuxFlow",
+      "subtext": "This banner was registered by the Hello Banner external plugin.",
+      "bgColor": "#4f46e5",
+      "textColor": "#ffffff",
+      "align": "center"
+    }
+  }
+]

@@ -241,7 +241,7 @@ Commit messages are linted by commitlint in CI.
 
 ## Plugin Development
 
-NuxFlow supports **dynamic plugins** — independently-installed Cloudflare Worker extensions that can add new Canvas blocks, admin pages, and server routes to a site. There's no shared SDK package to depend on — a plugin is a `nuxflow.plugin.json` manifest plus a raw `src/server.ts` Worker handler and/or a `src/client.ts` exporting a `register(app, registry, vue)` function. Plugin authors are told to inline their own copies of the small shared type shapes rather than import from `@nuxflow/*`.
+NuxFlow supports **dynamic plugins** — independently-installed Cloudflare Worker extensions that can add new Canvas blocks, admin pages, and server routes to a site. There's no shared SDK package to depend on — a plugin is a `nuxflow.plugin.json` manifest plus a raw `src/server.ts` Worker handler, a `src/blocks.json` (plain-data Canvas block metadata), and/or a `src/client.ts` exporting a `renderBlock(blockId, vue)` function that only ever runs inside a sandboxed iframe, never in the main app. Plugin authors are told to inline their own copies of the small shared type shapes rather than import from `@nuxflow/*`.
 
 For a complete guide covering plugin structure, Canvas block registration, signing, and publishing, see the [External Plugin Development Guide](./plugins.md).
 

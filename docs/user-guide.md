@@ -438,10 +438,11 @@ The **Admin → Plugins** page manages dynamic third-party plugins. NuxFlow does
 
 **Dynamic plugins** run as isolated Cloudflare Workers spawned on demand from code stored in KV. They can be uploaded and activated from the dashboard without redeploying your site — a capability unique to the Cloudflare Workers platform.
 
-A dynamic plugin bundle consists of up to two parts:
+A dynamic plugin bundle consists of up to three parts:
 
 - **Server module**: a self-contained ES module that exports a `fetch` handler (`export default { async fetch(request) { ... } }`). It receives requests forwarded to `/_nuxflow/ext/{pluginId}/...`.
-- **Client bundle**: an ES module that exports a `register(app, registry, vue)` function. NuxFlow loads this in the browser and calls `register` to add Canvas blocks or Vue components to the page.
+- **Block definitions** (`blocks.json`): plain-data Canvas block metadata — name, icon, fields — read directly by NuxFlow, never executed.
+- **Client bundle**: an ES module that exports a `renderBlock(blockId, vue)` function returning the Vue component for a given block id. This runs inside a sandboxed `<iframe sandbox="allow-scripts">` for each rendered block instance — never in the main app, and never with access to a visitor's session or cookies.
 
 For a complete guide to building and deploying your own dynamic plugin, see the **[External Plugin Development Guide](./plugins.md)**.
 

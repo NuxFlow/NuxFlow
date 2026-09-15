@@ -9,7 +9,16 @@ export default createConfigForNuxt({
     src: ['./apps/nuxflow'],
   },
 }).append(
-  { ignores: ['apps/nuxflow/server/stubs/**', 'apps/nuxflow/worker-configuration.d.ts'] },
+  {
+    ignores: [
+      'apps/nuxflow/server/stubs/**',
+      'apps/nuxflow/worker-configuration.d.ts',
+      // Checked-in third-party build output (Vue runtime, served to the sandboxed
+      // plugin iframe — see nuxt.config.ts serverAssets) — not our source, not meant
+      // to be linted.
+      'apps/nuxflow/server/assets/vendor/**',
+    ],
+  },
   {
     rules: {
       'no-console': ['warn', { allow: ['warn', 'error'] }],

@@ -24,40 +24,43 @@ export default {
 }
 `,
 
+    'src/blocks.json': JSON.stringify([
+      {
+        id: `${id}/example`,
+        name: 'Example Block',
+        description: `Starter block from the ${name} plugin.`,
+        icon: 'i-lucide-box',
+        category: 'advanced',
+        thumbnailColor: '#f0fdf4',
+        fields: [
+          { key: 'headline', label: 'Headline', type: 'text', placeholder: `Hello from ${name}` },
+          { key: 'text', label: 'Body text', type: 'textarea' },
+          { key: 'bgColor', label: 'Background colour', type: 'color' },
+          { key: 'padding', label: 'Padding', type: 'spacing' },
+        ],
+        defaultProps: {
+          headline: `Hello from ${name}`,
+          text: 'Edit this block in the Canvas editor.',
+          bgColor: '#ffffff',
+          padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+        },
+      },
+    ], null, 2) + '\n',
+
     'src/client.ts': `\
-// Client-side bundle for the "${name}" plugin.
-// NuxFlow calls register(app, registry, vue) once on app boot.
+// Client-side render logic for the "${name}" plugin.
+//
+// This file runs INSIDE A SANDBOXED IFRAME with no access to the page it's
+// embedded in — no cookies, no localStorage, no reaching outside the frame
+// except via the props NuxFlow passes in. Block metadata (name, icon, fields,
+// defaultProps — everything the Canvas editor's settings panel needs) lives in
+// src/blocks.json instead, since the trusted app reads that directly without
+// ever running this file.
 //
 // Rules:
-//   1. Never \`import from 'vue'\` — the full Vue module is the 3rd argument.
-//   2. Never \`import from '@nuxflow/*'\` — use the registry/app args instead.
+//   1. Never \`import from 'vue'\` — the full Vue module is the 2nd argument.
+//   2. Never \`import from '@nuxflow/*'\` — there is no shared SDK package.
 //   3. All third-party deps must be bundled (esbuild does this automatically).
-
-// ── Inline types (do not import from @nuxflow/canvas) ────────────────────────
-// Copy and extend these interfaces in your own plugin.
-
-type FieldType = 'text' | 'textarea' | 'number' | 'color' | 'select' | 'toggle' | 'image' | 'url' | 'spacing'
-
-interface BlockDefinition {
-  id: string; name: string; description?: string; icon: string
-  category: 'layout' | 'content' | 'media' | 'cta' | 'forms' | 'advanced' | 'commerce'
-  thumbnailColor?: string
-  fields: Array<{
-    key: string; label: string; type: FieldType
-    placeholder?: string; options?: Array<{ label: string; value: string }>
-    min?: number; max?: number; step?: number; rows?: number
-  }>
-  defaultProps: Record<string, unknown>
-}
-
-interface Registry {
-  register: (id: string, entry: {
-    name: string; description?: string; icon?: string; component: unknown
-    // Pass a definition so the Canvas sidebar shows editable fields for this block.
-    // Without it the block has no configurable props in the admin editor.
-    definition?: BlockDefinition
-  }) => void
-}
 
 // The vue argument is \`import * as vue from 'vue'\` — add more entries as needed.
 interface VueLike {
@@ -68,51 +71,30 @@ interface VueLike {
   h: (tag: string | object, props?: Record<string, unknown> | null, children?: unknown) => unknown
 }
 
-// ── Block definition ──────────────────────────────────────────────────────────
-// Centralising defaultProps here keeps them in sync between the definition
-// (which the Canvas editor uses) and the component prop declarations below.
-
-const EXAMPLE_BLOCK: BlockDefinition = {
-  id: '${id}/example',
-  name: 'Example Block',
-  description: 'Starter block from the ${name} plugin.',
-  icon: 'i-lucide-box',
-  category: 'advanced',
-  thumbnailColor: '#f0fdf4',
-  fields: [
-    { key: 'headline', label: 'Headline',         type: 'text',     placeholder: 'Hello from ${name}' },
-    { key: 'text',     label: 'Body text',         type: 'textarea'                                    },
-    { key: 'bgColor',  label: 'Background colour', type: 'color'                                       },
-    { key: 'padding',  label: 'Padding',           type: 'spacing'                                     },
-  ],
-  defaultProps: {
-    headline: 'Hello from ${name}',
-    text:     'Edit this block in the Canvas editor.',
-    bgColor:  '#ffffff',
-    padding:  { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
-  },
+interface Props {
+  headline: string; text: string; bgColor: string
+  padding: { top: number; right: number; bottom: number; left: number; unit: string }
 }
 
-// ── Entry point ───────────────────────────────────────────────────────────────
+// Called once per rendered block instance, inside the sandbox iframe. Return the
+// Vue component for the given block id (matching an id declared in blocks.json),
+// or null if this plugin doesn't know that id.
+export function renderBlock(blockId: string, vue: VueLike): unknown {
+  if (blockId !== '${id}/example') return null
 
-export function register(_app: unknown, registry: Registry, vue: VueLike): void {
   const { defineComponent, ref, onMounted, h } = vue
 
-  interface Props {
-    headline: string; text: string; bgColor: string
-    padding: { top: number; right: number; bottom: number; left: number; unit: string }
-  }
-
-  const ExampleBlock = defineComponent({
+  return defineComponent({
     props: {
-      headline: { type: String, default: EXAMPLE_BLOCK.defaultProps.headline },
-      text:     { type: String, default: EXAMPLE_BLOCK.defaultProps.text     },
-      bgColor:  { type: String, default: EXAMPLE_BLOCK.defaultProps.bgColor  },
-      padding:  { type: Object, default: () => ({ ...EXAMPLE_BLOCK.defaultProps.padding }) },
+      headline: { type: String, default: 'Hello from ${name}' },
+      text:     { type: String, default: 'Edit this block in the Canvas editor.' },
+      bgColor:  { type: String, default: '#ffffff' },
+      padding:  { type: Object, default: () => ({ top: 48, right: 24, bottom: 48, left: 24, unit: 'px' }) },
     },
     setup(props: Props) {
       // Example: fetch extra data from the plugin's own server route (src/server.ts).
-      // Server routes are served at /_nuxflow/ext/${id}/{path}.
+      // Server routes are served at /_nuxflow/ext/${id}/{path} and never receive the
+      // site visitor's cookies — this is a cross-origin fetch from inside the sandbox.
       const extra = ref<string | null>(null)
 
       onMounted(async () => {
@@ -135,14 +117,6 @@ export function register(_app: unknown, registry: Registry, vue: VueLike): void 
         ])
       }
     },
-  })
-
-  registry.register('${id}/example', {
-    name:        EXAMPLE_BLOCK.name,
-    description: EXAMPLE_BLOCK.description,
-    icon:        EXAMPLE_BLOCK.icon,
-    component:   ExampleBlock,
-    definition:  EXAMPLE_BLOCK,
   })
 }
 `,
@@ -179,8 +153,9 @@ A NuxFlow dynamic plugin.
 
 \`\`\`bash
 # 1. Edit the plugin source
-#    src/server.ts  — Cloudflare Worker (server API)
-#    src/client.ts  — Vue block registration (page builder)
+#    src/server.ts   — Cloudflare Worker (server API)
+#    src/blocks.json — Block metadata (name, icon, fields, defaultProps)
+#    src/client.ts   — Vue render logic (runs inside a sandboxed iframe)
 
 # 2. Build
 nuxflow plugin build
@@ -210,7 +185,8 @@ nuxflow plugin build && nuxflow plugin update
 | File | Runtime | Purpose |
 |---|---|---|
 | \`src/server.ts\` | Cloudflare Worker | Handles \`/_nuxflow/ext/${id}/*\` requests |
-| \`src/client.ts\` | Browser | Registers Canvas blocks on app boot |
+| \`src/blocks.json\` | Read directly by the trusted app | Block metadata — name, icon, fields, defaultProps |
+| \`src/client.ts\` | Sandboxed iframe (no cookie/session access) | Renders the actual Vue component for each block |
 
 After \`nuxflow plugin build\`, both files are compiled to \`dist/\` and base64-encoded
 into \`dist/plugin.json\`, which is what the deploy command uploads.

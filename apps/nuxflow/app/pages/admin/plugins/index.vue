@@ -28,6 +28,8 @@ const installForm = reactive({
   serverChecksum: '',
   clientBundle: '',
   clientChecksum: '',
+  blockDefinitions: '',
+  definitionsChecksum: '',
   publisherPublicKey: '',
   signature: '',
 })
@@ -50,6 +52,8 @@ function handlePasteJson() {
     installForm.serverChecksum = parsed.serverChecksum || ''
     installForm.clientBundle = parsed.clientBundle || ''
     installForm.clientChecksum = parsed.clientChecksum || ''
+    installForm.blockDefinitions = parsed.blockDefinitions || ''
+    installForm.definitionsChecksum = parsed.definitionsChecksum || ''
     installForm.publisherPublicKey = parsed.publisherPublicKey || ''
     installForm.signature = parsed.signature || ''
     toast.add({ title: 'Plugin payload parsed successfully!', color: 'success' })
@@ -72,6 +76,8 @@ async function dynInstall() {
         serverChecksum: installForm.serverChecksum || undefined,
         clientBundle: installForm.clientBundle || undefined,
         clientChecksum: installForm.clientChecksum || undefined,
+        blockDefinitions: installForm.blockDefinitions || undefined,
+        definitionsChecksum: installForm.definitionsChecksum || undefined,
         publisherPublicKey: installForm.publisherPublicKey || undefined,
         signature: installForm.signature || undefined,
       },
@@ -87,6 +93,8 @@ async function dynInstall() {
       serverChecksum: '',
       clientBundle: '',
       clientChecksum: '',
+      blockDefinitions: '',
+      definitionsChecksum: '',
       publisherPublicKey: '',
       signature: '',
     })
@@ -284,12 +292,20 @@ async function dynUninstall(id: string, name: string) {
             </UFormField>
           </div>
 
+          <UFormField label="Block Definitions Checksum (SHA-256)">
+            <UInput v-model="installForm.definitionsChecksum" placeholder="definitions checksum..." class="font-mono text-xs" />
+          </UFormField>
+
           <UFormField label="Server module (base64)" hint="Self-contained ES module exporting a fetch handler">
             <UTextarea v-model="installForm.serverModule" :rows="3" placeholder="base64-encoded server module..." class="font-mono text-xs" />
           </UFormField>
 
-          <UFormField label="Client bundle (base64)" hint="ES module exporting register(app, registry)">
+          <UFormField label="Client bundle (base64)" hint="ES module exporting renderBlock(blockId, vue) — runs sandboxed in an iframe, never in this app">
             <UTextarea v-model="installForm.clientBundle" :rows="3" placeholder="base64-encoded client bundle..." class="font-mono text-xs" />
+          </UFormField>
+
+          <UFormField label="Block definitions (base64)" hint="Raw text of src/blocks.json — plain data, never executed">
+            <UTextarea v-model="installForm.blockDefinitions" :rows="3" placeholder="base64-encoded blocks.json..." class="font-mono text-xs" />
           </UFormField>
 
           <div class="flex justify-end gap-2 border-t border-gray-100 dark:border-gray-800 pt-3">
