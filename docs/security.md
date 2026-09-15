@@ -21,31 +21,11 @@ NuxFlow uses **Argon2id** — the winner of the Password Hashing Competition (20
 
 These parameters exceed OWASP's minimum recommendation (m=19456 KiB, t=2, p=1) and are calibrated against NIST SP 800-63B guidance.
 
-### Why a Separate Worker?
+### Implementation
 
-NuxFlow runs Argon2id hashing in a dedicated `nuxflow-argon2` Cloudflare Worker, exposed to the main app Worker via Cloudflare **service binding RPC** — a zero-network-cost private channel between two Workers on the same account. This keeps the hashing implementation swappable in isolation from the main app (it has already been swapped once — see below) and keeps the CPU-intensive hash/verify work out of the main request-handling Worker.
+Argon2id hashing runs directly in the main Worker (`apps/nuxflow/server/utils/argon2.ts`), using [`@noble/hashes`](https://github.com/paulmillr/noble-hashes)'s pure TypeScript/JavaScript Argon2id (audited, zero dependencies, no WebAssembly). An earlier version ran in a separate, dedicated `nuxflow-argon2` Cloudflare Worker exposed via a service binding, using a WebAssembly binary from the `argon2-browser` npm package; both of those have since been replaced. The WASM library was dropped because the package had been unmaintained since 2022 and its build step depended on reverse-engineering its minified Emscripten export names. The separate Worker was dropped once benchmarking showed the pure-TS implementation costs ~150-175ms per hash — comfortably inside the Workers Paid plan's CPU budget (30s default) — and Cloudflare confirmed CPU time pools across a service-binding call rather than getting an independent budget, so the isolation bought nothing on the Paid plan NuxFlow now requires as a baseline. Both switches are transparent to stored hashes: every implementation produces the same public, implementation-independent [PHC string format](https://github.com/P-H-C/phc-string-format/blob/master/phc-sf-spec.md) (`$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>`), so no data migration was ever needed.
 
-The implementation uses [`@noble/hashes`](https://github.com/paulmillr/noble-hashes)'s pure TypeScript/JavaScript Argon2id (audited, zero dependencies, no WebAssembly). An earlier version used a WebAssembly binary from the `argon2-browser` npm package; that was replaced because the package had been unmaintained since 2022 and its build step depended on reverse-engineering its minified Emscripten export names. The switch is transparent to stored hashes: both implementations produce the same public, implementation-independent [PHC string format](https://github.com/P-H-C/phc-string-format/blob/master/phc-sf-spec.md) (`$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>`), so no data migration was needed.
-
-### Fallback (Free Plan / Local Development)
-
-When the `ARGON2` service binding is unavailable — either because the deployer is on the Cloudflare Workers Free plan (which does not support service bindings) or during local `pnpm dev` — NuxFlow automatically falls back to **scrypt** via `node:crypto`:
-
-| Parameter | Value |
-|---|---|
-| N (CPU/memory cost) | 16,384 |
-| r (block size) | 16 |
-| p (parallelism) | 1 |
-| Output | 512 bits (64 bytes) |
-
-scrypt is OWASP's second-choice recommendation and remains a strong algorithm. The fallback is transparent — no configuration is required and the stored hash format (`saltHex:keyHex`) is automatically detected at verify time.
-
-> [!WARNING]
-> **Production Argon2id Hash Portability in Local Dev:**
-> Because the `ARGON2` service binding is unavailable in standard local development (`pnpm dev`), the dev server has no way to verify Argon2id hashes. If you import a production database dump locally, any attempt to log in using those production credentials will fail (verifying the `$argon2` hash returns `false`).
-> 
-> **Workaround:** To log in locally with an imported production database, you must manually reset your local admin user's password field. This can be done by running a database seed script, using a SQLite shell to replace the `password` field with an `scrypt` hash, or re-running the setup wizard.
-
+Because hashing now runs identically in `wrangler dev` and production, a production `$argon2id$` password hash verifies locally exactly as it does in production — no separate dev worker, no fallback algorithm, no hash-portability caveat.
 
 ---
 

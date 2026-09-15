@@ -7,21 +7,11 @@
 // NuxFlow's own custom service-binding RPC surface, and the H3 event context augmentation
 // that wires the two together.
 
-/** RPC surface of the nuxflow-argon2 service Worker (workers/argon2-hasher) — a custom
- *  WorkerEntrypoint, not a generic Cloudflare primitive, so it isn't in the generated types. */
-export interface ArgonHasherBinding {
-  /** Hash a plaintext password. Returns a PHC-format Argon2id string. */
-  hash(password: string): Promise<string>
-  /** Verify a plaintext password against a stored PHC-format Argon2id hash. */
-  verify(storedHash: string, password: string): Promise<boolean>
-}
-
 export interface NuxFlowCloudflareEnv {
   PLUGIN_KV: KVNamespace
   LOADER: WorkerLoader
   DB?: D1Database
   AE?: AnalyticsEngineDataset
-  ARGON2?: ArgonHasherBinding
   EMAIL?: SendEmail
   /** Optional R2 bucket for the native media storage provider (server/utils/media-providers/r2.ts). */
   MEDIA_BUCKET?: R2Bucket

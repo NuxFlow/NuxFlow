@@ -24,6 +24,7 @@
     "@ai-sdk/google": "^4.0.1",
     "@ai-sdk/openai": "^4.0.1",
     "@better-auth/passkey": "^1.7.2",
+    "@noble/hashes": "^2.3.0",
     "@nuxflow/canvas": "workspace:*",
     "@nuxflow/db": "workspace:*",
     "@nuxt/ui": "^4.11.0",

@@ -26,6 +26,7 @@ Install the following tools before you begin:
 - **Node.js** 20 or higher
 - **pnpm** 9 or higher — `npm install -g pnpm`
 - **Wrangler** v4 (Cloudflare CLI) — `pnpm add -g wrangler`
+- A **Cloudflare Workers Paid plan** ($5/month minimum) — NuxFlow requires this to run at all, not just for optional features like dynamic plugins. The Free plan's CPU time limit is too tight for a full Nuxt SSR CMS.
 
 ---
 
@@ -47,25 +48,13 @@ NuxFlow uses Wrangler for local development and edge deployment. Copy the exampl
 cp apps/nuxflow/wrangler.toml.example apps/nuxflow/wrangler.toml
 ```
 
-### Start the Password Hasher Worker
-
-Password hashing (Argon2id) runs in a separate Worker that `wrangler dev` does not start on its own — **setup, login, and registration will all fail without it.** Run this once per development session, in its own terminal, before starting the main app:
-
-```bash
-cd workers/argon2-hasher
-pnpm install
-pnpm dev
-```
-
-Leave this running. It has no database and no configuration of its own — you only need to restart it if you close its terminal.
-
 ### Set Up a Local Database
 
 **Cloudflare D1 via `wrangler dev`:**
 
 This mirrors production exactly. `wrangler dev` provisions a local D1 database automatically — no `.env` file is needed for the database connection.
 
-Start the dev server from the `apps/nuxflow` directory (in a second terminal, alongside the password hasher started above):
+Start the dev server from the `apps/nuxflow` directory:
 
 ```bash
 cd apps/nuxflow
@@ -96,6 +85,7 @@ NuxFlow deploys as a **Cloudflare Worker** using the `cloudflare-module` Nitro p
 >    cp apps/nuxflow/.env.example apps/nuxflow/.env
 >    ```
 >    *(The build compiler validates environment schemas at compile time and will crash if `NUXT_BETTER_AUTH_SECRET` is missing. You can leave the placeholder values as is.)*
+> 3. **A Workers Paid plan** ($5/month minimum) on the Cloudflare account you're deploying to — see [Prerequisites](#prerequisites). Argon2id password hashing (~150-175ms per hash) and normal Nuxt SSR rendering both need more CPU time than the Free plan's 10ms budget allows.
 
 ### Step 1: Log In to Cloudflare
 
@@ -143,31 +133,7 @@ id = "YOUR_KV_ID_FROM_FIRST_COMMAND"
 preview_id = "YOUR_PREVIEW_ID_FROM_SECOND_COMMAND"
 ```
 
-### Step 4: Deploy the Argon2 Password Hasher
-
-NuxFlow uses a dedicated Cloudflare Worker to handle Argon2id password hashing — the industry-recommended algorithm for secure password storage (OWASP 2024 first choice). It runs as a separate Worker and is called from the main app via a Cloudflare service binding (zero network cost, same account only).
-
-You must deploy the hasher Worker **before** the main app, because the main app declares a service binding that Cloudflare validates at deploy time.
-
-From the repo root:
-
-```bash
-cd workers/argon2-hasher
-pnpm install
-pnpm run deploy
-```
-
-`pnpm run deploy` copies the pre-compiled Argon2 Wasm binary into the Worker and deploys it. No Rust toolchain or compilation is required on your machine.
-
-The hasher Worker will be deployed as `nuxflow-argon2`. This name matches the `service = "nuxflow-argon2"` entry already present in `apps/nuxflow/wrangler.toml`.
-
-> [!TIP]
-> **This is a one-time step.** The `nuxflow-argon2` Worker is completely stateless — it holds no database, no configuration, and no shared state with the main app. You can redeploy, wipe, or reconfigure the main NuxFlow Worker and its D1 database as many times as you like without ever touching the hasher Worker again. Only redeploy it if you intentionally delete it from the Cloudflare dashboard.
-
-> [!NOTE]
-> **Cloudflare Free plan:** Service bindings require the Workers Paid plan (Standard). If you are on the Free plan and cannot deploy the hasher Worker, NuxFlow will automatically fall back to scrypt for password hashing — also an OWASP-approved algorithm. You can omit this step and the `[[services]]` block from `wrangler.toml` entirely; everything else works identically. Upgrading to a paid plan and deploying the hasher Worker later will not affect existing accounts.
-
-### Step 5: Build and Deploy the Main App
+### Step 4: Build and Deploy the Main App
 
 From the `apps/nuxflow` directory, run:
 
@@ -179,7 +145,7 @@ This builds the app and uploads it to Cloudflare in one step — you do not need
 
 Database migrations run automatically on the first request after deployment. There is nothing else to run.
 
-### Step 6: Add Production Secrets
+### Step 5: Add Production Secrets
 
 With the worker now deployed, add your runtime secrets. Wrangler will prompt you to type or paste the value — it is never passed as a command-line argument:
 
@@ -200,7 +166,7 @@ You can also manage secrets in the Cloudflare dashboard under **Workers & Pages 
 D1 does not require any secrets. The database connection is handled automatically through the `DB` binding declared in `wrangler.toml`.
 ::
 
-### Step 7: Add a Custom Domain
+### Step 6: Add a Custom Domain
 
 By default Cloudflare assigns a `*.workers.dev` subdomain. To use your own domain:
 
@@ -211,7 +177,7 @@ By default Cloudflare assigns a `*.workers.dev` subdomain. To use your own domai
 
 Your domain must be on Cloudflare's nameservers for this to work. If it is not, use a **Route** instead and point the DNS record manually.
 
-### Step 8: Verify Cron Triggers
+### Step 7: Verify Cron Triggers
 
 NuxFlow uses a scheduled Worker to handle timed content publishing. The trigger is defined in `wrangler.toml`:
 

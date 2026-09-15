@@ -95,7 +95,7 @@ Every feature in the admin is fully functional. The demo resets automatically at
 
 
 ### Authentication & Users
-- Email/password login with **Argon2id** hashing (OWASP 2024 first choice, m=19456 KiB) via a dedicated Cloudflare service binding
+- Email/password login with **Argon2id** hashing (OWASP 2024 first choice, m=19456 KiB), running directly in the Worker
 - **Social login** — Google and GitHub OAuth
 - **Passkey / Passwordless login** — register and authenticate with biometrics (Touch ID, Face ID) or hardware keys via WebAuthn
 - **Role-based access control**: Super Admin, Admin, Editor, Author, Viewer, plus custom roles
@@ -227,10 +227,8 @@ nuxflow/
 │   ├── db/                     # Drizzle schema + migrations — D1-only, no client factory
 │   ├── cli/                    # `nuxflow` CLI — scaffold/build/deploy plugins and themes
 │   └── create-nuxflow-app/     # `pnpm create nuxflow-app` scaffolder
-├── themes/
-│   └── default/                # Default theme (Nuxt layer, block renderers)
-└── workers/
-    └── argon2-hasher/          # Standalone Worker for Argon2id password hashing (service binding)
+└── themes/
+    └── default/                # Default theme (Nuxt layer, block renderers)
 ```
 
 `@nuxflow/canvas` and `@nuxflow/db` are private/internal to the monorepo — only `@nuxflow/cli` and `create-nuxflow-app` are published to npm. Contact forms, memberships, and HTML embeds are core features of `apps/nuxflow`, not separate bundled plugin packages. Dynamic (third-party) plugins have no shared SDK package to depend on — see the [External Plugin Development Guide](docs/plugins.md).
@@ -258,6 +256,9 @@ For detailed information on how to install and use NuxFlow, please refer to our 
 | Node.js | 20+ | `nvm install 20` |
 | pnpm | 9+ | `npm install -g pnpm` |
 | Wrangler | 4+ | `pnpm add -g wrangler` |
+
+> [!IMPORTANT]
+> NuxFlow requires a **Cloudflare Workers Paid plan** ($5/month minimum) to run at all — not just for optional features like dynamic plugins. The Free plan's CPU time limit is too tight for a full Nuxt SSR CMS in general use.
 
 ### 1. Clone and install
 
@@ -307,19 +308,7 @@ NUXT_PUBLIC_SITE_URL=http://localhost:8787
 
 See [Environment Variables](#environment-variables) for the full reference.
 
-### 5. Start the argon2 password-hashing worker
-
-Password hashing runs in a separate Worker (`ARGON2` service binding), declared in `wrangler.toml` but not served by `wrangler dev` on its own. Any flow that hashes or verifies a password — setup, login, registration — will fail with `Worker "nuxflow-argon2" not found` unless this is also running, in its own terminal:
-
-```bash
-cd workers/argon2-hasher
-pnpm install
-pnpm dev
-```
-
-Leave it running. It listens on `localhost:8788` and only needs to be started once per session.
-
-### 6. Start the dev server
+### 5. Start the dev server
 
 ```bash
 pnpm dev

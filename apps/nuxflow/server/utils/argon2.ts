@@ -1,26 +1,28 @@
-// Argon2id password hasher — Cloudflare Worker accessed via service binding.
+// Argon2id password hashing — runs directly in the main Worker.
 //
 // Uses @noble/hashes' pure-TS/JS Argon2id implementation (audited, zero
-// dependencies, no WASM instantiation). This worker only adds the PHC
-// string encoding/decoding (`$argon2id$v=19$m=...,t=...,p=...$<salt>$<hash>`)
+// dependencies, no WASM instantiation), so this needs no separate deployment
+// and behaves identically in `wrangler dev` and production. This file only
+// adds the PHC string encoding/decoding (`$argon2id$v=19$m=...,t=...,p=...$<salt>$<hash>`)
 // around it, since @noble/hashes returns raw derived-key bytes, not an
 // encoded string. PHC is a public, implementation-independent format, so
-// hashes produced by this worker interoperate with hashes stored by any
-// prior Argon2id implementation (and vice versa) — no data migration needed.
+// hashes produced here interoperate with hashes stored by any prior
+// Argon2id implementation.
 //
 // OWASP 2024 recommended parameters: Argon2id, m=19456 KiB, t=2, p=1.
+// Benchmarked at ~150-175ms per hash under these parameters — comfortably
+// inside the Workers Paid plan's CPU budget (this project's minimum
+// supported plan), and the underlying library yields to the event loop
+// every ~10ms so it doesn't stall other concurrent requests on the isolate.
 
-import { WorkerEntrypoint } from 'cloudflare:workers'
 import { argon2idAsync } from '@noble/hashes/argon2.js'
 
-// ── Constants ──────────────────────────────────────────────────────────────────
-
-const ARGON2_VERSION = 0x13  // 19
+const ARGON2_VERSION = 0x13 // 19
 const T_COST = 2
-const M_COST = 19456          // KiB (~19 MiB) — OWASP recommended
+const M_COST = 19456 // KiB (~19 MiB) — OWASP recommended
 const PARALLELISM = 1
-const HASH_LEN = 32           // 256-bit output
-const SALT_LEN = 16           // 128-bit random salt per hash
+const HASH_LEN = 32 // 256-bit output
+const SALT_LEN = 16 // 128-bit random salt per hash
 
 // ── Base64 (no padding) — PHC strings use unpadded standard-alphabet base64 ────
 
@@ -38,7 +40,7 @@ function b64Decode(str: string): Uint8Array {
   return bytes
 }
 
-// ── PHC string encode/decode ────────────────────────────────────────────────────
+// ── PHC string encode/decode ────────────────────────────────────────────────
 
 interface ParsedPhc {
   version: number
@@ -79,13 +81,13 @@ function parsePhc(stored: string): ParsedPhc | null {
 function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false
   let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i]
+  for (let i = 0; i < a.length; i++) diff |= (a[i] ?? 0) ^ (b[i] ?? 0)
   return diff === 0
 }
 
 // ── Hash / verify ─────────────────────────────────────────────────────────────
 
-async function argon2Hash(password: string): Promise<string> {
+export async function argon2Hash(password: string): Promise<string> {
   const pwdBytes = new TextEncoder().encode(password.normalize('NFKC'))
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN))
 
@@ -100,7 +102,7 @@ async function argon2Hash(password: string): Promise<string> {
   return encodePhc(salt, hash)
 }
 
-async function argon2Verify(storedHash: string, password: string): Promise<boolean> {
+export async function argon2Verify(storedHash: string, password: string): Promise<boolean> {
   const parsed = parsePhc(storedHash)
   if (!parsed) return false
 
@@ -114,23 +116,4 @@ async function argon2Verify(storedHash: string, password: string): Promise<boole
   })
 
   return timingSafeEqual(computed, parsed.hash)
-}
-
-// ── WorkerEntrypoint — called via service binding RPC ─────────────────────────
-
-export default class ArgonHasherWorker extends WorkerEntrypoint {
-  // Required by Cloudflare to satisfy the "registered event handler" check.
-  // This Worker is accessed exclusively via service binding RPC — direct HTTP
-  // requests return 405 so it cannot be used as a public endpoint.
-  async fetch(_request: Request): Promise<Response> {
-    return new Response('Service binding only — not a public endpoint.', { status: 405 })
-  }
-
-  async hash(password: string): Promise<string> {
-    return argon2Hash(password)
-  }
-
-  async verify(storedHash: string, password: string): Promise<boolean> {
-    return argon2Verify(storedHash, password)
-  }
 }

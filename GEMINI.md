@@ -59,11 +59,8 @@ c:/DEV/NuxFlow/
 │   ├── cli/                          # `nuxflow` CLI — scaffold/build/deploy dynamic plugins & themes
 │   └── create-nuxflow-app/           # `pnpm create nuxflow-app` scaffolder (the only two published packages
 │                                      #   are this and cli — everything else above is private/internal)
-├── themes/
-│   └── default/                      # Default CSS theme
-└── workers/
-    └── argon2-hasher/                # Standalone Worker for Argon2id password hashing, called via a
-                                       # service binding — must run separately in local dev (see docs/installation.md)
+└── themes/
+    └── default/                      # Default CSS theme
 ```
 
 Contact forms, memberships/payments, and HTML embeds are **not** separate bundled plugin packages — they live directly in `apps/nuxflow` as core features (per the "eliminate bundled plugins, promote canvas to core" refactor). Only genuinely third-party, dynamically-installed Workers are "plugins" in the `Admin → Plugins` sense.

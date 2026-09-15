@@ -26,8 +26,6 @@ nuxflow/
 │   └── create-nuxflow-app/  # `pnpm create nuxflow-app` scaffolder
 ├── themes/
 │   └── default/          # Default CSS theme
-├── workers/
-│   └── argon2-hasher/    # Standalone Worker for Argon2id password hashing (service binding)
 ├── examples/             # Example themes and plugins
 └── docs/                 # Documentation source
 ```
@@ -54,21 +52,11 @@ NuxFlow uses Wrangler for local development and edge deployment. Copy the exampl
 cp apps/nuxflow/wrangler.toml.example apps/nuxflow/wrangler.toml
 ```
 
-### Start the Password Hasher Worker
-
-Password hashing (Argon2id) runs in a separate Worker, connected to the main app via a service binding — `wrangler dev` does not start it automatically, and setup/login/registration all fail without it. Run this once per session, in its own terminal, before starting the main app:
-
-```bash
-cd workers/argon2-hasher
-pnpm install
-pnpm dev
-```
-
 ### Set Up the Local Database
 
 **Cloudflare D1 via `wrangler dev` (the only supported path):**
 
-This is the closest to production. `wrangler dev` provisions a local D1 SQLite database automatically. Run from the `apps/nuxflow` directory, in a second terminal alongside the password hasher started above:
+This is the closest to production. `wrangler dev` provisions a local D1 SQLite database automatically. Run from the `apps/nuxflow` directory:
 
 ```bash
 cd apps/nuxflow
@@ -80,8 +68,7 @@ wrangler dev
 Database migrations run automatically on the first request. Visit `http://localhost:8787/setup`.
 
 > [!NOTE]
-> **Working with Production Database Dumps:**
-> If you skip the password hasher worker above, NuxFlow falls back to **scrypt** for password hashing, and any imported production password hash in the `$argon2id$` format will fail to verify locally. With the hasher worker running as described above, the `ARGON2` binding is present locally too (`wrangler dev` reports it as `[connected]` in its bindings summary) and production password hashes verify normally. If you still hit this, reset the affected user's password in your local database using a seed script, SQLite shell, or by re-running the setup wizard.
+> **Working with Production Database Dumps:** Argon2id password hashing runs directly in the Worker in both `wrangler dev` and production (see `server/utils/argon2.ts`), so an imported production `$argon2id$` password hash verifies locally exactly as it does in production — no separate step needed. If a login still fails after importing a dump, reset the affected user's password in your local database using a seed script, SQLite shell, or by re-running the setup wizard.
 
 ---
 

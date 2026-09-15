@@ -67,11 +67,7 @@ cp apps/nuxflow/.env.example apps/nuxflow/.env
 cp apps/nuxflow/wrangler.toml.example apps/nuxflow/wrangler.toml
 wrangler d1 create nuxflow-dev   # paste the returned database_id into wrangler.toml
 
-# In a separate terminal: start the argon2 password-hashing worker. wrangler dev
-# doesn't serve this on its own, and setup/login/registration fail without it.
-cd workers/argon2-hasher && pnpm install && pnpm dev
-
-# Back in the repo root — start dev server. Runs `wrangler dev`, which auto-provisions
+# Start dev server. Runs `wrangler dev`, which auto-provisions
 # D1 locally and applies migrations automatically on first request.
 pnpm dev
 ```
