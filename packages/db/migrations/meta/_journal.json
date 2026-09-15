@@ -78,6 +78,13 @@
       "when": 1788594591045,
       "tag": "0010_many_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1789450200020,
+      "tag": "0011_silent_chat",
+      "breakpoints": true
     }
   ]
 }

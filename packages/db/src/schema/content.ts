@@ -68,6 +68,14 @@ export const contentItems = sqliteTable('content_items', {
   index('idx_content_items_site_updated').on(t.siteId, t.updatedAt),
   // Used by the events calendar to range-query by event date
   index('idx_content_items_event_start').on(t.siteId, t.eventStartAt),
+  // Covers the public listing hot path (posts.get.ts, feed.ts, taxonomy.ts queries):
+  // WHERE site_id = ? AND status = 'published' AND visibility = 'public' ORDER BY published_at DESC.
+  // idx_content_items_site_status alone still requires a separate sort step on published_at;
+  // this one lets SQLite satisfy the filter and the ORDER BY from the index directly.
+  index('idx_content_items_site_status_visibility_published').on(t.siteId, t.status, t.visibility, t.publishedAt),
+  // Covers the admin content list hot path (content/index.get.ts): WHERE site_id = ? AND
+  // type_id = ? [AND status = ?] ORDER BY updated_at DESC.
+  index('idx_content_items_site_type_status_updated').on(t.siteId, t.typeId, t.status, t.updatedAt),
 ])
 
 export const contentRevisions = sqliteTable('content_revisions', {

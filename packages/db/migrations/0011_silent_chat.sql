@@ -1,0 +1,2 @@
+CREATE INDEX `idx_content_items_site_status_visibility_published` ON `content_items` (`site_id`,`status`,`visibility`,`published_at`);--> statement-breakpoint
+CREATE INDEX `idx_content_items_site_type_status_updated` ON `content_items` (`site_id`,`type_id`,`status`,`updated_at`);
