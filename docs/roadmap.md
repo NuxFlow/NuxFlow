@@ -181,6 +181,62 @@ Then deploy. Page views start recording immediately. No code changes, no migrati
 
 ---
 
+## Cloudflare AI Platform Integration
+
+### Vision
+
+NuxFlow already has a working, provider-agnostic AI abstraction (`getAiSdkModel(event, quality)` in `server/utils/ai-sdk.ts`, supporting OpenAI/Anthropic/Gemini/DeepSeek/Ollama). Cloudflare's own edge-AI platform — Workers AI, AI Gateway, Vectorize, Workflows, and Browser Rendering — can sit alongside that abstraction rather than replace it, giving self-hosters a true zero-third-party-account path and giving every deployment (regardless of provider) shared benefits like prompt caching and per-user spend tracking.
+
+None of the five pieces below are implemented yet — this section exists so the reasoning isn't lost before they're prioritized.
+
+### 1. Workers AI (`env.AI`) as a zero-config provider
+
+**What**: Add `workers-ai` as a sixth option in `ai-sdk.ts` alongside the existing five providers, using `@cf/meta/llama-3.3-70b-instruct` (or similar) for text (grammar, SEO, translation) and `@cf/black-forest-labs/flux-1-schnell` for image generation.
+
+**Why valuable**: Every other provider requires the site owner to bring their own API key. Workers AI runs on the same Cloudflare account already hosting the site — a deployer on the Workers Paid plan gets working AI features with zero extra signup, which matters a lot for the "self-hosted CMS" pitch.
+
+**Groundwork already in place**: `getAiSdkModel()`'s provider-switch shape and the `null`-when-unavailable contract (callers already throw 503 on `null`) is exactly the interface a new provider branch needs — this is additive, not a redesign.
+
+**What still needs to be built**: a `workers-ai` branch in `getAiSdkModel()` using the AI SDK's Workers AI provider, an `env.AI` binding accessor in `cf-env.ts` (matching the existing `getCfBindings`/`getAnalyticsEngine` pattern), and a settings UI option alongside the existing provider dropdown.
+
+### 2. Cloudflare AI Gateway in front of every provider
+
+**What**: Route all AI SDK calls (Workers AI and third-party) through an AI Gateway endpoint instead of hitting provider APIs directly.
+
+**Why valuable**: Free per-prompt caching (identical prompts served with zero latency and zero provider cost), automatic retry/fallback across providers, and centralized spend/usage analytics — all without changing any call site, since it's a base-URL change in `ai-sdk.ts`.
+
+**Identity-aware spend tracking**: AI Gateway supports arbitrary metadata on each request. Passing the authenticated `userId` (from `requireAuth`/`requireRole`, already resolved in every AI route) as gateway metadata means per-user token spend becomes visible in the Cloudflare dashboard, and a compromised or abusive account can be identified and blocked at the AI routes' existing `requireRole(event, 'editor')` gate without waiting on provider-side usage reports.
+
+**What still needs to be built**: an AI Gateway id/token site setting (same `resolveSetting()` DB-first/env-fallback pattern as every other credential), rewriting each provider's base URL through the gateway prefix in `ai-sdk.ts`, and passing `userId` as gateway metadata on each call.
+
+### 3. Vectorize + Workers AI embeddings for semantic search / RAG
+
+**What**: Generate embeddings (`@cf/baai/bge-large-en-v1.5`) for content on publish/update, store them in a Vectorize index, and offer semantic search as an alternative (or supplement) to the existing FTS5 `search_index`.
+
+**Why valuable**: FTS5 (see the Search section of CLAUDE.md) does keyword/porter-stemmed matching only — semantic search surfaces conceptually related content that shares no exact terms. This also feeds directly into the "AI Page & Site Generation" feature above and the admin MCP assistant (`server/api/v1/mcp.ts`), both of which currently have no way to ground responses in the site's own existing content.
+
+**What still needs to be built**: a Vectorize index provisioned per-deployment, an embedding-generation hook alongside the existing FTS5 triggers (or a scheduled task, to avoid adding embedding latency to the content save path), a `GET /api/v1/search/semantic` route, and — the larger piece — deciding whether Vectorize indexes are single-tenant-wide or need per-site partitioning the way every D1 table already is (`site_id` scoping). This last question needs answering before implementation starts, since Vectorize doesn't have D1's row-level `site_id` filtering built in the same way.
+
+**What was explicitly ruled out (for now)**: replacing FTS5 outright — keyword search is faster, needs no embedding step, and is a reasonable default for smaller sites. Semantic search should launch as an addition, not a replacement.
+
+### 4. Cloudflare Workflows for long-running jobs
+
+**What**: Move genuinely long-running, multi-step operations — WordPress WXR import, bulk AI alt-text generation, D1 whole-database export — off the single-request model and onto Workflows, which supports durable state, automatic per-step retries, and multi-hour execution.
+
+**Why valuable**: The WordPress import route (see `MYSTUFF/Decide.txt`) already works around single-request limits with SSE streaming, but a very large WXR file still risks hitting Worker CPU/memory limits during its synchronous initial parse — the same class of problem the D1 export feature hit five separate times against real Cloudflare limits before landing on its current streaming design (see CLAUDE.md's "Backup, restore, and database export" section for the full account). Workflows sidesteps the whole category of "will this fit in one request" question.
+
+**What still needs to be built**: picking one candidate (WordPress import is the best first target — it's already isolated behind a single route) and rewriting it as a Workflow with explicit steps (parse → upload media → create content), rather than one big streamed async IIFE.
+
+### 5. Browser Rendering for dynamic OG/social cards
+
+**What**: Use the `@cloudflare/puppeteer` binding to screenshot a public page or Canvas layout at the edge and save the PNG to the active media provider, for automatic social-share images instead of relying on a manually-set `ogImage`.
+
+**Why valuable**: Every public page already has `seoTitle`/`ogImage` fields, but most content never gets a manually-designed share image. A generated card (title + site branding rendered over a template) is a meaningful default-quality improvement with no editor effort.
+
+**What still needs to be built**: a `BROWSER` binding declaration, a render route that takes a content item's title/excerpt and produces a templated screenshot, a cache layer (these shouldn't regenerate on every request — publish-time generation, same trigger point as `trackPageView`), and a fallback to the existing manual `ogImage` field when set.
+
+---
+
 ## [COMPLETED] Multilingual Content (Translations)
 
 ### Status: Fully Implemented & Shipped
