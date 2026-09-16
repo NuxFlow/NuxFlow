@@ -2,6 +2,31 @@ import { useDb } from '../utils/db'
 import { auditLogs, contentRevisions, rateLimits, notifications } from '@nuxflow/db/schema'
 import { and, count, eq, lt, notInArray, sql, isNotNull, or } from 'drizzle-orm'
 
+// Bounds how many overflowing content items get their excess revisions pruned in a
+// single scheduled run. Each item needs its own `findMany` (Drizzle/D1 has no
+// "top-N-per-group" query), so an unbounded `overflowItems` list means an unbounded
+// number of D1 round trips — the same class of failure documented at length in
+// d1-export.ts's module comment and CLAUDE.md's D1 section (D1's paid-plan cap is
+// 1,000 queries per Worker invocation). Retention pruning is inherently
+// re-triggerable — any item left over this run is still overflowing and gets caught
+// on the next scheduled run — so an exhaustive single pass isn't required.
+const MAX_OVERFLOW_ITEMS_PER_RUN = 100
+
+// Caps how many DELETE statements go into a single db.batch() call. Revision rows are
+// far smaller than a full content/media row, but an unbounded batch is still the same
+// shape of risk d1-export.ts's history (see CLAUDE.md) warns against for any D1-facing
+// batch — chunking keeps each round trip small and bounded regardless of how many
+// items overflowed this run.
+const DELETE_BATCH_CHUNK_SIZE = 50
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size))
+  }
+  return chunks
+}
+
 export const pruneOldData = async () => {
   const db = useDb()
   const config = useRuntimeConfig()
@@ -25,12 +50,15 @@ export const pruneOldData = async () => {
   }
 
   // --- Content revisions ---
-  // Find all items that have more revisions than the retention limit
+  // Find items that have more revisions than the retention limit — capped per run (see
+  // MAX_OVERFLOW_ITEMS_PER_RUN above); any item beyond the cap is still overflowing and
+  // gets caught on a later run.
   const overflowItems = await db
     .select({ itemId: contentRevisions.itemId, total: count() })
     .from(contentRevisions)
     .groupBy(contentRevisions.itemId)
     .having(sql`count(*) > ${revisionRetentionCount}`)
+    .limit(MAX_OVERFLOW_ITEMS_PER_RUN)
 
   // Fetch the IDs of the N most-recent revisions to keep, per overflowing item
   const keepLists = await Promise.all(overflowItems.map(({ itemId }) =>
@@ -51,8 +79,8 @@ export const pruneOldData = async () => {
         notInArray(contentRevisions.id, keep.map(r => r.id)),
       )))
 
-  if (deleteStatements.length > 0) {
-    await db.batch(deleteStatements as [typeof deleteStatements[number], ...typeof deleteStatements])
+  for (const batch of chunk(deleteStatements, DELETE_BATCH_CHUNK_SIZE)) {
+    await db.batch(batch as [typeof deleteStatements[number], ...typeof deleteStatements])
   }
 
   const prunedRevisions = overflowItems.reduce((sum, { total }, i) => sum + (total - keepLists[i]!.length), 0)

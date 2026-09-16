@@ -27,6 +27,7 @@ vi.mock('../../server/utils/db', () => ({
 
 const SITE_A = 'site-mw-a'
 const SITE_B = 'site-mw-maint'
+const SITE_C = 'site-mw-suspended'
 let apiKeyUserId: string
 
 // ---------------------------------------------------------------------------
@@ -75,6 +76,7 @@ beforeAll(async () => {
 
   await seedSite(db, { id: SITE_A, domain: 'site-a.localhost', status: 'active', setupCompleted: true })
   await seedSite(db, { id: SITE_B, domain: 'site-b.localhost', status: 'maintenance', setupCompleted: true })
+  await seedSite(db, { id: SITE_C, domain: 'site-c.localhost', status: 'suspended', setupCompleted: true })
 
   apiKeyUserId = await seedUser(db, { email: 'apikey-user@middleware.test' })
   await seedRole(db, apiKeyUserId, SITE_A, 'editor')
@@ -147,19 +149,84 @@ describe('02.multi-site middleware', () => {
     expect(result).toBeUndefined()
   })
 
+  describe('suspended site — blocks everything except a super admin', () => {
+    let suspendedSuperAdmin: string
+
+    beforeAll(async () => {
+      // Super admin status is granted on SITE_A (cross-site by design — see
+      // hasSuperAdminRole/requireSuperAdmin) rather than on the suspended site itself,
+      // to exercise the actual real-world case: an operator managing a suspended site
+      // from their own super-admin grant elsewhere, not a role row on that site.
+      suspendedSuperAdmin = await seedUser(getCurrentTestDb(), { email: 'suspended-super@middleware.test' })
+      await seedRole(getCurrentTestDb(), suspendedSuperAdmin, SITE_A, 'super_admin')
+    })
+
+    it('returns a 403 suspended page for public paths', async () => {
+      const event = mkSiteEvent({ host: 'site-c.localhost', path: '/my-page' })
+      const result = await (multiSiteMiddleware as MiddlewareFn)(event) as string
+
+      expect(typeof result).toBe('string')
+      expect(result).toContain('Site suspended')
+      expect((event as unknown as { _status: number })._status).toBe(403)
+    })
+
+    it('blocks /admin paths for an unauthenticated visitor', async () => {
+      const event = mkSiteEvent({ host: 'site-c.localhost', path: '/admin/dashboard' })
+      const result = await (multiSiteMiddleware as MiddlewareFn)(event)
+      expect(result).toContain('Site suspended')
+      expect((event as unknown as { _status: number })._status).toBe(403)
+    })
+
+    it('blocks /admin paths for an authenticated non-super-admin', async () => {
+      const nonSuperAdmin = await seedUser(getCurrentTestDb(), { email: 'suspended-nonsuper@middleware.test' })
+      await seedRole(getCurrentTestDb(), nonSuperAdmin, SITE_A, 'admin')
+
+      const event = mkSiteEvent({ host: 'site-c.localhost', path: '/admin/dashboard' }) as unknown as
+        { context: Record<string, unknown> }
+      event.context._session = { user: { id: nonSuperAdmin } }
+      const result = await (multiSiteMiddleware as MiddlewareFn)(event as unknown as H3Event)
+      expect(result).toContain('Site suspended')
+    })
+
+    it('blocks /api paths with a JSON error for an unauthenticated request', async () => {
+      const event = mkSiteEvent({ host: 'site-c.localhost', path: '/api/v1/content' })
+      const result = await (multiSiteMiddleware as MiddlewareFn)(event) as { statusCode: number }
+      expect(result).toMatchObject({ statusCode: 403 })
+    })
+
+    it('lets a super admin (with no role row on the suspended site itself) through to /admin', async () => {
+      const event = mkSiteEvent({ host: 'site-c.localhost', path: '/admin/dashboard' }) as unknown as
+        { context: Record<string, unknown> }
+      event.context._session = { user: { id: suspendedSuperAdmin } }
+      const result = await (multiSiteMiddleware as MiddlewareFn)(event as unknown as H3Event)
+      expect(result).toBeUndefined()
+      expect((event as unknown as { _status?: number })._status).not.toBe(403)
+    })
+
+    it('lets a super admin through to /api on the suspended site', async () => {
+      const event = mkSiteEvent({ host: 'site-c.localhost', path: '/api/v1/content' }) as unknown as
+        { context: Record<string, unknown> }
+      event.context._session = { user: { id: suspendedSuperAdmin } }
+      const result = await (multiSiteMiddleware as MiddlewareFn)(event as unknown as H3Event)
+      expect(result).toBeUndefined()
+    })
+  })
+
   describe('single-site fallback self-heal (exactly one site in the DB)', () => {
     let adminUserId: string
 
-    // Isolate this block to exactly one site by temporarily removing SITE_B —
+    // Isolate this block to exactly one site by temporarily removing SITE_B and SITE_C —
     // the self-heal write only fires when the fallback matched exactly one site.
     beforeAll(async () => {
       await getCurrentTestDb().delete(sites).where(eq(sites.id, SITE_B))
+      await getCurrentTestDb().delete(sites).where(eq(sites.id, SITE_C))
       adminUserId = await seedUser(getCurrentTestDb(), { email: 'self-heal-admin@middleware.test' })
       await seedRole(getCurrentTestDb(), adminUserId, SITE_A, 'admin')
     })
 
     afterAll(async () => {
       await seedSite(getCurrentTestDb(), { id: SITE_B, domain: 'site-b.localhost', status: 'maintenance', setupCompleted: true })
+      await seedSite(getCurrentTestDb(), { id: SITE_C, domain: 'site-c.localhost', status: 'suspended', setupCompleted: true })
     })
 
     it('does NOT rewrite the site domain on /admin paths without an authenticated admin session', async () => {

@@ -117,4 +117,34 @@ describe('getD1SizeStats()', () => {
     const stats = await getD1SizeStats(mkEvent())
     expect(stats.sites.map(s => s.siteId)).toEqual(['big', 'small'])
   })
+
+  it('caches the computed stats per isolate so a second call does not re-scan D1', async () => {
+    vi.resetModules()
+    let prepareCalls = 0
+    const fakeD1 = makeFakeD1({
+      sites: [{ id: 'site-a', name: 'Site A', domain: 'a.example.com' }],
+      content: [{ siteId: 'site-a', count: 1, bytes: 100 }],
+      revisions: [],
+      media: [],
+    })
+    vi.doMock('../../server/utils/db', () => ({
+      getD1: () => ({
+        prepare(sql: string) {
+          prepareCalls++
+          return fakeD1.prepare(sql)
+        },
+      }),
+    }))
+    const { getD1SizeStats } = await import('../../server/utils/d1-stats')
+
+    const first = await getD1SizeStats(mkEvent())
+    const callsAfterFirst = prepareCalls
+    expect(callsAfterFirst).toBeGreaterThan(0)
+
+    const second = await getD1SizeStats(mkEvent())
+
+    // No new D1 queries were issued for the second call — it was served from cache.
+    expect(prepareCalls).toBe(callsAfterFirst)
+    expect(second).toEqual(first)
+  })
 })

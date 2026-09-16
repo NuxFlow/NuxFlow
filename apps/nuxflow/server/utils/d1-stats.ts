@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { getD1 } from './db'
+import { createIsolateCache } from './isolate-cache'
 
 // Cloudflare's own stated design philosophy: "D1 is optimized for per-user, per-tenant,
 // or per-entity database patterns rather than single large databases." A single D1
@@ -48,7 +49,30 @@ export interface D1SizeStats {
   sites: SiteSizeStats[]
 }
 
+// This runs a full-table SUM(LENGTH(...)) scan across content_items, content_revisions,
+// and media with no LIMIT — deliberately, since a partial scan would misreport the
+// database's actual size. That's fine for row *counts/bytes* (unlike d1-export.ts's row
+// *data* scans, nothing here risks isolate memory), but D1's documented max query
+// duration is 30 seconds, and a full scan on a large, mature database — the exact size
+// regime this endpoint exists to warn about — risks approaching that on every single
+// admin page load/poll. Cached per isolate for 5 minutes using the same pattern as
+// settings.ts and theme-cache.ts: this is a monitoring/awareness figure, not a live
+// dashboard, so a few minutes of staleness is an acceptable trade for not re-scanning
+// the whole database on every request.
+const STATS_CACHE_TTL_MS = 5 * 60_000
+const STATS_CACHE_KEY = 'global'
+const statsCache = createIsolateCache<D1SizeStats>(STATS_CACHE_TTL_MS)
+
 export async function getD1SizeStats(event: H3Event): Promise<D1SizeStats> {
+  const cached = statsCache.get(STATS_CACHE_KEY)
+  if (cached) return cached
+
+  const stats = await computeD1SizeStats(event)
+  statsCache.set(STATS_CACHE_KEY, stats)
+  return stats
+}
+
+async function computeD1SizeStats(event: H3Event): Promise<D1SizeStats> {
   const d1 = getD1(event)
 
   const [sitesResult, contentResult, revisionResult, mediaResult] = await Promise.all([

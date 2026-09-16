@@ -47,6 +47,18 @@ directory = ".output/public"
 # reconcile-stuck-videos runs hourly
 crons = ["* * * * *", "0 3 * * *", "0 * * * *"]
 
+# Workers Logs — included at no extra cost on both Free and Paid plans (no separate
+# observability add-on required), so there's no reason to leave this off. Several
+# production-only D1/Workers failures documented in CLAUDE.md (see server/utils/d1-export.ts
+# and d1-stats.ts) were only diagnosable via an ad-hoc `wrangler tail` session; this makes
+# request logs (including uncaught exceptions and console output) queryable after the fact
+# in the dashboard instead of only during a live tail. head_sampling_rate = 1 logs every
+# request — fine at this project's expected self-hosted scale; lower it (e.g. 0.1) if a
+# high-traffic deployment starts approaching the plan's monthly log-event allowance.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 # Dynamic plugin KV store — run to create:
 #   wrangler kv namespace create PLUGIN_KV
 # then paste the returned id below and in the preview_id field.

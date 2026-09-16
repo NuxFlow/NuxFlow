@@ -206,6 +206,30 @@ export function getEmailBinding(event: H3Event): SendEmail | null {
   return (event?.context?.cloudflare?.env?.EMAIL as SendEmail | undefined) ?? null
 }
 
+// A plugin is third-party code: Ed25519-signature-verified and checksum-matched at
+// install/request time (see assertCodeIntegrity() call sites), which proves *authorship
+// consistency*, not that the code is benign or bug-free. Without an explicit `limits`, a
+// dynamic Worker runs under the parent request's own plan-standard CPU/subrequest budget —
+// a runaway loop or accidental infinite-recursion bug in plugin code would burn CPU time
+// against (and could starve) the request that spawned it. `cpuMs: 50` is generous for the
+// kind of request/response logic plugin server modules actually do (no DB access, no
+// outbound network — see globalOutbound below — so there's nothing legitimately slow to
+// wait on) while still bounding a runaway loop to a small, fixed cost. `subRequests: 10` is
+// mostly a defensive floor rather than a number plugins are expected to approach: with
+// `globalOutbound: null` blocking all outbound fetch()/connect(), a plugin has no bindings
+// to make subrequests against today, but the limit still guards against future capability
+// additions or an internal-fetch edge case rather than leaving it uncapped.
+// Set on *both* the WorkerLoaderWorkerCode (below) and the getEntrypoint() call at the
+// fetch call site (server/routes/_nuxflow/ext/[pluginId]/[...path].ts) — per Cloudflare's
+// docs the lower of the two wins, so this is belt-and-suspenders in case either call site
+// is ever changed independently.
+// See https://developers.cloudflare.com/dynamic-workers/usage/limits/ and
+// https://developers.cloudflare.com/dynamic-workers/usage/egress-control/.
+export const PLUGIN_WORKER_LIMITS: { cpuMs: number, subRequests: number } = {
+  cpuMs: 50,
+  subRequests: 10,
+}
+
 // No bindings/secrets are passed to the spawned worker (the returned WorkerLoaderWorkerCode
 // carries no `env`), and `globalOutbound: null` additionally blocks all outbound fetch()/
 // connect() from plugin code — a plugin can only use whatever the platform gives it, nothing
@@ -225,6 +249,7 @@ export function spawnPluginWorker(
       mainModule: 'index.js',
       modules: { 'index.js': code },
       globalOutbound: null,
+      limits: PLUGIN_WORKER_LIMITS,
     }
   })
 }

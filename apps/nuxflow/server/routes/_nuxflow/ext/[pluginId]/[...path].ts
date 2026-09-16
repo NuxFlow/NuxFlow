@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { useDb } from '../../../../utils/db'
-import { spawnPluginWorker, getPluginServerCode } from '../../../../utils/cf-env'
+import { spawnPluginWorker, getPluginServerCode, PLUGIN_WORKER_LIMITS } from '../../../../utils/cf-env'
 import { assertCodeIntegrity } from '../../../../utils/plugin-signing'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -102,7 +102,10 @@ export default defineEventHandler(async (event) => {
     body: ['GET', 'HEAD'].includes(event.method) ? undefined : (await readRawBody(event) ?? undefined),
   })
 
-  const res = await worker.getEntrypoint().fetch(forwardReq)
+  // Also enforced on the spawned WorkerLoaderWorkerCode itself (cf-env.ts) — set here too
+  // since Cloudflare's docs say the lower of the two wins, so either call site alone
+  // changing later can't silently drop the bound on third-party plugin code.
+  const res = await worker.getEntrypoint(undefined, { limits: PLUGIN_WORKER_LIMITS }).fetch(forwardReq)
   const headers = new Headers(res.headers)
   for (const [key, value] of Object.entries(CORS_HEADERS)) headers.set(key, value)
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers })

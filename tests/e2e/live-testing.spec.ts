@@ -5,10 +5,24 @@ import path from 'path'
 // Load environment variables from apps/nuxflow/.env
 dotenv.config({ path: path.resolve(__dirname, '../../apps/nuxflow/.env') })
 
-// Configure playwright to use the live site by default if no TEST_BASE_URL is passed
-const BASE_URL = process.env.TEST_BASE_URL || 'https://nuxflow.dev'
+// This spec creates and deletes REAL data (users, taxonomies, membership tiers, forms,
+// redirects, menus, API keys, live settings) against whatever BASE_URL points at — it is
+// NOT safe to run against a real deployment casually. `pnpm test:e2e` runs every spec
+// under tests/e2e by default with no tagging/filter, and this file used to default
+// BASE_URL to `https://nuxflow.dev` when TEST_BASE_URL was unset — a plain `pnpm test:e2e`
+// with no env vars set would have run these destructive flows against production. Both
+// guards below are required and deliberately redundant: RUN_LIVE_E2E must be explicitly
+// set to '1', AND there is no production fallback for BASE_URL — either being absent
+// skips the whole file via test.skip() below.
+const RUN_LIVE_E2E = process.env.RUN_LIVE_E2E === '1'
+const BASE_URL = process.env.TEST_BASE_URL ?? ''
 
 test.describe('NuxFlow Production Live E2E Testing', () => {
+  test.skip(
+    !RUN_LIVE_E2E || !BASE_URL,
+    'Destructive live-data spec — set RUN_LIVE_E2E=1 and TEST_BASE_URL=<target> explicitly to run it. See the comment at the top of this file.',
+  )
+
   test.beforeEach(async ({ page }) => {
     // Increase timeout for live testing to accommodate edge roundtrips and hydration
     test.setTimeout(90000)

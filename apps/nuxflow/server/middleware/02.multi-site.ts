@@ -2,7 +2,7 @@ import { useDb } from '../utils/db'
 import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { createIsolateCache } from '../utils/isolate-cache'
-import { getUserSiteRole, roleAtLeast, type Role } from '../utils/permissions'
+import { getUserSiteRole, hasSuperAdminRole, roleAtLeast, type Role } from '../utils/permissions'
 
 // getAuthSession is deliberately called as a Nitro auto-import (not an explicit import
 // from '../utils/auth') — every other call site in this codebase does the same (see
@@ -113,6 +113,54 @@ export default defineEventHandler(async (event) => {
   event.context.siteId = site?.id ?? null
   event.context.siteStatus = site?.status ?? null
   event.context.setupCompleted = site?.setupCompleted ?? false
+
+  if (site?.status === 'suspended') {
+    // Unlike maintenance mode (self-service, temporary — /admin and /api stay open so
+    // the site's own team can keep working), suspension is an operator-imposed block:
+    // everything is closed, including /admin and /api, for everyone except a super
+    // admin — who needs an escape hatch to reactivate the site again. A super admin's
+    // access here is intentionally unconditional (not gated by a user_site_roles row on
+    // THIS site), matching requireSuperAdmin()'s existing cross-site model — otherwise a
+    // single-site install would have no way to recover from its only site being
+    // suspended.
+    let isPrivileged = false
+    try {
+      const session = await getAuthSession(event)
+      if (session) isPrivileged = await hasSuperAdminRole(useDb(event), session.user.id)
+    } catch {
+      // Any session-check failure is treated as "not privileged" — never let it crash
+      // the request or accidentally grant access to a suspended site.
+    }
+
+    if (!isPrivileged) {
+      setResponseStatus(event, 403)
+      if (path.startsWith('/api') || path.startsWith('/_')) {
+        setHeader(event, 'Content-Type', 'application/json')
+        return { statusCode: 403, statusMessage: 'This site has been suspended.' }
+      }
+      setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
+      return `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Site suspended</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:#f8fafc}
+  .wrap{text-align:center;max-width:480px;padding:2.5rem 2rem}
+  .icon{font-size:3rem;margin-bottom:1.5rem}
+  h1{font-size:1.75rem;font-weight:700;letter-spacing:-.02em;margin-bottom:.75rem}
+  p{color:#94a3b8;line-height:1.6;font-size:1rem}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="icon">🚫</div>
+    <h1>Site suspended</h1>
+    <p>This site is currently unavailable. If you believe this is a mistake, contact the platform operator.</p>
+  </div>
+</body>
+</html>`
+    }
+  }
 
   if (site?.status === 'maintenance' && !path.startsWith('/admin') && !path.startsWith('/api') && !path.startsWith('/_')) {
     setResponseStatus(event, 503)
