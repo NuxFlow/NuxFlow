@@ -16,7 +16,12 @@ interface AuditOptions {
 // Returns the unexecuted insert query so callers can fold it into a db.batch()
 // alongside the primary write, instead of paying a separate D1 round trip for
 // the audit row. Returns null when there's no site in context (nothing to batch).
-export function buildAuditLogInsert(event: H3Event, userId: string, opts: AuditOptions) {
+//
+// `userId` accepts `null` for system/automated mutations with no acting user (e.g. a
+// payment provider's webhook changing subscription state) — `auditLogs.userId` is a
+// nullable FK (`onDelete: 'set null'`), so `null` is the honest attribution rather than
+// a fabricated sentinel user.
+export function buildAuditLogInsert(event: H3Event, userId: string | null, opts: AuditOptions) {
   const siteId = event.context.siteId
   if (!siteId) return null
 
@@ -35,7 +40,7 @@ export function buildAuditLogInsert(event: H3Event, userId: string, opts: AuditO
   })
 }
 
-export async function writeAuditLog(event: H3Event, userId: string, opts: AuditOptions) {
+export async function writeAuditLog(event: H3Event, userId: string | null, opts: AuditOptions) {
   const insert = buildAuditLogInsert(event, userId, opts)
   if (insert) await insert
 }

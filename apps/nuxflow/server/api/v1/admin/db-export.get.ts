@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
     try {
       await write(prep.headerText)
       const { tableCount, rowCount } = await streamD1TableData(event, prep.dataTables, write)
-      await write(`\n\n-- Exported ${tableCount} table${tableCount === 1 ? '' : 's'}, ${rowCount} row${rowCount === 1 ? '' : 's'}\nCOMMIT;\n`)
+      await write(`\n\n-- Exported ${tableCount} table${tableCount === 1 ? '' : 's'}, ${rowCount} row${rowCount === 1 ? '' : 's'}\n`)
 
       // Not site-scoped (auditLogs.siteId is NOT NULL and this action spans every
       // site), so this lands against whichever site's domain the super admin happened
@@ -62,10 +62,10 @@ export default defineEventHandler(async (event) => {
       const message = err instanceof Error ? err.message : String(err)
       // The response's 200 status and attachment headers are already on the wire by
       // this point, so a mid-stream failure can no longer become a clean HTTP error —
-      // surfaced as a trailing comment with a deliberately-missing COMMIT instead, so a
-      // truncated .sql file reads as an obviously failed/incomplete export rather than
-      // silently passing as a complete one if someone tries to restore it.
-      await write(`\n\n-- EXPORT FAILED: ${message}\n-- This file is INCOMPLETE (no COMMIT was written) — do not restore it. Re-run the export, or use \`wrangler d1 export\` from the CLI instead.\n`).catch(() => {})
+      // surfaced as a trailing comment with a deliberately-missing completion summary
+      // instead, so a truncated .sql file reads as an obviously failed/incomplete export
+      // rather than silently passing as a complete one if someone tries to restore it.
+      await write(`\n\n-- EXPORT FAILED: ${message}\n-- This file is INCOMPLETE — do not restore it. Re-run the export, or use \`wrangler d1 export\` from the CLI instead.\n`).catch(() => {})
       await writeAuditLog(event, userId, {
         action: 'export',
         resource: 'd1_database',

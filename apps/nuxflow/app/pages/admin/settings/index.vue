@@ -1171,7 +1171,7 @@ async function deleteSite() {
               </UFormField>
               <div class="grid grid-cols-2 gap-3">
                 <UFormField label="Access key ID">
-                  <UInput v-model="s3.accessKey" placeholder="AKIA…" class="font-mono" />
+                  <UInput v-model="s3.accessKey" type="password" placeholder="AKIA…" class="font-mono" />
                 </UFormField>
                 <UFormField label="Secret access key">
                   <UInput v-model="s3.secretKey" type="password" placeholder="••••••••" />

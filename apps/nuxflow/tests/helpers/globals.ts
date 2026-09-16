@@ -55,6 +55,9 @@ globalThis.setResponseStatus = (event: Record<string, unknown>, status: number):
 globalThis.getRouterParam = (event: Record<string, unknown>, name: string): string | undefined =>
   (event as { _params?: Record<string, string> })._params?.[name]
 
+globalThis.getMethod = (event: Record<string, unknown>): string =>
+  (event as { _method?: string })._method ?? 'GET'
+
 globalThis.setCookie = (event: Record<string, unknown>, name: string, value: string): void => {
   const e = event as { _cookies?: Record<string, string> }
   if (!e._cookies) e._cookies = {}
@@ -80,6 +83,17 @@ globalThis.readValidatedBody = async (
 
 globalThis.readRawBody = async (event: Record<string, unknown>): Promise<string | undefined> =>
   (event as { _rawBody?: string })._rawBody
+
+// h3's readMultipartFormData()/readFormData() — used by restore.post.ts, backup zip
+// uploads, wordpress.post.ts, themes/index.post.ts (multipart), and media/upload.post.ts
+// (native Web FormData). Mirrors the `_body`/`_query` pattern above: tests populate
+// `_multipartFormData` / `_formData` on the mock event via createMockEvent()'s
+// `multipartFormData` / `formData` options, and these stubs just read them back.
+globalThis.readMultipartFormData = async (event: Record<string, unknown>) =>
+  (event as { _multipartFormData?: unknown[] })._multipartFormData
+
+globalThis.readFormData = async (event: Record<string, unknown>): Promise<FormData> =>
+  (event as { _formData?: FormData })._formData ?? new FormData()
 
 globalThis.sendRedirect = vi.fn(async (event: Record<string, unknown>, url: string, code = 302) => {
   ;(event as { _redirect?: { url: string; code: number } })._redirect = { url, code }

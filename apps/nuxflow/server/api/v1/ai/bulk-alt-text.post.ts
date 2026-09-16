@@ -3,6 +3,8 @@ import { generateText } from 'ai'
 import { requireRole } from '../../../utils/permissions'
 import { requireAiSdkModel } from '../../../utils/ai-sdk'
 import { useDb } from '../../../utils/db'
+import { waitUntil } from '../../../utils/cf-env'
+import { writeAuditLog } from '../../../utils/audit'
 import { media } from '@nuxflow/db/schema'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
@@ -13,8 +15,22 @@ const bodySchema = z.object({
 
 const SYSTEM = `You are an accessibility expert. Write concise, descriptive alt text for an image. Return ONLY the alt text string, no quotes, no explanation.`
 
+// Caps how many images a single invocation processes. Each image costs at least one
+// outbound fetch to the configured AI provider (generateText) plus one D1 write — both
+// count as subrequests against the Workers Paid plan's documented 1,000-subrequests-per-
+// invocation ceiling (https://developers.cloudflare.com/workers/platform/limits/ — NuxFlow
+// requires the Paid plan regardless, see CLAUDE.md). At 2 subrequests/image worst case, 50
+// stays two orders of magnitude under that ceiling with plenty of room for everything else
+// this request does, and keeps one invocation's AI-provider call volume well clear of most
+// providers' own per-minute rate limits too. It also matches the order of magnitude other
+// deliberately-bounded (not fully paginated) routes in this codebase already use — see
+// `MAX_REVISIONS_RETURNED = 50` in `content/[id]/revisions.get.ts`. When more images match
+// than the cap, the response reports `capped`/`remaining` so the caller can invoke again
+// for the rest (see the admin media page's bulk alt-text handler).
+const MAX_IMAGES_PER_RUN = 50
+
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'editor')
+  const { userId } = await requireRole(event, 'editor')
 
   const model = await requireAiSdkModel(event, 'fast')
 
@@ -32,21 +48,25 @@ export default defineEventHandler(async (event) => {
     columns: { id: true, originalName: true, mimeType: true },
   })
 
-  const imageTargets = targets.filter(f =>
+  const matchingImages = targets.filter(f =>
     f.mimeType.startsWith('image/') && (!mediaIds?.length || mediaIds.includes(f.id)),
   )
 
-  if (!imageTargets.length) {
-    return { processed: 0, skipped: 0 }
+  if (!matchingImages.length) {
+    return { processed: 0, skipped: 0, total: 0 }
   }
 
-  let processed = 0
-  let skipped = 0
+  const imageTargets = matchingImages.slice(0, MAX_IMAGES_PER_RUN)
+  const remaining = matchingImages.length - imageTargets.length
+  const targetIds = imageTargets.map(f => f.id)
 
-  // Use waitUntil on Cloudflare so the response is sent immediately
-  // while processing continues in the background
-  const cfCtx = event.context.cloudflare?.ctx
+  // Processes in the background via the shared waitUntil() helper (cf-env.ts) so the HTTP
+  // response returns immediately instead of holding the request open for however long up
+  // to MAX_IMAGES_PER_RUN sequential AI provider calls take.
   const run = async () => {
+    let processed = 0
+    let skipped = 0
+
     for (const file of imageTargets) {
       try {
         const prompt = `Generate alt text for an image with filename: "${file.originalName}"`
@@ -55,20 +75,34 @@ export default defineEventHandler(async (event) => {
           .set({ altText: text.trim() })
           .where(and(eq(media.id, file.id), eq(media.siteId, siteId)))
         processed++
-      } catch {
+      } catch (err) {
+        // Log the real failure so a systemic problem (expired/invalid API key, provider
+        // outage, rate limiting) is diagnosable from Worker logs instead of showing up only
+        // as an unexplained "0 processed" in the admin UI.
+        console.error(`[bulk-alt-text] Failed to generate alt text for media ${file.id} ("${file.originalName}")`, err)
         skipped++
       }
     }
+
+    // One audit log row for the whole batch rather than one per image — this can touch
+    // dozens of media rows per invocation, and a per-image audit row would just be a second
+    // N+1/write-amplification problem stacked on top of the one MAX_IMAGES_PER_RUN already
+    // addresses on the AI-provider side.
+    await writeAuditLog(event, userId, {
+      action: 'update',
+      resource: 'media',
+      resourceId: 'bulk-alt-text',
+      after: { siteId, processed, skipped, total: imageTargets.length },
+    })
   }
 
-  const targetIds = imageTargets.map(f => f.id)
+  waitUntil(event, run())
 
-  if (cfCtx?.waitUntil) {
-    cfCtx.waitUntil(run())
-    return { processing: true, total: imageTargets.length, mediaIds: targetIds }
+  return {
+    processing: true,
+    total: imageTargets.length,
+    mediaIds: targetIds,
+    capped: remaining > 0,
+    remaining,
   }
-
-  // Fallback: run inline (local dev / non-CF environments)
-  await run()
-  return { processed, skipped, total: imageTargets.length, mediaIds: targetIds }
 })

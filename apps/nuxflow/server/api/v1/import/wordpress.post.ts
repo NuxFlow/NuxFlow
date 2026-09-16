@@ -3,7 +3,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { contentTypes, contentItems, taxonomies, taxonomyTerms, contentTaxonomyTerms, media } from '@nuxflow/db/schema'
 import { getActiveProvider } from '../../../utils/media-providers/index'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { isSafeUrl, safeFetch } from '../../../utils/security'
 import { errorMessage } from '../../../utils/errors'
@@ -142,12 +142,18 @@ export default defineEventHandler(async (event) => {
         tagTaxonomy = { id, siteId, slug: 'post_tag', name: 'Tags', isHierarchical: false, createdAt: '' }
       }
 
-      const catTermMap = new Map<string, string>()
+      // One prefetch instead of one findFirst() per category — a WXR export can carry
+      // hundreds of categories.
+      const catSlugs = [...categories.keys()]
+      const existingCatTerms = catSlugs.length > 0
+        ? await db.query.taxonomyTerms.findMany({
+            where: and(eq(taxonomyTerms.taxonomyId, catTaxonomy.id), inArray(taxonomyTerms.slug, catSlugs)),
+            columns: { id: true, slug: true },
+          })
+        : []
+      const catTermMap = new Map(existingCatTerms.map(t => [t.slug, t.id]))
       for (const [slug, cat] of categories) {
-        const existing = await db.query.taxonomyTerms.findFirst({
-          where: and(eq(taxonomyTerms.taxonomyId, catTaxonomy.id), eq(taxonomyTerms.slug, slug)),
-        })
-        if (existing) { catTermMap.set(slug, existing.id); continue }
+        if (catTermMap.has(slug)) continue
         const id = ulid()
         await db.insert(taxonomyTerms).values({ id, taxonomyId: catTaxonomy.id, slug, name: cat.name })
         catTermMap.set(slug, id)
@@ -165,12 +171,17 @@ export default defineEventHandler(async (event) => {
         }
       }
 
-      const tagTermMap = new Map<string, string>()
+      // Same prefetch-and-Map pattern as categories above.
+      const tagSlugs = [...tags.keys()]
+      const existingTagTerms = tagSlugs.length > 0
+        ? await db.query.taxonomyTerms.findMany({
+            where: and(eq(taxonomyTerms.taxonomyId, tagTaxonomy.id), inArray(taxonomyTerms.slug, tagSlugs)),
+            columns: { id: true, slug: true },
+          })
+        : []
+      const tagTermMap = new Map(existingTagTerms.map(t => [t.slug, t.id]))
       for (const [slug, name] of tags) {
-        const existing = await db.query.taxonomyTerms.findFirst({
-          where: and(eq(taxonomyTerms.taxonomyId, tagTaxonomy.id), eq(taxonomyTerms.slug, slug)),
-        })
-        if (existing) { tagTermMap.set(slug, existing.id); continue }
+        if (tagTermMap.has(slug)) continue
         const id = ulid()
         await db.insert(taxonomyTerms).values({ id, taxonomyId: tagTaxonomy.id, slug, name })
         tagTermMap.set(slug, id)
@@ -191,15 +202,23 @@ export default defineEventHandler(async (event) => {
       let imported = 0
       let skipped = 0
 
+      // One prefetch instead of one findFirst() per item — a large WXR export can carry
+      // thousands of items, which previously meant one D1 round trip per item just to
+      // check for a slug collision before any write happened. Mirrors the same fix in
+      // backup.ts's content-restore section (see applyBackup()).
+      const existingSlugRows = items.length > 0
+        ? await db.query.contentItems.findMany({
+            where: and(eq(contentItems.siteId, siteId), inArray(contentItems.slug, items.map(i => i.slug))),
+            columns: { slug: true },
+          })
+        : []
+      const existingSlugs = new Set(existingSlugRows.map(i => i.slug))
+
       for (const item of items) {
         const typeId = item.postType === 'page' ? pageType.id : postType.id
         const itemId = ulid()
 
-        const existing = await db.query.contentItems.findFirst({
-          where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, item.slug)),
-          columns: { id: true },
-        })
-        if (existing) { skipped++; continue }
+        if (existingSlugs.has(item.slug)) { skipped++; continue }
 
         let content = item.content
         for (const [remoteUrl, localUrl] of urlMap.entries()) {
@@ -221,6 +240,9 @@ export default defineEventHandler(async (event) => {
           ogImage,
           publishedAt: item.publishedAt,
         })
+        // A WXR export shouldn't contain duplicate slugs, but recording it here keeps a
+        // pathological one from inserting twice within the same run.
+        existingSlugs.add(item.slug)
 
         const termIds: string[] = []
         for (const catSlug of item.categories) {

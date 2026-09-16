@@ -63,7 +63,7 @@ vi.mock('../../server/utils/better-auth', () => ({
   clearBetterAuthCache: vi.fn(),
 }))
 
-const { buildBackup, applyBackup } = await import('../../server/utils/backup')
+const { buildBackup, applyBackup, parseBackupJson } = await import('../../server/utils/backup')
 
 const SOURCE_SITE = 'site-backup-src-01'
 const TARGET_SITE = 'site-backup-dst-01'
@@ -431,6 +431,35 @@ describe('applyBackup() — restoring users and membership tiers', () => {
     expect(mockRequestPasswordReset).toHaveBeenCalledWith({
       body: { email: 'brand-new@backup-src.test', redirectTo: '/reset-password' },
     })
+  })
+
+  it('parseBackupJson() rejects a hand-crafted backup granting super_admin (privilege-escalation guard)', async () => {
+    const backup = await buildBackup(mkEvent(SOURCE_SITE), SOURCE_SITE)
+    const tampered = {
+      ...backup,
+      users: [...backup.users, { email: 'attacker@backup-src.test', name: 'Attacker', role: 'super_admin' }],
+    }
+    expect(() => parseBackupJson(JSON.stringify(tampered))).toThrow(/validation/i)
+  })
+
+  it('applyBackup() skips a super_admin role even when handed directly as an object, bypassing parseBackupJson()', async () => {
+    const backup = await buildBackup(mkEvent(SOURCE_SITE), SOURCE_SITE)
+    // Simulates a caller that never went through the upload-time schema (e.g. a crafted
+    // object built by hand) — TS itself no longer allows this literal, hence the cast.
+    const tampered = {
+      ...backup,
+      users: [...backup.users, { email: 'attacker2@backup-src.test', name: 'Attacker Two', role: 'super_admin' as unknown as 'viewer' }],
+    }
+
+    const result = await applyBackup(mkEvent(TARGET_SITE), TARGET_SITE, tampered, {
+      what: ['users'],
+      conflictMode: 'skip',
+    })
+    expect(result.users.skipped).toBeGreaterThanOrEqual(1)
+
+    const db = getCurrentTestDb()
+    const attacker = await db.query.users.findFirst({ where: eq(users.email, 'attacker2@backup-src.test') })
+    expect(attacker).toBeFalsy() // never even provisioned — the role check runs before findOrCreateUserAccount()
   })
 
   it('assigns a role to an already-existing account without re-creating it or emailing them', async () => {

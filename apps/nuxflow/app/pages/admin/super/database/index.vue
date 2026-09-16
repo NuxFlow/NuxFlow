@@ -86,8 +86,8 @@ async function downloadExport() {
     // A response with neither the completion trailer nor an EXPORT FAILED marker means
     // the connection or the server process died mid-stream before either could be
     // written (e.g. the Worker's own isolate memory limit killed it outright — see
-    // d1-export.ts) — the file the browser just saved is truncated and missing its
-    // COMMIT, so this must not be reported as a successful export.
+    // d1-export.ts) — the file the browser just saved is truncated, so this must not be
+    // reported as a successful export.
     const summary = text.match(/-- Exported (\d+) tables?, (\d+) rows?/)
     if (!summary) {
       throw new Error('Export response was incomplete — the connection dropped or the server ran out of memory mid-export before finishing. The downloaded file is truncated; do not restore it. Try again, or use `wrangler d1 export` from the CLI instead.')

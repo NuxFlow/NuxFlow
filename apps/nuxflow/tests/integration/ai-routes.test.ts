@@ -14,8 +14,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
-import { eq } from 'drizzle-orm'
-import { media } from '@nuxflow/db/schema'
+import { eq, and } from 'drizzle-orm'
+import { media, auditLogs } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedMedia } from '../helpers/seed'
@@ -73,6 +73,22 @@ let editorId: string
 let mediaId: string
 
 type HandlerFn = (e: H3Event) => Promise<unknown>
+
+// bulk-alt-text.post.ts now always processes via the shared waitUntil() helper
+// (server/utils/cf-env.ts), which is fire-and-forget in every environment (there's no
+// ctx.waitUntil in these mock events, so it falls into `void promise` rather than being
+// awaited by the handler) — matching real Cloudflare behavior, where the response must
+// return before the background job is guaranteed to finish. The handler's own promise
+// resolves in the background regardless, so poll for the expected side effect instead of
+// asserting on the handler's return value.
+async function waitFor(predicate: () => Promise<boolean> | boolean, timeoutMs = 2000, intervalMs = 10): Promise<void> {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await predicate()) return
+    await new Promise(resolve => setTimeout(resolve, intervalMs))
+  }
+  throw new Error(`waitFor: condition not met within ${timeoutMs}ms`)
+}
 
 beforeAll(async () => {
   await initTestDb()
@@ -265,7 +281,7 @@ describe('POST /api/v1/ai/bulk-alt-text', () => {
     ).rejects.toMatchObject({ statusCode: 503 })
   })
 
-  it('processes only the requested image, skipping non-image media', async () => {
+  it('processes only the requested image, skipping non-image media, and writes one audit log row for the batch', async () => {
     const db = getCurrentTestDb()
     const docId = await seedMedia(db, SITE, { originalName: 'brochure.pdf', mimeType: 'application/pdf' })
 
@@ -274,13 +290,96 @@ describe('POST /api/v1/ai/bulk-alt-text', () => {
 
     const result = await (bulkAltTextHandler as HandlerFn)(
       mkEditorEvent({ mediaIds: [mediaId, docId] }),
-    ) as { processed: number; skipped: number; total: number }
+    ) as { processing: boolean; total: number; mediaIds: string[]; capped: boolean }
 
+    // The route now always fires the background job via the shared waitUntil() helper
+    // instead of awaiting it inline, so the response reports it's processing rather than
+    // returning synchronous processed/skipped counts.
+    expect(result.processing).toBe(true)
     expect(result.total).toBe(1)
-    expect(result.processed).toBe(1)
+    expect(result.mediaIds).toEqual([mediaId])
+    expect(result.capped).toBe(false)
 
-    const updated = await db.query.media.findFirst({ where: eq(media.id, mediaId) })
-    expect(updated?.altText).toBe('Generated alt text')
+    await waitFor(async () => {
+      const updated = await db.query.media.findFirst({ where: eq(media.id, mediaId) })
+      return updated?.altText === 'Generated alt text'
+    })
+
+    const [logEntry] = await db.select().from(auditLogs)
+      .where(and(eq(auditLogs.resource, 'media'), eq(auditLogs.resourceId, 'bulk-alt-text')))
+    expect(logEntry).toBeDefined()
+    expect(logEntry.action).toBe('update')
+    expect(logEntry.after).toMatchObject({ siteId: SITE, processed: 1, skipped: 0, total: 1 })
+  })
+
+  it('logs the error and counts a failure as skipped rather than silently dropping it', async () => {
+    const db = getCurrentTestDb()
+    const failId = await seedMedia(db, SITE, { originalName: 'will-fail.jpg', mimeType: 'image/jpeg' })
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateText.mockRejectedValueOnce(new Error('Provider rate limited'))
+
+    const result = await (bulkAltTextHandler as HandlerFn)(
+      mkEditorEvent({ mediaIds: [failId] }),
+    ) as { processing: boolean; total: number }
+    expect(result.processing).toBe(true)
+
+    await waitFor(async () => {
+      const [logEntry] = await db.select().from(auditLogs)
+        .where(and(eq(auditLogs.resource, 'media'), eq(auditLogs.resourceId, 'bulk-alt-text'), eq(auditLogs.userId, editorId)))
+        .orderBy(auditLogs.createdAt)
+      return !!logEntry
+    })
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(failId),
+      expect.any(Error),
+    )
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('caps the number of images processed per invocation and reports how many remain', async () => {
+    const db = getCurrentTestDb()
+    // MAX_IMAGES_PER_RUN is 50 — seed one past the cap using the "process all untagged
+    // images" path (no explicit mediaIds) so the cap logic (not the mediaIds filter) is
+    // what's under test.
+    const capSite = 'site-ai-cap-01'
+    await seedSite(db, { id: capSite, domain: 'ai-cap.localhost' })
+    const capEditorId = await seedUser(db, { email: 'editor@ai-cap.test' })
+    await seedRole(db, capEditorId, capSite, 'editor')
+
+    const ids: string[] = []
+    for (let i = 0; i < 51; i++) {
+      ids.push(await seedMedia(db, capSite, { originalName: `cap-${i}.jpg`, mimeType: 'image/jpeg' }))
+    }
+
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateText.mockResolvedValue({ text: 'Generated alt text' })
+
+    const event = createMockEvent({
+      siteId: capSite,
+      session: { user: { id: capEditorId, name: 'Cap Editor', email: 'editor@ai-cap.test' } },
+      body: {},
+    }) as unknown as H3Event
+
+    const result = await (bulkAltTextHandler as HandlerFn)(event) as {
+      processing: boolean; total: number; capped: boolean; remaining: number
+    }
+
+    expect(result.total).toBe(50)
+    expect(result.capped).toBe(true)
+    expect(result.remaining).toBe(1)
+
+    await waitFor(async () => {
+      const rows = await db.query.media.findMany({ where: eq(media.siteId, capSite) })
+      return rows.filter(r => r.altText === 'Generated alt text').length === 50
+    })
+
+    // Exactly one of the 51 seeded images should have been left untouched by the capped run.
+    const rows = await db.query.media.findMany({ where: eq(media.siteId, capSite) })
+    expect(rows.filter(r => !r.altText).length).toBe(1)
+    expect(ids.length).toBe(51)
   })
 })
 

@@ -39,13 +39,13 @@ export default defineEventHandler(async (event) => {
     'payments.ls_api_key': 'lsApiKey',
     'payments.ls_webhook_secret': 'lsWebhookSecret',
     'payments.paddle_api_key': 'paddleApiKey',
-    'payments.paddle_webhook_public_key': 'paddleWebhookPublicKey',
     'ai.openai_api_key': 'openaiApiKey',
     'ai.anthropic_api_key': 'anthropicApiKey',
     'ai.gemini_api_key': 'geminiApiKey',
     'ai.deepseek_api_key': 'deepseekApiKey',
     'cloudflare.stream_token': 'cloudflareStreamToken',
     'cloudflare.images_token': 'cloudflareImagesToken',
+    'media.s3_access_key': 's3AccessKey',
     'media.s3_secret_key': 's3SecretKey',
     'media.bunny_api_key': 'bunnyApiKey',
     'auth.google_client_secret': 'googleClientSecret',
@@ -65,11 +65,20 @@ export default defineEventHandler(async (event) => {
   const cfDeliveryUrl = rc.cloudflareImagesDeliveryUrl as string | undefined
   if (!settings['cloudflare.images_delivery_url'] && cfDeliveryUrl) settings['cloudflare.images_delivery_url'] = cfDeliveryUrl
 
-  // Same for the non-sensitive S3/Bunny env vars
+  // Paddle's webhook public key is a *verification* key, not a secret (see
+  // SENSITIVE_SETTING_KEYS) — expose its env-var fallback in plaintext like the other
+  // non-sensitive env vars above, rather than masking it.
+  const paddleWebhookPublicKey = rc.paddleWebhookPublicKey as string | undefined
+  if (!settings['payments.paddle_webhook_public_key'] && paddleWebhookPublicKey) {
+    settings['payments.paddle_webhook_public_key'] = paddleWebhookPublicKey
+  }
+
+  // Same for the non-sensitive S3/Bunny env vars. media.s3_access_key is deliberately NOT
+  // here — it's sensitive (see SENSITIVE_SETTING_KEYS) and its env-var fallback is already
+  // covered by envMap above, which masks it like every other sensitive key.
   const nonSensitiveMediaEnv: Record<string, string> = {
     'media.r2_public_url': 'r2PublicUrl',
     'media.s3_bucket': 's3Bucket',
-    'media.s3_access_key': 's3AccessKey',
     'media.s3_region': 's3Region',
     'media.s3_endpoint': 's3Endpoint',
     'media.s3_public_url': 's3PublicUrl',

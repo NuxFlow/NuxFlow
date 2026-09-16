@@ -85,7 +85,8 @@ function onAiImageGenerated(url: string) {
 // ── Bulk alt text ─────────────────────────────────────────────────────────────
 const bulkAltLoading = ref(false)
 const bulkAltPolling = ref(false)
-const bulkAltResult = ref<{ processed?: number; total?: number; processing?: boolean; mediaIds?: string[] } | null>(null)
+type BulkAltTextResponse = { processed?: number; skipped?: number; total?: number; processing?: boolean; mediaIds?: string[]; capped?: boolean; remaining?: number }
+const bulkAltResult = ref<BulkAltTextResponse | null>(null)
 const toast = useToast()
 
 let bulkAltPoller: ReturnType<typeof setInterval> | null = null
@@ -99,10 +100,19 @@ onBeforeUnmount(() => {
 // telling us when it finishes, so poll the media list (mirrors the video-processing
 // poller in videos.vue) until every targeted item has non-empty alt text, or bail out
 // after a couple of minutes with a "still processing" toast rather than polling forever.
+//
+// The endpoint also caps how many images it processes per invocation (currently 50 — see
+// MAX_IMAGES_PER_RUN in bulk-alt-text.post.ts) and reports `capped`/`remaining` when the
+// media library has more untagged images than that. When a batch finishes and more remain,
+// automatically kick off the next batch rather than requiring a manual re-click — bounded
+// by BULK_ALT_MAX_ROUNDS so a server-side bug that always reports `capped: true` can't spin
+// this into an unbounded loop of AI-provider calls.
 const BULK_ALT_POLL_INTERVAL_MS = 5000
 const BULK_ALT_POLL_TIMEOUT_MS = 2 * 60 * 1000
+const BULK_ALT_MAX_ROUNDS = 20 // 20 x 50-image batches = up to 1000 images per click
+let bulkAltRound = 0
 
-function startBulkAltPoller(targetIds: string[]) {
+function startBulkAltPoller(targetIds: string[], capped: boolean) {
   if (bulkAltPoller) clearInterval(bulkAltPoller)
   if (!targetIds.length) return
 
@@ -120,7 +130,19 @@ function startBulkAltPoller(targetIds: string[]) {
       if (bulkAltPoller) clearInterval(bulkAltPoller)
       bulkAltPoller = null
       bulkAltPolling.value = false
-      toast.add({ title: 'Alt text generation complete', color: 'success' })
+
+      if (capped && bulkAltRound < BULK_ALT_MAX_ROUNDS) {
+        toast.add({ title: 'Batch complete — starting next batch…', color: 'info' })
+        await runBulkAltTextBatch()
+      } else if (capped) {
+        toast.add({
+          title: 'More images remain',
+          description: 'Click "Generate alt text" again to continue processing the rest of the library.',
+          color: 'warning',
+        })
+      } else {
+        toast.add({ title: 'Alt text generation complete', color: 'success' })
+      }
       return
     }
 
@@ -137,18 +159,27 @@ function startBulkAltPoller(targetIds: string[]) {
   }, BULK_ALT_POLL_INTERVAL_MS)
 }
 
+// Entry point for a manual click — resets the round counter so a fresh click always gets
+// the full BULK_ALT_MAX_ROUNDS budget, regardless of how many auto-continuation rounds a
+// previous click already used.
 async function runBulkAltText() {
+  bulkAltRound = 0
+  await runBulkAltTextBatch()
+}
+
+async function runBulkAltTextBatch() {
   bulkAltLoading.value = true
   bulkAltResult.value = null
+  bulkAltRound++
   try {
-    const res = await $fetch<{ processed?: number; total?: number; processing?: boolean; mediaIds?: string[] }>('/api/v1/ai/bulk-alt-text', {
+    const res = await $fetch<BulkAltTextResponse>('/api/v1/ai/bulk-alt-text', {
       method: 'POST',
       body: {},
     })
     bulkAltResult.value = res
     if (res.processing) {
       toast.add({ title: `Generating alt text for ${res.total} images in background…`, color: 'info' })
-      startBulkAltPoller(res.mediaIds ?? [])
+      startBulkAltPoller(res.mediaIds ?? [], !!res.capped)
     } else if (res.processed !== undefined) {
       toast.add({ title: `Alt text generated for ${res.processed} image${res.processed !== 1 ? 's' : ''}`, color: 'success' })
       await refresh()

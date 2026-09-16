@@ -18,7 +18,11 @@ export const SENSITIVE_SETTING_KEYS = new Set([
   'payments.ls_api_key',
   'payments.ls_webhook_secret',
   'payments.paddle_api_key',
-  'payments.paddle_webhook_public_key',
+  // NOTE: payments.paddle_webhook_public_key is deliberately NOT in this set — it's a
+  // *public* verification key (used only to verify Paddle's incoming webhook signatures,
+  // never to sign anything), so there's no secrecy requirement. Marking it sensitive here
+  // would just cost an unnecessary encrypt/decrypt round trip on a value that was never
+  // secret in the first place.
   'ai.openai_api_key',
   'ai.anthropic_api_key',
   'ai.gemini_api_key',
@@ -26,6 +30,13 @@ export const SENSITIVE_SETTING_KEYS = new Set([
   'push.vapid_private_key',
   'cloudflare.stream_token',
   'cloudflare.images_token',
+  // media.s3_access_key (an AWS Access Key ID) is not independently exploitable without
+  // its paired media.s3_secret_key, but it's kept sensitive for defense-in-depth: the two
+  // are stored in the same settings blob, and returning the access key unmasked widens
+  // exposure (logs, browser extensions, a compromised lower-trust session) more than
+  // necessary for no real benefit — nothing legitimate needs to read it in plaintext from
+  // the settings API.
+  'media.s3_access_key',
   'media.s3_secret_key',
   'media.bunny_api_key',
   // SMS provider credentials — added proactively ahead of SMS feature implementation
@@ -41,6 +52,25 @@ export const SENSITIVE_SETTING_KEYS = new Set([
 ])
 
 export const SECRET_MASK = '••••••••••••••••'
+
+// Keys that used to live in SENSITIVE_SETTING_KEYS and so may still hold a value
+// encrypted under the old regime in an existing deployment's DB (payments.paddle_webhook_public_key
+// was reclassified as non-sensitive — it's a public verification key, never a secret).
+// resolveSetting() below transparently decrypts a stored value for these keys if it's
+// still in the old `ivB64:cipherB64` shape, so an already-encrypted row doesn't start
+// coming back as unusable ciphertext the moment the key stops being treated as sensitive.
+const FORMERLY_SENSITIVE_SETTING_KEYS = new Set([
+  'payments.paddle_webhook_public_key',
+])
+
+// Matches this module's `ivBase64Url:ciphertextBase64Url` encryptText() output format.
+// Used only to decide whether a formerly-sensitive key's stored value needs one-time
+// decryption — real plaintext values for these keys (e.g. a PEM public key) never
+// happen to match this shape.
+function looksLikeEncryptedValue(val: string): boolean {
+  const parts = val.split(':')
+  return parts.length === 2 && parts.every(p => p.length > 0 && /^[\w-]+$/.test(p))
+}
 
 /**
  * Resolves a site setting. Checks the database first, decrypts if sensitive, and falls back to environment variables.
@@ -76,6 +106,15 @@ export async function resolveSetting(event: H3Event, key: string, envKey?: strin
             // Value was stored before encryption was enforced (plaintext migration).
             // Use the raw value — next save will encrypt it properly.
             console.warn(`[settings] Could not decrypt ${key}, using raw stored value`)
+          }
+        } else if (FORMERLY_SENSITIVE_SETTING_KEYS.has(key) && looksLikeEncryptedValue(val)) {
+          // One-time migration path: this key used to be encrypted; transparently
+          // decrypt an old row instead of returning unusable ciphertext.
+          const secret = rc.betterAuthSecret as string
+          try {
+            val = await decryptText(val, secret)
+          } catch {
+            console.warn(`[settings] Could not decrypt formerly-sensitive ${key}, using raw stored value`)
           }
         }
         settingsCache.set(cacheKey, val)

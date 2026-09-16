@@ -13,6 +13,16 @@ const AUTH_RATE_LIMITS: Record<string, { limit: number; windowMs: number }> = {
   '/api/auth/sign-up/email': { limit: 5, windowMs: 60 * 60_000 },
   '/api/auth/request-password-reset': { limit: 3, windowMs: 15 * 60_000 },
   '/api/auth/reset-password': { limit: 10, windowMs: 15 * 60_000 },
+  // WebAuthn itself isn't brute-forceable (the challenge is single-use and the private key
+  // never leaves the authenticator), so these two aren't a brute-force target the way the
+  // paths above are. They're throttled anyway because challenge generation still does real
+  // work (a DB round trip to look up the user's registered credentials for
+  // generate-authenticate-options, and a session lookup for generate-register-options) —
+  // unthrottled, an attacker could use them for isolate/D1 load amplification. The limit is
+  // generous (per-minute, not per-hour) since a legitimate passkey flow can retry a few
+  // times in quick succession (cancelled browser prompt, switching authenticators, etc.).
+  '/api/auth/passkey/generate-register-options': { limit: 30, windowMs: 60_000 },
+  '/api/auth/passkey/generate-authenticate-options': { limit: 30, windowMs: 60_000 },
 }
 
 // Intercepts all /api/auth/** requests BEFORE route handlers run.

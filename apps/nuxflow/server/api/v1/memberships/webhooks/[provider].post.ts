@@ -4,6 +4,7 @@ import type { StripeProvider } from '../../../../utils/payments/stripe'
 import { getStripeProvider, getLemonSqueezyProvider, getPaddleProvider } from '../../../../utils/payments/resolve'
 import { upsertSubscriptionFromWebhook, cancelSubscriptionFromWebhook, assertWebhookSiteMatch } from '../../../../utils/payments/webhook-sync'
 import { resolveSetting } from '../../../../utils/settings'
+import { rateLimit } from '../../../../utils/rate-limit'
 
 const STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID = {
   active: 'active', trialing: 'trialing', past_due: 'past_due', unpaid: 'unpaid',
@@ -45,12 +46,11 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
       assertWebhookSiteMatch(event, session.metadata?.siteId)
 
       // Fetch the subscription from Stripe to get full details
-      const stripeSecretKeyFull = await resolveSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
-      const subRes = await fetch(`https://api.stripe.com/v1/subscriptions/${session.subscription}`, {
-        headers: { Authorization: `Bearer ${stripeSecretKeyFull}` },
-      })
-      if (!subRes.ok) {
-        const detail = await subRes.text()
+      let stripeSub: Awaited<ReturnType<StripeProvider['getSubscription']>>
+      try {
+        stripeSub = await stripe.getSubscription(session.subscription)
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err)
         console.error('[stripe-webhook] Failed to fetch subscription', detail)
         // A transient failure here (rate limit, network blip) must not be swallowed as a
         // 200 — Stripe treats 2xx as "delivered" and stops retrying, which would
@@ -60,21 +60,19 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         // conflict-safe operation (see webhook-sync.ts).
         throw createError({ statusCode: 502, message: `Failed to fetch Stripe subscription ${session.subscription}: ${detail}` })
       }
-      const stripeSub = await subRes.json() as {
-        id: string; customer: string; status: string
-        items: { data: Array<{ price: { id: string } }> }
-        current_period_start: number; current_period_end: number
-      }
+      // Current API versions carry the billing period on each subscription item
+      // rather than on the subscription itself.
+      const stripeSubItem = stripeSub.items.data[0]
 
       await upsertSubscriptionFromWebhook(event, {
         provider: 'stripe',
         userId,
         providerSubscriptionId: stripeSub.id,
-        providerCustomerId: String(stripeSub.customer),
+        providerCustomerId: typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id,
         status: statusMap[stripeSub.status] ?? 'active',
-        tierLookupId: stripeSub.items.data[0]?.price?.id,
-        currentPeriodStart: new Date(stripeSub.current_period_start * 1000).toISOString(),
-        currentPeriodEnd: new Date(stripeSub.current_period_end * 1000).toISOString(),
+        tierLookupId: stripeSubItem?.price?.id,
+        currentPeriodStart: stripeSubItem ? new Date(stripeSubItem.current_period_start * 1000).toISOString() : undefined,
+        currentPeriodEnd: stripeSubItem ? new Date(stripeSubItem.current_period_end * 1000).toISOString() : undefined,
         pushOnActivation: true,
       })
       console.log('[stripe-webhook] checkout.session.completed handled', { userId, subId: stripeSub.id })
@@ -215,6 +213,15 @@ async function handlePaddleWebhook(event: H3Event, rawBody: string) {
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 export default defineEventHandler(async (event) => {
+  // Every request here does real work (a resolveSetting() DB round trip that decrypts a
+  // sensitive setting, then signature verification) before an invalid one is rejected, so
+  // this endpoint needs the same rate-limit floor as other credential-adjacent routes.
+  // There's no per-tenant identity available pre-verification, so this is IP-based like
+  // the auth endpoints in 04.auth-override.ts. 100/minute is generous enough to absorb a
+  // legitimate provider's retry/backoff burst (Stripe in particular can send a lot of
+  // events in a short window during a payment surge) while still bounding a hostile flood.
+  await rateLimit(event, { limit: 100, windowMs: 60_000, keyPrefix: 'payment-webhook' })
+
   const provider = getRouterParam(event, 'provider')
   const rawBody = await readRawBody(event) ?? ''
 

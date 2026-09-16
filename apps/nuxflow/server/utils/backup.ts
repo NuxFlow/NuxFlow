@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import { z } from 'zod'
 import { useDb } from './db'
 import {
   sites, siteSettings,
@@ -20,7 +21,6 @@ import {
 } from './cf-env'
 import { verifyPluginSignature, computeSha256 } from './plugin-signing'
 import { findOrCreateUserAccount } from './user-provisioning'
-import { getUserSiteRole } from './permissions'
 
 // ── Backup format types ───────────────────────────────────────────────────────
 
@@ -195,6 +195,181 @@ export interface NuxFlowBackup {
   plugins: BackupDynamicPlugin[]
   users: BackupUserRole[]
   membershipTiers: BackupMembershipTier[]
+}
+
+// ── Backup format runtime validation ──────────────────────────────────────────
+// A backup.json is user-editable before upload (unzip, edit, rezip — or just upload a
+// raw .json), so the restore path must never trust `JSON.parse(...) as NuxFlowBackup`
+// the way a same-process value could be. This schema is the actual enforcement of the
+// "never restores super_admin" guarantee documented on BackupUserRole: buildBackup()
+// filtering it out of a *real* export means nothing to an attacker who skips buildBackup()
+// entirely and crafts the JSON by hand. Restricting `role` to this enum makes any such
+// payload fail validation before it ever reaches applyBackup(), rather than relying on
+// the update/insert logic downstream to remember to check it.
+// Single source of truth for "roles a backup restore is allowed to grant" — shared by
+// the Zod schema below (rejects an untrusted upload outright) and by the users-restore
+// loop in applyBackup() itself (a second, redundant check — applyBackup() is also called
+// from demo-import.post.ts and directly from tests, neither of which necessarily goes
+// through parseBackupJson(), so the loop must not rely solely on the upload-time schema).
+export const RESTORABLE_ROLES = ['admin', 'editor', 'author', 'viewer', 'member'] as const
+
+const backupUserRoleSchema = z.object({
+  email: z.string().email(),
+  name: z.string(),
+  role: z.enum(RESTORABLE_ROLES),
+})
+
+const backupContentTypeSchema = z.object({
+  slug: z.string(),
+  name: z.string(),
+  singularName: z.string(),
+  icon: z.string().nullable(),
+  isBuiltIn: z.boolean(),
+  hasRevisions: z.boolean(),
+  hasComments: z.boolean(),
+})
+
+const backupContentItemSchema = z.object({
+  typeSlug: z.string(),
+  slug: z.string(),
+  title: z.string(),
+  status: z.string(),
+  visibility: z.string(),
+  content: z.unknown(),
+  excerpt: z.string().nullable(),
+  seoTitle: z.string().nullable(),
+  seoDescription: z.string().nullable(),
+  ogImage: z.string().nullable(),
+  publishedAt: z.string().nullable(),
+  settings: z.record(z.string(), z.unknown()).nullable(),
+  termSlugs: z.array(z.string()),
+  locale: z.string().nullable(),
+  sourceItemSlug: z.string().nullable(),
+})
+
+const backupTermSchema = z.object({
+  slug: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  parentSlug: z.string().nullable(),
+})
+
+const backupTaxonomySchema = z.object({
+  slug: z.string(),
+  name: z.string(),
+  isHierarchical: z.boolean(),
+  terms: z.array(backupTermSchema),
+})
+
+const backupMenuSchema = z.object({
+  name: z.string(),
+  location: z.string().nullable(),
+  items: z.array(z.unknown()),
+})
+
+const backupFormSchema = z.object({
+  slug: z.string(),
+  name: z.string(),
+  fields: z.array(z.unknown()),
+  logic: z.array(z.unknown()),
+  notifications: z.unknown(),
+  redirectUrl: z.string().nullable(),
+  status: z.string(),
+})
+
+const backupMediaItemSchema = z.object({
+  id: z.string(),
+  originalName: z.string(),
+  mimeType: z.string(),
+  size: z.number(),
+  width: z.number().nullable(),
+  height: z.number().nullable(),
+  altText: z.string().nullable(),
+  caption: z.string().nullable(),
+  url: z.string(),
+  zipPath: z.string().nullable(),
+})
+
+const backupThemeSchema = z.object({
+  packageName: z.string(),
+  name: z.string(),
+  version: z.string(),
+  isActive: z.boolean(),
+  hasCss: z.boolean(),
+  settings: z.record(z.string(), z.unknown()).nullable(),
+  css: z.string().nullable(),
+  demo: z.string().nullable(),
+})
+
+const backupDynamicPluginSchema = z.object({
+  pluginId: z.string(),
+  name: z.string(),
+  version: z.string(),
+  description: z.string(),
+  isActive: z.boolean(),
+  hasServer: z.boolean(),
+  hasClient: z.boolean(),
+  serverChecksum: z.string().nullable(),
+  clientChecksum: z.string().nullable(),
+  blockDefinitions: z.array(z.record(z.string(), z.unknown())).nullable(),
+  definitionsChecksum: z.string().nullable(),
+  publisherPublicKey: z.string(),
+  signature: z.string(),
+  serverCode: z.string().nullable(),
+  clientBundle: z.string().nullable(),
+})
+
+const backupMembershipTierSchema = z.object({
+  name: z.string(),
+  description: z.string().nullable(),
+  price: z.number(),
+  currency: z.string(),
+  interval: z.enum(['month', 'year', 'one_time']),
+  features: z.array(z.string()),
+  stripeProductId: z.string().nullable(),
+  stripePriceId: z.string().nullable(),
+  lsProductId: z.string().nullable(),
+  lsVariantId: z.string().nullable(),
+  paddleProductId: z.string().nullable(),
+  isActive: z.boolean(),
+})
+
+export const nuxFlowBackupSchema = z.object({
+  version: z.literal('1'),
+  exportedAt: z.string(),
+  site: z.object({
+    name: z.string(),
+    locale: z.string(),
+    timezone: z.string(),
+  }),
+  settings: z.record(z.string(), z.unknown()),
+  contentTypes: z.array(backupContentTypeSchema),
+  content: z.array(backupContentItemSchema),
+  taxonomies: z.array(backupTaxonomySchema),
+  menus: z.array(backupMenuSchema),
+  forms: z.array(backupFormSchema),
+  media: z.array(backupMediaItemSchema),
+  themes: z.array(backupThemeSchema),
+  plugins: z.array(backupDynamicPluginSchema),
+  users: z.array(backupUserRoleSchema),
+  membershipTiers: z.array(backupMembershipTierSchema),
+}) satisfies z.ZodType<NuxFlowBackup>
+
+// Parses and validates an uploaded backup.json against the schema above, throwing a
+// standard 400 (not a raw ZodError) on anything malformed — the only path by which
+// externally-supplied backup JSON should ever become a trusted `NuxFlowBackup` value.
+export function parseBackupJson(raw: string): NuxFlowBackup {
+  let json: unknown
+  try {
+    json = JSON.parse(raw)
+  } catch {
+    throw badRequest('Backup file is not valid JSON')
+  }
+  const result = nuxFlowBackupSchema.safeParse(json)
+  if (!result.success) {
+    throw badRequest(`Backup file failed validation: ${result.error.issues[0]?.message ?? 'invalid shape'}`)
+  }
+  return result.data
 }
 
 // Replaces all occurrences of old image URLs with new ones throughout the backup JSON.
@@ -563,41 +738,66 @@ export async function applyBackup(
   const termIdBySlugPath = new Map<string, string>()
 
   if (opts.what.includes('taxonomies') && backup.taxonomies) {
-    for (const backupTax of backup.taxonomies) {
-      let tax = await db.query.taxonomies.findFirst({
-        where: and(eq(taxonomies.siteId, siteId), eq(taxonomies.slug, backupTax.slug)),
-      })
-      if (!tax) {
-        const id = ulid()
-        await db.insert(taxonomies).values({
-          id, siteId, slug: backupTax.slug, name: backupTax.name, isHierarchical: backupTax.isHierarchical,
+    // One prefetch instead of one findFirst() per taxonomy — a backup with many
+    // taxonomies previously meant one D1 round trip per taxonomy before any write.
+    const taxSlugs = backup.taxonomies.map(t => t.slug)
+    const existingTaxRows = taxSlugs.length > 0
+      ? await db.query.taxonomies.findMany({
+          where: and(eq(taxonomies.siteId, siteId), inArray(taxonomies.slug, taxSlugs)),
+          columns: { id: true, slug: true },
         })
-        tax = { id, siteId, slug: backupTax.slug, name: backupTax.name, isHierarchical: backupTax.isHierarchical, createdAt: '' }
+      : []
+    const taxIdBySlug = new Map(existingTaxRows.map(t => [t.slug, t.id]))
+
+    // Same for terms: one prefetch across every taxonomy that already exists, keyed by
+    // "{taxonomyId}/{slug}" since a term's slug is only unique within its own taxonomy.
+    // A taxonomy created fresh below can't have any pre-existing terms, so it needs no
+    // entry here.
+    const existingTaxIds = existingTaxRows.map(t => t.id)
+    const existingTermRows = existingTaxIds.length > 0
+      ? await db.query.taxonomyTerms.findMany({
+          where: inArray(taxonomyTerms.taxonomyId, existingTaxIds),
+          columns: { id: true, taxonomyId: true, slug: true },
+        })
+      : []
+    const termIdByTaxAndSlug = new Map(existingTermRows.map(t => [`${t.taxonomyId}/${t.slug}`, t.id]))
+
+    for (const backupTax of backup.taxonomies) {
+      let taxId = taxIdBySlug.get(backupTax.slug)
+      if (!taxId) {
+        taxId = ulid()
+        await db.insert(taxonomies).values({
+          id: taxId, siteId, slug: backupTax.slug, name: backupTax.name, isHierarchical: backupTax.isHierarchical,
+        })
         result.taxonomies.created++
+        // A backup.json is user-editable and could (however unrealistically) contain a
+        // duplicate taxonomy slug; recording the freshly-created id here means a second
+        // entry for the same slug is treated as already-existing instead of attempting a
+        // second insert with the same (siteId, slug).
+        taxIdBySlug.set(backupTax.slug, taxId)
       }
 
       // Insert terms (two-pass for parent references)
       const termIdBySlug = new Map<string, string>()
 
       for (const backupTerm of backupTax.terms) {
-        let term = await db.query.taxonomyTerms.findFirst({
-          where: and(eq(taxonomyTerms.taxonomyId, tax.id), eq(taxonomyTerms.slug, backupTerm.slug)),
-        })
-        if (!term) {
-          const id = ulid()
+        const key = `${taxId}/${backupTerm.slug}`
+        let termId = termIdByTaxAndSlug.get(key)
+        if (!termId) {
+          termId = ulid()
           await db.insert(taxonomyTerms).values({
-            id,
-            taxonomyId: tax.id,
+            id: termId,
+            taxonomyId: taxId,
             slug: backupTerm.slug,
             name: backupTerm.name,
             description: backupTerm.description,
             parentId: null, // set in second pass
           })
-          term = { id, taxonomyId: tax.id, slug: backupTerm.slug, name: backupTerm.name, description: backupTerm.description, parentId: null, createdAt: '' }
           result.terms.created++
+          termIdByTaxAndSlug.set(key, termId)
         }
-        termIdBySlug.set(backupTerm.slug, term.id)
-        termIdBySlugPath.set(`${backupTax.slug}/${backupTerm.slug}`, term.id)
+        termIdBySlug.set(backupTerm.slug, termId)
+        termIdBySlugPath.set(`${backupTax.slug}/${backupTerm.slug}`, termId)
       }
 
       // Second pass: wire parent IDs
@@ -731,17 +931,28 @@ export async function applyBackup(
 
   // ── Menus ─────────────────────────────────────────────────────────────────
   if (opts.what.includes('menus') && backup.menus) {
+    // One prefetch instead of one findFirst() per menu.
+    const menuNames = backup.menus.map(m => m.name)
+    const existingMenuRows = menuNames.length > 0
+      ? await db.query.menus.findMany({
+          where: and(eq(menus.siteId, siteId), inArray(menus.name, menuNames)),
+          columns: { name: true },
+        })
+      : []
+    const existingMenuNames = new Set(existingMenuRows.map(m => m.name))
+
     for (const backupMenu of backup.menus) {
-      const existing = await db.query.menus.findFirst({
-        where: and(eq(menus.siteId, siteId), eq(menus.name, backupMenu.name)),
-      })
-      if (existing) {
+      if (existingMenuNames.has(backupMenu.name)) {
         if (opts.conflictMode === 'archive') {
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
           await db.update(menus).set({
-            name: `${existing.name} (Backup — ${timestamp})`,
+            name: `${backupMenu.name} (Backup — ${timestamp})`,
             location: null, // clear header/footer location so the new menu can take over!
           }).where(and(eq(menus.siteId, siteId), eq(menus.name, backupMenu.name)))
+          // The renamed row no longer occupies `backupMenu.name` — clear it so a later
+          // duplicate-named entry in the same (user-editable) backup.json inserts cleanly
+          // instead of re-triggering this branch against a name that's already moved on.
+          existingMenuNames.delete(backupMenu.name)
         } else {
           continue
         }
@@ -753,15 +964,24 @@ export async function applyBackup(
         items: backupMenu.items,
       })
       result.menus.created++
+      existingMenuNames.add(backupMenu.name)
     }
   }
 
   // ── Forms ─────────────────────────────────────────────────────────────────
   if (opts.what.includes('forms') && backup.forms) {
+    // One prefetch instead of one findFirst() per form.
+    const formSlugs = backup.forms.map(f => f.slug)
+    const existingFormRows = formSlugs.length > 0
+      ? await db.query.forms.findMany({
+          where: and(eq(forms.siteId, siteId), inArray(forms.slug, formSlugs)),
+          columns: { slug: true, name: true },
+        })
+      : []
+    const formBySlug = new Map(existingFormRows.map(f => [f.slug, f]))
+
     for (const backupForm of backup.forms) {
-      const existing = await db.query.forms.findFirst({
-        where: and(eq(forms.siteId, siteId), eq(forms.slug, backupForm.slug)),
-      })
+      const existing = formBySlug.get(backupForm.slug)
       if (existing) {
         if (opts.conflictMode === 'archive') {
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
@@ -770,6 +990,10 @@ export async function applyBackup(
             name: `${existing.name} (Backup — ${timestamp})`,
             status: 'closed',
           }).where(and(eq(forms.siteId, siteId), eq(forms.slug, backupForm.slug)))
+          // The renamed row no longer occupies `backupForm.slug` — see the equivalent
+          // comment in the menus section above for why this matters for duplicate keys
+          // within the same backup.
+          formBySlug.delete(backupForm.slug)
         } else {
           continue
         }
@@ -785,6 +1009,7 @@ export async function applyBackup(
         status: backupForm.status as 'active' | 'draft' | 'closed',
       })
       result.forms.created++
+      formBySlug.set(backupForm.slug, { slug: backupForm.slug, name: backupForm.name })
     }
   }
 
@@ -795,10 +1020,18 @@ export async function applyBackup(
   // swapping the live theme's CSS out from under a running site is a bigger surprise than
   // leaving the admin to activate it deliberately from Admin → Themes afterward.
   if (opts.what.includes('themes') && backup.themes) {
+    // One prefetch instead of one findFirst() per theme.
+    const themePackageNames = backup.themes.map(t => t.packageName)
+    const existingThemeRows = themePackageNames.length > 0
+      ? await db.query.themes.findMany({
+          where: and(eq(themes.siteId, siteId), inArray(themes.packageName, themePackageNames)),
+          columns: { id: true, packageName: true },
+        })
+      : []
+    const themeByPackageName = new Map(existingThemeRows.map(t => [t.packageName, t]))
+
     for (const backupTheme of backup.themes) {
-      const existing = await db.query.themes.findFirst({
-        where: and(eq(themes.siteId, siteId), eq(themes.packageName, backupTheme.packageName)),
-      })
+      const existing = themeByPackageName.get(backupTheme.packageName)
 
       if (existing && opts.conflictMode === 'skip') {
         result.themes.skipped++
@@ -837,6 +1070,12 @@ export async function applyBackup(
       if (backupTheme.hasCss && backupTheme.css) await putThemeCSS(event, siteId, id, backupTheme.css)
       if (backupTheme.demo) await putThemeDemo(event, siteId, id, backupTheme.demo)
       result.themes.created++
+      // Only record a genuinely new packageName — a duplicate entry for an
+      // already-`existing` packageName must keep matching it on a later iteration (in
+      // 'archive' mode that existing row is deliberately left untouched, so it should
+      // still count as a conflict every time, exactly like the original per-row query
+      // would have found it again on every call).
+      if (!existing) themeByPackageName.set(packageName, { id, packageName })
     }
   }
 
@@ -974,24 +1213,53 @@ export async function applyBackup(
   // 'super_admin' — buildBackup() already excludes it (see BackupUserRole), so this can
   // only ever grant real roles, same restriction PATCH/POST /api/v1/users enforce.
   if (opts.what.includes('users') && backup.users) {
+    // One prefetch of this site's existing roles (joined to email) instead of one
+    // getUserSiteRole() findFirst() per backup user. findOrCreateUserAccount() below still
+    // does its own per-user account lookup/creation — that's global account provisioning
+    // shared with the invite flow (accounts have no siteId), not the per-site matching key
+    // this prefetch targets, so it isn't something a single inArray() could replace.
+    const existingRoleRows = await db.query.userSiteRoles.findMany({
+      where: eq(userSiteRoles.siteId, siteId),
+      with: { user: { columns: { email: true } } },
+    })
+    const roleByEmail = new Map<string, { role: string }>()
+    for (const r of existingRoleRows) {
+      if (r.user) roleByEmail.set(r.user.email, { role: r.role })
+    }
+
     for (const backupUser of backup.users) {
+      // Second, redundant check on top of parseBackupJson()'s schema: applyBackup() is
+      // also called from demo-import.post.ts and directly from tests with a plain object
+      // literal, neither of which necessarily went through that schema — this is the one
+      // check guaranteed to run no matter how the caller obtained `backup`.
+      if (!(RESTORABLE_ROLES as readonly string[]).includes(backupUser.role)) {
+        result.users.skipped++
+        continue
+      }
+
       const { userId: targetUserId, isNewAccount } = await findOrCreateUserAccount(event, {
         name: backupUser.name,
         email: backupUser.email,
       })
 
-      const existingRole = await getUserSiteRole(db, targetUserId, siteId)
+      const existingRole = roleByEmail.get(backupUser.email)
       if (existingRole) {
         if (opts.conflictMode === 'overwrite' && existingRole.role !== 'super_admin') {
           await db.update(userSiteRoles).set({ role: backupUser.role })
             .where(and(eq(userSiteRoles.userId, targetUserId), eq(userSiteRoles.siteId, siteId)))
           result.users.updated++
+          roleByEmail.set(backupUser.email, { role: backupUser.role })
         } else {
           result.users.skipped++
         }
       } else {
         await db.insert(userSiteRoles).values({ id: ulid(), userId: targetUserId, siteId, role: backupUser.role })
         result.users.created++
+        // Handles a duplicate email within the same backup.json (hand-edited — a real
+        // export can't produce one): the second entry now sees the role the first entry
+        // just created instead of trying to insert a second row for the same
+        // (userId, siteId) pair.
+        roleByEmail.set(backupUser.email, { role: backupUser.role })
       }
 
       if (isNewAccount) {
@@ -1009,10 +1277,18 @@ export async function applyBackup(
   // Matched by name. Deliberately does not touch `subscriptions` — see the comment on
   // BackupMembershipTier for why copying those rows would be actively misleading.
   if (opts.what.includes('membershipTiers') && backup.membershipTiers) {
+    // One prefetch instead of one findFirst() per tier.
+    const tierNames = backup.membershipTiers.map(t => t.name)
+    const existingTierRows = tierNames.length > 0
+      ? await db.query.membershipTiers.findMany({
+          where: and(eq(membershipTiers.siteId, siteId), inArray(membershipTiers.name, tierNames)),
+          columns: { id: true, name: true },
+        })
+      : []
+    const tierByName = new Map(existingTierRows.map(t => [t.name, t]))
+
     for (const backupTier of backup.membershipTiers) {
-      const existing = await db.query.membershipTiers.findFirst({
-        where: and(eq(membershipTiers.siteId, siteId), eq(membershipTiers.name, backupTier.name)),
-      })
+      const existing = tierByName.get(backupTier.name)
       if (existing) {
         if (opts.conflictMode === 'overwrite') {
           await db.update(membershipTiers).set({
@@ -1033,8 +1309,9 @@ export async function applyBackup(
           result.membershipTiers.skipped++
         }
       } else {
+        const id = ulid()
         await db.insert(membershipTiers).values({
-          id: ulid(),
+          id,
           siteId,
           name: backupTier.name,
           description: backupTier.description,
@@ -1050,6 +1327,10 @@ export async function applyBackup(
           isActive: backupTier.isActive,
         })
         result.membershipTiers.created++
+        // Duplicate tier name within the same backup.json (hand-edited): treat the second
+        // entry as already-existing instead of attempting a second insert for the same
+        // (siteId, name).
+        tierByName.set(backupTier.name, { id, name: backupTier.name })
       }
     }
   }

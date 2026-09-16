@@ -88,8 +88,13 @@ describe('generateD1SqlDump()', () => {
     expect(rowCount).toBe(2)
     expect(sql).toContain('CREATE TABLE "sites"')
     expect(sql).toContain('PRAGMA defer_foreign_keys=TRUE;')
-    expect(sql).toContain('BEGIN TRANSACTION;')
-    expect(sql).toContain('COMMIT;')
+    // No explicit BEGIN TRANSACTION/COMMIT — `wrangler d1 execute --file` already wraps
+    // the whole file in its own implicit transaction, and an explicit one nested inside
+    // it throws "cannot start a transaction within a transaction" before the first
+    // statement runs. See the comment in d1-export.ts for the full explanation.
+    expect(sql).not.toContain('BEGIN TRANSACTION')
+    expect(sql).not.toContain('COMMIT;')
+    expect(sql).toMatch(/-- Exported \d+ tables?, \d+ rows?/)
     // Single quotes in string values are doubled, not left unescaped
     expect(sql).toContain("'O''Brien''s Blog'")
     // NULL columns come through as the literal NULL, not the string "null"

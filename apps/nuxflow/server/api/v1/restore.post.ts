@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { requireRole } from '../../utils/permissions'
-import { applyBackup, rewriteImageUrls } from '../../utils/backup'
+import { applyBackup, parseBackupJson, rewriteImageUrls } from '../../utils/backup'
 import type { NuxFlowBackup, RestoreOptions } from '../../utils/backup'
 import { unzipSync } from 'fflate'
 import { getActiveProvider } from '../../utils/media-providers/index'
@@ -69,21 +69,9 @@ export default defineEventHandler(async (event) => {
     const backupFile = zipFiles['backup.json']
     if (!backupFile) throw badRequest('backup.json not found in zip')
 
-    try {
-      backup = JSON.parse(new TextDecoder().decode(backupFile)) as NuxFlowBackup
-    } catch {
-      throw badRequest('backup.json is not valid JSON')
-    }
+    backup = parseBackupJson(new TextDecoder().decode(backupFile))
   } else {
-    try {
-      backup = JSON.parse(new TextDecoder().decode(file.data)) as NuxFlowBackup
-    } catch {
-      throw badRequest('File is not a valid NuxFlow .zip or .json backup')
-    }
-  }
-
-  if (backup.version !== '1') {
-    throw badRequest(`Unsupported backup version: ${backup.version}`)
+    backup = parseBackupJson(new TextDecoder().decode(file.data))
   }
 
   const mediaResult = { uploaded: 0, skipped: 0 }

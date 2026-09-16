@@ -55,9 +55,6 @@ function mkEvent(body: unknown, siteId = SITE) {
   }) as unknown as H3Event
 }
 
-// Suppress unused-variable warning; existingUserId retained for future tests.
-void existingUserId
-
 describe('POST /api/public/auth/register', () => {
   it('rate-limits by IP before doing anything else, mirroring the 5/hour limit on the Better Auth sign-up path', async () => {
     vi.mocked(resolveSetting).mockResolvedValue('true')
@@ -136,12 +133,18 @@ describe('POST /api/public/auth/register', () => {
       })
     })
 
-    it('throws 422 when email is already registered', async () => {
-      await expect(
-        (handler as HandlerFn)(
-          mkEvent({ name: 'Dup', email: 'existing@reg.test', password: 'password123' }),
-        ),
-      ).rejects.toMatchObject({ statusCode: 422 })
+    it('returns the same generic success response for an already-registered email, without creating a duplicate account or sending a verification email (no user enumeration)', async () => {
+      mockSendVerificationEmail.mockClear()
+      const result = await (handler as HandlerFn)(
+        mkEvent({ name: 'Dup', email: 'existing@reg.test', password: 'password123' }),
+      )
+      expect(result).toEqual({ success: true })
+      expect(mockSendVerificationEmail).not.toHaveBeenCalled()
+
+      const db = getCurrentTestDb()
+      const matches = await db.query.users.findMany({ where: eq(users.email, 'existing@reg.test') })
+      expect(matches).toHaveLength(1)
+      expect(matches[0]!.id).toBe(existingUserId)
     })
   })
 })

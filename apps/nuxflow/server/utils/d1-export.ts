@@ -210,10 +210,11 @@ export async function prepareD1Dump(event: H3Event): Promise<D1DumpPreparation> 
   const realTables = entries.filter(e => e.type === 'table' && !shadowTableNames.has(e.name))
   // sqlite_master's own alphabetical order (from the ORDER BY above) is all the ordering
   // this needs — correctness doesn't depend on parent-before-child insert order: the
-  // whole dump runs inside one transaction with PRAGMA defer_foreign_keys=TRUE (written
-  // into the output file — a restore tool executes it, this Worker never does), which
-  // defers every FK check, including self-references within the same table (e.g.
-  // taxonomy_terms.parent_id), to COMMIT. A real dependency sort was tried here and
+  // whole dump runs inside `wrangler d1 execute`'s own implicit per-file transaction, and
+  // PRAGMA defer_foreign_keys=TRUE (written into the output file — a restore tool executes
+  // it, this Worker never does) defers every FK check, including self-references within
+  // the same table (e.g. taxonomy_terms.parent_id), to the end of that transaction. A real
+  // dependency sort was tried here and
   // required PRAGMA foreign_key_list, which D1 rejects inside a batch (see the module
   // doc) — not worth reintroducing for what was already just a readability nicety.
   const dataTables = realTables.filter(e => !virtualTableNames.has(e.name))
@@ -222,8 +223,15 @@ export async function prepareD1Dump(event: H3Event): Promise<D1DumpPreparation> 
   parts.push('-- NuxFlow D1 export — every site in this database instance')
   parts.push(`-- Generated ${new Date().toISOString()}`)
   parts.push('-- Restore: wrangler d1 execute <database-name> --remote --file=<this file>')
+  // No explicit BEGIN TRANSACTION here (this file used to emit one, paired with a COMMIT
+  // at the end) — `wrangler d1 execute --file` already wraps the whole file in its own
+  // implicit transaction, and starting a second one inside that throws
+  // "cannot start a transaction within a transaction" on the very first statement,
+  // before a single CREATE TABLE runs. PRAGMA defer_foreign_keys=TRUE still defers FK
+  // checks to the end of *that* implicit transaction, so out-of-order inserts (see the
+  // comment on `dataTables` below) remain safe without this file managing the
+  // transaction itself. https://developers.cloudflare.com/d1/best-practices/import-export-data/
   parts.push('PRAGMA defer_foreign_keys=TRUE;')
-  parts.push('BEGIN TRANSACTION;')
 
   // Schema: real tables (including virtual tables, excluding their shadow tables) first,
   // then indexes/triggers/views — DDL that references a table needs it to exist first.
@@ -359,6 +367,5 @@ export async function generateD1SqlDump(event: H3Event): Promise<D1DumpResult> {
     parts.push(chunk)
   })
   parts.push(`\n\n-- Exported ${tableCount} table${tableCount === 1 ? '' : 's'}, ${rowCount} row${rowCount === 1 ? '' : 's'}`)
-  parts.push('COMMIT;')
   return { sql: parts.join(''), tableCount, rowCount }
 }

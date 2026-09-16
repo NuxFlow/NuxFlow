@@ -8,6 +8,8 @@ import { z } from 'zod'
 import { errorMessage } from '../../utils/errors'
 import { getContentItem, getContentTypeBySlug } from '../../utils/content-queries'
 import { scopedById } from '../../utils/db-helpers'
+import { writeAuditLog } from '../../utils/audit'
+import { rateLimit } from '../../utils/rate-limit'
 
 const CONTENT_STATUS = z.enum(['draft', 'review', 'published', 'scheduled', 'archived'])
 const createContentArgsSchema = z.object({
@@ -25,7 +27,22 @@ const updateContentArgsSchema = z.object({
   status: CONTENT_STATUS.optional(),
 })
 
-// Module-level cache for active SSE streams per Workers isolate
+// Module-level cache of active SSE streams, scoped to THIS Workers isolate only.
+//
+// IMPORTANT LIMITATION: Cloudflare Workers give no isolate affinity across requests — the
+// GET that opens an SSE stream (populating this map) and a later POST ?sessionId=... that
+// wants to deliver a JSON-RPC response over it can land on two different isolates, each with
+// its own copy of this module (and therefore its own empty-for-that-session `activeStreams`).
+// A live `ReadableStreamDefaultController`/event-stream handle is inherently tied to the
+// isolate that created it, so there is no way to serialize it into KV/D1 and "hand it off" to
+// whichever isolate happens to receive the POST — the only architecturally correct fix is to
+// move session state (and the push itself) into a Durable Object keyed by sessionId, so every
+// request for a given session is routed to the single object instance that holds the live
+// stream. That is a real future-work item (this codebase already has Durable-Object-adjacent
+// patterns via the `agents-sdk`/`durable-objects` tooling) but is out of scope here — this map
+// stays a best-effort, same-isolate-only optimization. The POST handler below detects the
+// cross-isolate-miss case explicitly and fails loudly (see the sessionId lookup there) instead
+// of silently dropping the SSE delivery, which previously produced an undiagnosable client hang.
 const activeStreams = new Map<string, ReturnType<typeof createEventStream>>()
 
 export default defineEventHandler(async (event) => {
@@ -41,6 +58,15 @@ export default defineEventHandler(async (event) => {
   if (!apiKeyUserId || !siteId) {
     throw unauthorized('Unauthorized: A valid API Key in the Authorization header is required.')
   }
+
+  // This endpoint is API-key-authenticated but had no rate limiting at all — unlike every
+  // other API-key-driven route in this codebase (content mutation, AI generation) that
+  // sits behind a `requireRole` + `rateLimit()` pair. Both the SSE handshake (GET) and the
+  // JSON-RPC calls (POST, including content mutation tools) share one limit here since
+  // there's no separate "read vs write" split once inside the tools/call dispatch below.
+  // 60/minute is generous for a single legitimate MCP client (an editor session issuing a
+  // steady stream of tool calls) while still bounding abuse of an authenticated key.
+  await rateLimit(event, { limit: 60, windowMs: 60_000, keyPrefix: 'mcp' })
 
   // 2. Establish SSE Connection (GET)
   if (method === 'GET') {
@@ -72,6 +98,29 @@ export default defineEventHandler(async (event) => {
     }
 
     const { id, method: rpcMethod, params } = body
+
+    // If the client is using the SSE session flow (it only ever has a sessionId because a
+    // prior GET handed it one), a miss here means this POST landed on a different isolate
+    // than the one holding the live stream — see the long comment on `activeStreams` above.
+    // Fail loudly and distinctly instead of executing the request and quietly discarding the
+    // delivery: the previous behavior silently returned a 200 with the mutation applied (for
+    // create/update/delete) but no way for an SSE-only listener to ever learn the result.
+    let activeStream: ReturnType<typeof createEventStream> | undefined
+    if (sessionId) {
+      activeStream = activeStreams.get(sessionId)
+      if (!activeStream) {
+        setResponseStatus(event, 404)
+        return {
+          jsonrpc: '2.0',
+          error: {
+            code: -32001,
+            message: `SSE session "${sessionId}" is not bound to this Worker isolate — it either opened on a different isolate or has expired/closed. Reconnect via GET to obtain a new session before retrying.`,
+          },
+          id: id ?? null,
+        }
+      }
+    }
+
     let result: unknown = null
     let error: { code: number; message: string } | null = null
 
@@ -274,6 +323,13 @@ export default defineEventHandler(async (event) => {
               publishedAt: statusVal === 'published' ? new Date().toISOString() : null
             })
 
+            await writeAuditLog(event, apiKeyUserId, {
+              action: 'create',
+              resource: 'content_item',
+              resourceId: newId,
+              after: { title, slug: slugVal, status: statusVal, typeId: type.id },
+            })
+
             result = {
               content: [
                 {
@@ -324,6 +380,14 @@ export default defineEventHandler(async (event) => {
               .set(updates)
               .where(scopedById(contentItems.id, id, contentItems.siteId, siteId))
 
+            await writeAuditLog(event, apiKeyUserId, {
+              action: 'update',
+              resource: 'content_item',
+              resourceId: id,
+              before: existing,
+              after: updates,
+            })
+
             result = {
               content: [
                 {
@@ -356,6 +420,13 @@ export default defineEventHandler(async (event) => {
             await db.delete(contentItems)
               .where(scopedById(contentItems.id, id, contentItems.siteId, siteId))
 
+            await writeAuditLog(event, apiKeyUserId, {
+              action: 'delete',
+              resource: 'content_item',
+              resourceId: id,
+              before: existing,
+            })
+
             result = {
               content: [
                 {
@@ -386,15 +457,13 @@ export default defineEventHandler(async (event) => {
       ? { jsonrpc: '2.0', error, id }
       : { jsonrpc: '2.0', result, id }
 
-    // If an active SSE stream connection is registered for this session, push to it
-    if (sessionId) {
-      const activeStream = activeStreams.get(sessionId)
-      if (activeStream) {
-        await activeStream.push({
-          event: 'message',
-          data: JSON.stringify(responsePayload)
-        })
-      }
+    // The sessionId-miss case is already handled above (before execution), so if we get here
+    // with an activeStream it's guaranteed to still belong to this isolate.
+    if (activeStream) {
+      await activeStream.push({
+        event: 'message',
+        data: JSON.stringify(responsePayload)
+      })
     }
 
     // Always return in the POST body to support Streamable HTTP natively

@@ -12,6 +12,13 @@ vi.mock('../../server/utils/db', () => ({
   getD1: () => null,
 }))
 
+// rate-limit.ts calls useDb() as a bare Nitro auto-import (no explicit import statement),
+// which isn't available in this Vitest environment — mock it out like every other
+// integration test covering a rate-limited route (see ai-routes.test.ts, registration.test.ts).
+vi.mock('../../server/utils/rate-limit', () => ({
+  rateLimit: vi.fn().mockResolvedValue(undefined),
+}))
+
 // Silence the push helper — setting is never seeded so it's a no-op anyway,
 // but mocking avoids any import-time side effects from the webpush module.
 vi.mock('../../server/utils/webpush', () => ({

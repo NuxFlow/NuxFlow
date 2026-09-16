@@ -258,7 +258,23 @@ async function buildBetterAuthInstance(event: H3Event) {
       accountLinking: {
         enabled: true,
         trustedProviders: ['google', 'github'],
-        requireLocalEmailVerified: false,
+        // true, not false: this is a narrower, different decision than the "don't force
+        // email verification to log in" call documented above — it only governs whether
+        // an OAuth sign-in is allowed to silently attach itself to an EXISTING
+        // local-password account sharing that email, not whether existing users can log
+        // in. With this false, on a site with both public self-registration and
+        // Google/GitHub login enabled, an attacker could pre-register a local account
+        // using a victim's real email (self-registration proves nothing — emailVerified
+        // stays false, but the account is fully usable), then wait for the real victim to
+        // "Sign in with Google" with that same, Google-verified email: auto-linking would
+        // attach the OAuth identity onto the attacker's existing row, and the attacker's
+        // original password would keep working against that now-shared account — a
+        // pre-account-takeover. Setting this true means an unverified local account never
+        // gets treated as "the same person" for linking purposes, closing that path. Same
+        // vulnerability class as the (patched, in this project's better-auth version)
+        // CVE-2026-53516, but reachable here at the application-config level regardless
+        // of library patch version.
+        requireLocalEmailVerified: true,
       },
     },
     // Resolved via resolveSetting() above: per-site DB override first (Admin →
