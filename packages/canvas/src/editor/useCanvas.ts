@@ -254,42 +254,6 @@ export function useCanvas(initial?: CanvasContent) {
     list.splice(target, 0, block)
   }
 
-  /** Reorders within a single list (root, or one block's slot) — same-list drag. */
-  function reorderBlock(parentId: string | null, slot: string | null, fromIndex: number, toIndex: number) {
-    const list = getListFor(parentId, slot)
-    if (!list) return
-    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return
-    if (fromIndex >= list.length || toIndex >= list.length) return
-
-    recordDiscrete()
-    const block = list.splice(fromIndex, 1)[0]
-    if (!block) return
-    // After removing fromIndex, positions after it shift left by 1
-    const adjusted = toIndex > fromIndex ? toIndex - 1 : toIndex
-    list.splice(adjusted, 0, block)
-  }
-
-  /** Moves a block into a different list — cross-list drag (root <-> slot, or
-   * slot <-> slot). Rejected as a no-op if the target is the block itself or
-   * lives inside the block's own subtree, which would otherwise create a
-   * circular reference. */
-  function moveBlockToSlot(id: string, targetParentId: string | null, targetSlot: string | null, targetIndex: number) {
-    if (targetParentId !== null) {
-      if (targetParentId === id || isDescendant(canvas.value.blocks, id, targetParentId)) return
-    }
-
-    const found = findParentList(canvas.value.blocks, id)
-    if (!found) return
-    const targetList = getListFor(targetParentId, targetSlot)
-    if (!targetList) return
-
-    recordDiscrete()
-    const block = found.list.splice(found.index, 1)[0]
-    if (!block) return
-    const idx = Math.min(Math.max(targetIndex, 0), targetList.length)
-    targetList.splice(idx, 0, block)
-  }
-
   function duplicateBlock(id: string) {
     const found = findParentList(canvas.value.blocks, id)
     if (!found) return
@@ -331,8 +295,6 @@ export function useCanvas(initial?: CanvasContent) {
     removeBlock,
     updateBlockProp,
     moveBlock,
-    reorderBlock,
-    moveBlockToSlot,
     duplicateBlock,
     selectBlock,
     reset,

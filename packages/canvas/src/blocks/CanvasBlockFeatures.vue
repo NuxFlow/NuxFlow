@@ -7,7 +7,7 @@ const props = withDefaults(defineProps<{
   sectionLabel?: string
   sectionTitle?: string
   sectionDesc?: string
-  numFeatures?: number
+  numFeatures?: string
   feat1Icon?: string
   feat1Title?: string
   feat1Desc?: string
@@ -27,7 +27,7 @@ const props = withDefaults(defineProps<{
   bgColor?: string
   padding?: SpacingValue
 }>(), {
-  numFeatures: 3,
+  numFeatures: '3',
   feat1Icon: 'i-lucide-zap',
   feat1Title: 'Fast & reliable',
   feat1Desc: 'Built for performance from the ground up.',
@@ -55,7 +55,7 @@ const features = computed((): Feature[] => {
     { icon: props.feat3Icon ?? '', title: props.feat3Title ?? '', desc: props.feat3Desc ?? '' },
     { icon: props.feat4Icon ?? '', title: props.feat4Title ?? '', desc: props.feat4Desc ?? '' },
   ]
-  return all.slice(0, Math.max(1, Math.min(4, props.numFeatures ?? 3)))
+  return all.slice(0, Math.max(1, Math.min(4, Number(props.numFeatures ?? 3))))
 })
 
 const gridCols = computed(() => ({
@@ -80,9 +80,9 @@ const containerStyle = computed(() => {
 function hexLuminance(hex: string): number {
   const h = hex.replace('#', '')
   if (h.length < 6) return 255
-  const r = parseInt(h.slice(0, 2), 16)
-  const g = parseInt(h.slice(2, 4), 16)
-  const b = parseInt(h.slice(4, 6), 16)
+  const r = Number.parseInt(h.slice(0, 2), 16)
+  const g = Number.parseInt(h.slice(2, 4), 16)
+  const b = Number.parseInt(h.slice(4, 6), 16)
   return 0.299 * r + 0.587 * g + 0.114 * b
 }
 

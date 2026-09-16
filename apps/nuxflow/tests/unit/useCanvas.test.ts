@@ -82,16 +82,6 @@ describe('useCanvas — root-level mutations (flat regression safety net)', () =
     c.moveBlock(b!, 'up') // already first — no-op
     expect(c.canvas.value.blocks.map(x => x.id)).toEqual([b, a])
   })
-
-  it('reorderBlock reorders within the root list', () => {
-    const c = useCanvas()
-    c.addBlock('canvas-text')
-    c.addBlock('canvas-image')
-    c.addBlock('canvas-video')
-    const ids = c.canvas.value.blocks.map(x => x.id)
-    c.reorderBlock(null, null, 0, 2)
-    expect(c.canvas.value.blocks.map(x => x.id)).toEqual([ids[1], ids[0], ids[2]])
-  })
 })
 
 describe('useCanvas — nested blocks (slots)', () => {
@@ -166,78 +156,6 @@ describe('useCanvas — nested blocks (slots)', () => {
     // Mutating the clone's nested leaf must not affect the original's.
     c.updateBlockProp(cloneLeaf.id, 'text', 'changed')
     expect(c.canvas.value.blocks[0]!.children!.default![0]!.children!.default![0]!.props.text).toBe('original')
-  })
-})
-
-describe('useCanvas — cross-slot moves and cycle prevention', () => {
-  it('moveBlockToSlot moves a root block into a container slot', () => {
-    const c = useCanvas()
-    c.addBlock('canvas-text')
-    c.addBlock('canvas-container')
-    const [textId, containerId] = c.canvas.value.blocks.map(b => b.id)
-
-    c.moveBlockToSlot(textId!, containerId!, 'default', 0)
-
-    expect(c.canvas.value.blocks.length).toBe(1)
-    expect(c.canvas.value.blocks[0]!.id).toBe(containerId)
-    expect(c.canvas.value.blocks[0]!.children!.default![0]!.id).toBe(textId)
-  })
-
-  it('moveBlockToSlot moves a block from one slot to another', () => {
-    const c = useCanvas()
-    c.addBlock('canvas-columns')
-    const columnsId = c.canvas.value.blocks[0]!.id
-    c.addBlock('canvas-text', { parentId: columnsId, slot: 'col1' })
-    const textId = c.canvas.value.blocks[0]!.children!.col1![0]!.id
-
-    c.moveBlockToSlot(textId, columnsId, 'col2', 0)
-
-    expect(c.canvas.value.blocks[0]!.children!.col1!.length).toBe(0)
-    expect(c.canvas.value.blocks[0]!.children!.col2!.length).toBe(1)
-    expect(c.canvas.value.blocks[0]!.children!.col2![0]!.id).toBe(textId)
-  })
-
-  it('moveBlockToSlot moves a nested block back out to root', () => {
-    const c = useCanvas()
-    c.addBlock('canvas-container')
-    const containerId = c.canvas.value.blocks[0]!.id
-    c.addBlock('canvas-text', { parentId: containerId, slot: 'default' })
-    const textId = c.canvas.value.blocks[0]!.children!.default![0]!.id
-
-    c.moveBlockToSlot(textId, null, null, 0)
-
-    // Inserted at root index 0, pushing the (now-empty) container to index 1.
-    expect(c.canvas.value.blocks[0]!.id).toBe(textId)
-    expect(c.canvas.value.blocks[1]!.id).toBe(containerId)
-    expect(c.canvas.value.blocks[1]!.children!.default!.length).toBe(0)
-  })
-
-  it('rejects moving a block into itself', () => {
-    const c = useCanvas()
-    c.addBlock('canvas-container')
-    const id = c.canvas.value.blocks[0]!.id
-
-    c.moveBlockToSlot(id, id, 'default', 0)
-
-    // No-op: still one root block, no self-referential child was created.
-    expect(c.canvas.value.blocks.length).toBe(1)
-    expect(c.canvas.value.blocks[0]!.children?.default ?? []).toEqual([])
-  })
-
-  it('rejects moving a container into its own descendant (cycle guard)', () => {
-    const c = useCanvas()
-    c.addBlock('canvas-container')
-    const outerId = c.canvas.value.blocks[0]!.id
-    c.addBlock('canvas-container', { parentId: outerId, slot: 'default' })
-    const innerId = c.canvas.value.blocks[0]!.children!.default![0]!.id
-
-    // Attempt: move outer container into inner container's slot — would be circular.
-    c.moveBlockToSlot(outerId, innerId, 'default', 0)
-
-    // Structure must be completely unchanged.
-    expect(c.canvas.value.blocks.length).toBe(1)
-    expect(c.canvas.value.blocks[0]!.id).toBe(outerId)
-    expect(c.canvas.value.blocks[0]!.children!.default![0]!.id).toBe(innerId)
   })
 })
 

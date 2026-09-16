@@ -1,10 +1,34 @@
 <script setup lang="ts">
-import { inject, computed } from 'vue'
+import { inject, computed, ref, onMounted, onUnmounted } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import { CANVAS_BLOCKS, getDynamicBlockDefinitions } from '../blocks/definitions'
 import type { CanvasBlockRegistry } from '../types'
 
 const emit = defineEmits<{ pick: [typeId: string]; close: [] }>()
+
+// ── Dialog semantics: Escape-to-close, initial focus, and focus restore ─────
+// Mirrors NuxLightbox.vue's Escape handling. The picker is mounted/unmounted
+// via the host's `v-if="showPicker"` (see CanvasContentEditor.vue), so capturing
+// the triggering element on mount and restoring it on unmount is sufficient —
+// there's no separate "close" transition to worry about.
+
+const modalRef = ref<HTMLElement | null>(null)
+let previouslyFocused: HTMLElement | null = null
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') emit('close')
+}
+
+onMounted(() => {
+  previouslyFocused = document.activeElement as HTMLElement | null
+  document.addEventListener('keydown', handleKeydown)
+  modalRef.value?.focus()
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+  previouslyFocused?.focus()
+})
 
 const categories = ['content', 'media', 'layout', 'cta', 'forms', 'advanced', 'commerce'] as const
 
@@ -43,12 +67,20 @@ const extensionBlocks = computed(() => [
 <template>
   <div class="fixed inset-0 z-50 overflow-y-auto bg-black/50" @click.self="emit('close')">
     <div class="flex min-h-full items-center justify-center p-4" @click.self="emit('close')">
-    <div class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
+    <div
+      ref="modalRef"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="block-picker-title"
+      tabindex="-1"
+      class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden outline-none"
+    >
       <!-- Header -->
       <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-800">
-        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Add a block</h2>
+        <h2 id="block-picker-title" class="text-base font-semibold text-gray-900 dark:text-white">Add a block</h2>
         <button
           class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          aria-label="Close"
           @click="emit('close')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

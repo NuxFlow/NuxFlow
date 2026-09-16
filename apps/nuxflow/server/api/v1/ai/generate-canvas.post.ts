@@ -45,7 +45,7 @@ canvas-text: Rich HTML prose block
   Key props: content(HTML string with <p>, <h2>, <h3>, <ul>, <ol>, <strong> tags)
 
 canvas-features: Icon+title+description feature grid
-  Key props: sectionLabel(str), sectionTitle(str), sectionDesc(str), numFeatures(1|2|3|4),
+  Key props: sectionLabel(str), sectionTitle(str), sectionDesc(str), numFeatures("1"|"2"|"3"|"4"),
              style("plain"|"card"|"icon-top"), align("center"|"left"), iconColor(hex), bgColor(hex),
              feat1Icon("i-lucide-XXX"), feat1Title(str), feat1Desc(str)
              feat2Icon, feat2Title, feat2Desc, feat3Icon, feat3Title, feat3Desc, feat4Icon, feat4Title, feat4Desc

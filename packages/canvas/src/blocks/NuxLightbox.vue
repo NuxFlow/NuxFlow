@@ -24,30 +24,70 @@ function next() {
   current.value = (current.value + 1) % props.images.length
 }
 
+// ── Dialog semantics: focus trap + focus restore ────────────────────────────
+// The lightbox is toggled via `v-if` in CanvasBlockImage.vue/CanvasBlockGallery.vue,
+// so mount/unmount here line up exactly with open/close — capturing the trigger
+// element on mount and restoring it on unmount is sufficient, no separate
+// close-transition to account for.
+
+const containerRef = ref<HTMLElement | null>(null)
+const closeBtnRef = ref<HTMLButtonElement | null>(null)
+let previouslyFocused: HTMLElement | null = null
+
+function getFocusable(): HTMLElement[] {
+  if (!containerRef.value) return []
+  return Array.from(containerRef.value.querySelectorAll<HTMLElement>('button'))
+}
+
+/** Cycles Tab/Shift+Tab between this dialog's own controls (close/prev/next)
+ * instead of letting focus escape into the page behind it. */
+function trapTab(e: KeyboardEvent) {
+  const focusable = getFocusable()
+  if (focusable.length === 0) return
+  const first = focusable[0]!
+  const last = focusable[focusable.length - 1]!
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault()
+    first.focus()
+  }
+}
+
 function handleKey(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
   if (e.key === 'ArrowLeft') prev()
   if (e.key === 'ArrowRight') next()
+  if (e.key === 'Tab') trapTab(e)
 }
 
 onMounted(() => {
+  previouslyFocused = document.activeElement as HTMLElement | null
   document.addEventListener('keydown', handleKey)
   document.body.style.overflow = 'hidden'
+  closeBtnRef.value?.focus()
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKey)
   document.body.style.overflow = ''
+  previouslyFocused?.focus()
 })
 </script>
 
 <template>
   <div
+    ref="containerRef"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Image lightbox"
     class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/92"
     @click.self="$emit('close')"
   >
     <!-- Close -->
     <button
+      ref="closeBtnRef"
       type="button"
       class="absolute top-4 right-4 p-2 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
       aria-label="Close lightbox"
@@ -73,7 +113,7 @@ onUnmounted(() => {
       :src="images[current]?.url"
       :alt="images[current]?.alt || ''"
       class="max-w-[90vw] max-h-[90vh] object-contain select-none drop-shadow-2xl"
-    />
+    >
 
     <!-- Next -->
     <button

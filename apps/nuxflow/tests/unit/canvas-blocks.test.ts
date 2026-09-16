@@ -261,6 +261,56 @@ describe('canvas-image block definition', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Features block — numFeatures select field (string values end-to-end)
+// ---------------------------------------------------------------------------
+
+describe('canvas-features block definition', () => {
+  const features = CANVAS_BLOCKS.find(b => b.id === 'canvas-features')!
+
+  it('exists in the registry', () => {
+    expect(features).toBeDefined()
+  })
+
+  it('numFeatures select options are all real strings, not numbers cast through unknown', () => {
+    const numFeatures = features.fields.find(f => f.key === 'numFeatures')!
+    expect(numFeatures.type).toBe('select')
+    for (const opt of numFeatures.options!) {
+      expect(typeof opt.value).toBe('string')
+    }
+    expect((numFeatures.options as { value: string }[]).map(o => o.value)).toEqual(['1', '2', '3', '4'])
+  })
+
+  it('defaults numFeatures to the string "3", matching the Pricing block convention', () => {
+    expect(features.defaultProps.numFeatures).toBe('3')
+    expect(typeof features.defaultProps.numFeatures).toBe('string')
+  })
+
+  it('feat2 fields are hidden only when numFeatures is "1"', () => {
+    const feat2Title = features.fields.find(f => f.key === 'feat2Title')!
+    expect(feat2Title.condition!({ numFeatures: '1' })).toBe(false)
+    expect(feat2Title.condition!({ numFeatures: '2' })).toBe(true)
+    expect(feat2Title.condition!({ numFeatures: '3' })).toBe(true)
+    expect(feat2Title.condition!({ numFeatures: '4' })).toBe(true)
+  })
+
+  it('feat3 fields show only when numFeatures is "3" or "4"', () => {
+    const feat3Title = features.fields.find(f => f.key === 'feat3Title')!
+    expect(feat3Title.condition!({ numFeatures: '1' })).toBe(false)
+    expect(feat3Title.condition!({ numFeatures: '2' })).toBe(false)
+    expect(feat3Title.condition!({ numFeatures: '3' })).toBe(true)
+    expect(feat3Title.condition!({ numFeatures: '4' })).toBe(true)
+  })
+
+  it('feat4 fields show only when numFeatures is "4"', () => {
+    const feat4Title = features.fields.find(f => f.key === 'feat4Title')!
+    expect(feat4Title.condition!({ numFeatures: '1' })).toBe(false)
+    expect(feat4Title.condition!({ numFeatures: '2' })).toBe(false)
+    expect(feat4Title.condition!({ numFeatures: '3' })).toBe(false)
+    expect(feat4Title.condition!({ numFeatures: '4' })).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Carousel block
 // ---------------------------------------------------------------------------
 

@@ -16,7 +16,7 @@ const bodySchema = z.object({
   }),
   admin: z.object({
     name: z.string().max(100).optional().default(''),
-    email: z.string().email(),
+    email: z.email(),
     password: z.string().max(128).optional().default(''),
   }),
   email: z.object({
@@ -277,7 +277,7 @@ async function _handleSetup(event: H3Event) {
           sectionLabel: 'Why Choose Us',
           sectionTitle: 'Built for Performance',
           sectionDesc: 'Everything you need to succeed online, managed right from our fast and robust admin dashboard.',
-          numFeatures: 3,
+          numFeatures: '3',
           style: 'card',
           align: 'left',
           iconColor: 'var(--nuxflow-primary, #00dc82)',
@@ -385,7 +385,7 @@ async function _handleSetup(event: H3Event) {
           sectionLabel: 'Selected Projects',
           sectionTitle: 'My Work & Showcase',
           sectionDesc: 'Take a look at some of my recent digital works, UI designs, and web applications.',
-          numFeatures: 3,
+          numFeatures: '3',
           style: 'card',
           align: 'left',
           iconColor: 'var(--nuxflow-primary, #d946ef)',

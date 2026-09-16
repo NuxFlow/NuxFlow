@@ -44,8 +44,10 @@ onBeforeUnmount(() => {
 
 // Attrs can change per re-render (e.g. editing this block's props in the Canvas
 // settings panel) — relay every change into the iframe. Deep because field values
-// like `padding` or `images` are objects/arrays.
-watch(() => ({ ...attrs }), postProps, { deep: true })
+// like `padding` or `images` are objects/arrays. useAttrs()'s return value is
+// already reactive, so watch it directly instead of spreading into a fresh
+// object (and a fresh allocation) on every trigger.
+watch(attrs, postProps, { deep: true })
 </script>
 
 <template>
