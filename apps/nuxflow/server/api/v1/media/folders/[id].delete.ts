@@ -21,6 +21,15 @@ export default defineEventHandler(async (event) => {
     .set({ folderId: null })
     .where(and(eq(media.siteId, siteId), eq(media.folderId, id)))
 
+  // Promote any subfolders to root level rather than leaving them pointing at a
+  // deleted parent id — mediaFolders.parentId has no DB-level FK (see the schema
+  // comment for why: the required table-rebuild migration would silently null every
+  // parentId in the table via its own ON DELETE SET NULL action mid-migration), so this
+  // is the only thing preventing a dangling reference here.
+  const reparentSubfolders = db.update(mediaFolders)
+    .set({ parentId: null })
+    .where(and(eq(mediaFolders.siteId, siteId), eq(mediaFolders.parentId, id)))
+
   const folderDelete = db.delete(mediaFolders)
     .where(scopedById(mediaFolders.id, id, mediaFolders.siteId, siteId))
 
@@ -31,7 +40,7 @@ export default defineEventHandler(async (event) => {
     before: folder,
   })
 
-  await batchWithAudit(db, [unfileMedia, folderDelete], auditInsert)
+  await batchWithAudit(db, [unfileMedia, reparentSubfolders, folderDelete], auditInsert)
 
   return noContent(event)
 })

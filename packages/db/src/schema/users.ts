@@ -88,7 +88,13 @@ export const userSiteRoles = sqliteTable('user_site_roles', {
   role: text('role', { enum: ['super_admin', 'admin', 'editor', 'author', 'viewer', 'member'] }).notNull().default('viewer'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
-  index('idx_user_site_roles_user_site').on(t.userId, t.siteId),
+  // Unique, not just indexed: without this, two concurrent invites for the same
+  // not-yet-member (email, site) pair (a double-click, or two admins inviting
+  // simultaneously) could both pass a "not already a member" SELECT check and both
+  // insert, producing duplicate role rows with nothing at the DB level to stop it.
+  // requireAuth()/requireRole()/hasSuperAdminRole() all resolve role via .findFirst()
+  // with no ORDER BY, so which duplicate "won" for permission checks was nondeterministic.
+  uniqueIndex('idx_user_site_roles_user_site').on(t.userId, t.siteId),
   index('idx_user_site_roles_site').on(t.siteId),
 ])
 
@@ -106,6 +112,8 @@ export const apiKeys = sqliteTable('api_keys', {
   index('idx_api_keys_site').on(t.siteId),
 ])
 
+// Physical table name is singular ('passkey'), unlike every other table here — this is
+// required by the better-auth passkey plugin's own expected table name, not an oversight.
 export const passkeys = sqliteTable('passkey', {
   id: text('id').primaryKey(),
   name: text('name'),

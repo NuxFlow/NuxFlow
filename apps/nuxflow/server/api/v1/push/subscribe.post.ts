@@ -18,10 +18,16 @@ export default defineEventHandler(async (event) => {
   const body = await parseBody(event, bodySchema)
   const db = useDb(event)
 
-  // Upsert: replace any existing subscription for this user+endpoint pair
+  // Upsert: replace any existing subscription for this user+site+endpoint triple.
+  // siteId must be part of the match — a user who belongs to multiple sites can
+  // legitimately re-subscribe with the same browser/endpoint on a second site, and
+  // without siteId here that would silently overwrite the first site's row instead
+  // of creating a distinct one, leaving that site's broadcastPushToSite() unable to
+  // find it.
   const existing = await db.query.pushSubscriptions.findFirst({
     where: and(
       eq(pushSubscriptions.userId, userId),
+      eq(pushSubscriptions.siteId, siteId),
       eq(pushSubscriptions.endpoint, body.endpoint),
     ),
     columns: { id: true },

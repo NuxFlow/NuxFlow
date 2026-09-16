@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
@@ -7,28 +8,47 @@ import { dynamicPlugins, dynamicPluginTrust } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 
-interface InstallBody {
-  id: string
-  name: string
-  version: string
-  description?: string
+// Shape/type validation only — this does not (and cannot) validate cryptographic
+// correctness. Checksum matching and Ed25519 signature verification still happen
+// below, unconditionally, against the crypto-relevant fields this schema only
+// confirms are present and are strings.
+const installBodySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  version: z.string().min(1),
+  description: z.string().optional(),
   /** Base64-encoded self-contained ES module (exports default fetch handler). */
-  serverModule?: string
+  serverModule: z.string().min(1).optional(),
   /** SHA-256 hex of the raw decoded serverModule. */
-  serverChecksum?: string
+  serverChecksum: z.string().min(1).optional(),
   /** Base64-encoded ES module (exports `renderBlock(blockId, vue)`). */
-  clientBundle?: string
+  clientBundle: z.string().min(1).optional(),
   /** SHA-256 hex of the raw decoded clientBundle. */
-  clientChecksum?: string
+  clientChecksum: z.string().min(1).optional(),
   /** Base64-encoded raw text of src/blocks.json (plain data, never executed). */
-  blockDefinitions?: string
+  blockDefinitions: z.string().min(1).optional(),
   /** SHA-256 hex of the raw decoded blockDefinitions text. */
-  definitionsChecksum?: string
+  definitionsChecksum: z.string().min(1).optional(),
   /** base64url SPKI Ed25519 public key of the plugin publisher. */
-  publisherPublicKey: string
+  publisherPublicKey: z.string().min(1, 'publisherPublicKey and signature are required — build with `nuxflow plugin build` and deploy with `nuxflow plugin deploy`'),
   /** base64url Ed25519 signature of the canonical payload (id + version + checksums). */
-  signature: string
-}
+  signature: z.string().min(1, 'publisherPublicKey and signature are required — build with `nuxflow plugin build` and deploy with `nuxflow plugin deploy`'),
+}).superRefine((body, ctx) => {
+  if (!body.serverModule && !body.clientBundle) {
+    ctx.addIssue({ code: 'custom', message: 'At least one of serverModule or clientBundle is required', path: ['serverModule'] })
+  }
+  if (body.serverModule && !body.serverChecksum) {
+    ctx.addIssue({ code: 'custom', message: 'serverChecksum is required when serverModule is present', path: ['serverChecksum'] })
+  }
+  if (body.clientBundle && !body.clientChecksum) {
+    ctx.addIssue({ code: 'custom', message: 'clientChecksum is required when clientBundle is present', path: ['clientChecksum'] })
+  }
+  if (body.blockDefinitions && !body.definitionsChecksum) {
+    ctx.addIssue({ code: 'custom', message: 'definitionsChecksum is required when blockDefinitions is present', path: ['definitionsChecksum'] })
+  }
+})
+
+type InstallBody = z.infer<typeof installBodySchema>
 
 function decodeBase64(encoded: string): string {
   return Buffer.from(encoded, 'base64').toString('utf-8')
@@ -38,27 +58,7 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  const body = await readBody<InstallBody>(event)
-
-  // ── Field presence ──────────────────────────────────────────────────────────
-  if (!body.id || !body.name || !body.version) {
-    throw badRequest('id, name, and version are required')
-  }
-  if (!body.serverModule && !body.clientBundle) {
-    throw badRequest('At least one of serverModule or clientBundle is required')
-  }
-  if (!body.publisherPublicKey || !body.signature) {
-    throw badRequest('publisherPublicKey and signature are required — build with `nuxflow plugin build` and deploy with `nuxflow plugin deploy`')
-  }
-  if (body.serverModule && !body.serverChecksum) {
-    throw badRequest('serverChecksum is required when serverModule is present')
-  }
-  if (body.clientBundle && !body.clientChecksum) {
-    throw badRequest('clientChecksum is required when clientBundle is present')
-  }
-  if (body.blockDefinitions && !body.definitionsChecksum) {
-    throw badRequest('definitionsChecksum is required when blockDefinitions is present')
-  }
+  const body: InstallBody = await parseBody(event, installBodySchema)
 
   // ── Duplicate check ─────────────────────────────────────────────────────────
   const existing = await db.query.dynamicPlugins.findFirst({

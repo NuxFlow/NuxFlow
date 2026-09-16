@@ -13,7 +13,7 @@ import { findOrCreateUserAccount } from '../../../utils/user-provisioning'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
-  email: z.string().email(),
+  email: z.email(),
   role: z.enum(['admin', 'editor', 'author', 'viewer', 'member']).default('viewer'),
 })
 
@@ -36,12 +36,18 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  // onConflictDoNothing: the alreadyMember check above closes the common case, but two
+  // concurrent invites for the same not-yet-member (email, site) pair could both pass
+  // that check before either insert runs — the unique index on (user_id, site_id) is the
+  // real guard against duplicate role rows; this just makes the loser of that race a
+  // silent no-op instead of a raw SQLITE_CONSTRAINT error, mirroring the same pattern
+  // register.post.ts already uses for its own self-registration insert.
   const roleInsert = db.insert(userSiteRoles).values({
     id: ulid(),
     userId: newUserId,
     siteId,
     role: body.role,
-  })
+  }).onConflictDoNothing()
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'invite',

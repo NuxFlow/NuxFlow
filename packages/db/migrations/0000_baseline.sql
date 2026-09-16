@@ -1,4 +1,3 @@
-PRAGMA foreign_keys = OFF;--> statement-breakpoint
 CREATE TABLE `sites` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,

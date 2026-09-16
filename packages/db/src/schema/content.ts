@@ -104,6 +104,15 @@ export const taxonomies = sqliteTable('taxonomies', {
 export const taxonomyTerms = sqliteTable('taxonomy_terms', {
   id: text('id').primaryKey(),
   taxonomyId: text('taxonomy_id').notNull().references(() => taxonomies.id, { onDelete: 'cascade' }),
+  // Deliberately NOT a DB-level self-reference: SQLite/D1's table-rebuild migration
+  // strategy (required to add a FK to an already-existing column) makes a genuine
+  // "DROP TABLE" on the old table, which — with an ON DELETE SET NULL FK already declared
+  // on the new table pointing at it — triggers that SET NULL action for every row during
+  // the drop's implicit whole-table DELETE (confirmed via sqlite.org/foreignkeys.html:
+  // "may invoke foreign key actions"), silently nulling out every parentId in the entire
+  // table as an unwanted side effect of the migration itself. Enforced in application code
+  // instead — see terms/[termId].delete.ts, which nulls children's parentId explicitly
+  // before removing the parent term.
   parentId: text('parent_id'),
   slug: text('slug').notNull(),
   name: text('name').notNull(),
@@ -154,6 +163,12 @@ export const comments = sqliteTable('comments', {
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   itemId: text('item_id').notNull().references(() => contentItems.id, { onDelete: 'cascade' }),
   authorId: text('author_id').references(() => users.id, { onDelete: 'set null' }),
+  // Deliberately NOT a DB-level self-reference — see the comment on taxonomyTerms.parentId
+  // in this same file for why (a migration adding this FK would trigger its own ON DELETE
+  // SET NULL action against every row during the table-rebuild's implicit DROP TABLE,
+  // silently nulling every parentId in the table). Enforced in application code instead —
+  // see comments/[id].delete.ts, which nulls children's parentId explicitly before
+  // removing the parent comment.
   parentId: text('parent_id'),
   guestName: text('guest_name'),
   guestEmail: text('guest_email'),

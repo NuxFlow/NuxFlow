@@ -4,9 +4,7 @@ import { clearSiteCache } from '../middleware/02.multi-site'
 import { getActiveProvider } from './media-providers/index'
 import { writeAuditLog } from './audit'
 import {
-  sites, users, userSiteRoles, contentItems, contentTypes,
-  taxonomies, siteSettings, dynamicPlugins, themes,
-  auditLogs, notifications, media, apiKeys,
+  sites, users, userSiteRoles, media,
   accounts, sessions, passkeys
 } from '@nuxflow/db/schema'
 import { eq, and, ne, inArray } from 'drizzle-orm'
@@ -17,10 +15,10 @@ import { eq, and, ne, inArray } from 'drizzle-orm'
  * this performs no permission checks of its own.
  *
  * `actorUserId` is recorded both as a structured console line (survives even
- * when `siteId` is the site currently in request context, since step 2 below
- * deletes that site's own `audit_logs` rows as part of teardown) and, when the
- * acting request context is scoped to a *different* site than the one being
- * deleted, as a real audit log row that outlives the deletion.
+ * when `siteId` is the site currently in request context, since step 3 below
+ * deletes that site's own `audit_logs` rows via cascade as part of teardown) and,
+ * when the acting request context is scoped to a *different* site than the one
+ * being deleted, as a real audit log row that outlives the deletion.
  */
 export async function deleteSiteCompletely(event: H3Event, siteId: string, actorUserId: string) {
   const db = useDb(event)
@@ -33,7 +31,13 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
     await writeAuditLog(event, actorUserId, { action: 'delete', resource: 'site', resourceId: siteId })
   }
 
-  // 1. Delete physical media files
+  // 1. Delete physical media files from the active storage provider. This is the one
+  // step here that genuinely can't be a DB-level cascade — the provider (R2, S3,
+  // Cloudflare Images, Bunny) is external storage, not a D1 table, so nothing short of
+  // calling its API actually removes the files. Read the rows first (need storageKey),
+  // then delete each file; the media *rows* themselves don't need a manual delete here —
+  // see step 3 below, which removes them (and every other site-scoped table) via D1's
+  // real foreign-key cascade.
   const allMedia = await db.select({ storageKey: media.storageKey }).from(media).where(eq(media.siteId, siteId))
   if (allMedia.length > 0) {
     const provider = await getActiveProvider(event)
@@ -41,25 +45,11 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
       await provider.delete(file.storageKey).catch(() => {})
     }
   }
-  await db.delete(media).where(eq(media.siteId, siteId))
 
-  // 2. Delete site-owned records manually to ensure they're removed
-  // (In case PRAGMA foreign_keys is not ON in the DB environment like D1)
-  // Batched so the 9 deletes are one atomic round trip instead of leaving the
-  // site half-deleted if a later statement fails.
-  await db.batch([
-    db.delete(contentItems).where(eq(contentItems.siteId, siteId)),
-    db.delete(contentTypes).where(eq(contentTypes.siteId, siteId)),
-    db.delete(taxonomies).where(eq(taxonomies.siteId, siteId)),
-    db.delete(siteSettings).where(eq(siteSettings.siteId, siteId)),
-    db.delete(dynamicPlugins).where(eq(dynamicPlugins.siteId, siteId)),
-    db.delete(themes).where(eq(themes.siteId, siteId)),
-    db.delete(auditLogs).where(eq(auditLogs.siteId, siteId)),
-    db.delete(notifications).where(eq(notifications.siteId, siteId)),
-    db.delete(apiKeys).where(eq(apiKeys.siteId, siteId)),
-  ])
-
-  // 3. Handle users and roles
+  // 2. Handle users and roles. `user_site_roles` itself has an `onDelete: 'cascade'` FK to
+  // sites.id, so the rows for this site don't need a manual delete here — step 3's final
+  // `db.delete(sites)` removes them too. This read has to happen first regardless, to know
+  // which users belong to this site at all.
   const siteRoles = await db
     .select({ userId: userSiteRoles.userId })
     .from(userSiteRoles)
@@ -67,10 +57,10 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
 
   const siteUserIds = siteRoles.map(r => r.userId)
 
-  // Remove the roles for this site
-  await db.delete(userSiteRoles).where(eq(userSiteRoles.siteId, siteId))
-
   if (siteUserIds.length > 0) {
+    // Excludes this site's own (still-present) role rows explicitly, rather than relying
+    // on them already being gone, so this check is correct regardless of whether the
+    // cascade above has run yet.
     const sharedRoles = await db
       .select({ userId: userSiteRoles.userId })
       .from(userSiteRoles)
@@ -83,7 +73,10 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
     const toDelete = siteUserIds.filter(uid => !sharedIds.has(uid))
 
     if (toDelete.length > 0) {
-      // Manually delete user-owned records, then the users themselves, as one batch
+      // users/accounts/sessions/passkeys have no FK to sites.id at all (accounts are
+      // global, not per-site — see the multi-site note in CLAUDE.md), so these deletes
+      // are genuinely manual — no cascade from the site delete below could ever reach
+      // them. Batched so the 4 deletes are one atomic round trip.
       await db.batch([
         db.delete(accounts).where(inArray(accounts.userId, toDelete)),
         db.delete(sessions).where(inArray(sessions.userId, toDelete)),
@@ -93,7 +86,23 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
     }
   }
 
-  // 4. Finally delete the site itself
+  // 3. Finally delete the site itself. D1 always enforces foreign keys — it cannot be
+  // disabled (see https://developers.cloudflare.com/d1/sql-api/foreign-keys/) — so this
+  // one delete real-cascades through every table with an `onDelete: 'cascade'` FK to
+  // sites.id (content_items, content_types, taxonomies, site_settings, dynamic_plugins,
+  // dynamic_plugin_trust, themes, audit_logs, notifications, api_keys, menus, redirects,
+  // comments, forms, membership_tiers, subscriptions, push_subscriptions,
+  // ai_generation_jobs, media_folders, video_assets, media, and user_site_roles — see
+  // packages/db/src/schema/*.ts for the authoritative list), plus their own further
+  // cascades (e.g. content_items -> content_revisions, taxonomies -> taxonomy_terms).
+  // There is deliberately no manual per-table batch mirroring that list here — an
+  // explicit copy would just be a second, driftable version of what the schema already
+  // declares as REFERENCES ... ON DELETE CASCADE, and it would silently go stale exactly
+  // like the previous version of this function did (it was missing forms, menus,
+  // redirects, comments, membership tiers, subscriptions, push subscriptions, AI
+  // generation jobs, media folders, and video assets, among others — those were only ever
+  // cleaned up as a side effect of this same real cascade, not because of anything in the
+  // old manual batch).
   await db.delete(sites).where(eq(sites.id, siteId))
   clearSiteCache()
 }

@@ -36,6 +36,14 @@ export async function initTestDb(): Promise<TestDb> {
   const client = createClient({ url: dbUrl })
   const db = drizzle(client, { schema })
 
+  // libSQL defaults FK enforcement OFF, unlike real D1, which always enforces it
+  // (equivalent to PRAGMA foreign_keys=ON, with no way to disable it — see the
+  // migrations note in CLAUDE.md). Without this, a test asserting "deleting X cascades
+  // to Y" via a schema-level onDelete rule (rather than explicit application code) could
+  // never actually catch a regression, since the test DB wouldn't enforce or cascade
+  // anything even if the schema said to.
+  await db.run(sql`PRAGMA foreign_keys = ON`)
+
   await runMigrations(db)
 
   _currentDb = db
