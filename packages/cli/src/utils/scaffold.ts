@@ -1,5 +1,5 @@
 import { outputFile } from 'fs-extra'
-import { join } from 'path'
+import { join } from 'node:path'
 
 export async function scaffoldPlugin(dir: string, id: string, name: string, description: string) {
   const files: Record<string, string> = {

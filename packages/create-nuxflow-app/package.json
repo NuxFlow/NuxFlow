@@ -12,7 +12,9 @@
   "scripts": {
     "build": "tsup",
     "prepare": "tsup",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
   },
   "engines": {
     "node": ">=20"
@@ -29,7 +31,7 @@
   "dependencies": {
     "@clack/prompts": "^0.9.1",
     "consola": "^3.4.2",
-    "giget": "^1.2.5"
+    "giget": "^3.3.1"
   },
   "devDependencies": {
     "tsup": "^8.5.1",

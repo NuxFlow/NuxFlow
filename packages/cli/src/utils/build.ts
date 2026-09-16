@@ -1,7 +1,7 @@
 import { build } from 'esbuild'
-import { readFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
-import { join } from 'path'
+import { readFile, mkdir } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { computeSha256 } from './signing'
 
 export interface BuildResult {
@@ -53,7 +53,7 @@ async function readBlockDefinitions(pluginDir: string): Promise<{ b64: string; c
     const parsed = JSON.parse(text)
     if (!Array.isArray(parsed)) throw new Error('src/blocks.json must contain a JSON array')
   } catch (err) {
-    throw new Error(`src/blocks.json is not valid JSON: ${err instanceof Error ? err.message : String(err)}`)
+    throw new Error(`src/blocks.json is not valid JSON: ${err instanceof Error ? err.message : String(err)}`, { cause: err })
   }
 
   const [b64, checksum] = await Promise.all([

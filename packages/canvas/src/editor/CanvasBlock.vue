@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { defineAsyncComponent, computed, inject } from 'vue'
+import type { defineAsyncComponent} from 'vue';
+import { computed, inject } from 'vue'
 import draggable from 'vuedraggable'
 import type { CanvasBlockData, CanvasBlockRegistry } from '../types'
 import { getBlockDefinition } from '../blocks/definitions'

@@ -4,7 +4,7 @@
 // esbuild is already a dependency (used by buildPlugin), so we reuse it here.
 
 import { build } from 'esbuild'
-import { chmod } from 'fs/promises'
+import { chmod } from 'node:fs/promises'
 
 await build({
   entryPoints: ['src/index.ts'],

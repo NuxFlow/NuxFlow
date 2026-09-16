@@ -12,7 +12,9 @@
   "scripts": {
     "build": "node build.mjs",
     "prepare": "node build.mjs",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@clack/prompts": "^0.9.1",

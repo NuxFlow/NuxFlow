@@ -4,6 +4,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": ["NUXT_BETTER_AUTH_SECRET", "NUXT_PUBLIC_SITE_URL"],
       "outputs": [".nuxt/**", ".output/**", "dist/**"]
     },
     "dev": {
@@ -12,6 +13,7 @@
     },
     "test": {
       "dependsOn": ["^build"],
+      "env": ["NUXT_BETTER_AUTH_SECRET", "NUXT_PUBLIC_SITE_URL"],
       "outputs": ["coverage/**"]
     },
     "test:e2e": {

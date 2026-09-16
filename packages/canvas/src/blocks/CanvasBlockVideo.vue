@@ -46,7 +46,7 @@ const embedUrl = computed(() => {
   }
 
   // YouTube
-  const yt = raw.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/)
+  const yt = raw.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{11})/)
   if (yt) {
     const params = new URLSearchParams({ rel: '0', modestbranding: '1' })
     if (props.autoplay) params.set('autoplay', '1')

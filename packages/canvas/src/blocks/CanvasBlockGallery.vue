@@ -78,7 +78,7 @@ function openLightbox(i: number) {
           :alt="img.alt || ''"
           class="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-105"
           loading="lazy"
-        />
+        >
       </button>
     </div>
 

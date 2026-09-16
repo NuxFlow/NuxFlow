@@ -89,7 +89,8 @@ function onTouchStart(e: TouchEvent) {
 function onTouchEnd(e: TouchEvent) {
   const dx = (e.changedTouches[0]?.clientX ?? touchStartX) - touchStartX
   if (Math.abs(dx) > 50) {
-    dx > 0 ? prev() : next()
+    if (dx > 0) prev()
+    else next()
   }
 }
 
@@ -145,7 +146,7 @@ const containerStyle = computed(() => {
             :alt="img.alt || ''"
             class="h-full w-full object-cover"
             :loading="i === 0 ? 'eager' : 'lazy'"
-          />
+          >
         </div>
       </div>
 

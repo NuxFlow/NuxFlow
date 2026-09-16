@@ -95,7 +95,7 @@ const stars = computed(() => Math.min(5, Math.max(0, props.rating ?? 0)))
             :src="avatar"
             :alt="author"
             class="w-10 h-10 rounded-full object-cover border-2 border-gray-100 dark:border-gray-700"
-          />
+          >
           <div
             v-else
             class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-sm font-semibold text-gray-500"

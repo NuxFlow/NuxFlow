@@ -65,7 +65,7 @@ function handleClick() {
         :style="{ objectPosition: `${focalX}% ${focalY}%` }"
         loading="lazy"
         @click="handleClick"
-      />
+      >
       <div
         v-else
         class="w-full aspect-video bg-gray-100 dark:bg-gray-800 flex items-center justify-center rounded-lg"

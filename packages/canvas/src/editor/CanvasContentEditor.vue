@@ -238,8 +238,8 @@ function onRootUpdate(list: CanvasBlockData[]) {
             item-key="id"
             group="canvas-blocks"
             handle=".canvas-drag-handle"
-            @update:model-value="onRootUpdate"
             :move="checkMove"
+            @update:model-value="onRootUpdate"
             @start="onRootDragStart"
           >
             <template #item="{ element, index }">

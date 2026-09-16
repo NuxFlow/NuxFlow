@@ -27,15 +27,30 @@ const containerStyle = computed(() => {
   }
 })
 
+// Shape returned by GET /api/public/events — kept local since this package has no
+// shared type module with the app (see the escapeIcsText comment below for the same
+// duplication rationale).
+interface CalendarEvent {
+  id: string
+  slug?: string
+  title: string
+  excerpt?: string
+  eventStartAt: string
+  eventEndAt?: string
+  eventAllDay?: boolean
+  eventLocation?: string
+  eventUrl?: string
+}
+
 // Fetch events
-const events = ref<any[]>([])
+const events = ref<CalendarEvent[]>([])
 const loading = ref(true)
 
 async function loadEvents() {
   try {
     const res = await fetch(`/api/public/events?limit=${props.limit}`)
     if (res.ok) {
-      const data = await res.json() as { events?: unknown[] }
+      const data = await res.json() as { events?: CalendarEvent[] }
       events.value = data.events || []
     }
   } catch (err) {
@@ -85,7 +100,7 @@ function escapeIcsText(text: string): string {
 }
 
 // Client-Side iCal (.ics) Generator
-function downloadIcal(event: any) {
+function downloadIcal(event: CalendarEvent) {
   const cleanStamp = (dStr: string) => dStr.replace(/[-:]/g, '').split('.')[0] + 'Z'
   const start = cleanStamp(event.eventStartAt)
   const end = event.eventEndAt ? cleanStamp(event.eventEndAt) : start
@@ -174,7 +189,7 @@ const activeEvents = computed(() => {
 
       <!-- Loading State -->
       <div v-if="loading" class="flex justify-center py-12">
-        <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary-500 border-t-transparent"></div>
+        <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary-500 border-t-transparent"/>
       </div>
 
       <!-- Empty State -->
@@ -191,10 +206,10 @@ const activeEvents = computed(() => {
             <div class="flex items-center justify-between mb-4">
               <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ monthLabel }}</span>
               <div class="flex gap-1">
-                <button @click="prevMonth" class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors" aria-label="Previous Month">
+                <button class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors" aria-label="Previous Month" @click="prevMonth">
                   <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                 </button>
-                <button @click="nextMonth" class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors" aria-label="Next Month">
+                <button class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors" aria-label="Next Month" @click="nextMonth">
                   <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </button>
               </div>
@@ -217,7 +232,7 @@ const activeEvents = computed(() => {
                 @click="cell.date && (selectedDate = selectedDate === cell.date ? null : cell.date)"
               >
                 <span v-if="cell.day">{{ cell.day }}</span>
-                <span v-if="cell.hasEvents && !cell.isToday" class="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary-500"></span>
+                <span v-if="cell.hasEvents && !cell.isToday" class="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary-500"/>
               </div>
             </div>
           </div>
@@ -243,7 +258,7 @@ const activeEvents = computed(() => {
                 📍 {{ event.eventLocation }}
               </p>
               <div class="mt-3 flex gap-2">
-                <button @click="downloadIcal(event)" class="text-[11px] font-semibold text-gray-600 dark:text-gray-400 hover:text-primary-500 cursor-pointer flex items-center gap-1">
+                <button class="text-[11px] font-semibold text-gray-600 dark:text-gray-400 hover:text-primary-500 cursor-pointer flex items-center gap-1" @click="downloadIcal(event)">
                   📅 Add to Calendar
                 </button>
                 <a v-if="event.eventUrl" :href="safeHref(event.eventUrl)" target="_blank" class="text-[11px] font-semibold text-primary-500 hover:underline">
@@ -282,8 +297,8 @@ const activeEvents = computed(() => {
               
               <div class="pt-2 flex items-center gap-4">
                 <button
-                  @click="downloadIcal(event)"
                   class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-primary-500 transition-colors cursor-pointer select-none"
+                  @click="downloadIcal(event)"
                 >
                   📅 Add to Calendar
                 </button>

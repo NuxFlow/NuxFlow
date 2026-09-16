@@ -31,7 +31,7 @@ const gridStyle = computed(() => ({
 // Reducing the column count only hides the extra slots — their block data is
 // preserved in CanvasBlockData.children and reappears if the count goes back up.
 const activeSlots = computed(() => {
-  const count = parseInt(props.columns ?? '2', 10)
+  const count = Number.parseInt(props.columns ?? '2', 10)
   return (['col1', 'col2', 'col3', 'col4'] as const).slice(0, count)
 })
 </script>

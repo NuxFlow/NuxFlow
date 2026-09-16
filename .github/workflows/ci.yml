@@ -11,6 +11,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  commitlint:
+    name: Commit messages
+    # PR-commit-range linting only makes sense for pull_request events (the action reads
+    # the PR's commit list via the GitHub API); the changeset-release PR's own commits
+    # ("chore: version packages" etc., authored by the changesets bot) are exempted the
+    # same way every other job here already exempts that branch.
+    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: commitlint.config.ts
+
   typecheck:
     name: Type check
     if: github.head_ref != 'changeset-release/main'

@@ -5154,9 +5154,9 @@ var L4 = () => {
 };
 
 // src/commands/plugin.ts
-var import_promises2 = require("fs/promises");
-var import_fs2 = require("fs");
-var import_path3 = require("path");
+var import_promises2 = require("node:fs/promises");
+var import_node_fs2 = require("node:fs");
+var import_node_path4 = require("node:path");
 
 // src/utils/api.ts
 async function authenticate(site, email, password) {
@@ -5231,9 +5231,9 @@ function resolveAuth(opts) {
 
 // src/utils/build.ts
 var import_esbuild = require("esbuild");
-var import_promises = require("fs/promises");
-var import_fs = require("fs");
-var import_path = require("path");
+var import_promises = require("node:fs/promises");
+var import_node_fs = require("node:fs");
+var import_node_path2 = require("node:path");
 
 // src/utils/signing.ts
 function toBase64Url(buffer) {
@@ -5259,7 +5259,8 @@ function canonicalInput(payload) {
     payload.id,
     payload.version,
     payload.serverChecksum,
-    payload.clientChecksum
+    payload.clientChecksum,
+    payload.definitionsChecksum
   ].join("\n");
   return new TextEncoder().encode(text).buffer;
 }
@@ -5300,7 +5301,7 @@ async function signPayload(privateKeyB64Url, payload) {
 
 // src/utils/build.ts
 async function tryBuild(entryPoint, outfile, platform2, target) {
-  if (!(0, import_fs.existsSync)(entryPoint)) return void 0;
+  if (!(0, import_node_fs.existsSync)(entryPoint)) return void 0;
   await (0, import_esbuild.build)({
     entryPoints: [entryPoint],
     bundle: true,
@@ -5321,33 +5322,51 @@ async function tryBuild(entryPoint, outfile, platform2, target) {
   ]);
   return { b64, checksum };
 }
+async function readBlockDefinitions(pluginDir) {
+  const entryPoint = (0, import_node_path2.join)(pluginDir, "src/blocks.json");
+  if (!(0, import_node_fs.existsSync)(entryPoint)) return void 0;
+  const text = await (0, import_promises.readFile)(entryPoint, "utf-8");
+  try {
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed)) throw new Error("src/blocks.json must contain a JSON array");
+  } catch (err2) {
+    throw new Error(`src/blocks.json is not valid JSON: ${err2 instanceof Error ? err2.message : String(err2)}`, { cause: err2 });
+  }
+  const [b64, checksum] = await Promise.all([
+    Promise.resolve(Buffer.from(text).toString("base64")),
+    computeSha256(text)
+  ]);
+  return { b64, checksum };
+}
 async function buildPlugin(pluginDir) {
-  const distDir = (0, import_path.join)(pluginDir, "dist");
+  const distDir = (0, import_node_path2.join)(pluginDir, "dist");
   await (0, import_promises.mkdir)(distDir, { recursive: true });
-  const [server, client] = await Promise.all([
+  const [server, client, definitions] = await Promise.all([
     tryBuild(
-      (0, import_path.join)(pluginDir, "src/server.ts"),
-      (0, import_path.join)(distDir, "server.js"),
+      (0, import_node_path2.join)(pluginDir, "src/server.ts"),
+      (0, import_node_path2.join)(distDir, "server.js"),
       "neutral",
       // Cloudflare Workers: no Node or browser globals assumed
       "es2022"
     ),
     tryBuild(
-      (0, import_path.join)(pluginDir, "src/client.ts"),
-      (0, import_path.join)(distDir, "client.js"),
+      (0, import_node_path2.join)(pluginDir, "src/client.ts"),
+      (0, import_node_path2.join)(distDir, "client.js"),
       "browser",
       "es2020"
-    )
+    ),
+    readBlockDefinitions(pluginDir)
   ]);
   return {
     ...server ? { serverModule: server.b64, serverChecksum: server.checksum } : {},
-    ...client ? { clientBundle: client.b64, clientChecksum: client.checksum } : {}
+    ...client ? { clientBundle: client.b64, clientChecksum: client.checksum } : {},
+    ...definitions ? { blockDefinitions: definitions.b64, definitionsChecksum: definitions.checksum } : {}
   };
 }
 
 // src/utils/scaffold.ts
 var import_fs_extra = __toESM(require_lib(), 1);
-var import_path2 = require("path");
+var import_node_path3 = require("node:path");
 async function scaffoldPlugin(dir, id, name, description) {
   const files = {
     "nuxflow.plugin.json": JSON.stringify({ id, name, version: "0.1.0", description }, null, 2) + "\n",
@@ -5368,39 +5387,41 @@ export default {
   },
 }
 `,
-    "src/client.ts": `// Client-side bundle for the "${name}" plugin.
-// NuxFlow calls register(app, registry, vue) once on app boot.
+    "src/blocks.json": JSON.stringify([
+      {
+        id: `${id}/example`,
+        name: "Example Block",
+        description: `Starter block from the ${name} plugin.`,
+        icon: "i-lucide-box",
+        category: "advanced",
+        thumbnailColor: "#f0fdf4",
+        fields: [
+          { key: "headline", label: "Headline", type: "text", placeholder: `Hello from ${name}` },
+          { key: "text", label: "Body text", type: "textarea" },
+          { key: "bgColor", label: "Background colour", type: "color" },
+          { key: "padding", label: "Padding", type: "spacing" }
+        ],
+        defaultProps: {
+          headline: `Hello from ${name}`,
+          text: "Edit this block in the Canvas editor.",
+          bgColor: "#ffffff",
+          padding: { top: 48, right: 24, bottom: 48, left: 24, unit: "px" }
+        }
+      }
+    ], null, 2) + "\n",
+    "src/client.ts": `// Client-side render logic for the "${name}" plugin.
+//
+// This file runs INSIDE A SANDBOXED IFRAME with no access to the page it's
+// embedded in \u2014 no cookies, no localStorage, no reaching outside the frame
+// except via the props NuxFlow passes in. Block metadata (name, icon, fields,
+// defaultProps \u2014 everything the Canvas editor's settings panel needs) lives in
+// src/blocks.json instead, since the trusted app reads that directly without
+// ever running this file.
 //
 // Rules:
-//   1. Never \`import from 'vue'\` \u2014 the full Vue module is the 3rd argument.
-//   2. Never \`import from '@nuxflow/*'\` \u2014 use the registry/app args instead.
+//   1. Never \`import from 'vue'\` \u2014 the full Vue module is the 2nd argument.
+//   2. Never \`import from '@nuxflow/*'\` \u2014 there is no shared SDK package.
 //   3. All third-party deps must be bundled (esbuild does this automatically).
-
-// \u2500\u2500 Inline types (do not import from @nuxflow/canvas) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-// Copy and extend these interfaces in your own plugin.
-
-type FieldType = 'text' | 'textarea' | 'number' | 'color' | 'select' | 'toggle' | 'image' | 'url' | 'spacing'
-
-interface BlockDefinition {
-  id: string; name: string; description?: string; icon: string
-  category: 'layout' | 'content' | 'media' | 'cta' | 'forms' | 'advanced' | 'commerce'
-  thumbnailColor?: string
-  fields: Array<{
-    key: string; label: string; type: FieldType
-    placeholder?: string; options?: Array<{ label: string; value: string }>
-    min?: number; max?: number; step?: number; rows?: number
-  }>
-  defaultProps: Record<string, unknown>
-}
-
-interface Registry {
-  register: (id: string, entry: {
-    name: string; description?: string; icon?: string; component: unknown
-    // Pass a definition so the Canvas sidebar shows editable fields for this block.
-    // Without it the block has no configurable props in the admin editor.
-    definition?: BlockDefinition
-  }) => void
-}
 
 // The vue argument is \`import * as vue from 'vue'\` \u2014 add more entries as needed.
 interface VueLike {
@@ -5411,51 +5432,30 @@ interface VueLike {
   h: (tag: string | object, props?: Record<string, unknown> | null, children?: unknown) => unknown
 }
 
-// \u2500\u2500 Block definition \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-// Centralising defaultProps here keeps them in sync between the definition
-// (which the Canvas editor uses) and the component prop declarations below.
-
-const EXAMPLE_BLOCK: BlockDefinition = {
-  id: '${id}/example',
-  name: 'Example Block',
-  description: 'Starter block from the ${name} plugin.',
-  icon: 'i-lucide-box',
-  category: 'advanced',
-  thumbnailColor: '#f0fdf4',
-  fields: [
-    { key: 'headline', label: 'Headline',         type: 'text',     placeholder: 'Hello from ${name}' },
-    { key: 'text',     label: 'Body text',         type: 'textarea'                                    },
-    { key: 'bgColor',  label: 'Background colour', type: 'color'                                       },
-    { key: 'padding',  label: 'Padding',           type: 'spacing'                                     },
-  ],
-  defaultProps: {
-    headline: 'Hello from ${name}',
-    text:     'Edit this block in the Canvas editor.',
-    bgColor:  '#ffffff',
-    padding:  { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
-  },
+interface Props {
+  headline: string; text: string; bgColor: string
+  padding: { top: number; right: number; bottom: number; left: number; unit: string }
 }
 
-// \u2500\u2500 Entry point \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// Called once per rendered block instance, inside the sandbox iframe. Return the
+// Vue component for the given block id (matching an id declared in blocks.json),
+// or null if this plugin doesn't know that id.
+export function renderBlock(blockId: string, vue: VueLike): unknown {
+  if (blockId !== '${id}/example') return null
 
-export function register(_app: unknown, registry: Registry, vue: VueLike): void {
   const { defineComponent, ref, onMounted, h } = vue
 
-  interface Props {
-    headline: string; text: string; bgColor: string
-    padding: { top: number; right: number; bottom: number; left: number; unit: string }
-  }
-
-  const ExampleBlock = defineComponent({
+  return defineComponent({
     props: {
-      headline: { type: String, default: EXAMPLE_BLOCK.defaultProps.headline },
-      text:     { type: String, default: EXAMPLE_BLOCK.defaultProps.text     },
-      bgColor:  { type: String, default: EXAMPLE_BLOCK.defaultProps.bgColor  },
-      padding:  { type: Object, default: () => ({ ...EXAMPLE_BLOCK.defaultProps.padding }) },
+      headline: { type: String, default: 'Hello from ${name}' },
+      text:     { type: String, default: 'Edit this block in the Canvas editor.' },
+      bgColor:  { type: String, default: '#ffffff' },
+      padding:  { type: Object, default: () => ({ top: 48, right: 24, bottom: 48, left: 24, unit: 'px' }) },
     },
     setup(props: Props) {
       // Example: fetch extra data from the plugin's own server route (src/server.ts).
-      // Server routes are served at /_nuxflow/ext/${id}/{path}.
+      // Server routes are served at /_nuxflow/ext/${id}/{path} and never receive the
+      // site visitor's cookies \u2014 this is a cross-origin fetch from inside the sandbox.
       const extra = ref<string | null>(null)
 
       onMounted(async () => {
@@ -5478,14 +5478,6 @@ export function register(_app: unknown, registry: Registry, vue: VueLike): void 
         ])
       }
     },
-  })
-
-  registry.register('${id}/example', {
-    name:        EXAMPLE_BLOCK.name,
-    description: EXAMPLE_BLOCK.description,
-    icon:        EXAMPLE_BLOCK.icon,
-    component:   ExampleBlock,
-    definition:  EXAMPLE_BLOCK,
   })
 }
 `,
@@ -5519,8 +5511,9 @@ A NuxFlow dynamic plugin.
 
 \`\`\`bash
 # 1. Edit the plugin source
-#    src/server.ts  \u2014 Cloudflare Worker (server API)
-#    src/client.ts  \u2014 Vue block registration (page builder)
+#    src/server.ts   \u2014 Cloudflare Worker (server API)
+#    src/blocks.json \u2014 Block metadata (name, icon, fields, defaultProps)
+#    src/client.ts   \u2014 Vue render logic (runs inside a sandboxed iframe)
 
 # 2. Build
 nuxflow plugin build
@@ -5550,7 +5543,8 @@ nuxflow plugin build && nuxflow plugin update
 | File | Runtime | Purpose |
 |---|---|---|
 | \`src/server.ts\` | Cloudflare Worker | Handles \`/_nuxflow/ext/${id}/*\` requests |
-| \`src/client.ts\` | Browser | Registers Canvas blocks on app boot |
+| \`src/blocks.json\` | Read directly by the trusted app | Block metadata \u2014 name, icon, fields, defaultProps |
+| \`src/client.ts\` | Sandboxed iframe (no cookie/session access) | Renders the actual Vue component for each block |
 
 After \`nuxflow plugin build\`, both files are compiled to \`dist/\` and base64-encoded
 into \`dist/plugin.json\`, which is what the deploy command uploads.
@@ -5565,7 +5559,7 @@ Enable this plugin in the NuxFlow admin \u2192 Plugins after deploying.
 `
   };
   for (const [filePath, content] of Object.entries(files)) {
-    await (0, import_fs_extra.outputFile)((0, import_path2.join)(dir, filePath), content);
+    await (0, import_fs_extra.outputFile)((0, import_node_path3.join)(dir, filePath), content);
   }
 }
 async function scaffoldTheme(dir, name) {
@@ -5692,7 +5686,7 @@ something that's re-synced.
 `
   };
   for (const [filePath, content] of Object.entries(files)) {
-    await (0, import_fs_extra.outputFile)((0, import_path2.join)(dir, filePath), content);
+    await (0, import_fs_extra.outputFile)((0, import_node_path3.join)(dir, filePath), content);
   }
 }
 
@@ -5701,18 +5695,18 @@ function toKebab(s2) {
   return s2.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
 async function readManifest(dir) {
-  const raw = await (0, import_promises2.readFile)((0, import_path3.join)(dir, "nuxflow.plugin.json"), "utf-8").catch(() => null);
+  const raw = await (0, import_promises2.readFile)((0, import_node_path4.join)(dir, "nuxflow.plugin.json"), "utf-8").catch(() => null);
   if (!raw) throw new Error("nuxflow.plugin.json not found \u2014 run this command from a plugin directory");
   return JSON.parse(raw);
 }
 async function readDistJson(dir) {
-  const p2 = (0, import_path3.join)(dir, "dist/plugin.json");
-  if (!(0, import_fs2.existsSync)(p2)) throw new Error("dist/plugin.json not found \u2014 run `nuxflow plugin build` first");
+  const p2 = (0, import_node_path4.join)(dir, "dist/plugin.json");
+  if (!(0, import_node_fs2.existsSync)(p2)) throw new Error("dist/plugin.json not found \u2014 run `nuxflow plugin build` first");
   return JSON.parse(await (0, import_promises2.readFile)(p2, "utf-8"));
 }
 async function readPrivateKey(dir) {
-  const p2 = (0, import_path3.join)(dir, ".nuxflow-private-key");
-  if (!(0, import_fs2.existsSync)(p2)) throw new Error(".nuxflow-private-key not found \u2014 run `nuxflow plugin keygen` first");
+  const p2 = (0, import_node_path4.join)(dir, ".nuxflow-private-key");
+  if (!(0, import_node_fs2.existsSync)(p2)) throw new Error(".nuxflow-private-key not found \u2014 run `nuxflow plugin keygen` first");
   return (await (0, import_promises2.readFile)(p2, "utf-8")).trim();
 }
 async function buildSigningPayload(manifest, dist) {
@@ -5720,7 +5714,8 @@ async function buildSigningPayload(manifest, dist) {
     id: manifest.id,
     version: manifest.version,
     serverChecksum: dist.serverChecksum ?? "none",
-    clientChecksum: dist.clientChecksum ?? "none"
+    clientChecksum: dist.clientChecksum ?? "none",
+    definitionsChecksum: dist.definitionsChecksum ?? "none"
   };
 }
 var pluginCommand = defineCommand({
@@ -5746,8 +5741,8 @@ var pluginCommand = defineCommand({
           placeholder: "What does this plugin do?"
         });
         const description = typeof rawDesc === "string" ? rawDesc : "";
-        const outDir = (0, import_path3.resolve)(process.cwd(), id);
-        if ((0, import_fs2.existsSync)(outDir)) {
+        const outDir = (0, import_node_path4.resolve)(process.cwd(), id);
+        if ((0, import_node_fs2.existsSync)(outDir)) {
           consola.error(`Directory already exists: ${outDir}`);
           process.exit(1);
         }
@@ -5795,10 +5790,10 @@ var pluginCommand = defineCommand({
         const s2 = L4();
         s2.start("Generating Ed25519 keypair\u2026");
         const { privateKey, publicKey } = await generateKeyPair();
-        await (0, import_promises2.writeFile)((0, import_path3.join)(dir, ".nuxflow-private-key"), privateKey + "\n", { mode: 384 });
+        await (0, import_promises2.writeFile)((0, import_node_path4.join)(dir, ".nuxflow-private-key"), privateKey + "\n", { mode: 384 });
         const updatedManifest = { ...manifest, publisherPublicKey: publicKey };
         await (0, import_promises2.writeFile)(
-          (0, import_path3.join)(dir, "nuxflow.plugin.json"),
+          (0, import_node_path4.join)(dir, "nuxflow.plugin.json"),
           JSON.stringify(updatedManifest, null, 2) + "\n"
         );
         s2.stop("Keypair generated.");
@@ -5832,7 +5827,7 @@ var pluginCommand = defineCommand({
         const s2 = L4();
         s2.start(`Building ${manifest.name} v${manifest.version}\u2026`);
         try {
-          const { serverModule, serverChecksum, clientBundle, clientChecksum } = await buildPlugin(dir);
+          const { serverModule, serverChecksum, clientBundle, clientChecksum, blockDefinitions, definitionsChecksum } = await buildPlugin(dir);
           if (!serverModule && !clientBundle) {
             s2.stop("Nothing built \u2014 add src/server.ts and/or src/client.ts");
             process.exit(1);
@@ -5843,10 +5838,11 @@ var pluginCommand = defineCommand({
             version: manifest.version,
             description: manifest.description ?? "",
             ...serverModule ? { serverModule, serverChecksum } : {},
-            ...clientBundle ? { clientBundle, clientChecksum } : {}
+            ...clientBundle ? { clientBundle, clientChecksum } : {},
+            ...blockDefinitions ? { blockDefinitions, definitionsChecksum } : {}
           };
-          await (0, import_promises2.writeFile)((0, import_path3.join)(dir, "dist/plugin.json"), JSON.stringify(payload, null, 2) + "\n");
-          const parts = [serverModule && "server", clientBundle && "client"].filter(Boolean);
+          await (0, import_promises2.writeFile)((0, import_node_path4.join)(dir, "dist/plugin.json"), JSON.stringify(payload, null, 2) + "\n");
+          const parts = [serverModule && "server", clientBundle && "client", blockDefinitions && "block definitions"].filter(Boolean);
           s2.stop(`Built: ${parts.join(" + ")} \u2192 dist/  (checksums included)`);
         } catch (e3) {
           s2.stop("Build failed.");
@@ -5983,9 +5979,9 @@ var pluginCommand = defineCommand({
 });
 
 // src/commands/theme.ts
-var import_promises3 = require("fs/promises");
-var import_fs3 = require("fs");
-var import_path4 = require("path");
+var import_promises3 = require("node:fs/promises");
+var import_node_fs3 = require("node:fs");
+var import_node_path5 = require("node:path");
 
 // ../../node_modules/.pnpm/fflate@0.8.3/node_modules/fflate/esm/index.mjs
 var import_module = require("module");
@@ -6705,20 +6701,20 @@ function zipSync(data, opts) {
 
 // src/commands/theme.ts
 async function readManifest2(dir) {
-  const raw = await (0, import_promises3.readFile)((0, import_path4.join)(dir, "nuxflow.theme.json"), "utf-8").catch(() => null);
+  const raw = await (0, import_promises3.readFile)((0, import_node_path5.join)(dir, "nuxflow.theme.json"), "utf-8").catch(() => null);
   if (!raw) throw new Error("nuxflow.theme.json not found \u2014 run this command from a theme directory");
   return JSON.parse(raw);
 }
 async function readCss(dir) {
-  const p2 = (0, import_path4.join)(dir, "theme.css");
-  if (!(0, import_fs3.existsSync)(p2)) throw new Error("theme.css not found \u2014 run this command from a theme directory");
+  const p2 = (0, import_node_path5.join)(dir, "theme.css");
+  if (!(0, import_node_fs3.existsSync)(p2)) throw new Error("theme.css not found \u2014 run this command from a theme directory");
   return (0, import_promises3.readFile)(p2, "utf-8");
 }
 async function buildBundleZip(dir, manifest, css) {
-  const demoPath = (0, import_path4.join)(dir, "demo.json");
-  const imagesDir = (0, import_path4.join)(dir, "images");
-  const hasDemo = (0, import_fs3.existsSync)(demoPath);
-  const hasImages = (0, import_fs3.existsSync)(imagesDir);
+  const demoPath = (0, import_node_path5.join)(dir, "demo.json");
+  const imagesDir = (0, import_node_path5.join)(dir, "images");
+  const hasDemo = (0, import_node_fs3.existsSync)(demoPath);
+  const hasImages = (0, import_node_fs3.existsSync)(imagesDir);
   if (!hasDemo && !hasImages) return null;
   const files = {
     "theme.css": new TextEncoder().encode(css),
@@ -6730,7 +6726,7 @@ async function buildBundleZip(dir, manifest, css) {
   if (hasImages) {
     for (const entry of await (0, import_promises3.readdir)(imagesDir, { withFileTypes: true })) {
       if (!entry.isFile()) continue;
-      files[`images/${entry.name}`] = await (0, import_promises3.readFile)((0, import_path4.join)(imagesDir, entry.name));
+      files[`images/${entry.name}`] = await (0, import_promises3.readFile)((0, import_node_path5.join)(imagesDir, entry.name));
     }
   }
   return zipSync(files);
@@ -6750,8 +6746,8 @@ var themeCommand = defineCommand({
         }
         const name = rawName.trim();
         const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-        const outDir = (0, import_path4.resolve)(process.cwd(), slug);
-        if ((0, import_fs3.existsSync)(outDir)) {
+        const outDir = (0, import_node_path5.resolve)(process.cwd(), slug);
+        if ((0, import_node_fs3.existsSync)(outDir)) {
           consola.error(`Directory already exists: ${outDir}`);
           process.exit(1);
         }
@@ -6815,7 +6811,7 @@ var themeCommand = defineCommand({
           });
           if (res.id) {
             const updated = { ...manifest, deployedId: res.id };
-            await (0, import_promises3.writeFile)((0, import_path4.join)(dir, "nuxflow.theme.json"), JSON.stringify(updated, null, 2) + "\n");
+            await (0, import_promises3.writeFile)((0, import_node_path5.join)(dir, "nuxflow.theme.json"), JSON.stringify(updated, null, 2) + "\n");
           }
           s2.stop("Deployed!");
           if (res.hasDemoContent) consola.info("Demo content uploaded \u2014 import it from Admin \u2192 Themes after activating.");

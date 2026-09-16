@@ -82,7 +82,7 @@ function applyAlternative(alt: string) {
         :placeholder="field.placeholder"
         class="flex-1 px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
         @input="update(($event.target as HTMLInputElement).value)"
-      />
+      >
       <!-- AI button (only for text-like fields with content) -->
       <div v-if="field.type === 'text'" class="relative">
         <button
@@ -191,7 +191,7 @@ function applyAlternative(alt: string) {
       :step="field.step ?? 1"
       class="w-full px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
       @input="update(Number(($event.target as HTMLInputElement).value))"
-    />
+    >
   </div>
 
   <!-- Color -->
@@ -201,14 +201,14 @@ function applyAlternative(alt: string) {
       :value="(modelValue as string) ?? '#ffffff'"
       class="h-8 w-10 cursor-pointer rounded border border-gray-200 dark:border-gray-700 p-0.5 bg-white"
       @input="update(($event.target as HTMLInputElement).value)"
-    />
+    >
     <input
       type="text"
       :value="(modelValue as string) ?? '#ffffff'"
       maxlength="7"
       class="flex-1 px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono"
       @change="update(($event.target as HTMLInputElement).value)"
-    />
+    >
   </div>
 
   <!-- Select -->
@@ -252,12 +252,12 @@ function applyAlternative(alt: string) {
       placeholder="https://example.com/image.jpg"
       class="w-full px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
       @input="update(($event.target as HTMLInputElement).value)"
-    />
+    >
     <img
       v-if="modelValue"
       :src="(modelValue as string)"
       class="h-20 w-full object-cover rounded-md border border-gray-200 dark:border-gray-700"
-    />
+    >
   </div>
 
   <!-- Multi-image list (gallery) -->
@@ -273,7 +273,7 @@ function applyAlternative(alt: string) {
           :src="img.url"
           alt=""
           class="w-10 h-10 object-cover rounded shrink-0"
-        />
+        >
         <div v-else class="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded shrink-0 flex items-center justify-center">
           <UIcon name="i-lucide-image" mode="svg" class="w-4 h-4 text-gray-400" />
         </div>
@@ -282,7 +282,7 @@ function applyAlternative(alt: string) {
           placeholder="Alt text…"
           class="flex-1 min-w-0 px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
           @input="updateImageAlt(i, ($event.target as HTMLInputElement).value)"
-        />
+        >
         <button
           type="button"
           class="shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors rounded"
@@ -299,7 +299,7 @@ function applyAlternative(alt: string) {
         placeholder="Paste image URL…"
         class="flex-1 px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
         @keyup.enter="addImage"
-      />
+      >
       <button
         type="button"
         :disabled="!newImageUrl.trim()"
@@ -325,7 +325,7 @@ function applyAlternative(alt: string) {
           min="0"
           class="w-full px-1.5 py-1 text-sm text-center rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
           @input="updateSpacing(side, ($event.target as HTMLInputElement).value)"
-        />
+        >
       </div>
     </div>
     <select

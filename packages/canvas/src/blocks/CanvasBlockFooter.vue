@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { Ref } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import { safeHref } from '../utils/sanitize-html'
 
-declare const useFetch: <T = any>(url: string | (() => string), options?: any) => any
-declare const useRequestHeaders: any
+// Typed as a real `Ref` (not a plain `{ value: T }` shape) so the template's automatic
+// ref-unwrapping (`site.logoUrl` instead of `site.value.logoUrl`) still type-checks —
+// Nuxt's real `useFetch` returns an actual Ref here too.
+declare const useFetch: <T>(url: string | (() => string), options?: { headers?: Record<string, string> }) => Promise<{ data: Ref<T | null> }>
+declare const useRequestHeaders: (include?: string[]) => Record<string, string>
 
 const props = withDefaults(defineProps<{
   logoText?: string
