@@ -23,7 +23,7 @@ const CONTACT_FIELDS: FormField[] = [
 
 const bodySchema = z.object({
   name: z.string().min(1).max(200),
-  email: z.string().email(),
+  email: z.email(),
   subject: z.string().max(300).optional(),
   message: z.string().min(1).max(5000),
   turnstileToken: z.string().optional(),

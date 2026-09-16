@@ -8,7 +8,7 @@ import type { FormField } from '@nuxflow/db/schema'
 // config, logic rules, or any other internal/admin-only field.
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string | null
-  if (!siteId) throw createError({ statusCode: 404 })
+  if (!siteId) notFound()
 
   const db = useDb(event)
   const formIdentifier = getRouterParam(event, 'formIdentifier')!

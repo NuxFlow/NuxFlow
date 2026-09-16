@@ -5,6 +5,7 @@ import { membershipTiers, subscriptions } from '@nuxflow/db/schema'
 import { useDb } from '../db'
 import { resolveSetting } from '../settings'
 import { sendNotification } from '../notify'
+import { writeAuditLog } from '../audit'
 import type { PaymentProviderName, SubscriptionStatus } from './types'
 
 // The column each provider's webhook payload actually resolves a membership tier by.
@@ -131,6 +132,22 @@ export async function upsertSubscriptionFromWebhook(event: H3Event, evt: Subscri
 
   const wasInsert = row?.id === newId
 
+  // No real "acting user" for a webhook-driven system event — `userId: null` is the
+  // honest attribution (see buildAuditLogInsert's comment); the affected user and
+  // provider/tier details still live in `after` for the audit trail to be useful.
+  await writeAuditLog(event, null, {
+    action: wasInsert ? 'create' : 'update',
+    resource: 'subscription',
+    resourceId: row?.id ?? newId,
+    after: {
+      provider: evt.provider,
+      userId: evt.userId,
+      providerSubscriptionId: evt.providerSubscriptionId,
+      status: evt.status,
+      tierId: tier?.id ?? null,
+    },
+  })
+
   if (wasInsert && evt.pushOnActivation && (evt.status === 'active' || evt.status === 'trialing')) {
     await maybeSendPaymentPush(event, siteId, evt.userId, tier?.name)
   }
@@ -140,11 +157,20 @@ export async function upsertSubscriptionFromWebhook(event: H3Event, evt: Subscri
 export async function cancelSubscriptionFromWebhook(event: H3Event, evt: SubscriptionCancellation): Promise<void> {
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  await db.update(subscriptions)
+  const [row] = await db.update(subscriptions)
     .set({ status: 'cancelled', cancelledAt: evt.cancelledAt ?? new Date().toISOString() })
     .where(and(
       eq(subscriptions.siteId, siteId),
       eq(subscriptions.providerSubscriptionId, evt.providerSubscriptionId),
       eq(subscriptions.provider, evt.provider),
     ))
+    .returning({ id: subscriptions.id })
+
+  // See upsertSubscriptionFromWebhook above for why userId is null here.
+  await writeAuditLog(event, null, {
+    action: 'cancel',
+    resource: 'subscription',
+    resourceId: row?.id ?? evt.providerSubscriptionId,
+    after: { provider: evt.provider, providerSubscriptionId: evt.providerSubscriptionId, cancelledAt: evt.cancelledAt },
+  })
 }

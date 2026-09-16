@@ -2,12 +2,13 @@ import { useDb } from '../../../utils/db'
 import { menus } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { withEdgeCache } from '../../../utils/edge-cache'
+import { notFound } from '../../../utils/response'
 
 const CACHE_MAX_AGE = 300
 
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string | null
-  if (!siteId) throw createError({ statusCode: 404 })
+  if (!siteId) notFound()
 
   const db = useDb(event)
   const location = getRouterParam(event, 'location')!

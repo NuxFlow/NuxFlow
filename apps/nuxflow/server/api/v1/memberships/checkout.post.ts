@@ -10,7 +10,7 @@ import { conflict } from '../../../utils/response'
 
 const bodySchema = z.object({
   tierId: z.string(),
-  returnUrl: z.string().url(),
+  returnUrl: z.url(),
 })
 
 export default defineEventHandler(async (event) => {

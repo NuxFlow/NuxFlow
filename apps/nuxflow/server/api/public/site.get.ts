@@ -3,6 +3,7 @@ import { useDb } from '../../utils/db'
 import { sites, siteSettings } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { withEdgeCache } from '../../utils/edge-cache'
+import { notFound } from '../../utils/response'
 
 const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'seo.canonical_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block'] as const
 
@@ -14,7 +15,7 @@ async function buildPayload(event: H3Event, siteId: string) {
     where: eq(sites.id, siteId),
     columns: { name: true, domain: true, locale: true },
   })
-  if (!site) throw createError({ statusCode: 404 })
+  if (!site) notFound()
 
   const rows = await db.query.siteSettings.findMany({
     where: and(eq(siteSettings.siteId, siteId), inArray(siteSettings.key, [...FRONTEND_KEYS])),
@@ -46,7 +47,7 @@ async function buildPayload(event: H3Event, siteId: string) {
 
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string | null
-  if (!siteId) throw createError({ statusCode: 404 })
+  if (!siteId) notFound()
 
   // Fetched on effectively every client-side page navigation for header/footer chrome.
   // Cached at the edge (Cloudflare Cache API) — TTL-only, no explicit invalidation on

@@ -9,7 +9,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 
 const bodySchema = z.object({
   guestName: z.string().min(1).max(100).optional(),
-  guestEmail: z.string().email().optional(),
+  guestEmail: z.email().optional(),
   body: z.string().min(1).max(5000),
   parentId: z.string().optional(),
 })

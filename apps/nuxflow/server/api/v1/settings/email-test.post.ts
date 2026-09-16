@@ -8,7 +8,7 @@ import { resolveSetting, SECRET_MASK } from '../../../utils/settings'
 import { errorMessage } from '../../../utils/errors'
 
 const bodySchema = z.object({
-  sendTo: z.string().email().optional(),
+  sendTo: z.email().optional(),
   provider: z.enum(['console', 'cloudflare', 'resend', 'brevo', 'zepto', 'smtp']),
   fromAddress: z.string().optional(),
   resendApiKey: z.string().optional(),

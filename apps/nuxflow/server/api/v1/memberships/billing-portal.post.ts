@@ -6,7 +6,7 @@ import { getStripeProvider } from '../../../utils/payments/resolve'
 import { conflict } from '../../../utils/response'
 
 const bodySchema = z.object({
-  returnUrl: z.string().url(),
+  returnUrl: z.url(),
 })
 
 export default defineEventHandler(async (event) => {

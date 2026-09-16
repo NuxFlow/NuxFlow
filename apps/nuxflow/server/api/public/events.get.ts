@@ -2,11 +2,12 @@ import { useDb } from '../../utils/db'
 import { getContentTypeBySlug } from '../../utils/content-queries'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, gte, lte, desc } from 'drizzle-orm'
+import { notFound } from '../../utils/response'
 
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  if (!siteId) throw createError({ statusCode: 404 })
+  if (!siteId) notFound()
 
   const query = getQuery(event)
   const from = (query.from as string) || new Date().toISOString()

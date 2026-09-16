@@ -13,10 +13,10 @@ const bodySchema = z.object({
   fields: z.array(z.unknown()).default([]),
   logic: z.array(z.unknown()).default([]),
   status: z.enum(['active', 'draft', 'closed']).default('draft'),
-  redirectUrl: z.string().url().optional(),
+  redirectUrl: z.url().optional(),
   notifications: z.object({
     enabled: z.boolean().default(false),
-    email: z.string().email().optional(),
+    email: z.email().optional(),
   }).optional(),
 })
 

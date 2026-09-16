@@ -76,6 +76,10 @@ export class StripeProvider implements PaymentProvider {
     return this.client.subscriptions.cancel(subscriptionId)
   }
 
+  async getSubscription(subscriptionId: string) {
+    return this.client.subscriptions.retrieve(subscriptionId)
+  }
+
   async constructWebhookEvent(payload: string, signature: string, secret: string) {
     return this.client.webhooks.constructEventAsync(payload, signature, secret)
   }
