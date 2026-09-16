@@ -1,0 +1,149 @@
+/**
+ * Integration tests for the MCP JSON-RPC endpoint (server/api/v1/mcp.ts).
+ *
+ * Focused coverage for the two bugs fixed here:
+ *   1. Content mutations via MCP tools (`create_content`) now write an audit log row,
+ *      matching every other content-mutation route in the codebase.
+ *   2. A POST carrying a `sessionId` that isn't bound to this isolate's `activeStreams`
+ *      map now returns a clear, distinct JSON-RPC error (and 404 status) instead of
+ *      silently executing the request with no way to signal the dropped SSE delivery.
+ *
+ * This is not a comprehensive test suite for the whole MCP endpoint (out of scope) —
+ * just enough to pin down the two fixes above.
+ */
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
+import type { H3Event } from 'h3'
+import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
+import { createMockEvent } from '../helpers/event'
+import { seedSite, seedUser, seedRole, seedContentType } from '../helpers/seed'
+import { contentItems, auditLogs } from '@nuxflow/db/schema'
+import { eq, and } from 'drizzle-orm'
+import mcpHandler from '../../server/api/v1/mcp'
+
+vi.mock('../../server/utils/db', () => ({
+  useDb: () => getCurrentTestDb(),
+  getD1: () => null,
+}))
+
+// rate-limit.ts calls useDb() as a bare Nitro auto-import (no explicit import statement),
+// which isn't available in this Vitest environment — mock it out like every other
+// integration test covering a rate-limited route (see ai-routes.test.ts, registration.test.ts).
+vi.mock('../../server/utils/rate-limit', () => ({
+  rateLimit: vi.fn().mockResolvedValue(undefined),
+}))
+
+const SITE = 'site-mcp-01'
+let authorUserId: string
+
+type HandlerFn = (e: H3Event) => Promise<unknown>
+
+beforeAll(async () => {
+  await initTestDb()
+  const db = getCurrentTestDb()
+
+  await seedSite(db, { id: SITE, domain: 'mcp.localhost' })
+  authorUserId = await seedUser(db, { email: 'mcp-author@test.com' })
+  await seedRole(db, authorUserId, SITE, 'author')
+  await seedContentType(db, SITE, { slug: 'page', name: 'Pages', singularName: 'Page' })
+})
+
+afterAll(teardownTestDb)
+
+function mkMcpEvent(opts: {
+  body: unknown
+  query?: Record<string, string>
+  apiKeyUserId?: string
+  apiKeyRole?: string
+}) {
+  return createMockEvent({
+    method: 'POST',
+    siteId: SITE,
+    body: opts.body,
+    query: opts.query ?? {},
+    apiKeyUserId: opts.apiKeyUserId ?? authorUserId,
+    apiKeyRole: opts.apiKeyRole ?? 'author',
+  }) as unknown as H3Event
+}
+
+describe('POST /api/v1/mcp — create_content writes an audit log', () => {
+  it('creates the content item and a matching audit_logs row', async () => {
+    const event = mkMcpEvent({
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'create_content',
+          arguments: { title: 'MCP Created Page', slug: 'mcp-created-page' },
+        },
+      },
+    })
+
+    const response = await (mcpHandler as HandlerFn)(event) as {
+      jsonrpc: string
+      id: number
+      result: { content: { type: string; text: string }[] }
+    }
+
+    expect(response.result.content[0].text).toContain('Success')
+
+    const db = getCurrentTestDb()
+    const item = await db.query.contentItems.findFirst({
+      where: eq(contentItems.slug, 'mcp-created-page'),
+    })
+    expect(item).toBeTruthy()
+
+    const logs = await db.query.auditLogs.findMany({
+      where: and(eq(auditLogs.resource, 'content_item'), eq(auditLogs.resourceId, item!.id)),
+    })
+    expect(logs.length).toBe(1)
+    expect(logs[0].action).toBe('create')
+    expect(logs[0].userId).toBe(authorUserId)
+    expect(logs[0].siteId).toBe(SITE)
+  })
+})
+
+describe('POST /api/v1/mcp — unknown/mismatched sessionId', () => {
+  it('returns a distinct JSON-RPC error and 404 instead of silently succeeding', async () => {
+    const event = mkMcpEvent({
+      query: { sessionId: 'session-that-does-not-exist-on-this-isolate' },
+      body: { jsonrpc: '2.0', id: 42, method: 'tools/list' },
+    })
+
+    const response = await (mcpHandler as HandlerFn)(event) as {
+      jsonrpc: string
+      id: number | null
+      error?: { code: number; message: string }
+      result?: unknown
+    }
+
+    expect(response.error).toBeTruthy()
+    expect(response.error!.code).toBe(-32001)
+    expect(response.error!.message).toMatch(/not bound to this Worker isolate/i)
+    expect(response.result).toBeUndefined()
+    expect((event as unknown as { _status: number })._status).toBe(404)
+  })
+
+  it('does not execute the underlying tool call when the session is unbound', async () => {
+    const event = mkMcpEvent({
+      query: { sessionId: 'another-unbound-session' },
+      body: {
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: {
+          name: 'create_content',
+          arguments: { title: 'Should Not Exist', slug: 'should-not-exist' },
+        },
+      },
+    })
+
+    await (mcpHandler as HandlerFn)(event)
+
+    const db = getCurrentTestDb()
+    const item = await db.query.contentItems.findFirst({
+      where: eq(contentItems.slug, 'should-not-exist'),
+    })
+    expect(item).toBeUndefined()
+  })
+})
