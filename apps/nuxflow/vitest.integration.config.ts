@@ -4,9 +4,9 @@ import { resolve } from 'node:path'
 export default defineConfig({
   resolve: {
     alias: {
-      '@nuxflow/db/schema': resolve(__dirname, '../../packages/db/src/schema/index.ts'),
-      '@nuxflow/db/queries': resolve(__dirname, '../../packages/db/src/queries/index.ts'),
-      '@nuxflow/db': resolve(__dirname, '../../packages/db/src/index.ts'),
+      '@nuxflow/db/schema': resolve(import.meta.dirname, '../../packages/db/src/schema/index.ts'),
+      '@nuxflow/db/queries': resolve(import.meta.dirname, '../../packages/db/src/queries/index.ts'),
+      '@nuxflow/db': resolve(import.meta.dirname, '../../packages/db/src/index.ts'),
     },
   },
   test: {

@@ -6,6 +6,19 @@ import { safeHref } from '../utils/sanitize-html'
 declare const useState: <T>(key: string, init?: () => T) => { value: T }
 declare const useRequestEvent: () => unknown
 
+// Nuxt/Vite inject `server`/`client` onto `import.meta` at build time; this package has
+// no Nuxt dependency to pull in that ambient type augmentation, so it's declared locally
+// instead of casting `import.meta` to `any` at the call site. Must match Nuxt's own
+// declaration (nuxt/dist/app/types/augments.d.ts: `server: boolean;`, no `readonly`, not
+// optional) exactly — TS requires every declaration of the same interface member to agree
+// when this file is type-checked as part of the full app (which already has Nuxt's own
+// declaration in scope), not just when packages/canvas is type-checked standalone.
+declare global {
+  interface ImportMeta {
+    server: boolean
+  }
+}
+
 const props = withDefaults(defineProps<{
   text?: string
   acceptLabel?: string
@@ -45,7 +58,7 @@ const consentCategories = ref({
 
 // Geolocation state serialized from server SSR to client hydration
 const isGdprZone = useState('is-gdpr-zone', () => {
-  if ((import.meta as any).server) {
+  if (import.meta.server) {
     const event = useRequestEvent() as { node: { req: { headers: Record<string, string | string[] | undefined> } } } | null
     if (event) {
       const headers = event.node.req.headers
