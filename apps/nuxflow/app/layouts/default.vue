@@ -24,13 +24,21 @@ const footerBlockId = computed(() => (site.value as { footerBlockId?: string | n
 const { resolve } = useBlockRegistry()
 
 useHead({
-  link: computed(() => [
-    { rel: 'alternate', type: 'application/rss+xml', title: 'RSS Feed', href: '/feed.xml' },
-    { rel: 'alternate', type: 'application/atom+xml', title: 'Atom Feed', href: '/atom.xml' },
-    ...(canonicalBase.value
-      ? [{ rel: 'canonical', href: `${canonicalBase.value}${route.path}` }]
-      : []),
-  ]),
+  link: computed(() => {
+    // `as const` on each `rel`/`type` keeps them as literal types (matching a specific
+    // member of @unhead/vue's Link discriminated union — AlternateFeedLink, CanonicalLink,
+    // etc.) through the conditional array below. Without it, combining these via a
+    // ternary/spread widens `rel` to plain `string`, which no longer matches anything in
+    // the union (GenericLink is deliberately excluded from it — see unhead's own docs on
+    // `defineLink()` — so there's no permissive fallback for a widened `rel` here).
+    const feedLinks = [
+      { rel: 'alternate' as const, type: 'application/rss+xml' as const, title: 'RSS Feed', href: '/feed.xml' },
+      { rel: 'alternate' as const, type: 'application/atom+xml' as const, title: 'Atom Feed', href: '/atom.xml' },
+    ]
+    return canonicalBase.value
+      ? [...feedLinks, { rel: 'canonical' as const, href: `${canonicalBase.value}${route.path}` }]
+      : feedLinks
+  }),
   script: computed(() => {
     if (!siteName.value || !canonicalBase.value) return []
     return [

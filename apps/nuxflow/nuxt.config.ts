@@ -92,8 +92,20 @@ export default defineNuxtConfig({
 
   i18n: {
     defaultLocale: 'en',
-    locales: [{ code: 'en', file: 'en.json', name: 'English' }],
-    langDir: resolve(_dirname, 'app/locales'),
+    // .ts, not .json — see the comment in app/locales/en.ts for why.
+    locales: [{ code: 'en', file: 'en.ts', name: 'English' }],
+    // restructureDir: false keeps @nuxtjs/i18n v9's newer default project layout (a
+    // top-level i18n/locales/ directory) opted out of, so a relative `langDir` resolves
+    // against srcDir (app/) instead — matching where this project actually keeps
+    // app/locales/. Without this, a relative langDir resolves against `<rootDir>/i18n/`
+    // by default, and the module looked for a nonexistent apps/nuxflow/i18n/locales/en.ts.
+    // langDir must be relative, not absolute: @nuxtjs/i18n warns that an absolute path
+    // "will not work in production", and Nuxt 4.5's Vite 8/Rolldown bundler makes that
+    // literal — an absolute Windows path fed into i18n's lazy-loaded locale import broke
+    // the production build outright, where Vite 7's esbuild-based pipeline had silently
+    // tolerated the same misconfiguration.
+    restructureDir: false,
+    langDir: 'locales',
     strategy: 'no_prefix',
   },
 
