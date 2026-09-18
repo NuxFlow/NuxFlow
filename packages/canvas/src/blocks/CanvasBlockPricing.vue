@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import { safeHref } from '../utils/sanitize-html'
+import { spacingToCss } from '../utils/spacing'
 
 const props = withDefaults(defineProps<{
   title?: string
@@ -117,7 +118,7 @@ const containerStyle = computed(() => {
   return {
     backgroundColor: props.bgColor || 'transparent',
     color: props.textColor || 'inherit',
-    padding: p ? `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}` : '60px 24px',
+    padding: spacingToCss(p, '60px 24px'),
   }
 })
 </script>

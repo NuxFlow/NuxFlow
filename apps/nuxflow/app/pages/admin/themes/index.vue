@@ -67,16 +67,24 @@ async function deleteTheme(theme: Theme) {
   const name = theme.name
   const id = theme.id
   const hasDemo = theme.settings?.hasDemoContent === true
+  const { confirm } = useConfirm()
 
-  if (!confirm(`Are you sure you want to delete the theme "${name}"? This action cannot be undone.`)) {
-    return
-  }
+  const confirmedDelete = await confirm({
+    title: `Delete the theme "${name}"?`,
+    description: 'This action cannot be undone.',
+    confirmLabel: 'Delete',
+  })
+  if (!confirmedDelete) return
 
   let deleteDemo = false
   if (hasDemo) {
-    deleteDemo = confirm(
-      `Would you also like to delete all the demo pages, menus, and forms that were imported with this theme?`
-    )
+    deleteDemo = await confirm({
+      title: 'Also delete demo content?',
+      description: 'This deletes all the demo pages, menus, and forms that were imported with this theme.',
+      confirmLabel: 'Delete demo content',
+      cancelLabel: 'Keep demo content',
+      color: 'warning',
+    })
   }
 
   deletingId.value = id

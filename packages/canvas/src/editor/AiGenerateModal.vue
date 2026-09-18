@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { CanvasContent } from '../types'
 
@@ -9,11 +9,36 @@ const emit = defineEmits<{
   close: []
 }>()
 
+// ── Dialog semantics: Escape-to-close, initial focus, and focus restore ─────
+// Mirrors BlockPicker.vue's identical handling — this modal was missing all of it despite
+// being opened from the same editor toolbar.
+const modalRef = ref<HTMLElement | null>(null)
+let previouslyFocused: HTMLElement | null = null
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') emit('close')
+}
+
+onMounted(() => {
+  previouslyFocused = document.activeElement as HTMLElement | null
+  document.addEventListener('keydown', handleKeydown)
+  modalRef.value?.focus()
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+  previouslyFocused?.focus()
+})
+
 const description = ref('')
 const tone = ref<'professional' | 'casual' | 'friendly' | 'bold'>('professional')
 const pageGoal = ref<'landing' | 'about' | 'product' | 'pricing' | 'contact' | 'blog' | 'general'>('landing')
 const loading = ref(false)
 const error = ref('')
+// Replaces window.confirm() (blocking, unstyled, not dark-mode-aware) with an inline
+// two-step confirm: the first click when hasBlocks reveals a stronger warning + explicit
+// confirm button instead of proceeding straight to generation.
+const confirmingReplace = ref(false)
 
 const toneOptions = [
   { label: 'Professional', value: 'professional' },
@@ -37,8 +62,9 @@ async function generate() {
     error.value = 'Please describe your page in at least 10 characters.'
     return
   }
-  if (props.hasBlocks) {
-    if (!window.confirm('This will replace all existing blocks. Continue?')) return
+  if (props.hasBlocks && !confirmingReplace.value) {
+    confirmingReplace.value = true
+    return
   }
   loading.value = true
   error.value = ''
@@ -50,13 +76,14 @@ async function generate() {
     })
     if (!res.ok) {
       const err = await res.json() as { message?: string }
-      throw { data: err }
+      throw Object.assign(new Error(err.message ?? 'Generation failed'), { data: err })
     }
     const result = await res.json() as CanvasContent
     emit('generate', result)
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message
     error.value = msg || 'Generation failed. Check your AI provider settings.'
+    confirmingReplace.value = false
   } finally {
     loading.value = false
   }
@@ -65,14 +92,21 @@ async function generate() {
 
 <template>
   <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" @click.self="emit('close')">
-    <div class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg">
+    <div
+      ref="modalRef"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ai-generate-modal-title"
+      tabindex="-1"
+      class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg outline-none"
+    >
       <!-- Header -->
       <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-800">
         <div class="flex items-center gap-2">
           <UIcon name="i-lucide-sparkles" mode="svg" class="w-4 h-4 text-primary-500" />
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">Generate page with AI</h2>
+          <h2 id="ai-generate-modal-title" class="text-base font-semibold text-gray-900 dark:text-white">Generate page with AI</h2>
         </div>
-        <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" @click="emit('close')">
+        <button aria-label="Close" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" @click="emit('close')">
           <UIcon name="i-lucide-x" mode="svg" class="w-4 h-4" />
         </button>
       </div>
@@ -88,6 +122,7 @@ async function generate() {
             rows="4"
             placeholder="e.g. A landing page for a SaaS project management tool targeting small teams. Highlight real-time collaboration, easy setup, and affordable pricing."
             class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 px-3 py-2 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+            @input="confirmingReplace = false"
           />
         </div>
 
@@ -117,9 +152,13 @@ async function generate() {
           {{ error }}
         </p>
 
-        <p v-if="hasBlocks" class="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+        <p v-if="hasBlocks && !confirmingReplace" class="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
           <UIcon name="i-lucide-triangle-alert" mode="svg" class="w-3.5 h-3.5" />
           Existing blocks will be replaced.
+        </p>
+        <p v-if="confirmingReplace" class="text-xs font-medium text-red-600 dark:text-red-400 flex items-center gap-1.5">
+          <UIcon name="i-lucide-triangle-alert" mode="svg" class="w-3.5 h-3.5" />
+          Click "Replace blocks" again to confirm — this cannot be undone.
         </p>
       </div>
 
@@ -133,12 +172,13 @@ async function generate() {
         </button>
         <button
           :disabled="loading || description.length < 10"
-          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          :class="confirmingReplace ? 'bg-red-600 hover:bg-red-700' : 'bg-primary-600 hover:bg-primary-700'"
           @click="generate"
         >
           <UIcon v-if="loading" name="i-lucide-loader-2" mode="svg" class="w-4 h-4 animate-spin" />
           <UIcon v-else name="i-lucide-sparkles" mode="svg" class="w-4 h-4" />
-          {{ loading ? 'Generating…' : 'Generate page' }}
+          {{ loading ? 'Generating…' : confirmingReplace ? 'Replace blocks' : 'Generate page' }}
         </button>
       </div>
     </div>

@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import type { SpacingValue } from '../types'
 import NuxLightbox from './NuxLightbox.vue'
+import { spacingToCss } from '../utils/spacing'
 
 const props = withDefaults(defineProps<{
   src?: string
@@ -39,12 +40,7 @@ const wrapClass = computed(() => ({
   right: 'ml-auto',
 }[props.align ?? 'center']))
 
-const containerStyle = computed(() => {
-  const p = props.padding
-  return p
-    ? { padding: `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}` }
-    : { padding: '16px 24px' }
-})
+const containerStyle = computed(() => ({ padding: spacingToCss(props.padding, '16px 24px') }))
 
 const lightboxOpen = ref(false)
 

@@ -50,6 +50,10 @@ export const mediaFolders = sqliteTable('media_folders', {
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_media_folders_site').on(t.siteId),
+  // Covers folders/[id].delete.ts's reparenting UPDATE (WHERE site_id = ? AND
+  // parent_id = ?) — without this, promoting a deleted folder's children to root level
+  // is a full per-site scan on every folder delete.
+  index('idx_media_folders_site_parent').on(t.siteId, t.parentId),
 ])
 
 export const videoAssets = sqliteTable('video_assets', {

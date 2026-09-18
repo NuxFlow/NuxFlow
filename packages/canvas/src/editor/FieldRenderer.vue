@@ -87,6 +87,7 @@ function applyAlternative(alt: string) {
       <div v-if="field.type === 'text'" class="relative">
         <button
           type="button"
+          aria-label="Improve with AI"
           title="Improve with AI"
           :disabled="aiLoading || !String(modelValue ?? '').trim()"
           class="h-full px-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-primary-500 hover:border-primary-400 disabled:opacity-30 transition-colors"
@@ -279,6 +280,7 @@ function applyAlternative(alt: string) {
         </div>
         <input
           :value="img.alt"
+          :aria-label="`Alt text for image ${i + 1}`"
           placeholder="Alt text…"
           class="flex-1 min-w-0 px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
           @input="updateImageAlt(i, ($event.target as HTMLInputElement).value)"
@@ -286,6 +288,7 @@ function applyAlternative(alt: string) {
         <button
           type="button"
           class="shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors rounded"
+          aria-label="Remove image"
           title="Remove image"
           @click="removeImage(i)"
         >

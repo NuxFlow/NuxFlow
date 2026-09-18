@@ -28,7 +28,13 @@ export const contentItems = sqliteTable('content_items', {
   slug: text('slug').notNull(),
   title: text('title').notNull(),
   status: text('status', { enum: ['draft', 'review', 'published', 'scheduled', 'archived'] }).notNull().default('draft'),
-  visibility: text('visibility', { enum: ['public', 'private', 'password', 'members'] }).notNull().default('public'),
+  // 'password' was removed from this enum — it was scaffolded (a dead branch in
+  // checkContentAccess and this enum value) but never actually implemented: nothing ever
+  // wrote it (deriveVisibilityFromSettings only ever produces 'public'/'members'), and the
+  // dead branch silently required a paid subscription instead of a password if it had ever
+  // been reachable. No DB migration needed — SQLite has no native enum type, so Drizzle's
+  // `enum` option here is TypeScript-only, not a DB-level CHECK constraint.
+  visibility: text('visibility', { enum: ['public', 'private', 'members'] }).notNull().default('public'),
   content: text('content', { mode: 'json' }).$type<unknown>(),
   excerpt: text('excerpt'),
   seoTitle: text('seo_title'),
@@ -60,7 +66,12 @@ export const contentItems = sqliteTable('content_items', {
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_content_items_site_type').on(t.siteId, t.typeId),
-  index('idx_content_items_site_slug').on(t.siteId, t.slug),
+  // Unique, not just indexed: routing (public pages, posts, taxonomy archives) resolves
+  // content by (site_id, slug) alone via findFirst() with no tie-breaker, so two items
+  // silently sharing a slug previously meant "which one the site actually serves" was
+  // undefined and could change across a reinsert/migration. Content create/update routes
+  // pre-check for a conflict and return a friendly 409 before ever hitting this constraint.
+  uniqueIndex('idx_content_items_site_slug_unique').on(t.siteId, t.slug),
   index('idx_content_items_site_status').on(t.siteId, t.status),
   index('idx_content_items_locale').on(t.siteId, t.locale),
   index('idx_content_items_source').on(t.sourceItemId),
@@ -120,6 +131,14 @@ export const taxonomyTerms = sqliteTable('taxonomy_terms', {
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_taxonomy_terms_taxonomy').on(t.taxonomyId),
+  // A duplicate slug within the same taxonomy makes one term's content permanently
+  // unreachable via its canonical archive URL (findFirst on (taxonomy_id, slug) picks one
+  // arbitrarily) — same class of bug as content_items' slug uniqueness above.
+  uniqueIndex('idx_taxonomy_terms_taxonomy_slug_unique').on(t.taxonomyId, t.slug),
+  // Covers terms/[termId].delete.ts's reparenting UPDATE (WHERE taxonomy_id = ? AND
+  // parent_id = ?) — without this, promoting a deleted term's children to top-level is a
+  // full per-taxonomy scan on every term delete.
+  index('idx_taxonomy_terms_taxonomy_parent').on(t.taxonomyId, t.parentId),
 ])
 
 export const contentTaxonomyTerms = sqliteTable('content_taxonomy_terms', {
@@ -178,4 +197,9 @@ export const comments = sqliteTable('comments', {
 }, (t) => [
   index('idx_comments_item').on(t.itemId),
   index('idx_comments_site_status').on(t.siteId, t.status),
+  // Covers comments/[id].delete.ts's reparenting UPDATE (WHERE site_id = ? AND
+  // parent_id = ?) — without this, promoting a deleted comment's replies to top-level is a
+  // full per-site scan on every comment delete, which matters more here than for
+  // taxonomy_terms/media_folders since comment threads can grow large and deep.
+  index('idx_comments_site_parent').on(t.siteId, t.parentId),
 ])

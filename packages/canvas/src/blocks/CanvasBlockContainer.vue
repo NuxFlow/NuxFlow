@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { SpacingValue } from '../types'
+import { spacingToCss } from '../utils/spacing'
 
 const props = withDefaults(defineProps<{
   bgColor?: string
@@ -20,7 +21,7 @@ const maxWidthClass = computed(() => ({
 const containerStyle = computed(() => {
   const p = props.padding
   const style: Record<string, string> = {}
-  if (p) style.padding = `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}`
+  if (p) style.padding = spacingToCss(p, '')
   if (props.bgColor) style.backgroundColor = props.bgColor
   return style
 })

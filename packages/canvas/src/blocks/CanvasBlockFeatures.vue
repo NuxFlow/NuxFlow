@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
+import { spacingToCss } from '../utils/spacing'
 
 const props = withDefaults(defineProps<{
   sectionLabel?: string
@@ -69,7 +70,7 @@ const hasBg = computed(() => !!props.bgColor)
 
 const containerStyle = computed(() => {
   const p = props.padding
-  const padding = p ? `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}` : '48px 24px'
+  const padding = spacingToCss(p, '48px 24px')
   return hasBg.value ? { backgroundColor: props.bgColor, padding } : { padding }
 })
 

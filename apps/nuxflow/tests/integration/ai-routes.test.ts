@@ -35,9 +35,15 @@ vi.mock('../../server/utils/rate-limit', () => ({
 }))
 
 // Hoist mock functions so vi.mock factory closures can capture them
-const { mockGetAiSdkModel, mockGenerateText } = vi.hoisted(() => ({
+const { mockGetAiSdkModel, mockGenerateText, mockGenerateObject, mockLoadImageBytesForAi } = vi.hoisted(() => ({
   mockGetAiSdkModel: vi.fn(),
   mockGenerateText: vi.fn(),
+  // improve/seo-suggest now use generateObject (schema-enforced) instead of generateText +
+  // manual JSON.parse — same pattern grammar.post.ts/generate-canvas.post.ts already used.
+  mockGenerateObject: vi.fn(),
+  // alt-text/bulk-alt-text now fetch the actual image bytes before calling generateText —
+  // mocked here so tests never make a real network call to a media item's (fake) URL.
+  mockLoadImageBytesForAi: vi.fn(),
 }))
 
 vi.mock('../../server/utils/ai-sdk', () => ({
@@ -61,10 +67,12 @@ vi.mock('../../server/utils/ai-sdk', () => ({
       throw e
     }
   },
+  loadImageBytesForAi: mockLoadImageBytesForAi,
 }))
 
 vi.mock('ai', () => ({
   generateText: mockGenerateText,
+  generateObject: mockGenerateObject,
 }))
 
 const SITE = 'site-ai-01'
@@ -137,11 +145,11 @@ describe('POST /api/v1/ai/seo-suggest', () => {
     ).rejects.toMatchObject({ statusCode: 503 })
   })
 
-  it('returns seoTitle and seoDescription parsed from the AI JSON response', async () => {
+  it('returns seoTitle and seoDescription from the schema-validated AI response', async () => {
     const fakeModel = Symbol('fake-model')
     mockGetAiSdkModel.mockResolvedValueOnce(fakeModel)
-    mockGenerateText.mockResolvedValueOnce({
-      text: JSON.stringify({ title: 'AI Generated Title', description: 'AI Generated Description' }),
+    mockGenerateObject.mockResolvedValueOnce({
+      object: { title: 'AI Generated Title', description: 'AI Generated Description' },
     })
 
     const result = await (seoSuggestHandler as HandlerFn)(
@@ -152,23 +160,14 @@ describe('POST /api/v1/ai/seo-suggest', () => {
     expect(result.seoDescription).toBe('AI Generated Description')
   })
 
-  it('falls back to the original title when the AI returns invalid JSON', async () => {
-    const fakeModel = Symbol('fake-model')
-    mockGetAiSdkModel.mockResolvedValueOnce(fakeModel)
-    mockGenerateText.mockResolvedValueOnce({ text: 'this is not valid json at all' })
-
-    const result = await (seoSuggestHandler as HandlerFn)(
-      mkEditorEvent({ title: 'Fallback Title' }),
-    ) as { seoTitle: string; seoDescription: string }
-
-    expect(result.seoTitle).toBe('Fallback Title')
-    expect(result.seoDescription).toBe('')
-  })
-
+  // generateObject enforces the schema at the provider-call level (with the AI SDK's own
+  // internal retry/repair), so a response that can't be coerced into shape is a genuine
+  // provider-call failure now, not a "parse what we got" fallback — it surfaces as the same
+  // 502 path as any other AI SDK error, covered by the test below.
   it('returns 502 when the AI SDK throws', async () => {
     const fakeModel = Symbol('fake-model')
     mockGetAiSdkModel.mockResolvedValueOnce(fakeModel)
-    mockGenerateText.mockRejectedValueOnce(new Error('Provider network error'))
+    mockGenerateObject.mockRejectedValueOnce(new Error('Provider network error'))
 
     await expect(
       (seoSuggestHandler as HandlerFn)(mkEditorEvent({ title: 'Error Test' })),
@@ -205,6 +204,7 @@ describe('POST /api/v1/ai/alt-text', () => {
 
   it('returns trimmed alt text from the AI SDK', async () => {
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockLoadImageBytesForAi.mockResolvedValueOnce({ data: new Uint8Array([1, 2, 3]), mediaType: 'image/jpeg' })
     mockGenerateText.mockResolvedValueOnce({ text: '  A cheerful person smiling at the camera  ' })
 
     const result = await (altTextHandler as HandlerFn)(mkEditorEvent({ mediaId })) as { altText: string }
@@ -212,14 +212,23 @@ describe('POST /api/v1/ai/alt-text', () => {
     expect(result.altText).toBe('A cheerful person smiling at the camera')
   })
 
-  it('uses the original filename as context in the prompt (provider receives a filename-based prompt)', async () => {
+  it('sends the fetched image bytes alongside a filename-context prompt', async () => {
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    const fakeImage = { data: new Uint8Array([1, 2, 3]), mediaType: 'image/jpeg' }
+    mockLoadImageBytesForAi.mockResolvedValueOnce(fakeImage)
     mockGenerateText.mockResolvedValueOnce({ text: 'Alt text result' })
 
     await (altTextHandler as HandlerFn)(mkEditorEvent({ mediaId }))
 
+    // The model must actually receive the image, not just a filename-only text prompt —
+    // this is the exact "looks done but doesn't look at the image" gap being fixed.
+    expect(mockLoadImageBytesForAi).toHaveBeenCalledWith('https://example.com/hero-photo.jpg', 'image/jpeg')
     const [callArgs] = mockGenerateText.mock.calls.at(-1) as [Record<string, unknown>]
-    expect(callArgs.prompt as string).toContain('hero-photo.jpg')
+    const messages = callArgs.messages as Array<{ content: Array<{ type: string; text?: string; image?: unknown }> }>
+    const textPart = messages[0]!.content.find(p => p.type === 'text')
+    const imagePart = messages[0]!.content.find(p => p.type === 'image')
+    expect(textPart?.text).toContain('hero-photo.jpg')
+    expect(imagePart?.image).toBe(fakeImage.data)
   })
 })
 
@@ -236,9 +245,9 @@ describe('POST /api/v1/ai/improve', () => {
     ).rejects.toMatchObject({ statusCode: 503 })
   })
 
-  it('returns the parsed JSON array of alternatives', async () => {
+  it('returns the schema-validated array of alternatives', async () => {
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
-    mockGenerateText.mockResolvedValueOnce({ text: JSON.stringify(['Alt 1', 'Alt 2', 'Alt 3']) })
+    mockGenerateObject.mockResolvedValueOnce({ object: { alternatives: ['Alt 1', 'Alt 2', 'Alt 3'] } })
 
     const result = await (improveHandler as HandlerFn)(
       mkEditorEvent({ text: 'Some text', instruction: 'shorten' }),
@@ -247,20 +256,9 @@ describe('POST /api/v1/ai/improve', () => {
     expect(result.alternatives).toEqual(['Alt 1', 'Alt 2', 'Alt 3'])
   })
 
-  it('wraps a non-JSON response as a single alternative', async () => {
-    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
-    mockGenerateText.mockResolvedValueOnce({ text: 'plain text response' })
-
-    const result = await (improveHandler as HandlerFn)(
-      mkEditorEvent({ text: 'Some text' }),
-    ) as { alternatives: string[] }
-
-    expect(result.alternatives).toEqual(['plain text response'])
-  })
-
   it('returns 502 when the AI SDK throws', async () => {
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
-    mockGenerateText.mockRejectedValueOnce(new Error('Rate limited'))
+    mockGenerateObject.mockRejectedValueOnce(new Error('Rate limited'))
 
     await expect(
       (improveHandler as HandlerFn)(mkEditorEvent({ text: 'Some text' })),
@@ -286,6 +284,7 @@ describe('POST /api/v1/ai/bulk-alt-text', () => {
     const docId = await seedMedia(db, SITE, { originalName: 'brochure.pdf', mimeType: 'application/pdf' })
 
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockLoadImageBytesForAi.mockResolvedValueOnce({ data: new Uint8Array([1, 2, 3]), mediaType: 'image/jpeg' })
     mockGenerateText.mockResolvedValueOnce({ text: 'Generated alt text' })
 
     const result = await (bulkAltTextHandler as HandlerFn)(
@@ -318,6 +317,7 @@ describe('POST /api/v1/ai/bulk-alt-text', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockLoadImageBytesForAi.mockResolvedValueOnce({ data: new Uint8Array([1, 2, 3]), mediaType: 'image/jpeg' })
     mockGenerateText.mockRejectedValueOnce(new Error('Provider rate limited'))
 
     const result = await (bulkAltTextHandler as HandlerFn)(
@@ -355,6 +355,7 @@ describe('POST /api/v1/ai/bulk-alt-text', () => {
     }
 
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockLoadImageBytesForAi.mockResolvedValue({ data: new Uint8Array([1, 2, 3]), mediaType: 'image/jpeg' })
     mockGenerateText.mockResolvedValue({ text: 'Generated alt text' })
 
     const event = createMockEvent({

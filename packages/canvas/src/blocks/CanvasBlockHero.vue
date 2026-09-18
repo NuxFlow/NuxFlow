@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import { safeHref } from '../utils/sanitize-html'
+import { spacingToCss } from '../utils/spacing'
 
 const props = withDefaults(defineProps<{
   headline?: string
@@ -29,17 +30,11 @@ const props = withDefaults(defineProps<{
   textColor: '#111827',
 })
 
-const containerStyle = computed(() => {
-  const p = props.padding
-  const paddingVal = p
-    ? `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}`
-    : '80px 24px'
-  return {
-    background: props.bgGradient ?? props.bgColor,
-    color: props.textColor,
-    padding: paddingVal,
-  }
-})
+const containerStyle = computed(() => ({
+  background: props.bgGradient ?? props.bgColor,
+  color: props.textColor,
+  padding: spacingToCss(props.padding, '80px 24px'),
+}))
 
 const primaryCtaBg = computed(() => props.ctaBgColor ?? props.textColor)
 const primaryCtaColor = computed(() => props.bgGradient ? '#030712' : (props.bgColor ?? '#ffffff'))

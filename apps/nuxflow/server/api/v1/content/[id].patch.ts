@@ -6,7 +6,7 @@ import { resolveSetting } from '../../../utils/settings'
 import { broadcastPushToSite } from '../../../utils/webpush'
 import { getContentItemOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
 import { contentItems, contentRevisions } from '@nuxflow/db/schema'
-import { sql } from 'drizzle-orm'
+import { and, eq, ne, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { scopedById } from '../../../utils/db-helpers'
 import { purgeContentCache } from '../../../utils/edge-cache'
@@ -59,6 +59,14 @@ export default defineEventHandler(async (event) => {
   const { expectedVersion, ...updateFields } = body
   if (expectedVersion !== undefined && existing.version !== expectedVersion) {
     throw conflict('Content has been modified since you last loaded it', { currentVersion: existing.version })
+  }
+
+  if (updateFields.slug !== undefined && updateFields.slug !== existing.slug) {
+    const slugConflict = await db.query.contentItems.findFirst({
+      where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, updateFields.slug), ne(contentItems.id, id)),
+      columns: { id: true },
+    })
+    if (slugConflict) conflict(`A content item with the slug "${updateFields.slug}" already exists`)
   }
 
   const nextVersion = existing.version + 1

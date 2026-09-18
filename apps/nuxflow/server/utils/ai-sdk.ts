@@ -24,14 +24,19 @@ export async function getAiSdkModel(event: H3Event, quality: 'fast' | 'smart' = 
       if (!apiKey) return null
       const { createAnthropic } = await import('@ai-sdk/anthropic')
       const anthropic = createAnthropic({ apiKey })
-      return anthropic(quality === 'smart' ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001')
+      return anthropic(quality === 'smart' ? 'claude-sonnet-5' : 'claude-haiku-4-5-20251001')
     }
     case 'gemini': {
       const apiKey = await resolveSetting(event, 'ai.gemini_api_key', 'geminiApiKey') as string
       if (!apiKey) return null
       const { createGoogleGenerativeAI } = await import('@ai-sdk/google')
       const google = createGoogleGenerativeAI({ apiKey })
-      return google(quality === 'smart' ? 'gemini-1.5-pro' : 'gemini-1.5-flash')
+      // gemini-1.5-* was fully retired by Google — every request 404'd. gemini-2.5-* (the
+      // direct replacement) is itself scheduled to shut down mid-October 2026, so this uses
+      // the current generation instead. Given how fast Google is deprecating Gemini model
+      // IDs (three generations retired inside a year), re-check
+      // https://ai.google.dev/gemini-api/docs/models before assuming these stay valid.
+      return google(quality === 'smart' ? 'gemini-3.1-pro' : 'gemini-3.8-flash')
     }
     case 'deepseek': {
       const apiKey = await resolveSetting(event, 'ai.deepseek_api_key', 'deepseekApiKey') as string
@@ -70,6 +75,33 @@ export async function callAiOrThrow<T>(fn: () => Promise<T>): Promise<T> {
   } catch (err) {
     throw createError({ statusCode: 502, message: aiErrorMessage(err) })
   }
+}
+
+/**
+ * Fetches an already-uploaded media item's bytes so they can be passed to a multimodal
+ * `generateText`/`generateObject` call as an image content part. `fetch()` in a Cloudflare
+ * Worker only supports http(s) URLs — it can't fetch a `data:` URI, which is exactly what
+ * the local media-provider fallback stores in `media.url` (see media-providers/index.ts) —
+ * so a data URL is decoded directly instead of fetched.
+ */
+export async function loadImageBytesForAi(url: string, fallbackMediaType: string): Promise<{ data: Uint8Array; mediaType: string }> {
+  if (url.startsWith('data:')) {
+    const commaIndex = url.indexOf(',')
+    if (commaIndex === -1) throw new Error('Malformed data URL')
+    const header = url.slice(5, commaIndex)
+    const isBase64 = header.endsWith(';base64')
+    const mediaType = header.replace(/;base64$/, '') || fallbackMediaType
+    const payload = url.slice(commaIndex + 1)
+    const binary = isBase64 ? atob(payload) : decodeURIComponent(payload)
+    const data = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) data[i] = binary.charCodeAt(i)
+    return { data, mediaType }
+  }
+
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Failed to fetch image for AI processing (${res.status})`)
+  const buf = await res.arrayBuffer()
+  return { data: new Uint8Array(buf), mediaType: res.headers.get('content-type') || fallbackMediaType }
 }
 
 /** Extracts a human-readable message from a provider SDK error. */

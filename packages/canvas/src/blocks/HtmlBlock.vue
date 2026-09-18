@@ -2,16 +2,14 @@
 import { computed } from 'vue'
 import type { SpacingValue } from '../types'
 import { sanitizeCustomHtml } from '../utils/sanitize-html'
+import { spacingToCss } from '../utils/spacing'
 
 const props = defineProps<{
   html?: string
   padding?: SpacingValue
 }>()
 
-const paddingStyle = computed(() => {
-  const p = props.padding ?? { top: 16, right: 16, bottom: 16, left: 16, unit: 'px' }
-  return `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}`
-})
+const paddingStyle = computed(() => spacingToCss(props.padding, '16px 16px 16px 16px'))
 
 // Sanitized even though this block is meant for "raw" HTML — scripts and event handlers
 // are never a legitimate use case here, and content is never validated on write (block

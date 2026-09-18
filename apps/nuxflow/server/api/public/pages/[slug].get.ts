@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import { useDb, type Db } from '../../../utils/db'
 import { trackPageView } from '../../../utils/analytics'
 import { contentItems, contentTypes, membershipTiers, redirects, subscriptions, users } from '@nuxflow/db/schema'
-import { and, eq, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { withEdgeCache } from '../../../utils/edge-cache'
 
 type ContentItemRow = typeof contentItems.$inferSelect
@@ -15,8 +15,8 @@ async function checkContentAccess(event: H3Event, page: { visibility: string; se
   if (visibility === 'private') return { blocked: true, reason: 'private' as const, requiredTier: null, tiers: [] }
 
   // members-only: check active subscription
-  if (visibility === 'members' || visibility === 'password') {
-    const access = (page.settings as { access?: string } | null)?.access ?? (visibility === 'members' || visibility === 'password' ? 'members' : 'public')
+  if (visibility === 'members') {
+    const access = (page.settings as { access?: string } | null)?.access ?? 'members'
     if (access === 'public') return null
 
     const session = await getAuthSession(event).catch(() => null)
@@ -38,11 +38,13 @@ async function checkContentAccess(event: H3Event, page: { visibility: string; se
     // and needs no extra network call, so require it to still be in the future too —
     // access fails closed when the webhook stream stalls, rather than staying open until
     // one eventually arrives. `isNull` covers legacy/free rows with no period recorded.
+    // 'trialing' must grant access too — otherwise a user actively paying for (or in) a
+    // trial period is denied the exact content the trial exists to let them evaluate.
     const activeSub = await db.query.subscriptions.findFirst({
       where: and(
         eq(subscriptions.userId, userId),
         eq(subscriptions.siteId, siteId),
-        eq(subscriptions.status, 'active'),
+        inArray(subscriptions.status, ['active', 'trialing']),
         or(isNull(subscriptions.currentPeriodEnd), sql`datetime(${subscriptions.currentPeriodEnd}) > datetime('now')`),
       ),
     })
@@ -176,12 +178,11 @@ export default defineEventHandler(async (event) => {
 
   trackPageView(event, { siteId, slug })
 
-  // Member/password-gated pages that passed the gate are per-caller (the response
-  // depends on the requester's session/subscription, not just the URL), so they must
-  // never be shared via the edge cache — gating is always evaluated fresh above, on
-  // every request, before the cache is ever consulted. Only genuinely public pages are
-  // eligible for the edge cache below.
-  const isGated = page.visibility === 'members' || page.visibility === 'password'
+  // Member-gated pages that passed the gate are per-caller (the response depends on the
+  // requester's session/subscription, not just the URL), so they must never be shared via
+  // the edge cache — gating is always evaluated fresh above, on every request, before the
+  // cache is ever consulted. Only genuinely public pages are eligible for the edge cache below.
+  const isGated = page.visibility === 'members'
   if (isGated) {
     setHeader(event, 'Cache-Control', 'private, no-store')
     return assemblePageResponse(db, page, siteId)

@@ -10,7 +10,7 @@ const result = computed(() => {
     const expr = props.field.expression.replace(/\{\{(\w+)\}\}/g, (_, key) => {
       return String(props.formValues?.[key] ?? 0)
     })
-    return Function(`'use strict'; return (${expr})`)()
+    return evaluateArithmeticExpression(expr)
   } catch {
     return 'Invalid expression'
   }

@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import type { SpacingValue } from '../types'
 import { safeHref } from '../utils/sanitize-html'
+import { spacingToCss } from '../utils/spacing'
 
 declare const useState: <T>(key: string, init?: () => T) => { value: T }
 declare const useRequestEvent: () => unknown
@@ -133,7 +134,7 @@ const wrapperStyle = computed(() => {
   return {
     backgroundColor: props.bgColor,
     color: props.textColor,
-    padding: p ? `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}` : '16px 24px',
+    padding: spacingToCss(p, '16px 24px'),
   }
 })
 </script>

@@ -30,14 +30,40 @@ const { data, refresh, pending } = await useFetch<{ comments: Comment[] }>('/api
   default: () => ({ comments: [] }),
 })
 
+const toast = useToast()
+const { confirm } = useConfirm()
+const busyId = ref<string | null>(null)
+
 async function setStatus(id: string, status: Comment['status']) {
-  await $fetch(`/api/v1/comments/${id}`, { method: 'PATCH', body: { status } })
-  await refresh()
+  busyId.value = id
+  try {
+    await $fetch(`/api/v1/comments/${id}`, { method: 'PATCH', body: { status } })
+    await refresh()
+  } catch (e: unknown) {
+    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to update comment status'
+    toast.add({ title: msg, color: 'error' })
+  } finally {
+    busyId.value = null
+  }
 }
 
 async function deleteComment(id: string) {
-  await $fetch(`/api/v1/comments/${id}`, { method: 'DELETE' })
-  await refresh()
+  const ok = await confirm({
+    title: 'Permanently delete this comment?',
+    description: 'This cannot be undone. To just hide it instead, use Trash.',
+    confirmLabel: 'Delete',
+  })
+  if (!ok) return
+  busyId.value = id
+  try {
+    await $fetch(`/api/v1/comments/${id}`, { method: 'DELETE' })
+    await refresh()
+  } catch (e: unknown) {
+    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to delete comment'
+    toast.add({ title: msg, color: 'error' })
+  } finally {
+    busyId.value = null
+  }
 }
 
 function authorLabel(c: Comment) {
@@ -121,26 +147,26 @@ const statusColors: Record<string, UColor> = {
           <!-- Actions -->
           <div class="flex items-center gap-2 pt-1">
             <template v-if="comment.status !== 'approved'">
-              <UButton size="xs" color="success" variant="soft" icon="i-lucide-check" @click="setStatus(comment.id, 'approved')">
+              <UButton size="xs" color="success" variant="soft" icon="i-lucide-check" :loading="busyId === comment.id" :disabled="busyId !== null && busyId !== comment.id" @click="setStatus(comment.id, 'approved')">
                 Approve
               </UButton>
             </template>
             <template v-if="comment.status !== 'pending'">
-              <UButton size="xs" variant="soft" icon="i-lucide-clock" @click="setStatus(comment.id, 'pending')">
+              <UButton size="xs" variant="soft" icon="i-lucide-clock" :loading="busyId === comment.id" :disabled="busyId !== null && busyId !== comment.id" @click="setStatus(comment.id, 'pending')">
                 Pending
               </UButton>
             </template>
             <template v-if="comment.status !== 'spam'">
-              <UButton size="xs" color="orange" variant="soft" icon="i-lucide-shield-x" @click="setStatus(comment.id, 'spam')">
+              <UButton size="xs" color="orange" variant="soft" icon="i-lucide-shield-x" :loading="busyId === comment.id" :disabled="busyId !== null && busyId !== comment.id" @click="setStatus(comment.id, 'spam')">
                 Spam
               </UButton>
             </template>
             <template v-if="comment.status !== 'trash'">
-              <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-trash-2" @click="setStatus(comment.id, 'trash')">
+              <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-trash-2" :loading="busyId === comment.id" :disabled="busyId !== null && busyId !== comment.id" @click="setStatus(comment.id, 'trash')">
                 Trash
               </UButton>
             </template>
-            <UButton size="xs" color="error" variant="ghost" icon="i-lucide-x" @click="deleteComment(comment.id)">
+            <UButton size="xs" color="error" variant="ghost" icon="i-lucide-x" :loading="busyId === comment.id" :disabled="busyId !== null && busyId !== comment.id" @click="deleteComment(comment.id)">
               Delete
             </UButton>
           </div>

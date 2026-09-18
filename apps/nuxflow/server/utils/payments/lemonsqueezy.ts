@@ -9,6 +9,16 @@ export interface LsSubscription {
     renews_at: string | null
     ends_at: string | null
     trial_ends_at: string | null
+    // Pre-signed link to LS's own hosted Customer Portal, valid 24h from the moment this
+    // subscription was fetched — LS bakes this directly onto the subscription resource
+    // rather than exposing a separate "create a portal session" endpoint the way
+    // Stripe/Paddle do, so billing-portal.post.ts just re-fetches the subscription and
+    // reads this off instead of calling anything portal-specific.
+    urls: {
+      customer_portal: string
+      customer_portal_update_subscription?: string
+      update_payment_method: string
+    }
   }
 }
 
@@ -125,6 +135,8 @@ export class LemonSqueezyProvider implements PaymentProvider {
     )
     const mac = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody))
     const expected = Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, '0')).join('')
-    return expected === signatureHeader
+    // Constant-time compare — a plain `===` here leaks per-character timing (Stripe/Paddle's
+    // equivalents are timing-safe by construction: SDK-verified / crypto.subtle.verify).
+    return constantTimeEqualHex(expected, signatureHeader)
   }
 }

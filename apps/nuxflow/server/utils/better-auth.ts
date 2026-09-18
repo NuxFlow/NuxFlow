@@ -202,6 +202,14 @@ async function buildBetterAuthInstance(event: H3Event) {
           console.error('[auth] sendResetPassword email failed:', err)
         }
       },
+      // Without this, completing a "Forgot password" reset leaves any existing session
+      // cookie (e.g. one an attacker stole) valid until natural expiry — defeating the
+      // exact scenario password reset exists to recover from. The self-service
+      // change-password flow already does this via `revokeOtherSessions: true` on its own
+      // /api/auth/change-password call (see app/pages/admin/settings/index.vue); this is
+      // Better Auth's equivalent for the reset-password path, which has no per-call
+      // opt-in and is off by default.
+      revokeSessionsOnPasswordReset: true,
     },
     // Sending is wired up (used explicitly by server/api/public/auth/register.post.ts
     // right after it creates a self-registered account) but nothing enforces it —

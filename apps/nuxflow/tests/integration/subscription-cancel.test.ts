@@ -82,7 +82,13 @@ describe('DELETE /api/v1/account/subscription', () => {
     await expect((handler as HandlerFn)(mkEvent(noSubUserId))).rejects.toMatchObject({ statusCode: 404 })
   })
 
-  it('cancels a Stripe subscription via provider and marks it cancelled in the DB', async () => {
+  // All three real providers now defer cancellation to end of the current billing period
+  // (Stripe's cancelSubscription() switched to `cancel_at_period_end: true` to match
+  // Paddle/LemonSqueezy's own semantics) — so `status` deliberately stays whatever it was
+  // (access continues) and `cancelAtPeriodEnd` is what flips. The provider's own
+  // end-of-period webhook is what eventually sets status to 'cancelled' (see
+  // webhook-sync.ts's cancelSubscriptionFromWebhook), not this route.
+  it('schedules a Stripe subscription for cancellation at period end, keeping access until then', async () => {
     const db = getCurrentTestDb()
     await seedSubscription(db, SITE, userId, tierId, {
       provider: 'stripe',
@@ -97,11 +103,12 @@ describe('DELETE /api/v1/account/subscription', () => {
     const sub = await db.query.subscriptions.findFirst({
       where: and(eq(subscriptions.userId, userId), eq(subscriptions.siteId, SITE)),
     })
-    expect(sub!.status).toBe('cancelled')
+    expect(sub!.status).toBe('active')
+    expect(sub!.cancelAtPeriodEnd).toBe(true)
     expect(sub!.cancelledAt).toBeTruthy()
   })
 
-  it('cancels a Lemon Squeezy subscription via provider', async () => {
+  it('schedules a Lemon Squeezy subscription for cancellation at period end', async () => {
     const db = getCurrentTestDb()
     await seedSubscription(db, SITE, userId2, tierId, {
       provider: 'lemonsqueezy',
@@ -116,10 +123,11 @@ describe('DELETE /api/v1/account/subscription', () => {
     const sub = await db.query.subscriptions.findFirst({
       where: and(eq(subscriptions.userId, userId2), eq(subscriptions.siteId, SITE)),
     })
-    expect(sub!.status).toBe('cancelled')
+    expect(sub!.status).toBe('active')
+    expect(sub!.cancelAtPeriodEnd).toBe(true)
   })
 
-  it('cancels a Paddle subscription via provider', async () => {
+  it('schedules a Paddle subscription for cancellation at period end', async () => {
     const db = getCurrentTestDb()
     await seedSubscription(db, SITE, userId3, tierId, {
       provider: 'paddle',
@@ -134,7 +142,8 @@ describe('DELETE /api/v1/account/subscription', () => {
     const sub = await db.query.subscriptions.findFirst({
       where: and(eq(subscriptions.userId, userId3), eq(subscriptions.siteId, SITE)),
     })
-    expect(sub!.status).toBe('cancelled')
+    expect(sub!.status).toBe('active')
+    expect(sub!.cancelAtPeriodEnd).toBe(true)
   })
 
   it('cancels a free subscription locally without calling any provider', async () => {

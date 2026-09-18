@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { SpacingValue } from '../types'
 import { sanitizeRichText } from '../utils/sanitize-html'
+import { spacingToCss } from '../utils/spacing'
 
 const props = withDefaults(defineProps<{
   content?: string
@@ -12,12 +13,7 @@ const props = withDefaults(defineProps<{
   align: 'left',
 })
 
-const containerStyle = computed(() => {
-  const p = props.padding
-  return p
-    ? { padding: `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}` }
-    : { padding: '24px' }
-})
+const containerStyle = computed(() => ({ padding: spacingToCss(props.padding, '24px') }))
 
 // text-align on this wrapper (component-controlled, not sanitized content) is the supported
 // way to center/right-align rich-text blocks — sanitizeRichText strips style/class from

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import NuxLightbox from './NuxLightbox.vue'
+import { spacingToCss } from '../utils/spacing'
 
 interface GalleryImage {
   url: string
@@ -40,12 +41,7 @@ const gridCols = computed(() => ({
   '4': 'grid-cols-2 sm:grid-cols-4',
 }[props.columns ?? '3']))
 
-const containerStyle = computed(() => {
-  const p = props.padding
-  return p
-    ? { padding: `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}` }
-    : { padding: '16px 24px' }
-})
+const containerStyle = computed(() => ({ padding: spacingToCss(props.padding, '16px 24px') }))
 
 const lightboxOpen = ref(false)
 const lightboxIndex = ref(0)

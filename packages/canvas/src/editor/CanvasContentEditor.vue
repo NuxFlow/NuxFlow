@@ -155,6 +155,7 @@ function onRootUpdate(list: CanvasBlockData[]) {
         <div class="flex items-center gap-0.5">
           <button
             type="button"
+            aria-label="Undo"
             title="Undo (Ctrl+Z)"
             :disabled="!canUndo"
             class="p-1.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors"
@@ -166,6 +167,7 @@ function onRootUpdate(list: CanvasBlockData[]) {
           </button>
           <button
             type="button"
+            aria-label="Redo"
             title="Redo (Ctrl+Shift+Z)"
             :disabled="!canRedo"
             class="p-1.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors"

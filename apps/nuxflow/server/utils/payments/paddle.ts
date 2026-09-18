@@ -64,6 +64,22 @@ export class PaddleProvider implements PaymentProvider {
     return res.data
   }
 
+  /**
+   * Creates a customer portal session — Paddle's equivalent of Stripe's billing portal
+   * session / LemonSqueezy's pre-signed `urls.customer_portal`. Unlike Stripe, the session
+   * itself carries no return URL (the portal is a standalone hosted page, not a checkout
+   * flow step) and always returns a general portal-homepage link regardless of
+   * `subscriptionIds`; passing them additionally returns per-subscription deep links
+   * (cancel / update payment method), which billing-portal.post.ts doesn't currently
+   * surface separately since the general link already gets the customer to the same place.
+   */
+  async createPortalSession(customerId: string, subscriptionIds?: string[]) {
+    return this.request<{ data: { id: string; urls: { general: { overview: string } } } }>(`/customers/${customerId}/portal-sessions`, {
+      method: 'POST',
+      body: JSON.stringify(subscriptionIds?.length ? { subscription_ids: subscriptionIds } : {}),
+    })
+  }
+
   async cancelSubscription(subscriptionId: string): Promise<PaddleSubscription> {
     const res = await this.request<{ data: PaddleSubscription }>(`/subscriptions/${subscriptionId}/cancel`, {
       method: 'POST',

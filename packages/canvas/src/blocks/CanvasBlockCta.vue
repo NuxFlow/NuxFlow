@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { SpacingValue } from '../types'
 import { safeHref } from '../utils/sanitize-html'
+import { spacingToCss } from '../utils/spacing'
 
 const props = withDefaults(defineProps<{
   headline?: string
@@ -27,9 +28,7 @@ const containerStyle = computed(() => {
   return {
     backgroundColor: props.bgColor,
     color: props.textColor,
-    padding: p
-      ? `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}`
-      : '48px 24px',
+    padding: spacingToCss(p, '48px 24px'),
   }
 })
 </script>

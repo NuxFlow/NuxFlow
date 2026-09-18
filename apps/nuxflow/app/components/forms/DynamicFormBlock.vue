@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, watchEffect } from 'vue'
 import type { Component } from 'vue'
-import type { SpacingValue } from '@nuxflow/canvas'
+import { spacingToCss, type SpacingValue } from '@nuxflow/canvas'
 import TextField from './fields/TextField.vue'
 import TextareaField from './fields/TextareaField.vue'
 import EmailField from './fields/EmailField.vue'
@@ -95,13 +95,15 @@ watch(fields, (list) => {
   values.value = next
 }, { immediate: true })
 
-// Keep 'computed' fields derived from their formula, same expression syntax
-// as FormsFieldsComputedField.vue ({{fieldName}} substitution + eval).
+// Keep 'computed' fields derived from their formula, same expression syntax and shared
+// safe-math.ts evaluator as ComputedField.vue ({{fieldName}} substitution, then a
+// restricted arithmetic parser — never Function()/eval on a string built from other
+// fields' own values).
 function evaluateFormula(expression: string | undefined, vals: Record<string, unknown>): string {
   if (!expression) return ''
   try {
     const expr = expression.replace(/\{\{(\w+)\}\}/g, (_, key: string) => String(vals[key] ?? 0))
-    return String(Function(`'use strict'; return (${expr})`)())
+    return String(evaluateArithmeticExpression(expr))
   } catch {
     return 'Invalid expression'
   }
@@ -140,14 +142,10 @@ const hasTurnstile = computed(() => Boolean(turnstileSiteKey.value))
 const turnstileToken = ref('')
 
 const containerStyle = computed(() => {
-  const p = props.padding
-  const paddingVal = p
-    ? `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}`
-    : '48px 24px'
   return {
     backgroundColor: props.bgColor || 'transparent',
     color: props.textColor || 'inherit',
-    padding: paddingVal,
+    padding: spacingToCss(props.padding, '48px 24px'),
   }
 })
 

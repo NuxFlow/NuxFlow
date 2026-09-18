@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { SpacingValue } from '../types'
+import { spacingToCss } from '../utils/spacing'
 
 const props = withDefaults(defineProps<{
   url?: string
@@ -17,10 +18,7 @@ const props = withDefaults(defineProps<{
   muted: false,
 })
 
-const paddingStyle = computed(() => {
-  const p = props.padding
-  return p ? { padding: `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}` } : { padding: '16px 24px' }
-})
+const paddingStyle = computed(() => ({ padding: spacingToCss(props.padding, '16px 24px') }))
 
 const aspectMap: Record<string, number> = {
   '16:9': 56.25,

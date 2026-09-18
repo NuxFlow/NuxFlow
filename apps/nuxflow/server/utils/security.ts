@@ -54,6 +54,13 @@ export function sanitizeThemeCss(css: string): string {
   // the fallback branch is exactly the overlapping-repetition shape that enables
   // super-linear regex backtracking on malformed input.
   out = out.replace(/url\s*\(\s*"[^"]*"\s*\)|url\s*\(\s*'[^']*'\s*\)|url\s*\([^)]*\)/gi, 'none')
+  // image-set()/-webkit-image-set()/cross-fade()/-webkit-cross-fade() also resolve to an
+  // external image reference (per the CSS Images spec) but take a bare quoted string
+  // instead of url(...), so they carry the exact same attribute-selector exfiltration risk
+  // this function exists to close without ever containing the substring "url(" — a
+  // documented real-world sanitizer bypass technique (used against webmail CSS sanitizers).
+  // Same quoted-string-first matching as url()/expression() above, for the same reason.
+  out = out.replace(/-?(?:webkit-)?(?:image-set|cross-fade)\s*\(\s*"[^"]*"\s*\)|-?(?:webkit-)?(?:image-set|cross-fade)\s*\(\s*'[^']*'\s*\)|-?(?:webkit-)?(?:image-set|cross-fade)\s*\([^)]*\)/gi, 'none')
   // Strip legacy IE CSS expression() (arbitrary script execution in old IE) — same
   // quoted-string-aware matching, since its argument is a JS-like expression that may
   // itself contain a quoted string with a ')' inside.
@@ -61,6 +68,54 @@ export function sanitizeThemeCss(css: string): string {
   // Prevent breaking out of the <style> block it's injected into.
   out = out.replace(/<\/style>/gi, '')
   return out
+}
+
+/**
+ * Strips script-execution vectors from an uploaded SVG before it's stored and served back
+ * with its own (attacker-influenced but allowlisted) `image/svg+xml` content-type — SVG is
+ * XML that can carry <script>, event-handler attributes, and javascript:-scheme hrefs, all
+ * of which execute when the file is opened directly (e.g. a media library's public URL,
+ * navigated to on its own rather than embedded via <img>). Kept alongside the SVG-specific
+ * pieces of the media MIME-type allowlist in upload.post.ts, since SVG is the one image
+ * format on that allowlist that isn't otherwise script-inert. Strip-based like
+ * sanitizeThemeCss above, for the same reason: this is a small, fixed set of known vectors,
+ * not general-purpose HTML/SVG rendering.
+ */
+export function sanitizeSvg(svg: string): string {
+  let out = svg
+  out = out.replace(/<script[\s\S]*?<\/script\s*>/gi, '')
+  out = out.replace(/<script\b[^>]*\/>/gi, '')
+  // <foreignObject> lets SVG embed arbitrary HTML (including its own <script>) — no
+  // legitimate use case for a media-library-uploaded SVG, so it's dropped outright.
+  out = out.replace(/<foreignObject[\s\S]*?<\/foreignObject\s*>/gi, '')
+  // Event-handler attributes (onload, onclick, onerror, ...), any quoting style.
+  out = out.replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+  out = out.replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+  out = out.replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+  // javascript:/vbscript: hrefs (href or xlink:href) — replaced, not removed, so the
+  // attribute stays well-formed XML.
+  out = out.replace(/((?:xlink:)?href\s*=\s*)"\s*(?:javascript|vbscript):[^"]*"/gi, '$1"#"')
+  out = out.replace(/((?:xlink:)?href\s*=\s*)'\s*(?:javascript|vbscript):[^']*'/gi, '$1\'#\'')
+  return out
+}
+
+/**
+ * Constant-time comparison of two equal-length hex strings (e.g. a computed HMAC digest
+ * against a webhook's signature header) — a plain `===` on the hex string leaks per-character
+ * timing, letting an attacker recover a valid signature byte-by-byte over enough requests.
+ * `node:crypto`'s `timingSafeEqual` is unavailable in this codebase (Workers-only, no
+ * node:crypto), so this hand-rolls the same XOR-accumulate-without-early-exit technique.
+ * Comparing `.length` first is safe (not a content-dependent timing leak) since a correct
+ * HMAC-SHA256 hex digest always has the same fixed, publicly-known length; a length
+ * mismatch just means "not even shaped like a valid signature," decided in O(1) either way.
+ */
+export function constantTimeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return diff === 0
 }
 
 export function isPrivateIPv4(host: string): boolean {

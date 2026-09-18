@@ -257,10 +257,20 @@ function startCreatingFolder() {
 }
 
 async function deleteFolder(id: string) {
-  if (!confirm('Delete this folder? Files inside will be moved to All files.')) return
-  await $fetch(`/api/v1/media/folders/${id}`, { method: 'DELETE' })
-  if (selectedFolderId.value === id) selectedFolderId.value = undefined
-  await refresh()
+  const ok = await useConfirm().confirm({
+    title: 'Delete this folder?',
+    description: 'Files inside will be moved to All files.',
+    confirmLabel: 'Delete',
+  })
+  if (!ok) return
+  try {
+    await $fetch(`/api/v1/media/folders/${id}`, { method: 'DELETE' })
+    if (selectedFolderId.value === id) selectedFolderId.value = undefined
+    await refresh()
+  } catch (e: unknown) {
+    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to delete folder'
+    toast.add({ title: msg, color: 'error' })
+  }
 }
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
@@ -343,12 +353,20 @@ async function saveDetail() {
 
 async function deleteFile() {
   if (!detail.value) return
-  if (!confirm(`Delete "${detail.value.originalName}"? This cannot be undone.`)) return
+  const ok = await useConfirm().confirm({
+    title: `Delete "${detail.value.originalName}"?`,
+    description: 'This cannot be undone.',
+    confirmLabel: 'Delete',
+  })
+  if (!ok) return
   deletingDetail.value = true
   try {
     await $fetch(`/api/v1/media/${detail.value.id}`, { method: 'DELETE' })
     showDetail.value = false
     await refresh()
+  } catch (e: unknown) {
+    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to delete file'
+    toast.add({ title: msg, color: 'error' })
   } finally {
     deletingDetail.value = false
   }
@@ -476,7 +494,7 @@ function resetFocalPoint() {
               size="xs"
               variant="ghost"
               color="error"
-              class="opacity-0 group-hover:opacity-100 -mr-1"
+              class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 -mr-1"
               @click.stop="deleteFolder(folder.id)"
             />
           </span>
@@ -539,7 +557,7 @@ function resetFocalPoint() {
               <UIcon name="i-lucide-file" class="w-8 h-8 text-gray-400" />
               <span class="text-xs text-gray-400 text-center truncate w-full">{{ file.originalName }}</span>
             </div>
-            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
+            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
               <span class="text-white text-xs text-center line-clamp-2 leading-tight">{{ file.originalName }}</span>
               <div class="flex gap-1">
                 <UButton

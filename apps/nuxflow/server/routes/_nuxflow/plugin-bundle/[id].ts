@@ -25,11 +25,18 @@ export default defineEventHandler(async (event) => {
   const bundle = await getPluginClientBundle(event, site.id, pluginId)
   if (!bundle) throw notFound('Plugin bundle not found in KV')
 
+  // Fails closed: a plugin marked hasClient must have a recorded checksum to be served at
+  // all — mirrors _nuxflow/ext/[pluginId]/[...path].ts's identical guard for server code.
+  // Skipping verification when clientChecksum was merely absent (rather than mismatched)
+  // was the gap that let an unsigned bundle smuggled in via backup restore (see the
+  // superRefine on backupDynamicPluginSchema in backup.ts) be served unverified to every
+  // visitor's sandboxed iframe.
+  if (!plugin.clientChecksum) {
+    throw createError({ statusCode: 500, message: 'Plugin client bundle has no recorded checksum — refusing to serve unverified code.' })
+  }
   // Verify KV content against the checksum stored in D1 at install time.
   // A mismatch means the KV entry was modified after the signed install — hard stop.
-  if (plugin.clientChecksum) {
-    await assertCodeIntegrity(bundle, plugin.clientChecksum, 'client bundle')
-  }
+  await assertCodeIntegrity(bundle, plugin.clientChecksum, 'client bundle')
 
   setHeader(event, 'content-type', 'application/javascript; charset=utf-8')
   setHeader(event, 'cache-control', 'public, max-age=3600')

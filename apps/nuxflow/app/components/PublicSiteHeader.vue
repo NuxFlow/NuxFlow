@@ -42,7 +42,56 @@ function href(item: MenuItem | ChildItem) {
 
 const mobileOpen = ref(false)
 const route = useRoute()
-watch(() => route.path, () => { mobileOpen.value = false })
+watch(() => route.path, () => { mobileOpen.value = false; openDropdownId.value = null })
+
+// ── Desktop dropdown state (hover, keyboard focus, and click/tap all drive the same
+// state instead of a CSS-only group-hover, which never fires on tap and made the
+// dropdown's own links unreachable by touch — the parent link's tap just navigated away
+// instead of ever revealing them). ──────────────────────────────────────────────────
+const openDropdownId = ref<string | null>(null)
+const dropdownRefs = new Map<string, HTMLElement>()
+
+function setDropdownRef(id: string, el: unknown) {
+  if (el instanceof HTMLElement) dropdownRefs.set(id, el)
+  else dropdownRefs.delete(id)
+}
+
+function openDropdown(id: string) {
+  openDropdownId.value = id
+}
+
+function closeDropdown(id?: string) {
+  if (!id || openDropdownId.value === id) openDropdownId.value = null
+}
+
+function toggleDropdown(id: string) {
+  openDropdownId.value = openDropdownId.value === id ? null : id
+}
+
+// Gated to real mouse pointers only (not touch/pen) — reaching the chevron button with a
+// mouse necessarily moves the pointer through this wrapper first, which would otherwise
+// fire "open" immediately before the click's own toggle fires and closes it right back.
+// On a real touchscreen this is worse: several mobile browsers synthesize a hover/pointer
+// event on a first tap for hover-compatibility, which would silently eat that first tap the
+// same way. Excluding non-mouse pointers here means touch is driven purely by the click
+// handler below (a plain, unambiguous open/closed toggle with no hover state to fight).
+function onPointerEnter(e: PointerEvent, id: string) {
+  if (e.pointerType === 'mouse') openDropdown(id)
+}
+
+function onPointerLeave(e: PointerEvent, id: string) {
+  if (e.pointerType === 'mouse') closeDropdown(id)
+}
+
+// Tabbing between the label link, the toggle button, and the dropdown's own child links
+// (all inside the same wrapper) must not close it — only leaving the wrapper entirely
+// should. relatedTarget is the element gaining focus; null when focus leaves the document
+// (e.g. to the browser chrome), which is also treated as "left the group".
+function onDropdownFocusOut(e: FocusEvent, id: string) {
+  const container = e.currentTarget as HTMLElement
+  const next = e.relatedTarget as Node | null
+  if (!next || !container.contains(next)) closeDropdown(id)
+}
 
 // ── Language Switcher State ──────────────────────────────────────────────────
 const availableLocales = useState<Array<{ locale: string; slug: string; rawSlug?: string }>>('active-locales', () => [])
@@ -93,6 +142,12 @@ function handleClickOutside(e: MouseEvent) {
   if (langDropdown.value && !langDropdown.value.contains(e.target as Node)) {
     showLangMenu.value = false
   }
+  if (openDropdownId.value) {
+    const openEl = dropdownRefs.get(openDropdownId.value)
+    if (openEl && !openEl.contains(e.target as Node)) {
+      openDropdownId.value = null
+    }
+  }
 }
 
 onMounted(() => {
@@ -123,24 +178,53 @@ onUnmounted(() => {
       <!-- Desktop nav -->
       <nav v-if="navItems.length" class="hidden lg:flex items-center gap-1 flex-1">
         <template v-for="item in navItems" :key="item.id">
-          <!-- Item with dropdown -->
-          <div v-if="item.children && item.children.length > 0" class="relative group">
-            <NuxtLink
-              :to="href(item)"
-              :target="item.target"
-              class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white transition-colors"
+          <!-- Item with dropdown — hover (mouse), focus (keyboard, via focusin/focusout
+          below), and click/tap (touch) all drive the same `openDropdownId` state, rather
+          than a CSS-only group-hover that never fires on tap: the label link's own tap
+          used to just navigate away, since there was no separate control tap could target
+          to open the submenu without leaving the page. -->
+          <div
+            v-if="item.children && item.children.length > 0"
+            :ref="(el) => setDropdownRef(item.id, el)"
+            class="relative"
+            @pointerenter="onPointerEnter($event, item.id)"
+            @pointerleave="onPointerLeave($event, item.id)"
+            @focusout="onDropdownFocusOut($event, item.id)"
+          >
+            <div class="flex items-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5">
+              <NuxtLink
+                :to="href(item)"
+                :target="item.target"
+                class="pl-3 pr-1 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              >
+                {{ item.label }}
+              </NuxtLink>
+              <button
+                type="button"
+                class="pr-2 pl-0.5 py-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                :aria-expanded="openDropdownId === item.id"
+                :aria-label="`${item.label} submenu`"
+                aria-haspopup="true"
+                @click.stop="toggleDropdown(item.id)"
+              >
+                <UIcon name="i-lucide-chevron-down" class="w-3 h-3 transition-transform" :class="openDropdownId === item.id ? 'rotate-180' : ''" />
+              </button>
+            </div>
+            <!-- Deliberately v-show + opacity/pointer-events, not v-if or visibility:hidden:
+            v-if would unmount the links, and visibility:hidden removes descendants from the
+            tab order entirely — either way made them permanently unreachable once closed,
+            regardless of how they were reopened. -->
+            <div
+              v-show="openDropdownId === item.id"
+              class="absolute left-0 top-full mt-1 w-48 glass rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden z-50"
             >
-              {{ item.label }}
-              <UIcon name="i-lucide-chevron-down" class="w-3 h-3 transition-transform group-hover:rotate-180" />
-            </NuxtLink>
-            <!-- Dropdown -->
-            <div class="absolute left-0 top-full mt-1 w-48 glass rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50">
               <NuxtLink
                 v-for="child in item.children"
                 :key="child.id"
                 :to="href(child)"
                 :target="child.target"
                 class="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 hover:text-primary-600 transition-colors"
+                @click="closeDropdown(item.id)"
               >
                 {{ child.label }}
                 <UIcon v-if="child.target === '_blank'" name="i-lucide-external-link" class="w-3 h-3 ml-auto text-gray-400" />

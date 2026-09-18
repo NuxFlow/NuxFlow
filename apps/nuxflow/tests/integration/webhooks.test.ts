@@ -25,27 +25,37 @@ vi.mock('../../server/utils/webpush', () => ({
   sendPushToUser: vi.fn().mockResolvedValue(undefined),
 }))
 
-const { mockConstructEvent, mockLsVerify, mockPaddleVerify } = vi.hoisted(() => ({
+const {
+  mockConstructEvent, mockLsVerify, mockPaddleVerify,
+  mockStripeGetSubscription, mockLsGetSubscription, mockPaddleGetSubscription,
+} = vi.hoisted(() => ({
   mockConstructEvent: vi.fn(),
   mockLsVerify: vi.fn(),
   mockPaddleVerify: vi.fn(),
+  // The webhook handler now re-fetches current subscription state from the provider
+  // before writing a `*.created`/`*.updated` event (rather than trusting the embedded
+  // payload) to guard against out-of-order webhook delivery — see the comment in
+  // [provider].post.ts. These stand in for that provider API call.
+  mockStripeGetSubscription: vi.fn(),
+  mockLsGetSubscription: vi.fn(),
+  mockPaddleGetSubscription: vi.fn(),
 }))
 
 vi.mock('../../server/utils/payments/stripe', () => ({
   StripeProvider: vi.fn().mockImplementation(function () {
-    return { constructWebhookEvent: mockConstructEvent }
+    return { constructWebhookEvent: mockConstructEvent, getSubscription: mockStripeGetSubscription }
   }),
 }))
 
 vi.mock('../../server/utils/payments/lemonsqueezy', () => ({
   LemonSqueezyProvider: vi.fn().mockImplementation(function () {
-    return { verifyWebhook: mockLsVerify }
+    return { verifyWebhook: mockLsVerify, getSubscription: mockLsGetSubscription }
   }),
 }))
 
 vi.mock('../../server/utils/payments/paddle', () => ({
   PaddleProvider: vi.fn().mockImplementation(function () {
-    return { verifyWebhook: mockPaddleVerify }
+    return { verifyWebhook: mockPaddleVerify, getSubscription: mockPaddleGetSubscription }
   }),
 }))
 
@@ -113,15 +123,19 @@ describe('Stripe webhooks', () => {
     mockConstructEvent.mockReturnValueOnce({
       type: 'customer.subscription.created',
       data: {
-        object: {
-          id: subId,
-          customer: 'cus_wh_001',
-          status: 'active',
-          items: { data: [{ price: { id: STRIPE_PRICE_ID } }] },
+        object: { id: subId, metadata: { userId, siteId: SITE } },
+      },
+    })
+    mockStripeGetSubscription.mockResolvedValueOnce({
+      id: subId,
+      customer: 'cus_wh_001',
+      status: 'active',
+      items: {
+        data: [{
+          price: { id: STRIPE_PRICE_ID },
           current_period_start: 1717286400,
           current_period_end: 1719878400,
-          metadata: { userId, siteId: SITE },
-        },
+        }],
       },
     })
 
@@ -167,15 +181,19 @@ describe('Stripe webhooks', () => {
     mockConstructEvent.mockReturnValueOnce({
       type: 'customer.subscription.updated',
       data: {
-        object: {
-          id: subId,
-          customer: 'cus_wh_001',
-          status: 'past_due',
-          items: { data: [{ price: { id: STRIPE_PRICE_ID } }] },
+        object: { id: subId, metadata: { userId, siteId: SITE } },
+      },
+    })
+    mockStripeGetSubscription.mockResolvedValueOnce({
+      id: subId,
+      customer: 'cus_wh_001',
+      status: 'past_due',
+      items: {
+        data: [{
+          price: { id: STRIPE_PRICE_ID },
           current_period_start: 1717286400,
           current_period_end: 1719878400,
-          metadata: { userId, siteId: SITE },
-        },
+        }],
       },
     })
 
@@ -264,6 +282,15 @@ describe('LemonSqueezy webhooks', () => {
       lsVariantId: String(lsVariantId),
     })
     mockLsVerify.mockResolvedValueOnce(true)
+    mockLsGetSubscription.mockResolvedValueOnce({
+      id: lsSubId,
+      attributes: {
+        status: 'active',
+        customer_id: 999,
+        variant_id: lsVariantId,
+        renews_at: '2025-01-01T00:00:00Z',
+      },
+    })
 
     const rawBody = JSON.stringify({
       meta: {
@@ -323,6 +350,17 @@ describe('Paddle webhooks', () => {
   it('inserts a subscription on subscription.activated', async () => {
     const paddleSubId = 'pdl_sub_001'
     mockPaddleVerify.mockResolvedValueOnce(true)
+    mockPaddleGetSubscription.mockResolvedValueOnce({
+      id: paddleSubId,
+      status: 'active',
+      customer_id: 'ctm_paddle_001',
+      items: [{ price: { id: 'pri_paddle_001' } }],
+      current_billing_period: {
+        starts_at: '2025-01-01T00:00:00Z',
+        ends_at: '2025-02-01T00:00:00Z',
+      },
+      canceled_at: null,
+    })
 
     const rawBody = JSON.stringify({
       event_type: 'subscription.activated',

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { generateText } from 'ai'
 import { requireRole } from '../../../utils/permissions'
-import { requireAiSdkModel } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, loadImageBytesForAi } from '../../../utils/ai-sdk'
 import { useDb } from '../../../utils/db'
 import { waitUntil } from '../../../utils/cf-env'
 import { writeAuditLog } from '../../../utils/audit'
@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
 
   const targets = await db.query.media.findMany({
     where: whereClause,
-    columns: { id: true, originalName: true, mimeType: true },
+    columns: { id: true, originalName: true, mimeType: true, url: true },
   })
 
   const matchingImages = targets.filter(f =>
@@ -69,8 +69,21 @@ export default defineEventHandler(async (event) => {
 
     for (const file of imageTargets) {
       try {
-        const prompt = `Generate alt text for an image with filename: "${file.originalName}"`
-        const { text } = await generateText({ model, system: SYSTEM, prompt, maxOutputTokens: 100 })
+        // See alt-text.post.ts's single-image route for why the model needs the actual
+        // image bytes, not just the filename.
+        const { data, mediaType } = await loadImageBytesForAi(file.url, file.mimeType)
+        const { text } = await generateText({
+          model,
+          system: SYSTEM,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: `Generate alt text for this image (filename: "${file.originalName}").` },
+              { type: 'image', image: data, mediaType },
+            ],
+          }],
+          maxOutputTokens: 100,
+        })
         await db.update(media)
           .set({ altText: text.trim() })
           .where(and(eq(media.id, file.id), eq(media.siteId, siteId)))

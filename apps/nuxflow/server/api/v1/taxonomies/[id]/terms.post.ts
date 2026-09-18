@@ -5,6 +5,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { getTaxonomyByIdOrThrow } from '../../../../utils/resource-queries'
 import { created } from '../../../../utils/response'
 import { taxonomyTerms } from '@nuxflow/db/schema'
+import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 
 const bodySchema = z.object({
@@ -22,6 +23,12 @@ export default defineEventHandler(async (event) => {
   const body = await parseBody(event, bodySchema)
 
   await getTaxonomyByIdOrThrow(db, siteId, taxonomyId)
+
+  const slugConflict = await db.query.taxonomyTerms.findFirst({
+    where: and(eq(taxonomyTerms.taxonomyId, taxonomyId), eq(taxonomyTerms.slug, body.slug)),
+    columns: { id: true },
+  })
+  if (slugConflict) conflict(`A term with the slug "${body.slug}" already exists in this taxonomy`)
 
   const id = ulid()
   const termInsert = db.insert(taxonomyTerms).values({

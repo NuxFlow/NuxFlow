@@ -35,6 +35,8 @@ interface Subscription {
   provider: string
   currentPeriodEnd: string | null
   cancelledAt: string | null
+  cancelAtPeriodEnd: boolean
+  isFree: boolean
 }
 
 interface AccountData {
@@ -103,8 +105,13 @@ async function cancelSubscription() {
   cancellingSubscription.value = true
   showCancelConfirm.value = false
   try {
+    const wasFree = subscription.value?.isFree ?? false
     await $fetch('/api/v1/account/subscription', { method: 'DELETE' })
-    toast.add({ title: 'Subscription cancelled', color: 'success' })
+    toast.add({
+      title: wasFree ? 'Subscription cancelled' : 'Cancellation scheduled',
+      description: wasFree ? undefined : 'You\'ll keep access until the end of your current billing period.',
+      color: 'success',
+    })
     await refreshSubscription()
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Could not cancel subscription'
@@ -180,21 +187,32 @@ function formatDate(dateStr: string | null) {
 
         <UDivider />
 
+        <UAlert
+          v-if="subscription.cancelAtPeriodEnd"
+          icon="i-lucide-circle-alert"
+          color="warning"
+          variant="soft"
+          title="Cancellation scheduled"
+          :description="`Your subscription will end on ${formatDate(subscription.currentPeriodEnd)}. You'll keep access until then.`"
+        />
+
         <div class="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p class="text-gray-400 text-xs uppercase tracking-wide">Renews</p>
+            <p class="text-gray-400 text-xs uppercase tracking-wide">{{ subscription.cancelAtPeriodEnd ? 'Ends' : 'Renews' }}</p>
             <p class="mt-0.5 text-gray-700 dark:text-gray-300">{{ formatDate(subscription.currentPeriodEnd) }}</p>
           </div>
-          <div v-if="subscription.cancelledAt">
+          <div v-if="subscription.status === 'cancelled' && subscription.cancelledAt">
             <p class="text-gray-400 text-xs uppercase tracking-wide">Cancelled</p>
             <p class="mt-0.5 text-gray-700 dark:text-gray-300">{{ formatDate(subscription.cancelledAt) }}</p>
           </div>
         </div>
 
         <div class="flex items-center gap-3 flex-wrap">
-          <!-- Stripe billing portal for managing payment method, invoices, etc. -->
+          <!-- Billing portal for managing payment method, invoices, etc. — all three
+          real providers now have one; free-tier rows (isFree) have no real billing behind
+          them to manage. -->
           <UButton
-            v-if="subscription.provider === 'stripe'"
+            v-if="!subscription.isFree"
             variant="outline"
             icon="i-lucide-credit-card"
             :loading="managingBilling"
@@ -235,7 +253,12 @@ function formatDate(dateStr: string | null) {
         <div class="space-y-4">
           <p class="text-sm text-gray-600 dark:text-gray-400">
             Are you sure you want to cancel your <strong>{{ tier?.name }}</strong> subscription?
-            You will lose access to member-only content immediately.
+            <template v-if="subscription?.isFree">
+              You will lose access to member-only content immediately.
+            </template>
+            <template v-else>
+              You'll keep access until the end of your current billing period on {{ formatDate(subscription?.currentPeriodEnd ?? null) }}.
+            </template>
           </p>
           <div class="flex justify-end gap-2">
             <UButton variant="ghost" @click="showCancelConfirm = false">Keep subscription</UButton>

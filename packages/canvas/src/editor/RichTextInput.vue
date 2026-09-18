@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
@@ -37,15 +37,45 @@ const bulletListActive = computed(() => editor.value?.isActive('bulletList') ?? 
 const orderedListActive = computed(() => editor.value?.isActive('orderedList') ?? false)
 const linkActive = computed(() => editor.value?.isActive('link') ?? false)
 
+// Replaces window.prompt() (blocking, no validation, doesn't match the rest of this
+// toolbar's chrome) with an inline popover — same interaction pattern as the AI menu below.
+const showLinkInput = ref(false)
+const linkUrlDraft = ref('')
+const linkUrlError = ref('')
+const linkUrlInputRef = ref<HTMLInputElement | null>(null)
+
 function addLink() {
   const previousUrl = editor.value?.getAttributes('link').href as string | undefined
-  const url = window.prompt('Link URL:', previousUrl || 'https://')
-  if (url === null) return
-  if (url === '') {
+  linkUrlDraft.value = previousUrl || 'https://'
+  linkUrlError.value = ''
+  showLinkInput.value = true
+  nextTick(() => linkUrlInputRef.value?.select())
+}
+
+function confirmLink() {
+  const url = linkUrlDraft.value.trim()
+  if (!url) {
     editor.value?.chain().focus().extendMarkRange('link').unsetLink().run()
+    showLinkInput.value = false
+    return
+  }
+  // A bare "https://" (the default draft value, left untouched) or anything else that
+  // doesn't parse as a real URL is rejected here rather than silently stored — the
+  // previous window.prompt() version had no such check.
+  try {
+    const parsed = new URL(url)
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported protocol')
+  } catch {
+    linkUrlError.value = 'Enter a valid http(s) URL'
     return
   }
   editor.value?.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+  showLinkInput.value = false
+}
+
+function cancelLink() {
+  showLinkInput.value = false
+  editor.value?.chain().focus().run()
 }
 
 // ── AI text improvement ───────────────────────────────────────────────────────
@@ -70,6 +100,7 @@ function applyAiAlternative(alt: string) {
     <div class="flex items-center gap-0.5 px-2 py-1 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
       <button
         type="button"
+        aria-label="Bold"
         title="Bold"
         class="w-6 h-6 flex items-center justify-center rounded text-xs font-bold transition-colors"
         :class="boldActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'"
@@ -78,6 +109,7 @@ function applyAiAlternative(alt: string) {
 
       <button
         type="button"
+        aria-label="Italic"
         title="Italic"
         class="w-6 h-6 flex items-center justify-center rounded text-xs italic transition-colors"
         :class="italicActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'"
@@ -88,6 +120,7 @@ function applyAiAlternative(alt: string) {
 
       <button
         type="button"
+        aria-label="Bullet list"
         title="Bullet list"
         class="w-6 h-6 flex items-center justify-center rounded transition-colors"
         :class="bulletListActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'"
@@ -100,6 +133,7 @@ function applyAiAlternative(alt: string) {
 
       <button
         type="button"
+        aria-label="Numbered list"
         title="Numbered list"
         class="w-6 h-6 flex items-center justify-center rounded transition-colors"
         :class="orderedListActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'"
@@ -117,20 +151,49 @@ function applyAiAlternative(alt: string) {
 
       <div class="w-px h-3.5 bg-gray-300 dark:bg-gray-600 mx-0.5" />
 
-      <button
-        type="button"
-        title="Insert link"
-        class="w-6 h-6 flex items-center justify-center rounded transition-colors"
-        :class="linkActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'"
-        @mousedown.prevent="addLink"
-      >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-        </svg>
-      </button>
+      <div class="relative">
+        <button
+          type="button"
+          aria-label="Insert link"
+          title="Insert link"
+          class="w-6 h-6 flex items-center justify-center rounded transition-colors"
+          :class="linkActive ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'"
+          @mousedown.prevent="addLink"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+        </button>
+        <div
+          v-if="showLinkInput"
+          role="dialog"
+          aria-label="Insert link"
+          class="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 w-64"
+        >
+          <input
+            ref="linkUrlInputRef"
+            v-model="linkUrlDraft"
+            type="text"
+            placeholder="https://example.com"
+            class="w-full px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            @keydown.enter.prevent="confirmLink"
+            @keydown.escape.prevent="cancelLink"
+          >
+          <p v-if="linkUrlError" class="text-[11px] text-red-500 mt-1">{{ linkUrlError }}</p>
+          <div class="flex justify-end gap-1.5 mt-1.5">
+            <button type="button" class="px-2 py-0.5 text-[11px] text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors" @click="cancelLink">
+              Cancel
+            </button>
+            <button type="button" class="px-2 py-0.5 text-[11px] rounded bg-primary-600 text-white hover:bg-primary-700 transition-colors" @click="confirmLink">
+              {{ linkUrlDraft.trim() ? 'Apply' : 'Remove link' }}
+            </button>
+          </div>
+        </div>
+      </div>
 
       <button
         type="button"
+        aria-label="Remove link"
         title="Remove link"
         class="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
         @mousedown.prevent="editor?.chain().focus().unsetLink().run()"
@@ -144,6 +207,7 @@ function applyAiAlternative(alt: string) {
       <div class="ml-auto relative">
         <button
           type="button"
+          aria-label="Improve with AI"
           title="Improve with AI"
           :disabled="aiLoading"
           class="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-primary-500 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-40 transition-colors"

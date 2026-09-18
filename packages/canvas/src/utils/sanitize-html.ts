@@ -56,7 +56,11 @@ export function sanitizeCustomHtml(html: string | null | undefined): string {
 // click. Only the URI scheme needs blocking here, matching the same javascript:/vbscript:/
 // data: blocklist used for TipTap links/images in app/utils/render-tiptap.ts.
 export function safeHref(url: string | null | undefined): string {
-  const trimmed = (url ?? '').trim()
+  // Browsers strip ASCII tab/newline/carriage-return from a URL during parsing (per the
+  // WHATWG URL spec) before evaluating its scheme, so "jav\tascript:..." is parsed and
+  // executed identically to "javascript:...". Strip those out before the scheme test, not
+  // just leading/trailing whitespace via trim(), or that gap lets the check be bypassed.
+  const trimmed = (url ?? '').replace(/[\t\r\n]/g, '').trim()
   if (!trimmed) return ''
   if (/^(?:javascript|vbscript|data):/i.test(trimmed)) return '#'
   return trimmed

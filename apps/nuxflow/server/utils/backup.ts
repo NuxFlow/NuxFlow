@@ -317,6 +317,25 @@ const backupDynamicPluginSchema = z.object({
   signature: z.string(),
   serverCode: z.string().nullable(),
   clientBundle: z.string().nullable(),
+}).superRefine((data, ctx) => {
+  // Mirrors the superRefine in server/api/v1/dynamic-plugins/index.post.ts's install-body
+  // schema — without this, a backup.json (user-editable before upload) could carry a
+  // serverCode/clientBundle with its checksum field left absent, which the restore loop's
+  // checksum check below only runs "if checksum present" and otherwise silently skips,
+  // while the corresponding signature check substitutes 'none' for the missing checksum —
+  // exactly the value that placeholder was signed over for a plugin that legitimately had
+  // no server/client artifact at all. That let unsigned code through under a signature that
+  // never actually covered it. Rejecting the shape here closes that off at the schema level,
+  // matching the fail-closed contract every other install path already enforces.
+  if (data.serverCode && !data.serverChecksum) {
+    ctx.addIssue({ code: 'custom', message: 'serverChecksum is required when serverCode is present', path: ['serverChecksum'] })
+  }
+  if (data.clientBundle && !data.clientChecksum) {
+    ctx.addIssue({ code: 'custom', message: 'clientChecksum is required when clientBundle is present', path: ['clientChecksum'] })
+  }
+  if (data.blockDefinitions && !data.definitionsChecksum) {
+    ctx.addIssue({ code: 'custom', message: 'definitionsChecksum is required when blockDefinitions is present', path: ['definitionsChecksum'] })
+  }
 })
 
 const backupMembershipTierSchema = z.object({
@@ -870,7 +889,12 @@ export async function applyBackup(
           await db.update(contentItems).set({
             title: backupItem.title,
             status: backupItem.status as 'draft' | 'published' | 'scheduled' | 'archived' | 'review',
-            visibility: backupItem.visibility as 'public' | 'private' | 'password' | 'members',
+            // A pre-existing backup could in principle carry the now-removed 'password'
+            // value (it was a legal enum member, even though nothing ever actually wrote
+            // it) — fall back to 'members' rather than let an invalid literal through.
+            visibility: (backupItem.visibility === 'public' || backupItem.visibility === 'private' || backupItem.visibility === 'members')
+              ? backupItem.visibility
+              : 'members',
             content: backupItem.content,
             excerpt: backupItem.excerpt,
             seoTitle: backupItem.seoTitle,
@@ -899,7 +923,9 @@ export async function applyBackup(
         slug: backupItem.slug,
         title: backupItem.title,
         status: backupItem.status as 'draft' | 'published' | 'scheduled' | 'archived' | 'review',
-        visibility: backupItem.visibility as 'public' | 'private' | 'password' | 'members',
+        visibility: (backupItem.visibility === 'public' || backupItem.visibility === 'private' || backupItem.visibility === 'members')
+          ? backupItem.visibility
+          : 'members',
         content: backupItem.content,
         excerpt: backupItem.excerpt,
         seoTitle: backupItem.seoTitle,
@@ -1104,14 +1130,26 @@ export async function applyBackup(
         continue
       }
 
-      if (backupPlugin.serverCode && backupPlugin.serverChecksum) {
+      // Fails closed: code/bundle present with no checksum to verify against is rejected,
+      // not silently passed through — see the superRefine on backupDynamicPluginSchema above
+      // for why a missing checksum here can't be trusted just because the signature "matches"
+      // (the signature would have been computed over the 'none' placeholder instead).
+      if (backupPlugin.serverCode) {
+        if (!backupPlugin.serverChecksum) {
+          result.plugins.rejected++
+          continue
+        }
         const actual = await computeSha256(backupPlugin.serverCode)
         if (actual !== backupPlugin.serverChecksum) {
           result.plugins.rejected++
           continue
         }
       }
-      if (backupPlugin.clientBundle && backupPlugin.clientChecksum) {
+      if (backupPlugin.clientBundle) {
+        if (!backupPlugin.clientChecksum) {
+          result.plugins.rejected++
+          continue
+        }
         const actual = await computeSha256(backupPlugin.clientBundle)
         if (actual !== backupPlugin.clientChecksum) {
           result.plugins.rejected++

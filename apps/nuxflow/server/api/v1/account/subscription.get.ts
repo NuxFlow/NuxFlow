@@ -32,6 +32,12 @@ export default defineEventHandler(async (event) => {
       provider: sub.provider,
       currentPeriodEnd: sub.currentPeriodEnd,
       cancelledAt: sub.cancelledAt,
+      cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+      // Free-tier rows have no real provider or billing period behind them (see
+      // checkout.post.ts's free-tier branch) — the frontend needs this to show accurate
+      // cancellation copy ("ends immediately" vs. "keeps access until period end"),
+      // since `provider` alone can't tell a free row apart from a real Stripe one.
+      isFree: sub.providerSubscriptionId.startsWith('free_'),
     },
     tier,
   }

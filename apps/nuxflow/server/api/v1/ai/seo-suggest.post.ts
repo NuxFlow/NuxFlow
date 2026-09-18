@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { generateText } from 'ai'
+import { generateObject } from 'ai'
 import { requireRole } from '../../../utils/permissions'
 import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 
@@ -8,7 +8,18 @@ const bodySchema = z.object({
   body: z.string().max(8000).optional(),
 })
 
-const SYSTEM = `You are an SEO expert. Return ONLY valid JSON with keys "title" (max 60 chars) and "description" (max 160 chars). No other text.`
+// generateObject enforces this schema at the provider-call level instead of manually
+// JSON.parse-ing a free-text response (which needed its own code-fence-stripping workaround
+// — "the model doesn't always comply" — before this; see translate.post.ts for the same
+// class of problem in a route that hasn't been converted). A schema-generation failure now
+// surfaces as a clear 502 via callAiOrThrow rather than silently shipping a blank meta
+// description, which is arguably a worse outcome for SEO than an explicit error.
+const seoSchema = z.object({
+  title: z.string().max(60),
+  description: z.string().max(160),
+})
+
+const SYSTEM = `You are an SEO expert. Generate an SEO title (max 60 characters) and meta description (max 160 characters) for the given content.`
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
@@ -17,14 +28,9 @@ export default defineEventHandler(async (event) => {
   const { title, body } = await parseBody(event, bodySchema)
   const prompt = `Generate an SEO title and meta description for this content:\nTitle: ${title}\n${body ? `Content: ${body.slice(0, 2000)}` : ''}`
 
-  const { text: raw } = await callAiOrThrow(() =>
-    generateText({ model, system: SYSTEM, prompt, maxOutputTokens: 300 }),
+  const { object } = await callAiOrThrow(() =>
+    generateObject({ model, schema: seoSchema, system: SYSTEM, prompt, maxOutputTokens: 300 }),
   )
 
-  try {
-    const { title: seoTitle, description } = JSON.parse(raw) as { title: string; description: string }
-    return { seoTitle, seoDescription: description }
-  } catch {
-    return { seoTitle: title, seoDescription: '' }
-  }
+  return { seoTitle: object.title, seoDescription: object.description }
 })

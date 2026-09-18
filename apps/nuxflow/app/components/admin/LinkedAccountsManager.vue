@@ -17,6 +17,7 @@ const PROVIDERS = [
 
 const accounts = ref<LinkedAccount[]>([])
 const loading = ref(true)
+const loadFailed = ref(false)
 const linking = ref<string | null>(null)
 const unlinking = ref<string | null>(null)
 
@@ -37,11 +38,14 @@ function formatDate(dateStr?: Date | string) {
 
 async function fetchAccounts() {
   loading.value = true
+  loadFailed.value = false
   try {
     const res = await client.listAccounts()
     if (res?.error) {
       console.error('Failed to load linked accounts:', res.error)
       accounts.value = []
+      loadFailed.value = true
+      toast.add({ title: 'Failed to load linked accounts', description: res.error.message, color: 'error' })
       return
     }
     accounts.value = (res?.data ?? []) as LinkedAccount[]
@@ -49,6 +53,8 @@ async function fetchAccounts() {
   catch (err) {
     console.error('Failed to load linked accounts:', err)
     accounts.value = []
+    loadFailed.value = true
+    toast.add({ title: 'Failed to load linked accounts', color: 'error' })
   }
   finally {
     loading.value = false
@@ -140,6 +146,13 @@ onMounted(async () => {
       <div v-if="loading" class="flex items-center justify-center py-6 space-x-2">
         <UIcon name="i-lucide-loader-2" class="w-5 h-5 text-primary-500 animate-spin" />
         <p class="text-xs text-gray-400">Loading connected accounts…</p>
+      </div>
+
+      <div v-else-if="loadFailed" class="flex flex-col items-center justify-center py-8 px-4 rounded-xl border border-dashed border-red-200 dark:border-red-900 text-center">
+        <UIcon name="i-lucide-circle-alert" class="w-8 h-8 text-red-500 mb-2" />
+        <h3 class="text-sm font-medium text-gray-900 dark:text-white">Couldn't load connected accounts</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-sm">This isn't the same as having none connected — try again before disconnecting anything.</p>
+        <UButton size="xs" variant="soft" class="mt-3" icon="i-lucide-refresh-cw" @click="fetchAccounts">Retry</UButton>
       </div>
 
       <template v-else>

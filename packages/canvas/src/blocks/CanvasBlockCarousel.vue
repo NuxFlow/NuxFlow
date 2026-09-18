@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
+import { spacingToCss } from '../utils/spacing'
 
 interface SlideImage {
   url: string
@@ -107,12 +108,7 @@ const aspectClass = computed(() => ({
   '1:1': 'aspect-square',
 }[props.aspectRatio ?? '16:9']))
 
-const containerStyle = computed(() => {
-  const p = props.padding
-  return p
-    ? { padding: `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}` }
-    : undefined
-})
+const containerStyle = computed(() => (props.padding ? { padding: spacingToCss(props.padding, '') } : undefined))
 </script>
 
 <template>

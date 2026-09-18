@@ -29,9 +29,5 @@ export async function getImageProvider(event: H3Event): Promise<ImageProvider | 
   const geminiKey = await resolveSetting(event, 'ai.gemini_api_key', 'geminiApiKey') as string
   if (geminiKey) return new ImagenProvider(geminiKey)
 
-  // Check env-only keys as last resort
-  if (process.env.OPENAI_API_KEY) return new DalleProvider(process.env.OPENAI_API_KEY)
-  if (process.env.GEMINI_API_KEY) return new ImagenProvider(process.env.GEMINI_API_KEY)
-
   return null
 }

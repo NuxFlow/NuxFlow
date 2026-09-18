@@ -25,6 +25,7 @@ export async function getItemsForTerm(db: Db, siteId: string, termId: string, op
     eq(contentTaxonomyTerms.termId, termId),
     eq(contentItems.siteId, siteId),
     eq(contentItems.status, 'published'),
+    eq(contentItems.visibility, 'public'),
   )
 
   const [countResult] = await db

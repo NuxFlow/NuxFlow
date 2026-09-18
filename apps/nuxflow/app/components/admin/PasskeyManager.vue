@@ -25,23 +25,31 @@ function formatDate(dateStr?: Date | string) {
   }
 }
 
+const loadFailed = ref(false)
+
 async function fetchPasskeys() {
   loading.value = true
+  loadFailed.value = false
   try {
     if (!client?.passkey) {
       console.warn('Better Auth Passkey client is not initialized.')
       passkeys.value = []
+      loadFailed.value = true
       return
     }
     const res = await client.passkey.listUserPasskeys()
     if (res?.error) {
       console.error('Failed to load passkeys:', res.error)
       passkeys.value = []
+      loadFailed.value = true
+      toast.add({ title: 'Failed to load passkeys', description: res.error.message, color: 'error' })
       return
     }
     passkeys.value = (res?.data || []) as Passkey[]
   } catch (err) {
     console.error('Failed to load passkeys:', err)
+    loadFailed.value = true
+    toast.add({ title: 'Failed to load passkeys', color: 'error' })
   } finally {
     loading.value = false
   }
@@ -86,6 +94,21 @@ async function deletePasskey(id: string) {
     return
   }
 
+  // This component doesn't know whether the user also has a password or a linked social
+  // account (that's LinkedAccountsManager's own state), so it can't block removing the
+  // "only" login method the way unlinkProvider() does — but it can at least warn loudly
+  // when this is the last passkey specifically, since deleting it with no other method set
+  // up can self-lock the account.
+  const isLastPasskey = passkeys.value.length === 1
+  const ok = await useConfirm().confirm({
+    title: 'Delete this passkey?',
+    description: isLastPasskey
+      ? "This is your last passkey. Make sure you have a password or a linked social account set up before removing it, or you could lose access to your account."
+      : 'You will need to sign in another way from this device next time.',
+    confirmLabel: 'Delete',
+  })
+  if (!ok) return
+
   try {
     const result = await client.passkey.deletePasskey({ id })
     if (result?.error) {
@@ -124,6 +147,13 @@ onMounted(() => {
         <div v-if="loading" class="flex flex-col items-center justify-center py-6 space-y-2">
           <UIcon name="i-lucide-loader-2" class="w-8 h-8 text-primary-500 animate-spin" />
           <p class="text-xs text-gray-400">Loading your secure passkeys...</p>
+        </div>
+
+        <div v-else-if="loadFailed" class="flex flex-col items-center justify-center py-8 px-4 rounded-xl border border-dashed border-red-200 dark:border-red-900 text-center">
+          <UIcon name="i-lucide-circle-alert" class="w-8 h-8 text-red-500 mb-2" />
+          <h3 class="text-sm font-medium text-gray-900 dark:text-white">Couldn't load your passkeys</h3>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-sm">This isn't the same as having none — try again.</p>
+          <UButton size="xs" variant="soft" class="mt-3" icon="i-lucide-refresh-cw" @click="fetchPasskeys">Retry</UButton>
         </div>
 
         <div v-else-if="passkeys.length === 0" class="flex flex-col items-center justify-center py-8 px-4 rounded-xl border border-dashed border-gray-200 dark:border-gray-800 text-center">

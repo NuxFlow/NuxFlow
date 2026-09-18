@@ -3,10 +3,10 @@ import { useDb } from '../../../utils/db'
 import { requireRole, roleAtLeast } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getContentTypeBySlugOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
-import { created } from '../../../utils/response'
+import { created, conflict } from '../../../utils/response'
 import { purgeContentCache } from '../../../utils/edge-cache'
 import { contentItems, sites } from '@nuxflow/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 
 const bodySchema = z.object({
@@ -41,6 +41,12 @@ export default defineEventHandler(async (event) => {
   }
 
   const type = await getContentTypeBySlugOrThrow(db, siteId, body.typeSlug, 'Content type not found')
+
+  const slugConflict = await db.query.contentItems.findFirst({
+    where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, body.slug)),
+    columns: { id: true },
+  })
+  if (slugConflict) conflict(`A content item with the slug "${body.slug}" already exists`)
 
   // Resolve default site locale
   const site = await db.query.sites.findFirst({

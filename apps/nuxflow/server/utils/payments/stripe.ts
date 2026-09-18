@@ -72,8 +72,14 @@ export class StripeProvider implements PaymentProvider {
     })
   }
 
+  // Deferred, not immediate — matches Paddle (`effective_from: 'next_billing_period'`) and
+  // LemonSqueezy's own DELETE semantics, so a canceling customer keeps access through the
+  // period they already paid for on every provider, not just those two. The real,
+  // provider-side cancellation still happens automatically at period end; Stripe fires
+  // `customer.subscription.deleted` at that point, which cancelSubscriptionFromWebhook
+  // handles the same way as it always has.
   async cancelSubscription(subscriptionId: string) {
-    return this.client.subscriptions.cancel(subscriptionId)
+    return this.client.subscriptions.update(subscriptionId, { cancel_at_period_end: true })
   }
 
   async getSubscription(subscriptionId: string) {

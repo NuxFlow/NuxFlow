@@ -4,6 +4,7 @@ import type { Ref } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import { safeHref } from '../utils/sanitize-html'
+import { spacingToCss } from '../utils/spacing'
 
 // Typed as a real `Ref` (not a plain `{ value: T }` shape) so the template's automatic
 // ref-unwrapping (`site.logoUrl` instead of `site.value.logoUrl`) still type-checks —
@@ -74,7 +75,7 @@ const wrapperStyle = computed(() => {
   return {
     backgroundColor: props.bgColor,
     color: props.textColor,
-    padding: p ? `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}` : '48px 24px 24px 24px',
+    padding: spacingToCss(p, '48px 24px 24px 24px'),
   }
 })
 </script>

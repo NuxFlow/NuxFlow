@@ -121,7 +121,12 @@ async function dynToggle(id: string, isActive: boolean) {
 }
 
 async function dynUninstall(id: string, name: string) {
-  if (!confirm(`Uninstall "${name}"? This will remove all stored plugin code.`)) return
+  const ok = await useConfirm().confirm({
+    title: `Uninstall "${name}"?`,
+    description: 'This will remove all stored plugin code.',
+    confirmLabel: 'Uninstall',
+  })
+  if (!ok) return
   try {
     await $fetch(`/api/v1/dynamic-plugins/${id}`, { method: 'DELETE' })
     await refreshDyn()

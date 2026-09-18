@@ -1,12 +1,13 @@
 import { z } from 'zod'
 import { subscriptions } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
 import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
 import { resolveSetting } from '../../../utils/settings'
 import { resolveStripeProvider, resolveLemonSqueezyProvider, resolvePaddleProvider } from '../../../utils/payments/resolve'
 import { conflict } from '../../../utils/response'
+import { isHttpError, errorMessage } from '../../../utils/errors'
 
 const bodySchema = z.object({
   tierId: z.string(),
@@ -41,7 +42,7 @@ export default defineEventHandler(async (event) => {
     where: and(
       eq(subscriptions.siteId, siteId),
       eq(subscriptions.userId, userId),
-      eq(subscriptions.status, 'active'),
+      inArray(subscriptions.status, ['active', 'trialing']),
     ),
   })
   if (existingActiveSub && existingActiveSub.tierId !== tier.id) {
@@ -97,39 +98,47 @@ export default defineEventHandler(async (event) => {
     resolvePaddleProvider(event),
   ])
 
-  if (stripe && tier.stripePriceId) {
-    const customers = await stripe.listCustomersByEmail(userEmail)
-    let customerId = customers[0]?.id
-    if (!customerId) {
-      const customer = await stripe.createCustomer(userEmail, userName)
-      customerId = customer.id
+  // A transient provider outage here happens at exactly the moment a customer is trying to
+  // pay — surface it as a clean 502 with a real message instead of letting it bubble up as
+  // an unhandled exception, matching the pattern subscription.delete.ts already uses.
+  try {
+    if (stripe && tier.stripePriceId) {
+      const customers = await stripe.listCustomersByEmail(userEmail)
+      let customerId = customers[0]?.id
+      if (!customerId) {
+        const customer = await stripe.createCustomer(userEmail, userName)
+        customerId = customer.id
+      }
+      const checkoutSession = await stripe.createCheckoutSession({
+        customerId,
+        priceId: tier.stripePriceId,
+        successUrl: body.returnUrl,
+        cancelUrl: body.returnUrl,
+        metadata: { userId, siteId, tierId: tier.id },
+      })
+      return { url: checkoutSession.url }
     }
-    const checkoutSession = await stripe.createCheckoutSession({
-      customerId,
-      priceId: tier.stripePriceId,
-      successUrl: body.returnUrl,
-      cancelUrl: body.returnUrl,
-      metadata: { userId, siteId, tierId: tier.id },
-    })
-    return { url: checkoutSession.url }
-  }
 
-  if (ls && tier.lsVariantId) {
-    const result = await ls.createCheckout({
-      variantId: tier.lsVariantId,
-      email: userEmail,
-      customData: { user_id: userId, site_id: siteId },
-    })
-    return { url: result.data.attributes.url }
-  }
+    if (ls && tier.lsVariantId) {
+      const result = await ls.createCheckout({
+        variantId: tier.lsVariantId,
+        email: userEmail,
+        customData: { user_id: userId, site_id: siteId },
+      })
+      return { url: result.data.attributes.url }
+    }
 
-  if (paddle && tier.paddleProductId) {
-    const transaction = await paddle.createTransaction({
-      priceId: tier.paddleProductId,
-      customData: { user_id: userId, site_id: siteId, tier_id: tier.id },
-      returnUrl: body.returnUrl,
-    })
-    return { url: transaction.data.checkout.url }
+    if (paddle && tier.paddleProductId) {
+      const transaction = await paddle.createTransaction({
+        priceId: tier.paddleProductId,
+        customData: { user_id: userId, site_id: siteId, tier_id: tier.id },
+        returnUrl: body.returnUrl,
+      })
+      return { url: transaction.data.checkout.url }
+    }
+  } catch (err) {
+    if (isHttpError(err)) throw err
+    throw createError({ statusCode: 502, message: `Payment provider checkout failed: ${errorMessage(err)}` })
   }
 
   if (!stripe && !ls && !paddle) {

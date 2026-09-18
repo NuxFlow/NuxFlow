@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import type { SpacingValue } from '@nuxflow/canvas'
+import { spacingToCss, type SpacingValue } from '@nuxflow/canvas'
 
 const toast = useToast()
 
@@ -39,14 +39,10 @@ const turnstileSiteKey = computed(() => (_siteData.value as { turnstileSiteKey?:
 const hasTurnstile = computed(() => Boolean(turnstileSiteKey.value))
 
 const containerStyle = computed(() => {
-  const p = props.padding
-  const paddingVal = p
-    ? `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}`
-    : '48px 24px'
   return {
     backgroundColor: props.bgColor || 'transparent',
     color: props.textColor || 'inherit',
-    padding: paddingVal,
+    padding: spacingToCss(props.padding, '48px 24px'),
   }
 })
 

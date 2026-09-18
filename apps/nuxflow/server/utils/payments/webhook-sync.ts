@@ -26,6 +26,15 @@ export interface SubscriptionUpsert {
   currentPeriodStart?: string
   currentPeriodEnd?: string
   /**
+   * Only pass this when the caller actually re-fetched fresh state carrying this signal
+   * (currently just Stripe's `*.created`/`*.updated` handlers, via `stripeSub.cancel_at_period_end`
+   * — see [provider].post.ts). Leaving it `undefined` (LemonSqueezy/Paddle's `*.updated`
+   * handlers don't parse an equivalent field from their payload) skips writing this column
+   * at all on conflict, rather than defaulting to `false` and clobbering whatever
+   * subscription.delete.ts already set when the user cancelled through our own UI.
+   */
+  cancelAtPeriodEnd?: boolean
+  /**
    * Whether this webhook's specific event type represents a fresh activation worth
    * notifying about. Only takes effect when this call turns out to be an insert (no
    * existing row) — each provider decides this from its own event-type vocabulary
@@ -117,6 +126,7 @@ export async function upsertSubscriptionFromWebhook(event: H3Event, evt: Subscri
     status: evt.status,
     currentPeriodStart: evt.currentPeriodStart,
     currentPeriodEnd: evt.currentPeriodEnd,
+    cancelAtPeriodEnd: evt.cancelAtPeriodEnd ?? false,
   })
     .onConflictDoUpdate({
       target: [subscriptions.siteId, subscriptions.provider, subscriptions.providerSubscriptionId],
@@ -126,6 +136,7 @@ export async function upsertSubscriptionFromWebhook(event: H3Event, evt: Subscri
         currentPeriodStart: evt.currentPeriodStart,
         currentPeriodEnd: evt.currentPeriodEnd,
         updatedAt: sql`(datetime('now'))`,
+        ...(evt.cancelAtPeriodEnd !== undefined ? { cancelAtPeriodEnd: evt.cancelAtPeriodEnd } : {}),
       },
     })
     .returning({ id: subscriptions.id })
@@ -158,7 +169,18 @@ export async function cancelSubscriptionFromWebhook(event: H3Event, evt: Subscri
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const [row] = await db.update(subscriptions)
-    .set({ status: 'cancelled', cancelledAt: evt.cancelledAt ?? new Date().toISOString() })
+    .set({
+      status: 'cancelled',
+      // 'cancelled' with cancelAtPeriodEnd still true is a contradictory state — this is
+      // the real, final cancellation (the provider's own end-of-period event), so clear it.
+      cancelAtPeriodEnd: false,
+      // Stripe's customer.subscription.deleted carries no cancellation timestamp of its
+      // own, so a redelivery of the same event (providers retry webhooks) would otherwise
+      // recompute new Date().toISOString() on every retry and overwrite the true
+      // cancellation time with the reprocessing time. COALESCE makes a redelivered event a
+      // true no-op on this column once it's already set.
+      cancelledAt: sql`COALESCE(${subscriptions.cancelledAt}, ${evt.cancelledAt ?? new Date().toISOString()})`,
+    })
     .where(and(
       eq(subscriptions.siteId, siteId),
       eq(subscriptions.providerSubscriptionId, evt.providerSubscriptionId),

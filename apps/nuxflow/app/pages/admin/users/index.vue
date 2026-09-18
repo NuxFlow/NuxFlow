@@ -18,13 +18,22 @@ const removingId = ref<string | null>(null)
 const resendingId = ref<string | null>(null)
 const superAdminActionId = ref<string | null>(null)
 const actionError = ref('')
+const { confirm } = useConfirm()
 
 async function removeUser(userId: string) {
-  if (!confirm('Remove this user from the site?')) return
+  const ok = await confirm({
+    title: 'Remove this user?',
+    description: 'They will lose access to this site immediately.',
+    confirmLabel: 'Remove',
+  })
+  if (!ok) return
   removingId.value = userId
+  actionError.value = ''
   try {
     await $fetch(`/api/v1/users/${userId}`, { method: 'DELETE' })
     await refresh()
+  } catch (e: unknown) {
+    actionError.value = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to remove user'
   } finally {
     removingId.value = null
   }
@@ -43,7 +52,12 @@ async function resendInvite(userId: string) {
 }
 
 async function promoteSuperAdmin(userId: string) {
-  if (!confirm('Grant this user super admin access? They will be able to manage every site in this NuxFlow instance.')) return
+  const ok = await confirm({
+    title: 'Grant super admin access?',
+    description: 'This user will be able to manage every site in this NuxFlow instance.',
+    confirmLabel: 'Grant access',
+  })
+  if (!ok) return
   superAdminActionId.value = userId
   actionError.value = ''
   try {
@@ -57,7 +71,12 @@ async function promoteSuperAdmin(userId: string) {
 }
 
 async function revokeSuperAdmin(userId: string) {
-  if (!confirm('Revoke super admin access for this user? They will be downgraded to admin on this site.')) return
+  const ok = await confirm({
+    title: 'Revoke super admin access?',
+    description: 'This user will be downgraded to admin on this site.',
+    confirmLabel: 'Revoke access',
+  })
+  if (!ok) return
   superAdminActionId.value = userId
   actionError.value = ''
   try {

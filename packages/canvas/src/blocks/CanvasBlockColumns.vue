@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { SpacingValue } from '../types'
+import { spacingToCss } from '../utils/spacing'
 
 const props = withDefaults(defineProps<{
   columns?: '2' | '3' | '4'
@@ -17,12 +18,7 @@ const gridClass = computed(() => ({
   '4': 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
 }[props.columns ?? '2']))
 
-const containerStyle = computed(() => {
-  const p = props.padding
-  return p
-    ? { padding: `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}` }
-    : { padding: '24px' }
-})
+const containerStyle = computed(() => ({ padding: spacingToCss(props.padding, '24px') }))
 
 const gridStyle = computed(() => ({
   gap: `${props.gap ?? 24}px`,

@@ -12,11 +12,16 @@ const { data } = await useFetch<{ revisions?: Revision[] }>(() => `/api/v1/conte
 const revisions = computed(() => data.value?.revisions ?? [])
 const restoring = ref<string | null>(null)
 
+const toast = useToast()
+
 async function restore(revisionId: string) {
   restoring.value = revisionId
   try {
     await $fetch(`/api/v1/content/${props.contentId}/revisions/${revisionId}/restore`, { method: 'POST' })
     emit('restored')
+  } catch (e: unknown) {
+    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to restore revision'
+    toast.add({ title: msg, color: 'error' })
   } finally {
     restoring.value = null
   }
@@ -40,7 +45,7 @@ async function restore(revisionId: string) {
         <UButton
           size="xs"
           variant="ghost"
-          class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+          class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0"
           :loading="restoring === rev.id"
           @click="restore(rev.id)"
         >

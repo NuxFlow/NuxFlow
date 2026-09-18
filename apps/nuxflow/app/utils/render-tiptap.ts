@@ -22,7 +22,10 @@ function esc(str: string): string {
 // Blocks javascript:/vbscript:/data: URIs in href/src — esc() only escapes HTML metacharacters,
 // it doesn't stop a scheme that executes on click (link) or load (image).
 function escUrl(str: string): string {
-  const trimmed = str.trim()
+  // Browsers strip ASCII tab/newline/carriage-return from a URL during parsing before
+  // evaluating its scheme, so "jav\tascript:..." parses identically to "javascript:...".
+  // Strip those out before the scheme test, not just leading/trailing whitespace.
+  const trimmed = str.replace(/[\t\r\n]/g, '').trim()
   if (/^(?:javascript|vbscript|data):/i.test(trimmed)) return ''
   return esc(str)
 }

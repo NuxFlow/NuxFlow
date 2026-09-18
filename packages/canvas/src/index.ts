@@ -1,5 +1,6 @@
 export * from './types'
 export * from './blocks/definitions'
+export { spacingToCss } from './utils/spacing'
 export { useCanvas } from './editor/useCanvas'
 export { useAiImprove, AI_IMPROVE_ACTIONS } from './editor/useAiImprove'
 export type { AiInstruction, AiImproveAction } from './editor/useAiImprove'

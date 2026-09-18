@@ -140,6 +140,7 @@ function openAddPicker(slotId: string) {
       <button
         v-if="!isFirst"
         class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        aria-label="Move block up"
         title="Move block up"
         @click.stop="api?.moveBlock(block.id, 'up')"
       >
@@ -152,6 +153,7 @@ function openAddPicker(slotId: string) {
       <button
         v-if="!isLast"
         class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        aria-label="Move block down"
         title="Move block down"
         @click.stop="api?.moveBlock(block.id, 'down')"
       >
@@ -165,6 +167,7 @@ function openAddPicker(slotId: string) {
       <!-- Select / edit -->
       <button
         class="p-1 rounded hover:bg-primary-50 dark:hover:bg-primary-950 text-gray-400 hover:text-primary-600 transition-colors"
+        aria-label="Select block"
         title="Select block"
         @click.stop="api?.selectBlock(block.id)"
       >
@@ -176,6 +179,7 @@ function openAddPicker(slotId: string) {
       <!-- Duplicate -->
       <button
         class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        aria-label="Duplicate block"
         title="Duplicate block"
         @click.stop="api?.duplicateBlock(block.id)"
       >
@@ -187,6 +191,7 @@ function openAddPicker(slotId: string) {
       <!-- Delete -->
       <button
         class="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950 text-gray-400 hover:text-red-500 transition-colors"
+        aria-label="Delete block"
         title="Delete block"
         @click.stop="api?.removeBlock(block.id)"
       >

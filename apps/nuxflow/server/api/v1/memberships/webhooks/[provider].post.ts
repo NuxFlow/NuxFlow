@@ -73,6 +73,7 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         tierLookupId: stripeSubItem?.price?.id,
         currentPeriodStart: stripeSubItem ? new Date(stripeSubItem.current_period_start * 1000).toISOString() : undefined,
         currentPeriodEnd: stripeSubItem ? new Date(stripeSubItem.current_period_end * 1000).toISOString() : undefined,
+        cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
         pushOnActivation: true,
       })
       console.log('[stripe-webhook] checkout.session.completed handled', { userId, subId: stripeSub.id })
@@ -80,29 +81,44 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
     }
     case 'customer.subscription.created':
     case 'customer.subscription.updated': {
-      const sub = stripeEvent.data.object as unknown as {
-        id: string; customer: string; status: string
-        items: { data: Array<{ price: { id: string } }> }
-        current_period_start: number; current_period_end: number
-        metadata: Record<string, string>
-      }
-      console.log('[stripe-webhook] subscription event', stripeEvent.type, { subId: sub.id, meta: sub.metadata })
-      const userId = sub.metadata?.userId
+      const eventSub = stripeEvent.data.object as unknown as { id: string; metadata: Record<string, string> }
+      const userId = eventSub.metadata?.userId
       if (!userId) {
         console.warn('[stripe-webhook] subscription event missing userId in metadata')
         break
       }
-      assertWebhookSiteMatch(event, sub.metadata?.siteId)
+      assertWebhookSiteMatch(event, eventSub.metadata?.siteId)
+
+      // Re-fetch current state rather than trusting the embedded payload — Stripe (like
+      // every provider here) gives no delivery-order guarantee across webhook events, so a
+      // `*.updated` event carrying stale "still active" data can arrive AFTER a `*.deleted`
+      // event for the same subscription already cancelled it, silently reactivating paid
+      // access with no trace. Mirrors the same defensive re-fetch checkout.session.completed
+      // already does above.
+      let stripeSub: Awaited<ReturnType<StripeProvider['getSubscription']>>
+      try {
+        stripeSub = await stripe.getSubscription(eventSub.id)
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err)
+        console.error('[stripe-webhook] Failed to fetch subscription', detail)
+        throw createError({ statusCode: 502, message: `Failed to fetch Stripe subscription ${eventSub.id}: ${detail}` })
+      }
+      const stripeSubItem = stripeSub.items.data[0]
+      console.log('[stripe-webhook] subscription event', stripeEvent.type, { subId: stripeSub.id, userId })
 
       await upsertSubscriptionFromWebhook(event, {
         provider: 'stripe',
         userId,
-        providerSubscriptionId: sub.id,
-        providerCustomerId: String(sub.customer),
-        status: statusMap[sub.status] ?? 'active',
-        tierLookupId: sub.items.data[0]?.price?.id,
-        currentPeriodStart: new Date(sub.current_period_start * 1000).toISOString(),
-        currentPeriodEnd: new Date(sub.current_period_end * 1000).toISOString(),
+        providerSubscriptionId: stripeSub.id,
+        providerCustomerId: typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id,
+        status: statusMap[stripeSub.status] ?? 'active',
+        tierLookupId: stripeSubItem?.price?.id,
+        currentPeriodStart: stripeSubItem ? new Date(stripeSubItem.current_period_start * 1000).toISOString() : undefined,
+        currentPeriodEnd: stripeSubItem ? new Date(stripeSubItem.current_period_end * 1000).toISOString() : undefined,
+        // Syncs the flag if the customer cancels via Stripe's own customer portal (or
+        // reactivates before the period ends) rather than through our own cancel route —
+        // this is the one provider we re-fetch fresh enough state from to know either way.
+        cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
         pushOnActivation: true,
       })
       break
@@ -144,14 +160,18 @@ async function handleLemonSqueezyWebhook(event: H3Event, rawBody: string) {
     const statusMap: Record<string, 'active' | 'cancelled' | 'past_due' | 'trialing' | 'unpaid'> = {
       ...STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID, on_trial: 'trialing', cancelled: 'cancelled', expired: 'cancelled',
     }
+    // Re-fetch current state — LS gives no delivery-order guarantee across webhook events
+    // either; trusting the embedded payload risks the same stale-reactivation window
+    // described in the Stripe handler above.
+    const fresh = await ls.getSubscription(sub.id)
     await upsertSubscriptionFromWebhook(event, {
       provider: 'lemonsqueezy',
       userId,
-      providerSubscriptionId: sub.id,
-      providerCustomerId: String(sub.attributes.customer_id),
-      status: statusMap[sub.attributes.status] ?? 'active',
-      tierLookupId: String(sub.attributes.variant_id),
-      currentPeriodEnd: sub.attributes.renews_at ?? undefined,
+      providerSubscriptionId: fresh.id,
+      providerCustomerId: String(fresh.attributes.customer_id),
+      status: statusMap[fresh.attributes.status] ?? 'active',
+      tierLookupId: String(fresh.attributes.variant_id),
+      currentPeriodEnd: fresh.attributes.renews_at ?? undefined,
       pushOnActivation: eventName === 'subscription_created',
     })
   } else if (['subscription_cancelled', 'subscription_expired'].includes(eventName)) {
@@ -190,15 +210,19 @@ async function handlePaddleWebhook(event: H3Event, rawBody: string) {
     const statusMap: Record<string, 'active' | 'cancelled' | 'past_due' | 'trialing' | 'unpaid'> = {
       ...STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID, canceled: 'cancelled', paused: 'cancelled',
     }
+    // Re-fetch current state — Paddle gives no delivery-order guarantee across webhook
+    // events either; trusting the embedded payload risks the same stale-reactivation
+    // window described in the Stripe handler above.
+    const fresh = await paddle.getSubscription(sub.id)
     await upsertSubscriptionFromWebhook(event, {
       provider: 'paddle',
       userId,
-      providerSubscriptionId: sub.id,
-      providerCustomerId: sub.customer_id,
-      status: statusMap[sub.status] ?? 'active',
-      tierLookupId: sub.items?.[0]?.price?.id,
-      currentPeriodStart: sub.current_billing_period?.starts_at,
-      currentPeriodEnd: sub.current_billing_period?.ends_at,
+      providerSubscriptionId: fresh.id,
+      providerCustomerId: fresh.customer_id,
+      status: statusMap[fresh.status] ?? 'active',
+      tierLookupId: fresh.items?.[0]?.price?.id,
+      currentPeriodStart: fresh.current_billing_period?.starts_at,
+      currentPeriodEnd: fresh.current_billing_period?.ends_at,
       pushOnActivation: payload.event_type === 'subscription.activated',
     })
   } else if (payload.event_type === 'subscription.canceled') {

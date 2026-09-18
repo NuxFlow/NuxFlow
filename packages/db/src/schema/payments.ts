@@ -37,6 +37,14 @@ export const subscriptions = sqliteTable('subscriptions', {
   currentPeriodStart: text('current_period_start'),
   currentPeriodEnd: text('current_period_end'),
   cancelledAt: text('cancelled_at'),
+  // Set when a user cancels but the paid period they already bought hasn't ended yet —
+  // `status` deliberately stays 'active'/'trialing' so access continues (checkContentAccess
+  // and every other status check already treat those as granting access), and this flag
+  // just drives "Cancels on <date>" UI. The provider's own end-of-period webhook
+  // (customer.subscription.deleted / subscription_expired / subscription.canceled) is what
+  // finally flips `status` to 'cancelled' — see cancelSubscriptionFromWebhook in
+  // webhook-sync.ts, which also resets this back to false at that point.
+  cancelAtPeriodEnd: integer('cancel_at_period_end', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [

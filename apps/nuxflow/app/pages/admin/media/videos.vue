@@ -164,7 +164,12 @@ async function saveDetail() {
 
 async function deleteVideo() {
   if (!selectedVideo.value) return
-  if (!confirm(`Delete "${selectedVideo.value.title}"? This will delete the video permanently from Cloudflare Stream and NuxFlow.`)) return
+  const ok = await useConfirm().confirm({
+    title: `Delete "${selectedVideo.value.title}"?`,
+    description: 'This will delete the video permanently from Cloudflare Stream and NuxFlow.',
+    confirmLabel: 'Delete',
+  })
+  if (!ok) return
   deletingDetail.value = true
   try {
     await $fetch(`/api/v1/media/video/${selectedVideo.value.id}`, { method: 'DELETE' })
@@ -337,7 +342,7 @@ function formatDuration(seconds: number | null) {
           <!-- Hover Overlay -->
           <div
             v-if="video.status === 'ready'"
-            class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+            class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center"
           >
             <UButton
               icon="i-lucide-play"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SpacingValue } from '@nuxflow/canvas'
+import { spacingToCss, type SpacingValue } from '@nuxflow/canvas'
 
 interface Tier {
   id: string
@@ -78,7 +78,7 @@ const containerStyle = computed(() => {
   return {
     backgroundColor: props.bgColor || 'transparent',
     color: props.textColor || 'inherit',
-    padding: p ? `${p.top}${p.unit} ${p.right}${p.unit} ${p.bottom}${p.unit} ${p.left}${p.unit}` : '64px 24px',
+    padding: spacingToCss(p, '64px 24px'),
   }
 })
 </script>

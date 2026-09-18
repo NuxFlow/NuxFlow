@@ -150,7 +150,12 @@ async function saveTier() {
 }
 
 async function deleteTier(tier: Tier) {
-  if (!confirm(`Delete "${tier.name}"? This is blocked if any subscriber still has an active subscription on this tier — they must be migrated or cancelled first.`)) return
+  const ok = await useConfirm().confirm({
+    title: `Delete "${tier.name}"?`,
+    description: 'This is blocked if any subscriber still has an active subscription on this tier — they must be migrated or cancelled first.',
+    confirmLabel: 'Delete',
+  })
+  if (!ok) return
   try {
     await $fetch(`/api/v1/memberships/${tier.id}`, { method: 'DELETE' })
     await refreshTiers()

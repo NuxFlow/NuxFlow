@@ -12,6 +12,8 @@ import { TableKit } from '@tiptap/extension-table'
 const props = defineProps<{ modelValue: unknown }>()
 const emit = defineEmits<{ 'update:modelValue': [value: unknown] }>()
 
+const toast = useToast()
+
 const CODE_LANGUAGES = [
   { label: 'Plain text', value: '' },
   { label: 'HTML', value: 'html' },
@@ -58,21 +60,49 @@ function onAiReplace(text: string) {
   aiSelectionText.value = ''
 }
 
+// Replaces window.prompt() (blocking, no validation, doesn't match the rest of this
+// toolbar's chrome) with an inline panel — same pattern as the grammar-check panel below.
+const showLinkPanel = ref(false)
+const linkUrlDraft = ref('')
+const linkUrlError = ref('')
+const linkUrlInputRef = ref<HTMLInputElement | null>(null)
+
 function setLink() {
   if (!editor.value) return
-  const previousUrl = editor.value.getAttributes('link').href
-  const url = window.prompt('Enter URL:', previousUrl || '')
+  const previousUrl = editor.value.getAttributes('link').href as string | undefined
+  linkUrlDraft.value = previousUrl || ''
+  linkUrlError.value = ''
+  showLinkPanel.value = true
+  nextTick(() => linkUrlInputRef.value?.focus())
+}
 
-  if (url === null) {
+function confirmLink() {
+  if (!editor.value) return
+  const url = linkUrlDraft.value.trim()
+
+  if (!url) {
+    editor.value.chain().focus().extendMarkRange('link').unsetLink().run()
+    showLinkPanel.value = false
     return
   }
 
-  if (url === '') {
-    editor.value.chain().focus().extendMarkRange('link').unsetLink().run()
+  // Rejected here rather than silently stored — the previous window.prompt() version had
+  // no such check.
+  try {
+    const parsed = new URL(url)
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported protocol')
+  } catch {
+    linkUrlError.value = 'Enter a valid http(s) URL'
     return
   }
 
   editor.value.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+  showLinkPanel.value = false
+}
+
+function cancelLink() {
+  showLinkPanel.value = false
+  editor.value?.chain().focus().run()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -241,6 +271,9 @@ async function checkGrammar() {
     })
     corrections.value = res.corrections
     grammarChecked.value = true
+  } catch (e: unknown) {
+    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Grammar check failed'
+    toast.add({ title: msg, color: 'error' })
   } finally {
     grammarLoading.value = false
   }
@@ -364,6 +397,7 @@ const tools = computed((): ToolGroup[] => {
           v-for="item in group.items"
           :key="item.label"
           :icon="item.icon"
+          :aria-label="item.label"
           :title="item.label"
           size="xs"
           :color="item.active ? 'primary' : 'neutral'"
@@ -391,6 +425,7 @@ const tools = computed((): ToolGroup[] => {
           size="xs"
           color="primary"
           variant="ghost"
+          aria-label="Generate content with AI"
           title="Generate content with AI"
           @click="showGenerateModal = true"
         />
@@ -399,10 +434,32 @@ const tools = computed((): ToolGroup[] => {
           size="xs"
           :color="showGrammarPanel ? 'primary' : 'neutral'"
           :variant="showGrammarPanel ? 'soft' : 'ghost'"
+          aria-label="Grammar & spell check"
           title="Grammar & spell check"
           @click="showGrammarPanel = !showGrammarPanel; showGrammarPanel && checkGrammar()"
         />
       </div>
+    </div>
+
+    <!-- Link panel -->
+    <div
+      v-if="showLinkPanel"
+      class="border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30 px-4 py-3"
+    >
+      <div class="flex items-center gap-2">
+        <input
+          ref="linkUrlInputRef"
+          v-model="linkUrlDraft"
+          type="text"
+          placeholder="https://example.com"
+          class="flex-1 min-w-0 px-2 py-1.5 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          @keydown.enter.prevent="confirmLink"
+          @keydown.escape.prevent="cancelLink"
+        >
+        <UButton size="xs" variant="ghost" @click="cancelLink">Cancel</UButton>
+        <UButton size="xs" color="primary" @click="confirmLink">{{ linkUrlDraft.trim() ? 'Apply' : 'Remove link' }}</UButton>
+      </div>
+      <p v-if="linkUrlError" class="text-xs text-red-500 mt-1.5">{{ linkUrlError }}</p>
     </div>
 
     <!-- Grammar panel -->
@@ -419,7 +476,7 @@ const tools = computed((): ToolGroup[] => {
           <UButton size="xs" variant="ghost" :loading="grammarLoading" icon="i-lucide-refresh-cw" @click="checkGrammar">
             Re-check
           </UButton>
-          <UButton size="xs" variant="ghost" icon="i-lucide-x" @click="showGrammarPanel = false" />
+          <UButton size="xs" variant="ghost" icon="i-lucide-x" aria-label="Close grammar panel" @click="showGrammarPanel = false" />
         </div>
       </div>
       <div v-if="grammarLoading" class="text-xs text-gray-400 flex items-center gap-1.5 py-1">

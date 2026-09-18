@@ -9,6 +9,7 @@ import { isSafeUrl, safeFetch } from '../../../utils/security'
 import { errorMessage } from '../../../utils/errors'
 import { htmlToTipTap } from '../../../utils/html-to-tiptap'
 import { parseWxr } from '../../../utils/wxr-parser'
+import { writeAuditLog } from '../../../utils/audit'
 
 const MAX_WXR_BYTES = 100 * 1024 * 1024 // 100 MB — WXR exports for large sites can be tens of MB
 
@@ -271,6 +272,17 @@ export default defineEventHandler(async (event) => {
         tags: tags.size,
         mediaUploaded: mediaDone - mediaFailed,
         mediaFailed,
+      })
+
+      // One summary row for the whole run rather than one per created row — this can touch
+      // thousands of content items/media/taxonomy terms in a single invocation, and this is
+      // one of the largest bulk-mutation surfaces in the codebase (admin-only, but with no
+      // audit trail before this) — matches the pattern bulk-alt-text.post.ts already uses.
+      await writeAuditLog(event, userId, {
+        action: 'create',
+        resource: 'content_item',
+        resourceId: 'wordpress-import',
+        after: { siteId, imported, skipped, categories: categories.size, tags: tags.size, mediaUploaded: mediaDone - mediaFailed, mediaFailed },
       })
     }
     catch (err) {

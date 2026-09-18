@@ -6,6 +6,7 @@
     "dev": "turbo dev --filter=@nuxflow/app",
     "build": "turbo build",
     "test": "turbo test",
+    "test:integration": "turbo test:integration",
     "test:e2e": "turbo test:e2e",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
