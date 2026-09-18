@@ -34,11 +34,18 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Create Release Pull Request or Publish to npm
-        uses: changesets/action@v1
+        # v1 bundles an old @changesets/read that predates @changesets/pre@3.0.0's
+        # .changeset/pre/ directory layout — it mistakes that folder for a legacy
+        # v1-format changeset (a directory containing changes.md) and crashes with
+        # `ENOENT: .../.changeset/pre/changes.md` before ever running. v2 bundles
+        # the current changesets v3 packages, which understand this layout natively.
+        uses: changesets/action@v2
         with:
-          title: "chore: release packages"
-          commit: "chore: version packages"
-          publish: pnpm release
+          pr-title: "chore: release packages"
+          commit-message: "chore: version packages"
+          publish-script: pnpm release
+          # v2 stopped reading a GITHUB_TOKEN env var for auth — it must be passed
+          # through this input instead.
+          github-token: ${{ secrets.GITHUB_TOKEN }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
