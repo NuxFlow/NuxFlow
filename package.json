@@ -17,12 +17,12 @@
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
-    "@commitlint/cli": "^21.1.0",
-    "@commitlint/config-conventional": "^21.1.0",
-    "@commitlint/types": "^21.1.0",
-    "@nuxt/eslint-config": "^1.16.0",
-    "@typescript-eslint/eslint-plugin": "^8.62.0",
-    "turbo": "^2.10.0",
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
+    "@commitlint/types": "^21.2.0",
+    "@nuxt/eslint-config": "^1.17.0",
+    "@typescript-eslint/eslint-plugin": "^8.70.0",
+    "turbo": "^2.10.13",
     "vitest": "^5.0.1",
     "wrangler": "^4.135.0"
   },
