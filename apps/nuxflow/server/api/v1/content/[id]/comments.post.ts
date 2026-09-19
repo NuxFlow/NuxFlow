@@ -6,6 +6,7 @@ import { rateLimit } from '../../../../utils/rate-limit'
 import { created } from '../../../../utils/response'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
+import { getUserSiteRole, hasSuperAdminRole } from '../../../../utils/permissions'
 
 const bodySchema = z.object({
   guestName: z.string().min(1).max(100).optional(),
@@ -34,6 +35,19 @@ export default defineEventHandler(async (event) => {
   // to another tenant's content item by supplying its (unguessable but not secret) ULID.
   await getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true })
 
+  // Auto-approval requires actual membership of THIS site, not merely "has a valid
+  // session somewhere." Accounts/sessions are global across this multi-tenant install,
+  // so a bare session check would let a user with an account on any other site (or a
+  // self-registered account where public registration is enabled) post live,
+  // unmoderated comments here — the same cross-tenant gap requireAuth() exists to
+  // close for content access, applied to comment moderation instead.
+  let isSiteMember = false
+  if (session?.user?.id) {
+    const roleRow = await getUserSiteRole(db, session.user.id, siteId)
+    isSiteMember = Boolean(roleRow) || (await hasSuperAdminRole(db, session.user.id))
+  }
+  const status = isSiteMember ? 'approved' : 'pending'
+
   const id = ulid()
 
   const commentInsert = db.insert(comments).values({
@@ -45,7 +59,7 @@ export default defineEventHandler(async (event) => {
     guestName: session ? null : (parsed.guestName ?? null),
     guestEmail: session ? null : (parsed.guestEmail ?? null),
     body: parsed.body,
-    status: session ? 'approved' : 'pending',
+    status,
   })
 
   // Guest comments have no userId to attribute the action to, so only
@@ -56,11 +70,11 @@ export default defineEventHandler(async (event) => {
         action: 'create',
         resource: 'comment',
         resourceId: id,
-        after: { itemId, status: session ? 'approved' : 'pending' },
+        after: { itemId, status },
       })
     : null
 
   await batchWithAudit(db, [commentInsert], auditInsert)
 
-  return created(event, { id, status: session ? 'approved' : 'pending' })
+  return created(event, { id, status })
 })

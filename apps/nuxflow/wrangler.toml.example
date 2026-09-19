@@ -9,6 +9,15 @@ command = "pnpm run build"
 [assets]
 directory = ".output/public"
 
+# Raises this Worker's CPU-time ceiling from the Paid-plan default (30s) to the platform
+# max. The whole-instance D1 export (server/utils/d1-export.ts) and the WordPress import
+# route both do heavy string work (escaping/hex-encoding large SQL/HTML payloads) over
+# real production data sizes — CLAUDE.md documents this feature already tripping five
+# separate other platform ceilings (isolate memory, D1 query limits, etc.), so budget
+# CPU time generously too rather than wait for a sixth failure mode in production.
+[limits]
+cpu_ms = 300000
+
 [vars]
 # Set production values in the Cloudflare dashboard or via:
 #   wrangler secret put SECRET_NAME

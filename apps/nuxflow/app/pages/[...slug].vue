@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { setResponseStatus } from 'h3'
 import Paywall from '~/components/memberships/Paywall.vue'
 
 const route = useRoute()
@@ -53,6 +54,21 @@ const { data: page, error } = await useFetch<PublicPage>(() => `/api/public/page
     }
   },
 })
+
+// This route renders its own inline error/paywall UI instead of throwing (so the
+// rest of the layout keeps rendering), which means Nuxt's own error-boundary status
+// propagation never kicks in — without this, a missing/gated page would otherwise
+// silently ship as a 200, which search engines then index as a real, live page.
+if (import.meta.server) {
+  const requestEvent = useRequestEvent()
+  if (requestEvent) {
+    if (gated.value) {
+      setResponseStatus(requestEvent, 402)
+    } else if (error.value && error.value.statusCode !== 402) {
+      setResponseStatus(requestEvent, error.value.statusCode ?? 500)
+    }
+  }
+}
 
 // Share available translations with layout/header via useState
 const activeLocalesState = useState<Array<{ locale: string; slug: string; rawSlug?: string }>>('active-locales', () => [])

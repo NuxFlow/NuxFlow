@@ -30,7 +30,7 @@
     "overrides": {
       "better-auth": "^1.7.2",
       "drizzle-orm": "0.45.2",
-      "kysely": "0.28.12"
+      "kysely": "^0.28.17"
     }
   },
   "engines": {

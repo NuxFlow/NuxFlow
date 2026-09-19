@@ -12,10 +12,20 @@ vi.mock('../../server/utils/db', () => ({
   getD1: () => null,
 }))
 
+// rate-limit.ts relies on Nitro's auto-imported `useDb` global (not an explicit import),
+// which isn't available in the Vitest environment — every other integration test whose
+// route calls rateLimit() mocks it out the same way (see contact.test.ts). Only
+// comments.post.ts (exercised below) actually calls it in this file.
+const rateLimitMock = vi.fn().mockResolvedValue(undefined)
+vi.mock('../../server/utils/rate-limit', () => ({
+  rateLimit: (...args: unknown[]) => rateLimitMock(...args),
+}))
+
 const { default: listHandler } = await import('../../server/api/v1/comments/index.get')
 const { default: patchHandler } = await import('../../server/api/v1/comments/[id].patch')
 const { default: deleteHandler } = await import('../../server/api/v1/comments/[id].delete')
 const { default: publicListHandler } = await import('../../server/api/v1/content/[id]/comments.get')
+const { default: postHandler } = await import('../../server/api/v1/content/[id]/comments.post')
 
 const SITE = 'site-comments-01'
 const OTHER_SITE = 'site-comments-02'
@@ -186,5 +196,52 @@ describe('GET /api/v1/content/:id/comments (public)', () => {
 
     const result = await (publicListHandler as Handler)(event) as { comments: { id: string }[] }
     expect(result.comments.some(c => c.id === foreignPendingId)).toBe(false)
+  })
+})
+
+describe('POST /api/v1/content/:id/comments', () => {
+  it('auto-approves a comment from a real site member', async () => {
+    const event = createMockEvent({
+      siteId: SITE,
+      session: { user: { id: editorId, name: 'Editor', email: 'editor@comments.test' } },
+      params: { id: itemId },
+      body: { body: 'Posted by a real member' },
+    }) as unknown as H3Event
+
+    const result = await (postHandler as Handler)(event) as { id: string; status: string }
+    expect(result.status).toBe('approved')
+  })
+
+  // Regression test: this used to auto-approve any request carrying a valid session,
+  // regardless of whether that session belonged to a member of THIS site — letting a
+  // user with an account on some other site post live, unmoderated comments here.
+  it('does NOT auto-approve a session-holder with no role on this site', async () => {
+    const strangerId = await seedUser(getCurrentTestDb(), { email: 'stranger@comments.test', name: 'Stranger' })
+    await seedRole(getCurrentTestDb(), strangerId, OTHER_SITE, 'admin')
+
+    const event = createMockEvent({
+      siteId: SITE,
+      session: { user: { id: strangerId, name: 'Stranger', email: 'stranger@comments.test' } },
+      params: { id: itemId },
+      body: { body: 'Posted by a stranger with an account elsewhere' },
+    }) as unknown as H3Event
+
+    const result = await (postHandler as Handler)(event) as { id: string; status: string }
+    expect(result.status).toBe('pending')
+
+    const row = await getCurrentTestDb().query.comments.findFirst({ where: eq(comments.id, result.id) })
+    expect(row?.status).toBe('pending')
+  })
+
+  it('leaves an unauthenticated guest comment pending', async () => {
+    const event = createMockEvent({
+      siteId: SITE,
+      session: null,
+      params: { id: itemId },
+      body: { body: 'Posted by a guest', guestName: 'Guest', guestEmail: 'guest2@example.com' },
+    }) as unknown as H3Event
+
+    const result = await (postHandler as Handler)(event) as { id: string; status: string }
+    expect(result.status).toBe('pending')
   })
 })

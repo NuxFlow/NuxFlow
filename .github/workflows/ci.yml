@@ -92,6 +92,36 @@ jobs:
           NUXT_PUBLIC_SITE_URL: https://example.com
       - run: pnpm test:integration
 
+  test-e2e:
+    name: E2E tests
+    if: github.head_ref != 'changeset-release/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @nuxflow/app exec playwright install --with-deps chromium
+      # apps/nuxflow/wrangler.toml is gitignored (holds real per-developer resource
+      # ids) — `pnpm dev` (== `wrangler dev`) needs one to exist at all, and local-mode
+      # `wrangler dev` doesn't validate D1/KV/worker_loaders ids against a real
+      # Cloudflare account, so the committed template's placeholder ids are sufficient.
+      - run: cp wrangler.toml.example wrangler.toml
+        working-directory: apps/nuxflow
+      - run: pnpm --filter @nuxflow/app test:e2e
+        env:
+          NUXT_BETTER_AUTH_SECRET: e2e-test-secret-exactly-32-chars!
+          NUXT_PUBLIC_SITE_URL: https://example.com
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/nuxflow/playwright-report/
+          retention-days: 7
+
   build:
     name: Build
     if: github.head_ref != 'changeset-release/main'
