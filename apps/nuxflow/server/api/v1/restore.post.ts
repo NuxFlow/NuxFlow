@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { eq } from 'drizzle-orm'
 import { requireRole } from '../../utils/permissions'
 import { applyBackup, parseBackupJson, rewriteImageUrls } from '../../utils/backup'
 import type { NuxFlowBackup, RestoreOptions } from '../../utils/backup'
@@ -81,7 +82,34 @@ export default defineEventHandler(async (event) => {
     const provider = await getActiveProvider(event)
     const urlMap = new Map<string, string>()
 
+    // Dedup against media already on this site, keyed by (originalName, size) — the
+    // closest thing to a content identity available without hashing file bytes.
+    // Without this, restoring the same backup twice (a common disaster-recovery
+    // drill, or retrying a restore that failed partway through downstream in
+    // applyBackup()) silently duplicated every media item on every run, regardless of
+    // conflictMode. 'skip'/'archive' leave the existing row alone (matching how every
+    // other conflictMode==='archive' section in this file behaves — see the themes/
+    // dynamicPlugins comments); 'overwrite' replaces the stored file and updates it.
+    const existingMediaRows = await db.query.media.findMany({
+      where: eq(media.siteId, siteId),
+      columns: { id: true, originalName: true, size: true, url: true },
+    })
+    const existingByIdentity = new Map(
+      existingMediaRows.map(m => [`${m.originalName}::${m.size}`, m]),
+    )
+
     for (const item of backup.media) {
+      const identityKey = `${item.originalName}::${item.size}`
+      const existing = existingByIdentity.get(identityKey)
+
+      if (existing && query.conflictMode !== 'overwrite') {
+        // Already present on this site — point restored content at the existing row's
+        // URL instead of re-uploading/re-inserting a duplicate.
+        urlMap.set(item.url, existing.url)
+        mediaResult.skipped++
+        continue
+      }
+
       // Local-fallback ("data:" URI) media items are never bundled into the zip — the
       // URI is already self-contained text (see buildBackup) — so there's no file to
       // re-upload and no URL rewrite needed. But without this, the item's Media Library
@@ -89,8 +117,7 @@ export default defineEventHandler(async (event) => {
       // (a data: URI needs no hosting), yet it'd be missing from Admin → Media entirely.
       if (item.url.startsWith('data:')) {
         try {
-          await db.insert(media).values({
-            id: ulid(),
+          const values = {
             siteId,
             uploadedBy: userId,
             filename: item.originalName,
@@ -100,11 +127,16 @@ export default defineEventHandler(async (event) => {
             width: item.width ?? undefined,
             height: item.height ?? undefined,
             url: item.url,
-            storageProvider: 'local',
+            storageProvider: 'local' as const,
             storageKey: item.originalName,
             altText: item.altText ?? undefined,
             caption: item.caption ?? undefined,
-          })
+          }
+          if (existing) {
+            await db.update(media).set(values).where(eq(media.id, existing.id))
+          } else {
+            await db.insert(media).values({ id: ulid(), ...values })
+          }
           mediaResult.uploaded++
         } catch {
           mediaResult.skipped++
@@ -131,8 +163,7 @@ export default defineEventHandler(async (event) => {
         urlMap.set(item.url, url)
         mediaResult.uploaded++
 
-        await db.insert(media).values({
-          id: ulid(),
+        const values = {
           siteId,
           uploadedBy: userId,
           filename: storageKey,
@@ -146,7 +177,12 @@ export default defineEventHandler(async (event) => {
           storageKey,
           altText: item.altText ?? undefined,
           caption: item.caption ?? undefined,
-        })
+        }
+        if (existing) {
+          await db.update(media).set(values).where(eq(media.id, existing.id))
+        } else {
+          await db.insert(media).values({ id: ulid(), ...values })
+        }
       } catch {
         mediaResult.skipped++
       }

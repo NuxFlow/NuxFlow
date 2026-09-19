@@ -38,17 +38,27 @@ function toggle(termId: string) {
   save()
 }
 
-let saveTimer: ReturnType<typeof setTimeout>
+let saveTimer: ReturnType<typeof setTimeout> | undefined
 function save() {
-  if (!props.contentId) return
+  const contentId = props.contentId
+  if (!contentId) return
   clearTimeout(saveTimer)
+  // Capture contentId and the selection at schedule time rather than reading
+  // props.contentId/selectedIds.value live when the timer fires — Vue reuses this
+  // component instance across prop changes, so switching to a different content item
+  // within the debounce window would otherwise let a stale write land against the
+  // wrong content id (or overwrite terms fetched for the new item with the old one's).
+  const termIds = [...selectedIds.value]
   saveTimer = setTimeout(async () => {
-    await $fetch(`/api/v1/content/${props.contentId}/terms`, {
+    if (props.contentId !== contentId) return
+    await $fetch(`/api/v1/content/${contentId}/terms`, {
       method: 'PUT',
-      body: { termIds: [...selectedIds.value] },
+      body: { termIds },
     })
   }, 600)
 }
+
+onBeforeUnmount(() => clearTimeout(saveTimer))
 
 // New term inline creation
 const newTermName = ref<Record<string, string>>({})

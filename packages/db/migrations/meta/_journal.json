@@ -120,6 +120,13 @@
       "when": 1789649856500,
       "tag": "0016_overconfident_sasquatch",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1789716193781,
+      "tag": "0017_many_lethal_legion",
+      "breakpoints": true
     }
   ]
 }

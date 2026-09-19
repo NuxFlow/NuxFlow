@@ -4,6 +4,10 @@ import { emptyCanvas } from '../types'
 import { resolveDefinition } from '../blocks/definitions'
 import { findParentList, findBlockById, isDescendant, cloneWithNewIds } from '../tree'
 
+// Deliberate exception to the server-side "always use ulid(), never crypto.randomUUID()"
+// convention: these are ephemeral client-side tree-node ids scoped to one canvas
+// document (Vue :key values, tree lookups), never a D1 primary key, and this package
+// ships to the browser bundle where the server-only `ulid` util isn't available anyway.
 function uuid(): string {
   return crypto.randomUUID()
 }

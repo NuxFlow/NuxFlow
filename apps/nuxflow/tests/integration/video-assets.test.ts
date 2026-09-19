@@ -170,6 +170,46 @@ describe('POST /api/v1/media/video', () => {
     }
   })
 
+  it('rejects registration when the upload uid belongs to a different site (cross-tenant IDOR)', async () => {
+    // token.post.ts stamps meta.siteId with the site that requested the upload URL — a
+    // shared Cloudflare account across tenants (the default unless a site overrides
+    // cloudflare.account_id/stream_token) means the `uid` itself is otherwise entirely
+    // client-supplied with no proof it was issued to this site's upload flow.
+    const uid = 'other0031234567890abcdef12345678'
+    const originalConfig = globalThis.useRuntimeConfig
+
+    globalThis.useRuntimeConfig = () => ({
+      ...originalConfig(),
+      cloudflareAccountId: 'acct-cross-tenant',
+      cloudflareStreamToken: 'tok-cross-tenant',
+    })
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        result: {
+          duration: 30,
+          status: { state: 'ready' },
+          meta: { name: 'Belongs To Another Site', siteId: 'some-other-site' },
+        },
+      }),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    try {
+      await expect(
+        (registerHandler as HandlerFn)(mkEvent({ userId: authorUserId, body: { uid } })),
+      ).rejects.toMatchObject({ statusCode: 403 })
+
+      const result = await (listHandler as HandlerFn)(mkEvent({ userId: viewerUserId })) as { cloudflareStreamId: string }[]
+      expect(result.some(v => v.cloudflareStreamId === uid)).toBe(false)
+    } finally {
+      globalThis.useRuntimeConfig = originalConfig
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('returns 502 when the CF Stream lookup response is unsuccessful during registration', async () => {
     const uid = 'badbad021234567890abcdef12345678'
     const originalConfig = globalThis.useRuntimeConfig
@@ -215,6 +255,7 @@ describe('POST /api/v1/media/video', () => {
         result: {
           duration: 10,
           status: { state: 'ready' },
+          meta: { siteId: SITE },
         },
       }),
     })
@@ -250,7 +291,7 @@ describe('POST /api/v1/media/video', () => {
           duration: 120,
           thumbnail: 'https://thumb.example.com/vid.jpg',
           status: { state: 'ready' },
-          meta: { name: 'CF Title' },
+          meta: { name: 'CF Title', siteId: SITE },
         },
       }),
     })

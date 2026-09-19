@@ -60,7 +60,7 @@ function updateSpacing(key: keyof SpacingValue, raw: unknown) {
 
 // ── AI text improvement ───────────────────────────────────────────────────────
 
-const { aiLoading, aiAlternatives, showAiMenu, triggerAi: runAiImprove, dismissAlternatives } = useAiImprove()
+const { aiLoading, aiAlternatives, aiError, showAiMenu, triggerAi: runAiImprove, dismissAlternatives } = useAiImprove()
 const aiActions = AI_IMPROVE_ACTIONS
 
 function triggerAi(instruction: AiInstruction) {
@@ -130,6 +130,10 @@ function applyAlternative(alt: string) {
         Dismiss
       </button>
     </div>
+    <p v-else-if="aiError" class="text-xs text-red-500 flex items-center gap-1">
+      {{ aiError }}
+      <button type="button" class="underline hover:no-underline" @click="dismissAlternatives()">Dismiss</button>
+    </p>
   </div>
 
   <!-- Textarea -->
@@ -172,6 +176,10 @@ function applyAlternative(alt: string) {
         Dismiss
       </button>
     </div>
+    <p v-else-if="aiError" class="text-xs text-red-500 flex items-center gap-1 mt-1">
+      {{ aiError }}
+      <button type="button" class="underline hover:no-underline" @click="dismissAlternatives()">Dismiss</button>
+    </p>
   </div>
 
   <!-- Rich text — contenteditable WYSIWYG -->

@@ -57,7 +57,9 @@ function containsId(block: CanvasBlockData, id: string): boolean {
 
 /** Deep-clones a block AND regenerates a fresh id for every node in its subtree, not
  * just the root — required for duplicate-with-children to avoid id collisions (which
- * would corrupt findParentList, Vue :key uniqueness, and selection). */
+ * would corrupt findParentList, Vue :key uniqueness, and selection). The default
+ * generator uses crypto.randomUUID() rather than the server-only ulid() convention —
+ * see useCanvas.ts's uuid() for why that's a deliberate exception here. */
 export function cloneWithNewIds(block: CanvasBlockData, uuid: () => string = () => crypto.randomUUID()): CanvasBlockData {
   const clone: CanvasBlockData = {
     id: uuid(),

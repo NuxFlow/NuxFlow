@@ -96,10 +96,10 @@ export class PaddleProvider implements PaymentProvider {
     if (!ts || !h1) return false
 
     const signedPayload = `${ts}:${rawBody}`
-    const pemBody = publicKeyPem.replace(/-----.*-----/g, '').replace(/\s/g, '')
-    const keyBytes = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0))
 
     try {
+      const pemBody = publicKeyPem.replace(/-----.*-----/g, '').replace(/\s/g, '')
+      const keyBytes = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0))
       const key = await crypto.subtle.importKey(
         'spki',
         keyBytes,
@@ -108,8 +108,10 @@ export class PaddleProvider implements PaymentProvider {
         ['verify'],
       )
       const sigBytes = Uint8Array.from(h1.match(/.{2}/g)!.map((b: string) => Number.parseInt(b, 16)))
-      return crypto.subtle.verify('Ed25519', key, sigBytes, new TextEncoder().encode(signedPayload))
+      return await crypto.subtle.verify('Ed25519', key, sigBytes, new TextEncoder().encode(signedPayload))
     } catch {
+      // Malformed configured key, malformed signature header, or a real verification
+      // failure all land here — every case must fail closed, not throw a raw 500.
       return false
     }
   }

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { subscriptions } from '@nuxflow/db/schema'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
 import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
@@ -49,38 +49,39 @@ export default defineEventHandler(async (event) => {
     throw conflict('You already have an active membership subscription. Manage or cancel it from your account page before subscribing to a different plan.')
   }
 
-  // If the tier is free (price = 0), activate the subscription locally immediately
+  // If the tier is free (price = 0), activate the subscription locally immediately.
+  // Uses an atomic upsert (backed by the partial idx_subscriptions_unique_free_tier
+  // index) rather than a check-then-write — two concurrent requests for the same free
+  // tier would otherwise both see "no existing row" before either commits, inserting
+  // duplicate subscriptions.
   if (tier.price === 0) {
-    const existing = await db.query.subscriptions.findFirst({
-      where: and(
-        eq(subscriptions.userId, userId),
-        eq(subscriptions.siteId, siteId),
-        eq(subscriptions.tierId, tier.id)
-      )
-    })
+    const periodStart = new Date().toISOString()
+    const periodEnd = new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString()
 
-    if (!existing) {
-      await db.insert(subscriptions).values({
-        id: ulid(),
-        siteId,
-        userId,
-        tierId: tier.id,
-        provider: 'stripe',
-        providerSubscriptionId: `free_${ulid()}`,
+    await db.insert(subscriptions).values({
+      id: ulid(),
+      siteId,
+      userId,
+      tierId: tier.id,
+      provider: 'stripe',
+      providerSubscriptionId: `free_${ulid()}`,
+      status: 'active',
+      currentPeriodStart: periodStart,
+      currentPeriodEnd: periodEnd,
+    }).onConflictDoUpdate({
+      target: [subscriptions.siteId, subscriptions.userId, subscriptions.tierId],
+      // SQLite requires an ON CONFLICT target's WHERE clause to textually match a
+      // partial unique index's own WHERE for the conflict to resolve against it — this
+      // must stay identical to idx_subscriptions_unique_free_tier's definition in
+      // packages/db/src/schema/payments.ts.
+      targetWhere: sql`substr(provider_subscription_id, 1, 5) = 'free_'`,
+      set: {
         status: 'active',
-        currentPeriodStart: new Date().toISOString(),
-        currentPeriodEnd: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
-      })
-    } else if (existing.status !== 'active') {
-      await db.update(subscriptions)
-        .set({
-          status: 'active',
-          currentPeriodStart: new Date().toISOString(),
-          currentPeriodEnd: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
-        .where(and(eq(subscriptions.id, existing.id), eq(subscriptions.siteId, siteId)))
-    }
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
+        updatedAt: sql`(datetime('now'))`,
+      },
+    })
 
     return { url: body.returnUrl }
   }

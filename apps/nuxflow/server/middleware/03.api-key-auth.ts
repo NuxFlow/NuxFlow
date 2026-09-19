@@ -48,4 +48,5 @@ export default defineEventHandler(async (event) => {
 
   event.context.apiKeyUserId = apiKey.userId
   event.context.apiKeyRole = roleRow.role
+  event.context.apiKeyScopes = apiKey.scopes
 })

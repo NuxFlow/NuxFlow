@@ -54,6 +54,7 @@ function mkMcpEvent(opts: {
   query?: Record<string, string>
   apiKeyUserId?: string
   apiKeyRole?: string
+  apiKeyScopes?: string[]
 }) {
   return createMockEvent({
     method: 'POST',
@@ -62,6 +63,9 @@ function mkMcpEvent(opts: {
     query: opts.query ?? {},
     apiKeyUserId: opts.apiKeyUserId ?? authorUserId,
     apiKeyRole: opts.apiKeyRole ?? 'author',
+    // Defaults to both scopes so existing tests keep exercising read AND write tools —
+    // scope-specific enforcement gets its own dedicated tests below.
+    apiKeyScopes: opts.apiKeyScopes ?? ['read:content', 'write:content'],
   }) as unknown as H3Event
 }
 
@@ -100,6 +104,75 @@ describe('POST /api/v1/mcp — create_content writes an audit log', () => {
     expect(logs[0].action).toBe('create')
     expect(logs[0].userId).toBe(authorUserId)
     expect(logs[0].siteId).toBe(SITE)
+  })
+})
+
+// Regression coverage for the API key scope enforcement added to mcp.ts — an API key's
+// own declared scopes (api-keys/index.post.ts, resolved by 03.api-key-auth.ts onto
+// event.context.apiKeyScopes) are a ceiling on top of the issuing user's site role, not
+// a substitute for it. Before this, mcp.ts only ever checked apiKeyRole, so a key
+// labeled read-only (the default and only scope selectable in the admin UI before this
+// fix) could still create/update/delete content via this endpoint.
+describe('POST /api/v1/mcp — API key scope enforcement', () => {
+  it('rejects create_content for a key scoped to read:content only, despite an author+ role', async () => {
+    const event = mkMcpEvent({
+      apiKeyScopes: ['read:content'],
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'create_content',
+          arguments: { title: 'Should Not Be Created', slug: 'scope-blocked-page' },
+        },
+      },
+    })
+
+    const response = await (mcpHandler as HandlerFn)(event) as {
+      result: { content: { type: string; text: string }[] }
+    }
+    expect(response.result.content[0].text).toMatch(/does not have the "write:content" scope/)
+
+    const db = getCurrentTestDb()
+    const item = await db.query.contentItems.findFirst({ where: eq(contentItems.slug, 'scope-blocked-page') })
+    expect(item).toBeUndefined()
+  })
+
+  it('rejects list_content for a key with no scopes at all', async () => {
+    const event = mkMcpEvent({
+      apiKeyScopes: [],
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'list_content', arguments: { type: 'page' } },
+      },
+    })
+
+    const response = await (mcpHandler as HandlerFn)(event) as {
+      result: { content: { type: string; text: string }[] }
+    }
+    expect(response.result.content[0].text).toMatch(/does not have the "read:content" scope/)
+  })
+
+  it('allows create_content for a key scoped to write:content', async () => {
+    const event = mkMcpEvent({
+      apiKeyScopes: ['write:content'],
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'create_content',
+          arguments: { title: 'Scope Allowed Page', slug: 'scope-allowed-page' },
+        },
+      },
+    })
+
+    const response = await (mcpHandler as HandlerFn)(event) as {
+      result: { content: { type: string; text: string }[] }
+    }
+    expect(response.result.content[0].text).toContain('Success')
   })
 })
 

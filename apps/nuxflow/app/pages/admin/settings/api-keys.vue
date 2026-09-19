@@ -7,7 +7,11 @@ const keys = computed(() => data.value?.apiKeys ?? [])
 
 const creating = ref(false)
 const newKey = ref('')
-const form = reactive({ name: '', scopes: ['read:content'] })
+const form = reactive({ name: '', scopes: ['read:content'] as string[] })
+const SCOPE_OPTIONS = [
+  { value: 'read:content', label: 'Read content' },
+  { value: 'write:content', label: 'Write content (create, update, delete, publish)' },
+]
 
 async function create() {
   creating.value = true
@@ -56,11 +60,28 @@ const columns = [
     <!-- Create form -->
     <UCard>
       <template #header><p class="text-sm font-semibold">Create API key</p></template>
-      <div class="flex items-end gap-3">
-        <UFormField label="Key name" class="flex-1">
-          <UInput v-model="form.name" placeholder="My app" />
+      <div class="space-y-3">
+        <div class="flex items-end gap-3">
+          <UFormField label="Key name" class="flex-1">
+            <UInput v-model="form.name" placeholder="My app" />
+          </UFormField>
+          <UButton :loading="creating" :disabled="!form.name || form.scopes.length === 0" @click="create">Create</UButton>
+        </div>
+        <UFormField label="Scopes">
+          <div class="flex flex-col gap-2">
+            <UCheckbox
+              v-for="opt in SCOPE_OPTIONS"
+              :key="opt.value"
+              :model-value="form.scopes.includes(opt.value)"
+              :label="opt.label"
+              @update:model-value="(checked) => {
+                form.scopes = checked
+                  ? [...form.scopes, opt.value]
+                  : form.scopes.filter(s => s !== opt.value)
+              }"
+            />
+          </div>
         </UFormField>
-        <UButton :loading="creating" :disabled="!form.name" @click="create">Create</UButton>
       </div>
     </UCard>
 

@@ -289,23 +289,36 @@ export async function streamD1TableData(
     await write(`\n\n-- Table: ${table.name} (${expectedTotal} row${expectedTotal === 1 ? '' : 's'})\n`)
     tablesWithData++
 
-    let offset = 0
+    // Keyset (seek) pagination on SQLite's own implicit `rowid`, not LIMIT/OFFSET. Every
+    // table here is an ordinary rowid table (dataTables already excludes FTS5 virtual
+    // tables above, and nothing in this schema is declared WITHOUT ROWID), so this needs
+    // no per-table primary-key lookup and no PRAGMA call. OFFSET pagination is only
+    // stable against a table that never changes during the whole scan — a row inserted
+    // or deleted ahead of the cursor while a large/adaptively-repaginated table (this
+    // export can take a while on a busy site) is still being read shifts every
+    // subsequent page's OFFSET window, silently skipping or duplicating rows relative to
+    // any single consistent point in time. A `WHERE rowid > ?` cursor doesn't have that
+    // problem: rows already scanned are never revisited regardless of what happens to
+    // rows on either side of the cursor.
+    let cursor = 0
     let pageSize = LARGE_ROW_TABLES.has(table.name) ? INITIAL_ROWS_PER_PAGE_LARGE : INITIAL_ROWS_PER_PAGE
     let columnNames: string[] | null = null
+    const ROWID_ALIAS = '__nuxflow_export_rowid'
 
     for (;;) {
       checkQueryBudget()
       let rows: Record<string, unknown>[]
       try {
-        const page = await step(`select ${table.name} (offset ${offset}, page ${pageSize})`, () =>
-          d1.prepare(`SELECT * FROM "${table.name}" LIMIT ? OFFSET ?`).bind(pageSize, offset).all<Record<string, unknown>>())
+        const page = await step(`select ${table.name} (cursor ${cursor}, page ${pageSize})`, () =>
+          d1.prepare(`SELECT rowid AS ${ROWID_ALIAS}, * FROM "${table.name}" WHERE rowid > ? ORDER BY rowid LIMIT ?`)
+            .bind(cursor, pageSize).all<Record<string, unknown>>())
         rows = page.results
       } catch (err) {
         if (isIsolateMemoryError(err) && pageSize > MIN_ROWS_PER_PAGE) {
           // D1's per-query memory ceiling isn't documented as a row count (Cloudflare
           // publishes a 2 MB max row size and a 128 MB per-isolate limit, not a rows/query
           // figure), so there's no fixed page size that's provably safe for every
-          // deployment — back off and retry the same offset instead of guessing one.
+          // deployment — back off and retry the same cursor position instead of guessing one.
           pageSize = Math.max(MIN_ROWS_PER_PAGE, Math.floor(pageSize / 4))
           continue
         }
@@ -314,7 +327,7 @@ export async function streamD1TableData(
           // in this table is itself too large to fetch this way, not a page-size problem.
           throw createError({
             statusCode: 413,
-            message: `D1 export: table "${table.name}" still exceeds D1's isolate memory limit even at ${MIN_ROWS_PER_PAGE} rows/page (around offset ${offset}) — at least one row there is too large to export from the admin UI. Use \`wrangler d1 export\` from the CLI instead.`,
+            message: `D1 export: table "${table.name}" still exceeds D1's isolate memory limit even at ${MIN_ROWS_PER_PAGE} rows/page (past rowid ${cursor}) — at least one row there is too large to export from the admin UI. Use \`wrangler d1 export\` from the CLI instead.`,
           })
         }
         throw err
@@ -322,10 +335,11 @@ export async function streamD1TableData(
       if (rows.length === 0) break
 
       if (columnNames === null) {
-        // Column names come from the first row's own keys, in the order D1 returned
-        // them (matches the table's schema-defined column order — the same thing
-        // PRAGMA table_info would have given, without needing that PRAGMA call at all).
-        columnNames = Object.keys(rows[0]!)
+        // Column names come from the first row's own keys (minus the rowid cursor alias),
+        // in the order D1 returned them (matches the table's schema-defined column order —
+        // the same thing PRAGMA table_info would have given, without needing that PRAGMA
+        // call at all).
+        columnNames = Object.keys(rows[0]!).filter(c => c !== ROWID_ALIAS)
         for (const c of columnNames) assertSafeIdentifier(c)
       }
       const cols = columnNames
@@ -345,7 +359,7 @@ export async function streamD1TableData(
         await write(line)
       }
       totalRows += rows.length
-      offset += rows.length
+      cursor = Number(rows[rows.length - 1]![ROWID_ALIAS])
 
       if (rows.length < pageSize) break // last page
     }

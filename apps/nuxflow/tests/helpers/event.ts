@@ -37,6 +37,7 @@ export interface MockEventOptions {
   path?: string
   apiKeyUserId?: string
   apiKeyRole?: string
+  apiKeyScopes?: string[]
   cookies?: Record<string, string>
   method?: string
   // Backs the readMultipartFormData() stub — routes using multipart/form-data
@@ -54,6 +55,7 @@ export function createMockEvent(opts: MockEventOptions = {}) {
       _session: opts.session ?? null,
       apiKeyUserId: opts.apiKeyUserId,
       apiKeyRole: opts.apiKeyRole,
+      apiKeyScopes: opts.apiKeyScopes,
       setupCompleted: true,
       siteStatus: 'active' as const,
     },

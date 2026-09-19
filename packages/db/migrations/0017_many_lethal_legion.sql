@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `idx_subscriptions_unique_free_tier` ON `subscriptions` (`site_id`,`user_id`,`tier_id`) WHERE substr("subscriptions"."provider_subscription_id", 1, 5) = 'free_';

@@ -58,4 +58,19 @@ export const subscriptions = sqliteTable('subscriptions', {
   // and insert duplicates. This backs the atomic `ON CONFLICT` upsert in
   // upsertSubscriptionFromWebhook.
   uniqueIndex('idx_subscriptions_unique_provider_sub').on(t.siteId, t.provider, t.providerSubscriptionId),
+  // A user holds at most one FREE-tier subscription row per tier per site, ever — the
+  // free-tier checkout path (memberships/checkout.post.ts) already assumes this by
+  // looking up and reusing a single row per (userId, siteId, tierId) rather than
+  // inserting a new historical row on every resubscribe. Without this constraint, two
+  // concurrent checkout requests for the same free tier can both miss each other's
+  // not-yet-committed row and insert duplicates — this backs the atomic `ON CONFLICT`
+  // upsert there. Deliberately partial (WHERE provider_subscription_id starts with
+  // 'free_', the marker checkout.post.ts already uses for a free-tier row) rather than
+  // covering every subscription: a *paid* tier legitimately gets a brand new row per
+  // resubscribe over time (a fresh Stripe/LS/Paddle checkout after a full cancellation
+  // gets a new provider subscription id, inserted by upsertSubscriptionFromWebhook's own
+  // (site, provider, provider_subscription_id) upsert target) — a blanket
+  // (site, user, tier) constraint would incorrectly reject that second, legitimate row.
+  uniqueIndex('idx_subscriptions_unique_free_tier').on(t.siteId, t.userId, t.tierId)
+    .where(sql`substr(${t.providerSubscriptionId}, 1, 5) = 'free_'`),
 ])

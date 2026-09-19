@@ -794,10 +794,19 @@ export async function applyBackup(
         // entry for the same slug is treated as already-existing instead of attempting a
         // second insert with the same (siteId, slug).
         taxIdBySlug.set(backupTax.slug, taxId)
+      } else if (opts.conflictMode === 'overwrite') {
+        // Every other restorable section honors 'overwrite' by updating the existing
+        // row's data — taxonomies/terms previously only ever recorded the existing id
+        // for term/content-assignment purposes and never touched name/description/
+        // isHierarchical, silently keeping stale target-site values even in this mode.
+        await db.update(taxonomies)
+          .set({ name: backupTax.name, isHierarchical: backupTax.isHierarchical })
+          .where(eq(taxonomies.id, taxId))
       }
 
       // Insert terms (two-pass for parent references)
       const termIdBySlug = new Map<string, string>()
+      const newlyCreatedTermIds = new Set<string>()
 
       for (const backupTerm of backupTax.terms) {
         const key = `${taxId}/${backupTerm.slug}`
@@ -814,17 +823,24 @@ export async function applyBackup(
           })
           result.terms.created++
           termIdByTaxAndSlug.set(key, termId)
+          newlyCreatedTermIds.add(termId)
+        } else if (opts.conflictMode === 'overwrite') {
+          await db.update(taxonomyTerms)
+            .set({ name: backupTerm.name, description: backupTerm.description })
+            .where(eq(taxonomyTerms.id, termId))
         }
         termIdBySlug.set(backupTerm.slug, termId)
         termIdBySlugPath.set(`${backupTax.slug}/${backupTerm.slug}`, termId)
       }
 
-      // Second pass: wire parent IDs
+      // Second pass: wire parent IDs. Only for terms this call actually created or is
+      // overwriting — a pre-existing term being skipped shouldn't have its parent
+      // silently reassigned just because its slug happened to also appear in the backup.
       for (const backupTerm of backupTax.terms) {
         if (backupTerm.parentSlug) {
           const childId = termIdBySlug.get(backupTerm.slug)
           const parentId = termIdBySlug.get(backupTerm.parentSlug)
-          if (childId && parentId) {
+          if (childId && parentId && (newlyCreatedTermIds.has(childId) || opts.conflictMode === 'overwrite')) {
             await db.update(taxonomyTerms).set({ parentId }).where(eq(taxonomyTerms.id, childId))
           }
         }

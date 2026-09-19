@@ -4,7 +4,7 @@ import { useAiImprove, AI_IMPROVE_ACTIONS, type AiInstruction } from '@nuxflow/c
 const emit = defineEmits<{ replace: [text: string] }>()
 const props = defineProps<{ selectedText: string }>()
 
-const { aiLoading, aiAlternatives, triggerAi } = useAiImprove()
+const { aiLoading, aiAlternatives, aiError, triggerAi } = useAiImprove()
 const instruction = ref<AiInstruction>('improve')
 
 // Labels/values come from the shared canvas package so this list can't drift from
@@ -56,5 +56,6 @@ async function generate(inst: AiInstruction) {
         {{ alt }}
       </button>
     </div>
+    <p v-else-if="aiError" class="text-xs text-red-500">{{ aiError }}</p>
   </div>
 </template>

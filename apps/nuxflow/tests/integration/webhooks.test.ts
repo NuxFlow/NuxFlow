@@ -111,6 +111,7 @@ describe('Stripe webhooks', () => {
 
   it('throws 400 when the webhook signature is invalid', async () => {
     await seedSetting(getCurrentTestDb(), SITE, 'payments.stripe_secret_key', 'sk_test_wh')
+    await seedSetting(getCurrentTestDb(), SITE, 'payments.stripe_webhook_secret', 'whsec_test_wh')
     mockConstructEvent.mockImplementationOnce(() => { throw new Error('Invalid signature') })
 
     await expect(
@@ -266,6 +267,7 @@ describe('LemonSqueezy webhooks', () => {
     const db = getCurrentTestDb()
     await seedSetting(db, SITE, 'payments.ls_api_key', 'ls_key_test')
     await seedSetting(db, SITE, 'payments.ls_store_id', '12345')
+    await seedSetting(db, SITE, 'payments.ls_webhook_secret', 'ls_whsec_test')
     mockLsVerify.mockResolvedValueOnce(false)
 
     await expect(
@@ -340,6 +342,7 @@ describe('Paddle webhooks', () => {
     const db = getCurrentTestDb()
     await seedSetting(db, SITE, 'payments.paddle_api_key', 'pdl_key_test')
     await seedSetting(db, SITE, 'payments.paddle_vendor_id', '67890')
+    await seedSetting(db, SITE, 'payments.paddle_webhook_public_key', 'pdl_pubkey_test')
     mockPaddleVerify.mockResolvedValueOnce(false)
 
     await expect(

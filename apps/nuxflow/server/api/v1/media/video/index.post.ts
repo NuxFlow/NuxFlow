@@ -44,6 +44,7 @@ export default defineEventHandler(async (event) => {
       }
       meta?: {
         name?: string
+        siteId?: string
       }
     }
   }
@@ -77,6 +78,16 @@ export default defineEventHandler(async (event) => {
   }
 
   const res = data.result
+  // token.post.ts stamps meta.siteId with the site that requested the upload URL — the
+  // `uid` itself is client-supplied with no other proof of which site's upload flow it
+  // was actually issued to. A shared Cloudflare account across tenants (the default
+  // unless a site overrides cloudflare.account_id/stream_token) means any author could
+  // otherwise register another site's video by guessing/leaking its uid. Reject anything
+  // whose recorded siteId doesn't match this request's site — including uploads made
+  // before this check existed, whose meta has no siteId at all.
+  if (res.meta?.siteId !== siteId) {
+    throw createError({ statusCode: 403, message: 'This upload does not belong to the current site.' })
+  }
   if (!title && res.meta?.name) title = res.meta.name
   const duration = res.duration ? Math.round(res.duration) : null
   const thumbnailUrl = res.thumbnail || null

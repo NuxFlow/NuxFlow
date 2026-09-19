@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
-import { useDb } from '../utils/db'
+import { useDb, getD1 } from '../utils/db'
 import { errorMessage } from '../utils/errors'
 
 // Module-level flags per Worker isolate.
@@ -72,13 +72,20 @@ const MIGRATION_WAIT_POLL_DELAY_MS = 400
 // Polls until every file in `expectedKeys` shows up in `_nuxflow_migrations`, i.e. the
 // isolate that holds the lock has actually finished. Returns false (not an error) on
 // timeout so the caller can fail open rather than hang the request indefinitely.
-async function waitForMigrationsToComplete(db: ReturnType<typeof useDb>, expectedKeys: string[]): Promise<boolean> {
+//
+// Uses the raw D1 binding (getD1) with `.prepare().all()` rather than Drizzle's
+// `db.values()` — this project's integration-test harness was separately found to
+// return a different row shape from Drizzle's `.values()`/`.raw()` than the real D1
+// adapter does (see d1-stats.ts's module doc), and that mismatch was never verified
+// against a real deploy for this specific call, on the single most critical path in the
+// app (every cold start gates on this). `D1Database.prepare().all()`'s `{ results: T[] }`
+// contract is Cloudflare's own stable, documented shape instead.
+async function waitForMigrationsToComplete(event: H3Event, expectedKeys: string[]): Promise<boolean> {
   for (let attempt = 0; attempt < MIGRATION_WAIT_POLL_ATTEMPTS; attempt++) {
     try {
-      const rows = await db.values<[string]>(
-        sql`SELECT filename FROM _nuxflow_migrations`,
-      )
-      const applied = new Set(rows.map(r => r[0]))
+      const d1 = getD1(event)
+      const { results } = await d1.prepare('SELECT filename FROM _nuxflow_migrations').all<{ filename: string }>()
+      const applied = new Set(results.map(r => r.filename))
       if (expectedKeys.every(k => applied.has(k))) return true
     } catch {
       // _nuxflow_migrations doesn't exist yet — the winner hasn't created it. Keep polling.
@@ -107,7 +114,7 @@ async function applyMigrations(event: H3Event) {
     // applied (bounded, so a genuinely crashed winner — lock will go stale after
     // MIGRATION_LOCK_STALE_SECONDS and the next request will re-acquire and retry —
     // doesn't hang this request forever).
-    const winnerDone = await waitForMigrationsToComplete(db, keys)
+    const winnerDone = await waitForMigrationsToComplete(event, keys)
     if (!winnerDone) {
       console.warn('[nuxflow:migrate] Timed out waiting for another isolate to finish migrating — proceeding anyway')
     }
@@ -122,10 +129,11 @@ async function applyMigrations(event: H3Event) {
       )
     `)
 
-    const rows = await db.values<[string]>(
-      sql`SELECT filename FROM _nuxflow_migrations ORDER BY filename ASC`,
-    )
-    const applied = new Set(rows.map(r => r[0]))
+    // See waitForMigrationsToComplete's doc above for why this uses the raw D1 binding
+    // rather than Drizzle's db.values().
+    const d1 = getD1(event)
+    const { results } = await d1.prepare('SELECT filename FROM _nuxflow_migrations ORDER BY filename ASC').all<{ filename: string }>()
+    const applied = new Set(results.map(r => r.filename))
 
     let count = 0
     for (const key of keys) {

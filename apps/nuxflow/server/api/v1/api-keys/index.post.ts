@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
-import { requireRole } from '../../../utils/permissions'
+import { requireRole, API_KEY_SCOPES } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { created } from '../../../utils/response'
 import { apiKeys } from '@nuxflow/db/schema'
@@ -8,7 +8,9 @@ import { ulid } from 'ulid'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
-  scopes: z.array(z.string()).default(['read:content']),
+  // Restricted to the scopes 03.api-key-auth.ts/mcp.ts actually enforce — an arbitrary
+  // free-text scope string used to be accepted and stored but could never mean anything.
+  scopes: z.array(z.enum(API_KEY_SCOPES)).min(1).default(['read:content']),
   expiresAt: z.string().datetime().optional(),
 })
 

@@ -16,19 +16,24 @@ export async function findOrCreateUserAccount(
   event: H3Event,
   { name, email }: { name: string; email: string },
 ): Promise<{ userId: string; isNewAccount: boolean }> {
+  // Better Auth's own sign-up endpoint normalizes email to lowercase before inserting
+  // (see register.post.ts, which already lowercases for this exact reason) — matching
+  // that here up front means both lookups below actually find the row it creates,
+  // instead of 500ing on any invitee email containing an uppercase letter.
+  const normalizedEmail = email.toLowerCase()
   const db = useDb(event)
   const existing = await db.query.users.findFirst({
-    where: (u, { eq }) => eq(u.email, email),
+    where: (u, { eq }) => eq(u.email, normalizedEmail),
     columns: { id: true },
   })
   if (existing) return { userId: existing.id, isNewAccount: false }
 
   const auth = await getOrCreateBetterAuth(event)
   const tempPassword = ulid()
-  await auth.api.signUpEmail({ body: { name, email, password: tempPassword } })
+  await auth.api.signUpEmail({ body: { name, email: normalizedEmail, password: tempPassword } })
 
   const created = await db.query.users.findFirst({
-    where: (u, { eq }) => eq(u.email, email),
+    where: (u, { eq }) => eq(u.email, normalizedEmail),
     columns: { id: true },
   })
   if (!created) throw createError({ statusCode: 500, message: 'Failed to create user account' })

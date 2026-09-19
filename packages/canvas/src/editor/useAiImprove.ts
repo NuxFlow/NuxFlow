@@ -24,6 +24,7 @@ export const AI_IMPROVE_ACTIONS: AiImproveAction[] = [
 export function useAiImprove() {
   const aiLoading = ref(false)
   const aiAlternatives = ref<string[]>([])
+  const aiError = ref<string | null>(null)
   const showAiMenu = ref(false)
 
   async function triggerAi(instruction: AiInstruction, sourceText: string) {
@@ -32,6 +33,7 @@ export function useAiImprove() {
     if (!text || aiLoading.value) return
     aiLoading.value = true
     aiAlternatives.value = []
+    aiError.value = null
     try {
       const res = await fetch('/api/v1/ai/improve', {
         method: 'POST',
@@ -41,7 +43,15 @@ export function useAiImprove() {
       if (res.ok) {
         const data = await res.json() as { alternatives?: string[] }
         aiAlternatives.value = data.alternatives ?? []
+        if (!aiAlternatives.value.length) {
+          aiError.value = 'AI returned no suggestions. Try again or rephrase the text.'
+        }
+      } else {
+        const body = await res.json().catch(() => null) as { message?: string; statusMessage?: string } | null
+        aiError.value = body?.message || body?.statusMessage || `AI request failed (${res.status}).`
       }
+    } catch {
+      aiError.value = 'Could not reach the AI service. Check your connection and try again.'
     } finally {
       aiLoading.value = false
     }
@@ -49,11 +59,13 @@ export function useAiImprove() {
 
   function dismissAlternatives() {
     aiAlternatives.value = []
+    aiError.value = null
   }
 
   return {
     aiLoading,
     aiAlternatives,
+    aiError,
     showAiMenu,
     triggerAi,
     dismissAlternatives,

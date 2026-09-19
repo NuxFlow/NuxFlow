@@ -15,6 +15,11 @@ const STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID = {
 async function handleStripeWebhook(event: H3Event, rawBody: string) {
   const stripe = await getStripeProvider(event)
   const stripeWebhookSecret = await resolveSetting(event, 'payments.stripe_webhook_secret', 'stripeWebhookSecret')
+  if (!stripeWebhookSecret) {
+    // Never verify against an empty secret — Stripe's SDK accepts a zero-length HMAC key
+    // without error, which makes the signature check trivially forgeable by anyone.
+    throw createError({ statusCode: 503, message: 'Stripe webhook secret is not configured' })
+  }
   const sig = getHeader(event, 'stripe-signature') ?? ''
 
   let stripeEvent: Awaited<ReturnType<StripeProvider['constructWebhookEvent']>>
@@ -139,6 +144,11 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
 async function handleLemonSqueezyWebhook(event: H3Event, rawBody: string) {
   const ls = await getLemonSqueezyProvider(event)
   const lsWebhookSecret = await resolveSetting(event, 'payments.ls_webhook_secret', 'lsWebhookSecret')
+  if (!lsWebhookSecret) {
+    // Never verify against an empty secret — HMAC accepts a zero-length key without
+    // error, which makes the signature check trivially forgeable by anyone.
+    throw createError({ statusCode: 503, message: 'Lemon Squeezy webhook secret is not configured' })
+  }
   const sig = getHeader(event, 'x-signature') ?? ''
 
   const valid = await ls.verifyWebhook(rawBody, sig, lsWebhookSecret as string)
@@ -184,6 +194,9 @@ async function handleLemonSqueezyWebhook(event: H3Event, rawBody: string) {
 async function handlePaddleWebhook(event: H3Event, rawBody: string) {
   const paddle = await getPaddleProvider(event)
   const paddleWebhookPublicKey = await resolveSetting(event, 'payments.paddle_webhook_public_key', 'paddleWebhookPublicKey')
+  if (!paddleWebhookPublicKey) {
+    throw createError({ statusCode: 503, message: 'Paddle webhook public key is not configured' })
+  }
   const sig = getHeader(event, 'paddle-signature') ?? ''
 
   const valid = await paddle.verifyWebhook(rawBody, sig, paddleWebhookPublicKey as string)

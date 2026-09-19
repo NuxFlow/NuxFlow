@@ -80,7 +80,7 @@ function cancelLink() {
 
 // ── AI text improvement ───────────────────────────────────────────────────────
 
-const { aiLoading, aiAlternatives, showAiMenu, triggerAi: runAiImprove, dismissAlternatives } = useAiImprove()
+const { aiLoading, aiAlternatives, aiError, showAiMenu, triggerAi: runAiImprove, dismissAlternatives } = useAiImprove()
 const aiActions = AI_IMPROVE_ACTIONS
 
 function triggerAi(instruction: typeof aiActions[number]['value']) {
@@ -259,6 +259,13 @@ function applyAiAlternative(alt: string) {
         Dismiss
       </button>
     </div>
+    <p
+      v-else-if="aiError"
+      class="border-t border-gray-200 dark:border-gray-700 px-3 py-2 text-xs text-red-500 flex items-center gap-2"
+    >
+      {{ aiError }}
+      <button type="button" class="underline hover:no-underline" @click="dismissAlternatives()">Dismiss</button>
+    </p>
   </div>
 </template>
 

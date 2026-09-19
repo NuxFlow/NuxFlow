@@ -20,12 +20,17 @@ interface FakeTable {
 
 // A minimal stand-in for the real D1Database binding — just enough of
 // prepare(sql).bind(...).all() to answer the three query shapes generateD1SqlDump()
-// issues (sqlite_master, per-table SELECT COUNT(*), paginated SELECT * ... LIMIT ?
-// OFFSET ?). No PRAGMA and no d1.batch() here at all — see the module doc in
-// d1-export.ts for why (both were tried and both failed against real D1 in ways that
-// never reproduced locally: PRAGMA table_info/foreign_key_list rejected with
-// SQLITE_AUTH when batched, and batching every table's full SELECT together OOM'd D1's
-// own isolate).
+// issues (sqlite_master, per-table SELECT COUNT(*), paginated SELECT rowid AS ... FROM
+// ... WHERE rowid > ? ORDER BY rowid LIMIT ?). No PRAGMA and no d1.batch() here at all
+// — see the module doc in d1-export.ts for why (both were tried and both failed against
+// real D1 in ways that never reproduced locally: PRAGMA table_info/foreign_key_list
+// rejected with SQLITE_AUTH when batched, and batching every table's full SELECT
+// together OOM'd D1's own isolate).
+//
+// Simulates SQLite's implicit per-row `rowid` as 1-based insertion order within each
+// fake table's `rows` array — real SQLite rowids are similarly stable, monotonically
+// assigned integers for an ordinary rowid table (never reused or reordered mid-scan),
+// which is exactly the property the real keyset-pagination code depends on.
 function makeFakeD1(tables: Record<string, FakeTable>) {
   return {
     prepare(sql: string) {
@@ -48,11 +53,16 @@ function makeFakeD1(tables: Record<string, FakeTable>) {
           if (count) {
             return { results: [{ c: tables[count[1]!]?.rows.length ?? 0 }], success: true, meta: {} }
           }
-          const select = sql.match(/SELECT \* FROM "(.+)" LIMIT \? OFFSET \?/)
+          const select = sql.match(/SELECT rowid AS __nuxflow_export_rowid, \* FROM "(.+)" WHERE rowid > \? ORDER BY rowid LIMIT \?/)
           if (select) {
-            const [limit, offset] = stmt.params as [number, number]
+            const [cursor, limit] = stmt.params as [number, number]
             const allRows = tables[select[1]!]?.rows ?? []
-            return { results: allRows.slice(offset, offset + limit), success: true, meta: {} }
+            const page = allRows.slice(cursor, cursor + limit)
+            return {
+              results: page.map((row, i) => ({ __nuxflow_export_rowid: cursor + i + 1, ...row })),
+              success: true,
+              meta: {},
+            }
           }
           throw new Error(`Unexpected SQL against fake D1: ${sql}`)
         },
@@ -101,13 +111,13 @@ describe('generateD1SqlDump()', () => {
     expect(sql).toMatch(/\('site-2',NULL,'test\.localhost'\)/)
   })
 
-  it('paginates via LIMIT/OFFSET across multiple pages and stops once a short page confirms the end', async () => {
+  it('paginates via keyset cursor across multiple pages and stops once a short page confirms the end', async () => {
     // ROWS_PER_PAGE is 1000 (module-internal) — a table with exactly that many rows on
     // its first page looks like there could be more, so a second (short) page is needed
     // to confirm the end; a table with fewer rows than one page needs only a single call
     // (covered implicitly by every other test here, which use small fixtures).
     vi.resetModules()
-    const pageOffsetsSeen: number[] = []
+    const cursorsSeen: number[] = []
     const d1 = {
       prepare(sql: string) {
         const stmt = {
@@ -125,12 +135,17 @@ describe('generateD1SqlDump()', () => {
             if (sql.startsWith('SELECT COUNT(*)')) {
               return { results: [{ c: 1001 }], success: true, meta: {} }
             }
-            const [limit, offset] = stmt.params as [number, number]
-            pageOffsetsSeen.push(offset)
-            if (offset === 0) {
-              return { results: Array.from({ length: limit }, (_, i) => ({ id: `row-${i}` })), success: true, meta: {} }
+            const [cursor, limit] = stmt.params as [number, number]
+            cursorsSeen.push(cursor)
+            if (cursor === 0) {
+              return {
+                results: Array.from({ length: limit }, (_, i) => ({ __nuxflow_export_rowid: i + 1, id: `row-${i}` })),
+                success: true,
+                meta: {},
+              }
             }
-            return { results: [{ id: 'last-row' }], success: true, meta: {} } // short page — confirms the end
+            // Short page — confirms the end. Cursor picks up where the first page's last rowid left off.
+            return { results: [{ __nuxflow_export_rowid: cursor + 1, id: 'last-row' }], success: true, meta: {} }
           },
         }
         return stmt
@@ -141,7 +156,7 @@ describe('generateD1SqlDump()', () => {
 
     const { rowCount } = await generateD1SqlDump(mkEvent())
     expect(rowCount).toBe(1001) // 1000-row first page + 1-row second page
-    expect(pageOffsetsSeen).toEqual([0, 1000]) // exactly two round trips, second one offset by the first page's size
+    expect(cursorsSeen).toEqual([0, 1000]) // exactly two round trips, second cursor is the first page's last rowid
   })
 
   it('excludes FTS5 shadow tables and the virtual table itself from the data dump, but keeps their schema', async () => {
@@ -254,15 +269,19 @@ describe('generateD1SqlDump()', () => {
             if (sql.startsWith('SELECT COUNT(*)')) {
               return { results: [{ c: 2 }], success: true, meta: {} }
             }
-            const [limit, offset] = stmt.params as [number, number]
+            const [cursor, limit] = stmt.params as [number, number]
             limitsSeen.push(limit)
             if (limit === 1000) {
               throw new Error("D1_ERROR: D1 DB's isolate exceeded its memory limit and was reset.")
             }
             // Backed-off page size succeeds and returns fewer rows than requested,
             // confirming end-of-table on this first (and only) successful attempt.
-            expect(offset).toBe(0)
-            return { results: [{ id: 'row-0' }, { id: 'row-1' }], success: true, meta: {} }
+            expect(cursor).toBe(0)
+            return {
+              results: [{ __nuxflow_export_rowid: 1, id: 'row-0' }, { __nuxflow_export_rowid: 2, id: 'row-1' }],
+              success: true,
+              meta: {},
+            }
           },
         }
         return stmt
@@ -337,9 +356,9 @@ describe('generateD1SqlDump()', () => {
             if (sql.startsWith('SELECT COUNT(*)')) {
               return { results: [{ c: 999999 }], success: true, meta: {} }
             }
-            const [limit] = stmt.params as [number, number]
+            const [cursor, limit] = stmt.params as [number, number]
             return {
-              results: Array.from({ length: limit }, (_, i) => ({ id: `row-${i}` })),
+              results: Array.from({ length: limit }, (_, i) => ({ __nuxflow_export_rowid: cursor + i + 1, id: `row-${i}` })),
               success: true,
               meta: {},
             }

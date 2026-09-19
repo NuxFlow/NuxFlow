@@ -19,6 +19,25 @@ export function roleAtLeast(role: Role, minimum: Role): boolean {
   return ROLE_RANK[role] >= ROLE_RANK[minimum]
 }
 
+// The only scopes an API key can declare — see api-keys/index.post.ts. A key's own
+// declared scopes are a ceiling on top of (never a substitute for) the issuing user's
+// site role: 03.api-key-auth.ts sets event.context.apiKeyScopes from the authenticated
+// key's row, and requireApiKeyScope below is the one real enforcement point for it.
+export const API_KEY_SCOPES = ['read:content', 'write:content'] as const
+export type ApiKeyScope = typeof API_KEY_SCOPES[number]
+
+/**
+ * True when the current request was authenticated via an API key (03.api-key-auth.ts)
+ * whose own declared scopes include `scope`. Session-authenticated requests have no
+ * scope concept — the caller's site role is the only gate for those — so this is only
+ * meaningful for routes that are exclusively API-key-driven (mcp.ts) or that branch on
+ * `event.context.apiKeyUserId` being present.
+ */
+export function hasApiKeyScope(event: H3Event, scope: ApiKeyScope): boolean {
+  const scopes = event.context.apiKeyScopes as string[] | undefined
+  return Boolean(scopes?.includes(scope))
+}
+
 export async function requireAuth(event: H3Event): Promise<{ userId: string; role: Role }> {
   const session = await requireSession(event)
 

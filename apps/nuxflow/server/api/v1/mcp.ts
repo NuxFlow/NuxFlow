@@ -1,5 +1,5 @@
 import { useDb } from '../../utils/db'
-import { roleAtLeast, type Role } from '../../utils/permissions'
+import { roleAtLeast, hasApiKeyScope, type Role } from '../../utils/permissions'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, desc } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -216,6 +216,18 @@ export default defineEventHandler(async (event) => {
 
         case 'tools/call': {
           const { name, arguments: args } = params || {}
+
+          // The key's own declared scopes (set in api-keys/index.post.ts, resolved onto
+          // the request by 03.api-key-auth.ts) are a ceiling on top of the issuing user's
+          // site role, not a substitute for it — a key can be scoped down to read-only
+          // even when issued by an editor/admin. Every tool below needs its matching
+          // scope in addition to whatever role check it already performs.
+          const isWriteTool = name === 'create_content' || name === 'update_content' || name === 'delete_content'
+          const requiredScope = isWriteTool ? 'write:content' : 'read:content'
+          if (!hasApiKeyScope(event, requiredScope)) {
+            result = { content: [{ type: 'text', text: `Error: This API key does not have the "${requiredScope}" scope required for "${name}".` }] }
+            break
+          }
 
           if (name === 'list_content') {
             const typeSlug = args?.type || 'page'
