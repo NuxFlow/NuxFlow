@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { requireRole, getUserSiteRole } from '../../../utils/permissions'
+import { requireRole, getUserSiteRole, assertNotSelfTarget, assertTargetNotSuperAdmin } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 
 const bodySchema = z.object({
@@ -18,17 +18,11 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
 
   if (body.role) {
-    // Mirrors the guard in [id].delete.ts: changing your own role here has no
-    // confirmation step in the UI (unlike removal, which asks first) and an admin
-    // demoting themselves — especially the last admin on a site — has no recovery
-    // path short of a super admin stepping in from another site.
-    if (targetId === userId) throw badRequest('You cannot change your own role')
+    assertNotSelfTarget(targetId, userId, 'You cannot change your own role')
 
     const existing = await getUserSiteRole(db, targetId, siteId)
 
-    // Mirrors the guard in [id].delete.ts: an `admin` must never be able to touch a
-    // super_admin's access on this site (demote them, or reassign their role away).
-    if (existing?.role === 'super_admin') forbidden('Cannot modify a super admin\'s role')
+    assertTargetNotSuperAdmin(existing?.role, 'Cannot modify a super admin\'s role')
 
     const roleUpdate = db
       .update(userSiteRoles)

@@ -1,7 +1,7 @@
 import { useDb } from '../../../utils/db'
 import { userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { requireRole, getUserSiteRole } from '../../../utils/permissions'
+import { requireRole, getUserSiteRole, assertNotSelfTarget, assertTargetNotSuperAdmin } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 
 export default defineEventHandler(async (event) => {
@@ -9,9 +9,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId!
   const targetId = getRouterParam(event, 'id')!
 
-  if (targetId === userId) {
-    throw badRequest('You cannot remove yourself')
-  }
+  assertNotSelfTarget(targetId, userId, 'You cannot remove yourself')
 
   const db = useDb(event)
 
@@ -21,9 +19,7 @@ export default defineEventHandler(async (event) => {
     throw notFound('User not found in this site')
   }
 
-  if (existing.role === 'super_admin') {
-    throw forbidden('Cannot remove a super admin')
-  }
+  assertTargetNotSuperAdmin(existing.role, 'Cannot remove a super admin')
 
   const roleDelete = db
     .delete(userSiteRoles)

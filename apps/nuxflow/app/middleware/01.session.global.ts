@@ -2,7 +2,7 @@ import type { SessionUser } from '~/composables/useAuth'
 
 // Seeds the reactive auth:user state exactly once per app lifetime (SSR render,
 // or first client boot) via the useState null-sentinel pattern already used by
-// setup-guard.global.ts in this same directory. Runs before page-scoped
+// 00.setup-guard.global.ts in this same directory. Runs before page-scoped
 // middleware (app/middleware/auth.ts), so loggedIn.value there never observes
 // the `undefined` sentinel.
 export default defineNuxtRouteMiddleware(async (to) => {
@@ -11,7 +11,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const user = useState<SessionUser | null | undefined>('auth:user', () => undefined)
   if (user.value === undefined) {
     try {
-      // 'cookie' is required here — unlike setup-guard.global.ts's fetch (which
+      // 'cookie' is required here — unlike 00.setup-guard.global.ts's fetch (which
       // doesn't need the session cookie), omitting it would make every SSR
       // render silently resolve as logged-out while still looking correct via
       // client-side navigation alone.

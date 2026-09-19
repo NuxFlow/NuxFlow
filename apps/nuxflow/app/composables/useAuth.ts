@@ -7,7 +7,7 @@ export interface SessionUser {
 }
 
 // The single raw, settable source of truth — seeded by
-// app/middleware/session.global.ts. useUserSession() below exposes a read-only
+// app/middleware/01.session.global.ts. useUserSession() below exposes a read-only
 // view of it; useSignIn()/signOut() write to it directly so a client-side
 // navigateTo() afterward reflects the change immediately, without waiting for
 // (or relying on) a fresh SSR render re-running the middleware's fetch branch.

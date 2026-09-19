@@ -53,7 +53,7 @@ test.describe('Register page — registration disabled', () => {
   // behavior. (A full browser-navigation version of this test — PATCH the setting off as
   // admin, then load /register in a brand-new zero-cookie context and expect the closed
   // message — was tried first and dropped: that fresh context reproducibly landed on
-  // /admin instead, i.e. session.global.ts's server-side session fetch resolved a user
+  // /admin instead, i.e. 01.session.global.ts's server-side session fetch resolved a user
   // despite the request carrying zero cookies. A plain curl with no cookies against the
   // same running server correctly returns {"user":null}, so this only reproduces for a
   // browser request following close behind another request against the same wrangler dev

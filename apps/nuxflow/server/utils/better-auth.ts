@@ -144,9 +144,13 @@ async function buildBetterAuthInstance(event: H3Event) {
         const origin = url.origin
         if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return [origin]
         const site = await db.query.sites.findFirst({ where: eq(schema.sites.domain, host) })
-        if (site) {
-          return [origin, origin.replace(/^https:/, 'http:'), origin.replace(/^http:/, 'https:')]
-        }
+        // A non-loopback host is by definition a real deployment, not local dev — trust
+        // only the scheme the request actually arrived on, not both. Whitelisting the
+        // http:// variant here too (an earlier version of this code did) would mean a
+        // same-origin http:// request gets accepted by Better Auth's own origin/CSRF
+        // check even in production, undermining HSTS/https-only expectations for no
+        // legitimate reason (every real deployment path here is https).
+        if (site) return [origin]
       }
       catch (err) {
         console.error('[auth] trusted origin check failed:', err)

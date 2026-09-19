@@ -8,13 +8,14 @@ import { fetchAdminAccess } from '~/composables/useAdminAccess'
 // still the real boundary; see app/utils/admin-nav.ts for the shared rule table.
 //
 // Deliberately does NOT gate on useUserSession().loggedIn: that reads the useState
-// session.global.ts populates, and global middleware files run in filename order —
-// this one ('admin-role-guard') sorts before 'session', so that state is still the
-// unset sentinel the first time this runs, making loggedIn.value read as false on
-// every fresh SSR request regardless of the real session. fetchAdminAccess() below
-// does its own independent authenticated fetch instead, so it isn't affected by that
-// ordering — a null result already means "no session" (GET /api/v1/users/me 401s),
-// so there's no separate loggedIn check to get out of sync in the first place.
+// 01.session.global.ts populates. Global middleware files run in filename order (the
+// 00./01./02. prefixes make that order explicit — see 00.setup-guard.global.ts's own
+// note on why setup-guard runs first), so session state IS already populated by the
+// time this runs today — but fetchAdminAccess() below still does its own independent
+// authenticated fetch rather than depending on that ordering, so this file keeps
+// working correctly even if the numbering above ever changes. A null result already
+// means "no session" (GET /api/v1/users/me 401s), so there's no separate loggedIn
+// check to get out of sync in the first place.
 export default defineNuxtRouteMiddleware(async (to) => {
   if (!to.path.startsWith('/admin')) return
   if (to.path === '/admin/forbidden') return

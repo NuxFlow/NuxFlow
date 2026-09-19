@@ -1,6 +1,6 @@
 // Single source of truth for which role an admin section requires — consumed by both
 // AdminSidebar.vue (hides nav items the current user can't use) and the
-// admin-role-guard.global.ts route middleware (bounces direct navigation to a page the
+// 02.admin-role-guard.global.ts route middleware (bounces direct navigation to a page the
 // user has no business on). Keeping one shared list avoids the nav and the guard
 // silently drifting apart.
 //

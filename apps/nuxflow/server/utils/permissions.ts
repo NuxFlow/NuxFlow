@@ -89,6 +89,23 @@ export async function hasSuperAdminRole(db: Db, userId: string): Promise<boolean
   return !!roleRow
 }
 
+// Shared by users/[id].patch.ts and users/[id].delete.ts (both site-role mutation
+// routes): an acting admin must never be able to modify their own membership here —
+// unlike removal there's no confirmation step, and an admin demoting/removing
+// themselves (especially the site's last admin) has no recovery path short of a super
+// admin stepping in from a different site.
+export function assertNotSelfTarget(targetId: string, actingUserId: string, message: string): void {
+  if (targetId === actingUserId) throw badRequest(message)
+}
+
+// Shared by the same two routes: a plain admin must never be able to touch a
+// super_admin's access on this site (demote them via PATCH, or remove them via
+// DELETE) — only the dedicated, requireSuperAdmin-gated routes may grant/revoke
+// super_admin (see users/[id]/super-admin.*.ts).
+export function assertTargetNotSuperAdmin(existingRole: string | undefined, message: string): void {
+  if (existingRole === 'super_admin') throw forbidden(message)
+}
+
 export async function requireSuperAdmin(event: H3Event): Promise<{ userId: string }> {
   const session = await requireSession(event)
   const db = useDb(event)

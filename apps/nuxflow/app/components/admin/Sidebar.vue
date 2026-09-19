@@ -8,7 +8,7 @@ const route = useRoute()
 const access = await fetchAdminAccess()
 const isSuperAdmin = computed(() => access?.isSuperAdmin ?? false)
 
-// Filtered against the same rule table admin-role-guard.global.ts enforces server-side
+// Filtered against the same rule table 02.admin-role-guard.global.ts enforces server-side
 // navigation against — see app/utils/admin-nav.ts. A user only ever sees links to
 // sections their role can actually use.
 const coreNav = computed(() => ADMIN_NAV.filter(item => canAccessNavItem(item, access)))
