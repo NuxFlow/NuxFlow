@@ -135,6 +135,11 @@ async function signInSocial(provider: 'google' | 'github') {
           GitHub
         </UButton>
       </div>
+
+      <p class="text-center text-sm text-gray-500 dark:text-gray-400">
+        Don't have an account?
+        <NuxtLink to="/register" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">Sign up</NuxtLink>
+      </p>
     </UForm>
   </div>
 </template>

@@ -35,6 +35,7 @@ Thumbs.db
 coverage/
 playwright-report/
 test-results/
+apps/nuxflow/tests/e2e/.auth/
 
 # Turso / libSQL local database files (created by wrangler dev)
 *.db

@@ -84,8 +84,11 @@ test.describe('Reset-password page', () => {
 
   test('shows the password form when a token is present in the URL', async ({ page }) => {
     await page.goto('/reset-password?token=fake-token-for-ui-test')
-    await page.waitForSelector('input[type="password"]')
-    await expect(page.locator('input[type="password"]')).toBeVisible()
+    // The page has both a "New password" and a "Confirm new password" field
+    // (both type="password") — name= is the unambiguous one.
+    await page.waitForSelector('input[name="password"]')
+    await expect(page.locator('input[name="password"]')).toBeVisible()
+    await expect(page.locator('input[name="confirmPassword"]')).toBeVisible()
     await expect(page.getByRole('button', { name: /reset password/i })).toBeVisible()
   })
 })
@@ -95,7 +98,8 @@ test.describe('Register page', () => {
     await page.goto('/register')
     await page.waitForSelector('input[type="email"]')
     await expect(page.locator('input[type="email"]')).toBeVisible()
-    await expect(page.locator('input[type="password"]')).toBeVisible()
+    // Both a "Password" and a "Confirm password" field are type="password".
+    await expect(page.locator('input[name="password"]')).toBeVisible()
     await expect(page.getByRole('button', { name: /create account|register|sign up/i })).toBeVisible()
   })
 })

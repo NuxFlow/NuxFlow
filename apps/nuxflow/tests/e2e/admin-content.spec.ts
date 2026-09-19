@@ -4,21 +4,18 @@
  * Covers: dashboard navigation, content list, content editor entry point,
  * settings pages, media library, and SEO settings.
  *
- * Each test logs in as admin to stay independent. Playwright runs these
- * sequentially (workers: 1 in playwright.config.ts) so there are no race
- * conditions on the shared database.
+ * All tests here share ONE admin session (see ADMIN_STORAGE_STATE_PATH in
+ * global-setup.ts) rather than logging in fresh per test — logging in through
+ * the UI 14 times in a row tripped the real 10-per-10-minutes rate limit on
+ * /api/auth/sign-in/email the first time this suite ran in CI. Playwright
+ * still runs these sequentially (workers: 1 in playwright.config.ts) and each
+ * test gets its own isolated page/context, so there's no cross-test state
+ * beyond the shared login.
  */
-import { test, expect, type Page } from '@playwright/test'
-import { ADMIN_EMAIL, ADMIN_PASSWORD } from './global-setup'
+import { test, expect } from '@playwright/test'
+import { ADMIN_STORAGE_STATE_PATH } from './global-setup'
 
-async function loginAsAdmin(page: Page): Promise<void> {
-  await page.goto('/login')
-  await page.waitForSelector('input[type="email"]', { timeout: 15_000 })
-  await page.fill('input[type="email"]', ADMIN_EMAIL)
-  await page.fill('input[type="password"]', ADMIN_PASSWORD)
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await page.waitForURL(/\/admin/, { timeout: 20_000 })
-}
+test.use({ storageState: ADMIN_STORAGE_STATE_PATH })
 
 // ---------------------------------------------------------------------------
 // Admin shell
@@ -26,20 +23,20 @@ async function loginAsAdmin(page: Page): Promise<void> {
 
 test.describe('Admin dashboard', () => {
   test('renders the admin area after login', async ({ page }) => {
-    await loginAsAdmin(page)
+    await page.goto('/admin')
     expect(page.url()).toContain('/admin')
     // Sidebar navigation should be present
     await expect(page.locator('nav, aside, [role="navigation"]').first()).toBeVisible({ timeout: 10_000 })
   })
 
   test('sidebar contains a link to Content', async ({ page }) => {
-    await loginAsAdmin(page)
+    await page.goto('/admin')
     const contentLink = page.getByRole('link', { name: /content/i }).first()
     await expect(contentLink).toBeVisible({ timeout: 10_000 })
   })
 
   test('sidebar contains a link to Media', async ({ page }) => {
-    await loginAsAdmin(page)
+    await page.goto('/admin')
     const mediaLink = page.getByRole('link', { name: /media/i }).first()
     await expect(mediaLink).toBeVisible({ timeout: 10_000 })
   })
@@ -51,7 +48,6 @@ test.describe('Admin dashboard', () => {
 
 test.describe('Admin content list', () => {
   test('navigates to /admin/content without error', async ({ page }) => {
-    await loginAsAdmin(page)
     await page.goto('/admin/content')
     await expect(page).toHaveURL(/\/admin\/content/, { timeout: 15_000 })
     await expect(page.locator('body')).not.toContainText('404')
@@ -59,18 +55,17 @@ test.describe('Admin content list', () => {
   })
 
   test('shows a button to create new content', async ({ page }) => {
-    await loginAsAdmin(page)
     await page.goto('/admin/content')
-    const createBtn = page.getByRole('button', { name: /new|create|add/i }).first()
+    // Rendered as a UButton :to="..." (a navigation link, role="link"), not a <button>.
+    const createBtn = page.getByRole('link', { name: /new|create|add/i }).first()
     await expect(createBtn).toBeVisible({ timeout: 10_000 })
   })
 
   test('clicking create opens an editor or dialog', async ({ page }) => {
-    await loginAsAdmin(page)
     await page.goto('/admin/content')
     await page.waitForLoadState('networkidle')
 
-    const createBtn = page.getByRole('button', { name: /new|create|add/i }).first()
+    const createBtn = page.getByRole('link', { name: /new|create|add/i }).first()
     await createBtn.click()
 
     // Allow navigation or modal to settle
@@ -84,8 +79,6 @@ test.describe('Admin content list', () => {
 
 test.describe('Admin content editor', () => {
   test('navigates to /admin/content/:id page structure without error', async ({ page }) => {
-    await loginAsAdmin(page)
-
     // Go to content list and try to open the first item if one exists
     await page.goto('/admin/content')
     await page.waitForLoadState('networkidle')
@@ -109,14 +102,12 @@ test.describe('Admin content editor', () => {
 
 test.describe('Admin media library', () => {
   test('loads /admin/media without error', async ({ page }) => {
-    await loginAsAdmin(page)
     await page.goto('/admin/media')
     await expect(page).toHaveURL(/\/admin\/media/, { timeout: 15_000 })
     await expect(page.locator('body')).not.toContainText('404')
   })
 
   test('shows an upload button or drop zone', async ({ page }) => {
-    await loginAsAdmin(page)
     await page.goto('/admin/media')
     await page.waitForLoadState('networkidle')
 
@@ -129,7 +120,6 @@ test.describe('Admin media library', () => {
   })
 
   test('loads the /admin/media/videos page without error', async ({ page }) => {
-    await loginAsAdmin(page)
     await page.goto('/admin/media/videos')
     await expect(page).toHaveURL(/\/admin\/media\/videos/, { timeout: 15_000 })
     await expect(page.locator('body')).not.toContainText('404')
@@ -142,21 +132,18 @@ test.describe('Admin media library', () => {
 
 test.describe('Admin settings pages', () => {
   test('loads /admin/settings without error', async ({ page }) => {
-    await loginAsAdmin(page)
     await page.goto('/admin/settings')
     await expect(page).toHaveURL(/\/admin\/settings/, { timeout: 15_000 })
     await expect(page.locator('body')).not.toContainText('404')
   })
 
   test('loads /admin/seo without error', async ({ page }) => {
-    await loginAsAdmin(page)
     await page.goto('/admin/seo')
     await expect(page).toHaveURL(/\/admin\/seo/, { timeout: 15_000 })
     await expect(page.locator('body')).not.toContainText('404')
   })
 
   test('SEO page shows the AI Crawlers tab', async ({ page }) => {
-    await loginAsAdmin(page)
     await page.goto('/admin/seo')
     await page.waitForLoadState('networkidle')
 
@@ -166,7 +153,6 @@ test.describe('Admin settings pages', () => {
   })
 
   test('loads /admin/settings/ai without error', async ({ page }) => {
-    await loginAsAdmin(page)
     await page.goto('/admin/settings/ai')
     await expect(page.locator('body')).not.toContainText('404')
   })

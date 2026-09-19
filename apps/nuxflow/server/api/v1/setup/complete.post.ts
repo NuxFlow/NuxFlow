@@ -7,6 +7,7 @@ import { count, eq, and } from 'drizzle-orm'
 import { nuxflowPasswordHasher } from '../../../utils/pw'
 import { created } from '../../../utils/response'
 import { isHttpError } from '../../../utils/errors'
+import { clearSiteCache } from '../../../middleware/02.multi-site'
 
 const bodySchema = z.object({
   site: z.object({
@@ -147,6 +148,15 @@ async function _handleSetup(event: H3Event) {
       throw forbidden('Invalid or missing setup token.')
     }
   }
+
+  // 02.multi-site.ts caches a "no site for this host" null result for 30s per isolate —
+  // if anything (a health check, a crawler, even this Worker's own cold-start) resolved
+  // this host before setup completed, that stale null would otherwise persist and make
+  // every request for up to 30 more seconds — including the admin's own first login —
+  // incorrectly bounce off "Unknown site"/the setup guard right after setup just
+  // succeeded. Every other route that creates/activates a site already clears this
+  // (admin/sites/index.post.ts, [id].patch.ts, site-deletion.ts); this was the one gap.
+  clearSiteCache(host)
 
   // Seed initial site settings from setup choices
   await db.insert(siteSettings).values([
