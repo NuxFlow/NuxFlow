@@ -72,30 +72,44 @@ export async function getD1SizeStats(event: H3Event): Promise<D1SizeStats> {
   return stats
 }
 
+// Labels each query so a failure names which table's scan actually broke, instead of
+// an opaque "something in Promise.all failed" — same diagnostic-labeling idea as
+// d1-export.ts's own step() helper, for the same reason: this file's own history (see
+// the module comment) is entirely undocumented-D1-behavior surprises that were each
+// only diagnosable by knowing exactly which query failed.
+async function labeledD1Query<T>(label: string, query: Promise<T>): Promise<T> {
+  try {
+    return await query
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    throw new Error(`[d1-stats] ${label} failed: ${message}`, { cause: err })
+  }
+}
+
 async function computeD1SizeStats(event: H3Event): Promise<D1SizeStats> {
   const d1 = getD1(event)
 
   const [sitesResult, contentResult, revisionResult, mediaResult] = await Promise.all([
-    d1.prepare('SELECT id, name, domain FROM sites').all<{ id: string; name: string; domain: string }>(),
-    d1.prepare(`
+    labeledD1Query('sites lookup', d1.prepare('SELECT id, name, domain FROM sites').all<{ id: string; name: string; domain: string }>()),
+    labeledD1Query('content_items size scan', d1.prepare(`
       SELECT site_id as siteId, COUNT(*) as count, COALESCE(SUM(LENGTH(content)), 0) as bytes
       FROM content_items GROUP BY site_id
-    `).all<{ siteId: string; count: number; bytes: number }>(),
+    `).all<{ siteId: string; count: number; bytes: number }>()),
     // content_revisions has no direct site_id — join through its parent content item.
-    d1.prepare(`
+    labeledD1Query('content_revisions size scan', d1.prepare(`
       SELECT ci.site_id as siteId, COUNT(*) as count, COALESCE(SUM(LENGTH(cr.content)), 0) as bytes
       FROM content_revisions cr JOIN content_items ci ON cr.item_id = ci.id
       GROUP BY ci.site_id
-    `).all<{ siteId: string; count: number; bytes: number }>(),
+    `).all<{ siteId: string; count: number; bytes: number }>()),
     // LENGTH(url) captures what actually matters here: a provider-hosted media row's
     // url is a short link, while the local base64-data-URI fallback's url IS the file —
     // this single column tells us both the byte cost and (via the local-provider count
     // below) whether a site is relying on that fallback at all.
-    d1.prepare(`
+    labeledD1Query('media size scan', d1.prepare(`
       SELECT site_id as siteId, COUNT(*) as count, COALESCE(SUM(LENGTH(url)), 0) as bytes,
         SUM(CASE WHEN storage_provider = 'local' THEN 1 ELSE 0 END) as localCount
       FROM media GROUP BY site_id
-    `).all<{ siteId: string; count: number; bytes: number; localCount: number }>(),
+    `).all<{ siteId: string; count: number; bytes: number; localCount: number }>()),
   ])
 
   const contentBySite = new Map(contentResult.results.map(r => [r.siteId, r]))

@@ -92,6 +92,30 @@ jobs:
           NUXT_PUBLIC_SITE_URL: https://example.com
       - run: pnpm test:integration
 
+  node-floor:
+    name: Node engines floor (22)
+    # package.json declares "node": ">=22.0.0" but every other job here runs on 24 —
+    # this is the only one that actually exercises the documented minimum. Scoped to
+    # typecheck/lint/unit (not integration/E2E/build) to catch a real floor
+    # incompatibility without doubling CI's total runtime for every push.
+    if: github.head_ref != 'changeset-release/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @nuxflow/app exec nuxt prepare
+        env:
+          NUXT_BETTER_AUTH_SECRET: ci-placeholder-secret-32-characters
+          NUXT_PUBLIC_SITE_URL: https://example.com
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
   test-e2e:
     name: E2E tests
     if: github.head_ref != 'changeset-release/main'

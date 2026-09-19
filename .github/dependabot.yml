@@ -1,0 +1,33 @@
+version: 2
+updates:
+  # pnpm workspace root — Dependabot resolves the whole workspace (apps/nuxflow,
+  # packages/*) from here rather than needing one entry per package.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      # Security-sensitive dependencies get their own ungrouped PRs so they're never
+      # buried inside a big batched update and easy to review/merge on their own —
+      # see CLAUDE.md's account of the kysely SQL-injection CVEs this exact class of
+      # drift let ship (a pnpm.overrides pin with no automated update path).
+      minor-and-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "better-auth"
+          - "@better-auth/*"
+          - "drizzle-orm"
+          - "kysely"
+          - "stripe"
+          - "wrangler"
+          - "vue"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
