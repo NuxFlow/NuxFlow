@@ -3,7 +3,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
-import { resolveSetting, saveSetting } from '../../../utils/settings'
+import { resolveSetting, batchSaveSettings } from '../../../utils/settings'
 import { clearAppearanceCache } from '../../../utils/appearance-cache'
 import { writeAuditLog } from '../../../utils/audit'
 import { purgeEdgeCache, purgeAllPublicPages } from '../../../utils/edge-cache'
@@ -80,21 +80,26 @@ export default defineEventHandler(async (event) => {
       .where(eq(sites.id, siteId))
   }
 
+  // Collected across all sections below and written as a single atomic db.batch() at
+  // the end, instead of a separate D1 round trip (existing-row lookup + insert/update)
+  // per key — see batchSaveSettings()'s own doc comment for why that matters here.
+  const settingEntries: [string, unknown][] = []
+
   if (body.settings) {
     for (const [key, value] of Object.entries(body.settings)) {
-      await saveSetting(event, key, value)
+      settingEntries.push([key, value])
     }
   }
 
   if (body.ai) {
     const ai = body.ai
-    if (ai.provider !== undefined) await saveSetting(event, 'ai.provider', ai.provider)
-    if (ai.openaiApiKey !== undefined) await saveSetting(event, 'ai.openai_api_key', ai.openaiApiKey)
-    if (ai.anthropicApiKey !== undefined) await saveSetting(event, 'ai.anthropic_api_key', ai.anthropicApiKey)
-    if (ai.geminiApiKey !== undefined) await saveSetting(event, 'ai.gemini_api_key', ai.geminiApiKey)
-    if (ai.deepseekApiKey !== undefined) await saveSetting(event, 'ai.deepseek_api_key', ai.deepseekApiKey)
-    if (ai.ollamaBaseUrl !== undefined) await saveSetting(event, 'ai.ollama_base_url', ai.ollamaBaseUrl)
-    if (ai.ollamaModel !== undefined) await saveSetting(event, 'ai.ollama_model', ai.ollamaModel)
+    if (ai.provider !== undefined) settingEntries.push(['ai.provider', ai.provider])
+    if (ai.openaiApiKey !== undefined) settingEntries.push(['ai.openai_api_key', ai.openaiApiKey])
+    if (ai.anthropicApiKey !== undefined) settingEntries.push(['ai.anthropic_api_key', ai.anthropicApiKey])
+    if (ai.geminiApiKey !== undefined) settingEntries.push(['ai.gemini_api_key', ai.geminiApiKey])
+    if (ai.deepseekApiKey !== undefined) settingEntries.push(['ai.deepseek_api_key', ai.deepseekApiKey])
+    if (ai.ollamaBaseUrl !== undefined) settingEntries.push(['ai.ollama_base_url', ai.ollamaBaseUrl])
+    if (ai.ollamaModel !== undefined) settingEntries.push(['ai.ollama_model', ai.ollamaModel])
   }
 
   if (body.cloudflare) {
@@ -119,32 +124,37 @@ export default defineEventHandler(async (event) => {
       validationError('Cloudflare Images requires a delivery URL to build working image links. Set "Images delivery URL" before (or while) saving the account ID and API token — otherwise uploaded images will silently get broken URLs.')
     }
 
-    if (cf.accountId !== undefined) await saveSetting(event, 'cloudflare.account_id', cf.accountId)
-    if (cf.streamToken !== undefined) await saveSetting(event, 'cloudflare.stream_token', cf.streamToken)
-    if (cf.imagesToken !== undefined) await saveSetting(event, 'cloudflare.images_token', cf.imagesToken)
-    if (cf.imagesDeliveryUrl !== undefined) await saveSetting(event, 'cloudflare.images_delivery_url', cf.imagesDeliveryUrl)
+    if (cf.accountId !== undefined) settingEntries.push(['cloudflare.account_id', cf.accountId])
+    if (cf.streamToken !== undefined) settingEntries.push(['cloudflare.stream_token', cf.streamToken])
+    if (cf.imagesToken !== undefined) settingEntries.push(['cloudflare.images_token', cf.imagesToken])
+    if (cf.imagesDeliveryUrl !== undefined) settingEntries.push(['cloudflare.images_delivery_url', cf.imagesDeliveryUrl])
   }
 
   if (body.media) {
     const m = body.media
-    if (m.r2PublicUrl !== undefined) await saveSetting(event, 'media.r2_public_url', m.r2PublicUrl)
-    if (m.s3Bucket !== undefined) await saveSetting(event, 'media.s3_bucket', m.s3Bucket)
-    if (m.s3AccessKey !== undefined) await saveSetting(event, 'media.s3_access_key', m.s3AccessKey)
-    if (m.s3SecretKey !== undefined) await saveSetting(event, 'media.s3_secret_key', m.s3SecretKey)
-    if (m.s3Region !== undefined) await saveSetting(event, 'media.s3_region', m.s3Region)
-    if (m.s3Endpoint !== undefined) await saveSetting(event, 'media.s3_endpoint', m.s3Endpoint)
-    if (m.s3PublicUrl !== undefined) await saveSetting(event, 'media.s3_public_url', m.s3PublicUrl)
-    if (m.bunnyApiKey !== undefined) await saveSetting(event, 'media.bunny_api_key', m.bunnyApiKey)
-    if (m.bunnyStorageZone !== undefined) await saveSetting(event, 'media.bunny_storage_zone', m.bunnyStorageZone)
-    if (m.bunnyPullZone !== undefined) await saveSetting(event, 'media.bunny_pull_zone', m.bunnyPullZone)
+    if (m.r2PublicUrl !== undefined) settingEntries.push(['media.r2_public_url', m.r2PublicUrl])
+    if (m.s3Bucket !== undefined) settingEntries.push(['media.s3_bucket', m.s3Bucket])
+    if (m.s3AccessKey !== undefined) settingEntries.push(['media.s3_access_key', m.s3AccessKey])
+    if (m.s3SecretKey !== undefined) settingEntries.push(['media.s3_secret_key', m.s3SecretKey])
+    if (m.s3Region !== undefined) settingEntries.push(['media.s3_region', m.s3Region])
+    if (m.s3Endpoint !== undefined) settingEntries.push(['media.s3_endpoint', m.s3Endpoint])
+    if (m.s3PublicUrl !== undefined) settingEntries.push(['media.s3_public_url', m.s3PublicUrl])
+    if (m.bunnyApiKey !== undefined) settingEntries.push(['media.bunny_api_key', m.bunnyApiKey])
+    if (m.bunnyStorageZone !== undefined) settingEntries.push(['media.bunny_storage_zone', m.bunnyStorageZone])
+    if (m.bunnyPullZone !== undefined) settingEntries.push(['media.bunny_pull_zone', m.bunnyPullZone])
   }
 
   if (body.auth) {
     const a = body.auth
-    if (a.googleClientId !== undefined) await saveSetting(event, 'auth.google_client_id', a.googleClientId)
-    if (a.googleClientSecret !== undefined) await saveSetting(event, 'auth.google_client_secret', a.googleClientSecret)
-    if (a.githubClientId !== undefined) await saveSetting(event, 'auth.github_client_id', a.githubClientId)
-    if (a.githubClientSecret !== undefined) await saveSetting(event, 'auth.github_client_secret', a.githubClientSecret)
+    if (a.googleClientId !== undefined) settingEntries.push(['auth.google_client_id', a.googleClientId])
+    if (a.googleClientSecret !== undefined) settingEntries.push(['auth.google_client_secret', a.googleClientSecret])
+    if (a.githubClientId !== undefined) settingEntries.push(['auth.github_client_id', a.githubClientId])
+    if (a.githubClientSecret !== undefined) settingEntries.push(['auth.github_client_secret', a.githubClientSecret])
+  }
+
+  await batchSaveSettings(event, settingEntries)
+
+  if (body.auth) {
     // The Better Auth instance caches socialProviders per host for 5 minutes —
     // bust it so a credential change is live immediately, not after a wait.
     clearBetterAuthCache()

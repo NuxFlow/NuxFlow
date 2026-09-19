@@ -40,7 +40,6 @@ export const contentItems = sqliteTable('content_items', {
   seoTitle: text('seo_title'),
   seoDescription: text('seo_description'),
   ogImage: text('og_image'),
-  password: text('password'),
   publishedAt: text('published_at'),
   scheduledAt: text('scheduled_at'),
   previewToken: text('preview_token'),

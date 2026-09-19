@@ -2,14 +2,16 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
-import { seedSite, seedSetting } from '../helpers/seed'
-import { resolveSetting, saveSetting, SENSITIVE_SETTING_KEYS, SECRET_MASK } from '../../server/utils/settings'
+import { seedSite, seedSetting, seedRole, seedUser } from '../helpers/seed'
+import { resolveSetting, saveSetting, batchSaveSettings, SENSITIVE_SETTING_KEYS, SECRET_MASK } from '../../server/utils/settings'
 import { encryptText } from '../../server/utils/encryption'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
   getD1: () => null,
 }))
+
+const { default: patchHandler } = await import('../../server/api/v1/settings/index.patch')
 
 let siteId: string
 
@@ -148,6 +150,109 @@ describe('saveSetting + resolveSetting', () => {
 
     const value = await resolveSetting(event, 'payments.paddle_webhook_public_key')
     expect(value).toBe('legacy-pem-value')
+  })
+})
+
+describe('batchSaveSettings', () => {
+  it('saves multiple keys, including a mix of sensitive and plain, in one call', async () => {
+    const batchSiteId = `${siteId}-batch`
+    await seedSite(getCurrentTestDb(), { id: batchSiteId, domain: `batch-${Date.now()}.localhost` })
+    const event = mkEvent(batchSiteId)
+
+    await batchSaveSettings(event, [
+      ['site.tagline', 'Batched tagline'],
+      ['ai.openai_api_key', 'sk-batched-key'],
+      ['theme.primary_color', '#ff0000'],
+    ])
+
+    expect(await resolveSetting(event, 'site.tagline')).toBe('Batched tagline')
+    expect(await resolveSetting(event, 'ai.openai_api_key')).toBe('sk-batched-key')
+    expect(await resolveSetting(event, 'theme.primary_color')).toBe('#ff0000')
+
+    // The sensitive key must actually be encrypted at rest, same as saveSetting().
+    const rows = await getCurrentTestDb().query.siteSettings.findMany()
+    const stored = rows.find(r => r.siteId === batchSiteId && r.key === 'ai.openai_api_key')
+    expect(stored?.value).not.toBe('sk-batched-key')
+  })
+
+  it('skips a SECRET_MASK entry within a batch without touching the others', async () => {
+    const maskBatchSiteId = `${siteId}-batch-mask`
+    await seedSite(getCurrentTestDb(), { id: maskBatchSiteId, domain: `batch-mask-${Date.now()}.localhost` })
+    const event = mkEvent(maskBatchSiteId)
+
+    await saveSetting(event, 'payments.stripe_secret_key', 'sk_live_original')
+    await batchSaveSettings(event, [
+      ['payments.stripe_secret_key', SECRET_MASK],
+      ['site.tagline', 'Updated alongside a masked secret'],
+    ])
+
+    expect(await resolveSetting(event, 'payments.stripe_secret_key')).toBe('sk_live_original')
+    expect(await resolveSetting(event, 'site.tagline')).toBe('Updated alongside a masked secret')
+  })
+
+  it('deletes a key within a batch when its value is empty', async () => {
+    const delBatchSiteId = `${siteId}-batch-del`
+    await seedSite(getCurrentTestDb(), { id: delBatchSiteId, domain: `batch-del-${Date.now()}.localhost` })
+    const event = mkEvent(delBatchSiteId)
+
+    await saveSetting(event, 'site.desc.batch-del', 'to delete')
+    await batchSaveSettings(event, [['site.desc.batch-del', '']])
+
+    expect(await resolveSetting(event, 'site.desc.batch-del')).toBe('')
+  })
+
+  it('is a no-op for an empty entries array', async () => {
+    const event = mkEvent()
+    await expect(batchSaveSettings(event, [])).resolves.toBeUndefined()
+  })
+})
+
+describe('PATCH /api/v1/settings (end-to-end multi-section save)', () => {
+  it('saves site columns, generic settings, and structured ai/media/auth fields together', async () => {
+    const routeSiteId = `${siteId}-route`
+    await seedSite(getCurrentTestDb(), { id: routeSiteId, domain: `route-${Date.now()}.localhost` })
+    const adminId = await seedUser(getCurrentTestDb(), { email: `admin-${Date.now()}@settings-route.test` })
+    await seedRole(getCurrentTestDb(), adminId, routeSiteId, 'admin')
+
+    const event = createMockEvent({
+      siteId: routeSiteId,
+      session: { user: { id: adminId, name: 'Admin', email: 'admin@settings-route.test' } },
+      body: {
+        name: 'Renamed Site',
+        settings: { 'site.tagline': 'A route-level tagline' },
+        ai: { provider: 'anthropic', anthropicApiKey: 'sk-ant-route' },
+        media: { r2PublicUrl: 'https://media.example.com' },
+        auth: { googleClientId: 'google-client-id-route' },
+      },
+    }) as unknown as H3Event
+
+    const result = await (patchHandler as (e: H3Event) => Promise<unknown>)(event)
+    expect(result).toEqual({ success: true })
+
+    const resolveEvent = mkEvent(routeSiteId)
+    expect(await resolveSetting(resolveEvent, 'site.tagline')).toBe('A route-level tagline')
+    expect(await resolveSetting(resolveEvent, 'ai.provider')).toBe('anthropic')
+    expect(await resolveSetting(resolveEvent, 'ai.anthropic_api_key')).toBe('sk-ant-route')
+    expect(await resolveSetting(resolveEvent, 'media.r2_public_url')).toBe('https://media.example.com')
+    expect(await resolveSetting(resolveEvent, 'auth.google_client_id')).toBe('google-client-id-route')
+
+    const site = await getCurrentTestDb().query.sites.findFirst({ where: (t, { eq: eqOp }) => eqOp(t.id, routeSiteId) })
+    expect(site?.name).toBe('Renamed Site')
+  })
+
+  it('rejects a viewer-role caller', async () => {
+    const forbiddenSiteId = `${siteId}-forbidden`
+    await seedSite(getCurrentTestDb(), { id: forbiddenSiteId, domain: `forbidden-${Date.now()}.localhost` })
+    const viewerId = await seedUser(getCurrentTestDb(), { email: `viewer-${Date.now()}@settings-route.test` })
+    await seedRole(getCurrentTestDb(), viewerId, forbiddenSiteId, 'viewer')
+
+    const event = createMockEvent({
+      siteId: forbiddenSiteId,
+      session: { user: { id: viewerId, name: 'Viewer', email: 'viewer@settings-route.test' } },
+      body: { settings: { 'site.tagline': 'nope' } },
+    }) as unknown as H3Event
+
+    await expect((patchHandler as (e: H3Event) => Promise<unknown>)(event)).rejects.toMatchObject({ statusCode: 403 })
   })
 })
 

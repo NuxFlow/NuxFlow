@@ -39,7 +39,11 @@ export const auditLogs = sqliteTable('audit_logs', {
   userAgent: text('user_agent'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
-  index('idx_audit_logs_site').on(t.siteId),
+  // Covers plain site_id-only lookups too (leftmost-prefix), so this replaces what was
+  // a separate site_id-only index — GET /api/v1/audit-log filters by site_id and sorts
+  // by created_at desc together, which a site_id-only index can't satisfy without a
+  // separate sort step.
+  index('idx_audit_logs_site_created').on(t.siteId, t.createdAt),
   index('idx_audit_logs_resource').on(t.resource, t.resourceId),
   index('idx_audit_logs_site_user').on(t.siteId, t.userId),
 ])

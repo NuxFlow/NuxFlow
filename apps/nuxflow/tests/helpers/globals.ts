@@ -207,5 +207,11 @@ globalThis.requireUserSession = async (event: Record<string, unknown>) => {
 globalThis.requireSession = globalThis.requireUserSession
 globalThis.getAuthSession = globalThis.getUserSession
 
+// server/utils/better-auth.ts's clearBetterAuthCache() (called by settings/index.patch.ts
+// and backup.ts after an auth-affecting settings change) only clears an in-memory Map —
+// safe to run for real in tests, but it's a Nitro auto-import (no explicit import in
+// those call sites), which isn't resolvable in the Vitest environment without a stub.
+globalThis.clearBetterAuthCache = () => {}
+
 // useDb is NOT mocked globally — each integration test file provides its own
 // vi.mock for '../../server/utils/db' to inject the real in-memory test DB.
