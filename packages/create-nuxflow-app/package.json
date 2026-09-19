@@ -29,7 +29,7 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@clack/prompts": "^0.9.1",
+    "@clack/prompts": "^1.8.1",
     "consola": "^3.4.2",
     "giget": "^3.3.1"
   },
