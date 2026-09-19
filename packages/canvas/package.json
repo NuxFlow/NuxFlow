@@ -27,7 +27,7 @@
   "devDependencies": {
     "@nuxt/ui": "^4.11.0",
     "@vue/runtime-core": "^3.5.39",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "vue": "^3.5.39",
     "vue-tsc": "^3.3.5"
   }
