@@ -3,8 +3,18 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const auth = useAuthStore()
 
-const hour = new Date().getHours()
-const greeting = computed(() => hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening')
+// Computed from the viewer's local clock, which is unknowable during SSR (a Worker's
+// own clock/timezone has no relation to the visitor's) — computing this eagerly here
+// made the server and client render different text for the same initial paint, which
+// Vue reports as a hydration mismatch. Starting from a fixed, neutral greeting and
+// only resolving the real one after mount means the SSR and hydration passes agree
+// (both render "Hello"), and the swap to the real greeting is an ordinary reactive
+// update after mount rather than a hydration diff.
+const greeting = ref('Hello')
+onMounted(() => {
+  const hour = new Date().getHours()
+  greeting.value = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+})
 
 const { data: stats } = await useFetch<{
   publishedPages: number
