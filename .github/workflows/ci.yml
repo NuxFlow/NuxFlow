@@ -23,7 +23,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: wagoid/commitlint-github-action@v6
         with:
           configFile: commitlint.config.ts
@@ -33,7 +33,7 @@ jobs:
     if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
@@ -47,7 +47,7 @@ jobs:
     if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
@@ -61,7 +61,7 @@ jobs:
     if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
@@ -79,7 +79,7 @@ jobs:
     if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
@@ -101,7 +101,7 @@ jobs:
     if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
@@ -121,7 +121,7 @@ jobs:
     if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
@@ -152,7 +152,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [typecheck, lint, test, test-integration]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
