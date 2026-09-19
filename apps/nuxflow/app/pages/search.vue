@@ -19,7 +19,7 @@ interface SearchResponse {
   results: SearchResult[]
 }
 
-const { data, pending, execute } = await useLazyFetch<SearchResponse>('/api/v1/search', {
+const { data, pending, error, execute } = await useLazyFetch<SearchResponse>('/api/v1/search', {
   query: computed(() => ({ q: query.value })),
   immediate: !!route.query.q,
 })
@@ -48,6 +48,10 @@ function search() {
       />
       <UButton type="submit" size="lg" :loading="pending">Search</UButton>
     </form>
+
+    <p v-if="error && !pending" class="text-red-500 text-sm">
+      Something went wrong running that search. Please try again.
+    </p>
 
     <div v-if="data && !pending">
       <p v-if="data.results.length === 0 && query" class="text-gray-400 text-sm">

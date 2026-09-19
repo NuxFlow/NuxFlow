@@ -33,7 +33,7 @@ interface PostsResponse {
   totalPages: number
 }
 
-const { data } = await useFetch<PostsResponse>('/api/public/posts', {
+const { data, error } = await useFetch<PostsResponse>('/api/public/posts', {
   query: computed(() => ({ page: page.value, limit: 10 })),
   headers: useRequestHeaders(['host']),
 })
@@ -179,6 +179,7 @@ function formatDate(d: string | null) {
       </div>
     </div>
 
+    <p v-else-if="error" class="text-red-500 text-sm">Something went wrong loading posts. Please try again later.</p>
     <p v-else-if="data" class="text-gray-400 text-sm">No posts published yet.</p>
 
     <!-- Pagination -->
