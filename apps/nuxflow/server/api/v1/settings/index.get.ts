@@ -39,6 +39,7 @@ export default defineEventHandler(async (event) => {
     'payments.ls_api_key': 'lsApiKey',
     'payments.ls_webhook_secret': 'lsWebhookSecret',
     'payments.paddle_api_key': 'paddleApiKey',
+    'payments.paddle_webhook_secret': 'paddleWebhookSecret',
     'ai.openai_api_key': 'openaiApiKey',
     'ai.anthropic_api_key': 'anthropicApiKey',
     'ai.gemini_api_key': 'geminiApiKey',
@@ -64,14 +65,6 @@ export default defineEventHandler(async (event) => {
   if (!settings['cloudflare.account_id'] && cfAccountId) settings['cloudflare.account_id'] = cfAccountId
   const cfDeliveryUrl = rc.cloudflareImagesDeliveryUrl as string | undefined
   if (!settings['cloudflare.images_delivery_url'] && cfDeliveryUrl) settings['cloudflare.images_delivery_url'] = cfDeliveryUrl
-
-  // Paddle's webhook public key is a *verification* key, not a secret (see
-  // SENSITIVE_SETTING_KEYS) — expose its env-var fallback in plaintext like the other
-  // non-sensitive env vars above, rather than masking it.
-  const paddleWebhookPublicKey = rc.paddleWebhookPublicKey as string | undefined
-  if (!settings['payments.paddle_webhook_public_key'] && paddleWebhookPublicKey) {
-    settings['payments.paddle_webhook_public_key'] = paddleWebhookPublicKey
-  }
 
   // Same for the non-sensitive S3/Bunny env vars. media.s3_access_key is deliberately NOT
   // here — it's sensitive (see SENSITIVE_SETTING_KEYS) and its env-var fallback is already

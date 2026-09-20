@@ -4,8 +4,13 @@ import { useDb } from '../../../utils/db'
 import { getConfiguredPaymentProvider } from '../../../utils/payments/resolve'
 import { isHttpError, errorMessage } from '../../../utils/errors'
 import { writeAuditLog } from '../../../utils/audit'
+import { rateLimit } from '../../../utils/rate-limit'
 
 export default defineEventHandler(async (event) => {
+  // Calls out to the payment provider's cancellation API for non-free subscriptions —
+  // same cost profile as checkout.post.ts/billing-portal.post.ts, which rate-limit
+  // themselves for the same reason.
+  await rateLimit(event, { limit: 10, windowMs: 60_000, keyPrefix: 'membership-cancel' })
   const session = await requireSession(event)
   const siteId = event.context.siteId as string
   const userId = session.user.id as string

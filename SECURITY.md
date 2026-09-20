@@ -57,7 +57,7 @@ NuxFlow is designed secure by default:
 - **Rate limiting** on auth and form submission endpoints (DB-backed, cross-isolate safe)
 - **Cloudflare Turnstile** integration for public form spam protection
 - **CSRF protection** via Better Auth
-- **Webhook signatures** verified server-side (Stripe HMAC, Lemon Squeezy HMAC, Paddle Ed25519)
+- **Webhook signatures** verified server-side (Stripe HMAC, Lemon Squeezy HMAC, Paddle HMAC)
 - **API keys** stored as SHA-256 hashes; the raw key is shown exactly once
 - **Audit log** records all admin mutations
 - **Multi-site isolation** enforced at the query level (every query scoped to `site_id`)

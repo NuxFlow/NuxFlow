@@ -108,8 +108,8 @@ defineProps<{
           <UFormField label="Paddle API Key">
             <UInput v-model="payments.paddleApiKey" type="password" placeholder="Live_..." class="w-full" />
           </UFormField>
-          <UFormField label="Paddle Webhook Public Key" hint="Paddle sends webhook signatures signed using a public/private keypair">
-            <UTextarea v-model="payments.paddleWebhookPublicKey" placeholder="-----BEGIN PUBLIC KEY-----..." class="w-full font-mono text-xs" :rows="3" />
+          <UFormField label="Paddle Webhook Secret" hint="The notification destination's secret key from Paddle — used to verify the HMAC-SHA256 signature on incoming webhooks">
+            <UInput v-model="payments.paddleWebhookSecret" type="password" placeholder="pdl_ntfset_..." class="w-full" />
           </UFormField>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

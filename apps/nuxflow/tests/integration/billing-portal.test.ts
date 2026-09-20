@@ -10,6 +10,10 @@ vi.mock('../../server/utils/db', () => ({
   getD1: () => null,
 }))
 
+vi.mock('../../server/utils/rate-limit', () => ({
+  rateLimit: vi.fn().mockResolvedValue(undefined),
+}))
+
 const STRIPE_PORTAL_URL = 'https://billing.stripe.com/session/test_portal_abc'
 const LS_PORTAL_URL = 'https://my-store.lemonsqueezy.com/billing?expires=1234&signature=abc'
 const PADDLE_PORTAL_URL = 'https://customer-portal.paddle.com/cpl_test?action=overview&token=abc'

@@ -1,4 +1,5 @@
 import type { PaymentProvider } from './types'
+import { constantTimeEqualHex } from '../security'
 
 export interface LsSubscription {
   id: string

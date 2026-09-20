@@ -163,7 +163,7 @@ export default defineNuxtConfig({
     lsWebhookSecret: '',
     paddleApiKey: '',
     paddleVendorId: '',
-    paddleWebhookPublicKey: '',
+    paddleWebhookSecret: '',
     isDemo: false,
     // Data retention — configurable via env vars; sensible defaults for most deployments
     auditLogRetentionDays: 90,   // NUXT_AUDIT_LOG_RETENTION_DAYS

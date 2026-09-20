@@ -1,4 +1,5 @@
 import type { PaymentProvider } from './types'
+import { constantTimeEqualHex } from '../security'
 
 export interface PaddleSubscription {
   id: string
@@ -88,8 +89,15 @@ export class PaddleProvider implements PaymentProvider {
     return res.data
   }
 
-  async verifyWebhook(rawBody: string, signatureHeader: string, publicKeyPem: string): Promise<boolean> {
-    // Paddle signs webhooks with Ed25519. signatureHeader format: ts=<unix>;h1=<hex>
+  /**
+   * Paddle signs webhooks with HMAC-SHA256 keyed by the notification destination's own
+   * secret key (`pdl_ntfset_...`, found under Developer tools → Notifications → that
+   * destination) — a shared secret, NOT an asymmetric Ed25519 keypair. See
+   * https://developer.paddle.com/webhooks/signature-verification. `signatureHeader`
+   * format: `ts=<unix>;h1=<hex hmac>`; the signed payload is `${ts}:${rawBody}`, mirroring
+   * LemonSqueezyProvider.verifyWebhook's construction below.
+   */
+  async verifyWebhook(rawBody: string, signatureHeader: string, secret: string): Promise<boolean> {
     const parts = Object.fromEntries(signatureHeader.split(';').map(p => p.split('=')))
     const ts = parts['ts']
     const h1 = parts['h1']
@@ -98,20 +106,21 @@ export class PaddleProvider implements PaymentProvider {
     const signedPayload = `${ts}:${rawBody}`
 
     try {
-      const pemBody = publicKeyPem.replace(/-----.*-----/g, '').replace(/\s/g, '')
-      const keyBytes = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0))
+      const encoder = new TextEncoder()
       const key = await crypto.subtle.importKey(
-        'spki',
-        keyBytes,
-        { name: 'Ed25519' },
+        'raw',
+        encoder.encode(secret),
+        { name: 'HMAC', hash: 'SHA-256' },
         false,
-        ['verify'],
+        ['sign'],
       )
-      const sigBytes = Uint8Array.from(h1.match(/.{2}/g)!.map((b: string) => Number.parseInt(b, 16)))
-      return await crypto.subtle.verify('Ed25519', key, sigBytes, new TextEncoder().encode(signedPayload))
+      const mac = await crypto.subtle.sign('HMAC', key, encoder.encode(signedPayload))
+      const expected = Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, '0')).join('')
+      // Constant-time compare — a plain `===` here leaks per-character timing.
+      return constantTimeEqualHex(expected, h1)
     } catch {
-      // Malformed configured key, malformed signature header, or a real verification
-      // failure all land here — every case must fail closed, not throw a raw 500.
+      // Malformed signature header or a real verification failure both land here —
+      // every case must fail closed, not throw a raw 500.
       return false
     }
   }

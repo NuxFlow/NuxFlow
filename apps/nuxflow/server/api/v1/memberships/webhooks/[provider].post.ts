@@ -193,13 +193,15 @@ async function handleLemonSqueezyWebhook(event: H3Event, rawBody: string) {
 
 async function handlePaddleWebhook(event: H3Event, rawBody: string) {
   const paddle = await getPaddleProvider(event)
-  const paddleWebhookPublicKey = await resolveSetting(event, 'payments.paddle_webhook_public_key', 'paddleWebhookPublicKey')
-  if (!paddleWebhookPublicKey) {
-    throw createError({ statusCode: 503, message: 'Paddle webhook public key is not configured' })
+  const paddleWebhookSecret = await resolveSetting(event, 'payments.paddle_webhook_secret', 'paddleWebhookSecret')
+  if (!paddleWebhookSecret) {
+    // Never verify against an empty secret — HMAC accepts a zero-length key without
+    // error, which makes the signature check trivially forgeable by anyone.
+    throw createError({ statusCode: 503, message: 'Paddle webhook secret is not configured' })
   }
   const sig = getHeader(event, 'paddle-signature') ?? ''
 
-  const valid = await paddle.verifyWebhook(rawBody, sig, paddleWebhookPublicKey as string)
+  const valid = await paddle.verifyWebhook(rawBody, sig, paddleWebhookSecret as string)
   if (!valid) throw badRequest('Invalid Paddle webhook signature')
 
   const payload = JSON.parse(rawBody) as {

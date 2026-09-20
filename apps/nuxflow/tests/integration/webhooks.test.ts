@@ -342,7 +342,7 @@ describe('Paddle webhooks', () => {
     const db = getCurrentTestDb()
     await seedSetting(db, SITE, 'payments.paddle_api_key', 'pdl_key_test')
     await seedSetting(db, SITE, 'payments.paddle_vendor_id', '67890')
-    await seedSetting(db, SITE, 'payments.paddle_webhook_public_key', 'pdl_pubkey_test')
+    await seedSetting(db, SITE, 'payments.paddle_webhook_secret', 'pdl_ntfset_test')
     mockPaddleVerify.mockResolvedValueOnce(false)
 
     await expect(

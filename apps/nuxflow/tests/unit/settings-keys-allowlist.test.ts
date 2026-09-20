@@ -15,9 +15,12 @@ import { SENSITIVE_SETTING_KEYS } from '../../server/utils/settings'
  * them would be its own maintenance burden), this statically scans every server-side
  * setting-key string literal for one that LOOKS like a credential by name and asserts
  * it's registered as sensitive. A key this pattern flags that's genuinely not secret
- * (the way payments.paddle_webhook_public_key or push.vapid_public_key are, both
- * deliberately public verification keys) should be added to PUBLIC_KEY_SHAPED_EXCEPTIONS
- * below with a comment saying why, not silently skipped.
+ * (the way push.vapid_public_key is — a deliberately public verification key) should be
+ * added to PUBLIC_KEY_SHAPED_EXCEPTIONS below with a comment saying why, not silently
+ * skipped. (payments.paddle_webhook_secret used to be such an exception under the name
+ * payments.paddle_webhook_public_key — it was believed to be a public Ed25519
+ * verification key, but Paddle actually signs webhooks with HMAC-SHA256 keyed by a
+ * shared secret, so it was reclassified as sensitive instead of exempted here.)
  */
 
 const SERVER_DIR = join(__dirname, '../../server')
@@ -31,11 +34,8 @@ const SETTING_KEY_LITERAL = /'(?<key>[a-z][a-z0-9]*(?:\.[a-z0-9_]+)+)'/g
 // means a real secret ships unencrypted).
 const SECRET_NAME_PATTERN = /api_key|secret|token|auth_key|private_key|password|_key$/
 
-// Keys that match SECRET_NAME_PATTERN by name but are deliberately NOT sensitive — see
-// settings.ts's own FORMERLY_SENSITIVE_SETTING_KEYS comment for payments.paddle_webhook_public_key's
-// case (a public verification key, never used to sign anything).
+// Keys that match SECRET_NAME_PATTERN by name but are deliberately NOT sensitive.
 const PUBLIC_KEY_SHAPED_EXCEPTIONS = new Set([
-  'payments.paddle_webhook_public_key',
   'push.vapid_public_key',
   // Cloudflare Turnstile's "site key" is the public widget key (same model as
   // reCAPTCHA's site key vs secret key) — meant to be embedded in frontend HTML, and

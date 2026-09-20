@@ -8,6 +8,8 @@ import { resolveSetting } from '../../../utils/settings'
 import { resolveStripeProvider, resolveLemonSqueezyProvider, resolvePaddleProvider } from '../../../utils/payments/resolve'
 import { conflict } from '../../../utils/response'
 import { isHttpError, errorMessage } from '../../../utils/errors'
+import { rateLimit } from '../../../utils/rate-limit'
+import { writeAuditLog } from '../../../utils/audit'
 
 const bodySchema = z.object({
   tierId: z.string(),
@@ -15,6 +17,11 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  // Every branch below either calls out to a payment provider (customer lookup/creation,
+  // checkout session/transaction creation) or writes a subscription row directly (the
+  // free-tier path) — same cost profile as the other external-API-calling mutation routes
+  // in this codebase (ai-*, user-invite), which all rate-limit themselves.
+  await rateLimit(event, { limit: 10, windowMs: 60_000, keyPrefix: 'membership-checkout' })
   const session = await requireSession(event)
   const siteId = event.context.siteId as string
   const body = await parseBody(event, bodySchema)
@@ -58,8 +65,13 @@ export default defineEventHandler(async (event) => {
     const periodStart = new Date().toISOString()
     const periodEnd = new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString()
 
-    await db.insert(subscriptions).values({
-      id: ulid(),
+    // `newId` lets us tell insert vs. conflict-triggered update apart without a second
+    // read, the same trick upsertSubscriptionFromWebhook uses: on a real insert
+    // `RETURNING id` is the id just generated; on a conflict, `id` is untouched by the
+    // SET clause below, so it comes back as the pre-existing row's id instead.
+    const newId = ulid()
+    const [row] = await db.insert(subscriptions).values({
+      id: newId,
       siteId,
       userId,
       tierId: tier.id,
@@ -81,6 +93,13 @@ export default defineEventHandler(async (event) => {
         currentPeriodEnd: periodEnd,
         updatedAt: sql`(datetime('now'))`,
       },
+    }).returning({ id: subscriptions.id })
+
+    await writeAuditLog(event, userId, {
+      action: row?.id === newId ? 'create' : 'update',
+      resource: 'subscription',
+      resourceId: row?.id ?? newId,
+      after: { tierId: tier.id, provider: 'stripe', status: 'active' },
     })
 
     return { url: body.returnUrl }

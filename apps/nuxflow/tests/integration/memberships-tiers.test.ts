@@ -2,9 +2,10 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
-import { seedSite, seedUser, seedRole, seedTier, seedSetting } from '../helpers/seed'
+import { seedSite, seedUser, seedRole, seedTier, seedSetting, seedContentType, seedContentItem, seedSubscription } from '../helpers/seed'
 import createHandler from '../../server/api/v1/memberships/index.post'
 import patchHandler from '../../server/api/v1/memberships/[id].patch'
+import deleteHandler from '../../server/api/v1/memberships/[id].delete'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -239,5 +240,56 @@ describe('PATCH /api/v1/memberships/:id', () => {
 
     // Price changed => new variant created
     expect(result.lsVariantId).toBe('ls_var_mock123')
+  })
+})
+
+// ── DELETE /api/v1/memberships/:id ────────────────────────────────────────────
+
+describe('DELETE /api/v1/memberships/:id', () => {
+  it('throws 409 when a non-cancelled subscriber still holds the tier', async () => {
+    const db = getCurrentTestDb()
+    const tierId = await seedTier(db, SITE, { name: 'Has Subscribers', price: 5 })
+    await seedSubscription(db, SITE, viewerId, tierId, { status: 'active' })
+
+    await expect(
+      (deleteHandler as HandlerFn)(mkEvent(undefined, adminId, { id: tierId })),
+    ).rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  it('throws 409 when a content item still gates access to the tier, even with zero subscribers', async () => {
+    const db = getCurrentTestDb()
+    const tierId = await seedTier(db, SITE, { name: 'Gates Content', price: 5 })
+    const typeId = await seedContentType(db, SITE)
+    await seedContentItem(db, SITE, typeId, {
+      visibility: 'members',
+      settings: { access: `tier:${tierId}` },
+    })
+
+    await expect(
+      (deleteHandler as HandlerFn)(mkEvent(undefined, adminId, { id: tierId })),
+    ).rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  it('deletes a tier with no subscribers and no gating content', async () => {
+    const db = getCurrentTestDb()
+    const tierId = await seedTier(db, SITE, { name: 'Deletable', price: 5 })
+
+    await (deleteHandler as HandlerFn)(mkEvent(undefined, adminId, { id: tierId }))
+
+    const remaining = await db.query.membershipTiers.findFirst({ where: (t, { eq: eq_ }) => eq_(t.id, tierId) })
+    expect(remaining).toBeUndefined()
+  })
+
+  it('is not tripped by a different tier referenced in another content item\'s settings', async () => {
+    const db = getCurrentTestDb()
+    const tierId = await seedTier(db, SITE, { name: 'Unrelated', price: 5 })
+    const otherTierId = await seedTier(db, SITE, { name: 'Other', price: 5 })
+    const typeId = await seedContentType(db, SITE)
+    await seedContentItem(db, SITE, typeId, {
+      visibility: 'members',
+      settings: { access: `tier:${otherTierId}` },
+    })
+
+    await (deleteHandler as HandlerFn)(mkEvent(undefined, adminId, { id: tierId }))
   })
 })

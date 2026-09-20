@@ -32,7 +32,7 @@ Fill in:
 
 If Stripe is configured when you save, NuxFlow automatically creates the matching product and price. The tier card will show a **Synced** badge when this succeeds.
 
-**Important for Lemon Squeezy & Paddle:** These providers do not support auto-sync. You must manually create the Product/Variant in their respective dashboards first, then edit your Tier in NuxFlow and paste the **Lemon Squeezy Variant ID** or **Paddle Product ID** into the tier's settings.
+**Important for Lemon Squeezy & Paddle:** These providers do not support auto-sync. You must manually create the Product/Variant (or Product/Price, for Paddle) in their respective dashboards first, then edit your Tier in NuxFlow and paste the **Lemon Squeezy Variant ID** or **Paddle Price ID** (`pri_...` — not the Product ID) into the tier's settings.
 
 ---
 
@@ -102,7 +102,7 @@ NuxFlow verifies the HMAC-SHA256 `X-Signature` header on every request.
 |---|---|
 | **API key** | [Paddle Dashboard → Developer tools → Authentication](https://vendors.paddle.com/api-keys) |
 | **Vendor ID** | Your numeric Paddle vendor ID, shown in **Developer tools → Authentication** |
-| **Webhook public key** | Created in the next step |
+| **Webhook secret** | Created in the next step |
 
 #### Set up the Paddle webhook
 
@@ -116,9 +116,9 @@ NuxFlow verifies the HMAC-SHA256 `X-Signature` header on every request.
    - `subscription.updated`
    - `subscription.activated`
    - `subscription.canceled`
-4. After saving, copy the **Public key (PEM format)** from the notification endpoint details and paste it into **Settings → Payments → Paddle Webhook Public Key**.
+4. After saving, open the notification destination's details and copy its **secret key** (`pdl_ntfset_...`) into **Settings → Payments → Paddle Webhook Secret**.
 
-NuxFlow verifies the Ed25519 signature in the `Paddle-Signature` header.
+NuxFlow verifies the HMAC-SHA256 signature in the `Paddle-Signature` header, keyed by this secret (not a public/private keypair — Paddle notification destinations don't have one).
 
 ---
 
@@ -197,7 +197,7 @@ Members can view and manage their subscription from `/account`:
 
 - **Active subscription**: plan name, renewal date, included features.
 - **Manage billing** (Stripe only): opens the Stripe Customer Portal for invoice history and payment method updates.
-- **Cancel subscription**: available for all providers. Cancellation takes effect immediately and the webhook confirms the change in the background.
+- **Cancel subscription**: available for all providers. Access continues through the end of the period already paid for; the provider's own end-of-period webhook is what finally marks the subscription cancelled in the background.
 
 ### Admins
 

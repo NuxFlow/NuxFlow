@@ -52,7 +52,7 @@ export interface PaymentsState {
   lsWebhookSecret: string
   paddleApiKey: string
   paddleVendorId: string
-  paddleWebhookPublicKey: string
+  paddleWebhookSecret: string
   paddleSandbox: boolean
 }
 

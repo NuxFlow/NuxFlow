@@ -400,7 +400,7 @@ Most variables are prefixed `NUXT_` (except direct provider envs like `S3_*` or 
 | `NUXT_LS_WEBHOOK_SECRET` | | Payments — Lemon Squeezy webhook secret |
 | `NUXT_PADDLE_API_KEY` | | Payments — Paddle API key |
 | `NUXT_PADDLE_VENDOR_ID` | | Payments — Paddle vendor ID |
-| `NUXT_PADDLE_WEBHOOK_PUBLIC_KEY` | | Payments — Paddle Ed25519 public key |
+| `NUXT_PADDLE_WEBHOOK_SECRET` | | Payments — Paddle webhook HMAC secret |
 
 ---
 

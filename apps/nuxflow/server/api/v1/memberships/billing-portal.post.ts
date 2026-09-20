@@ -4,12 +4,17 @@ import { and, eq, ne } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { getStripeProvider, getLemonSqueezyProvider, getPaddleProvider } from '../../../utils/payments/resolve'
 import { isHttpError, errorMessage } from '../../../utils/errors'
+import { rateLimit } from '../../../utils/rate-limit'
 
 const bodySchema = z.object({
   returnUrl: z.url(),
 })
 
 export default defineEventHandler(async (event) => {
+  // This makes a real API call to whichever payment provider is configured on every
+  // request (session creation, or a subscription re-fetch for LS) — same cost profile as
+  // checkout.post.ts, which rate-limits itself for the same reason.
+  await rateLimit(event, { limit: 20, windowMs: 60_000, keyPrefix: 'membership-billing-portal' })
   const session = await requireSession(event)
   const siteId = event.context.siteId as string
   const body = await parseBody(event, bodySchema)

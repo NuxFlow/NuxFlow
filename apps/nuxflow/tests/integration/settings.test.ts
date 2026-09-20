@@ -2,9 +2,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
-import { seedSite, seedSetting, seedRole, seedUser } from '../helpers/seed'
+import { seedSite, seedRole, seedUser } from '../helpers/seed'
 import { resolveSetting, saveSetting, batchSaveSettings, SENSITIVE_SETTING_KEYS, SECRET_MASK } from '../../server/utils/settings'
-import { encryptText } from '../../server/utils/encryption'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -119,37 +118,23 @@ describe('saveSetting + resolveSetting', () => {
     expect(value).toBe('AKIAABCDEFGHIJKLMNOP')
   })
 
-  it('does not treat payments.paddle_webhook_public_key as sensitive (it is a public verification key)', () => {
-    expect(SENSITIVE_SETTING_KEYS.has('payments.paddle_webhook_public_key')).toBe(false)
+  it('treats payments.paddle_webhook_secret as sensitive (Paddle signs webhooks with HMAC-SHA256 keyed by this shared secret, not an asymmetric keypair)', () => {
+    expect(SENSITIVE_SETTING_KEYS.has('payments.paddle_webhook_secret')).toBe(true)
   })
 
-  it('stores payments.paddle_webhook_public_key in plaintext going forward', async () => {
-    const paddleSiteId = `${siteId}-paddle-plain`
-    await seedSite(getCurrentTestDb(), { id: paddleSiteId, domain: `paddle-plain-${Date.now()}.localhost` })
+  it('encrypts and round-trips payments.paddle_webhook_secret like any other sensitive key', async () => {
+    const paddleSiteId = `${siteId}-paddle`
+    await seedSite(getCurrentTestDb(), { id: paddleSiteId, domain: `paddle-${Date.now()}.localhost` })
     const event = mkEvent(paddleSiteId)
-    const pem = '-----BEGIN PUBLIC KEY-----\nabc123\n-----END PUBLIC KEY-----'
-    await saveSetting(event, 'payments.paddle_webhook_public_key', pem)
+    const secret = 'pdl_ntfset_abc123'
+    await saveSetting(event, 'payments.paddle_webhook_secret', secret)
 
     const rows = await getCurrentTestDb().query.siteSettings.findMany()
-    const stored = rows.find(r => r.siteId === paddleSiteId && r.key === 'payments.paddle_webhook_public_key')
-    expect(stored?.value).toBe(pem)
+    const stored = rows.find(r => r.siteId === paddleSiteId && r.key === 'payments.paddle_webhook_secret')
+    expect(stored?.value).not.toBe(secret)
 
-    const value = await resolveSetting(event, 'payments.paddle_webhook_public_key')
-    expect(value).toBe(pem)
-  })
-
-  it('transparently decrypts a payments.paddle_webhook_public_key value stored before it was reclassified as non-sensitive', async () => {
-    const paddleSiteId = `${siteId}-paddle-legacy`
-    await seedSite(getCurrentTestDb(), { id: paddleSiteId, domain: `paddle-legacy-${Date.now()}.localhost` })
-    const event = mkEvent(paddleSiteId)
-
-    // Simulate a row written back when this key was still in SENSITIVE_SETTING_KEYS —
-    // saveSetting() would have encrypted it before this fix.
-    const encrypted = await encryptText('legacy-pem-value', 'test-secret-exactly-32-chars-ok!')
-    await seedSetting(getCurrentTestDb(), paddleSiteId, 'payments.paddle_webhook_public_key', encrypted)
-
-    const value = await resolveSetting(event, 'payments.paddle_webhook_public_key')
-    expect(value).toBe('legacy-pem-value')
+    const value = await resolveSetting(event, 'payments.paddle_webhook_secret')
+    expect(value).toBe(secret)
   })
 })
 

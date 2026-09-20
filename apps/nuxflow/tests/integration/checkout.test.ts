@@ -12,6 +12,10 @@ vi.mock('../../server/utils/db', () => ({
   getD1: () => null,
 }))
 
+vi.mock('../../server/utils/rate-limit', () => ({
+  rateLimit: vi.fn().mockResolvedValue(undefined),
+}))
+
 const { mockCreateTransaction } = vi.hoisted(() => ({
   mockCreateTransaction: vi.fn(),
 }))

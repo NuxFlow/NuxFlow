@@ -12,6 +12,10 @@ vi.mock('../../server/utils/db', () => ({
   getD1: () => null,
 }))
 
+vi.mock('../../server/utils/rate-limit', () => ({
+  rateLimit: vi.fn().mockResolvedValue(undefined),
+}))
+
 const { mockStripeCancel, mockLsCancel, mockPaddleCancel } = vi.hoisted(() => ({
   mockStripeCancel: vi.fn().mockResolvedValue({}),
   mockLsCancel: vi.fn().mockResolvedValue({ data: { id: 'ls_sub_001', attributes: { status: 'cancelled' } } }),

@@ -100,7 +100,7 @@ const payments = reactive<PaymentsState>({
   lsWebhookSecret: '',
   paddleApiKey: '',
   paddleVendorId: '',
-  paddleWebhookPublicKey: '',
+  paddleWebhookSecret: '',
   paddleSandbox: false,
 })
 
@@ -194,7 +194,7 @@ watch(data, (d) => {
   payments.lsWebhookSecret = (s['payments.ls_webhook_secret'] as string) ?? ''
   payments.paddleApiKey = (s['payments.paddle_api_key'] as string) ?? ''
   payments.paddleVendorId = (s['payments.paddle_vendor_id'] as string) ?? ''
-  payments.paddleWebhookPublicKey = (s['payments.paddle_webhook_public_key'] as string) ?? ''
+  payments.paddleWebhookSecret = (s['payments.paddle_webhook_secret'] as string) ?? ''
   payments.paddleSandbox = s['payments.paddle_sandbox'] === 'true'
 
   ai.provider = (s['ai.provider'] as string) ?? 'openai'
@@ -266,7 +266,7 @@ async function save() {
       'payments.ls_webhook_secret': payments.lsWebhookSecret,
       'payments.paddle_api_key': payments.paddleApiKey,
       'payments.paddle_vendor_id': payments.paddleVendorId,
-      'payments.paddle_webhook_public_key': payments.paddleWebhookPublicKey,
+      'payments.paddle_webhook_secret': payments.paddleWebhookSecret,
       'payments.paddle_sandbox': payments.paddleSandbox ? 'true' : 'false',
     }
     await $fetch('/api/v1/settings', {
