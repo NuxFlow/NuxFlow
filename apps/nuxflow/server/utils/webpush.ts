@@ -3,6 +3,7 @@ import { useDb } from './db'
 import { pushSubscriptions } from '@nuxflow/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { resolveSetting } from './settings'
+import { isSafeUrl } from './security'
 
 // ─── Base64url ────────────────────────────────────────────────────────────────
 
@@ -158,6 +159,13 @@ async function dispatchPush(
   vapidPublicKey: string,
   vapidPrivateKey: string,
 ): Promise<void> {
+  // Subscription endpoints are browser-push-service URLs (FCM/Mozilla autopush/etc.) supplied
+  // by the client at subscribe time — an attacker-controlled endpoint pointed at an internal
+  // host would make this Worker issue an authenticated-looking request on their behalf (SSRF).
+  // Guard here too, not just at subscribe time, so a row written before this check existed
+  // (or written by any other path) can't be used to reach an internal address.
+  if (!isSafeUrl(endpoint)) throw new SubscriptionExpiredError()
+
   const subject = `mailto:noreply@${new URL(endpoint).hostname}`
   const jwt = await buildVapidJwt(endpoint, vapidPrivateKey, subject)
   const body = await encryptPayload(p256dh, auth, JSON.stringify(payload))

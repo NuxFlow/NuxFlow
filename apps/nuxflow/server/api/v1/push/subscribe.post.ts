@@ -4,7 +4,8 @@ import { useDb } from '../../../utils/db'
 import { pushSubscriptions } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
-import { created } from '../../../utils/response'
+import { created, validationError } from '../../../utils/response'
+import { isSafeUrl } from '../../../utils/security'
 
 const bodySchema = z.object({
   endpoint: z.string().url(),
@@ -17,6 +18,14 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const body = await parseBody(event, bodySchema)
   const db = useDb(event)
+
+  // endpoint is a browser-supplied push-service URL — without this check any authenticated
+  // site member (even a viewer) could register an internal/loopback address here, causing
+  // this Worker to later make an authenticated-looking outbound request to it on their behalf
+  // (SSRF) the next time a push notification is broadcast to the site.
+  if (!isSafeUrl(body.endpoint)) {
+    validationError('Invalid push subscription endpoint')
+  }
 
   // Upsert: replace any existing subscription for this user+site+endpoint triple.
   // siteId must be part of the match — a user who belongs to multiple sites can

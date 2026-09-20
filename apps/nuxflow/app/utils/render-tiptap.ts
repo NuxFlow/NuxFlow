@@ -22,12 +22,30 @@ function esc(str: string): string {
 // Blocks javascript:/vbscript:/data: URIs in href/src — esc() only escapes HTML metacharacters,
 // it doesn't stop a scheme that executes on click (link) or load (image).
 function escUrl(str: string): string {
-  // Browsers strip ASCII tab/newline/carriage-return from a URL during parsing before
-  // evaluating its scheme, so "jav\tascript:..." parses identically to "javascript:...".
-  // Strip those out before the scheme test, not just leading/trailing whitespace.
-  const trimmed = str.replace(/[\t\r\n]/g, '').trim()
+  // Browsers strip every ASCII C0 control character (U+0000-U+001F, which includes but isn't
+  // limited to tab/newline/carriage-return) from a URL during parsing before evaluating its
+  // scheme, so "\x01javascript:..." parses identically to "javascript:...". Strip the whole
+  // C0 range before the scheme test, not just whitespace-like characters.
+  // eslint-disable-next-line no-control-regex -- stripping C0 controls is the point of this check
+  const trimmed = str.replace(/[\x00-\x1F]/g, '').trim()
   if (/^(?:javascript|vbscript|data):/i.test(trimmed)) return ''
   return esc(str)
+}
+
+// Allowlist for CSS color/font-family values written into an inline style="" attribute —
+// esc() only escapes HTML metacharacters (& < > "), not CSS syntax, so an unescaped ";" lets
+// an attacker append arbitrary trailing declarations (e.g. "red; position:fixed; inset:0").
+const CSS_COLOR_RE = /^(?:#[0-9a-fA-F]{3,8}|rgba?\([\d\s,.]+\)|hsla?\([\d\s,.%]+\)|[a-zA-Z]{2,30})$/
+const CSS_FONT_FAMILY_RE = /^[a-z0-9\s,'"-]{1,100}$/i
+
+function safeCssColor(value: string): string {
+  const trimmed = value.trim()
+  return CSS_COLOR_RE.test(trimmed) ? trimmed : ''
+}
+
+function safeFontFamily(value: string): string {
+  const trimmed = value.trim()
+  return CSS_FONT_FAMILY_RE.test(trimmed) ? trimmed : ''
 }
 
 function children(node: TipTapNode): string {
@@ -52,14 +70,15 @@ function withMarks(text: string, marks: TipTapMark[]): string {
         return `<a href="${href}"${target}>${acc}</a>`
       }
       case 'highlight': {
-        const color = mark.attrs?.color
-          ? ` style="background-color:${esc(String(mark.attrs.color))}"`
-          : ''
+        const safeColor = mark.attrs?.color ? safeCssColor(String(mark.attrs.color)) : ''
+        const color = safeColor ? ` style="background-color:${safeColor}"` : ''
         return `<mark${color}>${acc}</mark>`
       }
       case 'textStyle': {
-        const color = mark.attrs?.color ? `color:${esc(String(mark.attrs.color))};` : ''
-        const family = mark.attrs?.fontFamily ? `font-family:${esc(String(mark.attrs.fontFamily))};` : ''
+        const safeColor = mark.attrs?.color ? safeCssColor(String(mark.attrs.color)) : ''
+        const safeFamily = mark.attrs?.fontFamily ? safeFontFamily(String(mark.attrs.fontFamily)) : ''
+        const color = safeColor ? `color:${safeColor};` : ''
+        const family = safeFamily ? `font-family:${safeFamily};` : ''
         const style = color + family
         return style ? `<span style="${style}">${acc}</span>` : acc
       }

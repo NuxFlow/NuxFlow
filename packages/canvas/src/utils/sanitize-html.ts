@@ -56,11 +56,13 @@ export function sanitizeCustomHtml(html: string | null | undefined): string {
 // click. Only the URI scheme needs blocking here, matching the same javascript:/vbscript:/
 // data: blocklist used for TipTap links/images in app/utils/render-tiptap.ts.
 export function safeHref(url: string | null | undefined): string {
-  // Browsers strip ASCII tab/newline/carriage-return from a URL during parsing (per the
-  // WHATWG URL spec) before evaluating its scheme, so "jav\tascript:..." is parsed and
-  // executed identically to "javascript:...". Strip those out before the scheme test, not
-  // just leading/trailing whitespace via trim(), or that gap lets the check be bypassed.
-  const trimmed = (url ?? '').replace(/[\t\r\n]/g, '').trim()
+  // Browsers strip every ASCII C0 control character (U+0000-U+001F — a broader range than
+  // just tab/newline/carriage-return) from a URL during parsing (per the WHATWG URL spec)
+  // before evaluating its scheme, so "\x01javascript:..." is parsed and executed identically
+  // to "javascript:...". Strip the whole C0 range before the scheme test, not just
+  // leading/trailing whitespace via trim(), or that gap lets the check be bypassed.
+  // eslint-disable-next-line no-control-regex -- stripping C0 controls is the point of this check
+  const trimmed = (url ?? '').replace(/[\x00-\x1F]/g, '').trim()
   if (!trimmed) return ''
   if (/^(?:javascript|vbscript|data):/i.test(trimmed)) return '#'
   return trimmed
