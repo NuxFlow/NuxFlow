@@ -32,6 +32,6 @@ export default defineEventHandler(async (event) => {
   // domain afterward goes through the normal Super Admin → Sites → New flow,
   // the same as adding any other new site.
   const wasLastSite = allSites.length === 1
-  await deleteSiteCompletely(event, siteId, userId)
-  return { id: siteId, wasLastSite }
+  const { failedMediaDeletes } = await deleteSiteCompletely(event, siteId, userId)
+  return { id: siteId, wasLastSite, failedMediaDeletes }
 })

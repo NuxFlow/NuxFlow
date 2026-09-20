@@ -145,6 +145,30 @@ export const aiGenerationJobs = sqliteTable('ai_generation_jobs', {
   index('idx_ai_gen_jobs_user_site').on(t.userId, t.siteId),
 ])
 
+// Server-side proof-of-consent record — written by POST /api/public/consent, which both
+// consent UIs (apps/nuxflow/app/components/public/CookieConsent.vue and
+// packages/canvas/src/blocks/CanvasBlockGdpr.vue) call as a best-effort side effect
+// whenever a visitor makes a choice via the shared nuxflow_consent cookie. Before this
+// existed, the ONLY record of a visitor's consent choice was that single cookie sitting in
+// their own browser — nothing here could demonstrate what consent was given if a visitor's
+// cookie was cleared, expired, or if the operator was ever asked to show compliance
+// (GDPR Article 7(1): the controller must be able to demonstrate that consent was given).
+// Deliberately NOT linked to a specific visitor: no userId, no IP address, no cookie/session
+// identifier — recording enough to demonstrate that consent capture happened and what was
+// shown/granted, without turning a consent-proof mechanism into its own additional
+// personal-data collection point. `userAgent` alone doesn't identify a person the way an IP
+// or account ID would, and is kept only to help distinguish bot/crawler noise later.
+export const consentLogs = sqliteTable('consent_logs', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  analytics: integer('analytics', { mode: 'boolean' }).notNull(),
+  marketing: integer('marketing', { mode: 'boolean' }).notNull(),
+  userAgent: text('user_agent'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_consent_logs_site_created').on(t.siteId, t.createdAt),
+])
+
 // Virtual FTS5 table, backfill, and sync triggers — created via raw SQL in migration,
 // not via Drizzle (drizzle-kit can't express virtual tables or triggers).
 // See migrations/0002_search_index.sql. Kept in sync automatically by AFTER

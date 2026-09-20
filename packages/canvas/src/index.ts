@@ -1,6 +1,17 @@
 export * from './types'
 export * from './blocks/definitions'
 export { spacingToCss } from './utils/spacing'
+export {
+  CONSENT_COOKIE_NAME,
+  CONSENT_EVENT,
+  GDPR_COUNTRIES,
+  isGdprCountry,
+  parseConsentFromHeader,
+  readConsentCookie,
+  writeConsentCookie,
+  hasOptionalConsent,
+} from './utils/consent'
+export type { ConsentState } from './utils/consent'
 export { useCanvas } from './editor/useCanvas'
 export { useAiImprove, AI_IMPROVE_ACTIONS } from './editor/useAiImprove'
 export type { AiInstruction, AiImproveAction } from './editor/useAiImprove'

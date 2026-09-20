@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import type { SpacingValue } from '../types'
 import { safeHref } from '../utils/sanitize-html'
 import { spacingToCss } from '../utils/spacing'
+import { readConsentCookie, writeConsentCookie, isGdprCountry } from '../utils/consent'
 
 declare const useState: <T>(key: string, init?: () => T) => { value: T }
 declare const useRequestEvent: () => unknown
@@ -48,6 +49,14 @@ const props = withDefaults(defineProps<{
   padding: undefined,
 })
 
+// Tells the global cookie-consent banner (apps/nuxflow/app/components/public/
+// CookieConsent.vue) that this page already has its own, more granular consent UI, so
+// it doesn't render a second banner with a separate consent record on top of this one.
+// Set synchronously here (not in onMounted) so it's part of the SSR payload before the
+// layout's <ClientOnly> mounts the global banner on the client — see the comment on
+// that component for why this ordering is safe regardless of which one mounts first.
+useState('nuxflow:gdpr-banner-present', () => false).value = true
+
 const isVisible = ref(false)
 const showDetails = ref(false)
 
@@ -63,32 +72,22 @@ const isGdprZone = useState('is-gdpr-zone', () => {
     const event = useRequestEvent() as { node: { req: { headers: Record<string, string | string[] | undefined> } } } | null
     if (event) {
       const headers = event.node.req.headers
-      const country = (headers['cf-ipcountry'] || headers['CF-IPCountry'] || 'US') as string
-      const gdprCountries = [
-        'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE', 'GB', 'IS', 'LI', 'NO', 'CH'
-      ]
-      return gdprCountries.includes(country.toUpperCase())
+      const country = (headers['cf-ipcountry'] || headers['CF-IPCountry'] || '') as string
+      return isGdprCountry(country)
     }
   }
   return true
 })
 
 onMounted(() => {
-  const consent = localStorage.getItem('nuxflow-cookie-consent')
+  const consent = readConsentCookie()
   if (consent) {
-    try {
-      const parsed = JSON.parse(consent)
-      if (parsed && typeof parsed === 'object') {
-        consentCategories.value = {
-          necessary: true,
-          analytics: !!parsed.analytics,
-          marketing: !!parsed.marketing,
-        }
-        return // Already consented, keep hidden
-      }
-    } catch {
-      // Invalid format, prompt again
+    consentCategories.value = {
+      necessary: true,
+      analytics: consent.analytics,
+      marketing: consent.marketing,
     }
+    return // Already consented, keep hidden
   }
 
   // Check geolocation targeting before showing the banner
@@ -98,21 +97,8 @@ onMounted(() => {
 })
 
 function saveConsent(analytics: boolean, marketing: boolean) {
-  const consentObj = {
-    necessary: true,
-    analytics,
-    marketing,
-    timestamp: new Date().toISOString(),
-  }
-  localStorage.setItem('nuxflow-cookie-consent', JSON.stringify(consentObj))
-  
-  // Save categories to cookies for cross-origin or server-side access
-  document.cookie = `nuxflow-consent-analytics=${analytics ? '1' : '0'}; path=/; max-age=31536000; SameSite=Lax`
-  document.cookie = `nuxflow-consent-marketing=${marketing ? '1' : '0'}; path=/; max-age=31536000; SameSite=Lax`
-  
-  // Emit custom event
-  window.dispatchEvent(new CustomEvent('nuxflow-cookie-consent', { detail: consentObj }))
-  
+  writeConsentCookie(analytics, marketing)
+  consentCategories.value = { necessary: true, analytics, marketing }
   isVisible.value = false
   showDetails.value = false
 }

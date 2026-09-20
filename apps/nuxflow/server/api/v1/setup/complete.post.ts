@@ -498,6 +498,39 @@ async function _handleSetup(event: H3Event) {
     })
   }
 
+  // Both the global cookie-consent banner and the canvas GDPR block link to /privacy
+  // by default (see apps/nuxflow/app/components/public/CookieConsent.vue and
+  // packages/canvas/src/blocks/CanvasBlockGdpr.vue) — without this, that link 404s on
+  // every fresh site until an admin happens to create the page themselves. Seeded as
+  // ordinary, fully editable page content (not locked or hidden from the content list)
+  // since this boilerplate text is a starting point, not real legal advice — the admin
+  // is expected to review and customize it for their own data practices.
+  await db.insert(contentItems).values({
+    id: ulid(),
+    siteId,
+    typeId: pageTypeId,
+    authorId: adminUser.id,
+    slug: 'privacy',
+    title: 'Privacy Policy',
+    status: 'published',
+    visibility: 'public',
+    content: {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{
+            type: 'text',
+            text: 'This is placeholder text — replace it with your own privacy policy before launch. Describe what personal data you collect, why, how long you keep it, which third parties (analytics, payment processors, email providers) you share it with, and how a visitor can exercise their rights (access, correction, deletion) over their data.',
+          }],
+        },
+      ],
+    },
+    seoTitle: `Privacy Policy - ${siteName}`,
+    seoDescription: `How ${siteName} collects, uses, and protects your personal data.`,
+    publishedAt: new Date().toISOString(),
+  })
+
   // Seed default taxonomies
   await db.insert(taxonomies).values([
     { id: ulid(), siteId, slug: 'category', name: 'Categories', isHierarchical: true },

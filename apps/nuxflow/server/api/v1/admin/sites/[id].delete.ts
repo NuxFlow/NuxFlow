@@ -9,7 +9,12 @@ export default defineEventHandler(async (event) => {
     throw conflict('Cannot delete the site you are currently viewing. Switch to another domain first.')
   }
 
-  await deleteSiteCompletely(event, id, userId)
+  const { failedMediaDeletes } = await deleteSiteCompletely(event, id, userId)
 
+  // Non-204 only when something needs the operator's attention — every previous
+  // behaviour (silent success) is unchanged for the common case.
+  if (failedMediaDeletes.length > 0) {
+    return { failedMediaDeletes }
+  }
   return noContent(event)
 })

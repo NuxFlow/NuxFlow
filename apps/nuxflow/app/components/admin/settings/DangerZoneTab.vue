@@ -53,10 +53,17 @@ async function deleteSite() {
   if (deleteConfirm.value !== props.siteName) return
   deleting.value = true
   try {
-    const res = await $fetch<{ id: string; wasLastSite: boolean }>('/api/v1/settings', { method: 'DELETE' })
+    const res = await $fetch<{ id: string; wasLastSite: boolean; failedMediaDeletes: string[] }>('/api/v1/settings', { method: 'DELETE' })
     siteDeleted.value = true
     deletedWasLastSite.value = res.wasLastSite
     toast.add({ title: 'Site deleted — you will be signed out shortly', color: 'success' })
+    if (res.failedMediaDeletes.length > 0) {
+      toast.add({
+        title: `${res.failedMediaDeletes.length} media file(s) could not be removed from storage`,
+        description: 'The site\'s records are gone, but some files may still exist with your media provider — check it directly.',
+        color: 'warning',
+      })
+    }
 
     // The domain this site lived on no longer has any site at all — a session
     // cookie here is meaningless either way, so always sign out. Deliberately

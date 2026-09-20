@@ -31,11 +31,20 @@ globalThis.getHeader = (event: Record<string, unknown>, name: string): string | 
 globalThis.getHeaders = (event: Record<string, unknown>): Record<string, string> =>
   (event as { _headers?: Record<string, string> })._headers ?? {}
 
+// Real h3 implements getHeader/getHeaders as aliases of getRequestHeader/
+// getRequestHeaders (same functions) — mirrored here so route code can use either name.
+globalThis.getRequestHeader = globalThis.getHeader
+globalThis.getRequestHeaders = globalThis.getHeaders
+
 globalThis.setHeader = (event: Record<string, unknown>, name: string, value: string): void => {
   const e = event as { _responseHeaders?: Record<string, string> }
   if (!e._responseHeaders) e._responseHeaders = {}
   e._responseHeaders[name] = value
 }
+
+// Real h3 implements setHeader as an alias of setResponseHeader (same function) —
+// mirrored here so route code can use either name.
+globalThis.setResponseHeader = globalThis.setHeader
 
 globalThis.appendResponseHeader = (event: Record<string, unknown>, name: string, value: string): void => {
   const e = event as { _responseHeaders?: Record<string, string[]> }
