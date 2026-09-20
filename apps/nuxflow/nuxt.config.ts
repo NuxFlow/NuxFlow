@@ -91,6 +91,11 @@ export default defineNuxtConfig({
   },
 
   i18n: {
+    // The `v-t` directive isn't used anywhere in this app (only the `$t()`/`useI18n()`
+    // composable API is), so this build-time optimization has nothing to do — explicitly
+    // disabling it (rather than leaving the default `true`) silences a warning the module
+    // itself recommends addressing ahead of its v10 deprecation, with no behaviour change.
+    bundle: { optimizeTranslationDirective: false },
     defaultLocale: 'en',
     // .ts, not .json — see the comment in app/locales/en.ts for why.
     locales: [{ code: 'en', file: 'en.ts', name: 'English' }],
