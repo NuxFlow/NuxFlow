@@ -38,8 +38,8 @@ const columns = [
         </template>
         <template #actions-cell="{ row }">
           <div class="flex gap-1 justify-end">
-            <UButton :to="`/admin/forms/${row.original.id}/submissions`" variant="ghost" size="xs" icon="i-lucide-inbox" />
-            <UButton :to="`/admin/forms/${row.original.id}/edit`" variant="ghost" size="xs" icon="i-lucide-pencil" />
+            <UButton :to="`/admin/forms/${row.original.id}/submissions`" variant="ghost" size="xs" icon="i-lucide-inbox" :aria-label="`View submissions for ${row.original.name}`" />
+            <UButton :to="`/admin/forms/${row.original.id}/edit`" variant="ghost" size="xs" icon="i-lucide-pencil" :aria-label="`Edit ${row.original.name}`" />
           </div>
         </template>
       </UTable>

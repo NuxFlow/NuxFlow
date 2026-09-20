@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { useDb } from '../utils/db'
 import { getFeedSite, getPublishedPostsForFeed } from '@nuxflow/db/queries'
 import { withEdgeCache } from '../utils/edge-cache'
+import { escXml, cdataSafe } from '../utils/xml'
 
 function escHtml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -69,7 +70,8 @@ async function buildFeed(event: H3Event) {
   const config = useRuntimeConfig()
 
   const site = await getFeedSite(db, siteId)
-  const baseUrl = site ? `https://${site.domain}` : config.public.siteUrl
+  const baseUrl = escXml(site ? `https://${site.domain}` : config.public.siteUrl)
+  const siteName = escXml(site?.name ?? 'NuxFlow')
   const posts = await getPublishedPostsForFeed(db, siteId)
 
   const items = posts.map((p) => {
@@ -80,11 +82,11 @@ async function buildFeed(event: H3Event) {
     const itemUrl = `${baseUrl}/${escHtml(p.slug)}`
     return `
     <item>
-      <title><![CDATA[${p.title}]]></title>
+      <title><![CDATA[${cdataSafe(p.title)}]]></title>
       <link>${itemUrl}</link>
       <guid isPermaLink="true">${itemUrl}</guid>
       <pubDate>${new Date(p.publishedAt ?? p.updatedAt).toUTCString()}</pubDate>
-      ${summary ? `<description><![CDATA[${summary}]]></description>` : ''}
+      ${summary ? `<description><![CDATA[${cdataSafe(summary)}]]></description>` : ''}
       ${fullHtml ? `<content:encoded><![CDATA[${fullHtml}]]></content:encoded>` : ''}
       ${p.authorName ? `<author>${escHtml(p.authorName)}</author>` : ''}
       ${p.ogImage ? `<media:thumbnail url="${escHtml(p.ogImage)}" /><media:content url="${escHtml(p.ogImage)}" medium="image" />` : ''}
@@ -97,9 +99,9 @@ async function buildFeed(event: H3Event) {
      xmlns:content="http://purl.org/rss/1.0/modules/content/"
      xmlns:media="http://search.yahoo.com/mrss/">
   <channel>
-    <title>${site?.name ?? 'NuxFlow'}</title>
+    <title>${siteName}</title>
     <link>${baseUrl}</link>
-    <description>Latest posts from ${site?.name ?? 'NuxFlow'}</description>
+    <description>Latest posts from ${siteName}</description>
     <atom:link href="${baseUrl}/feed.xml" rel="self" type="application/rss+xml" />
     <atom:link href="${baseUrl}/atom.xml" rel="alternate" type="application/atom+xml" />
     ${items}

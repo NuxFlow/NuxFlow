@@ -1,10 +1,9 @@
 import { useDb } from '../../../../utils/db'
-import { requireAuth } from '../../../../utils/permissions'
+import { isSiteMember } from '../../../../utils/permissions'
 import { comments } from '@nuxflow/db/schema'
 import { and, eq, desc } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
-  const session = await getAuthSession(event)
   const siteId = event.context.siteId!
   const itemId = getRouterParam(event, 'id')!
 
@@ -15,15 +14,7 @@ export default defineEventHandler(async (event) => {
   // any user with a session anywhere see another site's pending/spam comments (guest names
   // + bodies included). Require real site membership (or super-admin), matching every other
   // admin-visible-data check in the codebase.
-  let canModerate = false
-  if (session) {
-    try {
-      await requireAuth(event)
-      canModerate = true
-    } catch {
-      canModerate = false
-    }
-  }
+  const canModerate = await isSiteMember(event)
 
   const rows = await db.query.comments.findMany({
     where: and(

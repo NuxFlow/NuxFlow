@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { generateObject } from 'ai'
 import { requireRole } from '../../../utils/permissions'
 import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
+import { rateLimit } from '../../../utils/rate-limit'
 
 const bodySchema = z.object({
   title: z.string().min(1),
@@ -23,6 +24,9 @@ const SYSTEM = `You are an SEO expert. Generate an SEO title (max 60 characters)
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
+  // Single generateObject call, same order of magnitude as grammar.post.ts/
+  // generate-content.post.ts (both 15/min) — this route previously had no rate limit at all.
+  await rateLimit(event, { limit: 15, windowMs: 60_000, keyPrefix: 'ai-seo' })
   const model = await requireAiSdkModel(event, 'fast')
 
   const { title, body } = await parseBody(event, bodySchema)

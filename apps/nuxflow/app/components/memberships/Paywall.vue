@@ -7,6 +7,12 @@ const { loggedIn } = useUserSession()
 const loading = ref<string | null>(null)
 const toast = useToast()
 
+// Matches MembershipsBlock.vue's formatPrice() for the same tier data shape — raw
+// concatenation here previously rendered e.g. "usd29.99" instead of "$29.99".
+function formatPrice(price: number, currency: string) {
+  return new Intl.NumberFormat('en', { style: 'currency', currency, minimumFractionDigits: 0 }).format(price)
+}
+
 async function subscribe(tierId: string) {
   if (!loggedIn.value) {
     window.location.href = `/register?redirect=${encodeURIComponent(window.location.pathname)}`
@@ -48,7 +54,7 @@ async function subscribe(tierId: string) {
         <div>
           <p class="font-semibold text-gray-900 dark:text-white">{{ tier.name }}</p>
           <p class="text-2xl font-bold text-primary-500 mt-1">
-            {{ tier.currency }}{{ tier.price }}
+            {{ formatPrice(tier.price, tier.currency) }}
             <span class="text-sm font-normal text-gray-400">/ {{ tier.interval }}</span>
           </p>
         </div>

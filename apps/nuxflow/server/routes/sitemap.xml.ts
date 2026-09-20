@@ -3,10 +3,7 @@ import { useDb } from '../utils/db'
 import { contentItems, sites, siteSettings, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { withEdgeCache } from '../utils/edge-cache'
-
-function escXml(s: string) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
+import { escXml } from '../utils/xml'
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Content-Type', 'application/xml')
@@ -32,7 +29,7 @@ async function buildSitemap(event: H3Event) {
   ])
 
   const domainBase = site ? `https://${site.domain}` : config.public.siteUrl
-  const baseUrl = (canonicalSetting?.value as string | undefined)?.trim() || domainBase
+  const baseUrl = escXml((canonicalSetting?.value as string | undefined)?.trim() || domainBase)
 
   // The sitemap protocol caps a single file at 50,000 URLs. This route only ever emits
   // one file (no sitemap-index pagination), so without a bound, an increasingly large

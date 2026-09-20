@@ -1,6 +1,6 @@
 import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
-import { putThemeCSS, putThemeDemo } from '../../../utils/cf-env'
+import { putThemeCSS, putThemeDemo, waitUntil } from '../../../utils/cf-env'
 import { themes, media } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -10,6 +10,7 @@ import { getActiveProvider } from '../../../utils/media-providers/index'
 import type { NuxFlowBackup } from '../../../utils/backup'
 import { validateZipArchive } from '../../../utils/security'
 import { isHttpError } from '../../../utils/errors'
+import { purgeAllPublicPages } from '../../../utils/edge-cache'
 
 const MAX_ZIP_BYTES = 50 * 1024 * 1024 // 50 MB
 const IMAGE_EXT = /\.(?:jpg|jpeg|png|webp|gif|svg|avif|ico)$/i
@@ -178,6 +179,14 @@ export default defineEventHandler(async (event) => {
   })
   if (!anyActive) {
     await db.update(themes).set({ isActive: true }).where(and(eq(themes.id, id), eq(themes.siteId, siteId)))
+    // Matches activate.post.ts's own purge — this path activates a theme too (as the
+    // first one on a site with none active yet), just as a side effect of upload rather
+    // than an explicit activate call. Lowest-impact of the three activation paths that
+    // needed this (a fresh/empty site typically has nothing cached yet), but kept for
+    // consistency with every other place that changes which theme is active.
+    waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
+      console.error('[themes] Failed to purge page cache after theme upload activation:', err)
+    }))
   }
 
   const demoSummary = hasDemoContent

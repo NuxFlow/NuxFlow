@@ -11,17 +11,23 @@ import type { H3Event } from 'h3'
  *
  * The core correctness question for any shared HTML cache is "can this response vary per
  * visitor, and if so, on what?" For an anonymous (no session) request to a public page,
- * this app's SSR output is a pure function of the URL — with one caveat found by testing
- * the live site: @nuxtjs/i18n sets an `i18n_redirected` cookie on literally every first
- * visit. Gating on "zero cookies present" would mean the cache almost never fires for
- * anyone past their very first page view — nearly the whole optimization would be
- * theoretical. So that one specific, known cookie is allowlisted, but ONLY when its value
- * equals the site's configured default locale (today the only locale this install has) —
- * a request whose language cookie holds any other value is treated as potentially
- * rendering different (translated) content and is excluded, rather than guessed at. Any
- * cookie besides that one disqualifies the request outright — a future plugin or feature
- * adding a new cookie means "stop caching that request", never "risk serving one
- * visitor's personalized/private response to someone else".
+ * this app's SSR output is a pure function of the URL, so the simple rule is: any cookie
+ * present at all disqualifies the request (fail-safe — a future plugin or feature adding a
+ * new cookie means "stop caching that request", never "risk serving one visitor's
+ * personalized/private response to someone else").
+ *
+ * This used to carry a narrow allowlist for `i18n_redirected`, a cookie the (now-removed)
+ * `@nuxtjs/i18n` module set automatically on literally every first visit — without it,
+ * nearly every anonymous visitor's very first page view would look "not zero-cookie" and
+ * the cache would rarely fire at all. That module is gone as of this codebase no longer
+ * using it for anything (the app's actual multilingual content routing is a separate,
+ * custom, purely URL-slug-based system with no cookie involved — see CLAUDE.md's
+ * "Multilingual Content" section), so no visitor will ever have this cookie set again from
+ * this point forward. A visitor who already has a stale copy of it from before this change
+ * simply falls through to the general "unrecognized cookie present" case below and is
+ * conservatively excluded from the cache until it expires or they clear it — exactly the
+ * fail-safe behavior this function already applies to any other unrecognized cookie, so
+ * this isn't a special case to keep carrying, just this rule doing what it always did.
  */
 
 const EXCLUDED_PATH_PREFIXES = ['/admin', '/api', '/_']
@@ -44,11 +50,6 @@ const EXCLUDED_EXACT_PATHS = new Set([
 
 export const PAGE_CACHE_TTL_SECONDS = 3600
 
-function defaultLocale(): string {
-  const i18n = useRuntimeConfig().public?.i18n as { defaultLocale?: string } | undefined
-  return i18n?.defaultLocale ?? 'en'
-}
-
 export function isPageCacheEligible(event: H3Event): boolean {
   if (event.method !== 'GET') return false
 
@@ -57,12 +58,7 @@ export function isPageCacheEligible(event: H3Event): boolean {
   if (EXCLUDED_EXACT_PATHS.has(path)) return false
 
   const cookies = parseCookies(event)
-  const cookieNames = Object.keys(cookies)
-  if (cookieNames.length === 0) return true
-
-  return cookieNames.length === 1
-    && cookieNames[0] === 'i18n_redirected'
-    && cookies.i18n_redirected === defaultLocale()
+  return Object.keys(cookies).length === 0
 }
 
 export function pageCacheRequest(event: H3Event): Request {

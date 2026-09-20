@@ -187,7 +187,7 @@ describe('PATCH /api/v1/contact/submissions/:id', () => {
     const db = getCurrentTestDb()
     await seedSite(db, { id: otherSite, domain: `contact-other-${ulid()}.localhost` })
     const otherForm = ulid()
-    await db.insert(forms).values({ id: otherForm, siteId: otherSite, name: 'Contact Form', slug: 'contact', fields: [], logic: [], status: 'active' })
+    await db.insert(forms).values({ id: otherForm, siteId: otherSite, name: 'Contact Form', slug: 'contact', fields: [], status: 'active' })
     const otherSubmission = ulid()
     await db.insert(formSubmissions).values({ id: otherSubmission, formId: otherForm, siteId: otherSite, data: {}, status: 'new' })
 

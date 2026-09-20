@@ -1,5 +1,6 @@
 import { contentItems, contentTaxonomyTerms, taxonomyTerms, taxonomies } from '../schema'
 import { and, eq, desc, sql } from 'drizzle-orm'
+import { paginate } from './paginate'
 import type { Db } from './types'
 
 /** All taxonomy terms (with their parent taxonomy) assigned to one content item. */
@@ -28,27 +29,29 @@ export async function getItemsForTerm(db: Db, siteId: string, termId: string, op
     eq(contentItems.visibility, 'public'),
   )
 
-  const [countResult] = await db
-    .select({ total: sql<number>`count(*)` })
-    .from(contentItems)
-    .innerJoin(contentTaxonomyTerms, eq(contentTaxonomyTerms.contentItemId, contentItems.id))
-    .where(matchCondition)
-
-  const items = await db
-    .select({
-      id: contentItems.id,
-      title: contentItems.title,
-      slug: contentItems.slug,
-      excerpt: contentItems.excerpt,
-      ogImage: contentItems.ogImage,
-      publishedAt: contentItems.publishedAt,
-    })
-    .from(contentItems)
-    .innerJoin(contentTaxonomyTerms, eq(contentTaxonomyTerms.contentItemId, contentItems.id))
-    .where(matchCondition)
-    .orderBy(desc(contentItems.publishedAt))
-    .limit(opts.limit)
-    .offset(opts.offset)
-
-  return { items, total: countResult?.total ?? 0 }
+  // Not countRows() — that helper only supports a plain `.from(table).where(where)` count,
+  // and this count needs the same join as the rows query. paginate() itself is
+  // table/query-builder-agnostic (it just bundles two thunks), so it still applies here.
+  return paginate(
+    () => db
+      .select({ total: sql<number>`count(*)` })
+      .from(contentItems)
+      .innerJoin(contentTaxonomyTerms, eq(contentTaxonomyTerms.contentItemId, contentItems.id))
+      .where(matchCondition),
+    () => db
+      .select({
+        id: contentItems.id,
+        title: contentItems.title,
+        slug: contentItems.slug,
+        excerpt: contentItems.excerpt,
+        ogImage: contentItems.ogImage,
+        publishedAt: contentItems.publishedAt,
+      })
+      .from(contentItems)
+      .innerJoin(contentTaxonomyTerms, eq(contentTaxonomyTerms.contentItemId, contentItems.id))
+      .where(matchCondition)
+      .orderBy(desc(contentItems.publishedAt))
+      .limit(opts.limit)
+      .offset(opts.offset),
+  )
 }

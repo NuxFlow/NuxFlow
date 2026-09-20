@@ -32,10 +32,15 @@ export class CloudflareImagesProvider implements MediaProvider {
   }
 
   async delete(storageKey: string): Promise<void> {
-    await fetch(
+    const res = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/images/v1/${storageKey}`,
       { method: 'DELETE', headers: { Authorization: `Bearer ${this.imagesToken}` } },
     )
+    // Without this check (mirroring upload()'s own res.ok check above), a failed
+    // provider-side delete (bad/revoked token, 5xx) is silently swallowed, the caller
+    // deletes the D1 row anyway, and the image orphans in Cloudflare Images with no
+    // error surfaced anywhere.
+    if (!res.ok) throw new Error(`Cloudflare Images delete failed: ${res.status}`)
   }
 
   getUrl(storageKey: string): string {

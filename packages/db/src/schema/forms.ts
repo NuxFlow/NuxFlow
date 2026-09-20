@@ -3,13 +3,17 @@ import { sql } from 'drizzle-orm'
 import { sites } from './sites'
 import { users } from './users'
 
+// Target of ON DELETE CASCADE from formSubmissions.formId below — same DROP-TABLE-
+// triggers-FK-actions landmine documented in full on `sites` in sites.ts. A future
+// rebuild migration on `forms` would silently delete every submission to every form,
+// for every site, with no error; verify against a real D1 deploy first, or hand-write
+// the migration.
 export const forms = sqliteTable('forms', {
   id: text('id').primaryKey(),
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   slug: text('slug').notNull(),
   fields: text('fields', { mode: 'json' }).$type<FormField[]>().notNull().default([]),
-  logic: text('logic', { mode: 'json' }).$type<ConditionalLogic[]>().notNull().default([]),
   notifications: text('notifications', { mode: 'json' }).$type<Record<string, unknown>>(),
   redirectUrl: text('redirect_url'),
   status: text('status', { enum: ['active', 'draft', 'closed'] }).notNull().default('active'),
@@ -46,15 +50,4 @@ export interface FormField {
   options?: Array<{ label: string; value: string }>
   validation?: Record<string, unknown>
   formula?: string
-}
-
-export interface ConditionalLogic {
-  fieldId: string
-  action: 'show' | 'hide' | 'require'
-  conditions: Array<{
-    fieldId: string
-    operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than'
-    value: unknown
-  }>
-  logicType: 'all' | 'any'
 }

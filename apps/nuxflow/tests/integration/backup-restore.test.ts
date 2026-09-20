@@ -116,7 +116,7 @@ beforeAll(async () => {
   await db.insert(forms).values({
     id: ulid(), siteId: SOURCE_SITE, slug: 'contact', name: 'Contact Us',
     fields: [{ key: 'email', type: 'email', label: 'Email' }],
-    logic: [], notifications: {}, redirectUrl: null, status: 'active',
+    notifications: {}, redirectUrl: null, status: 'active',
   })
 
   // A plain setting and a sensitive one — saveSetting() encrypts the sensitive one.

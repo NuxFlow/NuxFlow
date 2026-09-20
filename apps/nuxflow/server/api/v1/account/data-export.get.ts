@@ -112,17 +112,29 @@ export default defineEventHandler(async (event) => {
 
   setResponseHeader(event, 'content-disposition', `attachment; filename="nuxflow-data-export.json"`)
 
+  // Every capped section (EXPORT_ROW_LIMIT above) gets a sibling `*Truncated` flag —
+  // without it, a prolific account's export looks complete when it's actually silently
+  // missing rows past the cap. Exactly-at-the-limit is treated as truncated (a false
+  // positive is possible if the real total happens to equal the cap exactly, but the
+  // alternative — an extra COUNT query per table just to know for certain — isn't worth
+  // it for what's meant to be a "did I get everything" signal, not an exact accounting).
   return {
     exportedAt: new Date().toISOString(),
     profile,
     siteRoles,
     authoredContent,
+    authoredContentTruncated: authoredContent.length >= EXPORT_ROW_LIMIT,
     authoredRevisions,
+    authoredRevisionsTruncated: authoredRevisions.length >= EXPORT_ROW_LIMIT,
     uploadedMedia,
+    uploadedMediaTruncated: uploadedMedia.length >= EXPORT_ROW_LIMIT,
     comments: authoredComments,
+    commentsTruncated: authoredComments.length >= EXPORT_ROW_LIMIT,
     formSubmissions: submissions,
+    formSubmissionsTruncated: submissions.length >= EXPORT_ROW_LIMIT,
     subscriptions: subs,
     apiKeys: keys,
     auditLog: logs,
+    auditLogTruncated: logs.length >= EXPORT_ROW_LIMIT,
   }
 })

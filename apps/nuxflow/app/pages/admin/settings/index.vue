@@ -43,8 +43,7 @@ const active = ref(
     : 'General',
 )
 
-const saving = ref(false)
-const toast = useToast()
+const { loading: saving, run: runSave } = useAdminAction()
 
 // Each reactive object below is owned by this page and passed down to the
 // corresponding tab component by reference — a child mutating e.g. `general.name`
@@ -235,8 +234,7 @@ watch(data, (d) => {
 // expects: whatever's currently in these reactive objects, regardless of which tab is
 // visible, saves together in one call.
 async function save() {
-  saving.value = true
-  try {
+  await runSave(async () => {
     const settingsMap: Record<string, unknown> = {
       'email.provider': email.provider,
       'email.from_address': email.fromAddress,
@@ -269,7 +267,7 @@ async function save() {
       'payments.paddle_webhook_secret': payments.paddleWebhookSecret,
       'payments.paddle_sandbox': payments.paddleSandbox ? 'true' : 'false',
     }
-    await $fetch('/api/v1/settings', {
+    await $fetch<unknown>('/api/v1/settings', {
       method: 'PATCH',
       body: {
         name: general.name,
@@ -313,14 +311,8 @@ async function save() {
         },
       },
     })
-    toast.add({ title: 'Settings saved', color: 'success' })
     await refresh()
-  } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to save settings'
-    toast.add({ title: 'Failed to save settings', description: msg, color: 'error' })
-  } finally {
-    saving.value = false
-  }
+  }, { successTitle: 'Settings saved', errorTitle: 'Failed to save settings' })
 }
 </script>
 

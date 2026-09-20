@@ -16,6 +16,14 @@ const dateText = customType<{ data: string; driverData: string }>({
   },
 })
 
+// Target of ON DELETE CASCADE from sessions, accounts, user_site_roles, api_keys,
+// passkeys, audit_logs, notifications, and subscriptions (all keyed on userId), plus ON
+// DELETE SET NULL from content_items/content_revisions/comments (authorId),
+// media/video_assets (uploadedBy), and form_submissions (userId) — same DROP-TABLE-
+// triggers-FK-actions landmine documented in full on `sites` in sites.ts. A future
+// table-rebuild migration on `users` would silently mass-delete or null out all of the
+// above, for every user, with no error. Verify against a real D1 deploy first, or
+// hand-write the migration to avoid drizzle-kit's rebuild strategy.
 // Better Auth core tables
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),

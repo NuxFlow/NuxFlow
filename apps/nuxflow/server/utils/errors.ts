@@ -9,6 +9,20 @@ export function errorMessage(err: unknown, fallback = 'Unexpected error'): strin
 }
 
 /**
+ * Rethrows a caught payment-provider call failure as a clean 502 (or passes through an
+ * H3 error unchanged, e.g. one of this codebase's own `notFound()`/`conflict()` calls
+ * made from inside the same try block). Centralizes what used to be an identical
+ * `if (isHttpError(err)) throw err; else throw createError({ statusCode: 502, ... })`
+ * copy-pasted across checkout.post.ts, billing-portal.post.ts, and
+ * account/subscription.delete.ts — each only differs in the label describing which
+ * operation failed (checkout / billing portal request / cancellation).
+ */
+export function rethrowAsProviderError(err: unknown, operationLabel: string): never {
+  if (isHttpError(err)) throw err
+  throw createError({ statusCode: 502, message: `Payment provider ${operationLabel} failed: ${errorMessage(err)}` })
+}
+
+/**
  * Extracts a human-readable, credential/rate-limit-aware message from a media provider
  * upload/delete failure — mirrors ai-sdk.ts's `aiErrorMessage()`, which already does this
  * for AI provider errors, so the two kinds of "third-party API call failed" errors surface

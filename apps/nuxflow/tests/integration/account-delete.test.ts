@@ -3,8 +3,9 @@ import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedTier, seedSubscription, seedContentType, seedContentItem, seedMedia, seedSetting } from '../helpers/seed'
-import { users, contentItems, media, subscriptions, userSiteRoles, auditLogs } from '@nuxflow/db/schema'
+import { users, contentItems, media, subscriptions, userSiteRoles, auditLogs, comments, forms, formSubmissions } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { ulid } from 'ulid'
 import handler from '../../server/api/v1/account/index.delete'
 
 vi.mock('../../server/utils/db', () => ({
@@ -155,6 +156,45 @@ describe('DELETE /api/v1/account', () => {
     const mediaRow = await db.query.media.findFirst({ where: eq(media.id, mediaId) })
     expect(mediaRow).toBeDefined()
     expect(mediaRow!.uploadedBy).toBeNull()
+  })
+
+  it('redacts comment bodies and form submission data, not just the FK link (Article 17)', async () => {
+    const db = getCurrentTestDb()
+    const userId = await seedUser(db, { email: 'erasure@acct-del.test' })
+    await seedRole(db, userId, SITE_A, 'member')
+
+    const typeId = await seedContentType(db, SITE_A)
+    const itemId = await seedContentItem(db, SITE_A, typeId)
+
+    const commentId = ulid()
+    await db.insert(comments).values({
+      id: commentId, siteId: SITE_A, itemId, authorId: userId,
+      body: 'This comment contains personal thoughts I typed myself.',
+      status: 'approved',
+    })
+
+    const formId = ulid()
+    await db.insert(forms).values({ id: formId, siteId: SITE_A, name: 'Contact', slug: `contact-${formId.toLowerCase()}`, fields: [], status: 'active' })
+    const submissionId = ulid()
+    await db.insert(formSubmissions).values({
+      id: submissionId, formId, siteId: SITE_A, userId,
+      data: { name: 'Real Name', email: 'real@example.com', message: 'Call me at 555-0100' },
+      status: 'new',
+    })
+
+    await (handler as HandlerFn)(mkEvent(userId, SITE_A))
+
+    const comment = await db.query.comments.findFirst({ where: eq(comments.id, commentId) })
+    expect(comment).toBeDefined()
+    expect(comment!.authorId).toBeNull()
+    expect(comment!.body).toBe('[deleted]')
+
+    const submission = await db.query.formSubmissions.findFirst({ where: eq(formSubmissions.id, submissionId) })
+    expect(submission).toBeDefined()
+    expect(submission!.userId).toBeNull()
+    expect(submission!.data).toMatchObject({ redacted: true })
+    expect(submission!.data).not.toHaveProperty('email')
+    expect(submission!.data).not.toHaveProperty('message')
   })
 
   it('writes an audit log entry for the deletion', async () => {

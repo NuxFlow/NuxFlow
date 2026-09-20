@@ -15,7 +15,14 @@ export default defineEventHandler(async (event) => {
   const file = await getMediaByIdOrThrow(db, siteId, id)
 
   const provider = await getActiveProvider(event)
-  await provider.delete(file.storageKey)
+  // Deliberately not wrapped to swallow a failure — if the remote blob can't actually be
+  // removed, the D1 row must not be deleted either, or the blob orphans in storage with
+  // no record left to retry against. Surfaced as a clear 502 rather than a bare 500.
+  try {
+    await provider.delete(file.storageKey)
+  } catch (err) {
+    throw createError({ statusCode: 502, message: `Failed to delete media from storage: ${err instanceof Error ? err.message : String(err)}` })
+  }
   const mediaDelete = db.delete(media).where(scopedById(media.id, id, media.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {

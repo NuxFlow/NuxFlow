@@ -1,16 +1,31 @@
+import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { getContentTypeBySlugOrThrow } from '../../../utils/content-queries'
 import { parsePagination } from '../../../utils/pagination'
-import { getUserSiteRole, hasSuperAdminRole } from '../../../utils/permissions'
+import { parseQuery } from '../../../utils/validate'
+import { isSiteMember } from '../../../utils/permissions'
 import { paginate, countRows } from '@nuxflow/db/queries'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, desc, gt } from 'drizzle-orm'
 
+const querySchema = z.object({
+  type: z.string().optional(),
+  status: z.enum(['draft', 'review', 'published', 'scheduled', 'archived']).optional(),
+  locale: z.string().optional(),
+  updatedAfter: z.string().datetime().optional(),
+})
+
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  const query = getQuery(event)
-  const typeSlug = (query.type as string) || 'page'
+  // parseQuery's Zod schema only covers the fields this route actually branches
+  // on (type/status/locale/updatedAfter) — it strips unrecognized keys, so page/
+  // limit are read from the raw query separately below via parsePagination,
+  // which already has its own lenient Number()-coercion + default/clamp logic
+  // and doesn't need Zod validation on top of it.
+  const rawQuery = getQuery(event)
+  const query = parseQuery(event, querySchema)
+  const typeSlug = query.type || 'page'
 
   // A caller may only see non-published content (or filter by status at all) if they
   // are an actual member of THIS site — not merely "has some valid session or API
@@ -21,42 +36,35 @@ export default defineEventHandler(async (event) => {
   // API-key requests are already scoped: 03.api-key-auth.ts only sets apiKeyUserId
   // when a live user_site_roles row exists for this exact site.
   const apiKeyUserId = event.context.apiKeyUserId as string | undefined
-  let isSiteMember = Boolean(apiKeyUserId)
-  if (!isSiteMember) {
-    const session = await getAuthSession(event)
-    if (session) {
-      const roleRow = await getUserSiteRole(db, session.user.id, siteId)
-      isSiteMember = Boolean(roleRow) || (await hasSuperAdminRole(db, session.user.id))
-    }
-  }
+  const isMember = Boolean(apiKeyUserId) || (await isSiteMember(event))
 
   const type = await getContentTypeBySlugOrThrow(db, siteId, typeSlug, `Content type "${typeSlug}" not found`)
 
   const conditions = [eq(contentItems.siteId, siteId), eq(contentItems.typeId, type.id)]
 
   // Non-members (including unauthenticated callers) see only published content
-  if (!isSiteMember) {
+  if (!isMember) {
     conditions.push(eq(contentItems.status, 'published'))
   } else if (query.status) {
-    conditions.push(eq(contentItems.status, query.status as 'draft' | 'review' | 'published' | 'scheduled' | 'archived'))
+    conditions.push(eq(contentItems.status, query.status))
   }
 
   // Filter by locale
   if (query.locale) {
-    conditions.push(eq(contentItems.locale, query.locale as string))
+    conditions.push(eq(contentItems.locale, query.locale))
   }
 
   // Delta sync: return only items modified after a given timestamp.
   // Used by offline clients on reconnect to fetch only what changed.
   // Hits idx_content_items_site_updated (site_id, updated_at) index.
   if (query.updatedAfter) {
-    conditions.push(gt(contentItems.updatedAt, query.updatedAfter as string))
+    conditions.push(gt(contentItems.updatedAt, query.updatedAfter))
   }
 
   // Delta sync clients (updatedAfter) rely on getting every changed row back
   // in one response, so pagination — and the total count that goes with it —
   // only applies to the normal listing case.
-  const { page, limit, offset } = parsePagination(query, 50)
+  const { page, limit, offset } = parsePagination(rawQuery, 50)
   const where = and(...conditions)
   const columns = {
     id: true, title: true, slug: true, status: true, publishedAt: true, updatedAt: true, authorId: true, version: true, locale: true, sourceItemId: true,

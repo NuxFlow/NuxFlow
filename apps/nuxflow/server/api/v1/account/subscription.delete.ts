@@ -2,7 +2,7 @@ import { subscriptions } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { getConfiguredPaymentProvider } from '../../../utils/payments/resolve'
-import { isHttpError, errorMessage } from '../../../utils/errors'
+import { rethrowAsProviderError } from '../../../utils/errors'
 import { writeAuditLog } from '../../../utils/audit'
 import { rateLimit } from '../../../utils/rate-limit'
 
@@ -50,11 +50,7 @@ export default defineEventHandler(async (event) => {
       const provider = await getConfiguredPaymentProvider(event, sub.provider)
       await provider.cancelSubscription(sub.providerSubscriptionId)
     } catch (err) {
-      if (isHttpError(err)) throw err
-      throw createError({
-        statusCode: 502,
-        message: `Payment provider cancellation failed: ${errorMessage(err)}`,
-      })
+      rethrowAsProviderError(err, 'cancellation')
     }
 
     // `status` deliberately stays as-is (active/trialing) — access continues through the

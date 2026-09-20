@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { requireRole } from '../../../../utils/permissions'
-import { getThemeDemo } from '../../../../utils/cf-env'
+import { getThemeDemo, waitUntil } from '../../../../utils/cf-env'
 import { applyBackup } from '../../../../utils/backup'
 import { themes } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
@@ -10,6 +10,7 @@ import type { NuxFlowBackup } from '../../../../utils/backup'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { clearActiveThemeCache } from '../../../../utils/theme-cache'
 import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
+import { purgeAllPublicPages } from '../../../../utils/edge-cache'
 
 const bodySchema = z.object({
   what: z.array(z.enum(['content', 'taxonomies', 'menus', 'forms', 'settings'])).default(['content', 'taxonomies', 'menus', 'forms', 'settings']),
@@ -48,6 +49,13 @@ export default defineEventHandler(async (event) => {
 
   await batchWithAudit(db, [deactivateAll, activateTarget], auditInsert)
   clearActiveThemeCache(siteId)
+
+  // Same as activate.post.ts — theme CSS is baked directly into every cached page's
+  // <style> block, so activating a theme as a side effect of a demo import needs the
+  // same edge-cache purge every other activation path already does.
+  waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
+    console.error('[themes] Failed to purge page cache after demo-import activation:', err)
+  }))
 
   return { success: true, result }
 })

@@ -38,6 +38,12 @@ useSeoMeta({
 function goToPage(p: number) {
   router.push({ query: { ...route.query, page: p > 1 ? p : undefined } })
 }
+
+// timeZone: 'UTC' keeps this identical on server (UTC) and client (any timezone) — see
+// the matching comment in [...slug].vue for the hydration-mismatch this avoids.
+function formatDate(d: string) {
+  return new Date(d).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+}
 </script>
 
 <template>
@@ -62,7 +68,7 @@ function goToPage(p: number) {
         </NuxtLink>
         <p v-if="item.excerpt" class="mt-2 text-gray-500 text-sm leading-relaxed line-clamp-3">{{ item.excerpt }}</p>
         <p v-if="item.publishedAt" class="mt-2 text-xs text-gray-400">
-          {{ new Date(item.publishedAt).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' }) }}
+          {{ formatDate(item.publishedAt) }}
         </p>
       </article>
     </div>

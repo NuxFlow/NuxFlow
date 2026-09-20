@@ -1,6 +1,7 @@
 import { useDb } from '../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
-import { and, eq, desc, sql } from 'drizzle-orm'
+import { and, eq, desc } from 'drizzle-orm'
+import { paginate, countRows } from '@nuxflow/db/queries'
 import { withEdgeCache } from '../../utils/edge-cache'
 
 const CACHE_MAX_AGE = 300
@@ -25,27 +26,23 @@ export default defineEventHandler(async (event) => {
       eq(contentItems.visibility, 'public'),
     )
 
-    const [countResult] = await db
-      .select({ total: sql<number>`count(*)` })
-      .from(contentItems)
-      .where(where)
-
-    const total = countResult?.total ?? 0
-
-    const posts = await db
-      .select({
-        id: contentItems.id,
-        title: contentItems.title,
-        slug: contentItems.slug,
-        excerpt: contentItems.excerpt,
-        ogImage: contentItems.ogImage,
-        publishedAt: contentItems.publishedAt,
-      })
-      .from(contentItems)
-      .where(where)
-      .orderBy(desc(contentItems.publishedAt))
-      .limit(limit)
-      .offset(offset)
+    const { items: posts, total } = await paginate(
+      countRows(db, contentItems, where),
+      () => db
+        .select({
+          id: contentItems.id,
+          title: contentItems.title,
+          slug: contentItems.slug,
+          excerpt: contentItems.excerpt,
+          ogImage: contentItems.ogImage,
+          publishedAt: contentItems.publishedAt,
+        })
+        .from(contentItems)
+        .where(where)
+        .orderBy(desc(contentItems.publishedAt))
+        .limit(limit)
+        .offset(offset),
+    )
 
     return { posts, total, page, limit, totalPages: Math.ceil(total / limit) }
   })

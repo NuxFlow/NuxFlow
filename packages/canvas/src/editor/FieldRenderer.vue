@@ -5,6 +5,12 @@ import type { FieldSchema, SpacingValue } from '../types'
 import RichTextInput from './RichTextInput.vue'
 import { useAiImprove, AI_IMPROVE_ACTIONS, type AiInstruction } from './useAiImprove'
 
+// Explicit name so this component can reference itself recursively in its own template
+// (the 'list' field type renders each item's sub-fields via nested <FieldRenderer>s) —
+// Vue infers a recursive self-reference from the SFC filename already, but being
+// explicit here avoids depending on that inference surviving a future build tool change.
+defineOptions({ name: 'FieldRenderer' })
+
 const props = defineProps<{
   field: FieldSchema
   modelValue: unknown
@@ -46,6 +52,63 @@ function removeImage(i: number) {
 
 function updateImageAlt(i: number, alt: string) {
   update(JSON.stringify(parsedImages.value.map((img, idx) => idx === i ? { ...img, alt } : img)))
+}
+
+// ── Generic list (type === 'list') ────────────────────────────────────────────
+// Backs both "array of structured objects" (field.fields set — e.g. footer links,
+// FAQ items) and "array of plain strings" (field.fields omitted — e.g. pricing
+// feature bullets), replacing what used to be raw hand-typed JSON in a plain text
+// input for both shapes.
+
+type ListItem = string | Record<string, unknown>
+
+const parsedList = computed<ListItem[]>(() => {
+  if (props.field.type !== 'list') return []
+  try {
+    const arr = JSON.parse((props.modelValue as string) || '[]')
+    return Array.isArray(arr) ? arr : []
+  }
+  catch {
+    return []
+  }
+})
+
+function emptyListItem(): ListItem {
+  const subFields = props.field.fields
+  if (!subFields) return ''
+  const item: Record<string, unknown> = {}
+  for (const f of subFields) item[f.key] = f.default ?? ''
+  return item
+}
+
+function updateList(items: ListItem[]) {
+  update(JSON.stringify(items))
+}
+
+function addListItem() {
+  updateList([...parsedList.value, emptyListItem()])
+}
+
+function removeListItem(i: number) {
+  updateList(parsedList.value.filter((_, idx) => idx !== i))
+}
+
+function moveListItem(i: number, dir: -1 | 1) {
+  const items = [...parsedList.value]
+  const j = i + dir
+  if (j < 0 || j >= items.length) return
+  ;[items[i], items[j]] = [items[j] as ListItem, items[i] as ListItem]
+  updateList(items)
+}
+
+function updateListItemString(i: number, value: string) {
+  updateList(parsedList.value.map((item, idx) => idx === i ? value : item))
+}
+
+function updateListItemField(i: number, key: string, value: unknown) {
+  updateList(parsedList.value.map((item, idx) =>
+    idx === i ? { ...(item as Record<string, unknown>), [key]: value } : item,
+  ))
 }
 
 const spacing = computed(() => {
@@ -323,6 +386,75 @@ function applyAlternative(alt: string) {
     <p v-if="!parsedImages.length" class="text-xs text-gray-400">
       Paste an image URL above to add it to the gallery.
     </p>
+  </div>
+
+  <!-- Generic list (structured objects or plain strings) -->
+  <div v-else-if="field.type === 'list'" class="space-y-2">
+    <div v-if="parsedList.length" class="space-y-2">
+      <div
+        v-for="(item, i) in parsedList"
+        :key="i"
+        class="p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 space-y-1.5"
+      >
+        <div class="flex items-start gap-2">
+          <!-- Structured item — one recursive FieldRenderer per sub-field -->
+          <div v-if="field.fields" class="flex-1 min-w-0 space-y-2">
+            <div v-for="subField in field.fields" :key="subField.key">
+              <label class="block text-xs text-gray-400 mb-0.5">{{ subField.label }}</label>
+              <FieldRenderer
+                :field="subField"
+                :model-value="(item as Record<string, unknown>)[subField.key]"
+                @update:model-value="(v) => updateListItemField(i, subField.key, v)"
+              />
+            </div>
+          </div>
+          <!-- Plain string item -->
+          <input
+            v-else
+            :value="item as string"
+            :aria-label="`${field.label} item ${i + 1}`"
+            class="flex-1 min-w-0 px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            @input="updateListItemString(i, ($event.target as HTMLInputElement).value)"
+          >
+          <div class="flex flex-col gap-0.5 shrink-0">
+            <button
+              type="button"
+              :disabled="i === 0"
+              class="p-0.5 text-gray-400 hover:text-primary-500 disabled:opacity-25 disabled:hover:text-gray-400 transition-colors rounded"
+              :aria-label="`Move item ${i + 1} up`"
+              @click="moveListItem(i, -1)"
+            >
+              <UIcon name="i-lucide-chevron-up" mode="svg" class="w-3.5 h-3.5 block" />
+            </button>
+            <button
+              type="button"
+              :disabled="i === parsedList.length - 1"
+              class="p-0.5 text-gray-400 hover:text-primary-500 disabled:opacity-25 disabled:hover:text-gray-400 transition-colors rounded"
+              :aria-label="`Move item ${i + 1} down`"
+              @click="moveListItem(i, 1)"
+            >
+              <UIcon name="i-lucide-chevron-down" mode="svg" class="w-3.5 h-3.5 block" />
+            </button>
+            <button
+              type="button"
+              class="p-0.5 text-gray-400 hover:text-red-500 transition-colors rounded"
+              :aria-label="`Remove item ${i + 1}`"
+              @click="removeListItem(i)"
+            >
+              <UIcon name="i-lucide-trash-2" mode="svg" class="w-3.5 h-3.5 block" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p v-else class="text-xs text-gray-400">No items yet.</p>
+    <button
+      type="button"
+      class="w-full px-3 py-1.5 text-xs font-medium rounded-md border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-500 transition-colors"
+      @click="addListItem"
+    >
+      + Add item
+    </button>
   </div>
 
   <!-- Spacing -->

@@ -1,5 +1,14 @@
 import type { MediaProvider, UploadResult } from './index'
 
+// Encodes each path segment independently (not the whole key as one component) so a `/`
+// in the key still acts as a path separator rather than being percent-encoded itself.
+// Not currently exploitable — the key is always a validated ULID + allowlisted extension
+// (see upload.post.ts) — but any future key format that isn't purely URL-safe characters
+// would otherwise produce a malformed request/public URL.
+function encodeS3Key(key: string): string {
+  return key.split('/').map(encodeURIComponent).join('/')
+}
+
 function toHex(buf: ArrayBuffer) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
 }
@@ -96,7 +105,7 @@ export class S3Provider implements MediaProvider {
 
   async upload(file: File, key: string): Promise<UploadResult> {
     const buf = await file.arrayBuffer()
-    const url = `${this.endpoint}/${this.bucket}/${key}`
+    const url = `${this.endpoint}/${this.bucket}/${encodeS3Key(key)}`
 
     const headers = await signRequest({
       method: 'PUT',
@@ -121,7 +130,7 @@ export class S3Provider implements MediaProvider {
   }
 
   async delete(storageKey: string): Promise<void> {
-    const url = `${this.endpoint}/${this.bucket}/${storageKey}`
+    const url = `${this.endpoint}/${this.bucket}/${encodeS3Key(storageKey)}`
     const headers = await signRequest({
       method: 'DELETE',
       url,
@@ -132,10 +141,15 @@ export class S3Provider implements MediaProvider {
       region: this.region,
       service: 's3',
     })
-    await fetch(url, { method: 'DELETE', headers })
+    const res = await fetch(url, { method: 'DELETE', headers })
+    // S3 returns 204 on a successful delete (and, per S3 semantics, on a delete of a
+    // key that never existed) — anything else (403/5xx) means the object was NOT
+    // removed. Without this check, the caller deletes the D1 row unconditionally and
+    // the blob orphans in the bucket forever with no error surfaced anywhere.
+    if (!res.ok) throw new Error(`S3 delete failed: ${res.status} ${await res.text()}`)
   }
 
   getUrl(storageKey: string): string {
-    return `${this.publicUrl}/${storageKey}`
+    return `${this.publicUrl}/${encodeS3Key(storageKey)}`
   }
 }

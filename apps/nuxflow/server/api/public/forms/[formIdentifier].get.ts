@@ -5,7 +5,7 @@ import type { FormField } from '@nuxflow/db/schema'
 
 // Public, unauthenticated: returns only what's needed to render a Form Builder
 // form on a page (Canvas "dynamic-form/form" block) — never the notifications
-// config, logic rules, or any other internal/admin-only field.
+// config or any other internal/admin-only field.
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string | null
   if (!siteId) notFound()

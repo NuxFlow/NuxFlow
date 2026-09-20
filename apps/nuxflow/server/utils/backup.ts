@@ -9,7 +9,7 @@ import {
   themes, dynamicPlugins, dynamicPluginTrust,
   userSiteRoles, membershipTiers,
 } from '@nuxflow/db/schema'
-import type { FormField, ConditionalLogic } from '@nuxflow/db/schema'
+import type { FormField } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { saveSetting, SENSITIVE_SETTING_KEYS } from './settings'
@@ -76,7 +76,6 @@ export interface BackupForm {
   slug: string
   name: string
   fields: unknown[]
-  logic: unknown[]
   notifications: unknown
   redirectUrl: string | null
   status: string
@@ -271,7 +270,6 @@ const backupFormSchema = z.object({
   slug: z.string(),
   name: z.string(),
   fields: z.array(z.unknown()),
-  logic: z.array(z.unknown()),
   notifications: z.unknown(),
   redirectUrl: z.string().nullable(),
   status: z.string(),
@@ -433,7 +431,7 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
     }),
     db.query.forms.findMany({
       where: eq(forms.siteId, siteId),
-      columns: { slug: true, name: true, fields: true, logic: true, notifications: true, redirectUrl: true, status: true },
+      columns: { slug: true, name: true, fields: true, notifications: true, redirectUrl: true, status: true },
     }),
     db.query.media.findMany({
       where: eq(media.siteId, siteId),
@@ -618,7 +616,6 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
     forms: formRows.map(f => ({
       slug: f.slug, name: f.name,
       fields: f.fields as unknown[],
-      logic: f.logic as unknown[],
       notifications: f.notifications,
       redirectUrl: f.redirectUrl,
       status: f.status,
@@ -1045,7 +1042,6 @@ export async function applyBackup(
         slug: backupForm.slug,
         name: backupForm.name,
         fields: backupForm.fields as FormField[],
-        logic: backupForm.logic as ConditionalLogic[],
         notifications: backupForm.notifications as Record<string, unknown> | undefined,
         redirectUrl: backupForm.redirectUrl,
         status: backupForm.status as 'active' | 'draft' | 'closed',

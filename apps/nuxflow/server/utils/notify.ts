@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { useDb } from './db'
-import { sendEmail } from './email'
+import { sendEmail, escapeHtml } from './email'
 import { sendPushToUser } from './webpush'
 import { notifications, users } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
@@ -44,7 +44,12 @@ export async function sendNotification(opts: NotifyOptions, event: H3Event) {
       await sendEmail(event, {
         to: user.email,
         subject: opts.title,
-        html: `<p>${opts.body}</p>`,
+        // Escaped here, at the shared chokepoint, rather than trusting every current and
+        // future caller to remember — today's callers only ever pass trusted/static
+        // text, but this sink has no guard of its own otherwise, unlike every other
+        // HTML-email call site in this codebase (contact/submit.post.ts, the forms
+        // submit route) which already escape before interpolating.
+        html: `<p>${escapeHtml(opts.body)}</p>`,
         text: opts.body,
       }).catch(err => console.error('[notify] Email delivery failed:', err))
     }

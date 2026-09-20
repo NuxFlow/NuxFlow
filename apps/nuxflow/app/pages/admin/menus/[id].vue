@@ -218,9 +218,9 @@ function itemHref(item: MenuItem | ChildItem) {
                 <span v-if="item.target === '_blank'" class="ml-1 text-xs text-gray-400">(new tab)</span>
               </div>
               <div class="flex items-center gap-1 shrink-0">
-                <UButton variant="ghost" size="xs" icon="i-lucide-chevron-up" :disabled="i === 0" @click="moveItem(i, -1)" />
-                <UButton variant="ghost" size="xs" icon="i-lucide-chevron-down" :disabled="i === items.length - 1" @click="moveItem(i, 1)" />
-                <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" class="!text-red-500 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-950/20" @click="removeItem(item.id)" />
+                <UButton variant="ghost" size="xs" icon="i-lucide-chevron-up" :disabled="i === 0" :aria-label="`Move ${item.label} up`" @click="moveItem(i, -1)" />
+                <UButton variant="ghost" size="xs" icon="i-lucide-chevron-down" :disabled="i === items.length - 1" :aria-label="`Move ${item.label} down`" @click="moveItem(i, 1)" />
+                <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" class="!text-red-500 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-950/20" :aria-label="`Remove ${item.label}`" @click="removeItem(item.id)" />
               </div>
             </div>
 
@@ -240,9 +240,9 @@ function itemHref(item: MenuItem | ChildItem) {
                   <span class="text-xs text-gray-400 ml-2">{{ itemHref(child) }}</span>
                 </div>
                 <div class="flex items-center gap-1 shrink-0">
-                  <UButton variant="ghost" size="xs" icon="i-lucide-chevron-up" :disabled="ci === 0" @click="moveItem(ci, -1, item.id)" />
-                  <UButton variant="ghost" size="xs" icon="i-lucide-chevron-down" :disabled="ci === item.children.length - 1" @click="moveItem(ci, 1, item.id)" />
-                  <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" class="!text-red-500 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-950/20" @click="removeItem(child.id, item.id)" />
+                  <UButton variant="ghost" size="xs" icon="i-lucide-chevron-up" :disabled="ci === 0" :aria-label="`Move ${child.label} up`" @click="moveItem(ci, -1, item.id)" />
+                  <UButton variant="ghost" size="xs" icon="i-lucide-chevron-down" :disabled="ci === item.children.length - 1" :aria-label="`Move ${child.label} down`" @click="moveItem(ci, 1, item.id)" />
+                  <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" class="!text-red-500 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-950/20" :aria-label="`Remove ${child.label}`" @click="removeItem(child.id, item.id)" />
                 </div>
               </div>
             </div>

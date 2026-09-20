@@ -203,8 +203,8 @@ async function doDelete() {
 
         <template #actions-cell="{ row }">
           <div class="flex items-center gap-1 justify-end">
-            <UButton :to="`/admin/content/${row.original.id}`" variant="ghost" size="xs" icon="i-lucide-pencil" />
-            <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" @click="confirmDelete(row.original.id)" />
+            <UButton :to="`/admin/content/${row.original.id}`" variant="ghost" size="xs" icon="i-lucide-pencil" :aria-label="`Edit ${row.original.title}`" />
+            <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" :aria-label="`Delete ${row.original.title}`" @click="confirmDelete(row.original.id)" />
           </div>
         </template>
       </UTable>

@@ -8,7 +8,7 @@ const auth = useAuthStore()
 const toast = useToast()
 
 const deleteConfirm = ref('')
-const deleting = ref(false)
+const { loading: deleting, run: runDeleteSite } = useAdminAction()
 const siteDeleted = ref(false)
 const deletedWasLastSite = ref(false)
 const deleteCountdown = ref(3)
@@ -51,12 +51,11 @@ const blockingSites = computed(() => allSites.value.filter(s => s.id !== props.s
 
 async function deleteSite() {
   if (deleteConfirm.value !== props.siteName) return
-  deleting.value = true
-  try {
+
+  await runDeleteSite(async () => {
     const res = await $fetch<{ id: string; wasLastSite: boolean; failedMediaDeletes: string[] }>('/api/v1/settings', { method: 'DELETE' })
     siteDeleted.value = true
     deletedWasLastSite.value = res.wasLastSite
-    toast.add({ title: 'Site deleted — you will be signed out shortly', color: 'success' })
     if (res.failedMediaDeletes.length > 0) {
       toast.add({
         title: `${res.failedMediaDeletes.length} media file(s) could not be removed from storage`,
@@ -78,12 +77,7 @@ async function deleteSite() {
         await navigateTo(res.wasLastSite ? '/setup' : '/login', { external: true })
       }
     }, 1000)
-  } catch (err: unknown) {
-    const errMsg = (err as { data?: { message?: string } })?.data?.message ?? 'Failed to delete site.'
-    toast.add({ title: errMsg, color: 'error' })
-  } finally {
-    deleting.value = false
-  }
+  }, { successTitle: 'Site deleted — you will be signed out shortly', errorTitle: 'Failed to delete site' })
 }
 </script>
 

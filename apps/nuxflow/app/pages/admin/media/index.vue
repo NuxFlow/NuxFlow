@@ -208,6 +208,9 @@ async function handleUpload(e: Event) {
       }
     }
     await refresh()
+  } catch (e: unknown) {
+    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to upload file'
+    toast.add({ title: msg, color: 'error' })
   } finally {
     uploading.value = false
     if (fileInput.value) fileInput.value.value = ''
@@ -232,6 +235,9 @@ async function onDrop(e: DragEvent) {
       }
     }
     await refresh()
+  } catch (e: unknown) {
+    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to upload file'
+    toast.add({ title: msg, color: 'error' })
   } finally {
     uploading.value = false
   }
@@ -245,10 +251,15 @@ const newFolderInput = ref<HTMLInputElement>()
 async function createFolder() {
   const name = newFolderName.value.trim()
   if (!name) return
-  await $fetch('/api/v1/media/folders', { method: 'POST', body: { name } })
-  newFolderName.value = ''
-  creatingFolder.value = false
-  await refreshFolders()
+  try {
+    await $fetch('/api/v1/media/folders', { method: 'POST', body: { name } })
+    newFolderName.value = ''
+    creatingFolder.value = false
+    await refreshFolders()
+  } catch (e: unknown) {
+    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to create folder'
+    toast.add({ title: msg, color: 'error' })
+  }
 }
 
 function startCreatingFolder() {
@@ -635,7 +646,7 @@ function resetFocalPoint() {
               <div v-if="isImage(detail.mimeType)" class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2.5 py-1 rounded mt-2 border border-gray-100 dark:border-gray-800">
                 <span v-if="detailFocalX !== null && detailFocalY !== null">Focal: {{ detailFocalX }}%, {{ detailFocalY }}%</span>
                 <span v-else class="italic text-gray-400">Click preview to set focal point</span>
-                <UButton v-if="detailFocalX !== null || detailFocalY !== null" size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" class="h-5 p-1" @click="resetFocalPoint" />
+                <UButton v-if="detailFocalX !== null || detailFocalY !== null" size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" class="h-5 p-1" aria-label="Reset focal point" @click="resetFocalPoint" />
               </div>
               <!-- EXIF data -->
               <p v-if="detailLoading && isImage(detail.mimeType) && !detailExif" class="text-gray-400 text-xs mt-2 italic">Loading details…</p>

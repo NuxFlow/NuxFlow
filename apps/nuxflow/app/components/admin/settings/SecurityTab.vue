@@ -5,7 +5,7 @@ const security = defineModel<SecurityState>('security', { required: true })
 
 const auth = useAuthStore()
 const toast = useToast()
-const changingPassword = ref(false)
+const { loading: changingPassword, run: runChangePassword } = useAdminAction()
 const passwordChangedSuccess = ref(false)
 const redirectCountdown = ref(3)
 
@@ -23,9 +23,8 @@ async function changePassword() {
     return
   }
 
-  changingPassword.value = true
-  try {
-    await $fetch('/api/auth/change-password', {
+  await runChangePassword(async () => {
+    await $fetch<unknown>('/api/auth/change-password', {
       method: 'POST',
       body: {
         currentPassword: security.value.currentPassword,
@@ -41,7 +40,6 @@ async function changePassword() {
 
     // Set success state
     passwordChangedSuccess.value = true
-    toast.add({ title: 'Password updated successfully!', color: 'success' })
 
     // Set a countdown to sign out and log back in
     const interval = setInterval(() => {
@@ -51,12 +49,7 @@ async function changePassword() {
         auth.signOut()
       }
     }, 1000)
-  } catch (err: unknown) {
-    const errMsg = (err as { data?: { message?: string } })?.data?.message ?? 'Failed to update password. Verify your current password.'
-    toast.add({ title: errMsg, color: 'error' })
-  } finally {
-    changingPassword.value = false
-  }
+  }, { successTitle: 'Password updated successfully!', errorTitle: 'Failed to update password. Verify your current password.' })
 }
 </script>
 

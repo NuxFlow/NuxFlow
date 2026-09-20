@@ -397,6 +397,44 @@ describe('Paddle webhooks', () => {
     expect(sub!.status).toBe('active')
     expect(sub!.providerCustomerId).toBe('ctm_paddle_001')
   })
+
+  it('cancels the subscription on a bare subscription.paused event', async () => {
+    // Paddle sends this as its own distinct event type (dunning exhaustion, or an
+    // API-initiated pause) with no accompanying subscription.updated/.activated — it used
+    // to match neither branch and be a silent no-op, leaving status='active' (and paid
+    // access) in place indefinitely after billing had actually stopped.
+    const db = getCurrentTestDb()
+    const paddleSubId = 'pdl_sub_paused_001'
+    await seedSubscription(db, SITE, userId, tierId, {
+      provider: 'paddle', providerSubscriptionId: paddleSubId, status: 'active',
+    })
+
+    mockPaddleVerify.mockResolvedValueOnce(true)
+    const rawBody = JSON.stringify({
+      event_type: 'subscription.paused',
+      data: {
+        id: paddleSubId,
+        status: 'paused',
+        customer_id: 'ctm_paddle_001',
+        custom_data: { user_id: userId, site_id: SITE },
+        canceled_at: null,
+      },
+    })
+
+    const result = await (handler as HandlerFn)(
+      mkEvent('paddle', rawBody, { 'paddle-signature': 'ts=1;h1=good' }),
+    ) as { received: boolean }
+    expect(result.received).toBe(true)
+
+    const sub = await db.query.subscriptions.findFirst({
+      where: and(
+        eq(subscriptions.providerSubscriptionId, paddleSubId),
+        eq(subscriptions.provider, 'paddle'),
+      ),
+    })
+    expect(sub).toBeDefined()
+    expect(sub!.status).toBe('cancelled')
+  })
 })
 
 // ── Cross-tenant isolation ────────────────────────────────────────────────────

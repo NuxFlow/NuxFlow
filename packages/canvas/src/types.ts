@@ -12,6 +12,7 @@ export type FieldType =
   | 'images'
   | 'url'
   | 'spacing'
+  | 'list'
 
 export interface SelectOption {
   label: string
@@ -37,6 +38,16 @@ export interface FieldSchema {
   max?: number
   step?: number
   rows?: number                // for 'textarea'
+  /**
+   * For 'list' — the per-item field schema, rendered recursively via FieldRenderer for
+   * each array entry (e.g. a list of {label, url} link objects, or {question, answer}
+   * FAQ pairs). Omit this for a plain list of strings (e.g. a pricing plan's feature
+   * bullets) — items then render as a single text input each instead of a sub-form.
+   * The stored value is always a JSON string, matching the existing 'images' field's
+   * convention, so it round-trips through the same prop-serialization path every other
+   * field type already uses.
+   */
+  fields?: FieldSchema[]
   /** Hide this field unless the function returns true for the current block props */
   condition?: (props: Record<string, unknown>) => boolean
 }

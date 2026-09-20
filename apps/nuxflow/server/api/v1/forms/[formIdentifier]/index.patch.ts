@@ -3,7 +3,7 @@ import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { forms } from '@nuxflow/db/schema'
-import type { FormField, ConditionalLogic } from '@nuxflow/db/schema'
+import type { FormField } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { getFormByIdOrThrow } from '../../../../utils/resource-queries'
 
@@ -11,7 +11,6 @@ const bodySchema = z.object({
   name: z.string().min(1).max(200).optional(),
   slug: z.string().min(1).max(200).optional(),
   fields: z.array(z.unknown()).optional(),
-  logic: z.array(z.unknown()).optional(),
   status: z.enum(['active', 'draft', 'closed']).optional(),
   redirectUrl: z.url().optional(),
   notifications: z.object({
@@ -33,7 +32,6 @@ export default defineEventHandler(async (event) => {
     .set({
       ...body,
       fields: body.fields as FormField[] | undefined,
-      logic: body.logic as ConditionalLogic[] | undefined,
       updatedAt: sql`(datetime('now'))`,
     })
     .where(and(eq(forms.id, formIdentifier), eq(forms.siteId, siteId)))

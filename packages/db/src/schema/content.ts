@@ -4,6 +4,11 @@ import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 import { sites } from './sites'
 import { users } from './users'
 
+// Target of ON DELETE CASCADE from contentItems.typeId below — same DROP-TABLE-
+// triggers-FK-actions landmine documented in full on `sites` in sites.ts. A future
+// rebuild migration on `content_types` would silently delete every content item of
+// that type, for every site, with no error; verify against a real D1 deploy first, or
+// hand-write the migration.
 export const contentTypes = sqliteTable('content_types', {
   id: text('id').primaryKey(),
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
@@ -20,6 +25,15 @@ export const contentTypes = sqliteTable('content_types', {
   index('idx_content_types_site_slug').on(t.siteId, t.slug),
 ])
 
+// Target of ON DELETE CASCADE from contentRevisions.itemId, contentTaxonomyTerms.contentItemId,
+// and comments.itemId — same DROP-TABLE-triggers-FK-actions landmine documented in full
+// on `sites` in sites.ts. Also self-referenced by sourceItemId below (ON DELETE SET
+// NULL, used for translation/duplication tracking) — unlike taxonomyTerms.parentId/
+// comments.parentId elsewhere in this schema, that self-FK genuinely exists at the DB
+// level today, so a rebuild migration on `content_items` would additionally null out
+// every row's sourceItemId as a side effect of its own DROP TABLE, on top of cascading
+// into the three tables above. Verify against a real D1 deploy before any migration
+// that would trigger drizzle-kit's rebuild strategy on this table, or hand-write it.
 export const contentItems = sqliteTable('content_items', {
   id: text('id').primaryKey(),
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
@@ -100,6 +114,10 @@ export const contentRevisions = sqliteTable('content_revisions', {
   index('idx_content_revisions_item').on(t.itemId),
 ])
 
+// Target of ON DELETE CASCADE from taxonomyTerms.taxonomyId below — same landmine as
+// `sites` (see sites.ts for the full explanation). A future rebuild migration on
+// `taxonomies` would silently delete every term in every taxonomy, for every site, with
+// no error; verify against a real D1 deploy first, or hand-write the migration.
 export const taxonomies = sqliteTable('taxonomies', {
   id: text('id').primaryKey(),
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
@@ -111,6 +129,12 @@ export const taxonomies = sqliteTable('taxonomies', {
   index('idx_taxonomies_site_slug').on(t.siteId, t.slug),
 ])
 
+// Besides the self-referencing parentId landmine documented below, this table is
+// itself the target of ON DELETE CASCADE from contentTaxonomyTerms.termId — same
+// DROP-TABLE-triggers-FK-actions class of risk documented in full on `sites` in
+// sites.ts. A future rebuild migration on `taxonomy_terms` would silently delete every
+// content-to-term assignment, for every site, with no error; verify against a real D1
+// deploy first, or hand-write the migration.
 export const taxonomyTerms = sqliteTable('taxonomy_terms', {
   id: text('id').primaryKey(),
   taxonomyId: text('taxonomy_id').notNull().references(() => taxonomies.id, { onDelete: 'cascade' }),

@@ -446,7 +446,7 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
                   placeholder="https://…"
                   class="text-sm flex-1"
                 />
-                <UButton variant="outline" size="sm" icon="i-lucide-image" @click="showImagePicker = true" />
+                <UButton variant="outline" size="sm" icon="i-lucide-image" aria-label="Choose featured image" @click="showImagePicker = true" />
               </div>
               <img
                 v-if="form.ogImage"

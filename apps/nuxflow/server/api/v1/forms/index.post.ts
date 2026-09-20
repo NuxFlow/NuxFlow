@@ -4,14 +4,13 @@ import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { created } from '../../../utils/response'
 import { forms } from '@nuxflow/db/schema'
-import type { FormField, ConditionalLogic } from '@nuxflow/db/schema'
+import type { FormField } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(200),
   slug: z.string().min(1).max(200),
   fields: z.array(z.unknown()).default([]),
-  logic: z.array(z.unknown()).default([]),
   status: z.enum(['active', 'draft', 'closed']).default('draft'),
   redirectUrl: z.url().optional(),
   notifications: z.object({
@@ -32,7 +31,6 @@ export default defineEventHandler(async (event) => {
     siteId,
     ...body,
     fields: body.fields as FormField[],
-    logic: body.logic as ConditionalLogic[],
   })
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'create', resource: 'form', resourceId: id, after: body })

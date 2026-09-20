@@ -18,6 +18,15 @@ vi.mock('../../server/utils/db', () => ({
   getD1: () => null,
 }))
 
+// rate-limit.ts calls useDb() as a bare Nitro auto-import (no explicit import statement),
+// which isn't available in this Vitest environment — mock it out like every other
+// integration test covering a rate-limited route (see ai-routes.test.ts, webhooks.test.ts).
+// search.get.ts previously had no rate limit at all; one was added after an audit found
+// this unauthenticated, D1-hitting route was the only public endpoint without one.
+vi.mock('../../server/utils/rate-limit', () => ({
+  rateLimit: vi.fn().mockResolvedValue(undefined),
+}))
+
 const SITE = 'site-search-01'
 let typeId: string
 

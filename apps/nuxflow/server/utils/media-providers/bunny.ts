@@ -44,10 +44,15 @@ export class BunnyProvider implements MediaProvider {
   }
 
   async delete(storageKey: string): Promise<void> {
-    await fetch(`https://storage.bunnycdn.com/${this.storageZone}/${storageKey}`, {
+    const res = await fetch(`https://storage.bunnycdn.com/${this.storageZone}/${storageKey}`, {
       method: 'DELETE',
       headers: { AccessKey: this.apiKey },
     })
+    // Without this check (mirroring upload()'s own res.ok check above), a failed
+    // provider-side delete (bad key, revoked AccessKey, 5xx) is silently swallowed, the
+    // caller deletes the D1 row anyway, and the blob orphans in storage with no error
+    // surfaced anywhere.
+    if (!res.ok) throw new Error(`Bunny.net delete failed: ${res.status}`)
   }
 
   getUrl(storageKey: string): string {

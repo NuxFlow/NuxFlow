@@ -2,10 +2,7 @@ import type { H3Event } from 'h3'
 import { useDb } from '../utils/db'
 import { getFeedSite, getPublishedPostsForFeed } from '@nuxflow/db/queries'
 import { withEdgeCache } from '../utils/edge-cache'
-
-function escXml(s: string) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
-}
+import { escXml } from '../utils/xml'
 
 function tiptapToHtml(node: unknown): string {
   if (!node || typeof node !== 'object') return ''

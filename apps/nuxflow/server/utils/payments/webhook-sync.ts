@@ -6,6 +6,7 @@ import { useDb } from '../db'
 import { resolveSetting } from '../settings'
 import { sendNotification } from '../notify'
 import { writeAuditLog } from '../audit'
+import { badRequest } from '../response'
 import type { PaymentProviderName, SubscriptionStatus } from './types'
 
 // The column each provider's webhook payload actually resolves a membership tier by.
@@ -67,8 +68,24 @@ export interface SubscriptionCancellation {
 export function assertWebhookSiteMatch(event: H3Event, payloadSiteId: string | undefined | null): void {
   const contextSiteId = event.context.siteId as string | undefined
   if (!payloadSiteId || !contextSiteId || payloadSiteId !== contextSiteId) {
-    throw createError({ statusCode: 400, message: 'Webhook event site does not match the request site' })
+    throw badRequest('Webhook event site does not match the request site')
   }
+}
+
+/**
+ * Resolves a payment provider's webhook signing secret from site settings and throws the
+ * standard 503 when it's empty — never verify a signature against an empty secret, since
+ * Stripe's SDK (and a bare HMAC, for LemonSqueezy/Paddle) both accept a zero-length key
+ * without error, which would make the signature check trivially forgeable by anyone.
+ * Centralizes what used to be an identical guard copy-pasted across
+ * handleStripeWebhook/handleLemonSqueezyWebhook/handlePaddleWebhook in [provider].post.ts.
+ */
+export async function requireWebhookSecret(event: H3Event, settingKey: string, envKey: string, providerLabel: string): Promise<string> {
+  const secret = await resolveSetting(event, settingKey, envKey)
+  if (!secret) {
+    throw createError({ statusCode: 503, message: `${providerLabel} webhook secret is not configured` })
+  }
+  return secret as string
 }
 
 async function maybeSendPaymentPush(event: H3Event, siteId: string, userId: string, tierName: string | undefined) {

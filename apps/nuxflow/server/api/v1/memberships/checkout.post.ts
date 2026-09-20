@@ -7,7 +7,7 @@ import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
 import { resolveSetting } from '../../../utils/settings'
 import { resolveStripeProvider, resolveLemonSqueezyProvider, resolvePaddleProvider } from '../../../utils/payments/resolve'
 import { conflict } from '../../../utils/response'
-import { isHttpError, errorMessage } from '../../../utils/errors'
+import { rethrowAsProviderError } from '../../../utils/errors'
 import { rateLimit } from '../../../utils/rate-limit'
 import { writeAuditLog } from '../../../utils/audit'
 
@@ -45,6 +45,16 @@ export default defineEventHandler(async (event) => {
   // provider) on this site. Resubmitting for the *same* tier stays idempotent — it
   // falls through to the free-tier reactivation branch below, or (for paid tiers) simply
   // re-runs checkout against a provider that will recognize the existing customer.
+  //
+  // Known, accepted timing window: for paid tiers, this only reads current DB state —
+  // the real `subscriptions` row for a paid checkout isn't written until the provider's
+  // webhook lands after the customer completes the hosted checkout flow. Two
+  // near-simultaneous checkout submissions for two *different* paid tiers can both pass
+  // this guard before either webhook arrives, producing two real provider subscriptions.
+  // Closing this fully would need real distributed locking across a request that
+  // inherently spans an external redirect — disproportionate for what a webhook-driven
+  // activation design accepts as a rare edge case; each webhook's own atomic upsert still
+  // prevents any resulting *data* corruption, this guard just can't be a hard guarantee.
   const existingActiveSub = await db.query.subscriptions.findFirst({
     where: and(
       eq(subscriptions.siteId, siteId),
@@ -157,8 +167,7 @@ export default defineEventHandler(async (event) => {
       return { url: transaction.data.checkout.url }
     }
   } catch (err) {
-    if (isHttpError(err)) throw err
-    throw createError({ statusCode: 502, message: `Payment provider checkout failed: ${errorMessage(err)}` })
+    rethrowAsProviderError(err, 'checkout')
   }
 
   if (!stripe && !ls && !paddle) {

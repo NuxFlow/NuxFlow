@@ -71,8 +71,30 @@ export async function requireAuth(event: H3Event): Promise<{ userId: string; rol
 
 export async function requireRole(event: H3Event, minimum: Role) {
   const { userId, role } = await requireAuth(event)
-  if (!roleAtLeast(role, minimum)) forbidden()
+  if (!roleAtLeast(role, minimum)) throw forbidden()
   return { userId, role }
+}
+
+/**
+ * Non-throwing counterpart to requireAuth() — true when the caller is a real
+ * member of the current site (has a user_site_roles row) or a super admin,
+ * false for everything else, including "no session at all." Several routes
+ * need this as a boolean to branch on (show published-only vs. everything,
+ * auto-approve a comment vs. hold it for moderation, expose moderation-only
+ * fields, etc.) rather than a hard 401/403 — the request itself is often a
+ * perfectly legitimate anonymous/guest one, just with reduced visibility.
+ * Deliberately implemented as a thin wrapper around requireAuth() rather than
+ * re-querying user_site_roles/hasSuperAdminRole directly, so the cross-tenant
+ * membership check has exactly one implementation to keep correct (see
+ * requireAuth's own doc comment for the leak this closes).
+ */
+export async function isSiteMember(event: H3Event): Promise<boolean> {
+  try {
+    await requireAuth(event)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function getUserSiteRole(db: Db, userId: string, siteId: string) {
@@ -111,7 +133,7 @@ export async function requireSuperAdmin(event: H3Event): Promise<{ userId: strin
   const db = useDb(event)
 
   if (!(await hasSuperAdminRole(db, session.user.id))) {
-    forbidden('Super admin required')
+    throw forbidden('Super admin required')
   }
   return { userId: session.user.id }
 }

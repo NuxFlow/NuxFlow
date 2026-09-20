@@ -24,7 +24,7 @@ async function generateVapidKeys() {
 }
 
 async function sendTestPush() {
-  await runTestPush(() => $fetch('/api/v1/push/test', { method: 'POST' }), {
+  await runTestPush(() => $fetch<unknown>('/api/v1/push/test', { method: 'POST' }), {
     successTitle: 'Test notification sent',
     errorTitle: 'Failed — make sure you have subscribed to push notifications',
   })
@@ -36,7 +36,7 @@ async function sendBroadcast() {
   // an unambiguous signal, rather than trusting the fetch response body's own shape
   // (which could itself resolve to undefined on a legitimate 204/empty response).
   const ok = await runBroadcast(async () => {
-    await $fetch('/api/v1/push/broadcast', {
+    await $fetch<unknown>('/api/v1/push/broadcast', {
       method: 'POST',
       body: {
         title: broadcastTitle.value,

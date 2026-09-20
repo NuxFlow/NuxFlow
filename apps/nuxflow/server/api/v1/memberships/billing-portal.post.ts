@@ -3,7 +3,7 @@ import { subscriptions } from '@nuxflow/db/schema'
 import { and, eq, ne } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { getStripeProvider, getLemonSqueezyProvider, getPaddleProvider } from '../../../utils/payments/resolve'
-import { isHttpError, errorMessage } from '../../../utils/errors'
+import { rethrowAsProviderError } from '../../../utils/errors'
 import { rateLimit } from '../../../utils/rate-limit'
 
 const bodySchema = z.object({
@@ -67,8 +67,7 @@ export default defineEventHandler(async (event) => {
       return { url: result.data.urls.general.overview }
     }
   } catch (err) {
-    if (isHttpError(err)) throw err
-    throw createError({ statusCode: 502, message: `Payment provider billing portal request failed: ${errorMessage(err)}` })
+    rethrowAsProviderError(err, 'billing portal request')
   }
 
   throw createError({ statusCode: 502, message: `Unsupported payment provider: ${activeSub.provider}` })

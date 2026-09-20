@@ -2,12 +2,13 @@ import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { writeAuditLog } from '../../../../utils/audit'
 import { clearActiveThemeCache } from '../../../../utils/theme-cache'
-import { deleteThemeCSS, deleteThemeDemo, getThemeDemo } from '../../../../utils/cf-env'
+import { deleteThemeCSS, deleteThemeDemo, getThemeDemo, waitUntil } from '../../../../utils/cf-env'
 import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 import { themes, contentItems, menus, forms } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { scopedById } from '../../../../utils/db-helpers'
 import type { NuxFlowBackup } from '../../../../utils/backup'
+import { purgeAllPublicPages } from '../../../../utils/edge-cache'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
@@ -17,7 +18,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const deleteDemo = query.deleteDemo === 'true'
 
-  const theme = await getThemeByIdOrThrow(db, siteId, id, 'Theme not found', { id: true, hasCss: true })
+  const theme = await getThemeByIdOrThrow(db, siteId, id, 'Theme not found', { id: true, hasCss: true, isActive: true })
   if (!theme.hasCss) throw badRequest('Only CSS themes can be deleted. Bundled themes are removed by redeploying without the package.')
 
   if (deleteDemo) {
@@ -67,6 +68,16 @@ export default defineEventHandler(async (event) => {
   ])
   await db.delete(themes).where(scopedById(themes.id, id, themes.siteId, siteId))
   clearActiveThemeCache(siteId)
+
+  // Every other path that changes which theme is active purges the edge page cache —
+  // deleting the currently-active theme changes it too (to "none"), and without this,
+  // cached pages keep serving the deleted theme's now-nonexistent CSS key until TTL
+  // expiry. Only worth doing when the deleted theme was actually the active one.
+  if (theme.isActive) {
+    waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
+      console.error('[themes] Failed to purge page cache after theme deletion:', err)
+    }))
+  }
 
   await writeAuditLog(event, userId, { action: 'delete', resource: 'theme', resourceId: id, before: theme })
 

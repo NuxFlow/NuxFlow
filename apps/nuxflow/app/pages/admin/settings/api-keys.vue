@@ -53,7 +53,7 @@ const columns = [
     >
       <template #description>
         <code class="text-xs break-all">{{ newKey }}</code>
-        <UButton size="xs" variant="ghost" icon="i-lucide-copy" class="ml-2" @click="copyNewKey" />
+        <UButton size="xs" variant="ghost" icon="i-lucide-copy" class="ml-2" aria-label="Copy API key" @click="copyNewKey" />
       </template>
     </UAlert>
 

@@ -115,7 +115,7 @@ async function deleteSite() {
         </template>
         <template #actions-cell="{ row }">
           <div class="flex items-center gap-1.5">
-            <UButton variant="ghost" size="xs" icon="i-lucide-pencil" @click="openEdit(row.original)" />
+            <UButton variant="ghost" size="xs" icon="i-lucide-pencil" :aria-label="`Edit ${row.original.name}`" @click="openEdit(row.original)" />
             <UTooltip :text="isCurrentSite(row.original) ? 'Cannot delete the current site' : 'Delete site'">
               <UButton
                 variant="ghost"

@@ -3,10 +3,11 @@ import { useDb } from '../../../../utils/db'
 import { comments } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { rateLimit } from '../../../../utils/rate-limit'
-import { created } from '../../../../utils/response'
+import { created, notFound } from '../../../../utils/response'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
-import { getUserSiteRole, hasSuperAdminRole } from '../../../../utils/permissions'
+import { isSiteMember } from '../../../../utils/permissions'
+import { and, eq } from 'drizzle-orm'
 
 const bodySchema = z.object({
   guestName: z.string().min(1).max(100).optional(),
@@ -35,18 +36,27 @@ export default defineEventHandler(async (event) => {
   // to another tenant's content item by supplying its (unguessable but not secret) ULID.
   await getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true })
 
+  // parentId has no DB-level FK (comments.parentId is deliberately a plain column —
+  // see CLAUDE.md/schema comment on why a self-referencing FK here risks silent data
+  // loss on a future migration), so nothing else verifies a caller-supplied parentId
+  // is actually an existing comment on THIS item/site. Without this, a caller could
+  // reply-thread onto an arbitrary/nonexistent id, or onto another tenant's comment
+  // by guessing its ULID, and have it silently accepted.
+  if (parsed.parentId) {
+    const parent = await db.query.comments.findFirst({
+      where: and(eq(comments.id, parsed.parentId), eq(comments.siteId, siteId), eq(comments.itemId, itemId)),
+      columns: { id: true },
+    })
+    if (!parent) throw notFound('Parent comment not found')
+  }
+
   // Auto-approval requires actual membership of THIS site, not merely "has a valid
   // session somewhere." Accounts/sessions are global across this multi-tenant install,
   // so a bare session check would let a user with an account on any other site (or a
   // self-registered account where public registration is enabled) post live,
   // unmoderated comments here — the same cross-tenant gap requireAuth() exists to
   // close for content access, applied to comment moderation instead.
-  let isSiteMember = false
-  if (session?.user?.id) {
-    const roleRow = await getUserSiteRole(db, session.user.id, siteId)
-    isSiteMember = Boolean(roleRow) || (await hasSuperAdminRole(db, session.user.id))
-  }
-  const status = isSiteMember ? 'approved' : 'pending'
+  const status = (await isSiteMember(event)) ? 'approved' : 'pending'
 
   const id = ulid()
 

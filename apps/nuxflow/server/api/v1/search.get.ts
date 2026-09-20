@@ -1,6 +1,7 @@
 import { useDb } from '../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
 import { inArray, sql } from 'drizzle-orm'
+import { rateLimit } from '../../utils/rate-limit'
 
 export interface SearchExcerptSegment {
   text: string
@@ -25,6 +26,12 @@ function parseSnippet(snippet: string): SearchExcerptSegment[] {
 }
 
 export default defineEventHandler(async (event) => {
+  // Unauthenticated and hits D1 directly on every request (no edge cache, since results
+  // are query-dependent) — unlike every other public endpoint in this codebase, this had
+  // no throttle at all. 60/minute per IP is generous for real interactive typing/search
+  // usage while still bounding a scripted flood against D1.
+  await rateLimit(event, { limit: 60, windowMs: 60_000, keyPrefix: 'search' })
+
   const siteId = event.context.siteId as string
   const query = getQuery(event)
   const q = (query.q as string)?.trim()

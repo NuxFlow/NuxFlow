@@ -64,6 +64,42 @@ describe('CANVAS_BLOCKS registry', () => {
       }
     }
   })
+
+  it('every field with type list has well-formed sub-fields when present', () => {
+    for (const block of CANVAS_BLOCKS) {
+      for (const field of block.fields) {
+        if (field.type === 'list' && field.fields) {
+          expect(field.fields.length, `${block.id}.${field.key} list declares empty fields[]`).toBeGreaterThan(0)
+          for (const sub of field.fields) {
+            expect(typeof sub.key, `${block.id}.${field.key} sub-field missing key`).toBe('string')
+            expect(typeof sub.label, `${block.id}.${field.key} sub-field missing label`).toBe('string')
+            expect(typeof sub.type, `${block.id}.${field.key} sub-field missing type`).toBe('string')
+          }
+        }
+      }
+    }
+  })
+
+  it('every field with type list has a defaultProps value that parses as a JSON array', () => {
+    for (const block of CANVAS_BLOCKS) {
+      for (const field of block.fields) {
+        if (field.type !== 'list') continue
+        const raw = block.defaultProps[field.key]
+        if (raw === undefined) continue // optional/conditional list fields may have no default
+        expect(typeof raw, `${block.id}.${field.key} default is not a string`).toBe('string')
+        const parsed = JSON.parse(raw as string) as unknown
+        expect(Array.isArray(parsed), `${block.id}.${field.key} default does not parse to an array`).toBe(true)
+        // Structured items (field.fields set) must be objects; plain-string items must be strings.
+        for (const item of parsed as unknown[]) {
+          if (field.fields) {
+            expect(typeof item, `${block.id}.${field.key} item is not an object`).toBe('object')
+          } else {
+            expect(typeof item, `${block.id}.${field.key} item is not a string`).toBe('string')
+          }
+        }
+      }
+    }
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -157,6 +193,102 @@ describe('canvas-columns block definition', () => {
     const col2 = columns.slots!.find(s => s.id === 'col2')!
     expect(col1.condition).toBeUndefined()
     expect(col2.condition).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Footer block — col1Links/col2Links use the structured 'list' field type
+// (label/url sub-fields) instead of a hand-typed JSON string, so an editor can't
+// produce invalid JSON and crash the block at render time.
+// ---------------------------------------------------------------------------
+
+describe('canvas-footer block definition', () => {
+  const footer = CANVAS_BLOCKS.find(b => b.id === 'canvas-footer')!
+
+  it('exists in the registry', () => {
+    expect(footer).toBeDefined()
+  })
+
+  it('col1Links/col2Links are structured list fields with label/url sub-fields', () => {
+    for (const key of ['col1Links', 'col2Links']) {
+      const field = footer.fields.find(f => f.key === key)!
+      expect(field.type).toBe('list')
+      expect(field.fields?.map(f => f.key)).toEqual(['label', 'url'])
+    }
+  })
+
+  it('default links parse into the exact {label, url}[] shape CanvasBlockFooter.vue expects', () => {
+    for (const key of ['col1Links', 'col2Links']) {
+      const parsed = JSON.parse(footer.defaultProps[key] as string) as Array<{ label: string; url: string }>
+      expect(parsed.length).toBeGreaterThan(0)
+      for (const link of parsed) {
+        expect(typeof link.label).toBe('string')
+        expect(typeof link.url).toBe('string')
+      }
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Accordion block — itemsJson uses the structured 'list' field type
+// (question/answer sub-fields) instead of a hand-typed JSON string.
+// ---------------------------------------------------------------------------
+
+describe('canvas-accordion block definition', () => {
+  const accordion = CANVAS_BLOCKS.find(b => b.id === 'canvas-accordion')!
+
+  it('exists in the registry', () => {
+    expect(accordion).toBeDefined()
+  })
+
+  it('itemsJson is a structured list field with question/answer sub-fields', () => {
+    const field = accordion.fields.find(f => f.key === 'itemsJson')!
+    expect(field.type).toBe('list')
+    expect(field.fields?.map(f => f.key)).toEqual(['question', 'answer'])
+  })
+
+  it('default items parse into the exact {question, answer}[] shape CanvasBlockAccordion.vue expects', () => {
+    const parsed = JSON.parse(accordion.defaultProps.itemsJson as string) as Array<{ question: string; answer: string }>
+    expect(parsed.length).toBeGreaterThan(0)
+    for (const item of parsed) {
+      expect(typeof item.question).toBe('string')
+      expect(typeof item.answer).toBe('string')
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Pricing block — plan1/2/3Features use the plain-string 'list' field type
+// (no sub-fields — one text input per feature bullet).
+// ---------------------------------------------------------------------------
+
+describe('canvas-pricing block definition', () => {
+  const pricing = CANVAS_BLOCKS.find(b => b.id === 'canvas-pricing')!
+
+  it('exists in the registry', () => {
+    expect(pricing).toBeDefined()
+  })
+
+  it('plan1/2/3Features are list fields with no sub-fields (plain string items)', () => {
+    for (const key of ['plan1Features', 'plan2Features', 'plan3Features']) {
+      const field = pricing.fields.find(f => f.key === key)!
+      expect(field.type).toBe('list')
+      expect(field.fields).toBeUndefined()
+    }
+  })
+
+  it('plan3Features is conditional on numPlans === "3"', () => {
+    const field = pricing.fields.find(f => f.key === 'plan3Features')!
+    expect(field.condition!({ numPlans: '2' })).toBe(false)
+    expect(field.condition!({ numPlans: '3' })).toBe(true)
+  })
+
+  it('default features parse into a plain string[] for every plan', () => {
+    for (const key of ['plan1Features', 'plan2Features', 'plan3Features']) {
+      const parsed = JSON.parse(pricing.defaultProps[key] as string) as unknown[]
+      expect(parsed.length).toBeGreaterThan(0)
+      for (const feat of parsed) expect(typeof feat).toBe('string')
+    }
   })
 })
 

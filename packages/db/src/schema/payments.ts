@@ -3,6 +3,11 @@ import { sql } from 'drizzle-orm'
 import { sites } from './sites'
 import { users } from './users'
 
+// Target of ON DELETE SET NULL from subscriptions.tierId below — same DROP-TABLE-
+// triggers-FK-actions landmine documented in full on `sites` in
+// packages/db/src/schema/sites.ts. A future rebuild migration on `membership_tiers`
+// would silently null out every subscription's tierId, for every site, with no error;
+// verify against a real D1 deploy first, or hand-write the migration.
 export const membershipTiers = sqliteTable('membership_tiers', {
   id: text('id').primaryKey(),
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),

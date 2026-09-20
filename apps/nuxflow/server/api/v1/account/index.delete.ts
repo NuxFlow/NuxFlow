@@ -1,11 +1,11 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
-import { subscriptions, sites, users } from '@nuxflow/db/schema'
+import { subscriptions, sites, users, comments, formSubmissions } from '@nuxflow/db/schema'
 import { hasSuperAdminRole } from '../../../utils/permissions'
 import { getConfiguredPaymentProvider } from '../../../utils/payments/resolve'
 import { getOrCreateBetterAuth } from '../../../utils/better-auth'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
-import { errorMessage } from '../../../utils/errors'
+import { errorMessage, rethrowAsProviderError } from '../../../utils/errors'
 
 // Article 17 (right to erasure) self-service account deletion. `users` is a single
 // global account shared across every site in this D1 instance (no siteId column — see
@@ -13,8 +13,8 @@ import { errorMessage } from '../../../utils/errors'
 // just this site's membership row — unlike DELETE /api/v1/users/:id (admin-initiated,
 // site-scoped, only ever removes a user_site_roles row).
 //
-// A plain `db.delete(users)` is sufficient to erase everything: every FK from another
-// table to users.id already declares its own real, D1-enforced cascade behaviour —
+// A plain `db.delete(users)` unlinks everything: every FK from another table to
+// users.id already declares its own real, D1-enforced cascade behaviour —
 // sessions/accounts/passkeys/user_site_roles/api_keys/notifications/
 // push_subscriptions/ai_generation_jobs/subscriptions cascade-delete, while
 // audit_logs/media/video_assets/content_items/content_revisions/comments/
@@ -24,6 +24,24 @@ import { errorMessage } from '../../../utils/errors'
 // deleteSiteCompletely()'s media-deletion step only runs when the whole site (not
 // just one contributor) is being torn down. See packages/db/src/schema/*.ts for the
 // authoritative per-table FK behaviour.
+//
+// Unlinking the FK is not the same as erasing the personal data it pointed at, though
+// — Article 17 requires the *content* gone, not just its attribution. Two tables hold
+// free-text content the person themselves typed, which the FK-based cascade above
+// would otherwise leave fully intact under a now-null authorId/userId:
+// - `comments.body` — redacted to a fixed placeholder for every comment authored by
+//   this user (see below), preserving thread structure (replies aren't orphaned) the
+//   same way nulling authorId already does, but erasing what they actually wrote.
+// - `formSubmissions.data` — a schema-less JSON blob shaped by each form's own field
+//   definitions (name/email/phone/message, or something else entirely — there's no
+//   fixed set of "PII fields" to selectively scrub). Every submission this user made
+//   (identified via the real `formSubmissions.userId` FK, not a heuristic like an
+//   email-text match) gets its entire `data` blob replaced with a redaction marker
+//   rather than picked apart field-by-field, since that's the only reliable way to
+//   guarantee nothing personal survives in a shape NuxFlow can't introspect.
+// Both run as UPDATEs in the same batch, before the DELETE below — the WHERE clauses
+// need `authorId`/`userId` to still equal this user's id, which the DELETE's own
+// cascade would otherwise null out first if it ran before these.
 export default defineEventHandler(async (event) => {
   const session = await requireSession(event)
   const userId = session.user.id as string
@@ -72,7 +90,7 @@ export default defineEventHandler(async (event) => {
       await provider.cancelSubscription(sub.providerSubscriptionId)
     }
     catch (err) {
-      throw createError({ statusCode: 502, message: `Payment provider cancellation failed: ${errorMessage(err)}` })
+      rethrowAsProviderError(err, 'cancellation')
     }
   }
 
@@ -109,7 +127,20 @@ export default defineEventHandler(async (event) => {
     resourceId: userId,
     before: { email: session.user.email, self: true },
   })
-  await batchWithAudit(db, [db.delete(users).where(eq(users.id, userId))], auditInsert)
+
+  const redactCommentsStmt = db.update(comments)
+    .set({ body: '[deleted]' })
+    .where(eq(comments.authorId, userId))
+
+  const redactFormSubmissionsStmt = db.update(formSubmissions)
+    .set({ data: { redacted: true, redactedAt: new Date().toISOString() } })
+    .where(eq(formSubmissions.userId, userId))
+
+  await batchWithAudit(
+    db,
+    [redactCommentsStmt, redactFormSubmissionsStmt, db.delete(users).where(eq(users.id, userId))],
+    auditInsert,
+  )
 
   return noContent(event)
 })

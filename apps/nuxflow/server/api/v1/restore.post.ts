@@ -138,7 +138,10 @@ export default defineEventHandler(async (event) => {
             await db.insert(media).values({ id: ulid(), ...values })
           }
           mediaResult.uploaded++
-        } catch {
+        } catch (e) {
+          // Without this, a corrupt local-fallback entry and a legitimate
+          // "already existed, skipped" case look identical in the response.
+          console.error(`[restore] Failed to restore local media item "${item.originalName}":`, e)
           mediaResult.skipped++
         }
         continue
@@ -183,7 +186,10 @@ export default defineEventHandler(async (event) => {
         } else {
           await db.insert(media).values({ id: ulid(), ...values })
         }
-      } catch {
+      } catch (e) {
+        // A corrupt zip entry, provider timeout, or malformed image would
+        // otherwise look identical to an intentional skip in the response.
+        console.error(`[restore] Failed to restore media item "${item.originalName}" (zipPath: ${item.zipPath}):`, e)
         mediaResult.skipped++
       }
     }

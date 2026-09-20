@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { generateText } from 'ai'
 import { requireRole } from '../../../utils/permissions'
 import { requireAiSdkModel, loadImageBytesForAi } from '../../../utils/ai-sdk'
+import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { waitUntil } from '../../../utils/cf-env'
 import { writeAuditLog } from '../../../utils/audit'
@@ -31,6 +32,10 @@ const MAX_IMAGES_PER_RUN = 50
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
+  // This single call can fan out into up to MAX_IMAGES_PER_RUN provider calls, so its
+  // per-minute call limit is set lower than the single-image AI routes (alt-text.post.ts
+  // uses 15/min) even though each individual invocation is comparatively cheap.
+  await rateLimit(event, { limit: 5, windowMs: 60_000, keyPrefix: 'ai-bulk-alt-text' })
 
   const model = await requireAiSdkModel(event, 'fast')
 

@@ -2,8 +2,7 @@
 import type { H3Event } from 'h3'
 import type { StripeProvider } from '../../../../utils/payments/stripe'
 import { getStripeProvider, getLemonSqueezyProvider, getPaddleProvider } from '../../../../utils/payments/resolve'
-import { upsertSubscriptionFromWebhook, cancelSubscriptionFromWebhook, assertWebhookSiteMatch } from '../../../../utils/payments/webhook-sync'
-import { resolveSetting } from '../../../../utils/settings'
+import { upsertSubscriptionFromWebhook, cancelSubscriptionFromWebhook, assertWebhookSiteMatch, requireWebhookSecret } from '../../../../utils/payments/webhook-sync'
 import { rateLimit } from '../../../../utils/rate-limit'
 
 const STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID = {
@@ -14,12 +13,7 @@ const STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID = {
 
 async function handleStripeWebhook(event: H3Event, rawBody: string) {
   const stripe = await getStripeProvider(event)
-  const stripeWebhookSecret = await resolveSetting(event, 'payments.stripe_webhook_secret', 'stripeWebhookSecret')
-  if (!stripeWebhookSecret) {
-    // Never verify against an empty secret — Stripe's SDK accepts a zero-length HMAC key
-    // without error, which makes the signature check trivially forgeable by anyone.
-    throw createError({ statusCode: 503, message: 'Stripe webhook secret is not configured' })
-  }
+  const stripeWebhookSecret = await requireWebhookSecret(event, 'payments.stripe_webhook_secret', 'stripeWebhookSecret', 'Stripe')
   const sig = getHeader(event, 'stripe-signature') ?? ''
 
   let stripeEvent: Awaited<ReturnType<StripeProvider['constructWebhookEvent']>>
@@ -143,12 +137,7 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
 
 async function handleLemonSqueezyWebhook(event: H3Event, rawBody: string) {
   const ls = await getLemonSqueezyProvider(event)
-  const lsWebhookSecret = await resolveSetting(event, 'payments.ls_webhook_secret', 'lsWebhookSecret')
-  if (!lsWebhookSecret) {
-    // Never verify against an empty secret — HMAC accepts a zero-length key without
-    // error, which makes the signature check trivially forgeable by anyone.
-    throw createError({ statusCode: 503, message: 'Lemon Squeezy webhook secret is not configured' })
-  }
+  const lsWebhookSecret = await requireWebhookSecret(event, 'payments.ls_webhook_secret', 'lsWebhookSecret', 'Lemon Squeezy')
   const sig = getHeader(event, 'x-signature') ?? ''
 
   const valid = await ls.verifyWebhook(rawBody, sig, lsWebhookSecret as string)
@@ -193,12 +182,7 @@ async function handleLemonSqueezyWebhook(event: H3Event, rawBody: string) {
 
 async function handlePaddleWebhook(event: H3Event, rawBody: string) {
   const paddle = await getPaddleProvider(event)
-  const paddleWebhookSecret = await resolveSetting(event, 'payments.paddle_webhook_secret', 'paddleWebhookSecret')
-  if (!paddleWebhookSecret) {
-    // Never verify against an empty secret — HMAC accepts a zero-length key without
-    // error, which makes the signature check trivially forgeable by anyone.
-    throw createError({ statusCode: 503, message: 'Paddle webhook secret is not configured' })
-  }
+  const paddleWebhookSecret = await requireWebhookSecret(event, 'payments.paddle_webhook_secret', 'paddleWebhookSecret', 'Paddle')
   const sig = getHeader(event, 'paddle-signature') ?? ''
 
   const valid = await paddle.verifyWebhook(rawBody, sig, paddleWebhookSecret as string)
@@ -240,7 +224,12 @@ async function handlePaddleWebhook(event: H3Event, rawBody: string) {
       currentPeriodEnd: fresh.current_billing_period?.ends_at,
       pushOnActivation: payload.event_type === 'subscription.activated',
     })
-  } else if (payload.event_type === 'subscription.canceled') {
+  } else if (payload.event_type === 'subscription.canceled' || payload.event_type === 'subscription.paused') {
+    // Paddle sends a distinct `subscription.paused` event (dunning exhaustion, or an
+    // API-initiated pause) that carries no `subscription.updated`/`.activated` alongside
+    // it — treat it the same as a cancellation for access-control purposes, since
+    // checkContentAccess() only grants access to 'active'/'trialing' subscriptions and a
+    // paused subscription should stop gating access just like a genuinely cancelled one.
     await cancelSubscriptionFromWebhook(event, {
       provider: 'paddle',
       providerSubscriptionId: sub.id,

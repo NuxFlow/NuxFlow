@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { generateText } from 'ai'
+import { generateObject } from 'ai'
 import { requireRole } from '../../../utils/permissions'
 import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
@@ -15,6 +15,18 @@ const bodySchema = z.object({
   targetLocale: z.string().min(2).max(10),
   targetSlugSuffix: z.string().optional(),
 })
+
+// generateObject (Vercel AI SDK) enforces this shape at the provider-call level instead of
+// hand-parsing a generateText response — same reasoning as improve.post.ts/seo-suggest.post.ts's
+// comments: the model doesn't always comply with a "return ONLY valid JSON" instruction, and
+// this route used to need its own markdown-code-fence-stripping workaround for it. The keys
+// here are dynamic (internal string-path identifiers built by extractTipTapStrings/
+// extractCanvasStrings, e.g. "__title__" or "blockId.propKey"), not a fixed set known ahead of
+// time, so the schema is a plain string->string record rather than a z.object() with named
+// fields — this preserves the exact same `Record<string, string>` shape the old manual
+// `JSON.parse()` produced, so every consumer below (translations['__title__'], etc.) keeps
+// working unchanged.
+const translationsSchema = z.record(z.string(), z.string())
 
 // Extract all translatable string values from a TipTap JSON tree.
 function extractTipTapStrings(node: unknown, out: Map<string, string>, path: string) {
@@ -150,23 +162,15 @@ export default defineEventHandler(async (event) => {
   strings.forEach((val, key) => { bundle[key] = val })
   const bundleJson = JSON.stringify(bundle, null, 2)
 
-  const { text: rawResult } = await callAiOrThrow(() =>
-    generateText({
+  const { object: translations } = await callAiOrThrow(() =>
+    generateObject({
       model,
-      system: `You are a professional translator. You will receive a JSON object where keys are internal identifiers and values are text strings. Translate ALL values to ${targetLocale}. Return ONLY valid JSON with the same keys and translated values. For HTML values, translate only the visible text inside tags, preserving all HTML tags and attributes exactly. For JSON array strings (like feature lists), translate the text values inside the JSON while keeping the JSON structure valid.`,
+      schema: translationsSchema,
+      system: `You are a professional translator. You will receive a JSON object where keys are internal identifiers and values are text strings. Translate ALL values to ${targetLocale}, returning an object with exactly the same keys. For HTML values, translate only the visible text inside tags, preserving all HTML tags and attributes exactly. For JSON array strings (like feature lists), translate the text values inside the JSON while keeping the JSON structure valid.`,
       prompt: `Translate to ${targetLocale}:\n\n${bundleJson}`,
       maxOutputTokens: Math.min(8192, Math.max(1000, bundleJson.length * 2)),
     }),
   )
-
-  let translations: Record<string, string>
-  try {
-    // Strip potential markdown code fences
-    const cleaned = rawResult.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-    translations = JSON.parse(cleaned) as Record<string, string>
-  } catch {
-    throw createError({ statusCode: 500, message: 'AI returned invalid translation JSON. Try again.' })
-  }
 
   // Apply translations back to content
   let translatedContent: unknown = source.content

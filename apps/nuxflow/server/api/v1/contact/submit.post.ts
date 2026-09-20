@@ -43,7 +43,6 @@ async function getOrCreateContactForm(db: ReturnType<typeof useDb>, siteId: stri
     name: 'Contact Form',
     slug: CONTACT_SLUG,
     fields: CONTACT_FIELDS,
-    logic: [],
     status: 'active',
   })
   return id

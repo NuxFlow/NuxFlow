@@ -113,7 +113,6 @@ async function save() {
       name: name.value,
       slug: slug.value,
       fields: fields.value,
-      logic: [],
       notifications: {
         enabled: notifications.value.enabled,
         email: notifications.value.email || undefined,

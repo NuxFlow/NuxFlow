@@ -2,17 +2,13 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import type { H3Event } from 'h3'
 import { isPageCacheEligible, pageCacheRequest } from '../../server/utils/page-cache'
 
-// getRequestURL, parseCookies, and useRuntimeConfig are Nitro/H3 auto-imports in real
-// server code — not Node/Vitest globals — so they're stubbed here against a minimal mock
-// event shape this file controls directly, the same pattern edge-cache.test.ts uses for
-// getRequestURL.
+// getRequestURL and parseCookies are Nitro/H3 auto-imports in real server code — not
+// Node/Vitest globals — so they're stubbed here against a minimal mock event shape this
+// file controls directly, the same pattern edge-cache.test.ts uses for getRequestURL.
 ;(globalThis as Record<string, unknown>).getRequestURL = (event: H3Event) =>
   new URL((event as unknown as { _url: string })._url)
 ;(globalThis as Record<string, unknown>).parseCookies = (event: H3Event) =>
   (event as unknown as { _cookies?: Record<string, string> })._cookies ?? {}
-;(globalThis as Record<string, unknown>).useRuntimeConfig = () => ({
-  public: { i18n: { defaultLocale: 'en' } },
-})
 
 function mkEvent(opts: { method?: string; url?: string; cookies?: Record<string, string> } = {}) {
   return {
@@ -27,29 +23,23 @@ describe('isPageCacheEligible', () => {
     expect(isPageCacheEligible(mkEvent())).toBe(true)
   })
 
-  it('allows a request whose only cookie is the language redirect cookie at the default locale', () => {
-    expect(isPageCacheEligible(mkEvent({ cookies: { i18n_redirected: 'en' } }))).toBe(true)
-  })
-
   it('rejects a non-GET request', () => {
     expect(isPageCacheEligible(mkEvent({ method: 'POST' }))).toBe(false)
   })
 
-  // The concrete, empirically-verified reason this allowlist-not-denylist design exists:
-  // every first-time visitor to the live site picks up this exact cookie automatically
-  // (confirmed via curl against production) — gating on "zero cookies" alone would mean
-  // the cache almost never fires for anyone past their very first page view.
-  it('rejects a request whose language cookie is set to a non-default locale (would render different content)', () => {
-    expect(isPageCacheEligible(mkEvent({ cookies: { i18n_redirected: 'fr' } }))).toBe(false)
-  })
-
-  it('rejects a request carrying any cookie other than the language redirect cookie', () => {
+  // Fail-safe by design: ANY cookie at all disqualifies the request, no allowlist — a
+  // future plugin or feature adding a new cookie means "stop caching that request", never
+  // "risk serving one visitor's personalized/private response to someone else". This used
+  // to allowlist the (now-removed) @nuxtjs/i18n module's own `i18n_redirected` cookie
+  // specifically; that module is gone, so there's nothing left to special-case — a request
+  // carrying that exact cookie name today is just an unrecognized cookie like any other.
+  it('rejects a request carrying any single cookie', () => {
     expect(isPageCacheEligible(mkEvent({ cookies: { 'better-auth.session_token': 'abc123' } }))).toBe(false)
   })
 
-  it('rejects a request carrying the language cookie AND some other cookie', () => {
+  it('rejects a request carrying multiple cookies', () => {
     expect(isPageCacheEligible(mkEvent({
-      cookies: { i18n_redirected: 'en', __nuxflow_theme_preview: 'theme-1' },
+      cookies: { __nuxflow_theme_preview: 'theme-1', foo: 'bar' },
     }))).toBe(false)
   })
 

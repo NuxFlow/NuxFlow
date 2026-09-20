@@ -93,7 +93,7 @@ async function seedForm(overrides: Partial<typeof forms.$inferInsert> = {}) {
   const slug = overrides.slug ?? `survey-${id.toLowerCase()}`
   await db.insert(forms).values({
     id, siteId: SITE, name: 'Survey', slug,
-    fields: SAMPLE_FIELDS, logic: [], status: 'active',
+    fields: SAMPLE_FIELDS, status: 'active',
     ...overrides,
   })
   return { id, slug }

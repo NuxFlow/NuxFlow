@@ -79,8 +79,11 @@ export default defineEventHandler(async (event) => {
       storageKey,
     })
     finalUrl = storedUrl
-  } catch {
-    // If saving fails, return the temporary URL so the user isn't left with nothing
+  } catch (err) {
+    // If saving fails, return the temporary URL so the user isn't left with nothing —
+    // but still log the real cause, otherwise a persistently misconfigured storage
+    // provider has no diagnosable trail beyond this generic message.
+    console.error('[generate-image] Failed to save generated image to media library:', err)
     return { url: imageUrl, saved: false, error: 'Generated but could not save to media library' }
   }
 
