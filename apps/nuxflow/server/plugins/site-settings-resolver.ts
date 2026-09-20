@@ -4,6 +4,54 @@ import { and, eq, inArray } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { type AppearanceCache, getCachedAppearance, setCachedAppearance } from '../utils/appearance-cache'
 import { errorMessage } from '../utils/errors'
+// Deliberately '@nuxflow/canvas/consent', NOT the package root ('@nuxflow/canvas') —
+// the root barrel (src/index.ts) re-exports every Canvas block as a .vue SFC, and this
+// file is part of the Nitro *server* bundle, which has no Vue SFC plugin. Importing even
+// one named export from the root forces Rollup to parse the whole barrel (including
+// every .vue file) to resolve it, which fails the server build outright — this doesn't
+// surface in `nuxt typecheck` or vitest, only in a real `wrangler deploy`/`pnpm build`
+// (see CLAUDE.md's recurring point about local/typecheck not catching everything a real
+// build does). The dedicated './consent' subpath in packages/canvas/package.json's
+// `exports` map points straight at the plain-TS consent utility, never touching a .vue
+// file, so it's safe to import from both server and client code.
+import { hasOptionalConsent, isGdprCountry, parseConsentFromHeader } from '@nuxflow/canvas/consent'
+
+// A visitor's browser runs this once the document is available: if the shared
+// nuxflow_consent cookie (see @nuxflow/canvas's consent utility) already grants
+// analytics/marketing, or is granted later via the CONSENT_EVENT the two consent UIs
+// dispatch on save, it promotes the inert <template data-nuxflow-consent-html> the
+// server wrote instead of the real tags (see the injection logic below) into live
+// <head>/<body> content. Cloning a <script> node does not execute it, so scripts are
+// specifically re-created via createElement rather than cloneNode. This only ever runs
+// when the server decided NOT to inject the code directly — see hasOptionalConsent's
+// call site below — so a consented visitor's very next request skips this path
+// entirely and gets the code injected directly again, same as before this change.
+const CONSENT_ACTIVATION_SCRIPT = `<script>(function(){
+function activateScope(scope,target){
+document.querySelectorAll('template[data-nuxflow-consent-html="'+scope+'"]').forEach(function(tpl){
+var nodes=Array.prototype.slice.call(tpl.content.childNodes);
+nodes.forEach(function(node){
+if(node.nodeType===1&&node.tagName==='SCRIPT'){
+var s=document.createElement('script');
+for(var i=0;i<node.attributes.length;i++){s.setAttribute(node.attributes[i].name,node.attributes[i].value)}
+s.text=node.textContent||'';
+target.appendChild(s);
+}else{
+target.appendChild(node.cloneNode(true));
+}
+});
+tpl.remove();
+});
+}
+function activate(){activateScope('head',document.head);activateScope('body',document.body);}
+function hasConsent(){
+var m=document.cookie.match(/(?:^|; )nuxflow_consent=([^;]*)/);
+if(!m)return false;
+try{var c=JSON.parse(decodeURIComponent(m[1]));return !!(c&&(c.analytics||c.marketing));}catch(e){return false;}
+}
+if(hasConsent()){activate();}
+window.addEventListener('nuxflow:consent-updated',function(){if(hasConsent()){activate();}});
+})()</script>`
 
 // ── Sanitization ─────────────────────────────────────────────────────────────
 
@@ -119,10 +167,36 @@ export default defineNitroPlugin((nitro) => {
         )
       }
 
-      // Custom code injection — admin-only setting; only injected on public pages
-      if (!isAdmin) {
-        if (customHeadHtml) html.head.push(customHeadHtml)
-        if (customBodyHtml) html.bodyAppend.push(customBodyHtml)
+      // Custom code injection — admin-only setting; only injected on public pages.
+      // The docs for this field (Settings → Appearance) recommend it specifically for
+      // analytics tags and marketing pixels, which is exactly the class of
+      // non-essential tracker GDPR/ePrivacy require prior consent for — so unlike
+      // every other injection above, this one is gated on the visitor's actual choice
+      // (recorded via the nuxflow_consent cookie both consent UIs write, see
+      // @nuxflow/canvas's consent utility) instead of always running. Requests from
+      // outside the GDPR/UK/CH zone (or where Cloudflare's cf-ipcountry header is
+      // absent, e.g. local dev without a real Cloudflare edge in front) are treated as
+      // not requiring prior consent and get the code directly, matching this
+      // deployment's pre-existing behaviour for that traffic; a request with the
+      // header present and inside that zone must have an explicit analytics/marketing
+      // consent before either field ever reaches the page.
+      if (!isAdmin && (customHeadHtml || customBodyHtml)) {
+        const consent = parseConsentFromHeader(getRequestHeader(event, 'cookie'))
+        const regulatedVisitor = isGdprCountry(getRequestHeader(event, 'cf-ipcountry'))
+        const allowed = hasOptionalConsent(consent) || !regulatedVisitor
+
+        if (allowed) {
+          if (customHeadHtml) html.head.push(customHeadHtml)
+          if (customBodyHtml) html.bodyAppend.push(customBodyHtml)
+        }
+        else {
+          // Wrapped inert (never auto-executed, including any <script> tags inside —
+          // a <template>'s content is inert DOM, not part of the live document) until
+          // CONSENT_ACTIVATION_SCRIPT promotes it client-side after consent is granted.
+          if (customHeadHtml) html.head.push(`<template data-nuxflow-consent-html="head">${customHeadHtml}</template>`)
+          if (customBodyHtml) html.bodyAppend.push(`<template data-nuxflow-consent-html="body">${customBodyHtml}</template>`)
+          html.bodyAppend.push(CONSENT_ACTIVATION_SCRIPT)
+        }
       }
     }
     catch (err) {

@@ -6,7 +6,8 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./consent": "./src/utils/consent.ts"
   },
   "scripts": {
     "typecheck": "vue-tsc --noEmit",
