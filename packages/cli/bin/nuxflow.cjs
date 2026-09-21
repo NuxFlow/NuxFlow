@@ -1436,8 +1436,8 @@ var require_graceful_fs = __commonJS({
       fs2.createReadStream = createReadStream;
       fs2.createWriteStream = createWriteStream;
       var fs$readFile = fs2.readFile;
-      fs2.readFile = readFile4;
-      function readFile4(path, options, cb) {
+      fs2.readFile = readFile5;
+      function readFile5(path, options, cb) {
         if (typeof options === "function")
           cb = options, options = null;
         return go$readFile(path, options, cb);
@@ -2842,7 +2842,7 @@ var require_jsonfile = __commonJS({
       }
       return obj;
     }
-    var readFile4 = universalify.fromPromise(_readFile);
+    var readFile5 = universalify.fromPromise(_readFile);
     function readFileSync(file, options = {}) {
       if (typeof options === "string") {
         options = { encoding: options };
@@ -2874,7 +2874,7 @@ var require_jsonfile = __commonJS({
       return fs.writeFileSync(file, str, options);
     }
     module2.exports = {
-      readFile: readFile4,
+      readFile: readFile5,
       readFileSync,
       writeFile: writeFile3,
       writeFileSync
@@ -5154,9 +5154,9 @@ var L4 = () => {
 };
 
 // src/commands/plugin.ts
-var import_promises2 = require("node:fs/promises");
+var import_promises3 = require("node:fs/promises");
 var import_node_fs2 = require("node:fs");
-var import_node_path4 = require("node:path");
+var import_node_path5 = require("node:path");
 
 // src/utils/api.ts
 async function authenticate(site, email, password) {
@@ -5227,6 +5227,22 @@ function resolveAuth(opts) {
     throw new Error(`--site must use https:// (got ${parsed.protocol}//${parsed.hostname}) \u2014 refusing to send credentials over an insecure connection`);
   }
   return { site, email, password };
+}
+var AUTH_ARGS = {
+  site: { type: "string", description: "Site URL             (or NUXFLOW_SITE)" },
+  email: { type: "string", description: "Admin email          (or NUXFLOW_EMAIL)" },
+  password: { type: "string", description: "Admin password       (or NUXFLOW_PASSWORD)" }
+};
+async function authenticateOrExit(s2, args) {
+  try {
+    const auth = resolveAuth(args);
+    const cookie = await authenticate(auth.site, auth.email, auth.password);
+    return { site: auth.site, cookie };
+  } catch (e3) {
+    s2.stop("Auth failed.");
+    consola.error(e3.message);
+    process.exit(1);
+  }
 }
 
 // src/utils/build.ts
@@ -5690,24 +5706,37 @@ something that's re-synced.
   }
 }
 
+// src/utils/manifest.ts
+var import_promises2 = require("node:fs/promises");
+var import_node_path4 = require("node:path");
+async function readManifest(dir, filename, kind) {
+  const raw = await (0, import_promises2.readFile)((0, import_node_path4.join)(dir, filename), "utf-8").catch(() => null);
+  if (!raw) throw new Error(`${filename} not found \u2014 run this command from a ${kind} directory`);
+  return JSON.parse(raw);
+}
+function orExit(promise) {
+  return promise.catch((e3) => {
+    consola.error(e3.message);
+    process.exit(1);
+  });
+}
+
 // src/commands/plugin.ts
+function readManifest2(dir) {
+  return readManifest(dir, "nuxflow.plugin.json", "plugin");
+}
 function toKebab(s2) {
   return s2.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
-async function readManifest(dir) {
-  const raw = await (0, import_promises2.readFile)((0, import_node_path4.join)(dir, "nuxflow.plugin.json"), "utf-8").catch(() => null);
-  if (!raw) throw new Error("nuxflow.plugin.json not found \u2014 run this command from a plugin directory");
-  return JSON.parse(raw);
-}
 async function readDistJson(dir) {
-  const p2 = (0, import_node_path4.join)(dir, "dist/plugin.json");
+  const p2 = (0, import_node_path5.join)(dir, "dist/plugin.json");
   if (!(0, import_node_fs2.existsSync)(p2)) throw new Error("dist/plugin.json not found \u2014 run `nuxflow plugin build` first");
-  return JSON.parse(await (0, import_promises2.readFile)(p2, "utf-8"));
+  return JSON.parse(await (0, import_promises3.readFile)(p2, "utf-8"));
 }
 async function readPrivateKey(dir) {
-  const p2 = (0, import_node_path4.join)(dir, ".nuxflow-private-key");
+  const p2 = (0, import_node_path5.join)(dir, ".nuxflow-private-key");
   if (!(0, import_node_fs2.existsSync)(p2)) throw new Error(".nuxflow-private-key not found \u2014 run `nuxflow plugin keygen` first");
-  return (await (0, import_promises2.readFile)(p2, "utf-8")).trim();
+  return (await (0, import_promises3.readFile)(p2, "utf-8")).trim();
 }
 async function buildSigningPayload(manifest, dist) {
   return {
@@ -5741,7 +5770,7 @@ var pluginCommand = defineCommand({
           placeholder: "What does this plugin do?"
         });
         const description = typeof rawDesc === "string" ? rawDesc : "";
-        const outDir = (0, import_node_path4.resolve)(process.cwd(), id);
+        const outDir = (0, import_node_path5.resolve)(process.cwd(), id);
         if ((0, import_node_fs2.existsSync)(outDir)) {
           consola.error(`Directory already exists: ${outDir}`);
           process.exit(1);
@@ -5774,10 +5803,7 @@ var pluginCommand = defineCommand({
       async run() {
         we("NuxFlow \u2014 Generate Publisher Keypair");
         const dir = process.cwd();
-        const manifest = await readManifest(dir).catch((e3) => {
-          consola.error(e3.message);
-          process.exit(1);
-        });
+        const manifest = await orExit(readManifest2(dir));
         if (manifest.publisherPublicKey) {
           const replace = await me({
             message: "A keypair already exists for this plugin. Regenerating will invalidate all existing signatures. Continue?"
@@ -5790,10 +5816,10 @@ var pluginCommand = defineCommand({
         const s2 = L4();
         s2.start("Generating Ed25519 keypair\u2026");
         const { privateKey, publicKey } = await generateKeyPair();
-        await (0, import_promises2.writeFile)((0, import_node_path4.join)(dir, ".nuxflow-private-key"), privateKey + "\n", { mode: 384 });
+        await (0, import_promises3.writeFile)((0, import_node_path5.join)(dir, ".nuxflow-private-key"), privateKey + "\n", { mode: 384 });
         const updatedManifest = { ...manifest, publisherPublicKey: publicKey };
-        await (0, import_promises2.writeFile)(
-          (0, import_node_path4.join)(dir, "nuxflow.plugin.json"),
+        await (0, import_promises3.writeFile)(
+          (0, import_node_path5.join)(dir, "nuxflow.plugin.json"),
           JSON.stringify(updatedManifest, null, 2) + "\n"
         );
         s2.stop("Keypair generated.");
@@ -5816,10 +5842,7 @@ var pluginCommand = defineCommand({
       async run() {
         we("NuxFlow \u2014 Build Plugin");
         const dir = process.cwd();
-        const manifest = await readManifest(dir).catch((e3) => {
-          consola.error(e3.message);
-          process.exit(1);
-        });
+        const manifest = await orExit(readManifest2(dir));
         if (!manifest.publisherPublicKey) {
           consola.error("No publisher keypair found. Run `nuxflow plugin keygen` before building.");
           process.exit(1);
@@ -5841,7 +5864,7 @@ var pluginCommand = defineCommand({
             ...clientBundle ? { clientBundle, clientChecksum } : {},
             ...blockDefinitions ? { blockDefinitions, definitionsChecksum } : {}
           };
-          await (0, import_promises2.writeFile)((0, import_node_path4.join)(dir, "dist/plugin.json"), JSON.stringify(payload, null, 2) + "\n");
+          await (0, import_promises3.writeFile)((0, import_node_path5.join)(dir, "dist/plugin.json"), JSON.stringify(payload, null, 2) + "\n");
           const parts = [serverModule && "server", clientBundle && "client", blockDefinitions && "block definitions"].filter(Boolean);
           s2.stop(`Built: ${parts.join(" + ")} \u2192 dist/  (checksums included)`);
         } catch (e3) {
@@ -5855,47 +5878,25 @@ var pluginCommand = defineCommand({
     // ── nuxflow plugin deploy ───────────────────────────────────────────────
     deploy: defineCommand({
       meta: { description: "Install the plugin on a NuxFlow site (first time)" },
-      args: {
-        site: { type: "string", description: "Site URL             (or NUXFLOW_SITE)" },
-        email: { type: "string", description: "Admin email          (or NUXFLOW_EMAIL)" },
-        password: { type: "string", description: "Admin password       (or NUXFLOW_PASSWORD)" }
-      },
+      args: { ...AUTH_ARGS },
       async run({ args }) {
         we("NuxFlow \u2014 Deploy Plugin");
         const dir = process.cwd();
         const [manifest, dist] = await Promise.all([
-          readManifest(dir).catch((e3) => {
-            consola.error(e3.message);
-            process.exit(1);
-          }),
-          readDistJson(dir).catch((e3) => {
-            consola.error(e3.message);
-            process.exit(1);
-          })
+          orExit(readManifest2(dir)),
+          orExit(readDistJson(dir))
         ]);
         if (!manifest.publisherPublicKey) {
           consola.error("No publisher public key in nuxflow.plugin.json \u2014 run `nuxflow plugin keygen` first.");
           process.exit(1);
         }
-        const privateKey = await readPrivateKey(dir).catch((e3) => {
-          consola.error(e3.message);
-          process.exit(1);
-        });
+        const privateKey = await orExit(readPrivateKey(dir));
         const s2 = L4();
         s2.start("Signing plugin payload\u2026");
         const signingPayload = await buildSigningPayload(manifest, dist);
         const signature = await signPayload(privateKey, signingPayload);
         s2.message("Authenticating\u2026");
-        let site, cookie;
-        try {
-          const auth = resolveAuth(args);
-          cookie = await authenticate(auth.site, auth.email, auth.password);
-          site = auth.site;
-        } catch (e3) {
-          s2.stop("Auth failed.");
-          consola.error(e3.message);
-          process.exit(1);
-        }
+        const { site, cookie } = await authenticateOrExit(s2, args);
         s2.message(`Deploying ${manifest.name} v${manifest.version}\u2026`);
         try {
           await apiPost(site, "/api/v1/dynamic-plugins", cookie, {
@@ -5915,47 +5916,25 @@ var pluginCommand = defineCommand({
     // ── nuxflow plugin update ───────────────────────────────────────────────
     update: defineCommand({
       meta: { description: "Update an already-installed plugin (removes then reinstalls)" },
-      args: {
-        site: { type: "string", description: "Site URL             (or NUXFLOW_SITE)" },
-        email: { type: "string", description: "Admin email          (or NUXFLOW_EMAIL)" },
-        password: { type: "string", description: "Admin password       (or NUXFLOW_PASSWORD)" }
-      },
+      args: { ...AUTH_ARGS },
       async run({ args }) {
         we("NuxFlow \u2014 Update Plugin");
         const dir = process.cwd();
         const [manifest, dist] = await Promise.all([
-          readManifest(dir).catch((e3) => {
-            consola.error(e3.message);
-            process.exit(1);
-          }),
-          readDistJson(dir).catch((e3) => {
-            consola.error(e3.message);
-            process.exit(1);
-          })
+          orExit(readManifest2(dir)),
+          orExit(readDistJson(dir))
         ]);
         if (!manifest.publisherPublicKey) {
           consola.error("No publisher public key in nuxflow.plugin.json \u2014 run `nuxflow plugin keygen` first.");
           process.exit(1);
         }
-        const privateKey = await readPrivateKey(dir).catch((e3) => {
-          consola.error(e3.message);
-          process.exit(1);
-        });
+        const privateKey = await orExit(readPrivateKey(dir));
         const s2 = L4();
         s2.start("Signing plugin payload\u2026");
         const signingPayload = await buildSigningPayload(manifest, dist);
         const signature = await signPayload(privateKey, signingPayload);
         s2.message("Authenticating\u2026");
-        let site, cookie;
-        try {
-          const auth = resolveAuth(args);
-          cookie = await authenticate(auth.site, auth.email, auth.password);
-          site = auth.site;
-        } catch (e3) {
-          s2.stop("Auth failed.");
-          consola.error(e3.message);
-          process.exit(1);
-        }
+        const { site, cookie } = await authenticateOrExit(s2, args);
         s2.message("Removing old version\u2026");
         await apiDelete(site, `/api/v1/dynamic-plugins/${manifest.id}`, cookie).catch(() => {
         });
@@ -5979,9 +5958,9 @@ var pluginCommand = defineCommand({
 });
 
 // src/commands/theme.ts
-var import_promises3 = require("node:fs/promises");
+var import_promises4 = require("node:fs/promises");
 var import_node_fs3 = require("node:fs");
-var import_node_path5 = require("node:path");
+var import_node_path6 = require("node:path");
 
 // ../../node_modules/.pnpm/fflate@0.8.3/node_modules/fflate/esm/index.mjs
 var import_module = require("module");
@@ -6700,19 +6679,17 @@ function zipSync(data, opts) {
 }
 
 // src/commands/theme.ts
-async function readManifest2(dir) {
-  const raw = await (0, import_promises3.readFile)((0, import_node_path5.join)(dir, "nuxflow.theme.json"), "utf-8").catch(() => null);
-  if (!raw) throw new Error("nuxflow.theme.json not found \u2014 run this command from a theme directory");
-  return JSON.parse(raw);
+function readManifest3(dir) {
+  return readManifest(dir, "nuxflow.theme.json", "theme");
 }
 async function readCss(dir) {
-  const p2 = (0, import_node_path5.join)(dir, "theme.css");
+  const p2 = (0, import_node_path6.join)(dir, "theme.css");
   if (!(0, import_node_fs3.existsSync)(p2)) throw new Error("theme.css not found \u2014 run this command from a theme directory");
-  return (0, import_promises3.readFile)(p2, "utf-8");
+  return (0, import_promises4.readFile)(p2, "utf-8");
 }
 async function buildBundleZip(dir, manifest, css) {
-  const demoPath = (0, import_node_path5.join)(dir, "demo.json");
-  const imagesDir = (0, import_node_path5.join)(dir, "images");
+  const demoPath = (0, import_node_path6.join)(dir, "demo.json");
+  const imagesDir = (0, import_node_path6.join)(dir, "images");
   const hasDemo = (0, import_node_fs3.existsSync)(demoPath);
   const hasImages = (0, import_node_fs3.existsSync)(imagesDir);
   if (!hasDemo && !hasImages) return null;
@@ -6721,12 +6698,12 @@ async function buildBundleZip(dir, manifest, css) {
     "theme.json": new TextEncoder().encode(JSON.stringify({ name: manifest.name, version: manifest.version }, null, 2))
   };
   if (hasDemo) {
-    files["demo.json"] = new TextEncoder().encode(await (0, import_promises3.readFile)(demoPath, "utf-8"));
+    files["demo.json"] = new TextEncoder().encode(await (0, import_promises4.readFile)(demoPath, "utf-8"));
   }
   if (hasImages) {
-    for (const entry of await (0, import_promises3.readdir)(imagesDir, { withFileTypes: true })) {
+    for (const entry of await (0, import_promises4.readdir)(imagesDir, { withFileTypes: true })) {
       if (!entry.isFile()) continue;
-      files[`images/${entry.name}`] = await (0, import_promises3.readFile)((0, import_node_path5.join)(imagesDir, entry.name));
+      files[`images/${entry.name}`] = await (0, import_promises4.readFile)((0, import_node_path6.join)(imagesDir, entry.name));
     }
   }
   return zipSync(files);
@@ -6746,7 +6723,7 @@ var themeCommand = defineCommand({
         }
         const name = rawName.trim();
         const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-        const outDir = (0, import_node_path5.resolve)(process.cwd(), slug);
+        const outDir = (0, import_node_path6.resolve)(process.cwd(), slug);
         if ((0, import_node_fs3.existsSync)(outDir)) {
           consola.error(`Directory already exists: ${outDir}`);
           process.exit(1);
@@ -6773,35 +6750,16 @@ var themeCommand = defineCommand({
     // ── nuxflow theme deploy ────────────────────────────────────────────────
     deploy: defineCommand({
       meta: { description: "Upload the theme to a NuxFlow site (first time)" },
-      args: {
-        site: { type: "string", description: "Site URL             (or NUXFLOW_SITE)" },
-        email: { type: "string", description: "Admin email          (or NUXFLOW_EMAIL)" },
-        password: { type: "string", description: "Admin password       (or NUXFLOW_PASSWORD)" }
-      },
+      args: { ...AUTH_ARGS },
       async run({ args }) {
         we("NuxFlow \u2014 Deploy Theme");
         const dir = process.cwd();
-        const manifest = await readManifest2(dir).catch((e3) => {
-          consola.error(e3.message);
-          process.exit(1);
-        });
-        const css = await readCss(dir).catch((e3) => {
-          consola.error(e3.message);
-          process.exit(1);
-        });
+        const manifest = await orExit(readManifest3(dir));
+        const css = await orExit(readCss(dir));
         const bundleZip = await buildBundleZip(dir, manifest, css);
         const s2 = L4();
         s2.start("Authenticating\u2026");
-        let site, cookie;
-        try {
-          const auth = resolveAuth(args);
-          cookie = await authenticate(auth.site, auth.email, auth.password);
-          site = auth.site;
-        } catch (e3) {
-          s2.stop("Auth failed.");
-          consola.error(e3.message);
-          process.exit(1);
-        }
+        const { site, cookie } = await authenticateOrExit(s2, args);
         s2.message(bundleZip ? `Uploading "${manifest.name}" v${manifest.version} (with demo content)\u2026` : `Uploading "${manifest.name}" v${manifest.version}\u2026`);
         try {
           const res = bundleZip ? await apiPostZip(site, "/api/v1/themes", cookie, `${manifest.name.toLowerCase().replace(/\s+/g, "-")}.zip`, bundleZip) : await apiPost(site, "/api/v1/themes", cookie, {
@@ -6811,7 +6769,7 @@ var themeCommand = defineCommand({
           });
           if (res.id) {
             const updated = { ...manifest, deployedId: res.id };
-            await (0, import_promises3.writeFile)((0, import_node_path5.join)(dir, "nuxflow.theme.json"), JSON.stringify(updated, null, 2) + "\n");
+            await (0, import_promises4.writeFile)((0, import_node_path6.join)(dir, "nuxflow.theme.json"), JSON.stringify(updated, null, 2) + "\n");
           }
           s2.stop("Deployed!");
           if (res.hasDemoContent) consola.info("Demo content uploaded \u2014 import it from Admin \u2192 Themes after activating.");
@@ -6827,38 +6785,19 @@ var themeCommand = defineCommand({
     // ── nuxflow theme update ────────────────────────────────────────────────
     update: defineCommand({
       meta: { description: "Push updated CSS to an already-deployed theme" },
-      args: {
-        site: { type: "string", description: "Site URL             (or NUXFLOW_SITE)" },
-        email: { type: "string", description: "Admin email          (or NUXFLOW_EMAIL)" },
-        password: { type: "string", description: "Admin password       (or NUXFLOW_PASSWORD)" }
-      },
+      args: { ...AUTH_ARGS },
       async run({ args }) {
         we("NuxFlow \u2014 Update Theme");
         const dir = process.cwd();
-        const manifest = await readManifest2(dir).catch((e3) => {
-          consola.error(e3.message);
-          process.exit(1);
-        });
+        const manifest = await orExit(readManifest3(dir));
         if (!manifest.deployedId) {
           consola.error("No deployedId in nuxflow.theme.json \u2014 run `nuxflow theme deploy` first");
           process.exit(1);
         }
-        const css = await readCss(dir).catch((e3) => {
-          consola.error(e3.message);
-          process.exit(1);
-        });
+        const css = await orExit(readCss(dir));
         const s2 = L4();
         s2.start("Authenticating\u2026");
-        let site, cookie;
-        try {
-          const auth = resolveAuth(args);
-          cookie = await authenticate(auth.site, auth.email, auth.password);
-          site = auth.site;
-        } catch (e3) {
-          s2.stop("Auth failed.");
-          consola.error(e3.message);
-          process.exit(1);
-        }
+        const { site, cookie } = await authenticateOrExit(s2, args);
         s2.message(`Updating "${manifest.name}"\u2026`);
         try {
           await apiPatch(site, `/api/v1/themes/${manifest.deployedId}/css`, cookie, {
