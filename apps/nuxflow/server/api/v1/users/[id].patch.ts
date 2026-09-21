@@ -4,6 +4,7 @@ import { userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole, assertNotSelfTarget, assertTargetNotSuperAdmin } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
+import { clearCachedRole } from '../../../utils/role-cache'
 
 const bodySchema = z.object({
   role: z.enum(['admin', 'editor', 'author', 'viewer', 'member']).optional(),
@@ -37,6 +38,7 @@ export default defineEventHandler(async (event) => {
       after: { role: body.role },
     })
     await batchWithAudit(db, [roleUpdate], auditInsert)
+    clearCachedRole(targetId, siteId)
   }
 
   return { success: true }

@@ -16,9 +16,6 @@
 
 import { defineAsyncComponent } from 'vue'
 
-import ContactFormAdmin from '~/components/forms/ContactFormAdmin.vue'
-import MembershipsAdmin from '~/components/memberships/MembershipsAdmin.vue'
-
 export default defineNuxtPlugin((nuxtApp) => {
   // ── @nuxflow/canvas editor ────────────────────────────────────────
   // Registered as a lazy async component rather than an eager static import:
@@ -33,8 +30,18 @@ export default defineNuxtPlugin((nuxtApp) => {
   )
 
   // ── Contact Forms ────────────────────────────────────────────────────────
-  nuxtApp.vueApp.component('ContactFormAdmin', ContactFormAdmin)
+  // Same reasoning as CanvasContentEditor above: only rendered on
+  // admin/contact-forms/index.vue, so it must not be a static import here —
+  // that would ship it in the bundle every anonymous public-page visitor downloads.
+  nuxtApp.vueApp.component(
+    'ContactFormAdmin',
+    defineAsyncComponent(() => import('~/components/forms/ContactFormAdmin.vue')),
+  )
 
   // ── Memberships ──────────────────────────────────────────────────────────
-  nuxtApp.vueApp.component('MembershipsAdmin', MembershipsAdmin)
+  // Only rendered on admin/memberships/index.vue — same reasoning as above.
+  nuxtApp.vueApp.component(
+    'MembershipsAdmin',
+    defineAsyncComponent(() => import('~/components/memberships/MembershipsAdmin.vue')),
+  )
 })

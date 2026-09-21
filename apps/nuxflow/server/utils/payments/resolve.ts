@@ -20,8 +20,10 @@ export async function getStripeProvider(event: H3Event): Promise<StripeProvider>
 
 /** Constructs a LemonSqueezyProvider from site settings, or returns null if unconfigured. */
 export async function resolveLemonSqueezyProvider(event: H3Event): Promise<LemonSqueezyProvider | null> {
-  const apiKey = await resolveSetting(event, 'payments.ls_api_key', 'lsApiKey')
-  const storeId = await resolveSetting(event, 'payments.ls_store_id', 'lsStoreId')
+  const [apiKey, storeId] = await Promise.all([
+    resolveSetting(event, 'payments.ls_api_key', 'lsApiKey'),
+    resolveSetting(event, 'payments.ls_store_id', 'lsStoreId'),
+  ])
   return apiKey && storeId ? new LemonSqueezyProvider(apiKey, storeId) : null
 }
 
@@ -34,10 +36,12 @@ export async function getLemonSqueezyProvider(event: H3Event): Promise<LemonSque
 
 /** Constructs a PaddleProvider from site settings, or returns null if unconfigured. */
 export async function resolvePaddleProvider(event: H3Event): Promise<PaddleProvider | null> {
-  const apiKey = await resolveSetting(event, 'payments.paddle_api_key', 'paddleApiKey')
-  const vendorId = await resolveSetting(event, 'payments.paddle_vendor_id', 'paddleVendorId')
+  const [apiKey, vendorId, sandbox] = await Promise.all([
+    resolveSetting(event, 'payments.paddle_api_key', 'paddleApiKey'),
+    resolveSetting(event, 'payments.paddle_vendor_id', 'paddleVendorId'),
+    resolveSetting(event, 'payments.paddle_sandbox'),
+  ])
   if (!apiKey || !vendorId) return null
-  const sandbox = await resolveSetting(event, 'payments.paddle_sandbox')
   return new PaddleProvider(apiKey, vendorId, sandbox === 'true')
 }
 

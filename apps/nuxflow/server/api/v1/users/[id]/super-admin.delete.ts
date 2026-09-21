@@ -3,6 +3,7 @@ import { userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { requireSuperAdmin, getUserSiteRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
+import { clearCachedRole } from '../../../../utils/role-cache'
 
 // Revokes super_admin on the CURRENT site for the target user, downgrading them to
 // 'admin' rather than deleting their access to the site outright — this is a demotion,
@@ -38,6 +39,7 @@ export default defineEventHandler(async (event) => {
     after: { role: 'admin' },
   })
   await batchWithAudit(db, [roleUpdate], auditInsert)
+  clearCachedRole(targetId, siteId)
 
   return { success: true }
 })

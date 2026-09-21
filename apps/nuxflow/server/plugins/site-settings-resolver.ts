@@ -149,9 +149,17 @@ export default defineNitroPlugin((nitro) => {
 
           const query = FONT_QUERY[knownFont]
           if (query) {
+            const fontHref = `https://fonts.googleapis.com/css2?${query}&display=swap`
             html.head.push(`<link rel="preconnect" href="https://fonts.googleapis.com">`)
             html.head.push(`<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">`)
-            html.head.push(`<link rel="stylesheet" href="https://fonts.googleapis.com/css2?${query}&display=swap">`)
+            // media="print" + onload swap: the browser fetches the stylesheet at normal
+            // priority but doesn't block first paint on it (a print-media stylesheet isn't
+            // render-blocking for the screen); onload flips it to the real media and applies
+            // it as soon as it arrives. font-display=swap (already in the query string)
+            // still covers the interval between first paint and this stylesheet loading.
+            // <noscript> covers the no-JS case, where onload never fires.
+            html.head.push(`<link rel="stylesheet" href="${fontHref}" media="print" onload="this.media='all'">`)
+            html.head.push(`<noscript><link rel="stylesheet" href="${fontHref}"></noscript>`)
           }
         }
       }

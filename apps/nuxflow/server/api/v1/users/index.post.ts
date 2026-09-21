@@ -10,6 +10,7 @@ import { rateLimit } from '../../../utils/rate-limit'
 import { created } from '../../../utils/response'
 import { getOrCreateBetterAuth } from '../../../utils/better-auth'
 import { findOrCreateUserAccount } from '../../../utils/user-provisioning'
+import { clearCachedRole } from '../../../utils/role-cache'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -56,6 +57,7 @@ export default defineEventHandler(async (event) => {
     after: { role: body.role, email: body.email },
   })
   await batchWithAudit(db, [roleInsert], auditInsert)
+  clearCachedRole(newUserId, siteId)
 
   if (isNewAccount) {
     // A brand-new invitee has no password they can actually use (see the

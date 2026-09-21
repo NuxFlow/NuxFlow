@@ -3,8 +3,15 @@ import { computed, ref } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import NuxLightbox from './NuxLightbox.vue'
+import NuxImage from './NuxImage.vue'
 import { spacingToCss } from '../utils/spacing'
 import { parseImageList, type ImageListItem } from '../utils/json'
+
+// Grid tiles are CSS aspect-square, so this isn't a CLS reservation size — it's the
+// transform request's target render size, well above what most grid layouts actually
+// display but far below a full-resolution original, so Cloudflare Image Transformations
+// (when enabled) still saves real bandwidth over serving the source file untouched.
+const THUMB_SIZE = 400
 
 const props = withDefaults(defineProps<{
   images?: string
@@ -57,12 +64,14 @@ function openLightbox(i: number) {
         :class="[rounded ? 'rounded-lg' : '', lightbox ? 'cursor-zoom-in' : 'cursor-default']"
         @click="openLightbox(i)"
       >
-        <img
+        <NuxImage
           :src="img.url"
           :alt="img.alt || ''"
+          :width="THUMB_SIZE"
+          :height="THUMB_SIZE"
+          fit="cover"
           class="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-105"
-          loading="lazy"
-        >
+        />
       </button>
     </div>
 

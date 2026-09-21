@@ -25,6 +25,20 @@ export default defineNuxtConfig({
     'nuxt-seo-utils',
   ],
 
+  // Deliberately NOT using @nuxt/image: confirmed via its own provider contract
+  // (getImage(src, {modifiers, baseURL}) has no access to the live request/event) that
+  // its provider system has no way to resolve a per-request origin, only a single
+  // baseURL fixed at build/runtimeConfig time — fundamentally incompatible with
+  // NuxFlow's multi-tenant model, where many sites on many different custom domains are
+  // served by one Worker (see 02.multi-site.ts). Cloudflare Image Transformations'
+  // /cdn-cgi/image/... URL format is simple enough to build directly against the
+  // current request's own origin instead — see app/components/NuxImage.vue. A throwaway
+  // spike (installed @nuxt/image, set provider:'cloudflare', ran a real `nuxt build`)
+  // did confirm the module itself builds cleanly on the cloudflare-module preset — its
+  // default 'ipx' provider/optimizer is the one documented to break here, pulling in
+  // `sharp`, whose native bindings don't exist in the Workers runtime (nuxt/image#1210
+  // and others) — so that risk was real but not what ruled the module out.
+
   ssr: true,
 
   nitro: {

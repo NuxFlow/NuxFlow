@@ -31,12 +31,24 @@ async function loadEmailConfig(event: H3Event): Promise<EmailConfig> {
   if (host === '127.0.0.1' || host === '::1') {
     host = 'localhost'
   }
+  // Five independent settings lookups — parallelized so a cache-miss (first call per
+  // isolate per 30s window) costs one round trip's worth of latency instead of five
+  // serialized ones. Fires on every email send (password resets, invites, form
+  // notifications), so this is a real per-request hot path, not an admin-only rarity.
+  const [emailProvider, fromAddress, resendApiKey, brevoApiKey, zeptoApiKey] = await Promise.all([
+    resolveSetting(event, 'email.provider', 'emailProvider'),
+    resolveSetting(event, 'email.from_address', 'emailFromAddress'),
+    resolveSetting(event, 'email.resend_api_key', 'resendApiKey'),
+    resolveSetting(event, 'email.brevo_api_key', 'brevoApiKey'),
+    resolveSetting(event, 'email.zepto_api_key', 'zeptoApiKey'),
+  ])
+
   return {
-    emailProvider: await resolveSetting(event, 'email.provider', 'emailProvider') || 'console',
-    fromAddress: await resolveSetting(event, 'email.from_address', 'emailFromAddress'),
-    resendApiKey: await resolveSetting(event, 'email.resend_api_key', 'resendApiKey'),
-    brevoApiKey: await resolveSetting(event, 'email.brevo_api_key', 'brevoApiKey'),
-    zeptoApiKey: await resolveSetting(event, 'email.zepto_api_key', 'zeptoApiKey'),
+    emailProvider: emailProvider || 'console',
+    fromAddress,
+    resendApiKey,
+    brevoApiKey,
+    zeptoApiKey,
     domain: host,
   }
 }

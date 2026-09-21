@@ -6,6 +6,7 @@ import type { SpacingValue } from '../types'
 import { safeHref } from '../utils/sanitize-html'
 import { spacingToCss } from '../utils/spacing'
 import { safeJsonParse } from '../utils/json'
+import NuxImage from './NuxImage.vue'
 
 // Typed as a real `Ref` (not a plain `{ value: T }` shape) so the template's automatic
 // ref-unwrapping (`site.logoUrl` instead of `site.value.logoUrl`) still type-checks —
@@ -85,12 +86,13 @@ const wrapperStyle = computed(() => {
       <div class="footer-main">
         <div class="brand-section">
           <div class="logo-wrap">
-            <img
+            <NuxImage
               v-if="site?.logoUrl"
               :src="site.logoUrl"
               :alt="displayLogoText"
               class="footer-logo-img"
-            >
+              :width="320"
+            />
             <template v-else>
               <div v-if="logoIcon" class="logo-icon-bg">
                 <UIcon :name="logoIcon" mode="svg" class="logo-icon" />

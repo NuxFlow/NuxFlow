@@ -2,6 +2,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { extractExif } from '../../../utils/exif'
+import { extractImageDimensions } from '../../../utils/image-dimensions'
 import { sanitizeSvg } from '../../../utils/security'
 import { mediaErrorMessage, isHttpError } from '../../../utils/errors'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
@@ -85,6 +86,23 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  // Pixel dimensions, read straight from the format's own header (see
+  // image-dimensions.ts for why — sharp/ipx cannot run in the Workers runtime, so there's
+  // no decode-the-image fallback available). Populates the width/height columns that were
+  // previously always null, letting block-rendering code reserve real layout space instead
+  // of causing layout shift. Best-effort, same as EXIF above — a format this doesn't
+  // recognize (or corrupt bytes) just leaves the columns null, never fails the upload.
+  let dimensions: { width: number; height: number } | null = null
+  if (file.type === 'image/png' || file.type === 'image/gif' || file.type === 'image/jpeg' || file.type === 'image/webp') {
+    try {
+      const buf = await file.arrayBuffer()
+      dimensions = extractImageDimensions(buf, file.type)
+    }
+    catch {
+      // best-effort; never fail the upload
+    }
+  }
+
   const db = useDb(event)
   const mediaInsert = db.insert(media).values({
     id: fileId,
@@ -94,8 +112,10 @@ export default defineEventHandler(async (event) => {
     originalName: file.name,
     mimeType: file.type,
     size: file.size,
+    width: dimensions?.width,
+    height: dimensions?.height,
     url,
-    storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
+    storageProvider: provider.name as 'cloudflare' | 'local' | 'r2' | 's3' | 'bunny',
     storageKey,
     ...(metadata ? { metadata } : {}),
   })
@@ -117,5 +137,5 @@ export default defineEventHandler(async (event) => {
     throw err
   }
 
-  return created(event, { id: fileId, url })
+  return created(event, { id: fileId, url, width: dimensions?.width ?? null, height: dimensions?.height ?? null })
 })

@@ -1,12 +1,20 @@
+import type { H3Event } from 'h3'
 import { useDb } from '../../../utils/db'
 import { getPluginClientBundle } from '../../../utils/cf-plugin-kv'
 import { assertCodeIntegrity } from '../../../utils/plugin-signing'
 import { dynamicPlugins, sites } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { withEdgeCache } from '../../../utils/edge-cache'
 
-export default defineEventHandler(async (event) => {
+// This bundle is identical for every visitor until the plugin is next installed/updated/
+// disabled — verification (checksum + the 2 D1 lookups it takes to find the KV entry) has
+// no reason to re-run on every request. Cached via the Workers Cache API (not just the
+// Cache-Control header below, which alone doesn't guarantee an edge cache hit for a
+// Worker-originated dynamic route — see withEdgeCache's own doc comment) and purged
+// explicitly by [id]/disable.post.ts and [id]/index.delete.ts whenever the bundle a
+// cached entry points at could go stale.
+async function loadAndVerifyBundle(event: H3Event, pluginId: string): Promise<string> {
   const db = useDb(event)
-  const pluginId = getRouterParam(event, 'id')!
   const host = getHeader(event, 'host')?.split(':')[0] ?? ''
 
   const site = await db.query.sites.findFirst({
@@ -38,6 +46,12 @@ export default defineEventHandler(async (event) => {
   // A mismatch means the KV entry was modified after the signed install — hard stop.
   await assertCodeIntegrity(bundle, plugin.clientChecksum, 'client bundle')
 
+  return bundle
+}
+
+export default defineEventHandler(async (event) => {
+  const pluginId = getRouterParam(event, 'id')!
+
   setHeader(event, 'content-type', 'application/javascript; charset=utf-8')
   setHeader(event, 'cache-control', 'public, max-age=3600')
   // Fetched via dynamic import() from inside the sandboxed plugin iframe
@@ -47,5 +61,9 @@ export default defineEventHandler(async (event) => {
   // this response is checksum-verified public code, never varies per caller, and
   // never carries credentials.
   setHeader(event, 'Access-Control-Allow-Origin', '*')
+
+  // withEdgeCache only ever caches a successful compute() result — a thrown notFound()/
+  // createError() above propagates straight through and is never written to the cache.
+  const bundle = await withEdgeCache(event, 3600, () => loadAndVerifyBundle(event, pluginId))
   return send(event, bundle)
 })

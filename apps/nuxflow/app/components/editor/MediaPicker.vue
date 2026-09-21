@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const emit = defineEmits<{ select: [{ url: string; altText?: string }] }>()
+const emit = defineEmits<{ select: [{ url: string; altText?: string; width?: number | null; height?: number | null }] }>()
 
 interface MediaFile {
   id: string
@@ -7,6 +7,8 @@ interface MediaFile {
   originalName: string
   altText?: string | null
   mimeType: string
+  width?: number | null
+  height?: number | null
 }
 
 // limit=500 (the server-side cap) — this is a searchable picker grid, not a
@@ -19,8 +21,8 @@ const filtered = computed(() =>
   files.value.filter((f: MediaFile) => f.originalName.toLowerCase().includes(search.value.toLowerCase())),
 )
 
-function select(file: { url: string; altText?: string | null }) {
-  emit('select', { url: file.url, altText: file.altText ?? '' })
+function select(file: MediaFile) {
+  emit('select', { url: file.url, altText: file.altText ?? '', width: file.width, height: file.height })
 }
 </script>
 

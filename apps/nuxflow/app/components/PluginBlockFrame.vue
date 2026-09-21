@@ -105,6 +105,7 @@ watch(attrs, postProps, { deep: true })
       :key="retryAttempt"
       ref="iframeRef"
       :src="src"
+      loading="lazy"
       sandbox="allow-scripts"
       :title="`${blockType} plugin block`"
       :style="{

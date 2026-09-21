@@ -6,7 +6,9 @@ import RichTextInput from './RichTextInput.vue'
 import FieldImages from './FieldImages.vue'
 import FieldList from './FieldList.vue'
 import AiAlternativesPicker from './AiAlternativesPicker.vue'
+import MediaLibraryPickerButton from './MediaLibraryPickerButton.vue'
 import { useAiImprove, AI_IMPROVE_ACTIONS, type AiInstruction } from './useAiImprove'
+import { normalizeImageValue } from '../utils/json'
 
 // Explicit name so this component can reference itself recursively in its own template
 // (the 'list' field type renders each item's sub-fields via nested <FieldRenderer>s,
@@ -208,15 +210,18 @@ function applyAlternative(alt: string) {
 
   <!-- Image URL -->
   <div v-else-if="field.type === 'image'" class="space-y-2">
-    <input
-      :value="(modelValue as string) ?? ''"
-      placeholder="https://example.com/image.jpg"
-      class="w-full px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
-      @input="update(($event.target as HTMLInputElement).value)"
-    >
+    <div class="flex gap-2">
+      <input
+        :value="normalizeImageValue(modelValue).url"
+        placeholder="https://example.com/image.jpg"
+        class="flex-1 min-w-0 px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        @input="update({ url: ($event.target as HTMLInputElement).value })"
+      >
+      <MediaLibraryPickerButton @select="f => update({ url: f.url, width: f.width, height: f.height })" />
+    </div>
     <img
-      v-if="modelValue"
-      :src="(modelValue as string)"
+      v-if="normalizeImageValue(modelValue).url"
+      :src="normalizeImageValue(modelValue).url"
       class="h-20 w-full object-cover rounded-md border border-gray-200 dark:border-gray-700"
     >
   </div>

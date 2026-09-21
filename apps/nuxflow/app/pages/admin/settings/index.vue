@@ -118,6 +118,7 @@ const cloudflare = reactive<CloudflareMediaState>({
   streamToken: '',
   imagesToken: '',
   imagesDeliveryUrl: '',
+  enableImageTransformations: false,
 })
 
 const r2 = reactive<R2State>({
@@ -213,6 +214,7 @@ watch(data, (d) => {
   cloudflare.streamToken = (s['cloudflare.stream_token'] as string) ?? ''
   cloudflare.imagesToken = (s['cloudflare.images_token'] as string) ?? ''
   cloudflare.imagesDeliveryUrl = (s['cloudflare.images_delivery_url'] as string) ?? ''
+  cloudflare.enableImageTransformations = s['media.enable_image_transformations'] === true
 
   r2.publicUrl = (s['media.r2_public_url'] as string) ?? ''
 
@@ -302,6 +304,7 @@ async function save() {
           bunnyApiKey: bunny.apiKey,
           bunnyStorageZone: bunny.storageZone,
           bunnyPullZone: bunny.pullZone,
+          enableImageTransformations: cloudflare.enableImageTransformations,
         },
         auth: {
           googleClientId: social.googleClientId,

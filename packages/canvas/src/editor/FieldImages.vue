@@ -6,6 +6,7 @@
 import { computed, ref } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import { parseImageList, type ImageListItem } from '../utils/json'
+import MediaLibraryPickerButton from './MediaLibraryPickerButton.vue'
 
 const props = defineProps<{
   modelValue?: string
@@ -26,6 +27,10 @@ function addImage() {
   if (!url) return
   update([...parsedImages.value, { url, alt: '' }])
   newImageUrl.value = ''
+}
+
+function addFromLibrary(file: { url: string; width?: number; height?: number; altText?: string }) {
+  update([...parsedImages.value, { url: file.url, alt: file.altText ?? '', width: file.width, height: file.height }])
 }
 
 function removeImage(i: number) {
@@ -87,9 +92,11 @@ function updateImageAlt(i: number, alt: string) {
       >
         Add
       </button>
+      <MediaLibraryPickerButton @select="addFromLibrary" />
     </div>
     <p v-if="!parsedImages.length" class="text-xs text-gray-400">
-      Paste an image URL above to add it to the gallery.
+      Paste an image URL above, or choose from the media library — the library also carries
+      real image dimensions, which paste-by-URL can't.
     </p>
   </div>
 </template>

@@ -2,8 +2,8 @@ export * from './types'
 export * from './blocks/definitions'
 export { BUILTIN_BLOCK_COMPONENTS } from './blocks/components'
 export { spacingToCss } from './utils/spacing'
-export { safeJsonParse, parseImageList } from './utils/json'
-export type { ImageListItem } from './utils/json'
+export { safeJsonParse, parseImageList, normalizeImageValue } from './utils/json'
+export type { ImageListItem, ImageFieldValue } from './utils/json'
 export {
   CONSENT_COOKIE_NAME,
   CONSENT_EVENT,
@@ -18,6 +18,7 @@ export type { ConsentState } from './utils/consent'
 export { useCanvas } from './editor/useCanvas'
 export { useAiImprove, AI_IMPROVE_ACTIONS } from './editor/useAiImprove'
 export type { AiInstruction, AiImproveAction } from './editor/useAiImprove'
+export { imageTransformsEnabledKey } from './utils/image-transforms'
 
 // Vue components
 export { default as CanvasContentEditor } from './editor/CanvasContentEditor.vue'
@@ -40,3 +41,4 @@ export { default as CanvasBlockGallery } from './blocks/CanvasBlockGallery.vue'
 export { default as CanvasBlockCarousel } from './blocks/CanvasBlockCarousel.vue'
 export { default as CanvasBlockCalendar } from './blocks/CanvasBlockCalendar.vue'
 export { default as HtmlBlock } from './blocks/HtmlBlock.vue'
+export { default as NuxImage } from './blocks/NuxImage.vue'

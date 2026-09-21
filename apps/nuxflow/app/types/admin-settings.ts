@@ -71,6 +71,12 @@ export interface CloudflareMediaState {
   streamToken: string
   imagesToken: string
   imagesDeliveryUrl: string
+  /** Site opt-in for Cloudflare Image Transformations (/cdn-cgi/image/...) — see
+   * NuxImage.vue in @nuxflow/canvas. Independent of which media storage provider (if
+   * any) below is active; requires the operator to have separately enabled
+   * "Image Transformations" + "Resize Images from Any Origin" for this domain in the
+   * Cloudflare dashboard first. */
+  enableImageTransformations: boolean
 }
 
 export interface R2State {

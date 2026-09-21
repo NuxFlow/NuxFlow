@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { requireSuperAdmin, getUserSiteRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
+import { clearCachedRole } from '../../../../utils/role-cache'
 
 // Grants super_admin on the CURRENT site for the target user. hasSuperAdminRole()
 // treats "a super_admin row on ANY site" as platform-wide super admin status, so this
@@ -42,6 +43,7 @@ export default defineEventHandler(async (event) => {
     after: { role: 'super_admin' },
   })
   await batchWithAudit(db, [write], auditInsert)
+  clearCachedRole(targetId, siteId)
 
   return { success: true, alreadySuperAdmin: false }
 })

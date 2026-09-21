@@ -14,7 +14,7 @@ export const media = sqliteTable('media', {
   width: integer('width'),
   height: integer('height'),
   url: text('url').notNull(),
-  storageProvider: text('storage_provider', { enum: ['cloudflare', 'local', 'r2'] }).notNull().default('cloudflare'),
+  storageProvider: text('storage_provider', { enum: ['cloudflare', 'local', 'r2', 's3', 'bunny'] }).notNull().default('cloudflare'),
   storageKey: text('storage_key').notNull(),
   altText: text('alt_text'),
   caption: text('caption'),

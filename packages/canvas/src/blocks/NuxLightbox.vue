@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
+import NuxImage from './NuxImage.vue'
 
 interface LightboxImage {
   url: string
   alt?: string
 }
+
+// Full-viewport display (max-w-[90vw] max-h-[90vh]) — capping the transform request
+// width means a multi-megapixel original photo isn't served at full resolution just to
+// be shown at, at most, a typical viewport's width.
+const LIGHTBOX_MAX_WIDTH = 1920
 
 const props = defineProps<{
   images: LightboxImage[]
@@ -108,12 +114,14 @@ onUnmounted(() => {
     </button>
 
     <!-- Image -->
-    <img
+    <NuxImage
       :key="current"
-      :src="images[current]?.url"
+      :src="images[current]?.url ?? ''"
       :alt="images[current]?.alt || ''"
+      :width="LIGHTBOX_MAX_WIDTH"
+      loading="eager"
       class="max-w-[90vw] max-h-[90vh] object-contain select-none drop-shadow-2xl"
-    >
+    />
 
     <!-- Next -->
     <button

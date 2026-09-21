@@ -61,6 +61,45 @@ defineProps<{
     </template>
   </UCard>
 
+  <UCard>
+    <template #header>
+      <div class="flex items-center gap-2">
+        <UIcon name="i-lucide-image-plus" class="w-4 h-4 text-primary-500" />
+        <p class="text-sm font-semibold text-gray-900 dark:text-white">Image Transformations</p>
+      </div>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+        Resize and re-encode images on the fly via Cloudflare's <code class="font-mono">/cdn-cgi/image/</code> endpoint —
+        works regardless of which storage provider above is active, and is billed separately from Cloudflare Images
+        (5,000 free transformations/month, then $0.50/1,000).
+      </p>
+    </template>
+    <div class="space-y-3">
+      <UFormField label="Enable Image Transformations" description="Reserves layout space and serves smaller, modern-format images across the site.">
+        <USwitch v-model="cloudflare.enableImageTransformations" />
+      </UFormField>
+      <UAlert
+        icon="i-lucide-triangle-alert"
+        color="warning"
+        variant="soft"
+        title="One-time setup required before enabling this"
+      >
+        <template #description>
+          <ol class="list-decimal list-inside space-y-1 text-xs mt-1">
+            <li>Cloudflare dashboard → this domain → <strong>Images → Transformations</strong> → enable it.</li>
+            <li>If your media is stored anywhere other than Cloudflare Images (R2/S3/Bunny/local above), also enable
+              <strong>"Resize Images from Any Origin"</strong> and allow-list this site's storage domain as a source origin.</li>
+          </ol>
+          Turning this on before completing those steps will make every image on the site 404.
+        </template>
+      </UAlert>
+    </div>
+    <template #footer>
+      <div class="flex justify-end">
+        <UButton :loading="saving" @click="onSave">Save</UButton>
+      </div>
+    </template>
+  </UCard>
+
   <UAlert
     icon="i-lucide-info"
     color="info"

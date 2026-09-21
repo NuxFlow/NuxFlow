@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { NuxImage } from '@nuxflow/canvas'
+
 const route = useRoute()
 const router = useRouter()
 const page = computed(() => Math.max(1, Number(route.query.page) || 1))
@@ -116,18 +118,22 @@ function formatDate(d: string | null) {
       <!-- Grid layout -->
       <div v-if="layout === 'grid'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <article
-          v-for="post in data.posts"
+          v-for="(post, i) in data.posts"
           :key="post.id"
           class="group rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden hover:shadow-md transition-shadow bg-white dark:bg-gray-900"
         >
           <NuxtLink :to="`/${post.slug}`" class="block">
             <div class="relative overflow-hidden aspect-[4/3] bg-gray-100 dark:bg-gray-800">
-              <img
+              <NuxImage
                 v-if="post.ogImage"
                 :src="post.ogImage"
                 :alt="post.title"
+                :width="600"
+                :height="450"
+                fit="cover"
                 class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              >
+                :loading="i === 0 ? 'eager' : 'lazy'"
+              />
               <div v-else class="w-full h-full flex items-center justify-center">
                 <span class="i-lucide-image w-10 h-10 text-gray-300" />
               </div>
@@ -150,17 +156,21 @@ function formatDate(d: string | null) {
       <!-- List layout -->
       <div v-else class="max-w-3xl space-y-8">
         <article
-          v-for="post in data.posts"
+          v-for="(post, i) in data.posts"
           :key="post.id"
           class="group"
         >
           <NuxtLink :to="`/${post.slug}`" class="block">
-            <img
+            <NuxImage
               v-if="post.ogImage"
               :src="post.ogImage"
               :alt="post.title"
+              :width="800"
+              :height="224"
+              fit="cover"
               class="w-full h-56 object-cover rounded-xl mb-4"
-            >
+              :loading="i === 0 ? 'eager' : 'lazy'"
+            />
             <h2 class="text-xl font-semibold text-gray-900 dark:text-white group-hover:text-primary-500 transition-colors">
               {{ post.title }}
             </h2>

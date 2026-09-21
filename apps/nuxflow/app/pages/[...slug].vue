@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { setResponseStatus } from 'h3'
 import Paywall from '~/components/memberships/Paywall.vue'
+import { NuxImage } from '@nuxflow/canvas'
 
 const route = useRoute()
 const slug = computed(() => (route.params.slug as string[]).join('/'))
@@ -183,13 +184,17 @@ const formattedDate = computed(() => {
 
       <!-- Rich-text / other content: contained with title -->
       <div v-else class="max-w-4xl mx-auto px-6 py-12">
-        <!-- Featured image -->
-        <img
+        <!-- Featured image — likely the page's LCP element, so eager not lazy -->
+        <NuxImage
           v-if="page.ogImage"
           :src="page.ogImage"
           :alt="page.title"
+          :width="1200"
+          :height="512"
+          fit="cover"
+          loading="eager"
           class="w-full h-64 object-cover rounded-2xl mb-8"
-        >
+        />
 
         <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">
           {{ page.title }}

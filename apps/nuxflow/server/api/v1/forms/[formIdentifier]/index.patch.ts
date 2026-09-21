@@ -6,6 +6,7 @@ import { forms } from '@nuxflow/db/schema'
 import type { FormField } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { getFormByIdOrThrow } from '../../../../utils/resource-queries'
+import { purgeEdgeCache } from '../../../../utils/edge-cache'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -40,6 +41,11 @@ export default defineEventHandler(async (event) => {
     action: 'update', resource: 'form', resourceId: formIdentifier, before: existing, after: body,
   })
   await batchWithAudit(db, [update], auditInsert)
+
+  // Public form-render route (api/public/forms/[formIdentifier].get.ts) is now edge-cached
+  // by slug — purge the old slug's entry, plus the new one if the slug itself changed.
+  const purgeSlugs = new Set([existing.slug, ...(body.slug ? [body.slug] : [])])
+  await purgeEdgeCache(event, [...purgeSlugs].map(slug => `/api/public/forms/${slug}`))
 
   return { id: formIdentifier }
 })

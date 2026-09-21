@@ -48,6 +48,7 @@ const bodySchema = z.object({
     bunnyApiKey: z.string().optional(),
     bunnyStorageZone: z.string().optional(),
     bunnyPullZone: z.string().optional(),
+    enableImageTransformations: z.boolean().optional(),
   }).optional(),
   // Per-site Google/GitHub OAuth app credentials — per-site overrides of the
   // NUXT_GOOGLE_CLIENT_ID etc. env-var fallbacks, same resolveSetting() pattern
@@ -142,6 +143,7 @@ export default defineEventHandler(async (event) => {
     if (m.bunnyApiKey !== undefined) settingEntries.push(['media.bunny_api_key', m.bunnyApiKey])
     if (m.bunnyStorageZone !== undefined) settingEntries.push(['media.bunny_storage_zone', m.bunnyStorageZone])
     if (m.bunnyPullZone !== undefined) settingEntries.push(['media.bunny_pull_zone', m.bunnyPullZone])
+    if (m.enableImageTransformations !== undefined) settingEntries.push(['media.enable_image_transformations', m.enableImageTransformations])
   }
 
   if (body.auth) {

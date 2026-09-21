@@ -20,34 +20,36 @@ export default defineEventHandler(async (event) => {
   const fromTs = `${from}T00:00:00.000Z`
   const toTs = `${to}T23:59:59.999Z`
 
-  const types = await db.query.contentTypes.findMany({
-    where: eq(contentTypes.siteId, siteId),
-    columns: { id: true, slug: true, name: true, icon: true },
-  })
-  const typeMap = Object.fromEntries(types.map(t => [t.id, t]))
-
-  const rows = await db.query.contentItems.findMany({
-    where: and(
-      eq(contentItems.siteId, siteId),
-      or(
-        and(gte(contentItems.publishedAt, fromTs), lte(contentItems.publishedAt, toTs)),
-        and(gte(contentItems.scheduledAt, fromTs), lte(contentItems.scheduledAt, toTs)),
-        and(gte(contentItems.eventStartAt, fromTs), lte(contentItems.eventStartAt, toTs)),
+  // Independent queries — types doesn't filter rows (typeId is just mapped in afterward).
+  const [types, rows] = await Promise.all([
+    db.query.contentTypes.findMany({
+      where: eq(contentTypes.siteId, siteId),
+      columns: { id: true, slug: true, name: true, icon: true },
+    }),
+    db.query.contentItems.findMany({
+      where: and(
+        eq(contentItems.siteId, siteId),
+        or(
+          and(gte(contentItems.publishedAt, fromTs), lte(contentItems.publishedAt, toTs)),
+          and(gte(contentItems.scheduledAt, fromTs), lte(contentItems.scheduledAt, toTs)),
+          and(gte(contentItems.eventStartAt, fromTs), lte(contentItems.eventStartAt, toTs)),
+        ),
       ),
-    ),
-    columns: {
-      id: true,
-      title: true,
-      slug: true,
-      status: true,
-      typeId: true,
-      publishedAt: true,
-      scheduledAt: true,
-      eventStartAt: true,
-      eventEndAt: true,
-      eventLocation: true,
-    },
-  })
+      columns: {
+        id: true,
+        title: true,
+        slug: true,
+        status: true,
+        typeId: true,
+        publishedAt: true,
+        scheduledAt: true,
+        eventStartAt: true,
+        eventEndAt: true,
+        eventLocation: true,
+      },
+    }),
+  ])
+  const typeMap = Object.fromEntries(types.map(t => [t.id, t]))
 
   const items = rows.map(row => ({
     ...row,

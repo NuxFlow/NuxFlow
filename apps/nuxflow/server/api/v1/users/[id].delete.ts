@@ -3,6 +3,7 @@ import { userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole, assertNotSelfTarget, assertTargetNotSuperAdmin } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
+import { clearCachedRole } from '../../../utils/role-cache'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
@@ -32,6 +33,7 @@ export default defineEventHandler(async (event) => {
     before: { role: existing.role },
   })
   await batchWithAudit(db, [roleDelete], auditInsert)
+  clearCachedRole(targetId, siteId)
 
   return noContent(event)
 })

@@ -1,18 +1,12 @@
+import type { H3Event } from 'h3'
 import { useDb } from '../../../utils/db'
 import { getFormBySlugOrThrow } from '../../../utils/resource-queries'
 import { notFound } from '../../../utils/response'
 import type { FormField } from '@nuxflow/db/schema'
+import { withEdgeCache } from '../../../utils/edge-cache'
 
-// Public, unauthenticated: returns only what's needed to render a Form Builder
-// form on a page (Canvas "dynamic-form/form" block) — never the notifications
-// config or any other internal/admin-only field.
-export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string | null
-  if (!siteId) notFound()
-
+async function loadForm(event: H3Event, siteId: string, formIdentifier: string) {
   const db = useDb(event)
-  const formIdentifier = getRouterParam(event, 'formIdentifier')!
-
   const form = await getFormBySlugOrThrow(db, siteId, formIdentifier, 'Form not found')
   if (form.status !== 'active') notFound('Form not found')
 
@@ -29,4 +23,20 @@ export default defineEventHandler(async (event) => {
   }))
 
   return { id: form.id, name: form.name, fields }
+}
+
+// Public, unauthenticated: returns only what's needed to render a Form Builder
+// form on a page (Canvas "dynamic-form/form" block) — never the notifications
+// config or any other internal/admin-only field.
+export default defineEventHandler(async (event) => {
+  const siteId = event.context.siteId as string | null
+  if (!siteId) notFound()
+
+  const formIdentifier = getRouterParam(event, 'formIdentifier')!
+
+  setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
+  // Form definitions change rarely (admin edits only) — edge-cached like every other
+  // public, unauthenticated route. withEdgeCache never caches a thrown notFound(), so an
+  // inactive/missing form still 404s on every request rather than caching that too.
+  return withEdgeCache(event, 3600, () => loadForm(event, siteId, formIdentifier))
 })

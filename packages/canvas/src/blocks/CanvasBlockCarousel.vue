@@ -4,6 +4,14 @@ import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import { spacingToCss } from '../utils/spacing'
 import { parseImageList, type ImageListItem } from '../utils/json'
+import NuxImage from './NuxImage.vue'
+
+// A carousel slide is full-bleed within its container (often close to full page width),
+// unlike the Gallery grid's small fixed tiles — capping to a generous max render width
+// (letting Cloudflare scale proportionally, no forced crop) rather than a small fixed
+// size still saves real bandwidth over the untouched original without risking a visibly
+// under-resolved hero-style slide on a wide viewport.
+const MAX_RENDER_WIDTH = 1600
 
 const props = withDefaults(defineProps<{
   images?: string
@@ -125,12 +133,13 @@ const containerStyle = computed(() => (props.padding ? { padding: spacingToCss(p
           class="h-full w-full shrink-0"
           :aria-hidden="i !== current"
         >
-          <img
+          <NuxImage
             :src="img.url"
             :alt="img.alt || ''"
+            :width="MAX_RENDER_WIDTH"
             class="h-full w-full object-cover"
             :loading="i === 0 ? 'eager' : 'lazy'"
-          >
+          />
         </div>
       </div>
 

@@ -2,10 +2,15 @@
 import { computed, ref } from 'vue'
 import type { SpacingValue } from '../types'
 import NuxLightbox from './NuxLightbox.vue'
+import NuxImage from './NuxImage.vue'
 import { spacingToCss } from '../utils/spacing'
+import { normalizeImageValue, type ImageFieldValue } from '../utils/json'
 
 const props = withDefaults(defineProps<{
-  src?: string
+  // Accepts either shape: a bare URL string (every block prop stored before the media
+  // picker carried real dimensions — see normalizeImageValue()) or {url,width,height}
+  // (written by the picker from here on).
+  src?: string | ImageFieldValue
   alt?: string
   caption?: string
   width?: 'full' | 'lg' | 'md' | 'sm'
@@ -42,26 +47,29 @@ const wrapClass = computed(() => ({
 
 const containerStyle = computed(() => ({ padding: spacingToCss(props.padding, '16px 24px') }))
 
+const image = computed(() => normalizeImageValue(props.src))
+
 const lightboxOpen = ref(false)
 
 function handleClick() {
-  if (props.lightbox && props.src) lightboxOpen.value = true
+  if (props.lightbox && image.value.url) lightboxOpen.value = true
 }
 </script>
 
 <template>
   <div class="canvas-image" :style="containerStyle">
     <figure :class="[widthClass, wrapClass]">
-      <img
-        v-if="src"
-        :src="src"
+      <NuxImage
+        v-if="image.url"
+        :src="image.url"
         :alt="alt"
+        :width="image.width"
+        :height="image.height"
         class="w-full"
         :class="[{ 'rounded-xl': rounded }, lightbox ? 'cursor-zoom-in' : '']"
         :style="{ objectPosition: `${focalX}% ${focalY}%` }"
-        loading="lazy"
         @click="handleClick"
-      >
+      />
       <div
         v-else
         class="w-full aspect-video bg-gray-100 dark:bg-gray-800 flex items-center justify-center rounded-lg"
@@ -73,8 +81,8 @@ function handleClick() {
     </figure>
 
     <NuxLightbox
-      v-if="lightboxOpen && src"
-      :images="[{ url: src, alt }]"
+      v-if="lightboxOpen && image.url"
+      :images="[{ url: image.url, alt }]"
       :initial-index="0"
       @close="lightboxOpen = false"
     />

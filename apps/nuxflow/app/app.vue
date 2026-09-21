@@ -1,7 +1,13 @@
 <script setup lang="ts">
-const { data: siteInfo } = useFetch<{ name?: string; faviconUrl?: string | null }>('/api/public/site', {
+import { imageTransformsEnabledKey } from '@nuxflow/canvas'
+
+const { data: siteInfo } = useFetch<{ name?: string; faviconUrl?: string | null; imageTransformsEnabled?: boolean }>('/api/public/site', {
   headers: useRequestHeaders(['host']),
 })
+
+// Provided once at the app root and inject()ed by every NuxImage.vue instance — see
+// image-transforms.ts's own doc comment for why this can't be each image's own fetch.
+provide(imageTransformsEnabledKey, computed(() => siteInfo.value?.imageTransformsEnabled ?? false))
 
 useHead({
   titleTemplate: (title) => {

@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { useDb } from './db'
 import type { Db } from './db'
+import { getCachedRole, setCachedRole } from './role-cache'
 
 export type Role = 'super_admin' | 'admin' | 'editor' | 'author' | 'viewer' | 'member'
 
@@ -44,12 +45,20 @@ export async function requireAuth(event: H3Event): Promise<{ userId: string; rol
   const siteId = event.context.siteId
   if (!siteId) throw badRequest('Unknown site')
 
-  const db = useDb(event)
-  const roleRow = await db.query.userSiteRoles.findFirst({
-    where: and(eq(userSiteRoles.userId, session.user.id), eq(userSiteRoles.siteId, siteId)),
-  })
+  // Short-TTL isolate cache (see role-cache.ts for why 10s and not the usual 30-60s):
+  // this lookup otherwise costs a fresh D1 round trip on every single authenticated
+  // API call, unlike the site-domain lookup in 02.multi-site.ts.
+  let cachedRole = getCachedRole(session.user.id, siteId)
+  if (cachedRole === undefined) {
+    const db = useDb(event)
+    const roleRow = await db.query.userSiteRoles.findFirst({
+      where: and(eq(userSiteRoles.userId, session.user.id), eq(userSiteRoles.siteId, siteId)),
+    })
+    cachedRole = (roleRow?.role as Role) ?? null
+    setCachedRole(session.user.id, siteId, cachedRole)
+  }
 
-  if (roleRow) return { userId: session.user.id, role: roleRow.role as Role }
+  if (cachedRole) return { userId: session.user.id, role: cachedRole }
 
   // No explicit relationship to this site. A super admin still gets read-only
   // 'viewer' access here — matches requireSuperAdmin's documented cross-site model
@@ -62,7 +71,7 @@ export async function requireAuth(event: H3Event): Promise<{ userId: string; rol
   // stranger to 'viewer' here would let a user invited to ANY other site — or
   // self-registered somewhere with public registration enabled — read this site's
   // admin-only data too (drafts, private/members-only content, media library, etc.).
-  if (await hasSuperAdminRole(db, session.user.id)) {
+  if (await hasSuperAdminRole(useDb(event), session.user.id)) {
     return { userId: session.user.id, role: 'viewer' }
   }
 

@@ -5,7 +5,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { withEdgeCache } from '../../utils/edge-cache'
 import { notFound } from '../../utils/response'
 
-const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'seo.canonical_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block'] as const
+const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'seo.canonical_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations'] as const
 
 const CACHE_MAX_AGE = 300
 
@@ -42,6 +42,11 @@ async function buildPayload(event: H3Event, siteId: string) {
     // Unset/unresolvable → the layout falls back to the built-in component.
     headerBlockId: (kvMap['layout.header_block'] as string | undefined) || null,
     footerBlockId: (kvMap['layout.footer_block'] as string | undefined) || null,
+    // Default OFF — see NuxImage.vue. An operator must explicitly opt in once they've
+    // completed the one-time "enable Image Transformations + Resize Images from Any
+    // Origin" step in their Cloudflare dashboard (Settings → Media); serving
+    // /cdn-cgi/image/... URLs before that step is done would just 404 every image.
+    imageTransformsEnabled: (kvMap['media.enable_image_transformations'] as boolean | undefined) === true,
   }
 }
 

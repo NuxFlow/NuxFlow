@@ -2,13 +2,15 @@
 import { computed } from 'vue'
 import type { SpacingValue } from '../types'
 import { spacingToCss } from '../utils/spacing'
+import { normalizeImageValue, type ImageFieldValue } from '../utils/json'
+import NuxImage from './NuxImage.vue'
 
 const props = withDefaults(defineProps<{
   quote?: string
   author?: string
   role?: string
   company?: string
-  avatar?: string
+  avatar?: string | ImageFieldValue
   rating?: number
   style?: 'simple' | 'card' | 'large'
   align?: 'left' | 'center'
@@ -38,6 +40,8 @@ const containerStyle = computed(() => {
 })
 
 const stars = computed(() => Math.min(5, Math.max(0, props.rating ?? 0)))
+
+const avatarUrl = computed(() => normalizeImageValue(props.avatar).url)
 </script>
 
 <template>
@@ -91,12 +95,15 @@ const stars = computed(() => Math.min(5, Math.max(0, props.rating ?? 0)))
           class="relative z-10 flex items-center gap-3"
           :class="align === 'center' ? 'justify-center' : ''"
         >
-          <img
-            v-if="avatar"
-            :src="avatar"
+          <NuxImage
+            v-if="avatarUrl"
+            :src="avatarUrl"
             :alt="author"
             class="w-10 h-10 rounded-full object-cover border-2 border-gray-100 dark:border-gray-700"
-          >
+            :width="40"
+            :height="40"
+            fit="cover"
+          />
           <div
             v-else
             class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-sm font-semibold text-gray-500"

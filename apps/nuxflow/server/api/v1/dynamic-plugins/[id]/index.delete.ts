@@ -5,6 +5,7 @@ import { deletePluginAssets } from '../../../../utils/cf-plugin-kv'
 import { getDynamicPluginByIdOrThrow } from '../../../../utils/resource-queries'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { scopedById } from '../../../../utils/db-helpers'
+import { purgeEdgeCache } from '../../../../utils/edge-cache'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
@@ -21,6 +22,10 @@ export default defineEventHandler(async (event) => {
     action: 'delete', resource: 'dynamic_plugin', resourceId: id, before: existing,
   })
   await batchWithAudit(db, [pluginDelete], auditInsert)
+
+  // A deleted (or `plugin update`'s delete-then-reinstall) plugin's bundle route must
+  // 404/serve fresh content on the very next request, not an edge-cached stale copy.
+  await purgeEdgeCache(event, [`/_nuxflow/plugin-bundle/${id}`])
 
   return noContent(event)
 })
