@@ -79,7 +79,7 @@ async function buildFeed(event: H3Event) {
     const isCanvas = contentObj?.type === 'canvas'
     const fullHtml = !isCanvas && contentObj ? tiptapToHtml(contentObj) : ''
     const summary = p.excerpt ?? ''
-    const itemUrl = `${baseUrl}/${escHtml(p.slug)}`
+    const itemUrl = `${baseUrl}/${escXml(p.slug)}`
     return `
     <item>
       <title><![CDATA[${cdataSafe(p.title)}]]></title>
@@ -87,9 +87,9 @@ async function buildFeed(event: H3Event) {
       <guid isPermaLink="true">${itemUrl}</guid>
       <pubDate>${new Date(p.publishedAt ?? p.updatedAt).toUTCString()}</pubDate>
       ${summary ? `<description><![CDATA[${cdataSafe(summary)}]]></description>` : ''}
-      ${fullHtml ? `<content:encoded><![CDATA[${fullHtml}]]></content:encoded>` : ''}
-      ${p.authorName ? `<author>${escHtml(p.authorName)}</author>` : ''}
-      ${p.ogImage ? `<media:thumbnail url="${escHtml(p.ogImage)}" /><media:content url="${escHtml(p.ogImage)}" medium="image" />` : ''}
+      ${fullHtml ? `<content:encoded><![CDATA[${cdataSafe(fullHtml)}]]></content:encoded>` : ''}
+      ${p.authorName ? `<author>${escXml(p.authorName)}</author>` : ''}
+      ${p.ogImage ? `<media:thumbnail url="${escXml(p.ogImage)}" /><media:content url="${escXml(p.ogImage)}" medium="image" />` : ''}
     </item>`
   }).join('')
 

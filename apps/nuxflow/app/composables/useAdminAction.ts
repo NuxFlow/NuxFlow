@@ -36,8 +36,7 @@ export function useAdminAction() {
       if (opts.successTitle) toast.add({ title: opts.successTitle, color: 'success' })
       return result
     } catch (e: unknown) {
-      const message = (e as { data?: { message?: string } })?.data?.message
-      toast.add({ title: opts.errorTitle, description: message, color: 'error' })
+      toast.add({ title: opts.errorTitle, description: getErrorMessage(e, ''), color: 'error' })
       return undefined
     } finally {
       loading.value = false

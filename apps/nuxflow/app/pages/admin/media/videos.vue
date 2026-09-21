@@ -37,21 +37,17 @@ const deletingDetail = ref(false)
 const showPlayerModal = ref(false)
 const playerVideo = ref<VideoAsset | null>(null)
 
-// Poller for processing videos
-let poller: ReturnType<typeof setInterval> | null = null
+const { uploadFileViaXhr } = useVideoUploadXhr()
 
-onMounted(() => {
-  startPoller()
-})
-
-onBeforeUnmount(() => {
-  if (poller) clearInterval(poller)
-})
-
-function startPoller() {
-  if (poller) clearInterval(poller)
-  poller = setInterval(async () => {
-    // If any videos are processing, sync status in background
+// Poller for processing videos — no completion predicate (there's always another
+// video that could start processing later) and no timeout, so it just does
+// conditional background sync work for as long as the page stays mounted; the
+// shared usePollingUntil() composable handles interval/cleanup, `until: () => false`
+// means it only ever stops via its own stop() (never called here) or on unmount.
+const videoPoller = usePollingUntil({
+  intervalMs: 6000,
+  until: () => false,
+  onTick: async () => {
     const processing = videos.value?.filter(v => v.status === 'processing' || v.status === 'uploading')
     if (processing && processing.length > 0) {
       await Promise.all(
@@ -59,8 +55,12 @@ function startPoller() {
       )
       await refresh()
     }
-  }, 6000)
-}
+  },
+})
+
+onMounted(() => {
+  videoPoller.start()
+})
 
 async function handleUpload(e: Event) {
   const input = e.target as HTMLInputElement
@@ -89,24 +89,9 @@ async function uploadFile(file: File) {
     statusText.value = 'Uploading to Cloudflare Stream...'
 
     // 2. Upload via XHR so we get upload progress events.
-    await new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest()
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          progress.value = Math.round((e.loaded / e.total) * 100)
-          statusText.value = `Uploading: ${progress.value}% (${formatBytes(e.loaded)} of ${formatBytes(e.total)})`
-        }
-      }
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve()
-        else reject(new Error(`Upload failed (${xhr.status}): ${xhr.statusText || 'unknown error'}`))
-      }
-      xhr.onerror = () => reject(new Error('Network error during upload — check your connection and try again.'))
-      xhr.onabort = () => reject(new Error('Upload was cancelled.'))
-      xhr.open('POST', uploadUrl)
-      const form = new FormData()
-      form.append('file', file)
-      xhr.send(form)
+    await uploadFileViaXhr(uploadUrl, file, (p) => {
+      progress.value = p.percent
+      statusText.value = `Uploading: ${p.percent}% (${formatBytes(p.loaded)} of ${formatBytes(p.total)})`
     })
 
     // 3. Register the video in NuxFlow and let the poller sync processing status.
@@ -117,13 +102,12 @@ async function uploadFile(file: File) {
     })
     toast.add({ title: 'Video uploaded!', color: 'success', description: 'Cloudflare Stream is now processing the file.' })
     await refresh()
-    startPoller()
+    videoPoller.start()
   }
   catch (err: unknown) {
     console.error('Video upload failed:', err)
     const status = (err as { status?: number })?.status
-    const errorMsg = (err as { data?: { message?: string } })?.data?.message
-      || (err instanceof Error ? err.message : 'Verify your Cloudflare Stream settings.')
+    const errorMsg = getErrorMessage(err, 'Verify your Cloudflare Stream settings.')
     if (status === 402) {
       streamError.value = errorMsg
     }
@@ -196,13 +180,6 @@ function playVideo(video: VideoAsset) {
 }
 
 // Helper formatting utilities
-function formatBytes(bytes: number | null) {
-  if (!bytes) return '0 B'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
 function formatDuration(seconds: number | null) {
   if (seconds === null) return '--:--'
   const m = Math.floor(seconds / 60)

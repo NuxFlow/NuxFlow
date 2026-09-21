@@ -10,27 +10,7 @@
  * never needed during public-page SSR.
  */
 
-import {
-  CanvasBlockHero,
-  CanvasBlockText,
-  CanvasBlockImage,
-  CanvasBlockColumns,
-  CanvasBlockContainer,
-  CanvasBlockCta,
-  CanvasBlockSpacer,
-  CanvasBlockVideo,
-  CanvasBlockTestimonial,
-  CanvasBlockFeatures,
-  CanvasBlockGdpr,
-  CanvasBlockFooter,
-  CanvasBlockButton,
-  CanvasBlockAccordion,
-  CanvasBlockPricing,
-  CanvasBlockGallery,
-  CanvasBlockCarousel,
-  CanvasBlockCalendar,
-  HtmlBlock,
-} from '@nuxflow/canvas'
+import { CANVAS_BLOCKS, BUILTIN_BLOCK_COMPONENTS } from '@nuxflow/canvas'
 
 import ContactFormBlock from '~/components/forms/ContactFormBlock.vue'
 import DynamicFormBlock from '~/components/forms/DynamicFormBlock.vue'
@@ -61,25 +41,19 @@ export default defineNuxtPlugin((nuxtApp) => {
   if (!_registered) {
     _registered = true
 
-    // ── Canvas blocks ─────────────────────────────────────────────────────────
-    registry.register('canvas-hero',        { name: 'Hero',        icon: 'i-lucide-layout-template', component: CanvasBlockHero })
-    registry.register('canvas-text',        { name: 'Text',        icon: 'i-lucide-type',             component: CanvasBlockText })
-    registry.register('canvas-image',       { name: 'Image',       icon: 'i-lucide-image',            component: CanvasBlockImage })
-    registry.register('canvas-video',       { name: 'Video',       icon: 'i-lucide-play-circle',      component: CanvasBlockVideo })
-    registry.register('canvas-columns',     { name: 'Columns',     icon: 'i-lucide-columns-3',        component: CanvasBlockColumns })
-    registry.register('canvas-container',   { name: 'Container',   icon: 'i-lucide-square',            component: CanvasBlockContainer })
-    registry.register('canvas-features',    { name: 'Features',    icon: 'i-lucide-layout-grid',      component: CanvasBlockFeatures })
-    registry.register('canvas-testimonial', { name: 'Testimonial', icon: 'i-lucide-quote',            component: CanvasBlockTestimonial })
-    registry.register('canvas-cta',         { name: 'CTA Banner',  icon: 'i-lucide-megaphone',        component: CanvasBlockCta })
-    registry.register('canvas-spacer',      { name: 'Spacer',      icon: 'i-lucide-move-vertical',    component: CanvasBlockSpacer })
-    registry.register('canvas-gdpr',        { name: 'GDPR Banner', icon: 'i-lucide-cookie',           component: CanvasBlockGdpr })
-    registry.register('canvas-footer',      { name: 'Footer',      icon: 'i-lucide-panel-bottom',     component: CanvasBlockFooter })
-    registry.register('canvas-button',      { name: 'Button',      icon: 'i-lucide-square-play',       component: CanvasBlockButton })
-    registry.register('canvas-accordion',   { name: 'Accordion',   icon: 'i-lucide-fold-vertical',     component: CanvasBlockAccordion })
-    registry.register('canvas-pricing',     { name: 'Pricing Table', icon: 'i-lucide-credit-card',    component: CanvasBlockPricing })
-    registry.register('canvas-gallery',     { name: 'Gallery',     icon: 'i-lucide-images',            component: CanvasBlockGallery })
-    registry.register('canvas-carousel',    { name: 'Carousel',    icon: 'i-lucide-gallery-horizontal', component: CanvasBlockCarousel })
-    registry.register('canvas-calendar',    { name: 'Events Calendar', icon: 'i-lucide-calendar',     component: CanvasBlockCalendar })
+    // ── Built-in blocks (packages/canvas) ────────────────────────────────────
+    // BUILTIN_BLOCK_COMPONENTS (packages/canvas/src/blocks/components.ts) is the
+    // single source of truth for id -> component; name/icon come straight off
+    // each block's own CANVAS_BLOCKS entry rather than being re-typed here by
+    // hand. Blocks with no entry in BUILTIN_BLOCK_COMPONENTS (contact-form/form,
+    // dynamic-form/form, payments/memberships) are app-owned and registered
+    // individually below, alongside payments/paywall (not a CANVAS_BLOCKS entry
+    // at all — it's never offered in the block picker, only rendered directly).
+    for (const block of CANVAS_BLOCKS) {
+      const component = BUILTIN_BLOCK_COMPONENTS[block.id]
+      if (!component) continue
+      registry.register(block.id, { name: block.name, icon: block.icon, component })
+    }
 
     // ── Forms blocks ──────────────────────────────────────────────────────────
     registry.register('contact-form/form', { name: 'Contact Form', icon: 'i-lucide-mail', component: ContactFormBlock })
@@ -88,9 +62,6 @@ export default defineNuxtPlugin((nuxtApp) => {
     // ── Commerce blocks ───────────────────────────────────────────────────────
     registry.register('payments/memberships', { name: 'Membership Pricing', icon: 'i-lucide-badge-dollar-sign', component: MembershipsBlock })
     registry.register('payments/paywall',     { name: 'Paywall',            icon: 'i-lucide-lock',              component: Paywall })
-
-    // ── Advanced blocks ───────────────────────────────────────────────────────
-    registry.register('html-block/html', { name: 'HTML', icon: 'i-lucide-code-xml', component: HtmlBlock })
   }
 
   // Provide the block registry so canvas block components (BlockPicker,

@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { FieldSchema, SpacingValue } from '../types'
 import RichTextInput from './RichTextInput.vue'
+import FieldImages from './FieldImages.vue'
+import FieldList from './FieldList.vue'
+import AiAlternativesPicker from './AiAlternativesPicker.vue'
 import { useAiImprove, AI_IMPROVE_ACTIONS, type AiInstruction } from './useAiImprove'
 
 // Explicit name so this component can reference itself recursively in its own template
-// (the 'list' field type renders each item's sub-fields via nested <FieldRenderer>s) —
-// Vue infers a recursive self-reference from the SFC filename already, but being
-// explicit here avoids depending on that inference surviving a future build tool change.
+// (the 'list' field type renders each item's sub-fields via nested <FieldRenderer>s,
+// via FieldList.vue) — Vue infers a recursive self-reference from the SFC filename
+// already, but being explicit here avoids depending on that inference surviving a
+// future build tool change.
 defineOptions({ name: 'FieldRenderer' })
 
 const props = defineProps<{
@@ -20,95 +24,6 @@ const emit = defineEmits<{ 'update:modelValue': [value: unknown] }>()
 
 function update(val: unknown) {
   emit('update:modelValue', val)
-}
-
-// ── Multi-image list (type === 'images') ──────────────────────────────────────
-
-interface GalleryImage { url: string; alt: string }
-
-const parsedImages = computed<GalleryImage[]>(() => {
-  if (props.field.type !== 'images') return []
-  try {
-    const arr = JSON.parse((props.modelValue as string) || '[]')
-    return Array.isArray(arr) ? arr : []
-  }
-  catch {
-    return []
-  }
-})
-
-const newImageUrl = ref('')
-
-function addImage() {
-  const url = newImageUrl.value.trim()
-  if (!url) return
-  update(JSON.stringify([...parsedImages.value, { url, alt: '' }]))
-  newImageUrl.value = ''
-}
-
-function removeImage(i: number) {
-  update(JSON.stringify(parsedImages.value.filter((_, idx) => idx !== i)))
-}
-
-function updateImageAlt(i: number, alt: string) {
-  update(JSON.stringify(parsedImages.value.map((img, idx) => idx === i ? { ...img, alt } : img)))
-}
-
-// ── Generic list (type === 'list') ────────────────────────────────────────────
-// Backs both "array of structured objects" (field.fields set — e.g. footer links,
-// FAQ items) and "array of plain strings" (field.fields omitted — e.g. pricing
-// feature bullets), replacing what used to be raw hand-typed JSON in a plain text
-// input for both shapes.
-
-type ListItem = string | Record<string, unknown>
-
-const parsedList = computed<ListItem[]>(() => {
-  if (props.field.type !== 'list') return []
-  try {
-    const arr = JSON.parse((props.modelValue as string) || '[]')
-    return Array.isArray(arr) ? arr : []
-  }
-  catch {
-    return []
-  }
-})
-
-function emptyListItem(): ListItem {
-  const subFields = props.field.fields
-  if (!subFields) return ''
-  const item: Record<string, unknown> = {}
-  for (const f of subFields) item[f.key] = f.default ?? ''
-  return item
-}
-
-function updateList(items: ListItem[]) {
-  update(JSON.stringify(items))
-}
-
-function addListItem() {
-  updateList([...parsedList.value, emptyListItem()])
-}
-
-function removeListItem(i: number) {
-  updateList(parsedList.value.filter((_, idx) => idx !== i))
-}
-
-function moveListItem(i: number, dir: -1 | 1) {
-  const items = [...parsedList.value]
-  const j = i + dir
-  if (j < 0 || j >= items.length) return
-  ;[items[i], items[j]] = [items[j] as ListItem, items[i] as ListItem]
-  updateList(items)
-}
-
-function updateListItemString(i: number, value: string) {
-  updateList(parsedList.value.map((item, idx) => idx === i ? value : item))
-}
-
-function updateListItemField(i: number, key: string, value: unknown) {
-  updateList(parsedList.value.map((item, idx) =>
-    idx === i ? { ...(item as Record<string, unknown>), [key]: value } : item,
-  ))
 }
 
 const spacing = computed(() => {
@@ -177,26 +92,13 @@ function applyAlternative(alt: string) {
       </div>
     </div>
 
-    <!-- AI alternatives inline -->
-    <div v-if="aiAlternatives.length" class="space-y-1">
-      <p class="text-xs text-gray-400">Pick an alternative:</p>
-      <button
-        v-for="(alt, i) in aiAlternatives"
-        :key="i"
-        type="button"
-        class="w-full text-left text-xs px-2.5 py-1.5 rounded border border-gray-200 dark:border-gray-700 hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950 transition-colors line-clamp-2"
-        @click="applyAlternative(alt)"
-      >
-        {{ alt }}
-      </button>
-      <button type="button" class="text-xs text-gray-400 hover:text-gray-600" @click="dismissAlternatives()">
-        Dismiss
-      </button>
-    </div>
-    <p v-else-if="aiError" class="text-xs text-red-500 flex items-center gap-1">
-      {{ aiError }}
-      <button type="button" class="underline hover:no-underline" @click="dismissAlternatives()">Dismiss</button>
-    </p>
+    <AiAlternativesPicker
+      :alternatives="aiAlternatives"
+      :error="aiError"
+      line-clamp
+      @select="applyAlternative"
+      @dismiss="dismissAlternatives()"
+    />
   </div>
 
   <!-- Textarea -->
@@ -223,26 +125,13 @@ function applyAlternative(alt: string) {
       </button>
     </div>
 
-    <!-- AI alternatives inline -->
-    <div v-if="aiAlternatives.length" class="space-y-1 mt-1">
-      <p class="text-xs text-gray-400">Pick an alternative:</p>
-      <button
-        v-for="(alt, i) in aiAlternatives"
-        :key="i"
-        type="button"
-        class="w-full text-left text-xs px-2.5 py-1.5 rounded border border-gray-200 dark:border-gray-700 hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950 transition-colors"
-        @click="applyAlternative(alt)"
-      >
-        {{ alt }}
-      </button>
-      <button type="button" class="text-xs text-gray-400 hover:text-gray-600" @click="dismissAlternatives()">
-        Dismiss
-      </button>
-    </div>
-    <p v-else-if="aiError" class="text-xs text-red-500 flex items-center gap-1 mt-1">
-      {{ aiError }}
-      <button type="button" class="underline hover:no-underline" @click="dismissAlternatives()">Dismiss</button>
-    </p>
+    <AiAlternativesPicker
+      class="mt-1"
+      :alternatives="aiAlternatives"
+      :error="aiError"
+      @select="applyAlternative"
+      @dismiss="dismissAlternatives()"
+    />
   </div>
 
   <!-- Rich text — contenteditable WYSIWYG -->
@@ -333,129 +222,19 @@ function applyAlternative(alt: string) {
   </div>
 
   <!-- Multi-image list (gallery) -->
-  <div v-else-if="field.type === 'images'" class="space-y-3">
-    <div v-if="parsedImages.length" class="space-y-1.5">
-      <div
-        v-for="(img, i) in parsedImages"
-        :key="i"
-        class="flex items-center gap-2 p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
-      >
-        <img
-          v-if="img.url"
-          :src="img.url"
-          alt=""
-          class="w-10 h-10 object-cover rounded shrink-0"
-        >
-        <div v-else class="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded shrink-0 flex items-center justify-center">
-          <UIcon name="i-lucide-image" mode="svg" class="w-4 h-4 text-gray-400" />
-        </div>
-        <input
-          :value="img.alt"
-          :aria-label="`Alt text for image ${i + 1}`"
-          placeholder="Alt text…"
-          class="flex-1 min-w-0 px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
-          @input="updateImageAlt(i, ($event.target as HTMLInputElement).value)"
-        >
-        <button
-          type="button"
-          class="shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors rounded"
-          aria-label="Remove image"
-          title="Remove image"
-          @click="removeImage(i)"
-        >
-          <UIcon name="i-lucide-trash-2" mode="svg" class="w-3.5 h-3.5 block" />
-        </button>
-      </div>
-    </div>
-    <div class="flex gap-2">
-      <input
-        v-model="newImageUrl"
-        placeholder="Paste image URL…"
-        class="flex-1 px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
-        @keyup.enter="addImage"
-      >
-      <button
-        type="button"
-        :disabled="!newImageUrl.trim()"
-        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-500 hover:bg-primary-600 disabled:opacity-40 text-white transition-colors"
-        @click="addImage"
-      >
-        Add
-      </button>
-    </div>
-    <p v-if="!parsedImages.length" class="text-xs text-gray-400">
-      Paste an image URL above to add it to the gallery.
-    </p>
-  </div>
+  <FieldImages
+    v-else-if="field.type === 'images'"
+    :model-value="modelValue as string"
+    @update:model-value="update"
+  />
 
   <!-- Generic list (structured objects or plain strings) -->
-  <div v-else-if="field.type === 'list'" class="space-y-2">
-    <div v-if="parsedList.length" class="space-y-2">
-      <div
-        v-for="(item, i) in parsedList"
-        :key="i"
-        class="p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 space-y-1.5"
-      >
-        <div class="flex items-start gap-2">
-          <!-- Structured item — one recursive FieldRenderer per sub-field -->
-          <div v-if="field.fields" class="flex-1 min-w-0 space-y-2">
-            <div v-for="subField in field.fields" :key="subField.key">
-              <label class="block text-xs text-gray-400 mb-0.5">{{ subField.label }}</label>
-              <FieldRenderer
-                :field="subField"
-                :model-value="(item as Record<string, unknown>)[subField.key]"
-                @update:model-value="(v) => updateListItemField(i, subField.key, v)"
-              />
-            </div>
-          </div>
-          <!-- Plain string item -->
-          <input
-            v-else
-            :value="item as string"
-            :aria-label="`${field.label} item ${i + 1}`"
-            class="flex-1 min-w-0 px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
-            @input="updateListItemString(i, ($event.target as HTMLInputElement).value)"
-          >
-          <div class="flex flex-col gap-0.5 shrink-0">
-            <button
-              type="button"
-              :disabled="i === 0"
-              class="p-0.5 text-gray-400 hover:text-primary-500 disabled:opacity-25 disabled:hover:text-gray-400 transition-colors rounded"
-              :aria-label="`Move item ${i + 1} up`"
-              @click="moveListItem(i, -1)"
-            >
-              <UIcon name="i-lucide-chevron-up" mode="svg" class="w-3.5 h-3.5 block" />
-            </button>
-            <button
-              type="button"
-              :disabled="i === parsedList.length - 1"
-              class="p-0.5 text-gray-400 hover:text-primary-500 disabled:opacity-25 disabled:hover:text-gray-400 transition-colors rounded"
-              :aria-label="`Move item ${i + 1} down`"
-              @click="moveListItem(i, 1)"
-            >
-              <UIcon name="i-lucide-chevron-down" mode="svg" class="w-3.5 h-3.5 block" />
-            </button>
-            <button
-              type="button"
-              class="p-0.5 text-gray-400 hover:text-red-500 transition-colors rounded"
-              :aria-label="`Remove item ${i + 1}`"
-              @click="removeListItem(i)"
-            >
-              <UIcon name="i-lucide-trash-2" mode="svg" class="w-3.5 h-3.5 block" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <p v-else class="text-xs text-gray-400">No items yet.</p>
-    <button
-      type="button"
-      class="w-full px-3 py-1.5 text-xs font-medium rounded-md border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-500 transition-colors"
-      @click="addListItem"
-    >
-      + Add item
-    </button>
-  </div>
+  <FieldList
+    v-else-if="field.type === 'list'"
+    :field="field"
+    :model-value="modelValue as string"
+    @update:model-value="update"
+  />
 
   <!-- Spacing -->
   <div v-else-if="field.type === 'spacing'" class="space-y-2">

@@ -97,6 +97,22 @@ export async function isSiteMember(event: H3Event): Promise<boolean> {
   }
 }
 
+/**
+ * Session-aware counterpart to isSiteMember() for callers that already hold a resolved
+ * session from earlier in the same handler (e.g. an optional-auth check for guest vs.
+ * logged-in behavior) — reuses it instead of paying for a second independent Better Auth
+ * session lookup (requireAuth → requireSession → auth.api.getSession()) for the same
+ * request. `session` may be null (no session at all), which is simply "not a member."
+ * Mirrors requireAuth's own membership rule (a real user_site_roles row, or a super admin
+ * on any site) without throwing.
+ */
+export async function isSiteMemberForSession(db: Db, session: { user: { id: string } } | null, siteId: string): Promise<boolean> {
+  if (!session) return false
+  const roleRow = await getUserSiteRole(db, session.user.id, siteId)
+  if (roleRow) return true
+  return hasSuperAdminRole(db, session.user.id)
+}
+
 export async function getUserSiteRole(db: Db, userId: string, siteId: string) {
   return db.query.userSiteRoles.findFirst({
     where: and(eq(userSiteRoles.userId, userId), eq(userSiteRoles.siteId, siteId)),

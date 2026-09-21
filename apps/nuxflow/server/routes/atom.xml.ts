@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import { useDb } from '../utils/db'
 import { getFeedSite, getPublishedPostsForFeed } from '@nuxflow/db/queries'
 import { withEdgeCache } from '../utils/edge-cache'
-import { escXml } from '../utils/xml'
+import { escXml, cdataSafe } from '../utils/xml'
 
 function tiptapToHtml(node: unknown): string {
   if (!node || typeof node !== 'object') return ''
@@ -70,7 +70,7 @@ async function buildAtomFeed(event: H3Event) {
     <published>${pub}</published>
     <updated>${mod}</updated>
     ${p.excerpt ? `<summary type="text">${escXml(p.excerpt)}</summary>` : ''}
-    ${html ? `<content type="html"><![CDATA[${html}]]></content>` : ''}
+    ${html ? `<content type="html"><![CDATA[${cdataSafe(html)}]]></content>` : ''}
     ${p.authorName ? `<author><name>${escXml(p.authorName)}</name></author>` : ''}
   </entry>`
   }).join('\n')

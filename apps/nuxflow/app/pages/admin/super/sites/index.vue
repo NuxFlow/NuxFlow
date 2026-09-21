@@ -70,8 +70,7 @@ async function saveSite() {
     isEditOpen.value = false
     await refresh()
   } catch (e: unknown) {
-    const err = e as { data?: { message?: string }; message?: string }
-    saveError.value = err.data?.message || err.message || 'Failed to save site'
+    saveError.value = getErrorMessage(e, 'Failed to save site')
   } finally {
     saving.value = false
   }
@@ -87,8 +86,7 @@ async function deleteSite() {
     isDeleteOpen.value = false
     await refresh()
   } catch (e: unknown) {
-    const err = e as { data?: { message?: string }; message?: string }
-    alert(err.data?.message || err.message || 'Failed to delete site')
+    alert(getErrorMessage(e, 'Failed to delete site'))
   } finally {
     deleting.value = false
   }

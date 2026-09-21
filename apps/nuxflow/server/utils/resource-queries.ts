@@ -11,9 +11,14 @@ export async function getMediaByIdOrThrow(db: Db, siteId: string, id: string, me
   return item
 }
 
-export async function getCommentByIdOrThrow(db: Db, siteId: string, id: string, message = 'Comment not found') {
+/** `itemId`, when given, additionally scopes the lookup to a comment belonging to that
+ * specific content item — used by comments.post.ts to verify a caller-supplied parentId
+ * is actually an existing comment on THIS item/site, not just this site. */
+export async function getCommentByIdOrThrow(db: Db, siteId: string, id: string, message = 'Comment not found', itemId?: string) {
+  const conditions = [eq(comments.id, id), eq(comments.siteId, siteId)]
+  if (itemId) conditions.push(eq(comments.itemId, itemId))
   const item = await db.query.comments.findFirst({
-    where: and(eq(comments.id, id), eq(comments.siteId, siteId)),
+    where: and(...conditions),
   })
   if (!item) notFound(message)
   return item

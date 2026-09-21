@@ -45,10 +45,6 @@ const intervalLabel: Record<string, string> = {
   one_time: 'once',
 }
 
-function formatPrice(price: number, currency: string) {
-  return new Intl.NumberFormat('en', { style: 'currency', currency, minimumFractionDigits: 0 }).format(price)
-}
-
 const { loggedIn } = useUserSession()
 const loading = ref<string | null>(null)
 const toast = useToast()
@@ -66,7 +62,7 @@ async function subscribe(tierId: string) {
     })
     window.location.href = url
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Could not start checkout'
+    const msg = getErrorMessage(e, 'Could not start checkout')
     toast.add({ title: msg, color: 'error' })
   } finally {
     loading.value = null

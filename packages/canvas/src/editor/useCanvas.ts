@@ -3,6 +3,7 @@ import type { CanvasContent, CanvasBlockData, CanvasBlockDefinition, CanvasBlock
 import { emptyCanvas } from '../types'
 import { resolveDefinition } from '../blocks/definitions'
 import { findParentList, findBlockById, isDescendant, cloneWithNewIds } from '../tree'
+import { useCanvasHistory } from './useCanvasHistory'
 
 // Deliberate exception to the server-side "always use ulid(), never crypto.randomUUID()"
 // convention: these are ephemeral client-side tree-node ids scoped to one canvas
@@ -12,8 +13,6 @@ function uuid(): string {
   return crypto.randomUUID()
 }
 
-const MAX_HISTORY = 50
-const BURST_DEBOUNCE_MS = 600
 const PROP_COMMIT_DEBOUNCE_MS = 120
 
 export function useCanvas(initial?: CanvasContent) {
@@ -53,18 +52,10 @@ export function useCanvas(initial?: CanvasContent) {
 
   // ── History (undo/redo) ──────────────────────────────────────────────────
   //
-  // Snapshot-based: each undo step is a full deep-cloned CanvasContent taken
-  // *before* the mutation it represents. Discrete mutations (add/remove/move/
-  // duplicate/moveToSlot) push one snapshot immediately. Continuous mutations
-  // (updateBlockProp, fired every keystroke) are grouped into a single undo
-  // step per burst of edits to the same `${blockId}:${propKey}` target,
-  // committed after BURST_DEBOUNCE_MS of inactivity on that target.
-
-  const undoStack = ref<CanvasContent[]>([])
-  const redoStack = ref<CanvasContent[]>([])
-
-  const canUndo = computed(() => undoStack.value.length > 0)
-  const canRedo = computed(() => redoStack.value.length > 0)
+  // The stack/burst-debounce bookkeeping itself lives in useCanvasHistory.ts —
+  // this just wires it to canvas-specific concerns (cloning CanvasContent,
+  // replacing it wholesale, and clearing block selection on an actual undo/redo)
+  // that the generic history composable has no business knowing about.
 
   function cloneContent(): CanvasContent {
     return JSON.parse(JSON.stringify(canvas.value))
@@ -74,74 +65,24 @@ export function useCanvas(initial?: CanvasContent) {
     return cloneContent()
   }
 
-  function pushUndo(snap: CanvasContent) {
-    undoStack.value.push(snap)
-    if (undoStack.value.length > MAX_HISTORY) undoStack.value.shift()
-    redoStack.value = []
-  }
+  const history = useCanvasHistory<CanvasContent>({
+    snapshot,
+    setValue: (value) => { canvas.value = value },
+    flushPending: () => flushPendingProps(),
+  })
 
-  let burstTimer: ReturnType<typeof setTimeout> | null = null
-  let burstKey: string | null = null
-  let burstPreSnapshot: CanvasContent | null = null
-
-  /** Commits any in-flight debounced burst as its own undo step right now,
-   * synchronously — must run before any discrete mutation or undo/redo so
-   * stack ordering can never be corrupted by a stale timer firing late. */
-  function flushPendingBurst() {
-    if (burstTimer !== null) {
-      clearTimeout(burstTimer)
-      burstTimer = null
-    }
-    if (burstPreSnapshot) {
-      pushUndo(burstPreSnapshot)
-      burstPreSnapshot = null
-    }
-    burstKey = null
-  }
-
-  function recordDiscrete() {
-    flushPendingProps()
-    flushPendingBurst()
-    pushUndo(snapshot())
-  }
+  const { undoStack, redoStack, canUndo, canRedo, flushPendingBurst, recordDiscrete } = history
 
   function recordDebounced(blockId: string, propKey: string) {
-    const key = `${blockId}:${propKey}`
-    if (burstKey !== key) {
-      // Editing a different target — close out any prior burst as its own
-      // step before starting a new one, so unrelated edits never merge.
-      flushPendingBurst()
-      burstKey = key
-      burstPreSnapshot = snapshot()
-    } else if (burstTimer !== null) {
-      clearTimeout(burstTimer)
-    }
-    burstTimer = setTimeout(() => {
-      if (burstPreSnapshot) pushUndo(burstPreSnapshot)
-      burstPreSnapshot = null
-      burstKey = null
-      burstTimer = null
-    }, BURST_DEBOUNCE_MS)
+    history.recordDebounced(`${blockId}:${propKey}`)
   }
 
   function undo() {
-    flushPendingProps()
-    flushPendingBurst()
-    const prev = undoStack.value.pop()
-    if (!prev) return
-    redoStack.value.push(snapshot())
-    canvas.value = prev
-    selectedId.value = null
+    if (history.undo()) selectedId.value = null
   }
 
   function redo() {
-    flushPendingProps()
-    flushPendingBurst()
-    const next = redoStack.value.pop()
-    if (!next) return
-    undoStack.value.push(snapshot())
-    canvas.value = next
-    selectedId.value = null
+    if (history.redo()) selectedId.value = null
   }
 
   // ── Tree helpers ──────────────────────────────────────────────────────────
@@ -279,8 +220,7 @@ export function useCanvas(initial?: CanvasContent) {
     flushPendingBurst()
     canvas.value = JSON.parse(JSON.stringify(content))
     selectedId.value = null
-    undoStack.value = []
-    redoStack.value = []
+    history.clear()
   }
 
   // ── Serialise ─────────────────────────────────────────────────────────────

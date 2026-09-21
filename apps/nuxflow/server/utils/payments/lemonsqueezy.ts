@@ -1,5 +1,5 @@
 import type { PaymentProvider } from './types'
-import { constantTimeEqualHex } from '../security'
+import { constantTimeEqualHex, hmacSha256Hex } from '../security'
 
 export interface LsSubscription {
   id: string
@@ -126,16 +126,7 @@ export class LemonSqueezyProvider implements PaymentProvider {
   }
 
   async verifyWebhook(rawBody: string, signatureHeader: string, secret: string): Promise<boolean> {
-    const encoder = new TextEncoder()
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign'],
-    )
-    const mac = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody))
-    const expected = Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, '0')).join('')
+    const expected = await hmacSha256Hex(secret, rawBody)
     // Constant-time compare — a plain `===` here leaks per-character timing (Stripe/Paddle's
     // equivalents are timing-safe by construction: SDK-verified / crypto.subtle.verify).
     return constantTimeEqualHex(expected, signatureHeader)

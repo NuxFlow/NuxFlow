@@ -1,6 +1,7 @@
 import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
-import { putThemeCSS, putThemeDemo, waitUntil } from '../../../utils/cf-env'
+import { waitUntil } from '../../../utils/cf-env'
+import { putThemeCSS, putThemeDemo } from '../../../utils/cf-theme-kv'
 import { themes, media } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'

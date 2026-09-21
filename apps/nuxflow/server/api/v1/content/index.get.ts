@@ -2,29 +2,40 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { getContentTypeBySlugOrThrow } from '../../../utils/content-queries'
 import { parsePagination } from '../../../utils/pagination'
-import { parseQuery } from '../../../utils/validate'
 import { isSiteMember } from '../../../utils/permissions'
 import { paginate, countRows } from '@nuxflow/db/queries'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, desc, gt } from 'drizzle-orm'
 
+// updatedAfter round-trips contentItems.updatedAt, which is always written as SQLite's
+// datetime('now') — space-separated "YYYY-MM-DD HH:MM:SS", not ISO-8601 — so an offline/
+// delta-sync client that echoes a server-returned timestamp back here (the endpoint's
+// documented use case) must not be rejected by a strict z.string().datetime() check.
+// Accepts either that stored format or a client-authored ISO-8601 string.
+const updatedAfterSchema = z.string().regex(
+  /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?Z?$/,
+  'Expected "YYYY-MM-DD HH:MM:SS" or ISO-8601',
+)
+
 const querySchema = z.object({
   type: z.string().optional(),
   status: z.enum(['draft', 'review', 'published', 'scheduled', 'archived']).optional(),
   locale: z.string().optional(),
-  updatedAfter: z.string().datetime().optional(),
+  updatedAfter: updatedAfterSchema.optional(),
 })
 
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  // parseQuery's Zod schema only covers the fields this route actually branches
-  // on (type/status/locale/updatedAfter) — it strips unrecognized keys, so page/
-  // limit are read from the raw query separately below via parsePagination,
-  // which already has its own lenient Number()-coercion + default/clamp logic
-  // and doesn't need Zod validation on top of it.
+  // Parsed once and reused for both schema validation and pagination — the Zod schema
+  // only covers the fields this route branches on (type/status/locale/updatedAfter) and
+  // strips unrecognized keys, so page/limit are read from this same raw object via
+  // parsePagination, which already has its own lenient Number()-coercion + default/clamp
+  // logic and doesn't need Zod validation on top of it.
   const rawQuery = getQuery(event)
-  const query = parseQuery(event, querySchema)
+  const parsed = querySchema.safeParse(rawQuery)
+  if (!parsed.success) validationError('Validation error', parsed.error.flatten())
+  const query = parsed.data
   const typeSlug = query.type || 'page'
 
   // A caller may only see non-published content (or filter by status at all) if they

@@ -4,11 +4,7 @@ import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import NuxLightbox from './NuxLightbox.vue'
 import { spacingToCss } from '../utils/spacing'
-
-interface GalleryImage {
-  url: string
-  alt?: string
-}
+import { parseImageList, type ImageListItem } from '../utils/json'
 
 const props = withDefaults(defineProps<{
   images?: string
@@ -25,15 +21,7 @@ const props = withDefaults(defineProps<{
   lightbox: true,
 })
 
-const parsedImages = computed<GalleryImage[]>(() => {
-  try {
-    const arr = JSON.parse(props.images || '[]')
-    return Array.isArray(arr) ? arr.filter((x: unknown) => typeof x === 'object' && x !== null && typeof (x as GalleryImage).url === 'string') : []
-  }
-  catch {
-    return []
-  }
-})
+const parsedImages = computed<ImageListItem[]>(() => parseImageList(props.images))
 
 const gridCols = computed(() => ({
   '2': 'grid-cols-2',

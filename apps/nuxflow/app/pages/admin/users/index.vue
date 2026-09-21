@@ -33,7 +33,7 @@ async function removeUser(userId: string) {
     await $fetch(`/api/v1/users/${userId}`, { method: 'DELETE' })
     await refresh()
   } catch (e: unknown) {
-    actionError.value = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to remove user'
+    actionError.value = getErrorMessage(e, 'Failed to remove user')
   } finally {
     removingId.value = null
   }
@@ -45,7 +45,7 @@ async function resendInvite(userId: string) {
   try {
     await $fetch(`/api/v1/users/${userId}/resend-invite`, { method: 'POST' })
   } catch (e: unknown) {
-    actionError.value = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to resend invite'
+    actionError.value = getErrorMessage(e, 'Failed to resend invite')
   } finally {
     resendingId.value = null
   }
@@ -64,7 +64,7 @@ async function promoteSuperAdmin(userId: string) {
     await $fetch(`/api/v1/users/${userId}/super-admin`, { method: 'POST' })
     await refresh()
   } catch (e: unknown) {
-    actionError.value = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to grant super admin'
+    actionError.value = getErrorMessage(e, 'Failed to grant super admin')
   } finally {
     superAdminActionId.value = null
   }
@@ -83,7 +83,7 @@ async function revokeSuperAdmin(userId: string) {
     await $fetch(`/api/v1/users/${userId}/super-admin`, { method: 'DELETE' })
     await refresh()
   } catch (e: unknown) {
-    actionError.value = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to revoke super admin'
+    actionError.value = getErrorMessage(e, 'Failed to revoke super admin')
   } finally {
     superAdminActionId.value = null
   }
@@ -108,7 +108,7 @@ async function invite() {
     inviteForm.role = 'viewer'
     await refresh()
   } catch (e: unknown) {
-    inviteError.value = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to invite user'
+    inviteError.value = getErrorMessage(e, 'Failed to invite user')
   } finally {
     inviting.value = false
   }

@@ -31,7 +31,7 @@ async function setStatus(id: string, status: Submission['status']) {
     if (selected.value?.id === id) selected.value = null
     toast.add({ title: `Marked as ${status}`, color: 'success' })
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Update failed'
+    const msg = getErrorMessage(e, 'Update failed')
     toast.add({ title: msg, color: 'error' })
   }
 }

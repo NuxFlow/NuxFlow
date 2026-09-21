@@ -142,7 +142,7 @@ async function saveTier() {
     await refreshTiers()
     showTierModal.value = false
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Save failed'
+    const msg = getErrorMessage(e, 'Save failed')
     toast.add({ title: msg, color: 'error' })
   } finally {
     tierLoading.value = false
@@ -161,7 +161,7 @@ async function deleteTier(tier: Tier) {
     await refreshTiers()
     toast.add({ title: 'Tier deleted', color: 'success' })
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Delete failed'
+    const msg = getErrorMessage(e, 'Delete failed')
     toast.add({ title: msg, color: 'error' })
   }
 }

@@ -1,9 +1,4 @@
 import type { H3Event } from 'h3'
-import { sanitizeThemeCss } from './security'
-import { getCachedThemeCss, setCachedThemeCss, clearCachedThemeCss } from './theme-cache'
-import { useDb } from './db'
-import { themes } from '@nuxflow/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
 
 // KVNamespace, D1Database, WorkerLoader, WorkerLoaderWorkerCode, WorkerStub, SendEmail, and
 // AnalyticsEngineDataset below are global ambient types from
@@ -16,6 +11,13 @@ interface CfBindings {
   r2: R2Bucket | null
 }
 
+// Module-level fallback caches, one per binding — mirrors the singleton pattern in
+// server/middleware/01.d1-cache.ts (which does the same thing for the D1 binding via
+// useDb()): Cloudflare bindings are only present on `event.context.cloudflare.env` for a
+// real incoming request, but some code paths (rare, but real: an isolate reused across
+// requests hitting a code path where the event's own env is momentarily unavailable) need a
+// last-known-good binding rather than failing outright. Populated on every call that does
+// have a live `env`, read as a fallback on calls that don't.
 let _kv: KVNamespace | null = null
 let _loader: WorkerLoader | null = null
 let _r2: R2Bucket | null = null
@@ -31,147 +33,6 @@ export function getCfBindings(event: H3Event): CfBindings {
     loader: (env?.LOADER as WorkerLoader | undefined) ?? _loader ?? null,
     r2: (env?.MEDIA_BUCKET as R2Bucket | undefined) ?? _r2 ?? null,
   }
-}
-
-export async function getPluginServerCode(event: H3Event, siteId: string, pluginId: string): Promise<string | null> {
-  const { kv } = getCfBindings(event)
-  if (!kv) return null
-  return kv.get(`plugin:${siteId}:${pluginId}:server`)
-}
-
-export async function getPluginClientBundle(event: H3Event, siteId: string, pluginId: string): Promise<string | null> {
-  const { kv } = getCfBindings(event)
-  if (!kv) return null
-  return kv.get(`plugin:${siteId}:${pluginId}:client`)
-}
-
-export async function putPluginServerCode(event: H3Event, siteId: string, pluginId: string, code: string): Promise<void> {
-  const { kv } = getCfBindings(event)
-  if (!kv) throw createError({ statusCode: 503, message: 'Dynamic plugins require a Cloudflare KV namespace (PLUGIN_KV). Configure it in wrangler.toml.' })
-  await kv.put(`plugin:${siteId}:${pluginId}:server`, code)
-}
-
-export async function putPluginClientBundle(event: H3Event, siteId: string, pluginId: string, bundle: string): Promise<void> {
-  const { kv } = getCfBindings(event)
-  if (!kv) throw createError({ statusCode: 503, message: 'Dynamic plugins require a Cloudflare KV namespace (PLUGIN_KV). Configure it in wrangler.toml.' })
-  await kv.put(`plugin:${siteId}:${pluginId}:client`, bundle)
-}
-
-export async function deletePluginAssets(event: H3Event, siteId: string, pluginId: string): Promise<void> {
-  const { kv } = getCfBindings(event)
-  if (!kv) return
-  await Promise.all([
-    kv.delete(`plugin:${siteId}:${pluginId}:server`),
-    kv.delete(`plugin:${siteId}:${pluginId}:client`),
-  ])
-}
-
-// KV key includes the theme row's cssVersion — see the comment on `themes.cssVersion` in
-// packages/db/src/schema/system.ts for why a version bump (rather than overwriting a
-// fixed key) is what actually closes the staleness window on publish.
-function themeCssKey(siteId: string, themeId: string, version: number): string {
-  return `theme:${siteId}:${themeId}:css:v${version}`
-}
-
-// Pre-versioning key format. Any theme published before the `cssVersion` migration has
-// its real CSS sitting under this key, not a versioned one — the migration backfills
-// `cssVersion` to 0 for existing rows, but there was never a data migration to actually
-// move (or copy) the KV content itself to the new `:v0` key, since KV writes can't be
-// bundled into a D1 schema migration. Without this fallback, every theme published
-// before this change goes dark (getThemeCSS returns null, no CSS is ever injected) the
-// moment this code ships, until someone happens to re-publish it.
-function legacyThemeCssKey(siteId: string, themeId: string): string {
-  return `theme:${siteId}:${themeId}:css`
-}
-
-async function getThemeCssVersion(event: H3Event, siteId: string, themeId: string): Promise<number> {
-  const db = useDb(event)
-  const row = await db.query.themes.findFirst({
-    where: and(eq(themes.id, themeId), eq(themes.siteId, siteId)),
-    columns: { cssVersion: true },
-  })
-  return row?.cssVersion ?? 0
-}
-
-export async function getThemeCSS(event: H3Event, siteId: string, themeId: string, knownVersion?: number): Promise<string | null> {
-  const cached = getCachedThemeCss(siteId, themeId)
-  if (cached !== undefined) return cached
-
-  const { kv } = getCfBindings(event)
-  if (!kv) return null
-
-  // Callers that already have the theme row in hand (theme-resolver.ts, for the active
-  // theme) pass its cssVersion directly to skip this extra lookup; anything else (e.g.
-  // resolving a base theme by id alone) falls back to reading it here.
-  const version = knownVersion ?? await getThemeCssVersion(event, siteId, themeId)
-
-  let raw = await kv.get(themeCssKey(siteId, themeId, version))
-  if (raw === null && version === 0) {
-    // Never republished since the versioning migration — fall back to the pre-versioning
-    // key. Copy it forward to the versioned key (best-effort; a failure here just means
-    // this same fallback runs again next cache-miss, not a functional problem) so future
-    // reads hit the fast path and every isolate converges on the same key going forward.
-    raw = await kv.get(legacyThemeCssKey(siteId, themeId))
-    if (raw !== null) {
-      await kv.put(themeCssKey(siteId, themeId, version), raw).catch((err) => {
-        console.error('[cf-env] Failed to copy legacy theme CSS forward to versioned key', err)
-      })
-    }
-  }
-  // Sanitize on read too (not just on write) so themes stored before sanitization
-  // existed are protected with no data migration — cached sanitized so this cost is
-  // paid once per TTL window (60s) instead of on every single SSR request.
-  const sanitized = raw !== null ? sanitizeThemeCss(raw) : null
-  setCachedThemeCss(siteId, themeId, sanitized)
-  return sanitized
-}
-
-export async function putThemeCSS(event: H3Event, siteId: string, themeId: string, css: string): Promise<void> {
-  const { kv } = getCfBindings(event)
-  if (!kv) throw createError({ statusCode: 503, message: 'CSS themes require a Cloudflare KV namespace (PLUGIN_KV). Configure it in wrangler.toml.' })
-  // Sanitize here — the single chokepoint every theme write path (upload, patch,
-  // customizer) goes through — so it can never be forgotten by a future call site.
-  const sanitized = sanitizeThemeCss(css)
-
-  const db = useDb(event)
-  const [row] = await db.update(themes)
-    .set({ cssVersion: sql`css_version + 1` })
-    .where(and(eq(themes.id, themeId), eq(themes.siteId, siteId)))
-    .returning({ cssVersion: themes.cssVersion })
-  const version = row?.cssVersion ?? 0
-
-  await kv.put(themeCssKey(siteId, themeId, version), sanitized)
-  // Set (not clear) so the publishing isolate's own next render is immediately correct —
-  // other isolates still converge via their own cssCache TTL, but each of them now reads
-  // a key that has only ever held this new content, so that convergence can never observe
-  // a stale value once it happens.
-  setCachedThemeCss(siteId, themeId, sanitized)
-}
-
-export async function deleteThemeCSS(event: H3Event, siteId: string, themeId: string): Promise<void> {
-  const { kv } = getCfBindings(event)
-  if (!kv) return
-  const version = await getThemeCssVersion(event, siteId, themeId)
-  await kv.delete(themeCssKey(siteId, themeId, version))
-  clearCachedThemeCss(siteId, themeId)
-}
-
-export async function getThemeDemo(event: H3Event, siteId: string, themeId: string): Promise<string | null> {
-  const { kv } = getCfBindings(event)
-  if (!kv) return null
-  return kv.get(`theme:${siteId}:${themeId}:demo`)
-}
-
-export async function putThemeDemo(event: H3Event, siteId: string, themeId: string, json: string): Promise<void> {
-  const { kv } = getCfBindings(event)
-  if (!kv) return
-  await kv.put(`theme:${siteId}:${themeId}:demo`, json)
-}
-
-export async function deleteThemeDemo(event: H3Event, siteId: string, themeId: string): Promise<void> {
-  const { kv } = getCfBindings(event)
-  if (!kv) return
-  await kv.delete(`theme:${siteId}:${themeId}:demo`)
 }
 
 /**
@@ -204,52 +65,4 @@ export function getAnalyticsEngine(event: H3Event): AnalyticsEngineDataset | nul
  */
 export function getEmailBinding(event: H3Event): SendEmail | null {
   return (event?.context?.cloudflare?.env?.EMAIL as SendEmail | undefined) ?? null
-}
-
-// A plugin is third-party code: Ed25519-signature-verified and checksum-matched at
-// install/request time (see assertCodeIntegrity() call sites), which proves *authorship
-// consistency*, not that the code is benign or bug-free. Without an explicit `limits`, a
-// dynamic Worker runs under the parent request's own plan-standard CPU/subrequest budget —
-// a runaway loop or accidental infinite-recursion bug in plugin code would burn CPU time
-// against (and could starve) the request that spawned it. `cpuMs: 50` is generous for the
-// kind of request/response logic plugin server modules actually do (no DB access, no
-// outbound network — see globalOutbound below — so there's nothing legitimately slow to
-// wait on) while still bounding a runaway loop to a small, fixed cost. `subRequests: 10` is
-// mostly a defensive floor rather than a number plugins are expected to approach: with
-// `globalOutbound: null` blocking all outbound fetch()/connect(), a plugin has no bindings
-// to make subrequests against today, but the limit still guards against future capability
-// additions or an internal-fetch edge case rather than leaving it uncapped.
-// Set on *both* the WorkerLoaderWorkerCode (below) and the getEntrypoint() call at the
-// fetch call site (server/routes/_nuxflow/ext/[pluginId]/[...path].ts) — per Cloudflare's
-// docs the lower of the two wins, so this is belt-and-suspenders in case either call site
-// is ever changed independently.
-// See https://developers.cloudflare.com/dynamic-workers/usage/limits/ and
-// https://developers.cloudflare.com/dynamic-workers/usage/egress-control/.
-export const PLUGIN_WORKER_LIMITS: { cpuMs: number, subRequests: number } = {
-  cpuMs: 50,
-  subRequests: 10,
-}
-
-// No bindings/secrets are passed to the spawned worker (the returned WorkerLoaderWorkerCode
-// carries no `env`), and `globalOutbound: null` additionally blocks all outbound fetch()/
-// connect() from plugin code — a plugin can only use whatever the platform gives it, nothing
-// external. See https://developers.cloudflare.com/dynamic-workers/usage/egress-control/.
-export function spawnPluginWorker(
-  event: H3Event,
-  cacheId: string,
-  getCode: () => Promise<string>,
-): WorkerStub {
-  const { loader } = getCfBindings(event)
-  if (!loader) throw createError({ statusCode: 503, message: 'Dynamic Workers (LOADER binding) are not available in this environment.' })
-
-  return loader.get(cacheId, async (): Promise<WorkerLoaderWorkerCode> => {
-    const code = await getCode()
-    return {
-      compatibilityDate: '2026-04-01',
-      mainModule: 'index.js',
-      modules: { 'index.js': code },
-      globalOutbound: null,
-      limits: PLUGIN_WORKER_LIMITS,
-    }
-  })
 }

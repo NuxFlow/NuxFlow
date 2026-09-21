@@ -48,7 +48,7 @@ async function suggestSeo() {
     local.seoTitle = res.seoTitle
     local.seoDescription = res.seoDescription
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to generate SEO suggestions'
+    const msg = getErrorMessage(e, 'Failed to generate SEO suggestions')
     toast.add({ title: msg, color: 'error' })
   } finally {
     aiLoading.value = false

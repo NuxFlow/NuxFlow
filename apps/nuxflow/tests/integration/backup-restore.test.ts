@@ -23,16 +23,18 @@ vi.mock('../../server/utils/db', () => ({
   getD1: () => null,
 }))
 
-// Themes/dynamic plugins keep their real payload only in KV (see cf-env.ts) — this fakes
-// that store with a plain Map, keyed the same way the real KV helpers key it, so
-// buildBackup()/applyBackup() round-trip through it exactly like production without
-// needing a real KVNamespace.
+// Themes/dynamic plugins keep their real payload only in KV (see cf-theme-kv.ts /
+// cf-plugin-kv.ts) — this fakes that store with a plain Map, keyed the same way the real
+// KV helpers key it, so buildBackup()/applyBackup() round-trip through it exactly like
+// production without needing a real KVNamespace.
 const kvStore = new Map<string, string>()
-vi.mock('../../server/utils/cf-env', () => ({
+vi.mock('../../server/utils/cf-theme-kv', () => ({
   getThemeCSS: async (_event: unknown, siteId: string, themeId: string) => kvStore.get(`theme:${siteId}:${themeId}:css`) ?? null,
   putThemeCSS: async (_event: unknown, siteId: string, themeId: string, css: string) => { kvStore.set(`theme:${siteId}:${themeId}:css`, css) },
   getThemeDemo: async (_event: unknown, siteId: string, themeId: string) => kvStore.get(`theme:${siteId}:${themeId}:demo`) ?? null,
   putThemeDemo: async (_event: unknown, siteId: string, themeId: string, json: string) => { kvStore.set(`theme:${siteId}:${themeId}:demo`, json) },
+}))
+vi.mock('../../server/utils/cf-plugin-kv', () => ({
   getPluginServerCode: async (_event: unknown, siteId: string, pluginId: string) => kvStore.get(`plugin:${siteId}:${pluginId}:server`) ?? null,
   putPluginServerCode: async (_event: unknown, siteId: string, pluginId: string, code: string) => { kvStore.set(`plugin:${siteId}:${pluginId}:server`, code) },
   getPluginClientBundle: async (_event: unknown, siteId: string, pluginId: string) => kvStore.get(`plugin:${siteId}:${pluginId}:client`) ?? null,

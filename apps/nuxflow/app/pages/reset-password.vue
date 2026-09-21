@@ -34,7 +34,7 @@ async function submit() {
     success.value = true
     setTimeout(() => navigateTo('/login'), 2500)
   } catch (e: unknown) {
-    error.value = (e as { data?: { message?: string } })?.data?.message ?? 'Reset failed. The link may have expired.'
+    error.value = getErrorMessage(e, 'Reset failed. The link may have expired.')
   } finally {
     loading.value = false
   }

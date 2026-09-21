@@ -94,7 +94,7 @@ async function manageBilling() {
     })
     window.location.href = url
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Could not open billing portal'
+    const msg = getErrorMessage(e, 'Could not open billing portal')
     toast.add({ title: msg, color: 'error' })
   } finally {
     managingBilling.value = false
@@ -114,15 +114,11 @@ async function cancelSubscription() {
     })
     await refreshSubscription()
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Could not cancel subscription'
+    const msg = getErrorMessage(e, 'Could not cancel subscription')
     toast.add({ title: msg, color: 'error' })
   } finally {
     cancellingSubscription.value = false
   }
-}
-
-function formatPrice(price: number, currency: string) {
-  return new Intl.NumberFormat('en', { style: 'currency', currency }).format(price)
 }
 
 function formatDate(dateStr: string | null) {

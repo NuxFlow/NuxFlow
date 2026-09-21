@@ -218,7 +218,7 @@ async function generatePreviewLink() {
     await navigator.clipboard.writeText(result.url)
     useToast().add({ title: 'Preview link copied', description: 'Valid for 48 hours', color: 'success' })
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to generate preview link'
+    const msg = getErrorMessage(e, 'Failed to generate preview link')
     useToast().add({ title: msg, color: 'error' })
   }
 }

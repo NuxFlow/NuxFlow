@@ -3,7 +3,8 @@ import { useDb } from './db'
 import { clearSiteCache } from '../middleware/02.multi-site'
 import { getActiveProvider } from './media-providers/index'
 import { writeAuditLog } from './audit'
-import { deletePluginAssets, deleteThemeCSS, deleteThemeDemo } from './cf-env'
+import { deletePluginAssets } from './cf-plugin-kv'
+import { deleteThemeCSS, deleteThemeDemo } from './cf-theme-kv'
 import { errorMessage } from './errors'
 import {
   sites, users, userSiteRoles, media,

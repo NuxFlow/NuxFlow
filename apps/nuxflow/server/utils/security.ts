@@ -118,6 +118,26 @@ export function constantTimeEqualHex(a: string, b: string): boolean {
   return diff === 0
 }
 
+/**
+ * Computes an HMAC-SHA256 digest of `payload` keyed by `secret`, returned as lowercase hex —
+ * shared by LemonSqueezyProvider and PaddleProvider's `verifyWebhook`, which both sign a
+ * provider-specific payload string with the same primitive and only differ in how that
+ * string is constructed (raw body vs. `${ts}:${rawBody}`) and which header field they
+ * compare the result against.
+ */
+export async function hmacSha256Hex(secret: string, payload: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const mac = await crypto.subtle.sign('HMAC', key, encoder.encode(payload))
+  return Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
 export function isPrivateIPv4(host: string): boolean {
   // Check if standard dot-decimal IPv4 representation
   if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return false

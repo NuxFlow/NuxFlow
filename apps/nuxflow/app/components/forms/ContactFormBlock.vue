@@ -61,7 +61,7 @@ async function submit() {
     })
     submitted.value = true
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Could not send your message. Please try again.'
+    const msg = getErrorMessage(e, 'Could not send your message. Please try again.')
     toast.add({ title: msg, color: 'error' })
   } finally {
     loading.value = false

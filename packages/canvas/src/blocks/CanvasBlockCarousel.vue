@@ -3,11 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import { spacingToCss } from '../utils/spacing'
-
-interface SlideImage {
-  url: string
-  alt?: string
-}
+import { parseImageList, type ImageListItem } from '../utils/json'
 
 const props = withDefaults(defineProps<{
   images?: string
@@ -30,15 +26,7 @@ const props = withDefaults(defineProps<{
   rounded: false,
 })
 
-const parsedImages = computed<SlideImage[]>(() => {
-  try {
-    const arr = JSON.parse(props.images || '[]')
-    return Array.isArray(arr) ? arr.filter((x: unknown) => typeof x === 'object' && x !== null && typeof (x as SlideImage).url === 'string') : []
-  }
-  catch {
-    return []
-  }
-})
+const parsedImages = computed<ImageListItem[]>(() => parseImageList(props.images))
 
 const current = ref(0)
 

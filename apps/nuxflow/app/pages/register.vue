@@ -47,7 +47,7 @@ async function submit() {
     })
     success.value = true
   } catch (e: unknown) {
-    error.value = (e as { data?: { message?: string } })?.data?.message ?? 'Registration failed. Please try again.'
+    error.value = getErrorMessage(e, 'Registration failed. Please try again.')
   } finally {
     loading.value = false
   }

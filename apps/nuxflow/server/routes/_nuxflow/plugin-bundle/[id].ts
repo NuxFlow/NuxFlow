@@ -1,5 +1,5 @@
 import { useDb } from '../../../utils/db'
-import { getPluginClientBundle } from '../../../utils/cf-env'
+import { getPluginClientBundle } from '../../../utils/cf-plugin-kv'
 import { assertCodeIntegrity } from '../../../utils/plugin-signing'
 import { dynamicPlugins, sites } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'

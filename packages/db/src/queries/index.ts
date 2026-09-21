@@ -1,4 +1,5 @@
 export * from './feed'
 export * from './taxonomy'
 export * from './paginate'
+export * from './gdpr'
 export type { Db } from './types'

@@ -40,7 +40,7 @@ async function setStatus(id: string, status: Comment['status']) {
     await $fetch(`/api/v1/comments/${id}`, { method: 'PATCH', body: { status } })
     await refresh()
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to update comment status'
+    const msg = getErrorMessage(e, 'Failed to update comment status')
     toast.add({ title: msg, color: 'error' })
   } finally {
     busyId.value = null
@@ -59,7 +59,7 @@ async function deleteComment(id: string) {
     await $fetch(`/api/v1/comments/${id}`, { method: 'DELETE' })
     await refresh()
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to delete comment'
+    const msg = getErrorMessage(e, 'Failed to delete comment')
     toast.add({ title: msg, color: 'error' })
   } finally {
     busyId.value = null

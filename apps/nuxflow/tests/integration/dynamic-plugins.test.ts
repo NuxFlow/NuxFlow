@@ -33,7 +33,7 @@ vi.mock('../../server/utils/db', () => ({
 // In-memory stand-in for the PLUGIN_KV namespace — real KV isn't available in this test
 // harness. Only the storage layer is faked; verification (plugin-signing.ts) is real.
 const kvStore = new Map<string, string>()
-vi.mock('../../server/utils/cf-env', () => ({
+vi.mock('../../server/utils/cf-plugin-kv', () => ({
   getPluginServerCode: async (_e: unknown, siteId: string, pluginId: string) => kvStore.get(`plugin:${siteId}:${pluginId}:server`) ?? null,
   putPluginServerCode: async (_e: unknown, siteId: string, pluginId: string, code: string) => { kvStore.set(`plugin:${siteId}:${pluginId}:server`, code) },
   getPluginClientBundle: async (_e: unknown, siteId: string, pluginId: string) => kvStore.get(`plugin:${siteId}:${pluginId}:client`) ?? null,

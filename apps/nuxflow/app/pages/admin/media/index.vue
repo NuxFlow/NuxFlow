@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { MediaDetailForm } from '~/components/admin/media/MediaDetailPanel.vue'
+
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 interface ExifInfo {
@@ -70,7 +72,7 @@ async function refresh() {
 }
 
 // ── Upload ────────────────────────────────────────────────────────────────────
-const uploading = ref(false)
+const { loading: uploading, run: runUpload } = useAdminAction()
 const fileInput = ref<HTMLInputElement>()
 
 // ── AI image generation ───────────────────────────────────────────────────────
@@ -84,22 +86,16 @@ function onAiImageGenerated(url: string) {
 
 // ── Bulk alt text ─────────────────────────────────────────────────────────────
 const bulkAltLoading = ref(false)
-const bulkAltPolling = ref(false)
 type BulkAltTextResponse = { processed?: number; skipped?: number; total?: number; processing?: boolean; mediaIds?: string[]; capped?: boolean; remaining?: number }
 const bulkAltResult = ref<BulkAltTextResponse | null>(null)
 const toast = useToast()
 
-let bulkAltPoller: ReturnType<typeof setInterval> | null = null
-
-onBeforeUnmount(() => {
-  if (bulkAltPoller) clearInterval(bulkAltPoller)
-})
-
 // The bulk alt-text endpoint fires a background `waitUntil` job on Cloudflare and
 // returns immediately with `{ processing: true, mediaIds }` — there's no push/webhook
 // telling us when it finishes, so poll the media list (mirrors the video-processing
-// poller in videos.vue) until every targeted item has non-empty alt text, or bail out
-// after a couple of minutes with a "still processing" toast rather than polling forever.
+// poller in videos.vue, both built on the shared usePollingUntil()) until every
+// targeted item has non-empty alt text, or bail out after a couple of minutes with a
+// "still processing" toast rather than polling forever.
 //
 // The endpoint also caps how many images it processes per invocation (currently 50 — see
 // MAX_IMAGES_PER_RUN in bulk-alt-text.post.ts) and reports `capped`/`remaining` when the
@@ -111,52 +107,48 @@ const BULK_ALT_POLL_INTERVAL_MS = 5000
 const BULK_ALT_POLL_TIMEOUT_MS = 2 * 60 * 1000
 const BULK_ALT_MAX_ROUNDS = 20 // 20 x 50-image batches = up to 1000 images per click
 let bulkAltRound = 0
+let bulkAltTargetIds: string[] = []
+let bulkAltCapped = false
 
-function startBulkAltPoller(targetIds: string[], capped: boolean) {
-  if (bulkAltPoller) clearInterval(bulkAltPoller)
-  if (!targetIds.length) return
-
-  bulkAltPolling.value = true
-  const startedAt = Date.now()
-
-  bulkAltPoller = setInterval(async () => {
-    await refresh()
-    const allDone = targetIds.every((id) => {
-      const file = files.value.find(f => f.id === id)
-      return !!file?.altText
-    })
-
-    if (allDone) {
-      if (bulkAltPoller) clearInterval(bulkAltPoller)
-      bulkAltPoller = null
-      bulkAltPolling.value = false
-
-      if (capped && bulkAltRound < BULK_ALT_MAX_ROUNDS) {
-        toast.add({ title: 'Batch complete — starting next batch…', color: 'info' })
-        await runBulkAltTextBatch()
-      } else if (capped) {
-        toast.add({
-          title: 'More images remain',
-          description: 'Click "Generate alt text" again to continue processing the rest of the library.',
-          color: 'warning',
-        })
-      } else {
-        toast.add({ title: 'Alt text generation complete', color: 'success' })
-      }
-      return
-    }
-
-    if (Date.now() - startedAt > BULK_ALT_POLL_TIMEOUT_MS) {
-      if (bulkAltPoller) clearInterval(bulkAltPoller)
-      bulkAltPoller = null
-      bulkAltPolling.value = false
+const bulkAltPoll = usePollingUntil({
+  intervalMs: BULK_ALT_POLL_INTERVAL_MS,
+  timeoutMs: BULK_ALT_POLL_TIMEOUT_MS,
+  onTick: refresh,
+  until: () => bulkAltTargetIds.every((id) => {
+    const file = files.value.find(f => f.id === id)
+    return !!file?.altText
+  }),
+  onComplete: async () => {
+    if (bulkAltCapped && bulkAltRound < BULK_ALT_MAX_ROUNDS) {
+      toast.add({ title: 'Batch complete — starting next batch…', color: 'info' })
+      await runBulkAltTextBatch()
+    } else if (bulkAltCapped) {
       toast.add({
-        title: 'Still processing',
-        description: 'Alt text generation is taking longer than expected — refresh the page later to see the results.',
+        title: 'More images remain',
+        description: 'Click "Generate alt text" again to continue processing the rest of the library.',
         color: 'warning',
       })
+    } else {
+      toast.add({ title: 'Alt text generation complete', color: 'success' })
     }
-  }, BULK_ALT_POLL_INTERVAL_MS)
+  },
+  onTimeout: () => {
+    toast.add({
+      title: 'Still processing',
+      description: 'Alt text generation is taking longer than expected — refresh the page later to see the results.',
+      color: 'warning',
+    })
+  },
+})
+
+function startBulkAltPoller(targetIds: string[], capped: boolean) {
+  if (!targetIds.length) {
+    bulkAltPoll.stop()
+    return
+  }
+  bulkAltTargetIds = targetIds
+  bulkAltCapped = capped
+  bulkAltPoll.start()
 }
 
 // Entry point for a manual click — resets the round counter so a fresh click always gets
@@ -191,80 +183,63 @@ async function runBulkAltTextBatch() {
   }
 }
 
-async function handleUpload(e: Event) {
-  const input = e.target as HTMLInputElement
-  if (!input.files?.length) return
-  uploading.value = true
-  try {
-    for (const file of Array.from(input.files)) {
+async function uploadFiles(fileList: File[]) {
+  await runUpload(async () => {
+    for (const file of fileList) {
       const fd = new FormData()
       fd.append('file', file)
       const result = await $fetch<{ id: string }>('/api/v1/media/upload', { method: 'POST', body: fd })
       if (selectedFolderId.value !== undefined && selectedFolderId.value !== null) {
-        await $fetch(`/api/v1/media/${result.id}`, {
+        await $fetch<unknown>(`/api/v1/media/${result.id}`, {
           method: 'PATCH',
           body: { folderId: selectedFolderId.value },
         })
       }
     }
     await refresh()
-  } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to upload file'
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    uploading.value = false
-    if (fileInput.value) fileInput.value.value = ''
-  }
+  }, { errorTitle: 'Failed to upload file' })
+}
+
+async function handleUpload(e: Event) {
+  const input = e.target as HTMLInputElement
+  if (!input.files?.length) return
+  await uploadFiles(Array.from(input.files))
+  if (fileInput.value) fileInput.value.value = ''
 }
 
 async function onDrop(e: DragEvent) {
   e.preventDefault()
   const dropped = Array.from(e.dataTransfer?.files ?? [])
   if (!dropped.length) return
-  uploading.value = true
-  try {
-    for (const file of dropped) {
-      const fd = new FormData()
-      fd.append('file', file)
-      const result = await $fetch<{ id: string }>('/api/v1/media/upload', { method: 'POST', body: fd })
-      if (selectedFolderId.value !== undefined && selectedFolderId.value !== null) {
-        await $fetch(`/api/v1/media/${result.id}`, {
-          method: 'PATCH',
-          body: { folderId: selectedFolderId.value },
-        })
-      }
-    }
-    await refresh()
-  } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to upload file'
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    uploading.value = false
-  }
+  await uploadFiles(dropped)
 }
 
 // ── Folders ───────────────────────────────────────────────────────────────────
 const creatingFolder = ref(false)
 const newFolderName = ref('')
-const newFolderInput = ref<HTMLInputElement>()
+const folderSidebar = ref<{ focusInput: () => void } | null>(null)
+const { run: runCreateFolder } = useAdminAction()
+const { run: runDeleteFolder } = useAdminAction()
 
 async function createFolder() {
   const name = newFolderName.value.trim()
   if (!name) return
-  try {
-    await $fetch('/api/v1/media/folders', { method: 'POST', body: { name } })
+  await runCreateFolder(async () => {
+    await $fetch<unknown>('/api/v1/media/folders', { method: 'POST', body: { name } })
     newFolderName.value = ''
     creatingFolder.value = false
     await refreshFolders()
-  } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to create folder'
-    toast.add({ title: msg, color: 'error' })
-  }
+  }, { errorTitle: 'Failed to create folder' })
 }
 
 function startCreatingFolder() {
   creatingFolder.value = true
-  nextTick(() => newFolderInput.value?.focus())
+  nextTick(() => folderSidebar.value?.focusInput())
+}
+
+function cancelCreatingFolder() {
+  creatingFolder.value = false
+  newFolderName.value = ''
 }
 
 async function deleteFolder(id: string) {
@@ -274,27 +249,19 @@ async function deleteFolder(id: string) {
     confirmLabel: 'Delete',
   })
   if (!ok) return
-  try {
-    await $fetch(`/api/v1/media/folders/${id}`, { method: 'DELETE' })
+  await runDeleteFolder(async () => {
+    await $fetch<unknown>(`/api/v1/media/folders/${id}`, { method: 'DELETE' })
     if (selectedFolderId.value === id) selectedFolderId.value = undefined
     await refresh()
-  } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to delete folder'
-    toast.add({ title: msg, color: 'error' })
-  }
+  }, { errorTitle: 'Failed to delete folder' })
 }
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
 const showDetail = ref(false)
 const detail = ref<MediaFile | null>(null)
-const detailAltText = ref('')
-const detailCaption = ref('')
-const detailFolderId = ref<string | null>(null)
-const detailFocalX = ref<number | null>(null)
-const detailFocalY = ref<number | null>(null)
-const savingDetail = ref(false)
-const deletingDetail = ref(false)
-const copied = ref(false)
+const detailForm = ref<MediaDetailForm>({ altText: '', caption: '', folderId: null, focalX: null, focalY: null })
+const { loading: savingDetail, run: runSaveDetail } = useAdminAction()
+const { loading: deletingDetail, run: runDeleteFile } = useAdminAction()
 const detailAiLoading = ref(false)
 const detailLoading = ref(false)
 
@@ -306,7 +273,7 @@ async function generateDetailAltText() {
       method: 'POST',
       body: { mediaId: detail.value.id },
     })
-    detailAltText.value = res.altText
+    detailForm.value = { ...detailForm.value, altText: res.altText }
   } catch {
     // AI not configured — fail silently
   } finally {
@@ -316,13 +283,14 @@ async function generateDetailAltText() {
 
 async function openDetail(file: MediaFile) {
   detail.value = file
-  detailAltText.value = file.altText ?? ''
-  detailCaption.value = file.caption ?? ''
-  detailFolderId.value = file.folderId ?? null
-  detailFocalX.value = file.focalX ?? null
-  detailFocalY.value = file.focalY ?? null
+  detailForm.value = {
+    altText: file.altText ?? '',
+    caption: file.caption ?? '',
+    folderId: file.folderId ?? null,
+    focalX: file.focalX ?? null,
+    focalY: file.focalY ?? null,
+  }
   showDetail.value = true
-  copied.value = false
 
   // The list projection (`GET /api/v1/media`) deliberately excludes `metadata` (EXIF) to
   // keep the grid payload small — fetch the full row here so the detail modal can show it.
@@ -343,86 +311,50 @@ async function openDetail(file: MediaFile) {
 
 async function saveDetail() {
   if (!detail.value) return
-  savingDetail.value = true
-  try {
-    await $fetch(`/api/v1/media/${detail.value.id}`, {
+  const target = detail.value
+  const form = detailForm.value
+  await runSaveDetail(async () => {
+    await $fetch<unknown>(`/api/v1/media/${target.id}`, {
       method: 'PATCH',
       body: {
-        altText: detailAltText.value || null,
-        caption: detailCaption.value || null,
-        folderId: detailFolderId.value,
-        focalX: detailFocalX.value,
-        focalY: detailFocalY.value,
+        altText: form.altText || null,
+        caption: form.caption || null,
+        folderId: form.folderId,
+        focalX: form.focalX,
+        focalY: form.focalY,
       },
     })
     await refresh()
     showDetail.value = false
-  } finally {
-    savingDetail.value = false
-  }
+  }, { errorTitle: 'Failed to save changes' })
 }
 
 async function deleteFile() {
   if (!detail.value) return
+  const target = detail.value
   const ok = await useConfirm().confirm({
-    title: `Delete "${detail.value.originalName}"?`,
+    title: `Delete "${target.originalName}"?`,
     description: 'This cannot be undone.',
     confirmLabel: 'Delete',
   })
   if (!ok) return
-  deletingDetail.value = true
-  try {
-    await $fetch(`/api/v1/media/${detail.value.id}`, { method: 'DELETE' })
+  await runDeleteFile(async () => {
+    await $fetch<unknown>(`/api/v1/media/${target.id}`, { method: 'DELETE' })
     showDetail.value = false
     await refresh()
-  } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to delete file'
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    deletingDetail.value = false
-  }
-}
-
-function copyUrl(url: string) {
-  window.navigator.clipboard.writeText(url)
-  copied.value = true
-  setTimeout(() => { copied.value = false }, 2000)
+  }, { errorTitle: 'Failed to delete file' })
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function isImage(mime: string) { return mime.startsWith('image/') }
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
 
 const folderOptions = computed(() => [
   { label: 'No folder', value: null },
   ...folders.value.map(f => ({ label: f.name, value: f.id })),
 ])
 
-const previewImg = ref<HTMLImageElement | null>(null)
-
-function handleImageClick(event: MouseEvent) {
-  const img = previewImg.value
-  if (!img) return
-  const rect = img.getBoundingClientRect()
-  const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width))
-  const y = Math.max(0, Math.min(event.clientY - rect.top, rect.height))
-  detailFocalX.value = Math.round((x / rect.width) * 100)
-  detailFocalY.value = Math.round((y / rect.height) * 100)
-}
-
-const detailExif = computed<ExifInfo | null>(() => {
-  const meta = detail.value?.metadata
-  return (meta && typeof meta === 'object' && meta.exif) ? (meta.exif as ExifInfo) : null
-})
-
-function resetFocalPoint() {
-  detailFocalX.value = null
-  detailFocalY.value = null
+function copyUrl(url: string) {
+  window.navigator.clipboard.writeText(url)
 }
 </script>
 
@@ -444,9 +376,9 @@ function resetFocalPoint() {
           icon="i-lucide-sparkles"
           variant="outline"
           size="sm"
-          :loading="bulkAltLoading || bulkAltPolling"
-          :disabled="bulkAltPolling"
-          :title="bulkAltPolling ? 'Alt text is generating in the background…' : 'Generate alt text for all images missing it'"
+          :loading="bulkAltLoading || bulkAltPoll.pending.value"
+          :disabled="bulkAltPoll.pending.value"
+          :title="bulkAltPoll.pending.value ? 'Alt text is generating in the background…' : 'Generate alt text for all images missing it'"
           @click="runBulkAltText"
         >
           Auto alt text
@@ -459,82 +391,21 @@ function resetFocalPoint() {
     </div>
 
     <div class="flex gap-4 items-start">
-      <!-- Folder sidebar -->
-      <aside class="w-44 shrink-0 space-y-0.5">
-        <button
-          class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-          :class="selectedFolderId === undefined ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'"
-          @click="selectedFolderId = undefined"
-        >
-          <span class="flex items-center gap-2">
-            <UIcon name="i-lucide-images" class="w-4 h-4" />
-            All files
-          </span>
-          <span class="text-xs opacity-60">{{ files.length }}</span>
-        </button>
-
-        <button
-          class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors"
-          :class="selectedFolderId === null ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'"
-          @click="selectedFolderId = null"
-        >
-          <span class="flex items-center gap-2">
-            <UIcon name="i-lucide-inbox" class="w-4 h-4" />
-            Unorganised
-          </span>
-          <span class="text-xs opacity-60">{{ unfolderedCount }}</span>
-        </button>
-
-        <UDivider class="my-2" />
-
-        <div
-          v-for="folder in folders"
-          :key="folder.id"
-          class="group w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer"
-          :class="selectedFolderId === folder.id ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'"
-          @click="selectedFolderId = folder.id"
-        >
-          <span class="flex items-center gap-2 truncate min-w-0">
-            <UIcon name="i-lucide-folder" class="w-4 h-4 shrink-0" />
-            <span class="truncate">{{ folder.name }}</span>
-          </span>
-          <span class="flex items-center gap-1 shrink-0">
-            <span class="text-xs opacity-60">{{ folder.fileCount }}</span>
-            <UButton
-              icon="i-lucide-trash-2"
-              size="xs"
-              variant="ghost"
-              color="error"
-              class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 -mr-1"
-              @click.stop="deleteFolder(folder.id)"
-            />
-          </span>
-        </div>
-
-        <div v-if="creatingFolder" class="px-1 pt-1">
-          <UInput
-            ref="newFolderInput"
-            v-model="newFolderName"
-            size="sm"
-            placeholder="Folder name"
-            autofocus
-            @keyup.enter="createFolder"
-            @keyup.escape="creatingFolder = false; newFolderName = ''"
-          />
-          <div class="flex gap-1 mt-1">
-            <UButton size="xs" @click="createFolder">Add</UButton>
-            <UButton size="xs" variant="ghost" @click="creatingFolder = false; newFolderName = ''">Cancel</UButton>
-          </div>
-        </div>
-        <button
-          v-else
-          class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          @click="startCreatingFolder"
-        >
-          <UIcon name="i-lucide-folder-plus" class="w-4 h-4" />
-          New folder
-        </button>
-      </aside>
+      <MediaFolderSidebar
+        ref="folderSidebar"
+        :folders="folders"
+        :unfoldered-count="unfolderedCount"
+        :total-files-count="files.length"
+        :selected-folder-id="selectedFolderId"
+        :creating-folder="creatingFolder"
+        :new-folder-name="newFolderName"
+        @select="(id: string | null | undefined) => (selectedFolderId = id)"
+        @update:new-folder-name="(v: string) => (newFolderName = v)"
+        @start-create="startCreatingFolder"
+        @submit-create="createFolder"
+        @cancel-create="cancelCreatingFolder"
+        @delete="deleteFolder"
+      />
 
       <!-- Main content -->
       <div class="flex-1 min-w-0 space-y-4">
@@ -596,123 +467,19 @@ function resetFocalPoint() {
       </div>
     </div>
 
-    <!-- File detail modal -->
-    <UModal v-model:open="showDetail" :title="detail?.originalName ?? ''" size="lg">
-      <template #body>
-        <div v-if="detail" class="space-y-4">
-          <div class="flex gap-4">
-            <!-- Preview with Focal Point Selector -->
-            <div
-              class="relative w-48 h-48 shrink-0 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center group"
-              :class="isImage(detail.mimeType) ? 'cursor-crosshair' : ''"
-            >
-              <img
-                v-if="isImage(detail.mimeType)"
-                ref="previewImg"
-                :src="detail.url"
-                :alt="detail.altText || detail.originalName"
-                class="w-full h-full object-cover pointer-events-auto"
-                :style="{ objectPosition: `${detailFocalX ?? 50}% ${detailFocalY ?? 50}%` }"
-                @click="handleImageClick"
-              >
-              <!-- Focal point crosshair — positioned in container, which matches object-cover coords 1:1 -->
-              <div
-                v-if="isImage(detail.mimeType) && detailFocalX !== null && detailFocalY !== null"
-                class="absolute w-5 h-5 border-2 border-white rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none shadow-lg ring-1 ring-primary-500"
-                :style="{ left: detailFocalX + '%', top: detailFocalY + '%' }"
-              >
-                <div class="absolute inset-0 flex items-center justify-center">
-                  <div class="w-1 h-1 bg-primary-500 rounded-full" />
-                </div>
-              </div>
-              <UIcon v-if="!isImage(detail.mimeType)" name="i-lucide-file" class="w-10 h-10 text-gray-400" />
-            </div>
-            <!-- Metadata -->
-            <div class="flex-1 space-y-1 text-sm min-w-0">
-              <p class="text-gray-500 dark:text-gray-400 truncate">{{ detail.originalName }}</p>
-              <p class="text-gray-400 text-xs">{{ detail.mimeType }} · {{ formatBytes(detail.size) }}</p>
-              <p v-if="detail.width && detail.height" class="text-gray-400 text-xs">{{ detail.width }} × {{ detail.height }} px</p>
-              <p class="text-gray-400 text-xs">{{ new Date(detail.createdAt).toLocaleDateString() }}</p>
-              <UButton
-                size="xs"
-                variant="outline"
-                :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-                :color="copied ? 'success' : 'neutral'"
-                class="mt-2"
-                @click="copyUrl(detail.url)"
-              >
-                {{ copied ? 'Copied!' : 'Copy URL' }}
-              </UButton>
-              <div v-if="isImage(detail.mimeType)" class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2.5 py-1 rounded mt-2 border border-gray-100 dark:border-gray-800">
-                <span v-if="detailFocalX !== null && detailFocalY !== null">Focal: {{ detailFocalX }}%, {{ detailFocalY }}%</span>
-                <span v-else class="italic text-gray-400">Click preview to set focal point</span>
-                <UButton v-if="detailFocalX !== null || detailFocalY !== null" size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" class="h-5 p-1" aria-label="Reset focal point" @click="resetFocalPoint" />
-              </div>
-              <!-- EXIF data -->
-              <p v-if="detailLoading && isImage(detail.mimeType) && !detailExif" class="text-gray-400 text-xs mt-2 italic">Loading details…</p>
-              <div v-if="detailExif" class="mt-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2.5 py-1.5 rounded border border-gray-100 dark:border-gray-800 space-y-0.5">
-                <p v-if="detailExif.make || detailExif.model" class="font-medium text-gray-600 dark:text-gray-300">
-                  {{ [detailExif.make, detailExif.model].filter(Boolean).join(' ') }}
-                </p>
-                <div class="flex flex-wrap gap-x-3 gap-y-0.5">
-                  <span v-if="detailExif.fNumber">ƒ/{{ detailExif.fNumber }}</span>
-                  <span v-if="detailExif.exposureTime">{{ detailExif.exposureTime }}s</span>
-                  <span v-if="detailExif.iso">ISO {{ detailExif.iso }}</span>
-                  <span v-if="detailExif.focalLength">{{ detailExif.focalLength }}mm</span>
-                </div>
-                <p v-if="detailExif.dateTimeOriginal" class="text-gray-400">{{ detailExif.dateTimeOriginal?.replace('T', ' ') }}</p>
-              </div>
-            </div>
-          </div>
-
-          <UFormField label="Alt text" hint="Describes the image for screen readers and SEO">
-            <div class="flex gap-2">
-              <UInput v-model="detailAltText" class="flex-1" placeholder="A descriptive alt text…" />
-              <UButton
-                v-if="detail?.mimeType?.startsWith('image/')"
-                size="sm"
-                variant="ghost"
-                icon="i-lucide-sparkles"
-                :loading="detailAiLoading"
-                title="Generate alt text with AI"
-                @click="generateDetailAltText"
-              />
-            </div>
-          </UFormField>
-
-          <UFormField label="Caption">
-            <UInput v-model="detailCaption" placeholder="Optional caption shown below the image…" />
-          </UFormField>
-
-          <UFormField label="Folder">
-            <USelect
-              v-model="detailFolderId"
-              :items="folderOptions"
-              value-key="value"
-              class="w-full"
-            />
-          </UFormField>
-        </div>
-      </template>
-
-      <template #footer>
-        <div class="flex justify-between w-full">
-          <UButton
-            color="error"
-            variant="ghost"
-            icon="i-lucide-trash-2"
-            :loading="deletingDetail"
-            @click="deleteFile"
-          >
-            Delete file
-          </UButton>
-          <div class="flex gap-2">
-            <UButton variant="ghost" @click="showDetail = false">Cancel</UButton>
-            <UButton :loading="savingDetail" @click="saveDetail">Save</UButton>
-          </div>
-        </div>
-      </template>
-    </UModal>
+    <MediaDetailPanel
+      v-model:open="showDetail"
+      v-model:form="detailForm"
+      :file="detail"
+      :folder-options="folderOptions"
+      :loading="detailLoading"
+      :saving="savingDetail"
+      :deleting="deletingDetail"
+      :ai-loading="detailAiLoading"
+      @save="saveDetail"
+      @delete="deleteFile"
+      @generate-alt-text="generateDetailAltText"
+    />
 
     <!-- AI image generation modal -->
     <UModal v-model:open="showAiImageModal" title="Generate image with AI">

@@ -5,8 +5,9 @@ import { readFile, writeFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { zipSync } from 'fflate'
-import { authenticate, apiPost, apiPatch, apiPostZip, resolveAuth } from '../utils/api'
+import { apiPost, apiPatch, apiPostZip, authenticateOrExit, AUTH_ARGS } from '../utils/api'
 import { scaffoldTheme } from '../utils/scaffold'
+import { readManifest as readManifestFile, orExit } from '../utils/manifest'
 
 interface ThemeManifest {
   name: string
@@ -20,10 +21,8 @@ interface DeployResponse {
   failedImages?: string[]
 }
 
-async function readManifest(dir: string): Promise<ThemeManifest> {
-  const raw = await readFile(join(dir, 'nuxflow.theme.json'), 'utf-8').catch(() => null)
-  if (!raw) throw new Error('nuxflow.theme.json not found — run this command from a theme directory')
-  return JSON.parse(raw) as ThemeManifest
+function readManifest(dir: string): Promise<ThemeManifest> {
+  return readManifestFile<ThemeManifest>(dir, 'nuxflow.theme.json', 'theme')
 }
 
 async function readCss(dir: string): Promise<string> {
@@ -104,38 +103,21 @@ export const themeCommand = defineCommand({
     // ── nuxflow theme deploy ────────────────────────────────────────────────
     deploy: defineCommand({
       meta: { description: 'Upload the theme to a NuxFlow site (first time)' },
-      args: {
-        site:     { type: 'string', description: 'Site URL             (or NUXFLOW_SITE)' },
-        email:    { type: 'string', description: 'Admin email          (or NUXFLOW_EMAIL)' },
-        password: { type: 'string', description: 'Admin password       (or NUXFLOW_PASSWORD)' },
-      },
+      args: { ...AUTH_ARGS },
       async run({ args }) {
         intro('NuxFlow — Deploy Theme')
         const dir = process.cwd()
 
-        const manifest = await readManifest(dir).catch((e: Error) => {
-          consola.error(e.message); process.exit(1)
-        }) as ThemeManifest
+        const manifest = await orExit(readManifest(dir))
 
-        const css = await readCss(dir).catch((e: Error) => {
-          consola.error(e.message); process.exit(1)
-        }) as string
+        const css = await orExit(readCss(dir))
 
         const bundleZip = await buildBundleZip(dir, manifest, css)
 
         const s = spinner()
         s.start('Authenticating…')
 
-        let site: string, cookie: string
-        try {
-          const auth = resolveAuth(args)
-          cookie = await authenticate(auth.site, auth.email, auth.password)
-          site = auth.site
-        } catch (e: unknown) {
-          s.stop('Auth failed.')
-          consola.error((e as Error).message)
-          process.exit(1)
-        }
+        const { site, cookie } = await authenticateOrExit(s, args)
 
         s.message(bundleZip
           ? `Uploading "${manifest.name}" v${manifest.version} (with demo content)…`
@@ -173,41 +155,24 @@ export const themeCommand = defineCommand({
     // ── nuxflow theme update ────────────────────────────────────────────────
     update: defineCommand({
       meta: { description: 'Push updated CSS to an already-deployed theme' },
-      args: {
-        site:     { type: 'string', description: 'Site URL             (or NUXFLOW_SITE)' },
-        email:    { type: 'string', description: 'Admin email          (or NUXFLOW_EMAIL)' },
-        password: { type: 'string', description: 'Admin password       (or NUXFLOW_PASSWORD)' },
-      },
+      args: { ...AUTH_ARGS },
       async run({ args }) {
         intro('NuxFlow — Update Theme')
         const dir = process.cwd()
 
-        const manifest = await readManifest(dir).catch((e: Error) => {
-          consola.error(e.message); process.exit(1)
-        }) as ThemeManifest
+        const manifest = await orExit(readManifest(dir))
 
         if (!manifest.deployedId) {
           consola.error('No deployedId in nuxflow.theme.json — run `nuxflow theme deploy` first')
           process.exit(1)
         }
 
-        const css = await readCss(dir).catch((e: Error) => {
-          consola.error(e.message); process.exit(1)
-        }) as string
+        const css = await orExit(readCss(dir))
 
         const s = spinner()
         s.start('Authenticating…')
 
-        let site: string, cookie: string
-        try {
-          const auth = resolveAuth(args)
-          cookie = await authenticate(auth.site, auth.email, auth.password)
-          site = auth.site
-        } catch (e: unknown) {
-          s.stop('Auth failed.')
-          consola.error((e as Error).message)
-          process.exit(1)
-        }
+        const { site, cookie } = await authenticateOrExit(s, args)
 
         s.message(`Updating "${manifest.name}"…`)
 

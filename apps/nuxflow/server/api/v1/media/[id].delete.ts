@@ -5,6 +5,7 @@ import { getActiveProvider } from '../../../utils/media-providers/index'
 import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
 import { media } from '@nuxflow/db/schema'
 import { scopedById } from '../../../utils/db-helpers'
+import { mediaErrorMessage } from '../../../utils/errors'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
@@ -21,7 +22,7 @@ export default defineEventHandler(async (event) => {
   try {
     await provider.delete(file.storageKey)
   } catch (err) {
-    throw createError({ statusCode: 502, message: `Failed to delete media from storage: ${err instanceof Error ? err.message : String(err)}` })
+    throw createError({ statusCode: 502, message: mediaErrorMessage(err) })
   }
   const mediaDelete = db.delete(media).where(scopedById(media.id, id, media.siteId, siteId))
 

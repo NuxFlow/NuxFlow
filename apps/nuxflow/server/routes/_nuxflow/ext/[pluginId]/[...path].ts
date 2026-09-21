@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { useDb } from '../../../../utils/db'
-import { spawnPluginWorker, getPluginServerCode, PLUGIN_WORKER_LIMITS } from '../../../../utils/cf-env'
+import { spawnPluginWorker, getPluginServerCode, PLUGIN_WORKER_LIMITS } from '../../../../utils/cf-plugin-kv'
 import { assertCodeIntegrity } from '../../../../utils/plugin-signing'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'

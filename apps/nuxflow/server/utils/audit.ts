@@ -48,10 +48,20 @@ export async function writeAuditLog(event: H3Event, userId: string | null, opts:
 // Folds the audit-log insert (possibly null, when there's no site in context) into the
 // same db.batch() as the primary write(s) instead of every mutation route repeating the
 // `auditInsert ? [...writes, auditInsert] : writes` ternary by hand.
+//
+// `writes` is a plain readonly array (not a non-empty tuple) so callers can build it from
+// a variable-length source — e.g. a registry-driven redaction batch (see
+// @nuxflow/db/queries's buildGdprRedactionStatements()) spread alongside a fixed
+// statement — without fighting TypeScript's tuple inference over a spread. The emptiness
+// guarantee moves to a runtime check instead: `db.batch([])` is always a caller bug (there
+// would be nothing to batch), never a legitimate call, so it fails loudly here rather than
+// silently doing nothing.
 export async function batchWithAudit(
   db: Db,
-  writes: readonly [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]],
+  writes: readonly BatchItem<'sqlite'>[],
   auditInsert: ReturnType<typeof buildAuditLogInsert>,
 ): Promise<void> {
-  await db.batch(auditInsert ? [...writes, auditInsert] : writes)
+  if (writes.length === 0) throw new Error('batchWithAudit: writes must not be empty')
+  const all = (auditInsert ? [...writes, auditInsert] : writes) as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]]
+  await db.batch(all)
 }

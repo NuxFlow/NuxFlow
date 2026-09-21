@@ -1,5 +1,5 @@
 import type { PaymentProvider } from './types'
-import { constantTimeEqualHex } from '../security'
+import { constantTimeEqualHex, hmacSha256Hex } from '../security'
 
 export interface PaddleSubscription {
   id: string
@@ -106,16 +106,7 @@ export class PaddleProvider implements PaymentProvider {
     const signedPayload = `${ts}:${rawBody}`
 
     try {
-      const encoder = new TextEncoder()
-      const key = await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(secret),
-        { name: 'HMAC', hash: 'SHA-256' },
-        false,
-        ['sign'],
-      )
-      const mac = await crypto.subtle.sign('HMAC', key, encoder.encode(signedPayload))
-      const expected = Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, '0')).join('')
+      const expected = await hmacSha256Hex(secret, signedPayload)
       // Constant-time compare — a plain `===` here leaks per-character timing.
       return constantTimeEqualHex(expected, h1)
     } catch {

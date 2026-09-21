@@ -100,7 +100,7 @@ async function deleteTheme(theme: Theme) {
       color: 'success',
     })
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Delete failed'
+    const msg = getErrorMessage(e, 'Delete failed')
     toast.add({ title: msg, color: 'error' })
   } finally {
     deletingId.value = null
@@ -160,7 +160,7 @@ async function uploadTheme() {
       toast.add({ title: 'Theme installed', color: 'success' })
     }
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Upload failed'
+    const msg = getErrorMessage(e, 'Upload failed')
     toast.add({ title: msg, color: 'error' })
   } finally {
     uploading.value = false
@@ -181,7 +181,7 @@ async function importDemoContent(themeId: string) {
     demoOfferSummary.value = null
     toast.add({ title: `Theme activated and demo content imported successfully!`, color: 'success' })
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Import failed'
+    const msg = getErrorMessage(e, 'Import failed')
     toast.add({ title: msg, color: 'error' })
   } finally {
     importingDemo.value = false
@@ -212,7 +212,7 @@ async function saveCSS() {
     toast.add({ title: 'CSS updated — active on next page load', color: 'success' })
     editModal.value = false
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Save failed'
+    const msg = getErrorMessage(e, 'Save failed')
     toast.add({ title: msg, color: 'error' })
   } finally {
     saving.value = false

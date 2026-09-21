@@ -19,6 +19,32 @@ export interface MediaProvider {
   getUrl(storageKey: string): string
 }
 
+// Percent-encodes a storage key for safe inclusion in a URL path, one segment at a time
+// (not the whole key as one component) so a `/` still acts as a path separator rather
+// than being escaped itself. Not currently exploitable — the key is always a validated
+// ULID + allowlisted extension (see upload.post.ts) — but guards any future key format
+// that isn't purely URL-safe characters. Shared by every HTTP-based provider (S3, Bunny,
+// Cloudflare Images) so a fix here can't drift out of sync between them; R2 never needs
+// it since it addresses objects via the R2Bucket binding directly, not a URL path.
+export function encodeStorageKey(key: string): string {
+  return key.split('/').map(encodeURIComponent).join('/')
+}
+
+// Every HTTP-based provider's upload()/delete() must surface a failed request rather
+// than let the caller silently proceed as if it succeeded — a swallowed upload failure
+// would report success with no blob behind it, and a swallowed delete failure orphans
+// the blob while the D1 row is removed anyway. `allow404` additionally treats "already
+// gone" as success for delete(): the desired end state (no blob in storage) is already
+// true, and without it a blob removed out-of-band (a prior partial failure, a manual
+// deletion in the provider's own dashboard) makes the D1 row permanently un-deletable
+// through the admin UI, since every retry would 404 and fail the same way forever.
+export async function assertProviderOk(res: Response, operationLabel: string, opts: { allow404?: boolean } = {}): Promise<void> {
+  if (res.ok) return
+  if (opts.allow404 && res.status === 404) return
+  const body = await res.text().catch(() => '')
+  throw new Error(`${operationLabel} failed: ${res.status}${body ? ` ${body}` : ''}`)
+}
+
 // The local fallback stores the file as a base64 data: URI directly in the media.url
 // D1 column — there is no real object storage backing it. Kept small and conservative;
 // this path exists only so uploads don't hard-fail before a real provider is configured,

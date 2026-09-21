@@ -23,6 +23,15 @@ export default defineEventHandler(async (event) => {
   await getTaxonomyByIdOrThrow(db, siteId, taxonomyId)
   const term = await getTaxonomyTermByIdOrThrow(db, taxonomyId, termId)
 
+  // parentId has no DB-level FK (see the identical check/comment in terms.post.ts), so
+  // nothing else verifies a caller-supplied parentId is an existing term in THIS taxonomy,
+  // and nothing stops a term being set as its own parent, which would break any code that
+  // walks the parent chain.
+  if (body.parentId) {
+    if (body.parentId === termId) throw badRequest('A term cannot be its own parent')
+    await getTaxonomyTermByIdOrThrow(db, taxonomyId, body.parentId, 'Parent term not found')
+  }
+
   const termUpdate = db.update(taxonomyTerms).set(body).where(and(eq(taxonomyTerms.id, termId), eq(taxonomyTerms.taxonomyId, taxonomyId)))
 
   const auditInsert = buildAuditLogInsert(event, userId, {

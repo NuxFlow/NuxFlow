@@ -1,13 +1,5 @@
 import type { MediaProvider, UploadResult } from './index'
-
-// Encodes each path segment independently (not the whole key as one component) so a `/`
-// in the key still acts as a path separator rather than being percent-encoded itself.
-// Not currently exploitable — the key is always a validated ULID + allowlisted extension
-// (see upload.post.ts) — but any future key format that isn't purely URL-safe characters
-// would otherwise produce a malformed request/public URL.
-function encodeS3Key(key: string): string {
-  return key.split('/').map(encodeURIComponent).join('/')
-}
+import { encodeStorageKey, assertProviderOk } from './index'
 
 function toHex(buf: ArrayBuffer) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
@@ -105,7 +97,7 @@ export class S3Provider implements MediaProvider {
 
   async upload(file: File, key: string): Promise<UploadResult> {
     const buf = await file.arrayBuffer()
-    const url = `${this.endpoint}/${this.bucket}/${encodeS3Key(key)}`
+    const url = `${this.endpoint}/${this.bucket}/${encodeStorageKey(key)}`
 
     const headers = await signRequest({
       method: 'PUT',
@@ -124,13 +116,16 @@ export class S3Provider implements MediaProvider {
     })
 
     const res = await fetch(url, { method: 'PUT', headers, body: buf })
-    if (!res.ok) throw new Error(`S3 upload failed: ${res.status} ${await res.text()}`)
+    await assertProviderOk(res, 'S3 upload')
 
-    return { url: `${this.publicUrl}/${key}`, storageKey: key, provider: 's3' }
+    // Computed via getUrl() rather than re-deriving the join here, so the URL returned
+    // at upload time can never drift out of sync with what a later getUrl(storageKey)
+    // call computes for the identical key (see the encodeStorageKey comment in index.ts).
+    return { url: this.getUrl(key), storageKey: key, provider: 's3' }
   }
 
   async delete(storageKey: string): Promise<void> {
-    const url = `${this.endpoint}/${this.bucket}/${encodeS3Key(storageKey)}`
+    const url = `${this.endpoint}/${this.bucket}/${encodeStorageKey(storageKey)}`
     const headers = await signRequest({
       method: 'DELETE',
       url,
@@ -146,10 +141,10 @@ export class S3Provider implements MediaProvider {
     // key that never existed) — anything else (403/5xx) means the object was NOT
     // removed. Without this check, the caller deletes the D1 row unconditionally and
     // the blob orphans in the bucket forever with no error surfaced anywhere.
-    if (!res.ok) throw new Error(`S3 delete failed: ${res.status} ${await res.text()}`)
+    await assertProviderOk(res, 'S3 delete')
   }
 
   getUrl(storageKey: string): string {
-    return `${this.publicUrl}/${encodeS3Key(storageKey)}`
+    return `${this.publicUrl}/${encodeStorageKey(storageKey)}`
   }
 }

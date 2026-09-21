@@ -118,23 +118,25 @@ export default defineEventHandler(async (event) => {
   // positive is possible if the real total happens to equal the cap exactly, but the
   // alternative — an extra COUNT query per table just to know for certain — isn't worth
   // it for what's meant to be a "did I get everything" signal, not an exact accounting).
+  const isTruncated = (rows: unknown[]) => rows.length >= EXPORT_ROW_LIMIT
+
   return {
     exportedAt: new Date().toISOString(),
     profile,
     siteRoles,
     authoredContent,
-    authoredContentTruncated: authoredContent.length >= EXPORT_ROW_LIMIT,
+    authoredContentTruncated: isTruncated(authoredContent),
     authoredRevisions,
-    authoredRevisionsTruncated: authoredRevisions.length >= EXPORT_ROW_LIMIT,
+    authoredRevisionsTruncated: isTruncated(authoredRevisions),
     uploadedMedia,
-    uploadedMediaTruncated: uploadedMedia.length >= EXPORT_ROW_LIMIT,
+    uploadedMediaTruncated: isTruncated(uploadedMedia),
     comments: authoredComments,
-    commentsTruncated: authoredComments.length >= EXPORT_ROW_LIMIT,
+    commentsTruncated: isTruncated(authoredComments),
     formSubmissions: submissions,
-    formSubmissionsTruncated: submissions.length >= EXPORT_ROW_LIMIT,
+    formSubmissionsTruncated: isTruncated(submissions),
     subscriptions: subs,
     apiKeys: keys,
     auditLog: logs,
-    auditLogTruncated: logs.length >= EXPORT_ROW_LIMIT,
+    auditLogTruncated: isTruncated(logs),
   }
 })

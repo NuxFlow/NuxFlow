@@ -48,8 +48,7 @@ async function translate() {
     })
     emit('translated', res.id, res.locale)
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message
-    error.value = msg || 'Translation failed. Please try again.'
+    error.value = getErrorMessage(e, 'Translation failed. Please try again.')
   } finally {
     loading.value = false
   }

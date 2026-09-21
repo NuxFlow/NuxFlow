@@ -37,9 +37,11 @@ const { mockDeleteThemeCSS, mockDeleteThemeDemo, mockDeletePluginAssets } = vi.h
   mockDeletePluginAssets: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('../../server/utils/cf-env', () => ({
+vi.mock('../../server/utils/cf-theme-kv', () => ({
   deleteThemeCSS: mockDeleteThemeCSS,
   deleteThemeDemo: mockDeleteThemeDemo,
+}))
+vi.mock('../../server/utils/cf-plugin-kv', () => ({
   deletePluginAssets: mockDeletePluginAssets,
 }))
 

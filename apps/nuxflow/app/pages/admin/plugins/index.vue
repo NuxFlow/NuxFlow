@@ -57,8 +57,12 @@ function handlePasteJson() {
     installForm.publisherPublicKey = parsed.publisherPublicKey || ''
     installForm.signature = parsed.signature || ''
     toast.add({ title: 'Plugin payload parsed successfully!', color: 'success' })
-  } catch {
-    // Ignore typings and partial input
+  } catch (e: unknown) {
+    toast.add({
+      title: 'Invalid JSON: could not parse plugin payload',
+      description: e instanceof Error ? e.message : undefined,
+      color: 'error',
+    })
   }
 }
 
@@ -101,7 +105,7 @@ async function dynInstall() {
     jsonPayloadText.value = ''
     toast.add({ title: 'Plugin installed successfully!', color: 'success' })
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Install failed'
+    const msg = getErrorMessage(e, 'Install failed')
     toast.add({ title: msg, color: 'error' })
   } finally {
     installLoading.value = false
@@ -115,7 +119,7 @@ async function dynToggle(id: string, isActive: boolean) {
     await refreshDyn()
     toast.add({ title: isActive ? 'Plugin disabled' : 'Plugin enabled', color: 'success' })
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Action failed'
+    const msg = getErrorMessage(e, 'Action failed')
     toast.add({ title: msg, color: 'error' })
   }
 }
@@ -132,7 +136,7 @@ async function dynUninstall(id: string, name: string) {
     await refreshDyn()
     toast.add({ title: 'Plugin uninstalled', color: 'success' })
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Uninstall failed'
+    const msg = getErrorMessage(e, 'Uninstall failed')
     toast.add({ title: msg, color: 'error' })
   }
 }

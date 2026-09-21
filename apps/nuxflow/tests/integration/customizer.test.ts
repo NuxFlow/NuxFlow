@@ -16,8 +16,10 @@ vi.mock('../../server/utils/db', () => ({
 
 // putThemeCSS writes to Cloudflare KV — no-op in tests; spy to verify calls
 const putThemeCSSMock = vi.fn().mockResolvedValue(undefined)
-vi.mock('../../server/utils/cf-env', () => ({
+vi.mock('../../server/utils/cf-theme-kv', () => ({
   putThemeCSS: (...args: unknown[]) => putThemeCSSMock(...args),
+}))
+vi.mock('../../server/utils/cf-env', () => ({
   getCfBindings: () => ({ kv: null }),
   getAnalyticsEngine: () => null,
   // Real waitUntil falls back to firing the promise inline when there's no Cloudflare

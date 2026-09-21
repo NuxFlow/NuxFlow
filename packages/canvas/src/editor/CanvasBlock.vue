@@ -1,59 +1,11 @@
 <script setup lang="ts">
-import type { defineAsyncComponent} from 'vue';
 import { computed, inject } from 'vue'
 import draggable from 'vuedraggable'
 import type { CanvasBlockData, CanvasBlockRegistry } from '../types'
 import { getBlockDefinition } from '../blocks/definitions'
+import { BUILTIN_BLOCK_COMPONENTS } from '../blocks/components'
 import { getSlotChildren } from '../tree'
 import { canvasApiKey } from './canvasApi'
-
-import CanvasBlockHero from '../blocks/CanvasBlockHero.vue'
-import CanvasBlockText from '../blocks/CanvasBlockText.vue'
-import CanvasBlockImage from '../blocks/CanvasBlockImage.vue'
-import CanvasBlockColumns from '../blocks/CanvasBlockColumns.vue'
-import CanvasBlockContainer from '../blocks/CanvasBlockContainer.vue'
-import CanvasBlockCta from '../blocks/CanvasBlockCta.vue'
-import CanvasBlockSpacer from '../blocks/CanvasBlockSpacer.vue'
-import CanvasBlockVideo from '../blocks/CanvasBlockVideo.vue'
-import CanvasBlockTestimonial from '../blocks/CanvasBlockTestimonial.vue'
-import CanvasBlockFeatures from '../blocks/CanvasBlockFeatures.vue'
-import CanvasBlockButton from '../blocks/CanvasBlockButton.vue'
-import CanvasBlockAccordion from '../blocks/CanvasBlockAccordion.vue'
-import CanvasBlockPricing from '../blocks/CanvasBlockPricing.vue'
-import CanvasBlockCalendar from '../blocks/CanvasBlockCalendar.vue'
-import CanvasBlockGdpr from '../blocks/CanvasBlockGdpr.vue'
-import CanvasBlockFooter from '../blocks/CanvasBlockFooter.vue'
-import CanvasBlockGallery from '../blocks/CanvasBlockGallery.vue'
-import CanvasBlockCarousel from '../blocks/CanvasBlockCarousel.vue'
-import HtmlBlock from '../blocks/HtmlBlock.vue'
-
-// Every block whose component lives in this package is listed here so the
-// editor can render it without depending on the host app's block registry —
-// that registry is reserved for genuinely external blocks (dynamic plugins,
-// and the handful of app-owned built-ins like ContactFormBlock/MembershipsBlock
-// that can't be imported from this package). Registry lookup below is the
-// fallback for exactly those, not a substitute for keeping this map complete.
-const COMPONENTS: Record<string, ReturnType<typeof defineAsyncComponent> | object> = {
-  CanvasBlockHero,
-  CanvasBlockText,
-  CanvasBlockImage,
-  CanvasBlockColumns,
-  CanvasBlockContainer,
-  CanvasBlockCta,
-  CanvasBlockSpacer,
-  CanvasBlockVideo,
-  CanvasBlockTestimonial,
-  CanvasBlockFeatures,
-  CanvasBlockButton,
-  CanvasBlockAccordion,
-  CanvasBlockPricing,
-  CanvasBlockCalendar,
-  CanvasBlockGdpr,
-  CanvasBlockFooter,
-  CanvasBlockGallery,
-  CanvasBlockCarousel,
-  HtmlBlock,
-}
 
 const props = defineProps<{
   block: CanvasBlockData
@@ -70,7 +22,7 @@ const definition = computed(() => getBlockDefinition(props.block.type))
 const component = computed(() => {
   const def = definition.value
   if (!def) return registry?.resolve(props.block.type) ?? null
-  return COMPONENTS[def.component] ?? registry?.resolve(props.block.type) ?? null
+  return BUILTIN_BLOCK_COMPONENTS[def.id] ?? registry?.resolve(props.block.type) ?? null
 })
 
 // ── Nested slots ─────────────────────────────────────────────────────────────

@@ -1,3 +1,6 @@
+import type { spinner } from '@clack/prompts'
+import { consola } from 'consola'
+
 export async function authenticate(site: string, email: string, password: string): Promise<string> {
   const res = await fetch(`${site}/api/auth/sign-in/email`, {
     method: 'POST',
@@ -91,4 +94,36 @@ export function resolveAuth(opts: Record<string, unknown>) {
   }
 
   return { site, email, password }
+}
+
+/**
+ * Shared `--site`/`--email`/`--password` arg definitions for citty commands
+ * that authenticate against a live site (`plugin deploy`/`update`,
+ * `theme deploy`/`update`). Spread into each command's own `args` object.
+ */
+export const AUTH_ARGS = {
+  site:     { type: 'string', description: 'Site URL             (or NUXFLOW_SITE)' },
+  email:    { type: 'string', description: 'Admin email          (or NUXFLOW_EMAIL)' },
+  password: { type: 'string', description: 'Admin password       (or NUXFLOW_PASSWORD)' },
+} as const
+
+/**
+ * Resolves auth from CLI args/env and signs in, stopping the given spinner
+ * and exiting the process with a friendly error on failure. Identical
+ * try/catch behavior previously duplicated across `plugin.ts`'s `deploy`/
+ * `update` and `theme.ts`'s `deploy`/`update` commands.
+ */
+export async function authenticateOrExit(
+  s: ReturnType<typeof spinner>,
+  args: Record<string, unknown>,
+): Promise<{ site: string, cookie: string }> {
+  try {
+    const auth = resolveAuth(args)
+    const cookie = await authenticate(auth.site, auth.email, auth.password)
+    return { site: auth.site, cookie }
+  } catch (e: unknown) {
+    s.stop('Auth failed.')
+    consola.error((e as Error).message)
+    process.exit(1)
+  }
 }

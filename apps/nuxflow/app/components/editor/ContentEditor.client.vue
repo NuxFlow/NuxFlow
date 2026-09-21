@@ -12,8 +12,6 @@ import { TableKit } from '@tiptap/extension-table'
 const props = defineProps<{ modelValue: unknown }>()
 const emit = defineEmits<{ 'update:modelValue': [value: unknown] }>()
 
-const toast = useToast()
-
 const CODE_LANGUAGES = [
   { label: 'Plain text', value: '' },
   { label: 'HTML', value: 'html' },
@@ -31,79 +29,6 @@ const CODE_LANGUAGES = [
 ]
 
 const isMediaModalOpen = ref(false)
-
-// ── AI: floating selection toolbar ───────────────────────────────────────────
-
-const aiSelectionText = ref('')
-const aiSelectionFrom = ref(0)
-const aiSelectionTo = ref(0)
-const showAiSelectionBar = ref(false)
-const aiBarX = ref(0)
-const aiBarY = ref(0)
-let selectionDebounce: ReturnType<typeof setTimeout>
-
-const aiBarStyle = computed(() => ({
-  position: 'fixed' as const,
-  top: `${aiBarY.value}px`,
-  left: `${Math.min(aiBarX.value, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 310)}px`,
-  transform: 'translateY(-100%) translateY(-8px)',
-  zIndex: 9999,
-}))
-
-function onAiReplace(text: string) {
-  editor.value?.chain()
-    .focus()
-    .setTextSelection({ from: aiSelectionFrom.value, to: aiSelectionTo.value })
-    .insertContent(text)
-    .run()
-  showAiSelectionBar.value = false
-  aiSelectionText.value = ''
-}
-
-// Replaces window.prompt() (blocking, no validation, doesn't match the rest of this
-// toolbar's chrome) with an inline panel — same pattern as the grammar-check panel below.
-const showLinkPanel = ref(false)
-const linkUrlDraft = ref('')
-const linkUrlError = ref('')
-const linkUrlInputRef = ref<HTMLInputElement | null>(null)
-
-function setLink() {
-  if (!editor.value) return
-  const previousUrl = editor.value.getAttributes('link').href as string | undefined
-  linkUrlDraft.value = previousUrl || ''
-  linkUrlError.value = ''
-  showLinkPanel.value = true
-  nextTick(() => linkUrlInputRef.value?.focus())
-}
-
-function confirmLink() {
-  if (!editor.value) return
-  const url = linkUrlDraft.value.trim()
-
-  if (!url) {
-    editor.value.chain().focus().extendMarkRange('link').unsetLink().run()
-    showLinkPanel.value = false
-    return
-  }
-
-  // Rejected here rather than silently stored — the previous window.prompt() version had
-  // no such check.
-  try {
-    const parsed = new URL(url)
-    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported protocol')
-  } catch {
-    linkUrlError.value = 'Enter a valid http(s) URL'
-    return
-  }
-
-  editor.value.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
-  showLinkPanel.value = false
-}
-
-function cancelLink() {
-  showLinkPanel.value = false
-  editor.value?.chain().focus().run()
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -133,28 +58,24 @@ const editor = useEditor({
   onUpdate({ editor: e }) {
     emit('update:modelValue', e.getJSON())
   },
+  // `aiBar` is defined just below this call — safe because TipTap only invokes
+  // `onSelectionUpdate` later, well after both consts in this module have been assigned
+  // (see the comment above `aiBar`'s declaration).
   onSelectionUpdate({ editor: e }) {
-    clearTimeout(selectionDebounce)
-    const { from, to, empty } = e.state.selection
-    if (!empty) {
-      const text = e.state.doc.textBetween(from, to, ' ').trim()
-      if (text.length > 3) {
-        aiSelectionFrom.value = from
-        aiSelectionTo.value = to
-        aiSelectionText.value = text
-        const coords = e.view.coordsAtPos(from)
-        aiBarX.value = coords.left
-        aiBarY.value = coords.top
-        selectionDebounce = setTimeout(() => { showAiSelectionBar.value = true }, 350)
-        return
-      }
-    }
-    // Selection cleared or too short — hide bar (debounced so clicks inside bar don't close it)
-    selectionDebounce = setTimeout(() => {
-      if (!showAiSelectionBar.value) aiSelectionText.value = ''
-    }, 200)
+    aiBar.handleSelectionUpdate(e)
   },
 })
+
+// Selection-tracking/positioning logic for the floating AI toolbar that appears above a
+// text selection. Declared right after `editor` (not destructured) because the
+// `onSelectionUpdate` callback passed to `useEditor` above already references `aiBar` by
+// name — that's a forward reference that only works because the callback isn't actually
+// invoked until well after this line has run.
+const aiBar = useTipTapAiSelectionBar(editor)
+
+// Link-insert panel — replaces window.prompt() with an inline panel matching the rest of
+// this toolbar's chrome.
+const linkPanel = useLinkPanel(editor)
 
 watch(() => props.modelValue, (val) => {
   if (!editor.value || !val) return
@@ -162,22 +83,9 @@ watch(() => props.modelValue, (val) => {
     editor.value.commands.setContent(val as object, { emitUpdate: false })
 })
 
-onMounted(() => {
-  document.addEventListener('mousedown', onDocMouseDown)
-})
-
 onBeforeUnmount(() => {
   editor.value?.destroy()
-  document.removeEventListener('mousedown', onDocMouseDown)
-  clearTimeout(selectionDebounce)
 })
-
-function onDocMouseDown(e: MouseEvent) {
-  const target = e.target as Element
-  if (!target.closest('.ai-selection-bar')) {
-    showAiSelectionBar.value = false
-  }
-}
 
 const isCodeBlockActive = computed(() => editor.value?.isActive('codeBlock') ?? false)
 
@@ -197,104 +105,10 @@ function onMediaSelect(file: { url: string; altText?: string }) {
   isMediaModalOpen.value = false
 }
 
-// ── AI: Generate content ──────────────────────────────────────────────────────
+// ── AI modals ─────────────────────────────────────────────────────────────────
 
 const showGenerateModal = ref(false)
-const generateDescription = ref('')
-const generateTone = ref<'professional' | 'casual' | 'friendly' | 'technical'>('professional')
-const generateFormat = ref<'prose' | 'listicle' | 'howto' | 'faq'>('prose')
-const generating = ref(false)
-const generateError = ref('')
-
-const toneOptions = [
-  { label: 'Professional', value: 'professional' },
-  { label: 'Casual', value: 'casual' },
-  { label: 'Friendly', value: 'friendly' },
-  { label: 'Technical', value: 'technical' },
-]
-
-const formatOptions = [
-  { label: 'Prose', value: 'prose' },
-  { label: 'Listicle', value: 'listicle' },
-  { label: 'How-to guide', value: 'howto' },
-  { label: 'FAQ', value: 'faq' },
-]
-
-async function generateContent() {
-  if (generateDescription.value.length < 5) return
-  generating.value = true
-  generateError.value = ''
-  try {
-    const { html } = await $fetch<{ html: string }>('/api/v1/ai/generate-content', {
-      method: 'POST',
-      body: { description: generateDescription.value, tone: generateTone.value, format: generateFormat.value },
-    })
-    editor.value?.commands.setContent(html)
-    emit('update:modelValue', editor.value?.getJSON())
-    showGenerateModal.value = false
-    generateDescription.value = ''
-  } catch {
-    generateError.value = 'Generation failed. Check your AI provider settings.'
-  } finally {
-    generating.value = false
-  }
-}
-
-// ── AI: Grammar check ─────────────────────────────────────────────────────────
-
-interface Correction {
-  original: string
-  corrected: string
-  reason: string
-}
-
 const showGrammarPanel = ref(false)
-const grammarLoading = ref(false)
-const corrections = ref<Correction[]>([])
-const grammarChecked = ref(false)
-
-function extractPlainText(): string {
-  if (!editor.value) return ''
-  return editor.value.getText()
-}
-
-async function checkGrammar() {
-  const text = extractPlainText()
-  if (!text.trim()) return
-  grammarLoading.value = true
-  corrections.value = []
-  grammarChecked.value = false
-  try {
-    const res = await $fetch<{ corrections: Correction[] }>('/api/v1/ai/grammar', {
-      method: 'POST',
-      body: { text },
-    })
-    corrections.value = res.corrections
-    grammarChecked.value = true
-  } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Grammar check failed'
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    grammarLoading.value = false
-  }
-}
-
-function applyCorrection(c: Correction) {
-  if (!editor.value) return
-  const { state, dispatch } = editor.value.view
-  const { doc, tr } = state
-  let found = false
-  doc.descendants((node, pos) => {
-    if (found || node.type.name !== 'text') return
-    const idx = node.text?.indexOf(c.original) ?? -1
-    if (idx === -1) return
-    const from = pos + idx
-    const to = from + c.original.length
-    dispatch(tr.replaceWith(from, to, state.schema.text(c.corrected)))
-    found = true
-  })
-  corrections.value = corrections.value.filter(x => x !== c)
-}
 
 // ── Toolbar definition ────────────────────────────────────────────────────────
 
@@ -344,7 +158,7 @@ const tools = computed((): ToolGroup[] => {
     {
       group: 'links',
       items: [
-        { icon: 'i-lucide-link', label: 'Link', active: e.isActive('link'), action: () => setLink() },
+        { icon: 'i-lucide-link', label: 'Link', active: e.isActive('link'), action: () => linkPanel.setLink() },
         ...(e.isActive('link') ? [
           { icon: 'i-lucide-unlink', label: 'Remove Link', action: () => e.chain().focus().unsetLink().run() },
         ] : []),
@@ -436,73 +250,38 @@ const tools = computed((): ToolGroup[] => {
           :variant="showGrammarPanel ? 'soft' : 'ghost'"
           aria-label="Grammar & spell check"
           title="Grammar & spell check"
-          @click="showGrammarPanel = !showGrammarPanel; showGrammarPanel && checkGrammar()"
+          @click="showGrammarPanel = !showGrammarPanel"
         />
       </div>
     </div>
 
     <!-- Link panel -->
     <div
-      v-if="showLinkPanel"
+      v-if="linkPanel.showLinkPanel.value"
       class="border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30 px-4 py-3"
     >
       <div class="flex items-center gap-2">
         <input
-          ref="linkUrlInputRef"
-          v-model="linkUrlDraft"
+          :ref="(el) => { linkPanel.linkUrlInputRef.value = el as HTMLInputElement | null }"
+          v-model="linkPanel.linkUrlDraft.value"
           type="text"
           placeholder="https://example.com"
           class="flex-1 min-w-0 px-2 py-1.5 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
-          @keydown.enter.prevent="confirmLink"
-          @keydown.escape.prevent="cancelLink"
+          @keydown.enter.prevent="linkPanel.confirmLink()"
+          @keydown.escape.prevent="linkPanel.cancelLink()"
         >
-        <UButton size="xs" variant="ghost" @click="cancelLink">Cancel</UButton>
-        <UButton size="xs" color="primary" @click="confirmLink">{{ linkUrlDraft.trim() ? 'Apply' : 'Remove link' }}</UButton>
+        <UButton size="xs" variant="ghost" @click="linkPanel.cancelLink()">Cancel</UButton>
+        <UButton size="xs" color="primary" @click="linkPanel.confirmLink()">{{ linkPanel.linkUrlDraft.value.trim() ? 'Apply' : 'Remove link' }}</UButton>
       </div>
-      <p v-if="linkUrlError" class="text-xs text-red-500 mt-1.5">{{ linkUrlError }}</p>
+      <p v-if="linkPanel.linkUrlError.value" class="text-xs text-red-500 mt-1.5">{{ linkPanel.linkUrlError.value }}</p>
     </div>
 
     <!-- Grammar panel -->
-    <div
+    <EditorGrammarPanel
       v-if="showGrammarPanel"
-      class="border-b border-gray-200 dark:border-gray-800 bg-amber-50/50 dark:bg-amber-950/20 px-4 py-3"
-    >
-      <div class="flex items-center justify-between mb-2">
-        <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-          <UIcon name="i-lucide-spell-check" class="w-3.5 h-3.5" />
-          Grammar &amp; Style
-        </p>
-        <div class="flex items-center gap-2">
-          <UButton size="xs" variant="ghost" :loading="grammarLoading" icon="i-lucide-refresh-cw" @click="checkGrammar">
-            Re-check
-          </UButton>
-          <UButton size="xs" variant="ghost" icon="i-lucide-x" aria-label="Close grammar panel" @click="showGrammarPanel = false" />
-        </div>
-      </div>
-      <div v-if="grammarLoading" class="text-xs text-gray-400 flex items-center gap-1.5 py-1">
-        <UIcon name="i-lucide-loader-2" class="w-3.5 h-3.5 animate-spin" />
-        Checking…
-      </div>
-      <div v-else-if="grammarChecked && corrections.length === 0" class="text-xs text-green-600 dark:text-green-400 flex items-center gap-1.5 py-1">
-        <UIcon name="i-lucide-check-circle" class="w-3.5 h-3.5" />
-        No issues found.
-      </div>
-      <div v-else class="space-y-1.5 max-h-40 overflow-y-auto">
-        <div
-          v-for="(c, i) in corrections"
-          :key="i"
-          class="flex items-start gap-2 rounded-lg bg-white dark:bg-gray-900 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs"
-        >
-          <div class="flex-1 min-w-0">
-            <span class="text-red-500 line-through">{{ c.original }}</span>
-            <span class="mx-1 text-gray-400">→</span>
-            <span class="text-green-600 dark:text-green-400 font-medium">{{ c.corrected }}</span>
-            <span class="ml-2 text-gray-400">{{ c.reason }}</span>
-          </div>
-          <UButton size="xs" variant="ghost" color="success" @click="applyCorrection(c)">Apply</UButton>
-        </div>
-      </div>
-    </div>
+      :editor="editor"
+      @close="showGrammarPanel = false"
+    />
 
     <!-- Editable area -->
     <div class="flex-1 px-5 py-4 cursor-text" @click="editor?.commands.focus()">
@@ -512,14 +291,14 @@ const tools = computed((): ToolGroup[] => {
     <!-- Floating AI toolbar — appears above text selections -->
     <Teleport to="body">
       <div
-        v-if="showAiSelectionBar && aiSelectionText"
+        v-if="aiBar.showAiSelectionBar.value && aiBar.aiSelectionText.value"
         class="ai-selection-bar"
-        :style="aiBarStyle"
+        :style="aiBar.aiBarStyle.value"
         @mousedown.prevent
       >
         <EditorAiToolbar
-          :selected-text="aiSelectionText"
-          @replace="onAiReplace"
+          :selected-text="aiBar.aiSelectionText.value"
+          @replace="aiBar.onAiReplace"
         />
       </div>
     </Teleport>
@@ -534,37 +313,11 @@ const tools = computed((): ToolGroup[] => {
     <!-- AI Generate Modal -->
     <UModal v-model:open="showGenerateModal" title="Generate content with AI">
       <template #body>
-        <div class="space-y-4">
-          <UFormField label="Describe what you want to write">
-            <UTextarea
-              v-model="generateDescription"
-              :rows="3"
-              placeholder="e.g. An introduction to Cloudflare Workers explaining what they are and why developers should use them."
-            />
-          </UFormField>
-          <div class="grid grid-cols-2 gap-3">
-            <UFormField label="Tone">
-              <USelect v-model="generateTone" :items="toneOptions" />
-            </UFormField>
-            <UFormField label="Format">
-              <USelect v-model="generateFormat" :items="formatOptions" />
-            </UFormField>
-          </div>
-          <p v-if="generateError" class="text-sm text-red-500">{{ generateError }}</p>
-        </div>
-      </template>
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <UButton variant="ghost" @click="showGenerateModal = false">Cancel</UButton>
-          <UButton
-            icon="i-lucide-sparkles"
-            :loading="generating"
-            :disabled="generateDescription.length < 5"
-            @click="generateContent"
-          >
-            Generate
-          </UButton>
-        </div>
+        <EditorGenerateModal
+          :editor="editor"
+          @close="showGenerateModal = false"
+          @update:model-value="emit('update:modelValue', $event)"
+        />
       </template>
     </UModal>
   </div>

@@ -1,31 +1,9 @@
 import { useDb } from '../../utils/db'
-import { roleAtLeast, hasApiKeyScope, type Role } from '../../utils/permissions'
-import { contentItems } from '@nuxflow/db/schema'
-import { and, eq, desc } from 'drizzle-orm'
-import { ulid } from 'ulid'
 import { createEventStream } from 'h3'
-import { z } from 'zod'
+import { ulid } from 'ulid'
 import { errorMessage } from '../../utils/errors'
-import { getContentItem, getContentTypeBySlug } from '../../utils/content-queries'
-import { scopedById } from '../../utils/db-helpers'
-import { writeAuditLog } from '../../utils/audit'
 import { rateLimit } from '../../utils/rate-limit'
-
-const CONTENT_STATUS = z.enum(['draft', 'review', 'published', 'scheduled', 'archived'])
-const createContentArgsSchema = z.object({
-  title: z.string().min(1).max(500),
-  slug: z.string().min(1).max(500),
-  content: z.unknown().optional(),
-  type: z.string().optional(),
-  status: CONTENT_STATUS.optional(),
-})
-const updateContentArgsSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1).max(500).optional(),
-  slug: z.string().min(1).max(500).optional(),
-  content: z.unknown().optional(),
-  status: CONTENT_STATUS.optional(),
-})
+import { listToolDescriptors, callTool } from '../../utils/mcp-tools'
 
 // Module-level cache of active SSE streams, scoped to THIS Workers isolate only.
 //
@@ -143,315 +121,26 @@ export default defineEventHandler(async (event) => {
         }
 
         case 'tools/list': {
-          result = {
-            tools: [
-              {
-                name: 'list_content',
-                description: 'List pages or posts in the NuxFlow CMS.',
-                inputSchema: {
-                  type: 'object',
-                  properties: {
-                    type: { type: 'string', enum: ['page', 'post'], description: 'Filter by content type slug (default: page)' },
-                    status: { type: 'string', enum: ['draft', 'review', 'published', 'scheduled', 'archived'], description: 'Filter by publish status' },
-                    limit: { type: 'number', description: 'Maximum number of items to return (default: 20)' }
-                  }
-                }
-              },
-              {
-                name: 'get_content',
-                description: 'Get full details of a specific page or post by its slug or ID.',
-                inputSchema: {
-                  type: 'object',
-                  properties: {
-                    id: { type: 'string', description: 'The unique 26-character ULID of the content item' },
-                    slug: { type: 'string', description: 'The URL slug of the content item' }
-                  }
-                }
-              },
-              {
-                name: 'create_content',
-                description: 'Create a new page or post in NuxFlow.',
-                inputSchema: {
-                  type: 'object',
-                  properties: {
-                    title: { type: 'string', description: 'The title of the page' },
-                    slug: { type: 'string', description: 'The URL slug for the page' },
-                    content: { type: 'string', description: 'The text or HTML content' },
-                    type: { type: 'string', enum: ['page', 'post'], description: 'The content type slug (default: page)' },
-                    status: { type: 'string', enum: ['draft', 'published'], description: 'The status (default: draft)' }
-                  },
-                  required: ['title', 'slug']
-                }
-              },
-              {
-                name: 'update_content',
-                description: 'Update the title, content, or status of an existing page or post.',
-                inputSchema: {
-                  type: 'object',
-                  properties: {
-                    id: { type: 'string', description: 'The 26-character ULID of the content item to update' },
-                    title: { type: 'string', description: 'The new title' },
-                    slug: { type: 'string', description: 'The new slug' },
-                    content: { type: 'string', description: 'The new content text or HTML' },
-                    status: { type: 'string', enum: ['draft', 'review', 'published', 'scheduled', 'archived'], description: 'The new status' }
-                  },
-                  required: ['id']
-                }
-              },
-              {
-                name: 'delete_content',
-                description: 'Permanently delete a page or post in NuxFlow.',
-                inputSchema: {
-                  type: 'object',
-                  properties: {
-                    id: { type: 'string', description: 'The unique 26-character ULID of the content item to delete' }
-                  },
-                  required: ['id']
-                }
-              }
-            ]
-          }
+          // Descriptors (name/description/inputSchema) come from mcp-tools.ts, which
+          // co-locates each tool's JSON-Schema inputSchema with the Zod schema that
+          // actually validates it at call time (see the comment there).
+          result = { tools: listToolDescriptors() }
           break
         }
 
         case 'tools/call': {
           const { name, arguments: args } = params || {}
 
-          // The key's own declared scopes (set in api-keys/index.post.ts, resolved onto
-          // the request by 03.api-key-auth.ts) are a ceiling on top of the issuing user's
-          // site role, not a substitute for it — a key can be scoped down to read-only
-          // even when issued by an editor/admin. Every tool below needs its matching
-          // scope in addition to whatever role check it already performs.
-          const isWriteTool = name === 'create_content' || name === 'update_content' || name === 'delete_content'
-          const requiredScope = isWriteTool ? 'write:content' : 'read:content'
-          if (!hasApiKeyScope(event, requiredScope)) {
-            result = { content: [{ type: 'text', text: `Error: This API key does not have the "${requiredScope}" scope required for "${name}".` }] }
-            break
-          }
-
-          if (name === 'list_content') {
-            const typeSlug = args?.type || 'page'
-            const limit = Math.min(Number(args?.limit) || 20, 50)
-
-            const type = await getContentTypeBySlug(db, siteId, typeSlug)
-            if (!type) {
-              result = { content: [{ type: 'text', text: `Error: Content type "${typeSlug}" not found.` }] }
-              break
-            }
-
-            const conditions = [eq(contentItems.siteId, siteId), eq(contentItems.typeId, type.id)]
-            if (args?.status) {
-              conditions.push(eq(contentItems.status, args.status))
-            }
-
-            const items = await db.query.contentItems.findMany({
-              where: and(...conditions),
-              limit,
-              orderBy: [desc(contentItems.updatedAt)],
-              columns: { id: true, title: true, slug: true, status: true, updatedAt: true }
-            })
-
-            result = {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(items, null, 2)
-                }
-              ]
-            }
-          }
-
-          else if (name === 'get_content') {
-            const id = args?.id
-            const slug = args?.slug
-
-            if (!id && !slug) {
-              result = { content: [{ type: 'text', text: 'Error: Must provide either id or slug.' }] }
-              break
-            }
-
-            const conditions = [eq(contentItems.siteId, siteId)]
-            if (id) conditions.push(eq(contentItems.id, id))
-            if (slug) conditions.push(eq(contentItems.slug, slug))
-
-            const item = await db.query.contentItems.findFirst({
-              where: and(...conditions)
-            })
-
-            if (!item) {
-              result = { content: [{ type: 'text', text: 'Error: Content item not found.' }] }
-            } else {
-              result = {
-                content: [
-                  {
-                    type: 'text',
-                    text: JSON.stringify(item, null, 2)
-                  }
-                ]
-              }
-            }
-          }
-
-          else if (name === 'create_content') {
-            if (!roleAtLeast((apiKeyRole ?? 'viewer') as Role, 'author')) {
-              result = { content: [{ type: 'text', text: `Error: Role "${apiKeyRole}" is unauthorized to create content.` }] }
-              break
-            }
-
-            const parsed = createContentArgsSchema.safeParse(args)
-            if (!parsed.success) {
-              result = { content: [{ type: 'text', text: `Error: ${parsed.error.issues.map(i => i.message).join('; ')}` }] }
-              break
-            }
-            const { title, slug: slugVal, status: statusVal = 'draft' } = parsed.data
-            const contentVal = parsed.data.content ?? ''
-            const typeSlug = parsed.data.type || 'page'
-
-            const type = await getContentTypeBySlug(db, siteId, typeSlug)
-            if (!type) {
-              result = { content: [{ type: 'text', text: `Error: Content type "${typeSlug}" not found.` }] }
-              break
-            }
-
-            // Check if slug already exists
-            const existing = await db.query.contentItems.findFirst({
-              where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, slugVal))
-            })
-            if (existing) {
-              result = { content: [{ type: 'text', text: `Error: Slug "${slugVal}" is already in use.` }] }
-              break
-            }
-
-            const newId = ulid()
-            await db.insert(contentItems).values({
-              id: newId,
-              siteId,
-              typeId: type.id,
-              authorId: apiKeyUserId,
-              title,
-              slug: slugVal,
-              status: statusVal,
-              content: contentVal,
-              publishedAt: statusVal === 'published' ? new Date().toISOString() : null
-            })
-
-            await writeAuditLog(event, apiKeyUserId, {
-              action: 'create',
-              resource: 'content_item',
-              resourceId: newId,
-              after: { title, slug: slugVal, status: statusVal, typeId: type.id },
-            })
-
-            result = {
-              content: [
-                {
-                  type: 'text',
-                  text: `Success: Content item successfully created with ID: ${newId}`
-                }
-              ]
-            }
-          }
-
-          else if (name === 'update_content') {
-            if (!roleAtLeast((apiKeyRole ?? 'viewer') as Role, 'author')) {
-              result = { content: [{ type: 'text', text: `Error: Role "${apiKeyRole}" is unauthorized to update content.` }] }
-              break
-            }
-
-            const parsedUpdate = updateContentArgsSchema.safeParse(args)
-            if (!parsedUpdate.success) {
-              result = { content: [{ type: 'text', text: `Error: ${parsedUpdate.error.issues.map(i => i.message).join('; ')}` }] }
-              break
-            }
-            const { id } = parsedUpdate.data
-
-            const existing = await getContentItem(db, siteId, id)
-            if (!existing) {
-              result = { content: [{ type: 'text', text: `Error: Content item with ID "${id}" not found.` }] }
-              break
-            }
-
-            const updates: Partial<typeof contentItems.$inferSelect> = {
-              updatedAt: new Date().toISOString()
-            }
-            if (parsedUpdate.data.title !== undefined) updates.title = parsedUpdate.data.title
-            if (parsedUpdate.data.slug !== undefined) updates.slug = parsedUpdate.data.slug
-            if (parsedUpdate.data.content !== undefined) updates.content = parsedUpdate.data.content
-            if (parsedUpdate.data.status !== undefined) {
-              if (parsedUpdate.data.status === 'published' && !roleAtLeast((apiKeyRole ?? 'viewer') as Role, 'editor')) {
-                result = { content: [{ type: 'text', text: `Error: Role "${apiKeyRole}" is unauthorized to publish content.` }] }
-                break
-              }
-              updates.status = parsedUpdate.data.status
-              if (parsedUpdate.data.status === 'published' && !existing.publishedAt) {
-                updates.publishedAt = new Date().toISOString()
-              }
-            }
-
-            await db.update(contentItems)
-              .set(updates)
-              .where(scopedById(contentItems.id, id, contentItems.siteId, siteId))
-
-            await writeAuditLog(event, apiKeyUserId, {
-              action: 'update',
-              resource: 'content_item',
-              resourceId: id,
-              before: existing,
-              after: updates,
-            })
-
-            result = {
-              content: [
-                {
-                  type: 'text',
-                  text: `Success: Content item ${id} successfully updated.`
-                }
-              ]
-            }
-          }
-
-          else if (name === 'delete_content') {
-            const id = args?.id
-            if (!id) {
-              result = { content: [{ type: 'text', text: 'Error: id is required.' }] }
-              break
-            }
-
-            // Enforce editor role minimum to perform deletions
-            if (!roleAtLeast((apiKeyRole ?? 'viewer') as Role, 'editor')) {
-              result = { content: [{ type: 'text', text: `Error: Role "${apiKeyRole}" is unauthorized to perform deletions.` }] }
-              break
-            }
-
-            const existing = await getContentItem(db, siteId, id)
-            if (!existing) {
-              result = { content: [{ type: 'text', text: `Error: Content item with ID "${id}" not found.` }] }
-              break
-            }
-
-            await db.delete(contentItems)
-              .where(scopedById(contentItems.id, id, contentItems.siteId, siteId))
-
-            await writeAuditLog(event, apiKeyUserId, {
-              action: 'delete',
-              resource: 'content_item',
-              resourceId: id,
-              before: existing,
-            })
-
-            result = {
-              content: [
-                {
-                  type: 'text',
-                  text: `Success: Content item ${id} has been permanently deleted.`
-                }
-              ]
-            }
-          }
-
-          else {
-            result = { content: [{ type: 'text', text: `Error: Unknown tool "${name}"` }] }
-          }
+          // Tool-specific logic (schemas, role/scope checks, the actual DB work) lives in
+          // mcp-tools.ts — this handler is just protocol plumbing. apiKeyUserId/siteId are
+          // already validated non-null above (see the guard right after auth).
+          result = await callTool(name, args, {
+            event,
+            db,
+            siteId: siteId as string,
+            apiKeyUserId: apiKeyUserId as string,
+            apiKeyRole,
+          })
           break
         }
 

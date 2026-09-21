@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { requireRole } from '../../../../utils/permissions'
-import { getThemeDemo, waitUntil } from '../../../../utils/cf-env'
+import { waitUntil } from '../../../../utils/cf-env'
+import { getThemeDemo } from '../../../../utils/cf-theme-kv'
 import { applyBackup } from '../../../../utils/backup'
 import { themes } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'

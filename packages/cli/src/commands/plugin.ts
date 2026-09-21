@@ -4,10 +4,15 @@ import { consola } from 'consola'
 import { readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { authenticate, apiPost, apiDelete, resolveAuth } from '../utils/api'
+import { apiPost, apiDelete, authenticateOrExit, AUTH_ARGS } from '../utils/api'
 import { buildPlugin } from '../utils/build'
 import { scaffoldPlugin } from '../utils/scaffold'
 import { generateKeyPair, signPayload, type SigningPayload } from '../utils/signing'
+import { readManifest as readManifestFile, orExit } from '../utils/manifest'
+
+function readManifest(dir: string): Promise<PluginManifest> {
+  return readManifestFile<PluginManifest>(dir, 'nuxflow.plugin.json', 'plugin')
+}
 
 interface PluginManifest {
   id: string
@@ -19,12 +24,6 @@ interface PluginManifest {
 
 function toKebab(s: string) {
   return s.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-}
-
-async function readManifest(dir: string): Promise<PluginManifest> {
-  const raw = await readFile(join(dir, 'nuxflow.plugin.json'), 'utf-8').catch(() => null)
-  if (!raw) throw new Error('nuxflow.plugin.json not found — run this command from a plugin directory')
-  return JSON.parse(raw) as PluginManifest
 }
 
 async function readDistJson(dir: string): Promise<Record<string, unknown>> {
@@ -109,9 +108,7 @@ export const pluginCommand = defineCommand({
         intro('NuxFlow — Generate Publisher Keypair')
         const dir = process.cwd()
 
-        const manifest = await readManifest(dir).catch((e: Error) => {
-          consola.error(e.message); process.exit(1)
-        }) as PluginManifest
+        const manifest = await orExit(readManifest(dir))
 
         if (manifest.publisherPublicKey) {
           const replace = await confirm({
@@ -158,9 +155,7 @@ export const pluginCommand = defineCommand({
         intro('NuxFlow — Build Plugin')
         const dir = process.cwd()
 
-        const manifest = await readManifest(dir).catch((e: Error) => {
-          consola.error(e.message); process.exit(1)
-        }) as PluginManifest
+        const manifest = await orExit(readManifest(dir))
 
         if (!manifest.publisherPublicKey) {
           consola.error('No publisher keypair found. Run `nuxflow plugin keygen` before building.')
@@ -205,18 +200,14 @@ export const pluginCommand = defineCommand({
     // ── nuxflow plugin deploy ───────────────────────────────────────────────
     deploy: defineCommand({
       meta: { description: 'Install the plugin on a NuxFlow site (first time)' },
-      args: {
-        site:     { type: 'string', description: 'Site URL             (or NUXFLOW_SITE)' },
-        email:    { type: 'string', description: 'Admin email          (or NUXFLOW_EMAIL)' },
-        password: { type: 'string', description: 'Admin password       (or NUXFLOW_PASSWORD)' },
-      },
+      args: { ...AUTH_ARGS },
       async run({ args }) {
         intro('NuxFlow — Deploy Plugin')
         const dir = process.cwd()
 
         const [manifest, dist] = await Promise.all([
-          readManifest(dir).catch((e: Error) => { consola.error(e.message); process.exit(1) }) as Promise<PluginManifest>,
-          readDistJson(dir).catch((e: Error) => { consola.error(e.message); process.exit(1) }) as Promise<Record<string, unknown>>,
+          orExit(readManifest(dir)),
+          orExit(readDistJson(dir)),
         ])
 
         if (!manifest.publisherPublicKey) {
@@ -224,9 +215,7 @@ export const pluginCommand = defineCommand({
           process.exit(1)
         }
 
-        const privateKey = await readPrivateKey(dir).catch((e: Error) => {
-          consola.error(e.message); process.exit(1)
-        }) as string
+        const privateKey = await orExit(readPrivateKey(dir))
 
         const s = spinner()
         s.start('Signing plugin payload…')
@@ -236,16 +225,7 @@ export const pluginCommand = defineCommand({
 
         s.message('Authenticating…')
 
-        let site: string, cookie: string
-        try {
-          const auth = resolveAuth(args)
-          cookie = await authenticate(auth.site, auth.email, auth.password)
-          site = auth.site
-        } catch (e: unknown) {
-          s.stop('Auth failed.')
-          consola.error((e as Error).message)
-          process.exit(1)
-        }
+        const { site, cookie } = await authenticateOrExit(s, args)
 
         s.message(`Deploying ${manifest.name as string} v${manifest.version as string}…`)
 
@@ -269,18 +249,14 @@ export const pluginCommand = defineCommand({
     // ── nuxflow plugin update ───────────────────────────────────────────────
     update: defineCommand({
       meta: { description: 'Update an already-installed plugin (removes then reinstalls)' },
-      args: {
-        site:     { type: 'string', description: 'Site URL             (or NUXFLOW_SITE)' },
-        email:    { type: 'string', description: 'Admin email          (or NUXFLOW_EMAIL)' },
-        password: { type: 'string', description: 'Admin password       (or NUXFLOW_PASSWORD)' },
-      },
+      args: { ...AUTH_ARGS },
       async run({ args }) {
         intro('NuxFlow — Update Plugin')
         const dir = process.cwd()
 
         const [manifest, dist] = await Promise.all([
-          readManifest(dir).catch((e: Error) => { consola.error(e.message); process.exit(1) }) as Promise<PluginManifest>,
-          readDistJson(dir).catch((e: Error) => { consola.error(e.message); process.exit(1) }) as Promise<Record<string, unknown>>,
+          orExit(readManifest(dir)),
+          orExit(readDistJson(dir)),
         ])
 
         if (!manifest.publisherPublicKey) {
@@ -288,9 +264,7 @@ export const pluginCommand = defineCommand({
           process.exit(1)
         }
 
-        const privateKey = await readPrivateKey(dir).catch((e: Error) => {
-          consola.error(e.message); process.exit(1)
-        }) as string
+        const privateKey = await orExit(readPrivateKey(dir))
 
         const s = spinner()
         s.start('Signing plugin payload…')
@@ -300,16 +274,7 @@ export const pluginCommand = defineCommand({
 
         s.message('Authenticating…')
 
-        let site: string, cookie: string
-        try {
-          const auth = resolveAuth(args)
-          cookie = await authenticate(auth.site, auth.email, auth.password)
-          site = auth.site
-        } catch (e: unknown) {
-          s.stop('Auth failed.')
-          consola.error((e as Error).message)
-          process.exit(1)
-        }
+        const { site, cookie } = await authenticateOrExit(s, args)
 
         s.message('Removing old version…')
         // Ignore 404 — plugin may not be installed yet

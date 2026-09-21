@@ -1,7 +1,7 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
-import { deletePluginAssets } from '../../../../utils/cf-env'
+import { deletePluginAssets } from '../../../../utils/cf-plugin-kv'
 import { getDynamicPluginByIdOrThrow } from '../../../../utils/resource-queries'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { scopedById } from '../../../../utils/db-helpers'

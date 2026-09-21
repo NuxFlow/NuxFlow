@@ -1,4 +1,5 @@
 import type { MediaProvider, UploadResult } from './index'
+import { encodeStorageKey, assertProviderOk } from './index'
 
 export interface BunnyProviderConfig {
   apiKey: string
@@ -23,7 +24,7 @@ export class BunnyProvider implements MediaProvider {
     const buf = await file.arrayBuffer()
 
     const res = await fetch(
-      `https://storage.bunnycdn.com/${this.storageZone}/${key}`,
+      `https://storage.bunnycdn.com/${this.storageZone}/${encodeStorageKey(key)}`,
       {
         method: 'PUT',
         headers: {
@@ -34,28 +35,31 @@ export class BunnyProvider implements MediaProvider {
       },
     )
 
-    if (!res.ok) throw new Error(`Bunny.net upload failed: ${res.status}`)
+    await assertProviderOk(res, 'Bunny.net upload')
 
+    // Computed via getUrl() rather than re-deriving the join here — see the identical
+    // reasoning in s3.ts's upload().
     return {
-      url: `https://${this.pullZone}.b-cdn.net/${key}`,
+      url: this.getUrl(key),
       storageKey: key,
       provider: 'bunny',
     }
   }
 
   async delete(storageKey: string): Promise<void> {
-    const res = await fetch(`https://storage.bunnycdn.com/${this.storageZone}/${storageKey}`, {
+    const res = await fetch(`https://storage.bunnycdn.com/${this.storageZone}/${encodeStorageKey(storageKey)}`, {
       method: 'DELETE',
       headers: { AccessKey: this.apiKey },
     })
-    // Without this check (mirroring upload()'s own res.ok check above), a failed
-    // provider-side delete (bad key, revoked AccessKey, 5xx) is silently swallowed, the
-    // caller deletes the D1 row anyway, and the blob orphans in storage with no error
-    // surfaced anywhere.
-    if (!res.ok) throw new Error(`Bunny.net delete failed: ${res.status}`)
+    // allow404: a blob already removed out-of-band (a prior partial failure, manual
+    // deletion in the Bunny dashboard) must not permanently block deleting its D1 row —
+    // see the shared assertProviderOk doc comment in index.ts. Anything else (bad key,
+    // revoked AccessKey, 5xx) still means the object was NOT removed and must throw, or
+    // the caller would delete the D1 row anyway and orphan the blob in storage.
+    await assertProviderOk(res, 'Bunny.net delete', { allow404: true })
   }
 
   getUrl(storageKey: string): string {
-    return `https://${this.pullZone}.b-cdn.net/${storageKey}`
+    return `https://${this.pullZone}.b-cdn.net/${encodeStorageKey(storageKey)}`
   }
 }

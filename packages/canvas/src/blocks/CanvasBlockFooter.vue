@@ -5,6 +5,7 @@ import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import { safeHref } from '../utils/sanitize-html'
 import { spacingToCss } from '../utils/spacing'
+import { safeJsonParse } from '../utils/json'
 
 // Typed as a real `Ref` (not a plain `{ value: T }` shape) so the template's automatic
 // ref-unwrapping (`site.logoUrl` instead of `site.value.logoUrl`) still type-checks —
@@ -63,12 +64,10 @@ const displayCopyright = computed(() => {
   return `© ${year} ${siteName}. All rights reserved.`
 })
 
-const parsedCol1 = computed(() => {
-  try { return JSON.parse(props.col1Links) } catch { return [] }
-})
-const parsedCol2 = computed(() => {
-  try { return JSON.parse(props.col2Links) } catch { return [] }
-})
+interface FooterLink { label: string; url: string }
+
+const parsedCol1 = computed(() => safeJsonParse<FooterLink[]>(props.col1Links, []))
+const parsedCol2 = computed(() => safeJsonParse<FooterLink[]>(props.col2Links, []))
 
 const wrapperStyle = computed(() => {
   const p = props.padding

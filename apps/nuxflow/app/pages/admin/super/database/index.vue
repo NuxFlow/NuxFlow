@@ -23,18 +23,6 @@ interface D1Stats {
 
 const { data: stats, pending: statsPending, error: statsError, refresh: refreshStats } = await useFetch<D1Stats>('/api/v1/admin/db-stats')
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  const units = ['KB', 'MB', 'GB', 'TB']
-  let value = bytes
-  let unit = -1
-  do {
-    value /= 1024
-    unit++
-  } while (value >= 1024 && unit < units.length - 1)
-  return `${value.toFixed(value < 10 ? 2 : 1)} ${units[unit]}`
-}
-
 const capUsagePercent = computed(() => {
   if (!stats.value || !stats.value.paidPlanSizeCapBytes) return 0
   return Math.min(100, (stats.value.approxDatabaseSizeBytes / stats.value.paidPlanSizeCapBytes) * 100)

@@ -207,7 +207,7 @@ async function save() {
     savedValues.value = { ...toRaw(values) }
     toast.add({ title: 'Changes published!', icon: 'i-lucide-check-circle', color: 'success' })
   } catch (e) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to publish'
+    const msg = getErrorMessage(e, 'Failed to publish')
     toast.add({ title: msg, color: 'error' })
   } finally {
     saving.value = false

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
-import { getTaxonomyByIdOrThrow } from '../../../../utils/resource-queries'
+import { getTaxonomyByIdOrThrow, getTaxonomyTermByIdOrThrow } from '../../../../utils/resource-queries'
 import { created } from '../../../../utils/response'
 import { taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -29,6 +29,16 @@ export default defineEventHandler(async (event) => {
     columns: { id: true },
   })
   if (slugConflict) conflict(`A term with the slug "${body.slug}" already exists in this taxonomy`)
+
+  // parentId has no DB-level FK (taxonomyTerms.parentId is deliberately a plain column —
+  // see CLAUDE.md/schema comment on why a self-referencing FK here risks silent data loss
+  // on a future migration), so nothing else verifies a caller-supplied parentId is
+  // actually an existing term in THIS taxonomy. Without this, a caller could nest a term
+  // under an arbitrary/nonexistent id, or under another taxonomy's term by guessing its
+  // ULID, and have it silently accepted.
+  if (body.parentId) {
+    await getTaxonomyTermByIdOrThrow(db, taxonomyId, body.parentId, 'Parent term not found')
+  }
 
   const id = ulid()
   const termInsert = db.insert(taxonomyTerms).values({

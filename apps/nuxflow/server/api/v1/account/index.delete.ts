@@ -1,6 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
-import { subscriptions, sites, users, comments, formSubmissions } from '@nuxflow/db/schema'
+import { subscriptions, sites, users } from '@nuxflow/db/schema'
+import { buildGdprRedactionStatements } from '@nuxflow/db/queries'
 import { hasSuperAdminRole } from '../../../utils/permissions'
 import { getConfiguredPaymentProvider } from '../../../utils/payments/resolve'
 import { getOrCreateBetterAuth } from '../../../utils/better-auth'
@@ -26,22 +27,22 @@ import { errorMessage, rethrowAsProviderError } from '../../../utils/errors'
 // authoritative per-table FK behaviour.
 //
 // Unlinking the FK is not the same as erasing the personal data it pointed at, though
-// — Article 17 requires the *content* gone, not just its attribution. Two tables hold
-// free-text content the person themselves typed, which the FK-based cascade above
-// would otherwise leave fully intact under a now-null authorId/userId:
-// - `comments.body` — redacted to a fixed placeholder for every comment authored by
-//   this user (see below), preserving thread structure (replies aren't orphaned) the
-//   same way nulling authorId already does, but erasing what they actually wrote.
-// - `formSubmissions.data` — a schema-less JSON blob shaped by each form's own field
-//   definitions (name/email/phone/message, or something else entirely — there's no
-//   fixed set of "PII fields" to selectively scrub). Every submission this user made
-//   (identified via the real `formSubmissions.userId` FK, not a heuristic like an
-//   email-text match) gets its entire `data` blob replaced with a redaction marker
-//   rather than picked apart field-by-field, since that's the only reliable way to
-//   guarantee nothing personal survives in a shape NuxFlow can't introspect.
-// Both run as UPDATEs in the same batch, before the DELETE below — the WHERE clauses
-// need `authorId`/`userId` to still equal this user's id, which the DELETE's own
-// cascade would otherwise null out first if it ran before these.
+// — Article 17 requires the *content* gone, not just its attribution. The redaction
+// UPDATEs below are built from GDPR_REDACTION_TARGETS (@nuxflow/db/queries, gdpr.ts) —
+// the single, tested registry of every table holding free-text content a person typed
+// themselves that this FK-cascade would otherwise leave fully intact under a now-null
+// authorId/userId. Currently: `comments.body` (redacted to a fixed placeholder per
+// comment, preserving thread structure — replies aren't orphaned — the same way
+// nulling authorId already does, but erasing what they actually wrote) and
+// `formSubmissions.data` (a schema-less JSON blob shaped by each form's own field
+// definitions, with no fixed set of "PII fields" to selectively scrub, so the entire
+// blob is replaced with a redaction marker rather than picked apart field-by-field).
+// See gdpr.ts's own doc comment for why this is a registry rather than hand-picked
+// here, and tests/unit/gdpr-redaction.test.ts for how a new table with this same FK
+// shape is forced through an explicit redact-or-exempt decision instead of silently
+// falling through. These run as UPDATEs in the same batch, before the DELETE below —
+// the WHERE clauses need `authorId`/`userId` to still equal this user's id, which the
+// DELETE's own cascade would otherwise null out first if it ran before these.
 export default defineEventHandler(async (event) => {
   const session = await requireSession(event)
   const userId = session.user.id as string
@@ -128,17 +129,9 @@ export default defineEventHandler(async (event) => {
     before: { email: session.user.email, self: true },
   })
 
-  const redactCommentsStmt = db.update(comments)
-    .set({ body: '[deleted]' })
-    .where(eq(comments.authorId, userId))
-
-  const redactFormSubmissionsStmt = db.update(formSubmissions)
-    .set({ data: { redacted: true, redactedAt: new Date().toISOString() } })
-    .where(eq(formSubmissions.userId, userId))
-
   await batchWithAudit(
     db,
-    [redactCommentsStmt, redactFormSubmissionsStmt, db.delete(users).where(eq(users.id, userId))],
+    [...buildGdprRedactionStatements(db, userId), db.delete(users).where(eq(users.id, userId))],
     auditInsert,
   )
 

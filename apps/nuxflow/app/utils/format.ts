@@ -1,0 +1,27 @@
+/**
+ * Shared currency formatter for membership tier prices — used by every surface that
+ * renders a tier's price (Paywall, MembershipsBlock, the account page's active-plan
+ * summary) so a future formatting change (e.g. locale-awareness beyond hardcoded 'en')
+ * only needs to be made once instead of drifting across independent copies.
+ */
+export function formatPrice(price: number, currency: string): string {
+  return new Intl.NumberFormat('en', { style: 'currency', currency, minimumFractionDigits: 0 }).format(price)
+}
+
+/**
+ * Shared byte-count formatter — used by every admin surface that displays a file/media
+ * size (media library, video library, the super-admin database stats page) so the same
+ * unit thresholds and decimal precision aren't reimplemented independently.
+ */
+export function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes) return '0 B'
+  if (bytes < 1024) return `${bytes} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let value = bytes
+  let unit = -1
+  do {
+    value /= 1024
+    unit++
+  } while (value >= 1024 && unit < units.length - 1)
+  return `${value.toFixed(value < 10 ? 2 : 1)} ${units[unit]}`
+}

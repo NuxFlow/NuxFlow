@@ -41,7 +41,7 @@ async function sendTestEmail() {
     })
     emailTestResult.value = { ok: true, message: res.message }
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Test failed'
+    const msg = getErrorMessage(e, 'Test failed')
     emailTestResult.value = { ok: false, message: msg }
   } finally {
     testingEmail.value = false

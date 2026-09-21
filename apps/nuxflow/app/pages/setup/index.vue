@@ -73,8 +73,7 @@ async function complete() {
     } catch { /* non-fatal */ }
     step.value = totalSteps
   } catch (e: unknown) {
-    const fe = e as { data?: { message?: string }; message?: string }
-    error.value = fe.data?.message ?? fe.message ?? 'Setup failed. Check the browser console for details.'
+    error.value = getErrorMessage(e, 'Setup failed. Check the browser console for details.')
   } finally {
     loading.value = false
   }

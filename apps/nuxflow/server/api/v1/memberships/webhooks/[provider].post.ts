@@ -205,7 +205,11 @@ async function handlePaddleWebhook(event: H3Event, rawBody: string) {
 
   const sub = payload.data
 
-  if (['subscription.created', 'subscription.updated', 'subscription.activated'].includes(payload.event_type)) {
+  // subscription.resumed is Paddle's own distinct event for a paused subscription coming
+  // back (the counterpart to subscription.paused below) — without it here, a member who
+  // resumes billing after a pause stays stuck at status: 'cancelled' forever, since
+  // neither this branch nor the cancel branch below would ever match that event type.
+  if (['subscription.created', 'subscription.updated', 'subscription.activated', 'subscription.resumed'].includes(payload.event_type)) {
     const statusMap: Record<string, 'active' | 'cancelled' | 'past_due' | 'trialing' | 'unpaid'> = {
       ...STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID, canceled: 'cancelled', paused: 'cancelled',
     }

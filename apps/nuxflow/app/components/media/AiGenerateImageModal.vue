@@ -40,8 +40,7 @@ async function generate() {
       error.value = `Generated but not saved: ${res.error}`
     }
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message
-    error.value = msg || 'Generation failed. Ensure an OpenAI or Google API key is configured.'
+    error.value = getErrorMessage(e, 'Generation failed. Ensure an OpenAI or Google API key is configured.')
   } finally {
     loading.value = false
   }

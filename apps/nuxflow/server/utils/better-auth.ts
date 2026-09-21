@@ -132,6 +132,46 @@ async function buildBetterAuthInstance(event: H3Event) {
     return { siteId: site.id, sm }
   }
 
+  // Shared by sendResetPassword and sendVerificationEmail below — both resolve the
+  // link's own host to a site (never the enclosing closure's `event`/`requestHost`,
+  // which may belong to a different host than the one embedded in the actual
+  // reset/verify URL — e.g. a cross-host internal call), look up that site's
+  // decrypted email-provider settings, and send through the shared provider dispatch.
+  // Collapsed here so both closures fail (and log) identically instead of maintaining
+  // two copies of the same six-field settings-to-config mapping.
+  async function sendAuthEmail(linkUrl: string, opts: { name: string; to: string; subject: string; html: string; text: string }): Promise<void> {
+    let host = 'localhost'
+    try { host = new URL(linkUrl).hostname } catch { /* keep default */ }
+    try {
+      const resolved = await resolveSiteEmailSettings(host)
+      if (!resolved) {
+        console.warn(`[auth] ${opts.name}: no site found for host`, host)
+        return
+      }
+      const { sm } = resolved
+      await sendEmailWithConfig(
+        {
+          emailProvider: sm['email.provider'] || 'console',
+          fromAddress: sm['email.from_address'] || `noreply@${host}`,
+          resendApiKey: sm['email.resend_api_key'],
+          brevoApiKey: sm['email.brevo_api_key'],
+          zeptoApiKey: sm['email.zepto_api_key'],
+          domain: host,
+        },
+        {
+          to: opts.to,
+          subject: opts.subject,
+          html: opts.html,
+          text: opts.text,
+        },
+        event,
+      )
+    }
+    catch (err) {
+      console.error(`[auth] ${opts.name} failed:`, err)
+    }
+  }
+
   return betterAuth({
     baseURL,
     secret: config.betterAuthSecret,
@@ -175,36 +215,13 @@ async function buildBetterAuthInstance(event: H3Event) {
       enabled: true,
       password: nuxflowPasswordHasher,
       sendResetPassword: async ({ user, url: resetUrl }) => {
-        let host = 'localhost'
-        try { host = new URL(resetUrl).hostname } catch { /* keep default */ }
-        try {
-          const resolved = await resolveSiteEmailSettings(host)
-          if (!resolved) {
-            console.warn('[auth] sendResetPassword: no site found for host', host)
-            return
-          }
-          const { sm } = resolved
-          await sendEmailWithConfig(
-            {
-              emailProvider: sm['email.provider'] || 'console',
-              fromAddress: sm['email.from_address'] || `noreply@${host}`,
-              resendApiKey: sm['email.resend_api_key'],
-              brevoApiKey: sm['email.brevo_api_key'],
-              zeptoApiKey: sm['email.zepto_api_key'],
-              domain: host,
-            },
-            {
-              to: user.email,
-              subject: 'Reset your password',
-              html: `<p>Hi ${escapeHtml(user.name)},</p><p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Reset password</a></p><p style="color:#6b7280;font-size:14px;">If you did not request this, you can safely ignore this email.</p>`,
-              text: `Hi ${user.name},\n\nReset your password:\n${resetUrl}\n\nIf you did not request this, ignore this email.`,
-            },
-            event,
-          )
-        }
-        catch (err) {
-          console.error('[auth] sendResetPassword email failed:', err)
-        }
+        await sendAuthEmail(resetUrl, {
+          name: 'sendResetPassword',
+          to: user.email,
+          subject: 'Reset your password',
+          html: `<p>Hi ${escapeHtml(user.name)},</p><p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Reset password</a></p><p style="color:#6b7280;font-size:14px;">If you did not request this, you can safely ignore this email.</p>`,
+          text: `Hi ${user.name},\n\nReset your password:\n${resetUrl}\n\nIf you did not request this, ignore this email.`,
+        })
       },
       // Without this, completing a "Forgot password" reset leaves any existing session
       // cookie (e.g. one an attacker stole) valid until natural expiry — defeating the
@@ -228,36 +245,13 @@ async function buildBetterAuthInstance(event: H3Event) {
     // would recreate the exact dead-end that invite flow's own comments call out.
     emailVerification: {
       sendVerificationEmail: async ({ user, url: verifyUrl }) => {
-        let host = 'localhost'
-        try { host = new URL(verifyUrl).hostname } catch { /* keep default */ }
-        try {
-          const resolved = await resolveSiteEmailSettings(host)
-          if (!resolved) {
-            console.warn('[auth] sendVerificationEmail: no site found for host', host)
-            return
-          }
-          const { sm } = resolved
-          await sendEmailWithConfig(
-            {
-              emailProvider: sm['email.provider'] || 'console',
-              fromAddress: sm['email.from_address'] || `noreply@${host}`,
-              resendApiKey: sm['email.resend_api_key'],
-              brevoApiKey: sm['email.brevo_api_key'],
-              zeptoApiKey: sm['email.zepto_api_key'],
-              domain: host,
-            },
-            {
-              to: user.email,
-              subject: 'Verify your email address',
-              html: `<p>Hi ${escapeHtml(user.name)},</p><p>Click the link below to verify your email address.</p><p><a href="${verifyUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Verify email</a></p><p style="color:#6b7280;font-size:14px;">If you did not create this account, you can safely ignore this email.</p>`,
-              text: `Hi ${user.name},\n\nVerify your email address:\n${verifyUrl}\n\nIf you did not create this account, ignore this email.`,
-            },
-            event,
-          )
-        }
-        catch (err) {
-          console.error('[auth] sendVerificationEmail failed:', err)
-        }
+        await sendAuthEmail(verifyUrl, {
+          name: 'sendVerificationEmail',
+          to: user.email,
+          subject: 'Verify your email address',
+          html: `<p>Hi ${escapeHtml(user.name)},</p><p>Click the link below to verify your email address.</p><p><a href="${verifyUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Verify email</a></p><p style="color:#6b7280;font-size:14px;">If you did not create this account, you can safely ignore this email.</p>`,
+          text: `Hi ${user.name},\n\nVerify your email address:\n${verifyUrl}\n\nIf you did not create this account, ignore this email.`,
+        })
       },
       autoSignInAfterVerification: true,
     },

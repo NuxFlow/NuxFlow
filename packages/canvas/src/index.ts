@@ -1,6 +1,9 @@
 export * from './types'
 export * from './blocks/definitions'
+export { BUILTIN_BLOCK_COMPONENTS } from './blocks/components'
 export { spacingToCss } from './utils/spacing'
+export { safeJsonParse, parseImageList } from './utils/json'
+export type { ImageListItem } from './utils/json'
 export {
   CONSENT_COOKIE_NAME,
   CONSENT_EVENT,

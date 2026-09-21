@@ -1,4 +1,5 @@
 import type { MediaProvider, UploadResult } from './index'
+import { encodeStorageKey, assertProviderOk } from './index'
 
 export class CloudflareImagesProvider implements MediaProvider {
   readonly name = 'cloudflare'
@@ -19,9 +20,7 @@ export class CloudflareImagesProvider implements MediaProvider {
       { method: 'POST', headers: { Authorization: `Bearer ${this.imagesToken}` }, body: fd },
     )
 
-    if (!res.ok) {
-      throw new Error(`Cloudflare Images upload failed: ${res.status}`)
-    }
+    await assertProviderOk(res, 'Cloudflare Images upload')
 
     const json = await res.json() as { result: { variants: string[] } }
     return {
@@ -33,17 +32,18 @@ export class CloudflareImagesProvider implements MediaProvider {
 
   async delete(storageKey: string): Promise<void> {
     const res = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/images/v1/${storageKey}`,
+      `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/images/v1/${encodeStorageKey(storageKey)}`,
       { method: 'DELETE', headers: { Authorization: `Bearer ${this.imagesToken}` } },
     )
-    // Without this check (mirroring upload()'s own res.ok check above), a failed
-    // provider-side delete (bad/revoked token, 5xx) is silently swallowed, the caller
-    // deletes the D1 row anyway, and the image orphans in Cloudflare Images with no
-    // error surfaced anywhere.
-    if (!res.ok) throw new Error(`Cloudflare Images delete failed: ${res.status}`)
+    // allow404: an image already removed out-of-band (a prior partial failure, manual
+    // deletion in the Cloudflare dashboard) must not permanently block deleting its D1
+    // row — see the shared assertProviderOk doc comment in index.ts. Anything else
+    // (bad/revoked token, 5xx) still means the object was NOT removed and must throw, or
+    // the caller would delete the D1 row anyway and orphan the image in storage.
+    await assertProviderOk(res, 'Cloudflare Images delete', { allow404: true })
   }
 
   getUrl(storageKey: string): string {
-    return `${this.deliveryUrl}/${storageKey}/public`
+    return `${this.deliveryUrl}/${encodeStorageKey(storageKey)}/public`
   }
 }

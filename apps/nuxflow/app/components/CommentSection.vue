@@ -89,7 +89,7 @@ async function submitComment(form: FormState, parentId: string | null = null) {
       if (parentId) replyingTo.value = null
     }
   } catch (e: unknown) {
-    form.error = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to post comment'
+    form.error = getErrorMessage(e, 'Failed to post comment')
   } finally {
     form.submitting = false
   }

@@ -20,7 +20,7 @@ async function restore(revisionId: string) {
     await $fetch(`/api/v1/content/${props.contentId}/revisions/${revisionId}/restore`, { method: 'POST' })
     emit('restored')
   } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message ?? 'Failed to restore revision'
+    const msg = getErrorMessage(e, 'Failed to restore revision')
     toast.add({ title: msg, color: 'error' })
   } finally {
     restoring.value = null

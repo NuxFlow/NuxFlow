@@ -19,12 +19,14 @@ const getThemeDemoMock = vi.fn().mockResolvedValue(null)
 const deleteThemeCSSMock = vi.fn().mockResolvedValue(undefined)
 const deleteThemeDemoMock = vi.fn().mockResolvedValue(undefined)
 
-vi.mock('../../server/utils/cf-env', () => ({
+vi.mock('../../server/utils/cf-theme-kv', () => ({
   putThemeCSS: (...args: unknown[]) => putThemeCSSMock(...args),
   putThemeDemo: (...args: unknown[]) => putThemeDemoMock(...args),
   getThemeDemo: (...args: unknown[]) => getThemeDemoMock(...args),
   deleteThemeCSS: (...args: unknown[]) => deleteThemeCSSMock(...args),
   deleteThemeDemo: (...args: unknown[]) => deleteThemeDemoMock(...args),
+}))
+vi.mock('../../server/utils/cf-env', () => ({
   getCfBindings: () => ({ kv: null }),
   getAnalyticsEngine: () => null,
   waitUntil: (_event: unknown, promise: Promise<unknown>) => { void promise },

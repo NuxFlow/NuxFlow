@@ -35,6 +35,7 @@ import {
 } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { nuxflowPasswordHasher } from '../utils/pw'
+import { getTemplateBlocks } from '../utils/setup-templates'
 
 const DEMO_EMAIL = 'demo@nuxflow.dev'
 const DEMO_PASSWORD = 'demo123'
@@ -143,68 +144,46 @@ async function seedDemo(db: Db) {
     },
   ])
 
-  const sp = { top: 80, right: 24, bottom: 80, left: 24, unit: 'px' as const }
-  const fp = { top: 64, right: 24, bottom: 64, left: 24, unit: 'px' as const }
+  // Reuse the shared 'landing' template (same hero/features/cta shape, icons, gradient,
+  // and colors that server/api/v1/setup/complete.post.ts seeds for a real site) and only
+  // override the copy that's genuinely demo-specific: the hero's pitch/CTA label, the
+  // features section's label, and the closing CTA's headline/subtext (which points
+  // visitors at the shared demo login and mentions the nightly reset).
+  type CanvasBlock = { id: string; type: string; props: Record<string, unknown> }
+  const templateBlocks = getTemplateBlocks('landing', DEMO_NAME) as CanvasBlock[]
 
-  const blocks = [
-    {
-      id: ulid(),
-      type: 'canvas-hero',
-      props: {
-        headline: 'Fast, modern, and beautiful',
-        subtext: 'Welcome to the NuxFlow live demo — an open-source edge CMS built on Nuxt 4 and Cloudflare Workers. Explore the admin, edit pages, and see what NuxFlow can do. Resets nightly at 3 AM UTC.',
-        ctaLabel: 'Open admin dashboard',
-        ctaUrl: '/admin',
-        cta2Label: 'View on GitHub',
-        cta2Url: 'https://github.com/NuxFlow/NuxFlow',
-        align: 'center',
-        bgGradient: 'linear-gradient(to bottom right, #090d16, #064e3b, #022c22, #090d16)',
-        textColor: '#ffffff',
-        ctaBgColor: 'var(--nuxflow-primary, #00dc82)',
-        logoIcon: 'i-lucide-layers',
-        showDecorations: true,
-        padding: sp,
-      },
-    },
-    {
-      id: ulid(),
-      type: 'canvas-features',
-      props: {
-        sectionLabel: 'Why Choose NuxFlow',
-        sectionTitle: 'Built for Performance',
-        sectionDesc: 'Everything you need to succeed online, managed right from our fast and robust admin dashboard.',
-        numFeatures: '3',
-        style: 'card',
-        align: 'left',
-        iconColor: 'var(--nuxflow-primary, #00dc82)',
-        feat1Icon: 'i-lucide-zap',
-        feat1Title: 'Edge Performance',
-        feat1Desc: 'Global distribution with absolute speed. Zero cold starts, running closer to your audience.',
-        feat2Icon: 'i-lucide-layout',
-        feat2Title: 'Visual Canvas Builder',
-        feat2Desc: 'Custom page layouts in seconds. Add, edit, or rearrange sections with no technical experience needed.',
-        feat3Icon: 'i-lucide-shield',
-        feat3Title: 'Ultimate Security',
-        feat3Desc: 'Highly secure edge shielding, sandboxed plugin execution, and robust isolation by default.',
-        gap: 24,
-        padding: { top: 64, right: 24, bottom: 64, left: 24, unit: 'px' as const },
-      },
-    },
-    {
-      id: ulid(),
-      type: 'canvas-cta',
-      props: {
-        headline: 'Ready to explore?',
-        subtext: `Log in to the admin dashboard with  ${DEMO_EMAIL}  /  ${DEMO_PASSWORD}  and start building. Every change you make is real — and resets nightly.`,
-        btnLabel: 'Open Admin Dashboard',
-        btnUrl: '/admin',
-        bgColor: '#022c22',
-        textColor: '#ffffff',
-        btnColor: 'var(--nuxflow-primary, #00dc82)',
-        padding: fp,
-      },
-    },
-  ]
+  const blocks = templateBlocks.map((block): CanvasBlock => {
+    if (block.type === 'canvas-hero') {
+      return {
+        ...block,
+        props: {
+          ...block.props,
+          subtext: 'Welcome to the NuxFlow live demo — an open-source edge CMS built on Nuxt 4 and Cloudflare Workers. Explore the admin, edit pages, and see what NuxFlow can do. Resets nightly at 3 AM UTC.',
+          ctaLabel: 'Open admin dashboard',
+        },
+      }
+    }
+    if (block.type === 'canvas-features') {
+      return {
+        ...block,
+        props: {
+          ...block.props,
+          sectionLabel: 'Why Choose NuxFlow',
+        },
+      }
+    }
+    if (block.type === 'canvas-cta') {
+      return {
+        ...block,
+        props: {
+          ...block.props,
+          headline: 'Ready to explore?',
+          subtext: `Log in to the admin dashboard with  ${DEMO_EMAIL}  /  ${DEMO_PASSWORD}  and start building. Every change you make is real — and resets nightly.`,
+        },
+      }
+    }
+    return block
+  })
 
   await db.insert(contentItems).values({
     id: ulid(),
