@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { useDb } from '../utils/db'
+import { useReplicaDb } from '../utils/db'
 import { getFeedSite, getPublishedPostsForFeed } from '@nuxflow/db/queries'
 import { withEdgeCache } from '../utils/edge-cache'
 import { escXml, cdataSafe } from '../utils/xml'
@@ -46,13 +46,17 @@ export default defineEventHandler(async (event) => {
 })
 
 async function buildAtomFeed(event: H3Event) {
-  const db = useDb(event)
+  // Anonymous, read-only, edge-cached — safe to read from a D1 read replica when one is
+  // enabled (see the "D1 read replication" note on useReplicaDb in server/utils/db.ts).
+  const db = useReplicaDb(event)
   const siteId = event.context.siteId as string
   const config = useRuntimeConfig()
 
-  const site = await getFeedSite(db, siteId)
+  const [site, posts] = await Promise.all([
+    getFeedSite(db, siteId),
+    getPublishedPostsForFeed(db, siteId),
+  ])
   const baseUrl = site ? `https://${site.domain}` : config.public.siteUrl as string
-  const posts = await getPublishedPostsForFeed(db, siteId)
 
   const updated = posts[0]?.updatedAt ?? new Date().toISOString()
 

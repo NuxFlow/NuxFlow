@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { useDb } from '../../utils/db'
-import { sites, siteSettings } from '@nuxflow/db/schema'
+import { sites, siteSettings, dynamicPlugins } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { withEdgeCache } from '../../utils/edge-cache'
 import { notFound } from '../../utils/response'
@@ -22,6 +22,17 @@ async function buildPayload(event: H3Event, siteId: string) {
   })
 
   const kvMap = Object.fromEntries(rows.map(r => [r.key, r.value]))
+
+  // Cheap existence check (LIMIT 1 via findFirst) mirroring dynamic-plugins.client.ts's
+  // own `p.isActive && p.hasClient` filter — this is *exactly* the condition under which
+  // that plugin would find anything worth registering, so it can safely skip its own
+  // `$fetch('/api/public/dynamic-plugins')` when this is false. See that file and this
+  // route's edge-cache purge notes on the install/enable/disable/delete routes for why a
+  // stale `true → false` transition can't happen but `false → true` must purge promptly.
+  const activePlugin = await db.query.dynamicPlugins.findFirst({
+    where: and(eq(dynamicPlugins.siteId, siteId), eq(dynamicPlugins.isActive, true), eq(dynamicPlugins.hasClient, true)),
+    columns: { id: true },
+  })
 
   const canonicalSetting = (kvMap['seo.canonical_url'] as string | undefined)?.trim()
   const canonicalBase = canonicalSetting || `https://${site.domain}`
@@ -47,6 +58,9 @@ async function buildPayload(event: H3Event, siteId: string) {
     // Origin" step in their Cloudflare dashboard (Settings → Media); serving
     // /cdn-cgi/image/... URLs before that step is done would just 404 every image.
     imageTransformsEnabled: (kvMap['media.enable_image_transformations'] as boolean | undefined) === true,
+    // Lets dynamic-plugins.client.ts skip its own plugin-listing fetch entirely on the
+    // (common) plugin-free site — see the query above for exactly what this reflects.
+    hasPlugins: Boolean(activePlugin),
   }
 }
 

@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'activate', resource: 'theme', resourceId: themeId })
 
   await batchWithAudit(db, [deactivateAll, activateTarget], auditInsert)
-  clearActiveThemeCache(siteId)
+  await clearActiveThemeCache(event, siteId)
 
   // Same as activate.post.ts — theme CSS is baked directly into every cached page's
   // <style> block, so activating a theme as a side effect of a demo import needs the

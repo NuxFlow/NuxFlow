@@ -11,6 +11,7 @@ import llmsHandler from '../../server/routes/llms.txt'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
+  useReplicaDb: () => getCurrentTestDb(),
   getD1: () => null,
 }))
 

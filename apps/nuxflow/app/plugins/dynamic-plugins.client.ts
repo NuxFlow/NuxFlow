@@ -15,6 +15,24 @@ interface PublicDynamicPlugin {
 }
 
 export default defineNuxtPlugin(async () => {
+  // Perf: skip the plugin-listing fetch entirely on the common plugin-free site. app.vue
+  // fetches GET /api/public/site (key: 'nuxflow-public-site') for header/footer chrome on
+  // every page load regardless, and that response now carries a `hasPlugins` flag — see
+  // site.get.ts — computed from the exact same `isActive && hasClient` condition this file
+  // filters on below. Plugins execute before the root component's own <script setup> runs,
+  // so app.vue's fetch hasn't necessarily *started* yet at this point — but with `ssr: true`
+  // (always on, per nuxt.config.ts) the initial render is always server-rendered first, and
+  // Nuxt hydrates the payload cache (window.__NUXT__ → nuxtApp.payload.data) *before* running
+  // any client plugins. So `useNuxtData` here is a synchronous read of already-resolved SSR
+  // data, not a race against app.vue's own fetch.
+  //
+  // `hasPlugins === false` is trusted to skip; anything else (`true`, or `undefined` when
+  // the cached entry isn't there — e.g. a test harness, or app.vue's own fetch having
+  // failed) falls through to the original fetch-and-filter below, so this can only ever
+  // cause an extra harmless fetch, never a missed one.
+  const cachedSite = useNuxtData<{ hasPlugins?: boolean }>('nuxflow-public-site')
+  if (cachedSite.data.value?.hasPlugins === false) return
+
   let plugins: PublicDynamicPlugin[]
   try {
     const res = await $fetch<{ plugins: PublicDynamicPlugin[] }>('/api/public/dynamic-plugins')
@@ -23,6 +41,8 @@ export default defineNuxtPlugin(async () => {
     return
   }
 
+  // Defensive fallback kept even with the skip above — a stale/wrong `hasPlugins: true`
+  // (or a cache miss that fell through to this fetch) must still resolve correctly here.
   if (plugins.length === 0) return
 
   const registry = useBlockRegistry()

@@ -1,6 +1,5 @@
 import { useDb } from '../utils/db'
-import { redirects } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { findRedirect } from '../utils/redirect-cache'
 
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string | null
@@ -11,9 +10,7 @@ export default defineEventHandler(async (event) => {
   if (path.startsWith('/api') || path.startsWith('/admin') || path.startsWith('/_')) return
 
   const db = useDb(event)
-  const redirect = await db.query.redirects.findFirst({
-    where: and(eq(redirects.siteId, siteId), eq(redirects.from, path)),
-  })
+  const redirect = await findRedirect(db, siteId, path)
 
   if (redirect) {
     return sendRedirect(event, redirect.to, redirect.statusCode)

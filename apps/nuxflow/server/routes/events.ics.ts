@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { useDb } from '../utils/db'
+import { useReplicaDb } from '../utils/db'
 import { getContentTypeBySlug } from '../utils/content-queries'
 import { contentItems, sites } from '@nuxflow/db/schema'
 import { eq, and, gte, desc } from 'drizzle-orm'
@@ -16,15 +16,19 @@ export default defineEventHandler(async (event) => {
 })
 
 async function buildEventsIcs(event: H3Event, siteId: string) {
-  const db = useDb(event)
+  // Anonymous, read-only, edge-cached — safe to read from a D1 read replica when one is
+  // enabled (see the "D1 read replication" note on useReplicaDb in server/utils/db.ts).
+  const db = useReplicaDb(event)
 
-  const site = await db.query.sites.findFirst({
-    where: eq(sites.id, siteId),
-    columns: { name: true, domain: true }
-  })
+  const [site, type] = await Promise.all([
+    db.query.sites.findFirst({
+      where: eq(sites.id, siteId),
+      columns: { name: true, domain: true }
+    }),
+    getContentTypeBySlug(db, siteId, 'event', { id: true }),
+  ])
   if (!site) throw createError({ statusCode: 404 })
 
-  const type = await getContentTypeBySlug(db, siteId, 'event', { id: true })
   if (!type) {
     return `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//NuxFlow//NuxFlow Events//EN\r\nEND:VCALENDAR\r\n`
   }

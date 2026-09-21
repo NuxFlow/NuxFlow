@@ -1,9 +1,11 @@
 import type { H3Event } from 'h3'
-import { useDb, type Db } from '../../../utils/db'
+import { useDb, useReplicaDb, type Db } from '../../../utils/db'
 import { trackPageView } from '../../../utils/analytics'
-import { contentItems, contentTypes, membershipTiers, redirects, subscriptions, users } from '@nuxflow/db/schema'
+import { contentItems, contentTypes, membershipTiers, subscriptions, users } from '@nuxflow/db/schema'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { withEdgeCache } from '../../../utils/edge-cache'
+import { findRedirect } from '../../../utils/redirect-cache'
+import { getActiveLocales } from '../../../utils/locale-cache'
 
 type ContentItemRow = typeof contentItems.$inferSelect
 
@@ -74,14 +76,18 @@ async function fetchTiers(siteId: string) {
 }
 
 export default defineEventHandler(async (event) => {
-  const db = useDb(event)
+  // Redirect/locale/content lookups below are anonymous, read-only, and already
+  // edge-cached (or gate-checked fresh regardless, see checkContentAccess) — safe to read
+  // from a D1 read replica when one is enabled (see the "D1 read replication" note on
+  // useReplicaDb in server/utils/db.ts). checkContentAccess's own subscription check
+  // deliberately resolves its own primary-DB instance below rather than reusing this one,
+  // since membership access needs read-after-write freshness a replica can't guarantee.
+  const db = useReplicaDb(event)
   const siteId = event.context.siteId as string
   const slug = getRouterParam(event, 'slug')!
 
   // Check redirects first
-  const redirect = await db.query.redirects.findFirst({
-    where: and(eq(redirects.siteId, siteId), eq(redirects.from, `/${slug}`)),
-  })
+  const redirect = await findRedirect(db, siteId, `/${slug}`)
   if (redirect) {
     return sendRedirect(event, redirect.to, redirect.statusCode)
   }
@@ -103,12 +109,8 @@ export default defineEventHandler(async (event) => {
     if (SUPPORTED_LOCALES.has(potentialLocale)) {
       hasLocaleMatch = true
     } else {
-      // Dynamic fallback: query database for active locales
-      const activeLocales = await db.select({ locale: contentItems.locale })
-        .from(contentItems)
-        .where(eq(contentItems.siteId, siteId))
-        .groupBy(contentItems.locale)
-      const activeSet = new Set(activeLocales.map(l => l.locale).filter(Boolean))
+      // Dynamic fallback: check the site's active locales (cached — see locale-cache.ts)
+      const activeSet = await getActiveLocales(db, siteId)
       if (activeSet.has(potentialLocale)) {
         hasLocaleMatch = true
       }

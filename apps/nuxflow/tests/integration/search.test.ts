@@ -15,6 +15,7 @@ import handler from '../../server/api/v1/search.get'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
+  useReplicaDb: () => getCurrentTestDb(),
   getD1: () => null,
 }))
 

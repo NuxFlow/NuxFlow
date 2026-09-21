@@ -68,7 +68,7 @@ export default defineEventHandler(async (event) => {
     deleteThemeDemo(event, siteId, id),
   ])
   await db.delete(themes).where(scopedById(themes.id, id, themes.siteId, siteId))
-  clearActiveThemeCache(siteId)
+  await clearActiveThemeCache(event, siteId)
 
   // Every other path that changes which theme is active purges the edge page cache —
   // deleting the currently-active theme changes it too (to "none"), and without this,

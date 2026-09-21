@@ -4,6 +4,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getRedirectByIdOrThrow } from '../../../utils/resource-queries'
 import { redirects } from '@nuxflow/db/schema'
 import { scopedById } from '../../../utils/db-helpers'
+import { clearRedirectCache } from '../../../utils/redirect-cache'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
@@ -23,6 +24,7 @@ export default defineEventHandler(async (event) => {
   })
 
   await batchWithAudit(db, [redirectDelete], auditInsert)
+  clearRedirectCache(siteId)
 
   return noContent(event)
 })

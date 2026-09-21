@@ -1,4 +1,4 @@
-import { useDb } from '../../utils/db'
+import { useReplicaDb } from '../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
 import { inArray, sql } from 'drizzle-orm'
 import { rateLimit } from '../../utils/rate-limit'
@@ -38,7 +38,11 @@ export default defineEventHandler(async (event) => {
 
   if (!q || q.length < 2 || q.length > 200) return { results: [] }
 
-  const db = useDb(event)
+  // Unauthenticated, read-only, and uncached (results are query-dependent) — the ideal
+  // case for a D1 read replica when one is enabled (see the "D1 read replication" note on
+  // useReplicaDb in server/utils/db.ts): every search hits D1 directly, so this is where
+  // replica routing has the most to save.
+  const db = useReplicaDb(event)
 
   // FTS5 query — sanitise input by stripping special chars
   const safe = q.replace(/[^a-z0-9 ]/gi, '') + '*'

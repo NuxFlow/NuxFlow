@@ -16,6 +16,7 @@ import publicPageHandler from '../../server/api/public/pages/[slug].get'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
+  useReplicaDb: () => getCurrentTestDb(),
   getD1: () => null,
 }))
 

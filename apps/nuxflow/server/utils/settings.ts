@@ -5,10 +5,25 @@ import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { encryptText, decryptText } from './encryption'
 import { createIsolateCache } from './isolate-cache'
+import { kvReadThrough, kvCacheDelete } from './kv-cache'
 import type { BatchItem } from 'drizzle-orm/batch'
 
-// Per-isolate cache to prevent redundant D1 lookups on every request
+// Per-isolate cache to prevent redundant D1 lookups on every request. Stores the final,
+// already-decrypted value (same shape resolveSetting returns) — safe to keep in isolate
+// memory only, same as before the KV layer below was added.
 const settingsCache = createIsolateCache<unknown>(30_000)
+
+// Shared KV layer, checked on an isolate-cache miss before falling back to D1 — see
+// kv-cache.ts for the full read-through/invalidation design. Deliberately caches the RAW
+// (still-encrypted, for a sensitive key) value exactly as stored in D1, never the
+// decrypted plaintext, so a sensitive setting is never persisted anywhere beyond D1's own
+// ciphertext column and this isolate's own memory — KV here is exactly as sensitive as D1
+// already is, not more so.
+const SETTINGS_KV_TTL_SECONDS = 300
+
+function settingsKvKey(siteId: string, key: string): string {
+  return `settings:${siteId}:${key}`
+}
 
 export const SENSITIVE_SETTING_KEYS = new Set([
   'email.resend_api_key',
@@ -69,16 +84,28 @@ export async function resolveSetting(event: H3Event, key: string, envKey?: strin
     }
 
     try {
-      const db = useDb(event)
-      const row = await db.query.siteSettings.findFirst({
-        where: and(
-          eq(siteSettings.siteId, siteId),
-          eq(siteSettings.key, key)
-        ),
-      })
+      // isolate cache -> KV -> D1. `rawValue` is exactly what's stored in the `value`
+      // column (ciphertext for a sensitive key, plaintext otherwise) — decryption always
+      // happens below, after this read-through resolves, regardless of which layer
+      // answered it, so KV never holds anything D1 doesn't already hold in the same form.
+      const rawValue = await kvReadThrough<string>(
+        event,
+        settingsKvKey(siteId, key),
+        SETTINGS_KV_TTL_SECONDS,
+        async () => {
+          const db = useDb(event)
+          const row = await db.query.siteSettings.findFirst({
+            where: and(
+              eq(siteSettings.siteId, siteId),
+              eq(siteSettings.key, key)
+            ),
+          })
+          return (row && row.value !== null && row.value !== '') ? (row.value as string) : null
+        },
+      )
 
-      if (row && row.value !== null && row.value !== '') {
-        let val = row.value as string
+      if (rawValue !== null) {
+        let val = rawValue
         if (SENSITIVE_SETTING_KEYS.has(key)) {
           const secret = rc.betterAuthSecret as string
           try {
@@ -125,8 +152,14 @@ async function prepareSettingWrite(event: H3Event, key: string, value: unknown):
   const rc = useRuntimeConfig()
   const db = useDb(event)
 
-  // Clear memory cache entry
+  // Clear memory cache entry, and the shared KV entry so other isolates don't keep
+  // serving the pre-write value for the rest of SETTINGS_KV_TTL_SECONDS. Deliberately
+  // unconditional (runs even for the SECRET_MASK "keep existing" no-op path below,
+  // matching the pre-existing isolate-cache-bust behavior this mirrors) — a harmless
+  // extra D1 read on the next resolveSetting call for that key, never a correctness
+  // issue, since the re-read produces the same value that was already cached.
   settingsCache.delete(`${siteId}:${key}`)
+  await kvCacheDelete(event, settingsKvKey(siteId, key))
 
   // Handle deletion if empty
   if (value === null || value === undefined || value === '') {

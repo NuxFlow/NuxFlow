@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'activate', resource: 'theme', resourceId: id })
 
   await batchWithAudit(db, [deactivateAll, activateTarget], auditInsert)
-  clearActiveThemeCache(siteId)
+  await clearActiveThemeCache(event, siteId)
 
   // Theme CSS is baked directly into every cached page's <style> block — switching
   // themes needs every currently page-cached page invalidated, not just the isolate

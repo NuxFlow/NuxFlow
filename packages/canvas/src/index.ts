@@ -21,24 +21,23 @@ export type { AiInstruction, AiImproveAction } from './editor/useAiImprove'
 export { imageTransformsEnabledKey } from './utils/image-transforms'
 
 // Vue components
+//
+// Deliberately NOT re-exporting the individual built-in block components
+// (CanvasBlockHero, CanvasBlockCarousel, etc.) here even though this package's
+// own blocks/components.ts imports them: those are only ever meant to be
+// reached through the lazy `BUILTIN_BLOCK_COMPONENTS` map (defineAsyncComponent
+// wrappers — see the comment there), so each one code-splits into its own
+// chunk fetched only when a page actually renders that block. A static
+// `export { default as X } from './blocks/X.vue'` here would put every block
+// back on this barrel's own static export graph — reachable via the plain
+// `import { ... } from '@nuxflow/canvas'` used all over the app — and once a
+// module is reachable through both a static and a dynamic path, bundlers
+// commonly fold it into whichever chunk the static path already belongs to
+// instead of giving it its own lazily-fetched chunk, silently undoing the
+// code-splitting the async wrapper was there to provide. Nothing outside this
+// package needs these by name (dynamic-plugin blocks and the app-owned blocks
+// resolve through the host app's own registry instead — see components.ts's
+// own doc comment) — if a real need for one shows up, export that single
+// component explicitly rather than reinstating the full list.
 export { default as CanvasContentEditor } from './editor/CanvasContentEditor.vue'
-export { default as CanvasBlockHero } from './blocks/CanvasBlockHero.vue'
-export { default as CanvasBlockText } from './blocks/CanvasBlockText.vue'
-export { default as CanvasBlockImage } from './blocks/CanvasBlockImage.vue'
-export { default as CanvasBlockColumns } from './blocks/CanvasBlockColumns.vue'
-export { default as CanvasBlockContainer } from './blocks/CanvasBlockContainer.vue'
-export { default as CanvasBlockCta } from './blocks/CanvasBlockCta.vue'
-export { default as CanvasBlockSpacer } from './blocks/CanvasBlockSpacer.vue'
-export { default as CanvasBlockVideo } from './blocks/CanvasBlockVideo.vue'
-export { default as CanvasBlockTestimonial } from './blocks/CanvasBlockTestimonial.vue'
-export { default as CanvasBlockFeatures } from './blocks/CanvasBlockFeatures.vue'
-export { default as CanvasBlockGdpr } from './blocks/CanvasBlockGdpr.vue'
-export { default as CanvasBlockFooter } from './blocks/CanvasBlockFooter.vue'
-export { default as CanvasBlockButton } from './blocks/CanvasBlockButton.vue'
-export { default as CanvasBlockAccordion } from './blocks/CanvasBlockAccordion.vue'
-export { default as CanvasBlockPricing } from './blocks/CanvasBlockPricing.vue'
-export { default as CanvasBlockGallery } from './blocks/CanvasBlockGallery.vue'
-export { default as CanvasBlockCarousel } from './blocks/CanvasBlockCarousel.vue'
-export { default as CanvasBlockCalendar } from './blocks/CanvasBlockCalendar.vue'
-export { default as HtmlBlock } from './blocks/HtmlBlock.vue'
 export { default as NuxImage } from './blocks/NuxImage.vue'

@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { getCfBindings } from '../utils/cf-env'
 import { getThemeCSS } from '../utils/cf-theme-kv'
 import { resolveSetting } from '../utils/settings'
-import { type ActiveTheme, getCachedActiveTheme, setCachedActiveTheme } from '../utils/theme-cache'
+import { type ActiveTheme, resolveActiveTheme } from '../utils/theme-cache'
 import { errorMessage } from '../utils/errors'
 
 export default defineNitroPlugin((nitro) => {
@@ -57,20 +57,17 @@ export default defineNitroPlugin((nitro) => {
       }
 
       if (!isPreview) {
-        const cached = getCachedActiveTheme(siteId)
-        if (cached !== undefined) {
-          active = cached
-        } else {
-          // We must query the DB here instead of the 'request' hook because 'siteId'
-          // is set by the multi-site middleware, which runs AFTER the 'request' hook.
+        // isolate cache -> KV -> D1 (see resolveActiveTheme in theme-cache.ts). We must
+        // query the DB here instead of the 'request' hook because 'siteId' is set by the
+        // multi-site middleware, which runs AFTER the 'request' hook.
+        active = await resolveActiveTheme(event, siteId, async () => {
           const db = useDb(event)
           const row = await db.query.themes.findFirst({
             where: and(eq(themes.siteId, siteId), eq(themes.isActive, true)),
             columns: { id: true, hasCss: true, packageName: true, cssVersion: true },
           })
-          active = row ?? null
-          setCachedActiveTheme(siteId, active)
-        }
+          return row ?? null
+        })
       }
 
       if (!active || !active.hasCss) return

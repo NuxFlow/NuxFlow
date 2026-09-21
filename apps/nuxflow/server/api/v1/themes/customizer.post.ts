@@ -114,7 +114,7 @@ export default defineEventHandler(async (event) => {
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'update', resource: 'theme', resourceId: themeId! })
 
   await batchWithAudit(db, [deactivateAll, activateTarget], auditInsert)
-  clearActiveThemeCache(siteId)
+  await clearActiveThemeCache(event, siteId)
 
   // Publishes both new theme CSS and appearance settings (dark mode/primary color/font)
   // directly via saveSetting() above, bypassing settings/index.patch.ts's own purge logic

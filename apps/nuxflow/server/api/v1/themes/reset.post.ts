@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'reset', resource: 'theme', resourceId: 'default' })
 
   await batchWithAudit(db, [deactivateAll], auditInsert)
-  clearActiveThemeCache(siteId)
+  await clearActiveThemeCache(event, siteId)
 
   waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
     console.error('[themes] Failed to purge page cache after theme reset:', err)

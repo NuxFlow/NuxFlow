@@ -25,7 +25,11 @@ export default defineEventHandler(async (event) => {
 
   // A deleted (or `plugin update`'s delete-then-reinstall) plugin's bundle route must
   // 404/serve fresh content on the very next request, not an edge-cached stale copy.
-  await purgeEdgeCache(event, [`/_nuxflow/plugin-bundle/${id}`])
+  // Also purge GET /api/public/site's `hasPlugins` flag — see enable.post.ts's comment
+  // for why a stale `false` (the direction this delete could cause if it removed the
+  // site's last active client plugin... or, for `plugin update`'s delete-then-reinstall,
+  // a stale `true` briefly) matters more than the reverse.
+  await purgeEdgeCache(event, [`/_nuxflow/plugin-bundle/${id}`, '/api/public/site'])
 
   return noContent(event)
 })

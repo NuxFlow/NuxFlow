@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { imageTransformsEnabledKey } from '@nuxflow/canvas'
 
-const { data: siteInfo } = useFetch<{ name?: string; faviconUrl?: string | null; imageTransformsEnabled?: boolean }>('/api/public/site', {
+const { data: siteInfo } = useFetch<{ name?: string; faviconUrl?: string | null; imageTransformsEnabled?: boolean; hasPlugins?: boolean }>('/api/public/site', {
+  // Explicit key so dynamic-plugins.client.ts can read this same response back out of
+  // the Nuxt payload cache (via useNuxtData) instead of issuing its own separate fetch
+  // just to check `hasPlugins` — see that plugin for why this works despite plugins
+  // running before this component's own <script setup>.
+  key: 'nuxflow-public-site',
   headers: useRequestHeaders(['host']),
 })
 

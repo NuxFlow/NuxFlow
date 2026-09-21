@@ -148,6 +148,9 @@ export default defineEventHandler(async (event) => {
   if (serverCode) await putPluginServerCode(event, siteId, body.id, serverCode)
   if (clientCode) await putPluginClientBundle(event, siteId, body.id, clientCode)
 
+  // Installed plugins always start inactive (see enable.post.ts) — so this alone never
+  // flips GET /api/public/site's cached `hasPlugins` flag and needs no purge here; that
+  // flag only changes on enable/disable/delete (each of which purges it themselves).
   await db.insert(dynamicPlugins).values({
     id: body.id,
     siteId,

@@ -8,6 +8,7 @@ import { nuxflowPasswordHasher } from '../../../utils/pw'
 import { created } from '../../../utils/response'
 import { isHttpError } from '../../../utils/errors'
 import { clearSiteCache } from '../../../middleware/02.multi-site'
+import { clearSetupStatusCache } from './status.get'
 import { getTemplateBlocks } from '../../../utils/setup-templates'
 
 const bodySchema = z.object({
@@ -161,6 +162,7 @@ async function _handleSetup(event: H3Event) {
   // succeeded. Every other route that creates/activates a site already clears this
   // (admin/sites/index.post.ts, [id].patch.ts, site-deletion.ts); this was the one gap.
   clearSiteCache(host)
+  clearSetupStatusCache(host)
 
   // Seed initial site settings from setup choices
   await db.insert(siteSettings).values([

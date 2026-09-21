@@ -5,6 +5,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { created } from '../../../utils/response'
 import { redirects } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
+import { clearRedirectCache } from '../../../utils/redirect-cache'
 
 const bodySchema = z.object({
   from: z.string().startsWith('/'),
@@ -29,6 +30,7 @@ export default defineEventHandler(async (event) => {
   })
 
   await batchWithAudit(db, [redirectInsert], auditInsert)
+  clearRedirectCache(siteId)
 
   return created(event, { id })
 })

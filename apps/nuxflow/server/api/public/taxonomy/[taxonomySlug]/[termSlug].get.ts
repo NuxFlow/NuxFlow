@@ -1,4 +1,4 @@
-import { useDb } from '../../../../utils/db'
+import { useReplicaDb } from '../../../../utils/db'
 import { taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getItemsForTerm } from '@nuxflow/db/queries'
@@ -7,7 +7,9 @@ import { withEdgeCache } from '../../../../utils/edge-cache'
 const CACHE_MAX_AGE = 300
 
 export default defineEventHandler(async (event) => {
-  const db = useDb(event)
+  // Anonymous, read-only, already edge-cached — safe to read from a D1 read replica when
+  // one is enabled (see the "D1 read replication" note on useReplicaDb in server/utils/db.ts).
+  const db = useReplicaDb(event)
   const siteId = event.context.siteId as string
   const taxonomySlug = getRouterParam(event, 'taxonomySlug')!
   const termSlug = getRouterParam(event, 'termSlug')!
