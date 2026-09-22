@@ -360,6 +360,8 @@ function copyUrl(url: string) {
 
 <template>
   <div class="space-y-4">
+    <AdminMediaFallbackWarning />
+
     <div class="flex items-center justify-between">
       <h1 class="text-xl font-bold text-gray-900 dark:text-white">Media library</h1>
       <div class="flex items-center gap-2">

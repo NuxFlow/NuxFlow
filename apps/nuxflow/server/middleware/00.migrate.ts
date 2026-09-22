@@ -100,6 +100,29 @@ async function applyMigrations(event: H3Event) {
   const keys = (await storage.getKeys()).filter(k => !k.startsWith('meta:')).sort()
   if (!keys.length) return
 
+  // Fast path: a single read-only SELECT, no lock table touched at all. Every cold
+  // Worker isolate runs this function once (module-level _migrationsDone resets per
+  // isolate — see the top of this file), and in steady state (no new migration files
+  // since the last deploy that already ran) there is nothing to do. Without this check,
+  // every single cold isolate paid the full acquireMigrationLock() dance (CREATE TABLE +
+  // DELETE stale + INSERT lock = 3 round trips) plus another CREATE TABLE + SELECT +
+  // release DELETE below — 5-6 sequential D1 round trips just to conclude "nothing to
+  // do", on the single most latency-sensitive path in the app (it runs before every
+  // other middleware, including the page-cache short-circuit). Confirmed against the
+  // live deployment: cold-isolate requests ran 2-7s versus 76-220ms on a warm isolate.
+  // Only when a migration is genuinely missing (the rare case: a fresh deploy just added
+  // migration files) does this fall through to the real lock-acquire-and-run flow below,
+  // which still fully serializes concurrently cold-starting isolates as before.
+  try {
+    const d1 = getD1(event)
+    const { results } = await d1.prepare('SELECT filename FROM _nuxflow_migrations').all<{ filename: string }>()
+    const applied = new Set(results.map(r => r.filename))
+    if (keys.every(k => applied.has(k))) return
+  } catch {
+    // _nuxflow_migrations doesn't exist yet (fresh install) — fall through to the real
+    // migration flow, which creates it.
+  }
+
   const db = useDb(event)
 
   const acquired = await acquireMigrationLock(db)

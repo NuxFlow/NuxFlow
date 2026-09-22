@@ -135,6 +135,20 @@ NuxFlow runs on Cloudflare Workers, which provides several security properties a
 - **DDoS mitigation** — Cloudflare's network-layer DDoS protection is active by default on all Workers routes at no additional cost.
 - **Secret isolation** — Wrangler secrets (environment variables) are encrypted at rest by Cloudflare and are not accessible via the Workers dashboard or API after being set; they are only decrypted inside the isolate at runtime.
 
+### Recommended zone-level protections (opt-in, not automatic)
+
+The properties above apply automatically to every Workers deployment. The following don't — they're one-time configuration in the Cloudflare dashboard for your domain, not something NuxFlow's code can turn on for you, but worth doing on any production deployment.
+
+Every public domain receives constant automated scanning for common vulnerabilities — requests probing for `/wp-includes/wlwmanifest.xml`, `/xmlrpc.php`, `/.git/config`, `.env`, and similar paths that don't exist on a NuxFlow site but still cost a full request cycle (SSR render + 404 lookup) if they reach the Worker. None of this is NuxFlow-specific; it's internet background noise every domain gets. Left unfiltered, a large enough burst of this traffic landing at once can still meaningfully add to request volume and D1 load during a migration or any other cold-start-sensitive window.
+
+Cloudflare's dashboard was reorganized into a unified **Security** section (replacing the older "Security → Bots" / "Security → WAF" layout some older guides still describe) with two relevant pages: **Settings** (toggle-based, filterable by category) and **Security rules** (for custom rule logic). All three of the following are available on Cloudflare's free plan:
+
+1. **Bot Fight Mode** — dash.cloudflare.com → your domain → **Security → Settings** → filter by **Bot traffic** → toggle **Bot fight mode** on. Targets exactly the scripted/automated traffic described above.
+2. **Cloudflare Managed Ruleset** — **Security → Settings** → filter by **Web application exploits** → toggle **Cloudflare managed ruleset** on → **Save**. Broader signature-based coverage (SQLi, XSS, path traversal) beyond bot detection.
+3. **A custom rule for known scanner paths** — **Security → Security rules** → **Create rule** → **Custom rules**. Field **URI Path**, operator **contains**, value `wp-includes` (add more OR'd conditions for `xmlrpc.php`, `.git`, `.env`), action **Block**, then **Deploy**. Free tier includes 5 custom rules.
+
+All three block matching requests at Cloudflare's edge, before they ever reach the Worker or touch D1 — the strongest defense available, since it's independent of anything the application code does.
+
 ---
 
 ## Responsible Disclosure

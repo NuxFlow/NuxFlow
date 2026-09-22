@@ -64,33 +64,31 @@ async function resetToDefault() {
   }
 }
 
-async function deleteTheme(theme: Theme) {
-  const name = theme.name
-  const id = theme.id
-  const hasDemo = theme.settings?.hasDemoContent === true
-  const { confirm } = useConfirm()
+// A single declarative modal (below), not two sequential useConfirm()-created overlay
+// instances — the previous version opened a second programmatic confirm() the instant
+// the first one's promise resolved, and the second dialog could fail to mount while the
+// first was still tearing down (no console error, no network request — the delete simply
+// never happened, which is exactly what was reported). Every other modal in this file
+// already uses this same declarative v-model:open pattern with no such issue.
+const deleteModalOpen = ref(false)
+const deleteTarget = ref<Theme | null>(null)
+const deleteAlsoDemo = ref(false)
 
-  const confirmedDelete = await confirm({
-    title: `Delete the theme "${name}"?`,
-    description: 'This action cannot be undone.',
-    confirmLabel: 'Delete',
-  })
-  if (!confirmedDelete) return
+function deleteTheme(theme: Theme) {
+  deleteTarget.value = theme
+  deleteAlsoDemo.value = false
+  deleteModalOpen.value = true
+}
 
-  let deleteDemo = false
-  if (hasDemo) {
-    deleteDemo = await confirm({
-      title: 'Also delete demo content?',
-      description: 'This deletes all the demo pages, menus, and forms that were imported with this theme.',
-      confirmLabel: 'Delete demo content',
-      cancelLabel: 'Keep demo content',
-      color: 'warning',
-    })
-  }
+async function confirmDeleteTheme() {
+  const theme = deleteTarget.value
+  if (!theme) return
+  const deleteDemo = deleteAlsoDemo.value
 
-  deletingId.value = id
+  deleteModalOpen.value = false
+  deletingId.value = theme.id
   try {
-    await $fetch(`/api/v1/themes/${id}`, {
+    await $fetch(`/api/v1/themes/${theme.id}`, {
       method: 'DELETE',
       query: { deleteDemo: deleteDemo ? 'true' : 'false' },
     })
@@ -104,6 +102,7 @@ async function deleteTheme(theme: Theme) {
     toast.add({ title: msg, color: 'error' })
   } finally {
     deletingId.value = null
+    deleteTarget.value = null
   }
 }
 
@@ -518,6 +517,35 @@ async function saveCSS() {
           @click="demoOfferThemeId && importDemoContent(demoOfferThemeId)"
         >
           Import demo content
+        </UButton>
+      </template>
+    </UModal>
+
+    <!-- Delete theme confirmation modal -->
+    <UModal
+      v-model:open="deleteModalOpen"
+      :title="`Delete the theme &quot;${deleteTarget?.name}&quot;?`"
+      @update:open="(v) => { if (!v) deleteTarget = null }"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <p class="text-sm text-gray-600 dark:text-gray-400">This action cannot be undone.</p>
+          <UCheckbox
+            v-if="deleteTarget?.settings?.hasDemoContent"
+            v-model="deleteAlsoDemo"
+            label="Also delete demo content"
+            description="Removes the demo pages, menus, and forms that were imported with this theme. Left unchecked, they're kept."
+          />
+        </div>
+      </template>
+      <template #footer>
+        <UButton variant="ghost" color="neutral" @click="deleteModalOpen = false">Cancel</UButton>
+        <UButton
+          color="error"
+          :loading="deletingId === deleteTarget?.id"
+          @click="confirmDeleteTheme"
+        >
+          Delete
         </UButton>
       </template>
     </UModal>

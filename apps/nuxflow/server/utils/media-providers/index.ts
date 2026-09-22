@@ -127,6 +127,13 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
           message: `File too large for the local storage fallback (max ${Math.floor(LOCAL_PROVIDER_MAX_BYTES / 1024)} KB — it's stored as base64 directly in the database with no real provider configured). Configure Cloudflare Images, S3, or Bunny.net in Settings → Media for normal-sized uploads.`,
         })
       }
+      // Loud on purpose — GET /api/v1/media/storage-status (surfaced via
+      // AdminMediaFallbackWarning.vue on the dashboard and media library) already warns
+      // in the UI, but this fallback has no onboarding-time prompt to configure a real
+      // provider (the setup wizard never asks), so an operator relying only on
+      // `wrangler tail`/logs still needs a signal the moment it's actually used, not
+      // just when they happen to open the admin UI.
+      console.warn(`[nuxflow:media] Storing "${file.name}" as base64 in D1 — no real media provider configured. See Settings → Media.`)
       const buf = await file.arrayBuffer()
       const b64 = Buffer.from(buf).toString('base64')
       const url = `data:${file.type};base64,${b64}`

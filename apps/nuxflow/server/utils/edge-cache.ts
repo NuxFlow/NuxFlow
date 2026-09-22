@@ -186,6 +186,17 @@ export async function purgeContentCache(
  * Call sites should route this through `waitUntil` rather than awaiting it inline: it's
  * only triggered by relatively rare admin actions (saving appearance settings, editing a
  * header/footer menu), and there's no reason to make the admin's save wait on it.
+ *
+ * Must purge BOTH cache layers per slug, same as purgeContentCache() above — the
+ * page-cache.ts HTML cache this function was originally written for is what a visitor's
+ * browser actually hits, but that page's own SSR render turns around and fetches
+ * `/api/public/pages/{slug}` (withEdgeCache, 1h TTL), which is a *separate* Cache API
+ * entry this function used to leave untouched. Missing it meant a fresh, correctly-
+ * uncached HTML render could still serve up to an hour of stale content underneath —
+ * confirmed live: a theme reimport's demo-import.post.ts call to this function busted
+ * the HTML cache (no page-cache HIT on the next request) but the homepage kept rendering
+ * the pre-reimport content for the full hour because the JSON it's built from was still
+ * the old cached copy.
  */
 export async function purgeAllPublicPages(event: H3Event, siteId: string): Promise<void> {
   const cf = event.context.cloudflare
@@ -202,5 +213,6 @@ export async function purgeAllPublicPages(event: H3Event, siteId: string): Promi
   })
 
   const pagePaths = rows.map(r => pagePathForSlug(r.slug))
-  await purgeEdgeCache(event, [...new Set(['/', ...pagePaths, ...GLOBAL_CONTENT_CACHE_PATHS])])
+  const jsonPaths = rows.map(r => `/api/public/pages/${r.slug}`)
+  await purgeEdgeCache(event, [...new Set(['/', ...pagePaths, ...jsonPaths, ...GLOBAL_CONTENT_CACHE_PATHS])])
 }

@@ -278,7 +278,9 @@ NuxFlow ships several AI-discoverability features out of the box — no configur
 
 By default — before you configure any provider below — media uploads fall back to storing the file as base64 directly in a D1 column, capped at 512 KB (D1 rows have a hard 1 MB limit, and base64 encoding inflates size by ~33%). This fallback exists so the app works immediately after setup, but it isn't meant for real use: anything you upload over 512 KB is rejected, and this also affects images bundled inside a theme's `demo.json` (see the [Theme Development guide](./development.md#theme-development)) — an oversized theme image fails to upload and shows as broken in the demo content, even though the theme installs fine otherwise.
 
-**Configure one of the providers below before uploading real media or installing a theme with bundled images.**
+**The base64 fallback isn't just "rejects large files" — it silently degrades page load too.** Any image that *does* fit under 512 KB still uploads successfully as a `data:image/...;base64,...` URL, which then gets embedded directly in the page's HTML *and* duplicated into the page's hydration payload every time it's rendered. A handful of ordinary photos this way can turn a normal few-KB page into a multi-megabyte one with no error or warning at upload time — the failure mode isn't "it breaks," it's "it quietly gets slow." If your site's pages feel unexpectedly large or slow to load and you haven't configured a provider below, this is almost certainly why. The admin dashboard and media library both show a warning banner when this fallback is active, but it's easy to miss if you never open them.
+
+**Configure one of the providers below before uploading real media or installing a theme with bundled images.** NuxFlow only ever uses one provider at a time, checked in this priority order: **Cloudflare Images → R2 → S3-compatible → Bunny.net → local (base64) fallback**. The first one with credentials configured wins — configuring more than one doesn't combine them, it just means whichever comes first in this list is the one actually used.
 
 ### Cloudflare Images
 
@@ -302,6 +304,33 @@ wrangler secret put NUXT_CLOUDFLARE_ACCOUNT_ID
 ```
 
 Also set `NUXT_CLOUDFLARE_IMAGES_DELIVERY_URL` if using image resizing variants.
+
+### Cloudflare R2 (native binding — recommended if you're not using Cloudflare Images)
+
+R2 is Cloudflare's own object storage: zero egress fees, no third-party account, and — via the setup below — **no API keys or access credentials to manage at all**. This is the option checked second in the priority order above, right after Cloudflare Images.
+
+This is a *different, simpler* setup than "S3-Compatible Storage" further down this page. That section also lists R2 as an option, but goes through R2's optional S3-compatible API using access keys — useful if you'd rather manage R2 with the same tooling you use for AWS S3, but more setup than you need if R2 alone is enough. Use the native binding below unless you have a specific reason to prefer access-key auth.
+
+1. Create the bucket:
+   ```bash
+   wrangler r2 bucket create nuxflow-media
+   ```
+2. In `apps/nuxflow/wrangler.toml`, uncomment the `[[r2_buckets]]` block (it's already there, commented out, with these exact values) and redeploy:
+   ```toml
+   [[r2_buckets]]
+   binding = "MEDIA_BUCKET"
+   bucket_name = "nuxflow-media"
+   ```
+3. R2 buckets are **private by default** — the binding lets NuxFlow read/write the bucket, but visitors' browsers still need a public URL to actually load an image from it. In the Cloudflare dashboard, go to **R2 → nuxflow-media → Settings → Public access**, and enable either:
+   - the free `pub-<hash>.r2.dev` subdomain, or
+   - a custom domain you control (e.g. `media.yourdomain.com`) — needs its own DNS record, but no `.r2.dev` branding in the URL.
+4. Copy whichever URL you enabled in step 3, and paste it into **Admin → Settings → Media → Cloudflare R2 storage → Public URL** (or set the `NUXT_R2_PUBLIC_URL` env var).
+
+**This "Public URL" field is easy to confuse with two other fields on the same Settings → Media page — they are not interchangeable:**
+- It is **not** the "Images Delivery URL" field in the Cloudflare Images card above — that's for the separate Cloudflare Images product and only matters if you're using that instead of R2.
+- It is **not** the R2 *S3 API endpoint* (`https://<account-id>.r2.cloudflarestorage.com/...`, shown in the R2 dashboard's "S3 API" tab). That endpoint requires authenticated, signed requests for every operation — including reads — so a browser hitting it directly for an `<img src>` gets rejected. It's only relevant if you're using the S3-compatible provider option below instead of this native binding; don't paste it into the R2 card's Public URL field.
+
+Both fields being visible on the same Settings page but requiring completely different values is the single most common source of "I configured a provider but it's still falling back to local storage" — if uploads are still landing as base64 after following the steps above, double check the R2 card's own Public URL field specifically has the value from step 4, not a value copied from a different card.
 
 ### Cloudflare Stream
 
@@ -336,6 +365,8 @@ wrangler secret put NUXT_CLOUDFLARE_STREAM_TOKEN
 Environment variables serve as a fallback when the admin setting is empty, so you can mix approaches — set defaults via env vars and override per-site from the UI.
 
 ### S3-Compatible Storage (AWS S3, Backblaze B2, Cloudflare R2, etc.)
+
+If you're specifically looking to use **R2**, see the [Cloudflare R2 (native binding)](#cloudflare-r2-native-binding--recommended-if-youre-not-using-cloudflare-images) section above first — it needs no access keys at all and is simpler than the access-key-based setup below. Use this S3-compatible option for R2 only if you'd rather manage it the same way as AWS S3/Backblaze B2, via access keys instead of a Worker binding.
 
 To use S3-compatible storage instead of Cloudflare Images:
 1. Create a bucket and credentials in your S3 provider.
