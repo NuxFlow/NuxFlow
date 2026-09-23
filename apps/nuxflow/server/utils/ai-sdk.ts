@@ -65,10 +65,12 @@ function gatewayRequestHeaders(token: string, userId?: string): Record<string, s
 export async function getAiSdkModel(event: H3Event, quality: AiQuality = 'fast', opts: GetAiSdkModelOptions = {}): Promise<LanguageModel | null> {
   // No `ai.provider` setting saved yet (fresh install, or an existing deployment that never
   // configured a BYOK key) falls back to Workers AI rather than a hard 503 — it needs zero
-  // account setup beyond the wrangler.toml binding, which is committed and active by default
-  // (see wrangler.toml), so a Workers Paid plan deployer (already required — see CLAUDE.md)
-  // gets working AI features with no admin action. If the binding genuinely isn't present
-  // (self-hoster on an older wrangler.toml who hasn't redeployed), the workers-ai case below
+  // account setup beyond the `[ai]` wrangler.toml binding (commented out by default —
+  // uncomment before deploying; see CLAUDE.md's "AI providers" section for why it can't
+  // just be active-by-default the way every other binding in that file is), so a Workers
+  // Paid plan deployer (already required — see CLAUDE.md) gets working AI features with no
+  // admin action beyond that one uncomment. If the binding genuinely isn't present (not yet
+  // uncommented, or a self-hoster on an older wrangler.toml), the workers-ai case below
   // returns null exactly as the old unconfigured-provider default did — no regression.
   const provider = (await resolveSetting(event, 'ai.provider', 'aiProvider') as string | undefined) || 'workers-ai'
 

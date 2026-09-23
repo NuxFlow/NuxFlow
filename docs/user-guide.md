@@ -166,7 +166,7 @@ To display events on your website:
 
 ## AI Features
 
-NuxFlow includes AI-powered tools throughout the editor and admin, plus a couple of AI features visitors interact with directly. Every feature below works out of the box on the Workers Paid plan — no third-party API key needed (see [Installation → AI Providers](./installation.md#ai-providers) if you'd rather use OpenAI/Anthropic/Gemini/DeepSeek/a self-hosted Ollama instead, or want to add response caching via AI Gateway).
+NuxFlow includes AI-powered tools throughout the editor and admin, plus a couple of AI features visitors interact with directly. Every feature below runs on Cloudflare Workers AI with no third-party API key or account needed — just one binding to uncomment before your first deploy (see [Installation → AI Providers](./installation.md#ai-providers) for that one step, and for using OpenAI/Anthropic/Gemini/DeepSeek/a self-hosted Ollama instead, or adding response caching via AI Gateway).
 
 ### Writing Assistant
 Available inline while editing a page or post:

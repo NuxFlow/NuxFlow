@@ -119,13 +119,31 @@ name = "EMAIL"
 
 # Workers AI — zero-config AI provider (text generation, image generation via Flux,
 # vision/alt-text, embeddings, transcription, text-to-speech). Unlike every binding above,
-# this needs no external resource created and no id to paste in — just this binding.
-# Included on the Workers Paid plan already required by this project (see CLAUDE.md), with
-# a 10,000-neurons/day free allocation before any billing kicks in. Selected automatically
-# as the default AI provider when no ai.provider setting has been saved — see
-# server/utils/ai-sdk.ts.
-[ai]
-binding = "AI"
+# this needs no external resource created and no id to paste in. Included on the Workers
+# Paid plan already required by this project (see CLAUDE.md), with a 10,000-neurons/day
+# free allocation before any billing kicks in. Selected automatically as the default AI
+# provider when no ai.provider setting has been saved — see server/utils/ai-sdk.ts.
+#
+# Commented out by default, unlike every "just works locally" binding above — Workers AI
+# has NO local simulation at all (confirmed via Cloudflare's own docs: "There is no
+# current local simulation for Workers AI"), so merely *declaring* this binding makes
+# `wrangler dev` try to open a remote-bindings proxy session to the real Cloudflare edge
+# the moment the dev server starts, before any request is even made. That proxy requires
+# real authentication — an interactive `wrangler login` locally, or
+# CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCESS_CLIENT_ID+SECRET in a non-interactive environment
+# like CI — and with neither present, `wrangler dev` fails outright at startup with
+# "Failed to start the remote proxy session", not a graceful missing-binding fallback the
+# way EMAIL/KV/D1/R2 above degrade. This is exactly what broke this project's own E2E CI
+# job (`cp wrangler.toml.example wrangler.toml` copies whatever's active here verbatim)
+# the one time this was left uncommented — don't repeat that.
+#
+# Uncomment before your first real deploy (`wrangler deploy` — a live Worker binds to the
+# real Workers AI service natively, no remote-proxy step involved, none of the above
+# applies). To exercise Workers AI-backed AI features against `wrangler dev` locally,
+# uncomment this AND run `wrangler login` once first; until then, BYOK providers
+# (Settings → AI) are the practical way to test AI features against local dev.
+# [ai]
+# binding = "AI"
 
 # Vectorize (optional) — semantic search and "related content" suggestions, as a
 # supplement to (not a replacement for) the built-in FTS5 keyword search. Unlike the [ai]
