@@ -18,15 +18,15 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.9.1",
-    "citty": "^0.1.6",
+    "citty": "^0.2.2",
     "consola": "^3.4.2",
-    "esbuild": "^0.25.12",
+    "esbuild": "^0.28.2",
     "fflate": "^0.8.3",
-    "fs-extra": "^11.3.5"
+    "fs-extra": "^11.4.0"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
-    "tsx": "^4.22.4",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3"
   }
 }
