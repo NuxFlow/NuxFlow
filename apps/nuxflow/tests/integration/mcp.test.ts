@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
-import { seedSite, seedUser, seedRole, seedContentType } from '../helpers/seed'
+import { seedSite, seedUser, seedRole, seedContentType, seedContentItem } from '../helpers/seed'
 import { contentItems, auditLogs } from '@nuxflow/db/schema'
 import { eq, and } from 'drizzle-orm'
 import mcpHandler from '../../server/api/v1/mcp'
@@ -34,6 +34,7 @@ vi.mock('../../server/utils/rate-limit', () => ({
 
 const SITE = 'site-mcp-01'
 let authorUserId: string
+let pageTypeId: string
 
 type HandlerFn = (e: H3Event) => Promise<unknown>
 
@@ -44,7 +45,7 @@ beforeAll(async () => {
   await seedSite(db, { id: SITE, domain: 'mcp.localhost' })
   authorUserId = await seedUser(db, { email: 'mcp-author@test.com' })
   await seedRole(db, authorUserId, SITE, 'author')
-  await seedContentType(db, SITE, { slug: 'page', name: 'Pages', singularName: 'Page' })
+  pageTypeId = await seedContentType(db, SITE, { slug: 'page', name: 'Pages', singularName: 'Page' })
 })
 
 afterAll(teardownTestDb)
@@ -218,5 +219,71 @@ describe('POST /api/v1/mcp — unknown/mismatched sessionId', () => {
       where: eq(contentItems.slug, 'should-not-exist'),
     })
     expect(item).toBeUndefined()
+  })
+})
+
+// search_content falls back to FTS5 keyword search whenever Vectorize isn't configured
+// (see embeddings.ts's semanticSearch, which returns null in that case) — no Vectorize
+// binding exists in this test's mock event, so this exercises the real fallback path
+// against the real search_index table (kept in sync by SQLite triggers — see search.test.ts).
+describe('POST /api/v1/mcp — search_content tool', () => {
+  it('finds a published item by keyword via the FTS5 fallback', async () => {
+    const db = getCurrentTestDb()
+    await seedContentItem(db, SITE, pageTypeId, {
+      title: 'Growing Tomatoes on the Edge',
+      excerpt: 'A guide to greenhouse cultivation.',
+      status: 'published',
+      visibility: 'public',
+    })
+
+    const event = mkMcpEvent({
+      body: {
+        jsonrpc: '2.0',
+        id: 10,
+        method: 'tools/call',
+        params: { name: 'search_content', arguments: { query: 'tomatoes' } },
+      },
+    })
+
+    const response = await (mcpHandler as HandlerFn)(event) as {
+      result: { content: { type: string; text: string }[] }
+    }
+
+    expect(response.result.content[0].text).toContain('Growing Tomatoes on the Edge')
+  })
+
+  it('returns a clear "no matching content" message rather than an empty/ambiguous result', async () => {
+    const event = mkMcpEvent({
+      body: {
+        jsonrpc: '2.0',
+        id: 11,
+        method: 'tools/call',
+        params: { name: 'search_content', arguments: { query: 'zzz-no-such-term-zzz' } },
+      },
+    })
+
+    const response = await (mcpHandler as HandlerFn)(event) as {
+      result: { content: { type: string; text: string }[] }
+    }
+
+    expect(response.result.content[0].text).toBe('No matching content found.')
+  })
+
+  it('is rejected without the read:content scope', async () => {
+    const event = mkMcpEvent({
+      apiKeyScopes: ['write:content'],
+      body: {
+        jsonrpc: '2.0',
+        id: 12,
+        method: 'tools/call',
+        params: { name: 'search_content', arguments: { query: 'tomatoes' } },
+      },
+    })
+
+    const response = await (mcpHandler as HandlerFn)(event) as {
+      result: { content: { type: string; text: string }[] }
+    }
+
+    expect(response.result.content[0].text).toContain('read:content')
   })
 })

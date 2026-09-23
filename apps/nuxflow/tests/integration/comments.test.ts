@@ -21,6 +21,13 @@ vi.mock('../../server/utils/rate-limit', () => ({
   rateLimit: (...args: unknown[]) => rateLimitMock(...args),
 }))
 
+// moderateText() itself is tested directly in moderation.test.ts — mocked here so these
+// tests control its verdict without needing a real (or fully-mocked) AI provider chain.
+const mockModerateText = vi.fn().mockResolvedValue(null)
+vi.mock('../../server/utils/moderation', () => ({
+  moderateText: (...args: unknown[]) => mockModerateText(...args),
+}))
+
 const { default: listHandler } = await import('../../server/api/v1/comments/index.get')
 const { default: patchHandler } = await import('../../server/api/v1/comments/[id].patch')
 const { default: deleteHandler } = await import('../../server/api/v1/comments/[id].delete')
@@ -243,5 +250,81 @@ describe('POST /api/v1/content/:id/comments', () => {
 
     const result = await (postHandler as Handler)(event) as { id: string; status: string }
     expect(result.status).toBe('pending')
+  })
+})
+
+// AI moderation runs in the background (waitUntil — fire-and-forget in this test
+// environment, same as bulk-alt-text.post.ts), so these poll for the eventual DB update
+// rather than asserting on the handler's own (synchronous, pre-moderation) return value.
+async function waitFor(predicate: () => Promise<boolean> | boolean, timeoutMs = 2000, intervalMs = 10): Promise<void> {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await predicate()) return
+    await new Promise(resolve => setTimeout(resolve, intervalMs))
+  }
+  throw new Error(`waitFor: condition not met within ${timeoutMs}ms`)
+}
+
+describe('POST /api/v1/content/:id/comments — AI moderation', () => {
+  it('auto-flags a guest comment as spam when the AI model flags it', async () => {
+    mockModerateText.mockResolvedValueOnce({ flagged: true, reason: 'Link spam' })
+    const db = getCurrentTestDb()
+
+    const event = createMockEvent({
+      siteId: SITE,
+      session: null,
+      params: { id: itemId },
+      body: { body: 'Buy cheap watches: bit.ly/xyz', guestName: 'Spammer', guestEmail: 'spam@example.com' },
+    }) as unknown as H3Event
+
+    const result = await (postHandler as Handler)(event) as { id: string; status: string }
+    // The synchronous response still reflects the pre-moderation status — moderation
+    // hasn't run yet at this point, only been scheduled.
+    expect(result.status).toBe('pending')
+
+    await waitFor(async () => {
+      const row = await db.query.comments.findFirst({ where: eq(comments.id, result.id) })
+      return row?.status === 'spam'
+    })
+  })
+
+  it('leaves a comment pending when the AI model does not flag it', async () => {
+    mockModerateText.mockResolvedValueOnce({ flagged: false, reason: '' })
+    const db = getCurrentTestDb()
+
+    const event = createMockEvent({
+      siteId: SITE,
+      session: null,
+      params: { id: itemId },
+      body: { body: 'Really enjoyed this post, thanks!', guestName: 'Reader', guestEmail: 'reader@example.com' },
+    }) as unknown as H3Event
+
+    const result = await (postHandler as Handler)(event) as { id: string; status: string }
+
+    await waitFor(async () => {
+      expect(mockModerateText).toHaveBeenCalled()
+      return true
+    })
+
+    const row = await db.query.comments.findFirst({ where: eq(comments.id, result.id) })
+    expect(row?.status).toBe('pending')
+  })
+
+  it('never calls moderateText for an already-approved (site member) comment', async () => {
+    mockModerateText.mockClear()
+    const event = createMockEvent({
+      siteId: SITE,
+      session: { user: { id: editorId, name: 'Editor', email: 'editor@comments.test' } },
+      params: { id: itemId },
+      body: { body: 'Posted by a trusted member' },
+    }) as unknown as H3Event
+
+    const result = await (postHandler as Handler)(event) as { id: string; status: string }
+    expect(result.status).toBe('approved')
+
+    // Give any (wrongly-scheduled) background call a moment to have fired, then confirm
+    // it didn't.
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(mockModerateText).not.toHaveBeenCalled()
   })
 })

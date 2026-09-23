@@ -22,6 +22,13 @@ vi.mock('../../server/utils/rate-limit', () => ({
   rateLimit: vi.fn().mockResolvedValue(undefined),
 }))
 
+// moderateText() itself is tested directly in moderation.test.ts — mocked here so the
+// dedicated AI-moderation describe block below can control its verdict.
+const mockModerateText = vi.fn().mockResolvedValue(null)
+vi.mock('../../server/utils/moderation', () => ({
+  moderateText: (...args: unknown[]) => mockModerateText(...args),
+}))
+
 const { default: listHandler } = await import('../../server/api/v1/forms/index.get')
 const { default: createHandler } = await import('../../server/api/v1/forms/index.post')
 const { default: getHandler } = await import('../../server/api/v1/forms/[formIdentifier]/index.get')
@@ -203,6 +210,58 @@ describe('POST /api/v1/forms/:formIdentifier/submit (public)', () => {
   it('throws 404 for a nonexistent form', async () => {
     const event = publicEvent({ params: { formIdentifier: 'does-not-exist' }, body: { data: {} }, ip: '198.51.100.33' })
     await expect((submitHandler as Handler)(event)).rejects.toMatchObject({ statusCode: 404 })
+  })
+})
+
+// AI moderation runs in the background (waitUntil — fire-and-forget in this test
+// environment), so these poll for the eventual DB update rather than the handler's own
+// (synchronous, pre-moderation) return value. Same pattern as comments.test.ts.
+async function waitFor(predicate: () => Promise<boolean> | boolean, timeoutMs = 2000, intervalMs = 10): Promise<void> {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await predicate()) return
+    await new Promise(resolve => setTimeout(resolve, intervalMs))
+  }
+  throw new Error(`waitFor: condition not met within ${timeoutMs}ms`)
+}
+
+describe('POST /api/v1/forms/:formIdentifier/submit — AI moderation', () => {
+  it('auto-flags a submission as spam when the AI model flags it', async () => {
+    mockModerateText.mockResolvedValueOnce({ flagged: true, reason: 'Promotional link spam' })
+    const { id, slug } = await seedForm({ status: 'active' })
+    const db = getCurrentTestDb()
+
+    const event = publicEvent({
+      params: { formIdentifier: slug },
+      body: { data: { fullName: 'Spammer', email: 'spam@example.com' } },
+      ip: '198.51.100.50',
+    })
+    await (submitHandler as Handler)(event)
+
+    await waitFor(async () => {
+      const submission = await db.query.formSubmissions.findFirst({ where: eq(formSubmissions.formId, id) })
+      return submission?.status === 'spam'
+    })
+  })
+
+  it('leaves a submission status "new" when the AI model does not flag it', async () => {
+    mockModerateText.mockResolvedValueOnce({ flagged: false, reason: '' })
+    const { id, slug } = await seedForm({ status: 'active' })
+    const db = getCurrentTestDb()
+
+    const event = publicEvent({
+      params: { formIdentifier: slug },
+      body: { data: { fullName: 'Genuine Person', email: 'genuine@example.com' } },
+      ip: '198.51.100.51',
+    })
+    await (submitHandler as Handler)(event)
+
+    await waitFor(() => mockModerateText.mock.calls.length > 0)
+
+    const submission = await db.query.formSubmissions.findFirst({
+      where: (t, { eq: eqOp, and: andOp }) => andOp(eqOp(t.formId, id), eqOp(t.status, 'new')),
+    })
+    expect(submission).toBeDefined()
   })
 })
 

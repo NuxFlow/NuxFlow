@@ -205,7 +205,7 @@ describe('PATCH /api/v1/settings (end-to-end multi-section save)', () => {
       body: {
         name: 'Renamed Site',
         settings: { 'site.tagline': 'A route-level tagline' },
-        ai: { provider: 'anthropic', anthropicApiKey: 'sk-ant-route' },
+        ai: { provider: 'anthropic', anthropicApiKey: 'sk-ant-route', gatewayId: 'my-gateway', gatewayToken: 'cf-token-route' },
         media: { r2PublicUrl: 'https://media.example.com' },
         auth: { googleClientId: 'google-client-id-route' },
       },
@@ -218,6 +218,11 @@ describe('PATCH /api/v1/settings (end-to-end multi-section save)', () => {
     expect(await resolveSetting(resolveEvent, 'site.tagline')).toBe('A route-level tagline')
     expect(await resolveSetting(resolveEvent, 'ai.provider')).toBe('anthropic')
     expect(await resolveSetting(resolveEvent, 'ai.anthropic_api_key')).toBe('sk-ant-route')
+    // AI Gateway settings — gatewayId is a plain identifier (not sensitive); gatewayToken
+    // is a Cloudflare API token and must round-trip through the same AES-GCM
+    // encrypt-at-rest path every other sensitive setting (API keys, webhook secrets) uses.
+    expect(await resolveSetting(resolveEvent, 'ai.gateway_id')).toBe('my-gateway')
+    expect(await resolveSetting(resolveEvent, 'ai.gateway_token')).toBe('cf-token-route')
     expect(await resolveSetting(resolveEvent, 'media.r2_public_url')).toBe('https://media.example.com')
     expect(await resolveSetting(resolveEvent, 'auth.google_client_id')).toBe('google-client-id-route')
 

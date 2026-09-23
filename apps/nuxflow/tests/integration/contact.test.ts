@@ -22,6 +22,13 @@ vi.mock('../../server/utils/rate-limit', () => ({
   rateLimit: (...args: unknown[]) => rateLimitMock(...args),
 }))
 
+// moderateText() itself is tested directly in moderation.test.ts — mocked here so the
+// dedicated AI-moderation test below can control its verdict.
+const mockModerateText = vi.fn().mockResolvedValue(null)
+vi.mock('../../server/utils/moderation', () => ({
+  moderateText: (...args: unknown[]) => mockModerateText(...args),
+}))
+
 const { default: submitHandler } = await import('../../server/api/v1/contact/submit.post')
 const { default: submissionsHandler } = await import('../../server/api/v1/contact/submissions.get')
 const { default: submissionPatchHandler } = await import('../../server/api/v1/contact/submissions/[id].patch')
@@ -135,6 +142,30 @@ describe('POST /api/v1/contact/submit', () => {
       expect.anything(),
       expect.objectContaining({ limit: 5, keyPrefix: 'contact-submit' }),
     )
+  })
+
+  it('auto-flags a submission as spam when the AI moderation model flags it', async () => {
+    mockModerateText.mockResolvedValueOnce({ flagged: true, reason: 'Scam message' })
+    const db = getCurrentTestDb()
+
+    await (submitHandler as Handler)(publicEvent({
+      name: 'Scammer', email: 'scammer@example.com', message: 'Wire me money urgently',
+    }, '203.0.113.66'))
+
+    // Background (waitUntil, fire-and-forget in this test environment) — poll for the
+    // eventual DB update rather than the handler's own synchronous return value. Filtered
+    // by email (not "most recent by createdAt") since SQLite's datetime('now') only has
+    // second-level resolution — several other submissions in this file can tie on
+    // createdAt with this one, making ordering-based lookup unreliable.
+    const startedAt = Date.now()
+    let submission: { status: string; data: unknown } | undefined
+    while (Date.now() - startedAt < 2000) {
+      const all = await db.query.formSubmissions.findMany({ where: eq(formSubmissions.siteId, SITE) })
+      submission = all.find(s => (s.data as Record<string, unknown>).email === 'scammer@example.com')
+      if (submission?.status === 'spam') break
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    expect(submission?.status).toBe('spam')
   })
 })
 

@@ -15,7 +15,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { eq, and } from 'drizzle-orm'
-import { media, auditLogs } from '@nuxflow/db/schema'
+import { media, auditLogs, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
+import { ulid } from 'ulid'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedMedia } from '../helpers/seed'
@@ -24,6 +25,10 @@ import altTextHandler from '../../server/api/v1/ai/alt-text.post'
 import improveHandler from '../../server/api/v1/ai/improve.post'
 import bulkAltTextHandler from '../../server/api/v1/ai/bulk-alt-text.post'
 import generateContentHandler from '../../server/api/v1/ai/generate-content.post'
+import readabilityHandler from '../../server/api/v1/ai/readability.post'
+import suggestTermsHandler from '../../server/api/v1/ai/suggest-terms.post'
+import suggestFocalPointHandler from '../../server/api/v1/ai/suggest-focal-point.post'
+import generateCanvasHandler from '../../server/api/v1/ai/generate-canvas.post'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -454,5 +459,247 @@ describe('POST /api/v1/ai/generate-content', () => {
         mkEvent({ description: 'Write about something interesting', tone: 'friendly', format: 'howto' }),
       ),
     ).rejects.toMatchObject({ statusCode: 403 })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/ai/generate-canvas
+//
+// A thin route now — its actual block-generation logic lives in
+// server/utils/canvas-generation.ts, shared with (and more thoroughly exercised by)
+// the job-queue flow in ai-generate-jobs.test.ts. These are route-contract tests only:
+// auth/validation/error shape, not a re-test of generateCanvasBlocks() itself.
+// ---------------------------------------------------------------------------
+
+describe('POST /api/v1/ai/generate-canvas', () => {
+  it('returns 503 when no AI model is configured', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(null)
+    await expect(
+      (generateCanvasHandler as HandlerFn)(mkEditorEvent({ description: 'A landing page for a coffee shop' })),
+    ).rejects.toMatchObject({ statusCode: 503 })
+  })
+
+  it('rejects an author-role caller — requires editor or above', async () => {
+    await expect(
+      (generateCanvasHandler as HandlerFn)(mkEvent({ description: 'A landing page for a coffee shop' })),
+    ).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('returns a validation error when description is too short', async () => {
+    await expect(
+      (generateCanvasHandler as HandlerFn)(mkEditorEvent({ description: 'Hi' })),
+    ).rejects.toThrow()
+  })
+
+  it('returns the generated canvas blocks with server-assigned ULIDs', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockResolvedValueOnce({
+      object: { blocks: [{ type: 'canvas-hero', props: { headline: 'Welcome' } }] },
+    })
+
+    const result = await (generateCanvasHandler as HandlerFn)(
+      mkEditorEvent({ description: 'A landing page for a coffee shop', tone: 'friendly', pageGoal: 'landing' }),
+    ) as { type: string; blocks: { id: string; type: string }[] }
+
+    expect(result.type).toBe('canvas')
+    expect(result.blocks).toHaveLength(1)
+    expect(result.blocks[0].type).toBe('canvas-hero')
+    expect(typeof result.blocks[0].id).toBe('string')
+    expect(result.blocks[0].id.length).toBeGreaterThan(0)
+  })
+
+  it('requests the "smart" quality tier', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockResolvedValueOnce({ object: { blocks: [{ type: 'canvas-text', props: {} }] } })
+
+    await (generateCanvasHandler as HandlerFn)(mkEditorEvent({ description: 'A landing page for a coffee shop' }))
+
+    expect(mockGetAiSdkModel).toHaveBeenCalledWith(expect.anything(), 'smart', expect.objectContaining({ userId: editorId }))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/ai/readability
+// ---------------------------------------------------------------------------
+
+describe('POST /api/v1/ai/readability', () => {
+  it('returns 503 when no AI model is configured', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(null)
+    await expect(
+      (readabilityHandler as HandlerFn)(mkEditorEvent({ html: '<p>Some text.</p>' })),
+    ).rejects.toMatchObject({ statusCode: 503 })
+  })
+
+  it('returns a default 100/N-A result without calling the model when the stripped text is empty', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+
+    const result = await (readabilityHandler as HandlerFn)(
+      mkEditorEvent({ html: '<img src="x.png"><br>' }),
+    ) as { score: number; gradeLevel: string; issues: unknown[] }
+
+    expect(result.score).toBe(100)
+    expect(result.gradeLevel).toBe('N/A')
+    expect(result.issues).toEqual([])
+    expect(mockGenerateObject).not.toHaveBeenCalled()
+  })
+
+  it('returns the schema-validated readability object from the AI response', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockResolvedValueOnce({
+      object: {
+        score: 42,
+        gradeLevel: 'College',
+        issues: [{ type: 'long_sentence', excerpt: 'A very long sentence...', suggestion: 'Split it up.' }],
+        summary: 'Moderately difficult to read.',
+      },
+    })
+
+    const result = await (readabilityHandler as HandlerFn)(
+      mkEditorEvent({ html: '<p>Some genuinely long and complex prose about many things at once.</p>' }),
+    ) as { score: number; gradeLevel: string }
+
+    expect(result.score).toBe(42)
+    expect(result.gradeLevel).toBe('College')
+  })
+
+  it('strips HTML tags before sending text to the model', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockResolvedValueOnce({
+      object: { score: 90, gradeLevel: '5th grade', issues: [], summary: 'Easy to read.' },
+    })
+
+    await (readabilityHandler as HandlerFn)(mkEditorEvent({ html: '<p>Hello <strong>world</strong>.</p>' }))
+
+    const [callArgs] = mockGenerateObject.mock.calls.at(-1) as [Record<string, unknown>]
+    expect(callArgs.prompt as string).not.toContain('<p>')
+    expect(callArgs.prompt as string).not.toContain('<strong>')
+    // stripHtml() replaces each tag with a space (not deleted outright), so adjacent tags
+    // leave a space behind — "Hello world ." not "Hello world." — harmless for an AI
+    // prompt, but worth asserting the actual shape rather than an idealized one.
+    expect(callArgs.prompt as string).toMatch(/Hello world\s*\./)
+  })
+
+  it('returns 502 when the AI SDK throws', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockRejectedValueOnce(new Error('Provider error'))
+    await expect(
+      (readabilityHandler as HandlerFn)(mkEditorEvent({ html: '<p>Some text to analyze.</p>' })),
+    ).rejects.toMatchObject({ statusCode: 502 })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/ai/suggest-terms
+// ---------------------------------------------------------------------------
+
+describe('POST /api/v1/ai/suggest-terms', () => {
+  it('returns 503 when no AI model is configured', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(null)
+    await expect(
+      (suggestTermsHandler as HandlerFn)(mkEditorEvent({ title: 'A post about gardening' })),
+    ).rejects.toMatchObject({ statusCode: 503 })
+  })
+
+  it('returns empty results without calling the model when the site has no taxonomies yet', async () => {
+    const db = getCurrentTestDb()
+    const emptySite = `site-ai-no-tax-${ulid()}`
+    await seedSite(db, { id: emptySite, domain: `${emptySite}.localhost` })
+    const emptyEditorId = await seedUser(db, { email: `editor-${emptySite}@test.com` })
+    await seedRole(db, emptyEditorId, emptySite, 'editor')
+
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+
+    const event = createMockEvent({
+      siteId: emptySite,
+      session: { user: { id: emptyEditorId, name: 'Editor', email: 'editor@test.com' } },
+      body: { title: 'A post about gardening' },
+    }) as unknown as H3Event
+
+    const result = await (suggestTermsHandler as HandlerFn)(event) as { matchedTerms: unknown[]; newTermSuggestions: unknown[] }
+    expect(result.matchedTerms).toEqual([])
+    expect(result.newTermSuggestions).toEqual([])
+    expect(mockGenerateObject).not.toHaveBeenCalled()
+  })
+
+  it('maps matchedIndexes back to real term rows, ignoring any out-of-range index', async () => {
+    const db = getCurrentTestDb()
+    const taxId = ulid()
+    await db.insert(taxonomies).values({ id: taxId, siteId: SITE, slug: 'topics', name: 'Topics' })
+    const term1 = ulid()
+    const term2 = ulid()
+    await db.insert(taxonomyTerms).values([
+      { id: term1, taxonomyId: taxId, slug: 'gardening', name: 'Gardening' },
+      { id: term2, taxonomyId: taxId, slug: 'cooking', name: 'Cooking' },
+    ])
+
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockResolvedValueOnce({
+      object: {
+        // index 0 = gardening (the real first candidate), 99 = out of range and must be
+        // silently dropped rather than crashing or fabricating a term.
+        matchedIndexes: [0, 99],
+        newTermSuggestions: [{ taxonomySlug: 'topics', name: 'Composting' }],
+      },
+    })
+
+    const result = await (suggestTermsHandler as HandlerFn)(
+      mkEditorEvent({ title: 'How to grow tomatoes' }),
+    ) as { matchedTerms: { id: string; name: string; taxonomySlug: string }[]; newTermSuggestions: unknown[] }
+
+    expect(result.matchedTerms).toEqual([{ id: term1, name: 'Gardening', taxonomySlug: 'topics' }])
+    expect(result.newTermSuggestions).toEqual([{ taxonomySlug: 'topics', name: 'Composting' }])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/ai/suggest-focal-point
+// ---------------------------------------------------------------------------
+
+describe('POST /api/v1/ai/suggest-focal-point', () => {
+  it('returns 503 when no AI model is configured', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(null)
+    await expect(
+      (suggestFocalPointHandler as HandlerFn)(mkEditorEvent({ mediaId })),
+    ).rejects.toMatchObject({ statusCode: 503 })
+  })
+
+  it('returns 404 when the media item does not exist', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    await expect(
+      (suggestFocalPointHandler as HandlerFn)(mkEditorEvent({ mediaId: 'nonexistent-media-id-00000' })),
+    ).rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  it('returns 422 for a non-image media item', async () => {
+    const db = getCurrentTestDb()
+    const docId = await seedMedia(db, SITE, { originalName: 'brochure.pdf', mimeType: 'application/pdf' })
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+
+    await expect(
+      (suggestFocalPointHandler as HandlerFn)(mkEditorEvent({ mediaId: docId })),
+    ).rejects.toMatchObject({ statusCode: 422 })
+  })
+
+  it('returns the schema-validated focal point from the vision model', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockLoadImageBytesForAi.mockResolvedValueOnce({ data: new Uint8Array([1, 2, 3]), mediaType: 'image/jpeg' })
+    mockGenerateObject.mockResolvedValueOnce({
+      object: { x: 0.3, y: 0.4, reasoning: 'Face is in the upper-left third of the frame.' },
+    })
+
+    const result = await (suggestFocalPointHandler as HandlerFn)(mkEditorEvent({ mediaId })) as { x: number; y: number }
+
+    expect(result.x).toBe(0.3)
+    expect(result.y).toBe(0.4)
+  })
+
+  it('requests the "vision" quality tier, not "fast"', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockLoadImageBytesForAi.mockResolvedValueOnce({ data: new Uint8Array([1, 2, 3]), mediaType: 'image/jpeg' })
+    mockGenerateObject.mockResolvedValueOnce({ object: { x: 0.5, y: 0.5, reasoning: 'Center.' } })
+
+    await (suggestFocalPointHandler as HandlerFn)(mkEditorEvent({ mediaId }))
+
+    expect(mockGetAiSdkModel).toHaveBeenCalledWith(expect.anything(), 'vision', expect.objectContaining({ userId: editorId }))
   })
 })

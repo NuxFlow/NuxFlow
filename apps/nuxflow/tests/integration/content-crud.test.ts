@@ -27,6 +27,16 @@ vi.mock('../../server/utils/webpush', () => ({
   broadcastPushToSite: vi.fn().mockResolvedValue(undefined),
 }))
 
+// upsertContentEmbedding()/deleteContentEmbedding() are tested directly (and in more
+// depth) in embeddings.test.ts — mocked here purely to verify the three content routes
+// actually call them with the right arguments (the wiring, not the embedding logic itself).
+const mockUpsertContentEmbedding = vi.fn().mockResolvedValue(undefined)
+const mockDeleteContentEmbedding = vi.fn().mockResolvedValue(undefined)
+vi.mock('../../server/utils/embeddings', () => ({
+  upsertContentEmbedding: (...args: unknown[]) => mockUpsertContentEmbedding(...args),
+  deleteContentEmbedding: (...args: unknown[]) => mockDeleteContentEmbedding(...args),
+}))
+
 const SITE = 'site-crud-01'
 let authorId: string
 let editorId: string
@@ -331,5 +341,62 @@ describe('DELETE /api/v1/content/[id]', () => {
     }) as unknown as H3Event
 
     await expect((deleteHandler as HandlerFn)(event)).rejects.toMatchObject({ statusCode: 404 })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Vectorize embedding sync wiring — see embeddings.test.ts for upsertContentEmbedding's
+// own logic; these confirm the three content routes actually call it (and with what).
+// ---------------------------------------------------------------------------
+
+describe('content routes — embedding sync wiring', () => {
+  it('POST calls upsertContentEmbedding with the new item\'s id, title, and status', async () => {
+    mockUpsertContentEmbedding.mockClear()
+    const event = mkCreateEvent(
+      { title: 'Embedding Wiring Post', slug: 'embedding-wiring-post', typeSlug: 'post', status: 'published' },
+      'editor',
+    )
+    const result = await (createHandler as HandlerFn)(event) as { id: string }
+
+    expect(mockUpsertContentEmbedding).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ contentItemId: result.id, siteId: SITE, title: 'Embedding Wiring Post', status: 'published' }),
+    )
+  })
+
+  it('PATCH calls upsertContentEmbedding with the fully-merged state, not just the changed fields', async () => {
+    const db = getCurrentTestDb()
+    const id = await seedContentItem(db, SITE, typeId, {
+      slug: 'patch-embedding-target',
+      title: 'Original Title',
+      excerpt: 'Original excerpt',
+      status: 'published',
+      visibility: 'public',
+    })
+    mockUpsertContentEmbedding.mockClear()
+
+    // Only status is changed in this PATCH — title/excerpt are untouched and must still
+    // be passed through from the existing row, not treated as blank.
+    await (patchHandler as HandlerFn)(mkPatchEvent({ status: 'draft' }, id, 'editor'))
+
+    expect(mockUpsertContentEmbedding).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        contentItemId: id,
+        title: 'Original Title',
+        excerpt: 'Original excerpt',
+        status: 'draft',
+      }),
+    )
+  })
+
+  it('DELETE calls deleteContentEmbedding with the deleted item\'s id', async () => {
+    const db = getCurrentTestDb()
+    const id = await seedContentItem(db, SITE, typeId, { slug: 'delete-embedding-target', title: 'To Delete' })
+    mockDeleteContentEmbedding.mockClear()
+
+    await (deleteHandler as HandlerFn)(mkDeleteEvent(id, 'editor'))
+
+    expect(mockDeleteContentEmbedding).toHaveBeenCalledWith(expect.anything(), id)
   })
 })
