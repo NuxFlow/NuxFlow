@@ -23,11 +23,11 @@ const seoSchema = z.object({
 const SYSTEM = `You are an SEO expert. Generate an SEO title (max 60 characters) and meta description (max 160 characters) for the given content.`
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'editor')
+  const { userId } = await requireRole(event, 'editor')
   // Single generateObject call, same order of magnitude as grammar.post.ts/
   // generate-content.post.ts (both 15/min) — this route previously had no rate limit at all.
   await rateLimit(event, { limit: 15, windowMs: 60_000, keyPrefix: 'ai-seo' })
-  const model = await requireAiSdkModel(event, 'fast')
+  const model = await requireAiSdkModel(event, 'fast', { userId })
 
   const { title, body } = await parseBody(event, bodySchema)
   const prompt = `Generate an SEO title and meta description for this content:\nTitle: ${title}\n${body ? `Content: ${body.slice(0, 2000)}` : ''}`

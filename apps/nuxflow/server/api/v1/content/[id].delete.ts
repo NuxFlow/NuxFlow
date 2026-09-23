@@ -6,6 +6,8 @@ import { contentItems } from '@nuxflow/db/schema'
 import { scopedById } from '../../../utils/db-helpers'
 import { purgeContentCache } from '../../../utils/edge-cache'
 import { getContentItemTerms } from '@nuxflow/db/queries'
+import { waitUntil } from '../../../utils/cf-env'
+import { deleteContentEmbedding } from '../../../utils/embeddings'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
@@ -32,6 +34,8 @@ export default defineEventHandler(async (event) => {
     slugs: [existing.slug],
     taxonomyTerms: terms.map(t => ({ taxonomySlug: t.taxonomySlug, termSlug: t.termSlug })),
   })
+
+  waitUntil(event, deleteContentEmbedding(event, id))
 
   return noContent(event)
 })

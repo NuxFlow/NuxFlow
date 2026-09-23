@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
   // uses 15/min) even though each individual invocation is comparatively cheap.
   await rateLimit(event, { limit: 5, windowMs: 60_000, keyPrefix: 'ai-bulk-alt-text' })
 
-  const model = await requireAiSdkModel(event, 'fast')
+  const model = await requireAiSdkModel(event, 'vision', { userId })
 
   const { mediaIds } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string

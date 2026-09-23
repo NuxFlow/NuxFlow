@@ -66,3 +66,21 @@ export function getAnalyticsEngine(event: H3Event): AnalyticsEngineDataset | nul
 export function getEmailBinding(event: H3Event): SendEmail | null {
   return (event?.context?.cloudflare?.env?.EMAIL as SendEmail | undefined) ?? null
 }
+
+/**
+ * Workers AI binding — no API key, no account setup beyond declaring the binding in
+ * wrangler.toml. See server/utils/ai-sdk.ts's `workers-ai` provider branch and
+ * server/utils/image-providers/workers-ai.ts.
+ */
+export function getWorkersAiBinding(event: H3Event): Ai | null {
+  return (event?.context?.cloudflare?.env?.AI as Ai | undefined) ?? null
+}
+
+/**
+ * Vectorize index binding for semantic search / RAG embeddings. Null when the site hasn't
+ * provisioned a Vectorize index (it's opt-in — see wrangler.toml.example) — every caller
+ * treats null as "semantic search unavailable, fall back to FTS5 only" rather than throwing.
+ */
+export function getVectorizeIndex(event: H3Event): VectorizeIndex | null {
+  return (event?.context?.cloudflare?.env?.VECTORIZE as VectorizeIndex | undefined) ?? null
+}

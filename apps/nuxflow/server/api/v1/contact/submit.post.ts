@@ -11,6 +11,7 @@ import { resolveSetting } from '../../../utils/settings'
 import { created } from '../../../utils/response'
 import { sendNotification } from '../../../utils/notify'
 import { waitUntil } from '../../../utils/cf-env'
+import { moderateText } from '../../../utils/moderation'
 
 const CONTACT_SLUG = 'contact'
 
@@ -61,9 +62,10 @@ export default defineEventHandler(async (event) => {
 
   const db = useDb(event)
   const formId = await getOrCreateContactForm(db, siteId)
+  const submissionId = ulid()
 
   await db.insert(formSubmissions).values({
-    id: ulid(),
+    id: submissionId,
     formId,
     siteId,
     data: {
@@ -76,6 +78,14 @@ export default defineEventHandler(async (event) => {
     userAgent: getHeader(event, 'user-agent') ?? null,
     status: 'new',
   })
+
+  // Best-effort AI spam check, same reasoning as forms/[formIdentifier]/submit.post.ts.
+  waitUntil(event, (async () => {
+    const result = await moderateText(event, `${body.subject ?? ''}\n${body.message}`)
+    if (result?.flagged) {
+      await db.update(formSubmissions).set({ status: 'spam' }).where(and(eq(formSubmissions.id, submissionId), eq(formSubmissions.siteId, siteId)))
+    }
+  })())
 
   // Best-effort email notification
   try {

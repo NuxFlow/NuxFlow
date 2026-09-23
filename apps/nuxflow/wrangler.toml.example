@@ -41,8 +41,9 @@ cpu_ms = 300000
 # NUXT_BUNNY_STORAGE_ZONE =
 # NUXT_BUNNY_PULL_ZONE =
 #
-# AI provider: openai | anthropic | gemini | deepseek | ollama — also configurable
-# per-site in Settings → AI, which takes priority over these.
+# AI provider: workers-ai | openai | anthropic | gemini | deepseek | ollama — also
+# configurable per-site in Settings → AI, which takes priority over these. workers-ai is
+# the zero-config default (see the [ai] binding below) and needs no key.
 # NUXT_AI_PROVIDER =
 # NUXT_OPENAI_API_KEY =
 # NUXT_ANTHROPIC_API_KEY =
@@ -115,3 +116,25 @@ database_id = "your-d1-database-id"
 # service instead of failing with a binding-not-found error.
 [[send_email]]
 name = "EMAIL"
+
+# Workers AI — zero-config AI provider (text generation, image generation via Flux,
+# vision/alt-text, embeddings, transcription, text-to-speech). Unlike every binding above,
+# this needs no external resource created and no id to paste in — just this binding.
+# Included on the Workers Paid plan already required by this project (see CLAUDE.md), with
+# a 10,000-neurons/day free allocation before any billing kicks in. Selected automatically
+# as the default AI provider when no ai.provider setting has been saved — see
+# server/utils/ai-sdk.ts.
+[ai]
+binding = "AI"
+
+# Vectorize (optional) — semantic search and "related content" suggestions, as a
+# supplement to (not a replacement for) the built-in FTS5 keyword search. Unlike the [ai]
+# binding above, this needs a real index created first, with dimensions matching the
+# embedding model in server/utils/embeddings.ts (@cf/baai/bge-base-en-v1.5, 768-dim):
+#   wrangler vectorize create nuxflow-content --dimensions=768 --metric=cosine
+# Then uncomment below. Dimensions/metric are immutable after creation — changing the
+# embedding model later means recreating the index and re-saving every content item to
+# regenerate its vector.
+# [[vectorize]]
+# binding = "VECTORIZE"
+# index_name = "nuxflow-content"

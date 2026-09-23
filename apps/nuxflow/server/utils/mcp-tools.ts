@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { z } from 'zod'
-import { and, eq, desc } from 'drizzle-orm'
+import { and, eq, desc, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import type { Db } from './db'
 import { contentItems } from '@nuxflow/db/schema'
@@ -8,6 +8,7 @@ import { roleAtLeast, hasApiKeyScope, type Role, type ApiKeyScope } from './perm
 import { getContentItem, getContentTypeBySlug } from './content-queries'
 import { scopedById } from './db-helpers'
 import { writeAuditLog } from './audit'
+import { semanticSearch } from './embeddings'
 
 // Tool implementations for the MCP server (server/api/v1/mcp.ts). Extracted out of that
 // file so it stays protocol/session plumbing (SSE handshake, JSON-RPC dispatch) while the
@@ -76,6 +77,11 @@ const updateContentArgsSchema = z.object({
 
 const deleteContentArgsSchema = z.object({
   id: z.string().min(1),
+})
+
+const searchContentArgsSchema = z.object({
+  query: z.string().min(1).max(500),
+  limit: z.coerce.number().int().positive().optional(),
 })
 
 interface McpToolDefinition {
@@ -151,6 +157,18 @@ export const MCP_TOOLS: Record<string, McpToolDefinition> = {
         id: { type: 'string', description: 'The unique 26-character ULID of the content item to delete' },
       },
       required: ['id'],
+    },
+  },
+  search_content: {
+    description: 'Search this site\'s published content by natural-language topic or keyword. Prefer this over list_content when you don\'t already know the exact type/slug and want to find relevant pages or posts by what they\'re about — it grounds answers in the site\'s own real content instead of guessing. Uses semantic (vector) search when the site has it configured, and falls back to keyword search otherwise.',
+    scope: 'read:content',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Natural-language search query' },
+        limit: { type: 'number', description: 'Maximum number of results to return (default: 10)' },
+      },
+      required: ['query'],
     },
   },
 }
@@ -341,6 +359,37 @@ async function deleteContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   return textResult(`Success: Content item ${id} has been permanently deleted.`)
 }
 
+async function searchContent(args: unknown, ctx: McpToolContext): Promise<McpToolResult> {
+  const parsed = searchContentArgsSchema.safeParse(args)
+  if (!parsed.success) {
+    return textResult(`Error: ${parsed.error.issues.map(i => i.message).join('; ')}`)
+  }
+  const { query } = parsed.data
+  const limit = Math.min(parsed.data.limit ?? 10, 20)
+
+  const semantic = await semanticSearch(ctx.event, ctx.siteId, query, limit)
+  if (semantic !== null) {
+    if (!semantic.length) return textResult('No matching content found.')
+    return textResult(JSON.stringify(semantic.map(m => ({ id: m.contentItemId, title: m.title, score: m.score })), null, 2))
+  }
+
+  // No Vectorize index configured on this deployment — fall back to FTS5 keyword search
+  // over the same published/public corpus (see search.get.ts), so this tool always works
+  // regardless of whether the site has set up semantic search.
+  const safe = query.replace(/[^a-z0-9 ]/gi, '') + '*'
+  const rawResults = await ctx.db.run(sql`
+    SELECT content_item_id, title
+    FROM search_index
+    WHERE search_index MATCH ${safe} AND site_id = ${ctx.siteId}
+    ORDER BY rank
+    LIMIT ${limit}
+  `)
+  const raw = rawResults as unknown as { rows?: unknown[]; results?: unknown[] }
+  const rows = (raw.rows ?? raw.results ?? []) as Record<string, unknown>[]
+  if (!rows.length) return textResult('No matching content found.')
+  return textResult(JSON.stringify(rows.map(r => ({ id: r.content_item_id, title: r.title })), null, 2))
+}
+
 /**
  * Dispatches a `tools/call` request to the named tool's implementation, after checking
  * the calling API key's declared scope covers what the tool needs (a ceiling on top of
@@ -365,6 +414,7 @@ export async function callTool(name: string, args: unknown, ctx: McpToolContext)
     case 'create_content': return createContent(args, ctx)
     case 'update_content': return updateContent(args, ctx)
     case 'delete_content': return deleteContent(args, ctx)
+    case 'search_content': return searchContent(args, ctx)
     default: return textResult(`Error: Unknown tool "${name}"`)
   }
 }

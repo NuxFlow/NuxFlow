@@ -19,12 +19,41 @@ interface SearchResponse {
   results: SearchResult[]
 }
 
+interface SemanticResult { id: string; title: string; score: number; slug: string | null }
+interface SemanticResponse { available: boolean; results: SemanticResult[] }
+
 const { data, pending, error, execute } = await useLazyFetch<SearchResponse>('/api/v1/search', {
   query: computed(() => ({ q: query.value })),
   immediate: !!route.query.q,
 })
 
 useSeoMeta({ title: computed(() => query.value ? `Search: ${query.value}` : 'Search') })
+
+// Semantic search is a supplement, not a replacement (see CLAUDE.md's Search section) —
+// only tried as a fallback when keyword search comes up empty, rather than always running
+// both in parallel for every query (most searches match keywords fine and don't need it).
+const semanticResults = ref<SemanticResult[]>([])
+const semanticPending = ref(false)
+
+async function fetchSemanticFallback() {
+  semanticResults.value = []
+  if (!query.value) return
+  semanticPending.value = true
+  try {
+    const res = await $fetch<SemanticResponse>('/api/v1/search/semantic', { query: { q: query.value } })
+    if (res.available) semanticResults.value = res.results
+  } catch {
+    // Silent — this is a best-effort fallback on top of the primary search above, which
+    // already has its own error state.
+  } finally {
+    semanticPending.value = false
+  }
+}
+
+watch(data, (d) => {
+  if (d && d.results.length === 0 && query.value) fetchSemanticFallback()
+  else semanticResults.value = []
+})
 
 function search() {
   router.replace({ query: query.value ? { q: query.value } : {} })
@@ -54,9 +83,23 @@ function search() {
     </p>
 
     <div v-if="data && !pending">
-      <p v-if="data.results.length === 0 && query" class="text-gray-400 text-sm">
-        No results for <strong>{{ query }}</strong>.
-      </p>
+      <template v-if="data.results.length === 0 && query">
+        <p class="text-gray-400 text-sm mb-6">
+          No exact matches for <strong>{{ query }}</strong>.
+        </p>
+
+        <div v-if="semanticPending" class="text-sm text-gray-400">Looking for related content…</div>
+        <template v-else-if="semanticResults.length">
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">You might be looking for</p>
+          <ul class="space-y-4">
+            <li v-for="result in semanticResults" :key="result.id">
+              <NuxtLink v-if="result.slug" :to="`/${result.slug}`" class="text-sm font-medium text-gray-900 dark:text-white hover:text-primary-500 transition-colors">
+                {{ result.title }}
+              </NuxtLink>
+            </li>
+          </ul>
+        </template>
+      </template>
 
       <ul v-else-if="data.results.length > 0" class="space-y-6">
         <li

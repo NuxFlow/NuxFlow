@@ -7,7 +7,10 @@ import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { getCommentByIdOrThrow } from '../../../../utils/resource-queries'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { isSiteMemberForSession } from '../../../../utils/permissions'
+import { waitUntil } from '../../../../utils/cf-env'
+import { moderateText } from '../../../../utils/moderation'
 import { comments } from '@nuxflow/db/schema'
+import { and, eq } from 'drizzle-orm'
 
 const bodySchema = z.object({
   guestName: z.string().min(1).max(100).optional(),
@@ -85,6 +88,17 @@ export default defineEventHandler(async (event) => {
     : null
 
   await batchWithAudit(db, [commentInsert], auditInsert)
+
+  // Only bother AI-checking comments that already need human review — an approved member
+  // comment skips this entirely (trusted account, no reason to spend a model call on it).
+  if (status === 'pending') {
+    waitUntil(event, (async () => {
+      const result = await moderateText(event, parsed.body)
+      if (result?.flagged) {
+        await db.update(comments).set({ status: 'spam' }).where(and(eq(comments.id, id), eq(comments.siteId, siteId)))
+      }
+    })())
+  }
 
   return created(event, { id, status })
 })

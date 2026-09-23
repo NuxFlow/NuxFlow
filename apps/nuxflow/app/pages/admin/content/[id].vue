@@ -116,6 +116,11 @@ function switchToTipTap() {
   form.content = modeBackup.tiptap ?? { ...EMPTY_DOC }
 }
 
+// Readability check (SeoPanel) needs rendered HTML — only meaningful for a TipTap prose
+// body; a Canvas page has no single HTML body to score, so this stays undefined for it and
+// SeoPanel hides the readability card entirely (see its `v-if="bodyHtml"`).
+const bodyHtml = computed(() => editorMode.value === 'tiptap' ? renderTipTap(form.content) : undefined)
+
 useHead({ title: computed(() => form.title || (isNew.value ? 'New page' : 'Edit page')) })
 
 // Auto-generate slug from title on new items
@@ -355,6 +360,7 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
           :title="form.title"
           :slug="form.slug"
           :content-id="isNew ? undefined : id"
+          :body-html="bodyHtml"
           @update:model-value="v => {
             form.seoTitle = v.seoTitle ?? ''
             form.seoDescription = v.seoDescription ?? ''

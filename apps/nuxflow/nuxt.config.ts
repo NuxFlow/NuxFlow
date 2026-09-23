@@ -68,8 +68,9 @@ export default defineNuxtConfig({
       // are safe to include unconditionally — NUXT_IS_DEMO is a runtime [vars] entry in
       // wrangler.demo.toml and is NOT available as process.env during the build step.
       '* * * * *': ['publish-scheduled', 'demo-reset'],
-      // Nightly at 3 AM UTC — prune old data; demo instances also wipe and reseed.
-      '0 3 * * *': ['prune-old-data', 'demo-nightly-reset'],
+      // Nightly at 3 AM UTC — prune old data; demo instances also wipe and reseed; flag
+      // long-untouched published content for its author to review.
+      '0 3 * * *': ['prune-old-data', 'demo-nightly-reset', 'stale-content-scan'],
       // Hourly — sweep video_assets rows stuck at status:'processing' (a failed/never-
       // completed Cloudflare Stream upload) past a 2-hour TTL and mark them 'failed'.
       '0 * * * *': ['reconcile-stuck-videos'],
@@ -158,6 +159,7 @@ export default defineNuxtConfig({
     // Data retention — configurable via env vars; sensible defaults for most deployments
     auditLogRetentionDays: 90,   // NUXT_AUDIT_LOG_RETENTION_DAYS
     revisionRetentionCount: 20,  // NUXT_REVISION_RETENTION_COUNT
+    staleContentDays: 180,       // NUXT_STALE_CONTENT_DAYS — server/scheduled/stale-content-scan.ts
     public: {
       siteUrl: '',
       cloudflareImagesDeliveryUrl: '',

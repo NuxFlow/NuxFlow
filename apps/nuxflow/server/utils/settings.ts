@@ -42,6 +42,10 @@ export const SENSITIVE_SETTING_KEYS = new Set([
   'ai.anthropic_api_key',
   'ai.gemini_api_key',
   'ai.deepseek_api_key',
+  // AI Gateway auth token — a Cloudflare API token, exactly as sensitive as the provider
+  // API keys above. Empty/unset means an unauthenticated gateway, which is a valid,
+  // simpler setup for a single-operator site (see gatewayRequestHeaders() in ai-sdk.ts).
+  'ai.gateway_token',
   'push.vapid_private_key',
   'cloudflare.stream_token',
   'cloudflare.images_token',

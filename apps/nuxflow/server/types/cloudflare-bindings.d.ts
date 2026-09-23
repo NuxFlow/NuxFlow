@@ -15,6 +15,10 @@ export interface NuxFlowCloudflareEnv {
   EMAIL?: SendEmail
   /** Optional R2 bucket for the native media storage provider (server/utils/media-providers/r2.ts). */
   MEDIA_BUCKET?: R2Bucket
+  /** Optional Workers AI binding — zero-config AI provider (server/utils/cf-env.ts's getWorkersAiBinding). */
+  AI?: Ai
+  /** Optional Vectorize index for semantic search / RAG embeddings (server/utils/cf-env.ts's getVectorizeIndex). */
+  VECTORIZE?: VectorizeIndex
   [key: string]: unknown
 }
 

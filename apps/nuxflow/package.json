@@ -51,6 +51,7 @@
     "reflect-metadata": "^0.2.2",
     "stripe": "^22.6.0",
     "ulid": "^3.0.2",
+    "workers-ai-provider": "^4.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -11,12 +11,12 @@ const bodySchema = z.object({ mediaId: z.string() })
 const SYSTEM = `You are an accessibility expert. Write concise, descriptive alt text for an image. Return ONLY the alt text string, no quotes, no explanation.`
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'editor')
+  const { userId } = await requireRole(event, 'editor')
   // Single-image vision call — same order of magnitude as the other single-call AI routes
   // (grammar.post.ts, generate-content.post.ts both use 15/min); this one costs real
   // provider tokens/money per call and previously had no rate limit at all.
   await rateLimit(event, { limit: 15, windowMs: 60_000, keyPrefix: 'ai-alt-text' })
-  const model = await requireAiSdkModel(event, 'fast')
+  const model = await requireAiSdkModel(event, 'vision', { userId })
 
   const { mediaId } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string

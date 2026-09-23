@@ -27,6 +27,8 @@ const bodySchema = z.object({
     deepseekApiKey: z.string().optional(),
     ollamaBaseUrl: z.string().optional(),
     ollamaModel: z.string().optional(),
+    gatewayId: z.string().optional(),
+    gatewayToken: z.string().optional(),
   }).optional(),
   // Cloudflare media settings
   cloudflare: z.object({
@@ -101,6 +103,8 @@ export default defineEventHandler(async (event) => {
     if (ai.deepseekApiKey !== undefined) settingEntries.push(['ai.deepseek_api_key', ai.deepseekApiKey])
     if (ai.ollamaBaseUrl !== undefined) settingEntries.push(['ai.ollama_base_url', ai.ollamaBaseUrl])
     if (ai.ollamaModel !== undefined) settingEntries.push(['ai.ollama_model', ai.ollamaModel])
+    if (ai.gatewayId !== undefined) settingEntries.push(['ai.gateway_id', ai.gatewayId])
+    if (ai.gatewayToken !== undefined) settingEntries.push(['ai.gateway_token', ai.gatewayToken])
   }
 
   if (body.cloudflare) {

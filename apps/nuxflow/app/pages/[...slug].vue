@@ -157,6 +157,33 @@ const isCanvasPage = computed(() => {
   return typeof c === 'object' && c !== null && (c as { type: string }).type === 'canvas'
 })
 
+// "Listen to this article" — generates audio on demand (see api/public/listen/[slug].post.ts)
+// rather than pre-fetching on every page load, since most visitors never click it and each
+// click costs a real Workers AI TTS call.
+const listenAudioUrl = ref<string | null>(null)
+const listenLoading = ref(false)
+const listenError = ref(false)
+
+async function listenToArticle() {
+  if (listenAudioUrl.value || listenLoading.value || !page.value) return
+  listenLoading.value = true
+  listenError.value = false
+  try {
+    const res = await fetch(`/api/public/listen/${page.value.slug}`, { method: 'POST' })
+    if (!res.ok) throw new Error(`Request failed (${res.status})`)
+    const blob = await res.blob()
+    listenAudioUrl.value = URL.createObjectURL(blob)
+  } catch {
+    listenError.value = true
+  } finally {
+    listenLoading.value = false
+  }
+}
+
+onBeforeUnmount(() => {
+  if (listenAudioUrl.value) URL.revokeObjectURL(listenAudioUrl.value)
+})
+
 const formattedDate = computed(() => {
   if (!page.value?.publishedAt) return null
   // timeZone: 'UTC' pins this to the same calendar date on both the Worker (which runs
@@ -212,6 +239,22 @@ const formattedDate = computed(() => {
           </template>
           <span v-if="page.author && formattedDate" class="text-gray-300 dark:text-gray-600">·</span>
           <time v-if="formattedDate">{{ formattedDate }}</time>
+        </div>
+
+        <!-- Listen to this article (AI text-to-speech) -->
+        <div class="mb-8">
+          <audio v-if="listenAudioUrl" :src="listenAudioUrl" controls class="w-full max-w-sm" />
+          <UButton
+            v-else
+            size="sm"
+            variant="soft"
+            :icon="listenLoading ? undefined : 'i-lucide-headphones'"
+            :loading="listenLoading"
+            @click="listenToArticle"
+          >
+            Listen to this article
+          </UButton>
+          <p v-if="listenError" class="text-xs text-red-500 mt-1">Couldn't generate audio for this article.</p>
         </div>
 
         <NuxBlock :content="page.content" />

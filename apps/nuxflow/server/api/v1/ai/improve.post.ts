@@ -22,10 +22,10 @@ const alternativesSchema = z.object({
 const SYSTEM = `You are a helpful writing assistant. Generate exactly 3 alternative versions of the given text.`
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'editor')
+  const { userId } = await requireRole(event, 'editor')
   await rateLimit(event, { limit: 20, windowMs: 60_000, keyPrefix: 'ai' })
 
-  const model = await requireAiSdkModel(event, 'fast')
+  const model = await requireAiSdkModel(event, 'fast', { userId })
 
   const { text, instruction } = await parseBody(event, bodySchema)
 

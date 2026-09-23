@@ -10,6 +10,8 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { getFormBySlugOrThrow } from '../../../../utils/resource-queries'
 import { created } from '../../../../utils/response'
+import { waitUntil } from '../../../../utils/cf-env'
+import { moderateText } from '../../../../utils/moderation'
 
 interface FormNotificationsConfig {
   enabled?: boolean
@@ -86,6 +88,17 @@ export default defineEventHandler(async (event) => {
     userAgent: getHeader(event, 'user-agent') ?? null,
     status: 'new',
   })
+
+  // Best-effort AI spam check, same reasoning as comments.post.ts — a supplementary
+  // content-based filter on top of the Turnstile check already performed above, since
+  // Turnstile only proves "a real browser submitted this," not "this content isn't spam."
+  waitUntil(event, (async () => {
+    const text = Object.values(body.data).map(v => String(v)).join('\n')
+    const result = await moderateText(event, text)
+    if (result?.flagged) {
+      await db.update(formSubmissions).set({ status: 'spam' }).where(and(eq(formSubmissions.id, id), eq(formSubmissions.siteId, siteId)))
+    }
+  })())
 
   // Best-effort admin notification email — mirrors the contact form's own
   // notification logic (server/api/v1/contact/submit.post.ts). The form's

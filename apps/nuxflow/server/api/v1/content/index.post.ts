@@ -5,6 +5,8 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getContentTypeBySlugOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
 import { created, conflict } from '../../../utils/response'
 import { purgeContentCache } from '../../../utils/edge-cache'
+import { waitUntil } from '../../../utils/cf-env'
+import { upsertContentEmbedding } from '../../../utils/embeddings'
 import { contentItems, sites } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -85,6 +87,15 @@ export default defineEventHandler(async (event) => {
   // A brand-new slug can't already be cached, but the site-wide views (blog index,
   // sitemaps, feeds) that could now list it might be — purge those.
   await purgeContentCache(event, { slugs: [body.slug] })
+
+  waitUntil(event, upsertContentEmbedding(event, {
+    contentItemId: id,
+    siteId,
+    title: body.title,
+    seoDescription: body.seoDescription,
+    status: body.status,
+    visibility: deriveVisibilityFromSettings(body.settings),
+  }))
 
   return created(event, { id })
 })

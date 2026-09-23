@@ -133,7 +133,7 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   await rateLimit(event, { limit: 5, windowMs: 60_000, keyPrefix: 'ai-translate' })
 
-  const model = await requireAiSdkModel(event, 'smart')
+  const model = await requireAiSdkModel(event, 'smart', { userId })
 
   const { contentItemId, targetLocale, targetSlugSuffix } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string

@@ -3,6 +3,7 @@ import { generateText } from 'ai'
 import { requireRole } from '../../../utils/permissions'
 import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
+import { semanticSearch } from '../../../utils/embeddings'
 
 const bodySchema = z.object({
   description: z.string().min(5).max(500),
@@ -28,14 +29,25 @@ const FORMAT_INSTRUCTIONS: Record<string, string> = {
 }
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'editor')
+  const { userId } = await requireRole(event, 'editor')
   await rateLimit(event, { limit: 15, windowMs: 60_000, keyPrefix: 'ai-content' })
 
-  const model = await requireAiSdkModel(event, 'fast')
+  const model = await requireAiSdkModel(event, 'fast', { userId })
 
   const { description, tone, format } = await parseBody(event, bodySchema)
 
-  const prompt = `Write ${tone} content about: "${description}". ${FORMAT_INSTRUCTIONS[format]}`
+  // Best-effort grounding in the site's own existing content (when Vectorize is configured
+  // — semanticSearch returns null otherwise and this is silently skipped) so generated
+  // copy doesn't blindly duplicate a page that already exists on the same topic. This is
+  // deliberately lightweight (titles only, not full text) — enough to steer the model away
+  // from an obvious duplicate without spending tokens re-grounding every generation in full
+  // page bodies.
+  const related = await semanticSearch(event, event.context.siteId as string, description, 3)
+  const groundingNote = related?.length
+    ? `\n\nFor context, this site already has related content titled: ${related.map(r => `"${r.title}"`).join(', ')}. Write new, non-duplicate content — don't just restate these.`
+    : ''
+
+  const prompt = `Write ${tone} content about: "${description}". ${FORMAT_INSTRUCTIONS[format]}${groundingNote}`
 
   const { text } = await callAiOrThrow(() =>
     generateText({

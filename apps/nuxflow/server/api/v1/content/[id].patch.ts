@@ -12,6 +12,7 @@ import { scopedById } from '../../../utils/db-helpers'
 import { purgeContentCache } from '../../../utils/edge-cache'
 import { getContentItemTerms } from '@nuxflow/db/queries'
 import { waitUntil } from '../../../utils/cf-env'
+import { upsertContentEmbedding } from '../../../utils/embeddings'
 import type { BatchItem } from 'drizzle-orm/batch'
 
 const bodySchema = z.object({
@@ -126,6 +127,19 @@ export default defineEventHandler(async (event) => {
     slugs: [existing.slug, updateFields.slug].filter((s): s is string => Boolean(s)),
     taxonomyTerms: terms.map(t => ({ taxonomySlug: t.taxonomySlug, termSlug: t.termSlug })),
   })
+
+  // Re-embed with the fully-merged state (fields not touched by this PATCH keep their
+  // existing value) — not just updateFields, which would otherwise treat every untouched
+  // field as blank and silently regress a previously-good embedding.
+  waitUntil(event, upsertContentEmbedding(event, {
+    contentItemId: id,
+    siteId,
+    title: updateFields.title ?? existing.title,
+    excerpt: updateFields.excerpt !== undefined ? updateFields.excerpt : existing.excerpt,
+    seoDescription: updateFields.seoDescription ?? existing.seoDescription,
+    status: updateFields.status ?? existing.status,
+    visibility: visibility !== undefined ? visibility : existing.visibility,
+  }))
 
   // Push broadcast when content is first published
   const isFirstPublish = updateFields.status === 'published' && existing.status !== 'published'

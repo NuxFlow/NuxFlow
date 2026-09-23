@@ -11,6 +11,9 @@ const props = defineProps<{
   title?: string
   slug?: string
   contentId?: string
+  /** Rendered HTML of the page body, for the readability check below. Canvas pages (no
+   * single HTML body) omit this — the readability card hides itself when absent. */
+  bodyHtml?: string
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [value: typeof props.modelValue] }>()
@@ -103,6 +106,36 @@ const metaRobotsSelectValue = computed({
   get: () => local.metaRobots || ROBOTS_DEFAULT,
   set: (v: string) => { local.metaRobots = v === ROBOTS_DEFAULT ? '' : v },
 })
+
+interface ReadabilityIssue { type: string; excerpt: string; suggestion: string }
+interface ReadabilityResult { score: number; gradeLevel: string; issues: ReadabilityIssue[]; summary: string }
+
+const readabilityLoading = ref(false)
+const readability = ref<ReadabilityResult | null>(null)
+
+async function checkReadability() {
+  if (!props.bodyHtml) return
+  readabilityLoading.value = true
+  readability.value = null
+  try {
+    readability.value = await $fetch<ReadabilityResult>('/api/v1/ai/readability', {
+      method: 'POST',
+      body: { html: props.bodyHtml },
+    })
+  } catch (e: unknown) {
+    const msg = getErrorMessage(e, 'Failed to check readability')
+    toast.add({ title: msg, color: 'error' })
+  } finally {
+    readabilityLoading.value = false
+  }
+}
+
+const readabilityColor = computed(() => {
+  const score = readability.value?.score ?? 0
+  if (score >= 60) return 'text-green-600 dark:text-green-400'
+  if (score >= 30) return 'text-amber-500'
+  return 'text-red-500'
+})
 </script>
 
 <template>
@@ -178,6 +211,28 @@ const metaRobotsSelectValue = computed({
       <UFormField label="Content access" hint="Who can view this content">
         <USelect v-model="local.access" :items="accessOptions" />
       </UFormField>
+
+      <div v-if="bodyHtml" class="pt-2 border-t border-gray-100 dark:border-gray-800">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Readability</p>
+          <UButton size="xs" variant="ghost" icon="i-lucide-sparkles" :loading="readabilityLoading" @click="checkReadability">
+            AI check
+          </UButton>
+        </div>
+        <div v-if="readability" class="space-y-2 text-sm">
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-bold" :class="readabilityColor">{{ readability.score }}</span>
+            <span class="text-xs text-gray-500">/ 100 · {{ readability.gradeLevel }}</span>
+          </div>
+          <p class="text-xs text-gray-500">{{ readability.summary }}</p>
+          <ul v-if="readability.issues.length" class="space-y-2">
+            <li v-for="(issue, i) in readability.issues" :key="i" class="text-xs bg-gray-50 dark:bg-gray-900 rounded-md p-2">
+              <p class="text-gray-400 italic truncate">"{{ issue.excerpt }}"</p>
+              <p class="text-gray-700 dark:text-gray-300 mt-0.5">{{ issue.suggestion }}</p>
+            </li>
+          </ul>
+        </div>
+      </div>
     </div>
   </UCard>
 </template>

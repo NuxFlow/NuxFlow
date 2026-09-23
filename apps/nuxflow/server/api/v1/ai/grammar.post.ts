@@ -26,10 +26,10 @@ For each issue found:
 Only flag genuine issues. Return an empty corrections array if the text is already well-written.`
 
 export default defineEventHandler(async (event) => {
-  await requireRole(event, 'editor')
+  const { userId } = await requireRole(event, 'editor')
   await rateLimit(event, { limit: 15, windowMs: 60_000, keyPrefix: 'ai-grammar' })
 
-  const model = await requireAiSdkModel(event, 'fast')
+  const model = await requireAiSdkModel(event, 'fast', { userId })
 
   const { text } = await parseBody(event, bodySchema)
 
