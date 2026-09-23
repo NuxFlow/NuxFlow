@@ -64,63 +64,6 @@ When the feature is ready to implement, the remaining work is:
 
 ---
 
-## AI Page & Site Generation
-
-### Vision
-
-An editor describes a page or entire site in plain language — "a landing page for a SaaS product called Flux, dark theme, hero, three-column features, pricing table, FAQ, CTA, and footer" — and NuxFlow generates a fully-populated canvas page (or multiple linked pages) ready to publish or fine-tune.
-
-For site generation, the flow is two-step: the AI first returns a **plan** (list of pages with titles, slugs, and descriptions) that the editor approves, then generates each page in parallel. The editor can accept the whole site, cherry-pick pages, or regenerate individual ones.
-
-### Why this is valuable
-
-- **Speed**: A complete multi-page site in under a minute instead of hours of dragging blocks.
-- **Zero blank-page anxiety**: Even a rough AI draft is a better starting point than an empty canvas.
-- **Block-aware output**: Because the AI is given the full `CanvasBlockDefinition` schema — field names, types, enums, and default values — it generates structured JSON that maps directly to real canvas blocks, not generic HTML that needs reformatting.
-- **Provider-agnostic**: The existing `getAiSdkModel(event, 'smart')` abstraction supports five providers out of the box (OpenAI, Anthropic, Gemini, DeepSeek, Ollama). Whichever provider the site owner has configured will be used with no extra wiring.
-
-### Groundwork already in place
-
-**`ai_generation_jobs` table**
-
-(Present since `packages/db/migrations/0000_baseline.sql` — earlier revisions of this doc cited migration `0005`, which is stale after a schema-history squash.)
-
-Multi-page site generation takes 30–60 seconds and involves multiple AI calls. Storing the job server-side means:
-
-- The browser tab can be closed and the generation still completes.
-- The editor can poll `/api/v1/ai/generate/:jobId` for progress without resubmitting the prompt.
-- Completed jobs persist as a history (Admin → AI Generations) so editors can revisit or re-apply past generations.
-- `generatedCount` / `totalCount` provide a progress percentage for the UI.
-- `contentItemIds` records which content items were created so the editor can navigate directly to them or undo the whole generation in one action.
-
-**Canvas block definitions already typed for AI prompts**
-
-`CANVAS_BLOCKS` in `packages/canvas/src/blocks/definitions.ts` is a fully-typed `CanvasBlockDefinition[]` array describing every built-in block: its `id`, `name`, `description`, field keys, field types, enum options, and default props. This is exactly what an AI system prompt needs to generate valid block JSON — no separate schema document to maintain.
-
-**Content stored as JSON (always the case)**
-
-The `content` column on `content_items` is unstructured JSON. Canvas pages already store an array of `{ id, type, props }` objects. The AI just needs to produce the same shape — no schema migration required.
-
-**ULIDs (always in place)**
-
-Each generated block can receive a client-generated ULID as its `id` before being written to the database, so no sequential-ID round-trips are needed during batch generation.
-
-### What still needs to be built
-
-1. **`POST /api/v1/ai/generate`** — accepts a prompt and `type: 'page' | 'site'`, creates an `ai_generation_jobs` row, kicks off the AI call, and returns the job ID immediately.
-2. **`GET /api/v1/ai/generate/:jobId`** — poll endpoint returning job status, plan, progress, and content item IDs on completion.
-3. **AI prompting utility** — a server util that serialises `CANVAS_BLOCKS` (just `id`, `name`, `description`, and field metadata, not the Vue component refs) into an AI system prompt and uses JSON schema / tool-use mode for structured output.
-4. **Two-phase site generation** — first call produces a plan (array of page stubs); second call (after user approval) generates block JSON for each page, updating `generatedCount` as each completes.
-5. **Admin UI** — a modal in the canvas editor ("Generate page…") and a page in Admin → Content ("Generate site…") with a text area, a plan-review step for site generation, and a progress bar.
-6. **Unsplash / placeholder image integration** — image blocks are left with empty `src` fields by default; a future enhancement could suggest Unsplash search terms alongside each image block.
-
-### What was explicitly ruled out (for now)
-
-- **Streaming to the browser during generation**: Complex to implement correctly with the Cloudflare Workers streaming constraints. The poll pattern above is simpler and covers all browsers without SSE edge-case handling.
-- **RAG / existing content context**: Injecting the site's existing pages into the AI prompt to maintain tone and style would significantly improve output quality, but adds complexity (context window size, chunking). Left for a v2 of the feature.
-
----
-
 ## Cloudflare Analytics Engine
 
 ### Vision
@@ -185,45 +128,7 @@ Then deploy. Page views start recording immediately. No code changes, no migrati
 
 ---
 
-## Cloudflare AI Platform Integration
-
-### Vision
-
-NuxFlow already has a working, provider-agnostic AI abstraction (`getAiSdkModel(event, quality)` in `server/utils/ai-sdk.ts`, supporting OpenAI/Anthropic/Gemini/DeepSeek/Ollama). Cloudflare's own edge-AI platform — Workers AI, AI Gateway, Vectorize, Workflows, and Browser Rendering — can sit alongside that abstraction rather than replace it, giving self-hosters a true zero-third-party-account path and giving every deployment (regardless of provider) shared benefits like prompt caching and per-user spend tracking.
-
-None of the five pieces below are implemented yet — this section exists so the reasoning isn't lost before they're prioritized.
-
-### 1. Workers AI (`env.AI`) as a zero-config provider
-
-**What**: Add `workers-ai` as a sixth option in `ai-sdk.ts` alongside the existing five providers, using `@cf/meta/llama-3.3-70b-instruct` (or similar) for text (grammar, SEO, translation) and `@cf/black-forest-labs/flux-1-schnell` for image generation.
-
-**Why valuable**: Every other provider requires the site owner to bring their own API key. Workers AI runs on the same Cloudflare account already hosting the site — a deployer on the Workers Paid plan gets working AI features with zero extra signup, which matters a lot for the "self-hosted CMS" pitch.
-
-**Groundwork already in place**: `getAiSdkModel()`'s provider-switch shape and the `null`-when-unavailable contract (callers already throw 503 on `null`) is exactly the interface a new provider branch needs — this is additive, not a redesign.
-
-**What still needs to be built**: a `workers-ai` branch in `getAiSdkModel()` using the AI SDK's Workers AI provider, an `env.AI` binding accessor in `cf-env.ts` (matching the existing `getCfBindings`/`getAnalyticsEngine` pattern), and a settings UI option alongside the existing provider dropdown.
-
-### 2. Cloudflare AI Gateway in front of every provider
-
-**What**: Route all AI SDK calls (Workers AI and third-party) through an AI Gateway endpoint instead of hitting provider APIs directly.
-
-**Why valuable**: Free per-prompt caching (identical prompts served with zero latency and zero provider cost), automatic retry/fallback across providers, and centralized spend/usage analytics — all without changing any call site, since it's a base-URL change in `ai-sdk.ts`.
-
-**Identity-aware spend tracking**: AI Gateway supports arbitrary metadata on each request. Passing the authenticated `userId` (from `requireAuth`/`requireRole`, already resolved in every AI route) as gateway metadata means per-user token spend becomes visible in the Cloudflare dashboard, and a compromised or abusive account can be identified and blocked at the AI routes' existing `requireRole(event, 'editor')` gate without waiting on provider-side usage reports.
-
-**What still needs to be built**: an AI Gateway id/token site setting (same `resolveSetting()` DB-first/env-fallback pattern as every other credential), rewriting each provider's base URL through the gateway prefix in `ai-sdk.ts`, and passing `userId` as gateway metadata on each call.
-
-### 3. Vectorize + Workers AI embeddings for semantic search / RAG
-
-**What**: Generate embeddings (`@cf/baai/bge-large-en-v1.5`) for content on publish/update, store them in a Vectorize index, and offer semantic search as an alternative (or supplement) to the existing FTS5 `search_index`.
-
-**Why valuable**: FTS5 (see the Search section of CLAUDE.md) does keyword/porter-stemmed matching only — semantic search surfaces conceptually related content that shares no exact terms. This also feeds directly into the "AI Page & Site Generation" feature above and the admin MCP assistant (`server/api/v1/mcp.ts`), both of which currently have no way to ground responses in the site's own existing content.
-
-**What still needs to be built**: a Vectorize index provisioned per-deployment, an embedding-generation hook alongside the existing FTS5 triggers (or a scheduled task, to avoid adding embedding latency to the content save path), a `GET /api/v1/search/semantic` route, and — the larger piece — deciding whether Vectorize indexes are single-tenant-wide or need per-site partitioning the way every D1 table already is (`site_id` scoping). This last question needs answering before implementation starts, since Vectorize doesn't have D1's row-level `site_id` filtering built in the same way.
-
-**What was explicitly ruled out (for now)**: replacing FTS5 outright — keyword search is faster, needs no embedding step, and is a reasonable default for smaller sites. Semantic search should launch as an addition, not a replacement.
-
-### 4. Cloudflare Workflows for long-running jobs
+## Cloudflare Workflows for long-running jobs
 
 **What**: Move genuinely long-running, multi-step operations — WordPress WXR import, bulk AI alt-text generation, D1 whole-database export — off the single-request model and onto Workflows, which supports durable state, automatic per-step retries, and multi-hour execution.
 
@@ -231,7 +136,9 @@ None of the five pieces below are implemented yet — this section exists so the
 
 **What still needs to be built**: picking one candidate (WordPress import is the best first target — it's already isolated behind a single route) and rewriting it as a Workflow with explicit steps (parse → upload media → create content), rather than one big streamed async IIFE.
 
-### 5. Browser Rendering for dynamic OG/social cards
+---
+
+## Browser Rendering for dynamic OG/social cards
 
 **What**: Use the `@cloudflare/puppeteer` binding to screenshot a public page or Canvas layout at the edge and save the PNG to the active media provider, for automatic social-share images instead of relying on a manually-set `ogImage`.
 
@@ -241,64 +148,16 @@ None of the five pieces below are implemented yet — this section exists so the
 
 ---
 
-## [COMPLETED] Multilingual Content (Translations)
+## AI feature UI follow-ups
 
-### Status: Fully Implemented & Shipped
+Six small, well-scoped items left over from the Sept 2026 Cloudflare AI integration pass (Workers AI, AI Gateway, Vectorize/semantic search, AI page & site generation, and a batch of smaller AI features — all shipped; see CLAUDE.md's "AI providers"/"Multilingual content"/"Events system" sections for the technical reference and `docs/user-guide.md`'s "AI Features" section for the user-facing summary). Each of these already has working backend/API support — what's listed here is specifically the remaining frontend work:
 
-Content editors can translate any content item (blog posts, standard pages, or visual Canvas block pages) into multiple languages with a single click. The serving, management, and routing infrastructure are fully active.
-
-### Implementation Details
-
-#### 1. Dynamic Path-Prefixed serving with Fallback
-The public pages API (`GET /api/public/pages/[slug]`) automatically parses locale path prefixes (e.g., `/es/my-page` resolves to `locale = 'es'` and `slug = 'my-page'`).
-- **Graceful Fallback:** If a translation doesn't exist for the requested locale, it gracefully degrades to serving the original master language page.
-- **Translation Linkages:** Alternate locales are returned in the `availableLocales` metadata array.
-
-#### 2. Public Header Language Switcher
-- A visual dropdown globe selector is integrated into the public header navigation. It reads the shared `active-locales` Nuxt state and lists all available translations for the active page, allowing visitors to switch languages seamlessly.
-
-#### 3. Administrative Panel Management
-- **Status Badges:** The Content index page (`/admin/content`) displays language badges (e.g., `EN`, `ES`, `FR`) next to each title.
-- **Language Filter:** A dropdown filter is added to the header so administrators can isolate content items of a specific language.
-- **Sidebar Integration:** Extended POST/PATCH schemas allow manual updates of locale values and source linkages.
-
-#### 4. Backup & Restoration Integrity
-- The backup/restore utility (`server/utils/backup.ts`) fully exports `locale` and `sourceItemSlug` properties.
-- During imports, a second-pass routine automatically re-maps parent translation IDs to child translation rows using restored slug lists, ensuring all relationships are preserved even when internal database IDs are regenerated.
-
----
-
-## [COMPLETED] Events System
-
-### Status: Fully Implemented & Shipped
-
-NuxFlow now supports a complete Events System. Sites can define events (meetups, conferences, webinars), display them on calendars/visual blocks, and let visitors export them directly to calendar clients.
-
-### Implementation Details
-
-#### 1. Content Seeding
-The built-in `event` content type is seeded automatically on site installation in [complete.post.ts](file:///c:/DEV/NuxFlow/apps/nuxflow/server/api/v1/setup/complete.post.ts).
-
-#### 2. Editor Side Panels
-When creating or editing content of type `event` in [[id].vue](file:///c:/DEV/NuxFlow/apps/nuxflow/app/pages/admin/content/%5Bid%5D.vue), an **Event Details** sidebar card becomes active. This maps standard fields:
-- Start Date/Time (`eventStartAt`)
-- End Date/Time (`eventEndAt`)
-- All-Day Event Switch (`eventAllDay`)
-- Location / Venue (`eventLocation`)
-- Registration Link (`eventUrl`)
-
-#### 3. Editorial & Admin Calendar
-In the dashboard Editorial Calendar (`/admin/calendar`), event items query their `eventStartAt` column and snap directly to the target event day rather than their publication date.
-
-#### 4. Public API & ICS Calendar Feed
-- **Events List API:** [events.get.ts](file:///c:/DEV/NuxFlow/apps/nuxflow/server/api/public/events.get.ts) serves upcoming published events.
-- **iCal Subscription Feed:** [events.ics.ts](file:///c:/DEV/NuxFlow/apps/nuxflow/server/routes/events.ics.ts) serves a standard-compliant iCal subscribe path `/events.ics`.
-
-#### 5. Visual Canvas Block
-- **Events Calendar Block:** Visual Canvas Block [CanvasBlockCalendar.vue](file:///c:/DEV/NuxFlow/packages/canvas/src/blocks/CanvasBlockCalendar.vue) is shipped. It supports:
-  - **List View:** Display cards of upcoming events.
-  - **Month View:** Displays an interactive calendar picker widget.
-  - **Add to Calendar Buttons:** Generates and downloads `.ics` files client-side directly on button click.
+- **Taxonomy/tag suggestion UI** — `POST /api/v1/ai/suggest-terms` works today, but there is no taxonomy-term-assignment UI anywhere in the content editor to wire a "suggest" button into (a pre-existing gap, not created by the AI work). Needs that base UI built first.
+- **Voice-to-text recording UI** — `POST /api/v1/ai/transcribe` (Whisper) works today; needs a browser mic-permission + `MediaRecorder` recording widget in the editor to call it from.
+- **AI-suggested focal point UI** — `POST /api/v1/ai/suggest-focal-point` works today; needs an "AI suggest" button wired into `CanvasBlockImage`'s focal-point sliders (a cross-package UI change in `@nuxflow/canvas`).
+- **Cherry-pick / regenerate individual AI-generated pages** — a completed AI site-generation job's pages can only be reviewed as a whole batch today (each lands as an independent draft an editor can edit/delete individually, but there's no "regenerate just this one page" action tied back to the job).
+- **Unsplash / placeholder image suggestions** for AI-generated pages — image blocks are left with empty `src` fields by default.
+- **Full RAG grounding for AI page/site generation** — `generate-content.post.ts` (prose generation) already grounds its output in the site's existing content via semantic search; the block-based generators (`generateCanvasBlocks()`/`generateSitePages()`) don't yet do the same.
 
 ---
 

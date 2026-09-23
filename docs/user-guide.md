@@ -164,12 +164,40 @@ To display events on your website:
 
 ---
 
-## AI Writing Assistant
+## AI Features
 
-If configured, NuxFlow provides AI-powered tools to help you write:
-- **Improve Writing**: Select a paragraph and ask the AI to make it more professional, shorter, or more engaging.
-- **SEO Generation**: Let the AI suggest meta titles and descriptions based on your content.
-- **Alt Text**: Automatically generate descriptive alt text for your images.
+NuxFlow includes AI-powered tools throughout the editor and admin, plus a couple of AI features visitors interact with directly. Every feature below works out of the box on the Workers Paid plan — no third-party API key needed (see [Installation → AI Providers](./installation.md#ai-providers) if you'd rather use OpenAI/Anthropic/Gemini/DeepSeek/a self-hosted Ollama instead, or want to add response caching via AI Gateway).
+
+### Writing Assistant
+Available inline while editing a page or post:
+- **Improve Writing** — select any text and ask the AI to make it more professional, shorter, longer, or simpler.
+- **Grammar & Style Check** — catches and fixes grammar and style issues.
+- **SEO Generation** — suggests a meta title and description based on your content, in the SEO panel.
+- **Readability Check** — scores your content's reading ease (in the style of Yoast's readability check), with specific flagged sentences and suggested fixes. Lives in the same SEO panel as the SEO generator; prose pages only, since a Canvas page has no single body of text to score.
+- **Alt Text** — generates descriptive alt text for images, one at a time or in bulk for your whole media library (**Admin → Media → Bulk alt text**).
+
+### Generate with AI
+**Admin → Content → Generate with AI** — describe a single page or an entire small site in plain language, and NuxFlow drafts it as ready-to-edit Canvas blocks:
+- **Single page** — one prompt, one generated draft, ready in seconds.
+- **Full site** — NuxFlow first proposes a **plan**: a list of pages with titles and descriptions, for you to review. Approve it, and each page generates as a separate draft (a multi-page site can take a minute or two — you can navigate away and come back, progress is saved and resumes where it left off). Every generated page lands as an ordinary draft in **Admin → Content** — review, edit, and publish each one like anything else.
+
+### AI Image Generation
+Generate an image from a text prompt directly in the media picker — it's saved straight to your media library alongside your regular uploads.
+
+### AI-Powered Translation
+See **Multilingual Support** above — the **Translate** button uses the same AI providers as everything on this page.
+
+### Semantic Search
+If your deployment has Vectorize configured (see [Installation](./installation.md#ai-providers)), the public **Search** page automatically falls back to AI-powered semantic matching whenever a keyword search comes up empty — so a search for "how do I reset my password" can still surface a page titled "Account recovery" even though the two share no exact words. The editor also gets a **Related content** suggestion for finding internal-linking opportunities.
+
+### Listen to This Article
+Public prose pages and posts show a **Listen to this article** button that generates spoken audio on demand — a quick accessibility and convenience win, nothing to configure.
+
+### Automatic Spam Filtering
+Comments and form submissions already pass through Cloudflare Turnstile's bot check; NuxFlow also runs a background AI content check on anything that gets through, auto-flagging genuine spam or abuse as **Spam** so it doesn't clutter your moderation queue. This happens automatically in the background — nothing to configure, and it never delays or blocks a legitimate submission from being saved.
+
+### Stale Content Reminders
+NuxFlow periodically checks for published content that hasn't been updated in a long time (180 days by default) and sends the original author an in-app notification suggesting a review — a nudge to keep older pages accurate, not an automated edit or unpublish of any kind.
 
 ---
 

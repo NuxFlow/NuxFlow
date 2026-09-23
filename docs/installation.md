@@ -396,6 +396,46 @@ wrangler secret put BUNNY_PULL_ZONE
 ```
 Setting the `BUNNY_API_KEY` secret automatically activates the Bunny.net provider.
 
+### AI Providers
+
+NuxFlow's AI-assisted writing, image generation, page/site generation, and semantic search features (see the [User Guide's AI Features section](./user-guide.md#ai-features)) work through six interchangeable providers, controlled by one `ai.provider` setting in **Admin → Settings → AI** — only one is active at a time.
+
+#### Cloudflare Workers AI (default, no setup required)
+
+AI features work immediately with **zero configuration** — no API key, no third-party account. The `[ai]` binding ships active by default in `wrangler.toml`; there's nothing to uncomment. Cloudflare gives every account a 10,000-neurons/day free allocation before any billing kicks in, and usage beyond that bills at $0.011 per 1,000 neurons. This is one of the reasons NuxFlow requires the Workers Paid plan even for a single-site install (see Prerequisites above) — Workers AI, dynamic plugins, and password hashing all depend on it.
+
+#### Bring-your-own-key providers (OpenAI, Anthropic, Google Gemini, DeepSeek, Ollama)
+
+Go to **Admin → Settings → AI**, choose a provider, and paste in an API key (for Ollama, a base URL pointing at a self-hosted instance instead). Credentials are encrypted at rest. Use this instead of Workers AI if you want a specific frontier model, or already have credits with one of these providers.
+
+Environment variable equivalents (deployment-wide fallback, overridden by the per-site Admin UI setting): `NUXT_AI_PROVIDER`, `NUXT_OPENAI_API_KEY`, `NUXT_ANTHROPIC_API_KEY`, `NUXT_GEMINI_API_KEY`, `NUXT_DEEPSEEK_API_KEY`, `NUXT_OLLAMA_URL`, `NUXT_OLLAMA_MODEL`.
+
+#### Cloudflare AI Gateway (optional)
+
+Adds free response caching, request logging, and per-user spend tracking in front of whichever provider above is active — Workers AI included.
+
+1. Cloudflare dashboard → **AI → AI Gateway → Create Gateway**. Copy the gateway ID.
+2. Go to **Admin → Settings → AI → AI Gateway** in NuxFlow and enter your **Cloudflare Account ID** (right-hand sidebar on any Cloudflare dashboard page — shared with the Cloudflare Images/Stream fields above if you've already configured one of those) and the **Gateway ID**.
+3. If your gateway is set to "Authenticated", also create an API token (**My Profile → API Tokens → Create Token**, with **Account → AI Gateway → Run** permission) and paste it into the **Gateway auth token** field. Leave it blank for an unauthenticated gateway.
+
+Nothing to add to `wrangler.toml` — this is configured entirely through Settings.
+
+#### Vectorize semantic search (optional)
+
+Powers the "You might be looking for" fallback on the public Search page and the editor's "Related content" suggestions — a supplement to the built-in keyword search, not required for any other AI feature.
+
+1. Create the index (dimensions must match the embedding model NuxFlow uses):
+   ```bash
+   wrangler vectorize create nuxflow-content --dimensions=768 --metric=cosine
+   ```
+2. In `apps/nuxflow/wrangler.toml`, uncomment the `[[vectorize]]` block (it's already there, commented out, with these exact values) and redeploy:
+   ```toml
+   [[vectorize]]
+   binding = "VECTORIZE"
+   index_name = "nuxflow-content"
+   ```
+3. That's it — no further settings to configure. Existing content is embedded automatically the next time each item is saved; there's no bulk backfill command, so editing and re-saving a published page is enough to add it to the index.
+
 ### Spam Protection (Turnstile)
 
 Turnstile protects public forms from bots without showing a CAPTCHA challenge to real users.
