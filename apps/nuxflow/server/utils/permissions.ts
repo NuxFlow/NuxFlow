@@ -39,6 +39,35 @@ export function hasApiKeyScope(event: H3Event, scope: ApiKeyScope): boolean {
   return Boolean(scopes?.includes(scope))
 }
 
+// Statuses an author may still change their own item in. Once an editor has published,
+// scheduled, or archived it, the item is out of the author's hands — otherwise an author
+// could rewrite live content (or flip its access gate) without ever holding the editor
+// role that publishing requires.
+const AUTHOR_EDITABLE_STATUSES = new Set(['draft', 'review'])
+
+// The only statuses an author may move an item INTO (publishing, scheduling, and
+// archiving are editorial decisions).
+export const AUTHOR_SETTABLE_STATUSES: ReadonlySet<string> = AUTHOR_EDITABLE_STATUSES
+
+/**
+ * The content-editing rule every write path shares (standard CMS author model): editor
+ * and above can edit any item; an author can edit only items they wrote, and only while
+ * those are unpublished (draft or in review). Anything below author can't edit at all.
+ */
+export function canEditContentItem(role: Role, userId: string, item: { authorId: string | null; status: string }): boolean {
+  if (roleAtLeast(role, 'editor')) return true
+  if (!roleAtLeast(role, 'author')) return false
+  return item.authorId === userId && AUTHOR_EDITABLE_STATUSES.has(item.status)
+}
+
+export function assertCanEditContentItem(role: Role, userId: string, item: { authorId: string | null; status: string }): void {
+  if (!canEditContentItem(role, userId, item)) {
+    throw forbidden(item.authorId === userId
+      ? 'This item has been published or scheduled — only an editor can change it now'
+      : 'Authors can only edit their own content')
+  }
+}
+
 export async function requireAuth(event: H3Event): Promise<{ userId: string; role: Role }> {
   const session = await requireSession(event)
 
@@ -153,11 +182,35 @@ export function assertTargetNotSuperAdmin(existingRole: string | undefined, mess
   if (existingRole === 'super_admin') throw forbidden(message)
 }
 
+/**
+ * True when the user holds super_admin on this specific site. Platform-level actions are
+ * only accepted on a domain where the caller actually holds that grant — see
+ * requireSuperAdmin for why "super_admin on any site" is not enough there.
+ */
+export async function isSuperAdminOnSite(db: Db, userId: string, siteId: string | null | undefined): Promise<boolean> {
+  if (!siteId) return false
+  const roleRow = await getUserSiteRole(db, userId, siteId)
+  return roleRow?.role === 'super_admin'
+}
+
+/**
+ * Gate for platform-wide actions (every site, whole-database export, suspension,
+ * granting super_admin). Requires a super_admin grant on the site whose domain the
+ * request arrived on — not merely on some site.
+ *
+ * Site admins can run arbitrary script on their own public pages (custom head/body HTML
+ * is a deliberate admin feature — see site-settings-resolver.ts). If a super admin
+ * signed in on a tenant's domain opened one of those pages, that script could previously
+ * call these endpoints with the super admin's session, since this check didn't care which
+ * domain it came in on — letting any tenant admin escalate to platform control. Pinning
+ * the check to the current site confines platform actions to domains where the operator
+ * explicitly holds super_admin (normally the primary site created by the first install).
+ */
 export async function requireSuperAdmin(event: H3Event): Promise<{ userId: string }> {
   const session = await requireSession(event)
   const db = useDb(event)
 
-  if (!(await hasSuperAdminRole(db, session.user.id))) {
+  if (!(await isSuperAdminOnSite(db, session.user.id, event.context.siteId as string | undefined))) {
     throw forbidden('Super admin required')
   }
   return { userId: session.user.id }

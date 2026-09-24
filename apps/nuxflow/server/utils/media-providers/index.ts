@@ -38,6 +38,17 @@ export function encodeStorageKey(key: string): string {
 // true, and without it a blob removed out-of-band (a prior partial failure, a manual
 // deletion in the provider's own dashboard) makes the D1 row permanently un-deletable
 // through the admin UI, since every retry would 404 and fail the same way forever.
+/**
+ * SVG is the one allowlisted media type that can carry script when opened as a document.
+ * It's sanitized on upload (sanitizeSvg), and additionally stored with
+ * `Content-Disposition: attachment` wherever the provider lets us set it (R2, S3), so
+ * navigating straight to the file downloads it instead of rendering it on the media
+ * origin. `<img>`/CSS usage ignores Content-Disposition, so embedding is unaffected.
+ */
+export function contentDispositionFor(mimeType: string): string | undefined {
+  return mimeType === 'image/svg+xml' ? 'attachment' : undefined
+}
+
 export async function assertProviderOk(res: Response, operationLabel: string, opts: { allow404?: boolean } = {}): Promise<void> {
   if (res.ok) return
   if (opts.allow404 && res.status === 404) return

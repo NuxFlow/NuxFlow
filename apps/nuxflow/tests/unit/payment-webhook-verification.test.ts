@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { PaddleProvider } from '../../server/utils/payments/paddle'
+import { PaddleProvider, PADDLE_WEBHOOK_TOLERANCE_SECONDS } from '../../server/utils/payments/paddle'
 import { LemonSqueezyProvider } from '../../server/utils/payments/lemonsqueezy'
 
 // Mock h3's createError global — paddle.ts's helper functions don't call it directly,
@@ -33,13 +33,32 @@ async function hmacSha256Hex(secret: string, payload: string): Promise<string> {
 describe('PaddleProvider.verifyWebhook (real HMAC-SHA256, per Paddle Billing docs)', () => {
   const provider = new PaddleProvider('pdl_key', '12345')
   const secret = 'pdl_ntfset_test_secret'
+  // "Now" for these tests: 30s after the fixed ts=1700000000 the signatures below use.
+  const NOW_MS = 1_700_000_030_000
+
+  // A valid signature is still rejected once it's older than the tolerance window — the
+  // timestamp is inside the HMAC, so this is what stops a captured delivery (e.g. an old
+  // subscription.activated) from being replayed later to restore access.
+  it('rejects a correctly signed delivery replayed outside the tolerance window', async () => {
+    const rawBody = JSON.stringify({ event_type: 'subscription.activated', data: { id: 'sub_1' } })
+    const ts = '1700000000'
+    const h1 = await hmacSha256Hex(secret, `${ts}:${rawBody}`)
+    const later = (1_700_000_000 + PADDLE_WEBHOOK_TOLERANCE_SECONDS + 1) * 1000
+    expect(await provider.verifyWebhook(rawBody, `ts=${ts};h1=${h1}`, secret, later)).toBe(false)
+  })
+
+  it('rejects a non-numeric timestamp', async () => {
+    const rawBody = '{}'
+    const h1 = await hmacSha256Hex(secret, `abc:${rawBody}`)
+    expect(await provider.verifyWebhook(rawBody, `ts=abc;h1=${h1}`, secret, NOW_MS)).toBe(false)
+  })
 
   it('accepts a correctly computed HMAC-SHA256 signature', async () => {
     const rawBody = JSON.stringify({ event_type: 'subscription.activated', data: { id: 'sub_1' } })
     const ts = '1700000000'
     const h1 = await hmacSha256Hex(secret, `${ts}:${rawBody}`)
 
-    const valid = await provider.verifyWebhook(rawBody, `ts=${ts};h1=${h1}`, secret)
+    const valid = await provider.verifyWebhook(rawBody, `ts=${ts};h1=${h1}`, secret, NOW_MS)
     expect(valid).toBe(true)
   })
 
@@ -48,7 +67,7 @@ describe('PaddleProvider.verifyWebhook (real HMAC-SHA256, per Paddle Billing doc
     const ts = '1700000000'
     const h1 = await hmacSha256Hex('wrong-secret', `${ts}:${rawBody}`)
 
-    const valid = await provider.verifyWebhook(rawBody, `ts=${ts};h1=${h1}`, secret)
+    const valid = await provider.verifyWebhook(rawBody, `ts=${ts};h1=${h1}`, secret, NOW_MS)
     expect(valid).toBe(false)
   })
 
@@ -57,7 +76,7 @@ describe('PaddleProvider.verifyWebhook (real HMAC-SHA256, per Paddle Billing doc
     const h1 = await hmacSha256Hex(secret, `${ts}:${JSON.stringify({ event_type: 'subscription.activated', data: { id: 'sub_1' } })}`)
     const tamperedBody = JSON.stringify({ event_type: 'subscription.activated', data: { id: 'sub_2' } })
 
-    const valid = await provider.verifyWebhook(tamperedBody, `ts=${ts};h1=${h1}`, secret)
+    const valid = await provider.verifyWebhook(tamperedBody, `ts=${ts};h1=${h1}`, secret, NOW_MS)
     expect(valid).toBe(false)
   })
 

@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
-import { requireRole, roleAtLeast } from '../../../utils/permissions'
+import { requireRole, roleAtLeast, AUTHOR_SETTABLE_STATUSES } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
-import { getContentTypeBySlugOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
+import { getContentTypeBySlugOrThrow, getContentItemOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
 import { created, conflict } from '../../../utils/response'
 import { purgeContentCache } from '../../../utils/edge-cache'
 import { waitUntil } from '../../../utils/cf-env'
@@ -38,11 +38,17 @@ export default defineEventHandler(async (event) => {
   // Only editor+ may publish/schedule directly — mirrors the identical check already
   // enforced for the MCP `update_content` tool. An `author` (the floor for content-write
   // access) is limited to draft/review, matching the review workflow those statuses exist for.
-  if ((body.status === 'published' || body.status === 'scheduled') && !roleAtLeast(role, 'editor')) {
-    forbidden('Only an editor or higher can publish or schedule content')
+  if (body.status && !AUTHOR_SETTABLE_STATUSES.has(body.status) && !roleAtLeast(role, 'editor')) {
+    forbidden('Only an editor or higher can publish, schedule, or archive content')
   }
 
   const type = await getContentTypeBySlugOrThrow(db, siteId, body.typeSlug, 'Content type not found')
+
+  // A translation's source must be an item on this same site (public page translation
+  // lookups trust this link).
+  if (body.sourceItemId) {
+    await getContentItemOrThrow(db, siteId, body.sourceItemId, 'Source item not found', { id: true })
+  }
 
   const slugConflict = await db.query.contentItems.findFirst({
     where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, body.slug)),

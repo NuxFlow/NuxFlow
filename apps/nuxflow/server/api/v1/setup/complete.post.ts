@@ -7,6 +7,7 @@ import { ulid } from 'ulid'
 import { count, eq, and } from 'drizzle-orm'
 import { nuxflowPasswordHasher } from '../../../utils/pw'
 import { created } from '../../../utils/response'
+import { rateLimit } from '../../../utils/rate-limit'
 import { isHttpError } from '../../../utils/errors'
 import { clearSiteCache } from '../../../middleware/02.multi-site'
 import { clearSetupStatusCache } from './status.get'
@@ -51,12 +52,40 @@ export default defineEventHandler(async (event) => {
 })
 
 async function _handleSetup(event: H3Event) {
+  // Unauthenticated and now checks an existing account's password (below) — throttle it
+  // like the other credential-checking endpoints in 04.auth-override.ts.
+  await rateLimit(event, { limit: 10, windowMs: 10 * 60_000, keyPrefix: 'setup-complete' })
   const db = useDb(event)
   const body = await parseBody(event, bodySchema)
 
   let host = getHeader(event, 'host')?.split(':')[0] ?? ''
   if (host === '127.0.0.1' || host === '::1') {
     host = 'localhost'
+  }
+
+  // Resolve (and, for an existing account, authenticate) the completing admin BEFORE
+  // anything below writes — the secondary-site path burns its one-time token, so a
+  // rejected password must not be able to consume it. An existing account's password is
+  // required rather than trusted by email alone: accounts are global, and granting this
+  // site's top role to whatever account already holds an email would hand it to anyone
+  // who registered that address first.
+  const adminEmail = body.admin.email.toLowerCase()
+  const existingUser = await db.query.users.findFirst({
+    where: eq(users.email, adminEmail),
+    columns: { id: true },
+  })
+  if (existingUser) {
+    const credential = await db.query.accounts.findFirst({
+      where: and(eq(accounts.userId, existingUser.id), eq(accounts.providerId, 'credential')),
+      columns: { password: true },
+    })
+    const passwordOk = Boolean(credential?.password && body.admin.password)
+      && await nuxflowPasswordHasher.verify({ hash: credential!.password!, password: body.admin.password })
+    if (!passwordOk) {
+      throw forbidden('An account with this email already exists. Enter that account\'s current password to continue, or use "Forgot password" on the login page first.')
+    }
+  } else if (!body.admin.name || !body.admin.password || body.admin.password.length < 8) {
+    throw badRequest('A name and password of at least 8 characters are required for new accounts.')
   }
 
   // Check if we are running initial setup or setting up a pre-created secondary site
@@ -183,20 +212,10 @@ async function _handleSetup(event: H3Event) {
 
   let adminUserId: string
 
-  // Check if the user email already exists globally
-  const existingUser = await db.query.users.findFirst({
-    where: eq(users.email, body.admin.email.toLowerCase()),
-  })
-
   if (existingUser) {
+    // Already authenticated against its own password above.
     adminUserId = existingUser.id
-    // If they exist, we don't need to re-insert. We just reuse the existing user.
   } else {
-    // If creating a new user, name and password are required.
-    if (!body.admin.name || !body.admin.password || body.admin.password.length < 8) {
-      throw badRequest('A name and password of at least 8 characters are required for new accounts.')
-    }
-
     // Create admin user directly
     adminUserId = ulid()
     const passwordHash = await nuxflowPasswordHasher.hash(body.admin.password)
@@ -204,7 +223,7 @@ async function _handleSetup(event: H3Event) {
     await db.insert(users).values({
       id: adminUserId,
       name: body.admin.name,
-      email: body.admin.email.toLowerCase(),
+      email: adminEmail,
       emailVerified: true,
     })
 
@@ -346,7 +365,13 @@ async function _handleSetup(event: H3Event) {
     { id: ulid(), siteId, slug: 'post_tag', name: 'Tags', isHierarchical: false },
   ])
 
-  // Grant super_admin role on this specific site if they don't already have one
+  // The very first install's owner is the platform operator and gets super_admin.
+  // A secondary site is a tenant: its owner gets 'admin' — full control of THIS site
+  // only. super_admin is platform-wide (every site, the whole-database export, site
+  // suspension), so handing it to whoever completes a tenant's setup link would give
+  // every tenant owner control over every other tenant. An existing super admin can
+  // still grant it deliberately via POST /api/v1/users/:id/super-admin.
+  const grantedRole = isInitialSetup ? 'super_admin' : 'admin'
   const existingRole = await db.query.userSiteRoles.findFirst({
     where: and(
       eq(userSiteRoles.userId, adminUser.id),
@@ -359,7 +384,7 @@ async function _handleSetup(event: H3Event) {
       id: ulid(),
       userId: adminUser.id,
       siteId,
-      role: 'super_admin',
+      role: grantedRole,
     })
   }
 

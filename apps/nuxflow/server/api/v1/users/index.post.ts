@@ -9,7 +9,7 @@ import { sendEmail, escapeHtml } from '../../../utils/email'
 import { rateLimit } from '../../../utils/rate-limit'
 import { created } from '../../../utils/response'
 import { getOrCreateBetterAuth } from '../../../utils/better-auth'
-import { findOrCreateUserAccount } from '../../../utils/user-provisioning'
+import { findOrCreateUserAccount, reclaimAccount } from '../../../utils/user-provisioning'
 import { clearCachedRole } from '../../../utils/role-cache'
 
 const bodySchema = z.object({
@@ -27,15 +27,24 @@ export default defineEventHandler(async (event) => {
 
   const db = useDb(event)
 
-  const { userId: newUserId, isNewAccount } = await findOrCreateUserAccount(event, { name: body.name, email: body.email })
+  const { userId: newUserId, status } = await findOrCreateUserAccount(event, { name: body.name, email: body.email })
 
-  if (!isNewAccount) {
+  if (status !== 'new') {
     // Check they aren't already a member of this site
     const alreadyMember = await getUserSiteRole(db, newUserId, siteId)
     if (alreadyMember) {
       throw conflict('This user is already a member of this site')
     }
   }
+
+  // An account nobody has proven they own (see isUnclaimedAccount) could have been
+  // pre-registered by someone else specifically to catch this invite. Reset its ways in
+  // before attaching the role, then treat it exactly like a brand-new invitee below: the
+  // set-password email goes to the real mailbox, so only its owner can get in.
+  if (status === 'unclaimed') {
+    await reclaimAccount(event, newUserId)
+  }
+  const needsPasswordSetup = status !== 'existing'
 
   // onConflictDoNothing: the alreadyMember check above closes the common case, but two
   // concurrent invites for the same not-yet-member (email, site) pair could both pass
@@ -59,8 +68,8 @@ export default defineEventHandler(async (event) => {
   await batchWithAudit(db, [roleInsert], auditInsert)
   clearCachedRole(newUserId, siteId)
 
-  if (isNewAccount) {
-    // A brand-new invitee has no password they can actually use (see the
+  if (needsPasswordSetup) {
+    // A brand-new (or just-reclaimed) invitee has no password they can actually use (see the
     // signUpEmail comment above) — sending them a "visit /login" email would be
     // a dead end. Instead, trigger the exact same requestPasswordReset flow the
     // "Forgot password?" page (app/pages/forgot-password.vue) uses for an

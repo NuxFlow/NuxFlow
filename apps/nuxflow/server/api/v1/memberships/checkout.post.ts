@@ -3,6 +3,7 @@ import { subscriptions } from '@nuxflow/db/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
+import { assertSameHostReturnUrl } from '../../../utils/validate'
 import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
 import { resolveSetting } from '../../../utils/settings'
 import { resolveStripeProvider, resolveLemonSqueezyProvider, resolvePaddleProvider } from '../../../utils/payments/resolve'
@@ -25,6 +26,7 @@ export default defineEventHandler(async (event) => {
   const session = await requireSession(event)
   const siteId = event.context.siteId as string
   const body = await parseBody(event, bodySchema)
+  assertSameHostReturnUrl(event, body.returnUrl)
 
   const db = useDb(event)
 

@@ -63,8 +63,14 @@ export function sanitizeThemeCss(css: string): string {
   // quoted-string-aware matching, since its argument is a JS-like expression that may
   // itself contain a quoted string with a ')' inside.
   out = out.replace(/\bexpression\s*\(\s*"[^"]*"\s*\)|\bexpression\s*\(\s*'[^']*'\s*\)|\bexpression\s*\([^)]*\)/gi, 'none')
-  // Prevent breaking out of the <style> block it's injected into.
-  out = out.replace(/<\/style>/gi, '')
+  // Breaking out of the inline <style> element: an HTML parser ends it on `</style`
+  // followed by whitespace, `/`, or `>` — so stripping only the literal `</style>` missed
+  // `</style >` and `</style/x>`, and a single pass also reassembled `</sty</style>le>`.
+  // Instead of chasing spellings, escape EVERY `<` as the CSS escape `\3c ` (trailing
+  // space terminates the escape). CSS reads it back as the same character, so selectors
+  // and string values keep their meaning, but no tag can ever form inside the <style>
+  // element. `<` has no legitimate unescaped use in CSS outside strings and comments.
+  out = out.replace(/</g, '\\3c ')
   return out
 }
 
@@ -79,20 +85,96 @@ export function sanitizeThemeCss(css: string): string {
  * sanitizeThemeCss above, for the same reason: this is a small, fixed set of known vectors,
  * not general-purpose HTML/SVG rendering.
  */
-export function sanitizeSvg(svg: string): string {
+// Elements with no legitimate place in a media-library SVG that can execute or embed
+// active content. Matched by LOCAL name, so a namespace prefix (`<h:script
+// xmlns:h="http://www.w3.org/1999/xhtml">`, `<svg:script>`) doesn't slip past.
+const SVG_DANGEROUS_ELEMENTS = 'script|foreignObject|iframe|embed|object|handler|listener'
+const SVG_DANGEROUS_ELEMENT_WITH_BODY = new RegExp(String.raw`<((?:[\w-]+:)?(?:${SVG_DANGEROUS_ELEMENTS}))\b[\s\S]*?<\/\1\s*>`, 'gi')
+const SVG_DANGEROUS_TAG = new RegExp(String.raw`<\/?(?:[\w-]+:)?(?:${SVG_DANGEROUS_ELEMENTS})\b[^>]*>`, 'gi')
+
+// Attributes whose value is a URL (or, for SMIL animation, a value that can be animated
+// INTO a URL attribute — `<set attributeName="href" to="javascript:...">`).
+const SVG_URL_ATTRIBUTES = /^(?:[\w-]+:)?(?:href|src|action|formaction|to|from|by|values)$/i
+
+const SAFE_DATA_URI = /^data:image\/(?:png|jpe?g|gif|webp|avif);/i
+
+function decodeXmlEntities(value: string): string {
+  return value
+    .replace(/&#x([0-9a-f]+);?/gi, (_m, hex: string) => safeFromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);?/g, (_m, dec: string) => safeFromCodePoint(Number.parseInt(dec, 10)))
+    .replace(/&(?:colon|Tab|NewLine);/g, m => (m === '&colon;' ? ':' : ''))
+    .replace(/&quot;/g, '"').replace(/&apos;/g, '\'').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+}
+
+function safeFromCodePoint(codePoint: number): string {
+  try {
+    return String.fromCodePoint(codePoint)
+  } catch {
+    return ''
+  }
+}
+
+function isDangerousUrlValue(raw: string): boolean {
+  // Same normalization a browser applies before reading the scheme: entities decoded,
+  // every C0 control/whitespace character removed (not just leading/trailing).
+  // eslint-disable-next-line no-control-regex -- stripping C0 controls is the point of this check
+  const value = decodeXmlEntities(raw).replace(/[\x00-\x20]/g, '')
+  if (/^(?:javascript|vbscript):/i.test(value)) return true
+  if (/^data:/i.test(value) && !SAFE_DATA_URI.test(value)) return true
+  return false
+}
+
+function sanitizeSvgOnce(svg: string): string {
   let out = svg
-  out = out.replace(/<script[\s\S]*?<\/script\s*>/gi, '')
-  out = out.replace(/<script\b[^>]*\/>/gi, '')
-  // <foreignObject> lets SVG embed arbitrary HTML (including its own <script>) — no
-  // legitimate use case for a media-library-uploaded SVG, so it's dropped outright.
-  out = out.replace(/<foreignObject[\s\S]*?<\/foreignObject\s*>/gi, '')
-  // Event-handler attributes (onload, onclick, onerror, ...), any quoting style.
-  out = out.replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
-  out = out.replace(/\son\w+\s*=\s*'[^']*'/gi, '')
-  out = out.replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
-  // javascript:/vbscript: hrefs (href or xlink:href) — replaced, not removed, so the
-  // attribute stays well-formed XML.
-  out = out.replace(/((?:xlink:)?href\s*=\s*)"\s*(?:javascript|vbscript):[^"]*"/gi, '$1"#"')
-  out = out.replace(/((?:xlink:)?href\s*=\s*)'\s*(?:javascript|vbscript):[^']*'/gi, '$1\'#\'')
+  // DTD internal subsets can declare entities that expand into markup (`<!ENTITY x
+  // "<script>…">` then `&x;`), and xml-stylesheet processing instructions can pull in
+  // XSLT that emits script — neither has a use in an uploaded image.
+  // Adjacent quantifiers use disjoint classes (`[^[>]`, `[^\]]`, `[^>]`) so this stays
+  // linear on hostile input. A `]` inside an entity value just ends the match early: the
+  // declaration itself is still removed with the DOCTYPE, and the leftover is inert text.
+  out = out.replace(/<!DOCTYPE[^[>]*(?:\[[^\]]*\][^>]*)?>/gi, '')
+  out = out.replace(/<!ENTITY[\s\S]*?>/gi, '')
+  out = out.replace(/<\?xml-stylesheet[\s\S]*?\?>/gi, '')
+  // Dangerous elements with their bodies, then any leftover open/close/self-closing tag
+  // of the same (e.g. an unclosed <script> the pair pattern couldn't match).
+  out = out.replace(SVG_DANGEROUS_ELEMENT_WITH_BODY, '')
+  out = out.replace(SVG_DANGEROUS_TAG, '')
+  // Attributes, one tag at a time: event handlers (any separator — whitespace or `/`)
+  // are dropped outright; URL-bearing attributes are dropped when their decoded value is
+  // an executable scheme. The attribute run must begin with whitespace or `/`, which the
+  // tag-name class can't match — so the name and attribute quantifiers never compete for
+  // the same characters (this runs on untrusted uploads; it must not backtrack badly).
+  out = out.replace(/<([a-z][\w:.-]*)((?:[\s/](?:[^>"']|"[^"]*"|'[^']*')*)?)>/gi, (_tag, name: string, attrs: string) => {
+    const cleaned = attrs.replace(
+      /([\s/]+)([^\s=/>]+)(\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g,
+      (whole, _sep: string, attrName: string, assignment: string | undefined, dq?: string, sq?: string, bare?: string) => {
+        const local = attrName.replace(/^[\w-]+:/, '')
+        if (/^on/i.test(local)) return ''
+        if (assignment && SVG_URL_ATTRIBUTES.test(attrName)) {
+          // SMIL `values` is a `;`-separated list — each entry can become the URL.
+          const raw = dq ?? sq ?? bare ?? ''
+          const candidates = /^values$/i.test(local) ? raw.split(';') : [raw]
+          if (candidates.some(isDangerousUrlValue)) return ''
+        }
+        return whole
+      },
+    )
+    return `<${name}${cleaned}>`
+  })
   return out
+}
+
+export function sanitizeSvg(svg: string): string {
+  // Repeat until nothing changes: a single pass can reassemble a dangerous construct out
+  // of the pieces around something it removed (`<scr<script></script>ipt>` becomes
+  // `<script>` after one pass). Bounded, since each productive pass strictly shrinks the
+  // input.
+  let current = svg
+  for (let i = 0; i < 20; i++) {
+    const next = sanitizeSvgOnce(current)
+    if (next === current) return next
+    current = next
+  }
+  // Still changing after 20 passes — adversarial input; refuse rather than serve it.
+  return '<svg xmlns="http://www.w3.org/2000/svg"/>'
 }

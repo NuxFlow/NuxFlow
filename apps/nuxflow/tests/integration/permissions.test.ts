@@ -3,7 +3,7 @@ import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole } from '../helpers/seed'
-import { requireAuth, requireRole, requireSuperAdmin, roleAtLeast } from '../../server/utils/permissions'
+import { requireAuth, requireRole, requireSuperAdmin, roleAtLeast, canEditContentItem } from '../../server/utils/permissions'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -158,7 +158,7 @@ describe('requireRole', () => {
 // ---------------------------------------------------------------------------
 
 describe('requireSuperAdmin', () => {
-  it('resolves when the user has a super_admin role on any site', async () => {
+  it('resolves when the user holds super_admin on the current site', async () => {
     const event = createMockEvent({
       siteId: SITE,
       session: { user: { id: superAdminUserId, name: 'Super', email: 'super@perms.test' } },
@@ -184,5 +184,53 @@ describe('requireSuperAdmin', () => {
     await expect(
       requireSuperAdmin(event as unknown as H3Event),
     ).rejects.toMatchObject({ statusCode: 401 })
+  })
+
+  // Platform actions are only accepted on a domain where the caller actually holds
+  // super_admin. A tenant admin can run script on their own site's pages (custom head
+  // HTML), so accepting a super admin's session from ANY domain let that script drive
+  // platform-wide endpoints from the tenant's domain.
+  it('throws 403 on a site where the super admin holds no super_admin grant', async () => {
+    const event = createMockEvent({
+      siteId: OTHER_SITE,
+      session: { user: { id: superAdminUserId, name: 'Super', email: 'super@perms.test' } },
+    })
+    await expect(
+      requireSuperAdmin(event as unknown as H3Event),
+    ).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('throws 403 when no site was resolved for the request', async () => {
+    const event = createMockEvent({
+      siteId: null as unknown as string,
+      session: { user: { id: superAdminUserId, name: 'Super', email: 'super@perms.test' } },
+    })
+    await expect(
+      requireSuperAdmin(event as unknown as H3Event),
+    ).rejects.toMatchObject({ statusCode: 403 })
+  })
+})
+
+describe('canEditContentItem', () => {
+  const me = 'user-me'
+  it('lets editors and above edit anything', () => {
+    for (const role of ['editor', 'admin', 'super_admin'] as const) {
+      expect(canEditContentItem(role, me, { authorId: 'someone-else', status: 'published' })).toBe(true)
+    }
+  })
+
+  it('lets an author edit only their own draft or in-review items', () => {
+    expect(canEditContentItem('author', me, { authorId: me, status: 'draft' })).toBe(true)
+    expect(canEditContentItem('author', me, { authorId: me, status: 'review' })).toBe(true)
+    expect(canEditContentItem('author', me, { authorId: me, status: 'published' })).toBe(false)
+    expect(canEditContentItem('author', me, { authorId: me, status: 'scheduled' })).toBe(false)
+    expect(canEditContentItem('author', me, { authorId: me, status: 'archived' })).toBe(false)
+    expect(canEditContentItem('author', me, { authorId: 'someone-else', status: 'draft' })).toBe(false)
+    expect(canEditContentItem('author', me, { authorId: null, status: 'draft' })).toBe(false)
+  })
+
+  it('never lets member/viewer edit', () => {
+    expect(canEditContentItem('member', me, { authorId: me, status: 'draft' })).toBe(false)
+    expect(canEditContentItem('viewer', me, { authorId: me, status: 'draft' })).toBe(false)
   })
 })

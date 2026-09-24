@@ -40,6 +40,7 @@ const OTHER_SITE = 'site-comments-02'
 let editorId: string
 let authorId: string
 let itemId: string
+let typeId: string
 
 beforeAll(async () => {
   await initTestDb()
@@ -54,7 +55,7 @@ beforeAll(async () => {
   await seedRole(db, editorId, SITE, 'editor')
   await seedRole(db, authorId, SITE, 'author')
 
-  const typeId = await seedContentType(db, SITE)
+  typeId = await seedContentType(db, SITE, { hasComments: true })
   itemId = await seedContentItem(db, SITE, typeId)
 })
 
@@ -249,6 +250,40 @@ describe('POST /api/v1/content/:id/comments', () => {
     }) as unknown as H3Event
 
     const result = await (postHandler as Handler)(event) as { id: string; status: string }
+    expect(result.status).toBe('pending')
+  })
+
+  // Comments are only open on published items with comments enabled — otherwise anyone
+  // holding an item id could attach comments to drafts or to comment-disabled pages.
+  function guestPost(id: string) {
+    return createMockEvent({
+      siteId: SITE,
+      session: null,
+      params: { id },
+      body: { body: 'Hi', guestName: 'Guest', guestEmail: 'guest3@example.com' },
+    }) as unknown as H3Event
+  }
+
+  it('rejects a comment on an unpublished (draft) item', async () => {
+    const draftId = await seedContentItem(getCurrentTestDb(), SITE, typeId, { status: 'draft', publishedAt: null })
+    await expect((postHandler as Handler)(guestPost(draftId))).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('rejects a comment when the item turns comments off, even if its type allows them', async () => {
+    const closedId = await seedContentItem(getCurrentTestDb(), SITE, typeId, { allowComments: false })
+    await expect((postHandler as Handler)(guestPost(closedId))).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('rejects a comment when the item inherits comments-off from its content type', async () => {
+    const noCommentsType = await seedContentType(getCurrentTestDb(), SITE, { slug: 'no-comments', hasComments: false })
+    const inheritedId = await seedContentItem(getCurrentTestDb(), SITE, noCommentsType)
+    await expect((postHandler as Handler)(guestPost(inheritedId))).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('accepts a comment when the item turns comments on over a comments-off type', async () => {
+    const noCommentsType = await seedContentType(getCurrentTestDb(), SITE, { slug: 'no-comments-2', hasComments: false })
+    const openId = await seedContentItem(getCurrentTestDb(), SITE, noCommentsType, { allowComments: true })
+    const result = await (postHandler as Handler)(guestPost(openId)) as { status: string }
     expect(result.status).toBe('pending')
   })
 })

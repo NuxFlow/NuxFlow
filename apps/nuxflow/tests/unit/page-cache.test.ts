@@ -9,18 +9,27 @@ import { isPageCacheEligible, pageCacheRequest } from '../../server/utils/page-c
   new URL((event as unknown as { _url: string })._url)
 ;(globalThis as Record<string, unknown>).parseCookies = (event: H3Event) =>
   (event as unknown as { _cookies?: Record<string, string> })._cookies ?? {}
+;(globalThis as Record<string, unknown>).getHeader = (event: H3Event, name: string) =>
+  (event as unknown as { _headers?: Record<string, string> })._headers?.[name.toLowerCase()]
 
-function mkEvent(opts: { method?: string; url?: string; cookies?: Record<string, string> } = {}) {
+function mkEvent(opts: { method?: string; url?: string; cookies?: Record<string, string>; headers?: Record<string, string> } = {}) {
   return {
     method: opts.method ?? 'GET',
     _url: opts.url ?? 'https://example.com/about',
     _cookies: opts.cookies ?? {},
+    _headers: opts.headers ?? {},
   } as unknown as H3Event
 }
 
 describe('isPageCacheEligible', () => {
   it('allows a plain anonymous GET request with no cookies at all', () => {
     expect(isPageCacheEligible(mkEvent())).toBe(true)
+  })
+
+  // An API-key (Bearer) request is authenticated without any cookie; its SSR output can
+  // include members-only content and must never be written to the shared cache.
+  it('rejects a request carrying an Authorization header even with no cookies', () => {
+    expect(isPageCacheEligible(mkEvent({ headers: { authorization: 'Bearer nxf_key' } }))).toBe(false)
   })
 
   it('rejects a non-GET request', () => {

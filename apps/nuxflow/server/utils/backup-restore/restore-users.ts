@@ -12,7 +12,7 @@ import { userSiteRoles } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import type { Db } from '../db'
 import { getOrCreateBetterAuth } from '../better-auth'
-import { findOrCreateUserAccount } from '../user-provisioning'
+import { findOrCreateUserAccount, reclaimAccount } from '../user-provisioning'
 import { RESTORABLE_ROLES } from '../backup-types'
 import type { NuxFlowBackup, RestoreOptions, RestoreResult } from '../backup-types'
 
@@ -37,7 +37,7 @@ export async function restoreUsers(
   })
   const roleByEmail = new Map<string, { role: string }>()
   for (const r of existingRoleRows) {
-    if (r.user) roleByEmail.set(r.user.email, { role: r.role })
+    if (r.user) roleByEmail.set(r.user.email.toLowerCase(), { role: r.role })
   }
 
   for (const backupUser of backup.users) {
@@ -50,35 +50,45 @@ export async function restoreUsers(
       continue
     }
 
-    const { userId: targetUserId, isNewAccount } = await findOrCreateUserAccount(event, {
+    const email = backupUser.email.toLowerCase()
+    const { userId: targetUserId, status } = await findOrCreateUserAccount(event, {
       name: backupUser.name,
-      email: backupUser.email,
+      email,
     })
 
-    const existingRole = roleByEmail.get(backupUser.email)
+    // Set once a role row is actually written for this account below — an unclaimed
+    // account (see isUnclaimedAccount) must be reclaimed before it's granted anything.
+    let roleWritten = false
+    const existingRole = roleByEmail.get(email)
     if (existingRole) {
       if (opts.conflictMode === 'overwrite' && existingRole.role !== 'super_admin') {
         await db.update(userSiteRoles).set({ role: backupUser.role })
           .where(and(eq(userSiteRoles.userId, targetUserId), eq(userSiteRoles.siteId, siteId)))
         result.users.updated++
-        roleByEmail.set(backupUser.email, { role: backupUser.role })
+        roleWritten = true
+        roleByEmail.set(email, { role: backupUser.role })
       } else {
         result.users.skipped++
       }
     } else {
       await db.insert(userSiteRoles).values({ id: ulid(), userId: targetUserId, siteId, role: backupUser.role })
       result.users.created++
+      roleWritten = true
       // Handles a duplicate email within the same backup.json (hand-edited — a real
       // export can't produce one): the second entry now sees the role the first entry
       // just created instead of trying to insert a second row for the same
       // (userId, siteId) pair.
-      roleByEmail.set(backupUser.email, { role: backupUser.role })
+      roleByEmail.set(email, { role: backupUser.role })
     }
 
-    if (isNewAccount) {
+    if (status === 'unclaimed' && roleWritten) {
+      await reclaimAccount(event, targetUserId)
+    }
+
+    if (status === 'new' || (status === 'unclaimed' && roleWritten)) {
       try {
         const auth = await getOrCreateBetterAuth(event)
-        await auth.api.requestPasswordReset({ body: { email: backupUser.email, redirectTo: '/reset-password' } })
+        await auth.api.requestPasswordReset({ body: { email, redirectTo: '/reset-password' } })
       } catch (err) {
         console.error('[restore] Failed to send set-password email:', err)
       }

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
-import { requireRole, roleAtLeast } from '../../../utils/permissions'
+import { requireRole, roleAtLeast, AUTHOR_SETTABLE_STATUSES, assertCanEditContentItem } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { resolveSetting } from '../../../utils/settings'
 import { broadcastPushToSite } from '../../../utils/webpush'
@@ -51,11 +51,19 @@ export default defineEventHandler(async (event) => {
 
   // Only editor+ may publish/schedule directly — mirrors the identical check already
   // enforced for the MCP `update_content` tool and for content creation.
-  if ((body.status === 'published' || body.status === 'scheduled') && !roleAtLeast(role, 'editor')) {
-    forbidden('Only an editor or higher can publish or schedule content')
+  if (body.status && !AUTHOR_SETTABLE_STATUSES.has(body.status) && !roleAtLeast(role, 'editor')) {
+    forbidden('Only an editor or higher can publish, schedule, or archive content')
   }
 
   const existing = await getContentItemOrThrow(db, siteId, id, 'Not found')
+  assertCanEditContentItem(role, userId, existing)
+
+  // sourceItemId links a translation to its original — it must point at an item on this
+  // same site (public page translation lookups trust this link).
+  if (body.sourceItemId && body.sourceItemId !== existing.sourceItemId) {
+    if (body.sourceItemId === id) throw validationError('An item cannot be a translation of itself')
+    await getContentItemOrThrow(db, siteId, body.sourceItemId, 'Source item not found', { id: true })
+  }
 
   const { expectedVersion, ...updateFields } = body
   if (expectedVersion !== undefined && existing.version !== expectedVersion) {

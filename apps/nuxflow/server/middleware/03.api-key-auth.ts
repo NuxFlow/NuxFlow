@@ -1,5 +1,6 @@
 import { bufferToHex } from '../utils/buffer'
 import { useDb } from '../utils/db'
+import { waitUntil } from '../utils/cf-env'
 import { apiKeys, userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -30,8 +31,13 @@ export default defineEventHandler(async (event) => {
   // Check expiry
   if (apiKey.expiresAt && new Date(apiKey.expiresAt) < new Date()) return
 
-  // Update last used
-  void db.update(apiKeys).set({ lastUsedAt: new Date().toISOString() }).where(eq(apiKeys.id, apiKey.id))
+  // Update last used — in the background, off the request's critical path. Drizzle query
+  // builders are lazy thenables that only execute once awaited/then()'d, so the previous
+  // bare `void db.update(...)` never actually ran; Promise.resolve() adopts the thenable,
+  // which is what triggers execution, and waitUntil keeps the Worker alive until it lands.
+  waitUntil(event, Promise.resolve(
+    db.update(apiKeys).set({ lastUsedAt: new Date().toISOString() }).where(eq(apiKeys.id, apiKey.id)),
+  ).catch(err => console.error('[api-key-auth] Failed to record lastUsedAt:', err)))
 
   // Resolve role for this site. Deleting a user's userSiteRoles row (removing them
   // from the site) does not cascade-delete their API keys — those live on until

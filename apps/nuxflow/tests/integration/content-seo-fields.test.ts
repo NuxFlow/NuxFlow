@@ -36,7 +36,9 @@ beforeAll(async () => {
 
   await seedSite(db, { id: SITE, domain: 'content-seo.localhost' })
   userId = await seedUser(db, { email: 'author@content-seo.test' })
-  await seedRole(db, userId, SITE, 'author')
+  // Editor: these tests edit published pages (the public API assertions need them live),
+  // which the author role may not do — see content-crud.test.ts for the author rules.
+  await seedRole(db, userId, SITE, 'editor')
   typeId = await seedContentType(db, SITE, { slug: 'page', name: 'Page', singularName: 'Page' })
   itemId = await seedContentItem(db, SITE, typeId, {
     slug: 'seo-test-page',

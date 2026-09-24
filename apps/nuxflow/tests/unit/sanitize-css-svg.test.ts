@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sanitizeThemeCss } from '../../server/utils/sanitize-css-svg'
+import { sanitizeThemeCss, sanitizeSvg } from '../../server/utils/sanitize-css-svg'
 
 describe('Theme CSS Sanitization (sanitizeThemeCss)', () => {
   it('leaves ordinary declarative CSS untouched', () => {
@@ -79,5 +79,104 @@ describe('Theme CSS Sanitization (sanitizeThemeCss)', () => {
     const once = sanitizeThemeCss(css)
     const twice = sanitizeThemeCss(once)
     expect(twice).toBe(once)
+  })
+})
+
+// Every variant an HTML parser accepts as the end of a <style> element. Escaping each `<`
+// (rather than stripping one spelling of `</style>`) means none can ever form.
+describe('sanitizeThemeCss — <style> breakout', () => {
+  const payloads = [
+    'a{}</style ><img src=x onerror=alert(1)>',
+    'a{}</style/x><script>alert(1)</script>',
+    'a{}</STYLE\n><script>alert(1)</script>',
+    'a{}</sty</style>le><script>alert(1)</script>',
+    String.raw`a{}\3c /style><script>alert(1)</script>`,
+  ]
+  for (const css of payloads) {
+    it(`never emits a raw "<" for ${JSON.stringify(css)}`, () => {
+      expect(sanitizeThemeCss(css)).not.toContain('<')
+    })
+  }
+
+  it('keeps "<" meaningful to CSS as an escape inside string values', () => {
+    expect(sanitizeThemeCss('a::before{content:"<3"}')).toBe(String.raw`a::before{content:"\3c 3"}`)
+  })
+})
+
+describe('SVG Sanitization (sanitizeSvg)', () => {
+  const NS = 'xmlns="http://www.w3.org/2000/svg"'
+
+  it('keeps ordinary drawing markup intact', () => {
+    const svg = `<svg ${NS} viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="#0f0"/></svg>`
+    expect(sanitizeSvg(svg)).toBe(svg)
+  })
+
+  it('removes a <script> reassembled from pieces around a removed one', () => {
+    const out = sanitizeSvg(`<svg ${NS}><scr<script></script>ipt>alert(1)</scr<script></script>ipt></svg>`)
+    expect(out).not.toMatch(/<\s*script/i)
+  })
+
+  it('removes namespace-prefixed script elements', () => {
+    const out = sanitizeSvg(`<svg ${NS}><h:script xmlns:h="http://www.w3.org/1999/xhtml">alert(1)</h:script></svg>`)
+    expect(out).not.toMatch(/script/i)
+  })
+
+  it('removes an unclosed <script> tag', () => {
+    expect(sanitizeSvg(`<svg ${NS}><script>alert(1)`)).not.toMatch(/<script/i)
+  })
+
+  it('removes foreignObject (embedded HTML)', () => {
+    const out = sanitizeSvg(`<svg ${NS}><foreignObject><iframe src="javascript:alert(1)"></iframe></foreignObject></svg>`)
+    expect(out).not.toMatch(/foreignObject|iframe/i)
+  })
+
+  it('removes event handlers regardless of separator or quoting', () => {
+    for (const svg of [
+      `<svg ${NS} onload="alert(1)"/>`,
+      `<svg ${NS}\nonload='alert(1)'/>`,
+      `<svg ${NS}/onload=alert(1)>`,
+      `<svg ${NS}><circle ONMOUSEOVER="alert(1)"/></svg>`,
+    ]) {
+      expect(sanitizeSvg(svg)).not.toMatch(/on(load|mouseover)/i)
+    }
+  })
+
+  it('removes javascript: URLs, including entity-encoded and control-char-split schemes', () => {
+    for (const href of [
+      'javascript:alert(1)',
+      '&#106;avascript:alert(1)',
+      '&#x6A;avascript:alert(1)',
+      'java&#x09;script:alert(1)',
+      ' javascript:alert(1)',
+      'javascript&colon;alert(1)',
+    ]) {
+      const out = sanitizeSvg(`<svg ${NS}><a href="${href}"><text>x</text></a></svg>`)
+      expect(out).not.toContain('href=')
+    }
+  })
+
+  it('removes SMIL animations that would set an href to a script URL', () => {
+    const out = sanitizeSvg(`<svg ${NS}><a><animate attributeName="href" values="#;javascript:alert(1)"/><text>x</text></a></svg>`)
+    expect(out).not.toContain('javascript')
+  })
+
+  it('keeps raster data: URIs but drops other data: URIs', () => {
+    expect(sanitizeSvg(`<svg ${NS}><image href="data:image/png;base64,AAAA"/></svg>`)).toContain('href="data:image/png')
+    expect(sanitizeSvg(`<svg ${NS}><a href="data:text/html,<script>alert(1)</script>"/></svg>`)).not.toContain('href=')
+  })
+
+  it('removes DTD entity declarations that could expand into markup', () => {
+    const out = sanitizeSvg(`<!DOCTYPE svg [<!ENTITY x "<script>alert(1)</script>">]><svg ${NS}>&x;</svg>`)
+    expect(out).not.toMatch(/DOCTYPE|ENTITY/i)
+  })
+
+  it('removes xml-stylesheet processing instructions', () => {
+    const out = sanitizeSvg(`<?xml-stylesheet type="text/xsl" href="evil.xsl"?><svg ${NS}/>`)
+    expect(out).not.toContain('xml-stylesheet')
+  })
+
+  it('is idempotent', () => {
+    const once = sanitizeSvg(`<svg ${NS} onload="x"><scr<script></script>ipt>1</script></svg>`)
+    expect(sanitizeSvg(once)).toBe(once)
   })
 })

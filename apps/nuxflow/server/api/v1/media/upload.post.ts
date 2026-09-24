@@ -43,8 +43,13 @@ export default defineEventHandler(async (event) => {
 
   if (!file) throw badRequest('No file provided')
   if (file.size > MAX_SIZE) throw createError({ statusCode: 413, message: 'File too large (max 20 MB)' })
-  if (!isAllowedMediaMimeType(file.type)) {
-    throw createError({ statusCode: 415, message: `Unsupported file type: ${file.type || 'unknown'}` })
+  // The multipart part's declared Content-Type, reduced to its bare essence: lowercase,
+  // parameters dropped. Every check below compares against this — the SVG sanitizer used
+  // to test `file.type === 'image/svg+xml'` exactly, so `image/svg+xml;x=1` passed the
+  // `image/` allowlist, skipped sanitization, and was stored/served as a live SVG.
+  const mimeType = (file.type.split(';')[0] ?? '').trim().toLowerCase()
+  if (!isAllowedMediaMimeType(mimeType)) {
+    throw createError({ statusCode: 415, message: `Unsupported file type: ${mimeType || 'unknown'}` })
   }
 
   const fileId = ulid()
@@ -57,9 +62,11 @@ export default defineEventHandler(async (event) => {
   // SVG is XML and can carry <script>/event-handler/javascript: vectors that execute when
   // the stored file is opened directly at its own URL with its own image/svg+xml
   // content-type — strip those before it ever reaches storage.
-  const uploadFile = file.type === 'image/svg+xml'
-    ? new File([sanitizeSvg(await file.text())], file.name, { type: file.type })
-    : file
+  // Always re-wrapped with the normalized type, so providers store/serve exactly the
+  // type validated above rather than the raw client-declared one.
+  const uploadFile = mimeType === 'image/svg+xml'
+    ? new File([sanitizeSvg(await file.text())], file.name, { type: mimeType })
+    : new File([file], file.name, { type: mimeType })
 
   const provider = await getActiveProvider(event)
   let url: string
@@ -75,7 +82,7 @@ export default defineEventHandler(async (event) => {
 
   // Extract EXIF from JPEG/TIFF images — runs after upload so it doesn't block the response path
   let metadata: Record<string, unknown> | undefined
-  if (file.type === 'image/jpeg' || file.type === 'image/tiff') {
+  if (mimeType === 'image/jpeg' || mimeType === 'image/tiff') {
     try {
       const buf = await file.arrayBuffer()
       const exif = extractExif(buf)
@@ -93,10 +100,10 @@ export default defineEventHandler(async (event) => {
   // of causing layout shift. Best-effort, same as EXIF above — a format this doesn't
   // recognize (or corrupt bytes) just leaves the columns null, never fails the upload.
   let dimensions: { width: number; height: number } | null = null
-  if (file.type === 'image/png' || file.type === 'image/gif' || file.type === 'image/jpeg' || file.type === 'image/webp') {
+  if (mimeType === 'image/png' || mimeType === 'image/gif' || mimeType === 'image/jpeg' || mimeType === 'image/webp') {
     try {
       const buf = await file.arrayBuffer()
-      dimensions = extractImageDimensions(buf, file.type)
+      dimensions = extractImageDimensions(buf, mimeType)
     }
     catch {
       // best-effort; never fail the upload
@@ -110,7 +117,7 @@ export default defineEventHandler(async (event) => {
     uploadedBy: userId,
     filename: storageKey,
     originalName: file.name,
-    mimeType: file.type,
+    mimeType,
     size: file.size,
     width: dimensions?.width,
     height: dimensions?.height,
@@ -124,7 +131,7 @@ export default defineEventHandler(async (event) => {
     action: 'create',
     resource: 'media',
     resourceId: fileId,
-    after: { originalName: file.name, storageKey, mimeType: file.type },
+    after: { originalName: file.name, storageKey, mimeType },
   })
   try {
     await batchWithAudit(db, [mediaInsert], auditInsert)

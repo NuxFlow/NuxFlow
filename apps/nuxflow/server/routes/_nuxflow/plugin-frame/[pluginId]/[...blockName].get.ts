@@ -45,7 +45,13 @@ export default defineEventHandler(async (event) => {
   // showing an "image" field's value (site media, which can live on a different
   // origin depending on the configured storage provider) is a normal, low-risk case;
   // image loads can't execute code the way a script or fetch target could.
-  setHeader(event, 'content-security-policy', "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; img-src * data:")
+  // `sandbox allow-scripts` makes the document itself opaque-origin no matter how it's
+  // loaded. The embedding <iframe sandbox="allow-scripts"> (PluginBlockFrame.vue) only
+  // protects it when it's embedded — this URL is same-origin and can be opened directly
+  // as a top-level page (e.g. a link sent to a signed-in admin), where plugin client code
+  // would otherwise run with the site's own origin, cookies, and credentialed access to
+  // /api/v1. The header version of the sandbox applies in both cases.
+  setHeader(event, 'content-security-policy', "sandbox allow-scripts; default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; img-src * data:")
   return html
 })
 

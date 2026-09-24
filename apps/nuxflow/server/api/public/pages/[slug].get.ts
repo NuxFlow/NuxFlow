@@ -6,6 +6,7 @@ import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { withEdgeCache } from '../../../utils/edge-cache'
 import { findRedirect } from '../../../utils/redirect-cache'
 import { getActiveLocales } from '../../../utils/locale-cache'
+import { findPreviewItem } from '../../../utils/preview'
 
 type ContentItemRow = typeof contentItems.$inferSelect
 
@@ -122,6 +123,18 @@ export default defineEventHandler(async (event) => {
     actualSlug = parts.slice(1).join('/') || 'home'
   }
 
+  // Draft preview (a link from the editor's "Preview link" button — see
+  // api/preview/[token].get.ts): a valid token for exactly this slug serves that item
+  // regardless of status. Checked before the published lookup so previewing an edited
+  // draft never falls back to something else. Never cached, never indexed, not counted
+  // as a page view, and not membership-gated — the token itself is the authorization.
+  const previewItem = await findPreviewItem(event, useDb(event), siteId, actualSlug)
+  if (previewItem) {
+    setHeader(event, 'Cache-Control', 'private, no-store')
+    setHeader(event, 'X-Robots-Tag', 'noindex')
+    return assemblePageResponse(useDb(event), previewItem, siteId)
+  }
+
   // 1. Try finding by exact slug first
   let page = await db.query.contentItems.findFirst({
     where: and(
@@ -211,9 +224,15 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
           columns: { name: true, image: true },
         })
       : Promise.resolve(null),
+    // Scoped to this site and to published items: this feeds the public language switcher,
+    // so it must never reveal the slug of another tenant's item or of an unpublished one.
     page.sourceItemId
       ? db.query.contentItems.findFirst({
-          where: eq(contentItems.id, page.sourceItemId),
+          where: and(
+            eq(contentItems.id, page.sourceItemId),
+            eq(contentItems.siteId, siteId),
+            eq(contentItems.status, 'published'),
+          ),
           columns: { locale: true, slug: true },
         })
       : Promise.resolve(null),

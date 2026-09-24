@@ -45,7 +45,9 @@ afterAll(teardownTestDb)
 
 type HandlerFn = (e: H3Event) => Promise<unknown>
 
-function mkEvent(body: unknown, id?: string, role: 'author' | 'editor' = 'author') {
+// Defaults to editor: these tests change the access gate on published pages, which only an
+// editor may do (an author can't edit a published item — see content-crud.test.ts).
+function mkEvent(body: unknown, id?: string, role: 'author' | 'editor' = 'editor') {
   const user = role === 'editor'
     ? { id: editorUserId, name: 'Editor', email: 'editor@content-access-write.test' }
     : { id: authorUserId, name: 'Author', email: 'author@content-access-write.test' }

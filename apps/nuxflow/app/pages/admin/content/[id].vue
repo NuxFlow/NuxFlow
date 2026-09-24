@@ -21,6 +21,7 @@ const { data: item, refresh } = await useAsyncData(
     typeSlug?: string
     eventStartAt?: string | null; eventEndAt?: string | null; eventLocation?: string | null
     eventUrl?: string | null; eventAllDay?: boolean | null
+    canEdit?: boolean
   }>(`/api/v1/content/${id.value}`),
   { server: false },
 )
@@ -143,10 +144,16 @@ function onTranslated(newId: string) {
   router.push(`/admin/content/${newId}`)
 }
 
+// False when the server says this user can't change this item (an author opening someone
+// else's item, or their own item after it was published) — autosave is paused and a
+// notice is shown rather than letting every save fail.
+const canEdit = computed(() => isNew.value || item.value?.canEdit !== false)
+
 let autoSaveTimer: ReturnType<typeof setTimeout>
 watch(form, () => {
   if (isNew.value) return // don't auto-save before first explicit save
   if (!formSeeded) return  // don't auto-save while initial data is still loading
+  if (!canEdit.value) return
   clearTimeout(autoSaveTimer)
   autoSaveTimer = setTimeout(() => save(), 10_000)
 })
@@ -206,8 +213,8 @@ async function save(overrideStatus?: string) {
       await $fetch(contentUrl, { method: 'PATCH', body })
       lastSaved.value = new Date()
     }
-  } catch {
-    saveError.value = 'Failed to save. Please try again.'
+  } catch (e: unknown) {
+    saveError.value = getErrorMessage(e, 'Failed to save. Please try again.')
   } finally {
     saving.value = false
   }
@@ -237,6 +244,14 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
 
 <template>
   <div class="max-w-7xl mx-auto space-y-4">
+    <UAlert
+      v-if="!canEdit"
+      color="warning"
+      variant="subtle"
+      icon="i-lucide-lock"
+      title="Read-only"
+      description="Authors can only edit their own drafts and items in review. Ask an editor to make changes to this item."
+    />
     <!-- Top bar -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div class="flex items-center gap-3">

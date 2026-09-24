@@ -4,7 +4,7 @@ import { and, eq, desc, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import type { Db } from './db'
 import { contentItems } from '@nuxflow/db/schema'
-import { roleAtLeast, hasApiKeyScope, type Role, type ApiKeyScope } from './permissions'
+import { roleAtLeast, hasApiKeyScope, canEditContentItem, AUTHOR_SETTABLE_STATUSES, type Role, type ApiKeyScope } from './permissions'
 import { getContentItem, getContentTypeBySlug } from './content-queries'
 import { scopedById } from './db-helpers'
 import { writeAuditLog } from './audit'
@@ -243,6 +243,9 @@ async function createContent(args: unknown, ctx: McpToolContext): Promise<McpToo
     return textResult(`Error: ${parsed.error.issues.map(i => i.message).join('; ')}`)
   }
   const { title, slug: slugVal, status: statusVal = 'draft' } = parsed.data
+  if (!AUTHOR_SETTABLE_STATUSES.has(statusVal) && !apiKeyRoleAtLeast(ctx.apiKeyRole, 'editor')) {
+    return textResult(`Error: Role "${ctx.apiKeyRole}" is unauthorized to publish content.`)
+  }
   const contentVal = parsed.data.content ?? ''
   const typeSlug = parsed.data.type || 'page'
 
@@ -297,6 +300,10 @@ async function updateContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   if (!existing) {
     return textResult(`Error: Content item with ID "${id}" not found.`)
   }
+  // Same rule as PATCH /api/v1/content/:id — authors only touch their own unpublished items.
+  if (!canEditContentItem((ctx.apiKeyRole ?? 'viewer') as Role, ctx.apiKeyUserId, existing)) {
+    return textResult(`Error: Role "${ctx.apiKeyRole}" may only update its own draft or in-review content.`)
+  }
 
   const updates: Partial<typeof contentItems.$inferSelect> = {
     updatedAt: new Date().toISOString(),
@@ -305,8 +312,8 @@ async function updateContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   if (parsedUpdate.data.slug !== undefined) updates.slug = parsedUpdate.data.slug
   if (parsedUpdate.data.content !== undefined) updates.content = parsedUpdate.data.content
   if (parsedUpdate.data.status !== undefined) {
-    if (parsedUpdate.data.status === 'published' && !apiKeyRoleAtLeast(ctx.apiKeyRole, 'editor')) {
-      return textResult(`Error: Role "${ctx.apiKeyRole}" is unauthorized to publish content.`)
+    if (!AUTHOR_SETTABLE_STATUSES.has(parsedUpdate.data.status) && !apiKeyRoleAtLeast(ctx.apiKeyRole, 'editor')) {
+      return textResult(`Error: Role "${ctx.apiKeyRole}" is unauthorized to publish, schedule, or archive content.`)
     }
     updates.status = parsedUpdate.data.status
     if (parsedUpdate.data.status === 'published' && !existing.publishedAt) {
@@ -344,6 +351,10 @@ async function deleteContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   const existing = await getContentItem(ctx.db, ctx.siteId, id)
   if (!existing) {
     return textResult(`Error: Content item with ID "${id}" not found.`)
+  }
+  // Same rule as PATCH /api/v1/content/:id — authors only touch their own unpublished items.
+  if (!canEditContentItem((ctx.apiKeyRole ?? 'viewer') as Role, ctx.apiKeyUserId, existing)) {
+    return textResult(`Error: Role "${ctx.apiKeyRole}" may only update its own draft or in-review content.`)
   }
 
   await ctx.db.delete(contentItems)

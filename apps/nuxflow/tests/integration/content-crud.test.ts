@@ -55,7 +55,10 @@ beforeAll(async () => {
   await seedRole(db, authorId, SITE, 'author')
   await seedRole(db, editorId, SITE, 'editor')
   typeId = await seedContentType(db, SITE, { slug: 'post', name: 'Posts', singularName: 'Post' })
+  // Owned by the author, and still a draft — the only state in which an author may edit
+  // (see canEditContentItem); the ownership/status rules themselves are covered below.
   existingItemId = await seedContentItem(db, SITE, typeId, {
+    authorId,
     slug: 'existing-post',
     title: 'Existing Post',
     status: 'draft',
@@ -222,6 +225,8 @@ describe('PATCH /api/v1/content/[id] — basic updates', () => {
 
   it('snapshots a revision record before each update', async () => {
     const snapshotId = await seedContentItem(getCurrentTestDb(), SITE, typeId, {
+      authorId,
+      status: 'draft',
       slug: 'revision-target',
       title: 'Before Revision',
     })
@@ -244,11 +249,76 @@ describe('PATCH /api/v1/content/[id] — basic updates', () => {
   })
 })
 
+// Standard CMS author model (canEditContentItem): editors edit anything; an author edits
+// only their own items, and only while those are unpublished (draft/review). Without this,
+// an author could rewrite an already-live page — or flip its members-only gate — without
+// the editor role that publishing requires.
+describe('PATCH /api/v1/content/[id] — author ownership and status rules', () => {
+  it('forbids an author from editing a draft written by someone else', async () => {
+    const othersDraft = await seedContentItem(getCurrentTestDb(), SITE, typeId, {
+      authorId: editorId, status: 'draft', publishedAt: null, slug: 'others-draft',
+    })
+    await expect(
+      (patchHandler as HandlerFn)(mkPatchEvent({ title: 'Hijacked' }, othersDraft)),
+    ).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('forbids an author from editing their own item once it is published', async () => {
+    const ownPublished = await seedContentItem(getCurrentTestDb(), SITE, typeId, {
+      authorId, status: 'published', slug: 'own-published',
+    })
+    await expect(
+      (patchHandler as HandlerFn)(mkPatchEvent({ title: 'Live edit', settings: { access: 'public' } }, ownPublished)),
+    ).rejects.toMatchObject({ statusCode: 403 })
+    const item = await getCurrentTestDb().query.contentItems.findFirst({ where: eq(contentItems.id, ownPublished) })
+    expect(item!.title).not.toBe('Live edit')
+  })
+
+  it('lets an author edit their own item while it is in review', async () => {
+    const ownReview = await seedContentItem(getCurrentTestDb(), SITE, typeId, {
+      authorId, status: 'review', publishedAt: null, slug: 'own-review',
+    })
+    await expect(
+      (patchHandler as HandlerFn)(mkPatchEvent({ title: 'Revised' }, ownReview)),
+    ).resolves.toMatchObject({ id: ownReview })
+  })
+
+  it('forbids an author from archiving their own draft', async () => {
+    const ownDraft = await seedContentItem(getCurrentTestDb(), SITE, typeId, {
+      authorId, status: 'draft', publishedAt: null, slug: 'own-draft-archive',
+    })
+    await expect(
+      (patchHandler as HandlerFn)(mkPatchEvent({ status: 'archived' }, ownDraft)),
+    ).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('lets an editor edit any item, including a published page by an author', async () => {
+    const authorsPublished = await seedContentItem(getCurrentTestDb(), SITE, typeId, {
+      authorId, status: 'published', slug: 'authors-published',
+    })
+    await expect(
+      (patchHandler as HandlerFn)(mkPatchEvent({ title: 'Edited by editor' }, authorsPublished, 'editor')),
+    ).resolves.toMatchObject({ id: authorsPublished })
+  })
+
+  it('rejects a sourceItemId that belongs to another site', async () => {
+    const db = getCurrentTestDb()
+    const foreignSite = 'site-crud-foreign-source'
+    await seedSite(db, { id: foreignSite, domain: 'foreign-source.localhost' })
+    const foreignType = await seedContentType(db, foreignSite)
+    const foreignItem = await seedContentItem(db, foreignSite, foreignType)
+    await expect(
+      (patchHandler as HandlerFn)(mkPatchEvent({ sourceItemId: foreignItem }, existingItemId, 'editor')),
+    ).rejects.toMatchObject({ statusCode: 404 })
+  })
+})
+
 describe('PATCH /api/v1/content/[id] — optimistic locking', () => {
   let lockItemId: string
 
   beforeAll(async () => {
     lockItemId = await seedContentItem(getCurrentTestDb(), SITE, typeId, {
+      authorId,
       slug: 'lock-test-item',
       title: 'Lock Test',
       status: 'draft',

@@ -1,4 +1,5 @@
 import type { MediaProvider, UploadResult } from './index'
+import { contentDispositionFor } from './index'
 
 export interface R2ProviderConfig {
   bucket: R2Bucket
@@ -26,7 +27,10 @@ export class R2Provider implements MediaProvider {
   async upload(file: File, key: string): Promise<UploadResult> {
     const buf = await file.arrayBuffer()
     await this.bucket.put(key, buf, {
-      httpMetadata: { contentType: file.type || 'application/octet-stream' },
+      httpMetadata: {
+        contentType: file.type || 'application/octet-stream',
+        contentDisposition: contentDispositionFor(file.type),
+      },
     })
     return { url: this.getUrl(key), storageKey: key, provider: 'r2' }
   }

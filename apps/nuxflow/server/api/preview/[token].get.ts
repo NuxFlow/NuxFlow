@@ -1,6 +1,7 @@
 import { useDb } from '../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, gt } from 'drizzle-orm'
+import { PREVIEW_COOKIE, PREVIEW_COOKIE_MAX_AGE_SECONDS } from '../../utils/preview'
 
 export default defineEventHandler(async (event) => {
   const token = getRouterParam(event, 'token')!
@@ -18,6 +19,16 @@ export default defineEventHandler(async (event) => {
 
   if (!item) throw notFound('Invalid or expired preview link')
 
-  setCookie(event, '__nuxflow_preview', token, { maxAge: 3600, path: '/', httpOnly: false })
-  return sendRedirect(event, `/${item.slug}?preview=1`, 302)
+  // Only ever read server-side (findPreviewItem, during the page's own SSR/API fetch), so
+  // there's no reason for page script to see it.
+  setCookie(event, PREVIEW_COOKIE, token, {
+    maxAge: PREVIEW_COOKIE_MAX_AGE_SECONDS,
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: getRequestURL(event).protocol === 'https:',
+  })
+  setHeader(event, 'Cache-Control', 'private, no-store')
+  setHeader(event, 'X-Robots-Tag', 'noindex')
+  return sendRedirect(event, item.slug === 'home' ? '/' : `/${item.slug}`, 302)
 })

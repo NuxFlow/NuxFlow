@@ -10,7 +10,6 @@ import { rateLimit } from '../utils/rate-limit'
 // already used elsewhere in the app for consistent, cross-isolate limits.
 const AUTH_RATE_LIMITS: Record<string, { limit: number; windowMs: number }> = {
   '/api/auth/sign-in/email': { limit: 10, windowMs: 10 * 60_000 },
-  '/api/auth/sign-up/email': { limit: 5, windowMs: 60 * 60_000 },
   '/api/auth/request-password-reset': { limit: 3, windowMs: 15 * 60_000 },
   '/api/auth/reset-password': { limit: 10, windowMs: 15 * 60_000 },
   // WebAuthn itself isn't brute-forceable (the challenge is single-use and the private key
@@ -31,9 +30,26 @@ const AUTH_RATE_LIMITS: Record<string, { limit: number; windowMs: number }> = {
 export default defineEventHandler(async (event) => {
   if (!event.path.startsWith('/api/auth')) return
 
-  const limitOpts = AUTH_RATE_LIMITS[event.path]
+  // Match on the pathname only — event.path includes the query string, so keying the
+  // lookup on it let `/api/auth/sign-in/email?x=1` miss every limit below while Better
+  // Auth's own router (which ignores the query string) still handled it normally.
+  // Trailing slashes are trimmed for the same reason.
+  const pathname = getRequestURL(event).pathname.replace(/\/+$/, '')
+
+  // Better Auth's own sign-up endpoint is global and ignores the per-site
+  // `auth.allow_public_registration` setting. Nothing in the app calls it: public
+  // registration goes through api/public/auth/register.post.ts (which enforces that
+  // setting), and invites/restores create accounts in-process via auth.api.signUpEmail()
+  // (user-provisioning.ts), which never passes through this middleware. Leaving it open
+  // let anyone pre-register an email address before its real owner was invited — the
+  // invite would then attach its role to the attacker-controlled account.
+  if (pathname === '/api/auth/sign-up/email') {
+    throw createError({ statusCode: 404, message: 'Not found' })
+  }
+
+  const limitOpts = AUTH_RATE_LIMITS[pathname]
   if (limitOpts) {
-    await rateLimit(event, { ...limitOpts, keyPrefix: `auth:${event.path}` })
+    await rateLimit(event, { ...limitOpts, keyPrefix: `auth:${pathname}` })
   }
 
   const auth = await getOrCreateBetterAuth(event)

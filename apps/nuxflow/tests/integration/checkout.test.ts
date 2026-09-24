@@ -61,6 +61,19 @@ function mkEvent(uid: string | null = userId, body: unknown = {}) {
 }
 
 describe('POST /api/v1/memberships/checkout', () => {
+  // The free-tier path hands returnUrl straight back for the client to navigate to, and
+  // paid paths give it to the provider as the post-payment redirect — so it must stay on
+  // this site and be http(s) (no open redirect, no javascript: navigation).
+  it('rejects a returnUrl on another host', async () => {
+    const event = mkEvent(userId, { tierId: freeTierId, returnUrl: 'https://evil.example/phish' })
+    await expect((checkoutHandler as HandlerFn)(event)).rejects.toMatchObject({ statusCode: 422 })
+  })
+
+  it('rejects a javascript: returnUrl', async () => {
+    const event = mkEvent(userId, { tierId: freeTierId, returnUrl: 'javascript:alert(document.cookie)' })
+    await expect((checkoutHandler as HandlerFn)(event)).rejects.toMatchObject({ statusCode: 422 })
+  })
+
   it('throws 401 when not authenticated', async () => {
     const event = mkEvent(null, { tierId: freeTierId, returnUrl: 'http://localhost/success' })
     await expect(

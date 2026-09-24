@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { subscriptions } from '@nuxflow/db/schema'
 import { and, eq, ne } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
+import { assertSameHostReturnUrl } from '../../../utils/validate'
 import { getStripeProvider, getLemonSqueezyProvider, getPaddleProvider } from '../../../utils/payments/resolve'
 import { rethrowAsProviderError } from '../../../utils/errors'
 import { rateLimit } from '../../../utils/rate-limit'
@@ -18,6 +19,7 @@ export default defineEventHandler(async (event) => {
   const session = await requireSession(event)
   const siteId = event.context.siteId as string
   const body = await parseBody(event, bodySchema)
+  assertSameHostReturnUrl(event, body.returnUrl)
 
   const db = useDb(event)
   const userId = session.user.id as string

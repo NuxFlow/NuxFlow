@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { useDb } from '../../../../utils/db'
 import { spawnPluginWorker, getPluginServerCode, PLUGIN_WORKER_LIMITS } from '../../../../utils/cf-plugin-kv'
 import { assertCodeIntegrity } from '../../../../utils/plugin-signing'
+import { PLUGIN_EXT_CORS_HEADERS, confinePluginResponseHeaders } from '../../../../utils/plugin-response'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -38,23 +39,9 @@ function pickForwardableHeaders(event: H3Event): HeadersInit {
 // but the loader's own instance identity must be too, or that per-site authorization check
 // can be satisfied while still handing the request to an isolate warmed by another site's
 // traffic (and whatever module-level state that traffic left behind).
-// Fetched from inside the sandboxed plugin iframe (see
-// _nuxflow/plugin-frame/[pluginId]/[...blockName].get.ts), whose sandbox="allow-scripts"
-// (no allow-same-origin) gives it an opaque origin — the browser treats any call here
-// as cross-origin regardless of it being "our own" domain, and a JSON POST body
-// (Content-Type: application/json is not a CORS-"simple" content type) triggers a
-// preflight OPTIONS request first. Safe to wildcard: this route already never
-// forwards Cookie/Authorization (see FORWARDABLE_HEADERS above), so it was already
-// safe to call without a session regardless of origin.
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-}
-
 export default defineEventHandler(async (event) => {
   if (event.method === 'OPTIONS') {
-    for (const [key, value] of Object.entries(CORS_HEADERS)) setHeader(event, key, value)
+    for (const [key, value] of Object.entries(PLUGIN_EXT_CORS_HEADERS)) setHeader(event, key, value)
     setResponseStatus(event, 204)
     return null
   }
@@ -106,7 +93,6 @@ export default defineEventHandler(async (event) => {
   // since Cloudflare's docs say the lower of the two wins, so either call site alone
   // changing later can't silently drop the bound on third-party plugin code.
   const res = await worker.getEntrypoint(undefined, { limits: PLUGIN_WORKER_LIMITS }).fetch(forwardReq)
-  const headers = new Headers(res.headers)
-  for (const [key, value] of Object.entries(CORS_HEADERS)) headers.set(key, value)
-  return new Response(res.body, { status: res.status, statusText: res.statusText, headers })
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: confinePluginResponseHeaders(res.headers) })
 })
+

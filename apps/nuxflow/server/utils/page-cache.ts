@@ -57,6 +57,11 @@ export function isPageCacheEligible(event: H3Event): boolean {
   if (EXCLUDED_PATH_PREFIXES.some(prefix => path.startsWith(prefix))) return false
   if (EXCLUDED_EXACT_PATHS.has(path)) return false
 
+  // An Authorization header is a credential just like a cookie: an API-key request for a
+  // members-only page renders that member's view during SSR, which must never be written
+  // into a cache every anonymous visitor then reads from.
+  if (getHeader(event, 'authorization')) return false
+
   const cookies = parseCookies(event)
   return Object.keys(cookies).length === 0
 }

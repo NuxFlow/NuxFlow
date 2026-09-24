@@ -8,8 +8,10 @@ interface PublicPage {
   hasComments?: boolean | null
 }
 
+// `cookie` is forwarded so a draft-preview cookie (api/preview/[token].get.ts) reaches the
+// page API during SSR — same as app/pages/[...slug].vue.
 const { data: page } = await useFetch<PublicPage>('/api/public/pages/home', {
-  headers: useRequestHeaders(['host']),
+  headers: useRequestHeaders(['host', 'cookie']),
 })
 
 const hasCustomContent = computed(() =>

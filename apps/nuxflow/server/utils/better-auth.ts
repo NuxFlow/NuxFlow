@@ -231,6 +231,17 @@ async function buildBetterAuthInstance(event: H3Event) {
       // Better Auth's equivalent for the reset-password path, which has no per-call
       // opt-in and is off by default.
       revokeSessionsOnPasswordReset: true,
+      // A completed reset proves the person controls the mailbox (the token was only ever
+      // emailed there), so it doubles as email verification — and it's how invitees and
+      // reclaimed accounts (user-provisioning.ts) finish claiming their account. When the
+      // address was NOT yet verified, anything registered on the account before this
+      // point may belong to someone who pre-registered the address, so passkeys are
+      // dropped too (sessions are already revoked by revokeSessionsOnPasswordReset).
+      onPasswordReset: async ({ user }) => {
+        if (user.emailVerified) return
+        await db.delete(schema.passkeys).where(eq(schema.passkeys.userId, user.id))
+        await db.update(schema.users).set({ emailVerified: true }).where(eq(schema.users.id, user.id))
+      },
     },
     // Sending is wired up (used explicitly by server/api/public/auth/register.post.ts
     // right after it creates a self-registered account) but nothing enforces it —

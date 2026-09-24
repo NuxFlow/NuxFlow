@@ -206,4 +206,20 @@ describe('POST /api/v1/media/upload', () => {
 
     await expect((uploadHandler as HandlerFn)(event)).rejects.toMatchObject({ statusCode: 400 })
   })
+
+  // The SVG sanitizer used to run only on an exact `image/svg+xml` match, so a parameter
+  // on the declared type skipped it while still passing the `image/` allowlist.
+  it('sanitizes an SVG whose declared type carries parameters, and stores the bare type', async () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script></svg>'
+    const file = new File([svg], 'logo.svg', { type: 'image/svg+xml;charset=utf-8' })
+    const result = await (uploadHandler as HandlerFn)(mkEvent(file)) as { id: string; url: string }
+
+    expect(result.url.startsWith('data:image/svg+xml;base64,')).toBe(true)
+    const stored = atob(result.url.slice('data:image/svg+xml;base64,'.length))
+    expect(stored).not.toMatch(/onload|<script/i)
+
+    const row = await getCurrentTestDb().query.media.findFirst({ where: eq(media.id, result.id) })
+    expect(row!.mimeType).toBe('image/svg+xml')
+  })
 })
+

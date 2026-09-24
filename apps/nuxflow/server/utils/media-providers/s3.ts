@@ -1,5 +1,5 @@
 import type { MediaProvider, UploadResult } from './index'
-import { encodeStorageKey, assertProviderOk } from './index'
+import { encodeStorageKey, assertProviderOk, contentDispositionFor } from './index'
 import { bufferToHex } from '../buffer'
 
 async function hmacSha256(key: BufferSource | CryptoKey, data: string): Promise<ArrayBuffer> {
@@ -95,6 +95,7 @@ export class S3Provider implements MediaProvider {
   async upload(file: File, key: string): Promise<UploadResult> {
     const buf = await file.arrayBuffer()
     const url = `${this.endpoint}/${this.bucket}/${encodeStorageKey(key)}`
+    const disposition = contentDispositionFor(file.type)
 
     const headers = await signRequest({
       method: 'PUT',
@@ -103,6 +104,7 @@ export class S3Provider implements MediaProvider {
         'Content-Type': file.type,
         'Content-Length': String(file.size),
         'x-amz-acl': 'public-read',
+        ...(disposition ? { 'Content-Disposition': disposition } : {}),
         host: new URL(url).host,
       },
       body: buf,

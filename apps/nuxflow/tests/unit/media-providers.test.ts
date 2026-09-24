@@ -104,3 +104,24 @@ describe('local provider — size guard', () => {
     await expect(provider.upload(file, 'big.png', 'site-1')).rejects.toMatchObject({ statusCode: 413 })
   })
 })
+
+describe('R2 provider — SVG content disposition', () => {
+  // SVG is sanitized on upload, and additionally stored as an attachment so opening its
+  // URL directly downloads it instead of rendering it (and any script a sanitizer bypass
+  // might leave) on the media origin. <img>/CSS embedding ignores Content-Disposition.
+  async function putMetadataFor(type: string) {
+    const { R2Provider } = await import('../../server/utils/media-providers/r2')
+    const put = vi.fn().mockResolvedValue(undefined)
+    const provider = new R2Provider({ bucket: { put, delete: vi.fn() } as unknown as R2Bucket, publicUrl: 'https://media.example.com' })
+    await provider.upload(new File(['x'], 'f', { type }), 'site/key')
+    return put.mock.calls[0]![2].httpMetadata as { contentType: string; contentDisposition?: string }
+  }
+
+  it('marks SVG uploads as attachments', async () => {
+    expect(await putMetadataFor('image/svg+xml')).toEqual({ contentType: 'image/svg+xml', contentDisposition: 'attachment' })
+  })
+
+  it('leaves raster images inline', async () => {
+    expect((await putMetadataFor('image/png')).contentDisposition).toBeUndefined()
+  })
+})

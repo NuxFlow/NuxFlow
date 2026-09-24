@@ -9,7 +9,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { isSiteMemberForSession } from '../../../../utils/permissions'
 import { waitUntil } from '../../../../utils/cf-env'
 import { moderateText } from '../../../../utils/moderation'
-import { comments } from '@nuxflow/db/schema'
+import { comments, contentTypes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 const bodySchema = z.object({
@@ -52,13 +52,28 @@ export default defineEventHandler(async (event) => {
   //   unmoderated comments here — the same cross-tenant gap requireAuth() exists to
   //   close for content access, applied to comment moderation instead. Reuses the
   //   `session` already fetched above instead of a second Better Auth lookup.
-  const [, , isMember] = await Promise.all([
-    getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true }),
+  const [item, , isMember] = await Promise.all([
+    getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true, status: true, allowComments: true, typeId: true }),
     parsed.parentId
       ? getCommentByIdOrThrow(db, siteId, parsed.parentId, 'Parent comment not found', itemId)
       : Promise.resolve(null),
     isSiteMemberForSession(db, session, siteId),
   ])
+
+  // Comments are a public-page feature: only published items with comments turned on
+  // accept them. Without this, anyone holding an item's id could attach comments to a
+  // draft or to a page whose comments are switched off — filling the moderation queue
+  // with content no visitor could ever have posted through the site.
+  // Per-item override takes precedence; null means "inherit from content type" (same
+  // rule as api/public/pages/[slug].get.ts).
+  const commentsEnabled = item.allowComments ?? (await db.query.contentTypes.findFirst({
+    where: eq(contentTypes.id, item.typeId),
+    columns: { hasComments: true },
+  }))?.hasComments ?? false
+  if (item.status !== 'published' || !commentsEnabled) {
+    throw forbidden('Comments are not open on this item')
+  }
+
   const status = isMember ? 'approved' : 'pending'
 
   const id = ulid()

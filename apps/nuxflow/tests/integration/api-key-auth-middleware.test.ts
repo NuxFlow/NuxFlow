@@ -64,6 +64,21 @@ describe('03.api-key-auth middleware', () => {
     })
   })
 
+  // Drizzle builders are lazy; the old `void db.update(...)` never executed, so
+  // lastUsedAt stayed null forever. It now runs in the background via waitUntil.
+  it('records lastUsedAt for a successfully authenticated key', async () => {
+    const pending: Promise<unknown>[] = []
+    const event = mkApiKeyEvent({ authorization: `Bearer ${RAW_KEY}` }) as unknown as { context: Record<string, unknown> }
+    event.context.cloudflare = { ctx: { waitUntil: (p: Promise<unknown>) => pending.push(p) } }
+
+    await (apiKeyMiddleware as MiddlewareFn)(event as unknown as H3Event)
+    expect(pending).toHaveLength(1)
+    await Promise.all(pending)
+
+    const row = await getCurrentTestDb().query.apiKeys.findFirst({ where: (k, { eq }) => eq(k.keyHash, keyHash) })
+    expect(row!.lastUsedAt).toBeTruthy()
+  })
+
   it('skips when there is no Authorization header', async () => {
     const event = mkApiKeyEvent()
     await (apiKeyMiddleware as MiddlewareFn)(event)

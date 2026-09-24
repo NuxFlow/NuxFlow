@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
-import { requireRole } from '../../../../utils/permissions'
+import { requireRole, assertCanEditContentItem } from '../../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { contentTaxonomyTerms, taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
@@ -12,13 +12,14 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const { userId } = await requireRole(event, 'author')
+  const { userId, role } = await requireRole(event, 'author')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const itemId = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 
-  const item = await getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true, slug: true })
+  const item = await getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true, slug: true, authorId: true, status: true })
+  assertCanEditContentItem(role, userId, item)
 
   // Terms must belong to a taxonomy owned by this site — otherwise a caller could link
   // content to another tenant's taxonomy term by supplying its (unguessable but not

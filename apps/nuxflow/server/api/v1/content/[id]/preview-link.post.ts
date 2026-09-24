@@ -23,8 +23,10 @@ export default defineEventHandler(async (event) => {
     .set({ previewToken: token, previewTokenExpiresAt: expiresAt })
     .where(scopedById(contentItems.id, id, contentItems.siteId, siteId))
 
-  const config = useRuntimeConfig()
-  const baseUrl = config.public.siteUrl || 'http://localhost:3000'
+  // The link must point at THIS site's domain — the token only resolves against the
+  // site it was issued for (see preview/[token].get.ts), and the deployment-wide
+  // `siteUrl` is some other site's domain on every secondary site of a multi-site install.
+  const baseUrl = getRequestURL(event).origin
 
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'generate',
