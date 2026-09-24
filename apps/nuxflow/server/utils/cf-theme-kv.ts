@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { sanitizeThemeCss } from './security'
+import { sanitizeThemeCss } from './sanitize-css-svg'
 import { getCachedThemeCss, setCachedThemeCss, clearCachedThemeCss } from './theme-cache'
 import { useDb } from './db'
 import { getCfBindings } from './cf-env'

@@ -3,6 +3,7 @@ import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, desc } from 'drizzle-orm'
 import { paginate, countRows } from '@nuxflow/db/queries'
 import { withEdgeCache } from '../../utils/edge-cache'
+import { parsePagination } from '../../utils/pagination'
 
 const CACHE_MAX_AGE = 300
 
@@ -12,9 +13,7 @@ export default defineEventHandler(async (event) => {
   const db = useReplicaDb(event)
   const siteId = event.context.siteId as string
   const query = getQuery(event)
-  const page = Math.max(1, Number(query.page) || 1)
-  const limit = Math.min(50, Math.max(1, Number(query.limit) || 10))
-  const offset = (page - 1) * limit
+  const { page, perPage: limit, offset } = parsePagination(query, 10, 50)
 
   // Cached at the edge (Cloudflare Cache API) — TTL-only, no explicit invalidation on
   // publish/edit, matching the same window this route already promises via

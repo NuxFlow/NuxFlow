@@ -1,3 +1,4 @@
+import { bufferToHex } from '../utils/buffer'
 import { useDb } from '../utils/db'
 import { apiKeys, userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -17,8 +18,7 @@ export default defineEventHandler(async (event) => {
   const encoder = new TextEncoder()
   const data = encoder.encode(rawKey)
   const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  const keyHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+  const keyHash = bufferToHex(hashBuffer)
 
   // Scope lookup to the current site so a key from Site A cannot authenticate on Site B
   const apiKey = await db.query.apiKeys.findFirst({

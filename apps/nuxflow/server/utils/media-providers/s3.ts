@@ -1,9 +1,6 @@
 import type { MediaProvider, UploadResult } from './index'
 import { encodeStorageKey, assertProviderOk } from './index'
-
-function toHex(buf: ArrayBuffer) {
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
-}
+import { bufferToHex } from '../buffer'
 
 async function hmacSha256(key: BufferSource | CryptoKey, data: string): Promise<ArrayBuffer> {
   const cryptoKey = key instanceof CryptoKey
@@ -14,7 +11,7 @@ async function hmacSha256(key: BufferSource | CryptoKey, data: string): Promise<
 
 async function sha256Hex(data: string | ArrayBuffer): Promise<string> {
   const buf = typeof data === 'string' ? new TextEncoder().encode(data) : data
-  return toHex(await crypto.subtle.digest('SHA-256', buf))
+  return bufferToHex(await crypto.subtle.digest('SHA-256', buf))
 }
 
 async function signingKey(secretKey: string, date: string, region: string, service: string): Promise<ArrayBuffer> {
@@ -59,7 +56,7 @@ async function signRequest(opts: {
   const stringToSign = ['AWS4-HMAC-SHA256', dateTime, credentialScope, await sha256Hex(canonicalRequest)].join('\n')
 
   const key = await signingKey(opts.secretKey, date, opts.region, opts.service)
-  const signature = toHex(await hmacSha256(key, stringToSign))
+  const signature = bufferToHex(await hmacSha256(key, stringToSign))
 
   return {
     ...signedHeaders,

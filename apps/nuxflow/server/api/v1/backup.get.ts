@@ -1,7 +1,7 @@
 import { requireRole } from '../../utils/permissions'
 import { buildBackup } from '../../utils/backup'
 import { zipSync } from 'fflate'
-import { isSafeUrl, safeFetch } from '../../utils/security'
+import { isSafeUrl, safeFetch } from '../../utils/ssrf'
 import { isHttpError } from '../../utils/errors'
 import { writeAuditLog } from '../../utils/audit'
 

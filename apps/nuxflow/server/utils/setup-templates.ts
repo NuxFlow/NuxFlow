@@ -207,3 +207,51 @@ export function getTemplateBlocks(template: SetupTemplate, siteName: string): Re
     },
   ]
 }
+
+/**
+ * TipTap doc content for the seeded "Hello World!" post — only inserted when the caller
+ * picks the 'blog' template (server/api/v1/setup/complete.post.ts).
+ */
+export function getHelloWorldPostContent(): Record<string, unknown> {
+  return {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          {
+            type: 'text',
+            text: 'Welcome to your brand new NuxFlow blog. This is your very first post! You can edit, replace, or delete this post anytime from your admin panel. Head over to the dashboard to start writing new journals, creating media assets, and building custom page flows.',
+          }
+        ]
+      }
+    ]
+  }
+}
+
+/**
+ * TipTap doc content for the seeded /privacy page — both the global cookie-consent
+ * banner and the canvas GDPR block link to /privacy by default (see
+ * apps/nuxflow/app/components/public/CookieConsent.vue and
+ * packages/canvas/src/blocks/CanvasBlockGdpr.vue) — without this, that link 404s on
+ * every fresh site until an admin happens to create the page themselves. Seeded as
+ * ordinary, fully editable page content (not locked or hidden from the content list)
+ * since this boilerplate text is a starting point, not real legal advice — the admin
+ * is expected to review and customize it for their own data practices. Inserted
+ * unconditionally for every fresh/secondary site by server/api/v1/setup/complete.post.ts,
+ * regardless of which homepage template was chosen.
+ */
+export function getPrivacyPageContent(): Record<string, unknown> {
+  return {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [{
+          type: 'text',
+          text: 'This is placeholder text — replace it with your own privacy policy before launch. Describe what personal data you collect, why, how long you keep it, which third parties (analytics, payment processors, email providers) you share it with, and how a visitor can exercise their rights (access, correction, deletion) over their data.',
+        }],
+      },
+    ],
+  }
+}

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { H3Event } from 'h3'
+import { bufferToHex } from '../../../utils/buffer'
 import { useDb } from '../../../utils/db'
 import { sites, users, accounts, userSiteRoles, contentTypes, contentItems, taxonomies, siteSettings, auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
@@ -9,7 +10,7 @@ import { created } from '../../../utils/response'
 import { isHttpError } from '../../../utils/errors'
 import { clearSiteCache } from '../../../middleware/02.multi-site'
 import { clearSetupStatusCache } from './status.get'
-import { getTemplateBlocks } from '../../../utils/setup-templates'
+import { getTemplateBlocks, getHelloWorldPostContent, getPrivacyPageContent } from '../../../utils/setup-templates'
 
 const bodySchema = z.object({
   site: z.object({
@@ -31,7 +32,7 @@ const bodySchema = z.object({
 
 async function hashSetupToken(token: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
+  return bufferToHex(digest)
 }
 
 export default defineEventHandler(async (event) => {
@@ -315,33 +316,15 @@ async function _handleSetup(event: H3Event) {
       title: 'Hello World!',
       status: 'published',
       visibility: 'public',
-      content: {
-        type: 'doc',
-        content: [
-          {
-            type: 'paragraph',
-            content: [
-              {
-                type: 'text',
-                text: 'Welcome to your brand new NuxFlow blog. This is your very first post! You can edit, replace, or delete this post anytime from your admin panel. Head over to the dashboard to start writing new journals, creating media assets, and building custom page flows.',
-              }
-            ]
-          }
-        ]
-      },
+      content: getHelloWorldPostContent(),
       seoTitle: 'Hello World! - Welcome to NuxFlow',
       seoDescription: 'This is the first seeded post on your new edge-native blog.',
       publishedAt: new Date().toISOString(),
     })
   }
 
-  // Both the global cookie-consent banner and the canvas GDPR block link to /privacy
-  // by default (see apps/nuxflow/app/components/public/CookieConsent.vue and
-  // packages/canvas/src/blocks/CanvasBlockGdpr.vue) — without this, that link 404s on
-  // every fresh site until an admin happens to create the page themselves. Seeded as
-  // ordinary, fully editable page content (not locked or hidden from the content list)
-  // since this boilerplate text is a starting point, not real legal advice — the admin
-  // is expected to review and customize it for their own data practices.
+  // Seeded unconditionally regardless of template — see getPrivacyPageContent()'s doc
+  // comment in setup-templates.ts for why this page needs to exist on every fresh site.
   await db.insert(contentItems).values({
     id: ulid(),
     siteId,
@@ -351,18 +334,7 @@ async function _handleSetup(event: H3Event) {
     title: 'Privacy Policy',
     status: 'published',
     visibility: 'public',
-    content: {
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [{
-            type: 'text',
-            text: 'This is placeholder text — replace it with your own privacy policy before launch. Describe what personal data you collect, why, how long you keep it, which third parties (analytics, payment processors, email providers) you share it with, and how a visitor can exercise their rights (access, correction, deletion) over their data.',
-          }],
-        },
-      ],
-    },
+    content: getPrivacyPageContent(),
     seoTitle: `Privacy Policy - ${siteName}`,
     seoDescription: `How ${siteName} collects, uses, and protects your personal data.`,
     publishedAt: new Date().toISOString(),

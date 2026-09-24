@@ -61,7 +61,7 @@ export function stripHtmlToPlainText(html: string): string {
 // Unquoted attribute values explicitly exclude quote characters (rather than just
 // whitespace/">") so that alternative never overlaps with the quoted-value branches —
 // an overlapping alternation here is the classic shape that invites catastrophic
-// backtracking on malformed input (see the similar note in server/utils/security.ts).
+// backtracking on malformed input (see the similar note in server/utils/sanitize-css-svg.ts).
 const TAG_RE = /<!--[\s\S]*?-->|<(\/?)([a-z][\w-]*)((?:\s+[\w:-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?)*)\s*(\/?)>/gi
 const ATTR_RE = /([\w:-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g
 

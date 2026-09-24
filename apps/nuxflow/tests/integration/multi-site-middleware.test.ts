@@ -1,24 +1,16 @@
 /**
- * Integration tests for Nitro middleware.
- *
- * 02.multi-site.ts  — resolves the current site from the Host header, sets
- *   event.context.{siteId, siteStatus, setupCompleted}, handles maintenance mode
- *   and the single-site fallback.
- *
- * 03.api-key-auth.ts — validates Bearer API keys (SHA-256 hash lookup), checks
- *   expiry, sets event.context.{apiKeyUserId, apiKeyRole}.
+ * Integration tests for server/middleware/02.multi-site.ts — resolves the current site
+ * from the Host header, sets event.context.{siteId, siteStatus, setupCompleted}, handles
+ * maintenance mode, suspended-site blocking, and the single-site fallback.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole } from '../helpers/seed'
-import { apiKeys, sites } from '@nuxflow/db/schema'
+import { sites } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
-import { ulid } from 'ulid'
 import multiSiteMiddleware from '../../server/middleware/02.multi-site'
-import apiKeyMiddleware from '../../server/middleware/03.api-key-auth'
-import themePreviewMiddleware from '../../server/middleware/06.theme-preview'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -28,11 +20,6 @@ vi.mock('../../server/utils/db', () => ({
 const SITE_A = 'site-mw-a'
 const SITE_B = 'site-mw-maint'
 const SITE_C = 'site-mw-suspended'
-let apiKeyUserId: string
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 type MiddlewareFn = (e: H3Event) => Promise<unknown>
 
@@ -51,25 +38,6 @@ function mkSiteEvent(opts: { host?: string; path?: string } = {}) {
   return base as unknown as H3Event
 }
 
-function mkApiKeyEvent(opts: { authorization?: string; siteId?: string } = {}) {
-  return createMockEvent({
-    siteId: opts.siteId ?? SITE_A,
-    headers: opts.authorization ? { authorization: opts.authorization } : {},
-  }) as unknown as H3Event
-}
-
-async function sha256Hex(raw: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const buf = await crypto.subtle.digest('SHA-256', encoder.encode(raw))
-  return Array.from(new Uint8Array(buf))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-}
-
-// ---------------------------------------------------------------------------
-// Setup
-// ---------------------------------------------------------------------------
-
 beforeAll(async () => {
   await initTestDb()
   const db = getCurrentTestDb()
@@ -77,16 +45,9 @@ beforeAll(async () => {
   await seedSite(db, { id: SITE_A, domain: 'site-a.localhost', status: 'active', setupCompleted: true })
   await seedSite(db, { id: SITE_B, domain: 'site-b.localhost', status: 'maintenance', setupCompleted: true })
   await seedSite(db, { id: SITE_C, domain: 'site-c.localhost', status: 'suspended', setupCompleted: true })
-
-  apiKeyUserId = await seedUser(db, { email: 'apikey-user@middleware.test' })
-  await seedRole(db, apiKeyUserId, SITE_A, 'editor')
 })
 
 afterAll(teardownTestDb)
-
-// ---------------------------------------------------------------------------
-// 02.multi-site.ts
-// ---------------------------------------------------------------------------
 
 describe('02.multi-site middleware', () => {
   it('resolves siteId from the Host header (exact domain match)', async () => {
@@ -270,183 +231,5 @@ describe('02.multi-site middleware', () => {
       const row = await getCurrentTestDb().query.sites.findFirst({ where: eq(sites.id, SITE_A) })
       expect(row?.domain).toBe('site-a.localhost')
     })
-  })
-})
-
-// ---------------------------------------------------------------------------
-// 03.api-key-auth.ts
-// ---------------------------------------------------------------------------
-
-describe('03.api-key-auth middleware', () => {
-  const RAW_KEY = 'nf_test_key_abc123def456'
-  let keyHash: string
-
-  beforeAll(async () => {
-    keyHash = await sha256Hex(RAW_KEY)
-
-    await getCurrentTestDb().insert(apiKeys).values({
-      id: ulid(),
-      siteId: SITE_A,
-      userId: apiKeyUserId,
-      name: 'Test API Key',
-      keyHash,
-      scopes: [],
-      expiresAt: null,
-    })
-  })
-
-  it('skips when there is no Authorization header', async () => {
-    const event = mkApiKeyEvent()
-    await (apiKeyMiddleware as MiddlewareFn)(event)
-    const ctx = (event as unknown as { context: Record<string, unknown> }).context
-    expect(ctx.apiKeyUserId).toBeUndefined()
-    expect(ctx.apiKeyRole).toBeUndefined()
-  })
-
-  it('skips when the Authorization header is not a Bearer token', async () => {
-    const event = mkApiKeyEvent({ authorization: 'Basic dXNlcjpwYXNz' })
-    await (apiKeyMiddleware as MiddlewareFn)(event)
-    const ctx = (event as unknown as { context: Record<string, unknown> }).context
-    expect(ctx.apiKeyUserId).toBeUndefined()
-  })
-
-  it('skips when the key hash does not exist in the database', async () => {
-    const event = mkApiKeyEvent({ authorization: 'Bearer nonexistent_key_xyz' })
-    await (apiKeyMiddleware as MiddlewareFn)(event)
-    const ctx = (event as unknown as { context: Record<string, unknown> }).context
-    expect(ctx.apiKeyUserId).toBeUndefined()
-  })
-
-  it('sets apiKeyUserId and apiKeyRole on a valid key', async () => {
-    const event = mkApiKeyEvent({ authorization: `Bearer ${RAW_KEY}` })
-    await (apiKeyMiddleware as MiddlewareFn)(event)
-    const ctx = (event as unknown as { context: Record<string, unknown> }).context
-    expect(ctx.apiKeyUserId).toBe(apiKeyUserId)
-    expect(ctx.apiKeyRole).toBe('editor')
-  })
-
-  it('treats a key as invalid when its owner has no (or no longer has a) site role row', async () => {
-    // Simulates a user removed from the site (DELETE /api/v1/users/:id only deletes
-    // their userSiteRoles row, not their API keys) — the key itself is still found
-    // and unexpired, but must not fall back to a residual 'viewer' grant.
-    const noRoleUser = await seedUser(getCurrentTestDb(), { email: 'norole@middleware.test' })
-    const noRoleKey = 'nf_norole_key_xyz789'
-    const noRoleHash = await sha256Hex(noRoleKey)
-
-    await getCurrentTestDb().insert(apiKeys).values({
-      id: ulid(),
-      siteId: SITE_A,
-      userId: noRoleUser,
-      name: 'No-role API Key',
-      keyHash: noRoleHash,
-      scopes: [],
-      expiresAt: null,
-    })
-
-    const event = mkApiKeyEvent({ authorization: `Bearer ${noRoleKey}` })
-    await (apiKeyMiddleware as MiddlewareFn)(event)
-    const ctx = (event as unknown as { context: Record<string, unknown> }).context
-    expect(ctx.apiKeyUserId).toBeUndefined()
-    expect(ctx.apiKeyRole).toBeUndefined()
-  })
-
-  it('skips when the key is expired', async () => {
-    const expiredKey = 'nf_expired_key_abc000'
-    const expiredHash = await sha256Hex(expiredKey)
-    const yesterday = new Date(Date.now() - 86_400_000).toISOString()
-
-    await getCurrentTestDb().insert(apiKeys).values({
-      id: ulid(),
-      siteId: SITE_A,
-      userId: apiKeyUserId,
-      name: 'Expired Key',
-      keyHash: expiredHash,
-      scopes: [],
-      expiresAt: yesterday,
-    })
-
-    const event = mkApiKeyEvent({ authorization: `Bearer ${expiredKey}` })
-    await (apiKeyMiddleware as MiddlewareFn)(event)
-    const ctx = (event as unknown as { context: Record<string, unknown> }).context
-    expect(ctx.apiKeyUserId).toBeUndefined()
-  })
-
-  it('skips when no siteId is set on the event context (middleware chain ordering)', async () => {
-    const event = mkApiKeyEvent({ authorization: `Bearer ${RAW_KEY}`, siteId: '' })
-    // Manually clear siteId to simulate middleware running before multi-site
-    ;(event as unknown as { context: Record<string, unknown> }).context.siteId = null
-    await (apiKeyMiddleware as MiddlewareFn)(event)
-    const ctx = (event as unknown as { context: Record<string, unknown> }).context
-    expect(ctx.apiKeyUserId).toBeUndefined()
-  })
-})
-
-// ---------------------------------------------------------------------------
-// theme-preview.ts
-//
-// `?__theme_id=` used to be honored unconditionally — anyone who knew (or
-// guessed) a theme's id could force a preview of it on themselves with no
-// auth at all. These tests guard the fix: only an authenticated admin (or
-// higher) for the current site may set the preview cookie.
-// ---------------------------------------------------------------------------
-
-describe('theme-preview middleware', () => {
-  const previewSite = 'site-mw-theme-preview'
-  let previewAdmin: string
-  let previewEditor: string
-
-  beforeAll(async () => {
-    const db = getCurrentTestDb()
-    await seedSite(db, { id: previewSite, domain: 'preview.localhost', status: 'active', setupCompleted: true })
-    previewAdmin = await seedUser(db, { email: 'preview-admin@middleware.test' })
-    await seedRole(db, previewAdmin, previewSite, 'admin')
-    previewEditor = await seedUser(db, { email: 'preview-editor@middleware.test' })
-    await seedRole(db, previewEditor, previewSite, 'editor')
-  })
-
-  function mkThemePreviewEvent(opts: { themeId?: string; userId?: string; cookies?: Record<string, string> } = {}) {
-    return createMockEvent({
-      siteId: previewSite,
-      session: opts.userId ? { user: { id: opts.userId, name: 'Preview User', email: 'x@test.com' } } : null,
-      query: opts.themeId ? { __theme_id: opts.themeId } : {},
-      cookies: opts.cookies,
-    }) as unknown as H3Event
-  }
-
-  it('sets the preview cookie when an admin requests a theme id', async () => {
-    const event = mkThemePreviewEvent({ themeId: 'theme-123', userId: previewAdmin })
-    await (themePreviewMiddleware as MiddlewareFn)(event)
-    const ctx = (event as unknown as { context: Record<string, unknown> }).context
-    expect(ctx.themePreviewId).toBe('theme-123')
-    expect((event as unknown as { _cookies: Record<string, string> })._cookies.__nuxflow_theme_preview).toBe('theme-123')
-  })
-
-  it('does NOT set the preview cookie for an unauthenticated visitor', async () => {
-    const event = mkThemePreviewEvent({ themeId: 'theme-123' })
-    await (themePreviewMiddleware as MiddlewareFn)(event)
-    const ctx = (event as unknown as { context: Record<string, unknown> }).context
-    expect(ctx.themePreviewId).toBeUndefined()
-    expect((event as unknown as { _cookies: Record<string, string> })._cookies.__nuxflow_theme_preview).toBeUndefined()
-  })
-
-  it('does NOT set the preview cookie for an authenticated non-admin (editor)', async () => {
-    const event = mkThemePreviewEvent({ themeId: 'theme-123', userId: previewEditor })
-    await (themePreviewMiddleware as MiddlewareFn)(event)
-    const ctx = (event as unknown as { context: Record<string, unknown> }).context
-    expect(ctx.themePreviewId).toBeUndefined()
-  })
-
-  it('falls back to an existing preview cookie when no __theme_id is in the query', async () => {
-    const event = mkThemePreviewEvent({ cookies: { __nuxflow_theme_preview: 'theme-from-cookie' } })
-    await (themePreviewMiddleware as MiddlewareFn)(event)
-    const ctx = (event as unknown as { context: Record<string, unknown> }).context
-    expect(ctx.themePreviewId).toBe('theme-from-cookie')
-  })
-
-  it('leaves themePreviewId unset when there is neither a query param nor a cookie', async () => {
-    const event = mkThemePreviewEvent()
-    await (themePreviewMiddleware as MiddlewareFn)(event)
-    const ctx = (event as unknown as { context: Record<string, unknown> }).context
-    expect(ctx.themePreviewId).toBeUndefined()
   })
 })

@@ -3,6 +3,7 @@ import { taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getItemsForTerm } from '@nuxflow/db/queries'
 import { withEdgeCache } from '../../../../utils/edge-cache'
+import { parsePagination } from '../../../../utils/pagination'
 
 const CACHE_MAX_AGE = 300
 
@@ -14,9 +15,7 @@ export default defineEventHandler(async (event) => {
   const taxonomySlug = getRouterParam(event, 'taxonomySlug')!
   const termSlug = getRouterParam(event, 'termSlug')!
   const query = getQuery(event)
-  const page = Math.max(1, Number(query.page) || 1)
-  const limit = Math.min(50, Math.max(1, Number(query.limit) || 10))
-  const offset = (page - 1) * limit
+  const { page, perPage: limit, offset } = parsePagination(query, 10, 50)
 
   // Cached at the edge (Cloudflare Cache API) — TTL-only, no explicit invalidation,
   // matching the same window this route already promises via Cache-Control below.

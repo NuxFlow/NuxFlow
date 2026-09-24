@@ -9,7 +9,7 @@ import { useDb } from '../../../utils/db'
 import { unzipSync } from 'fflate'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import type { NuxFlowBackup } from '../../../utils/backup'
-import { validateZipArchive } from '../../../utils/security'
+import { validateZipArchive } from '../../../utils/zip-validate'
 import { isHttpError } from '../../../utils/errors'
 import { purgeAllPublicPages } from '../../../utils/edge-cache'
 

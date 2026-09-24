@@ -7,10 +7,11 @@ export interface VideoUploadProgress {
 
 /**
  * Raw XHR upload used specifically for the Cloudflare Stream direct-upload flow
- * (media/videos.vue) — `$fetch`/`ofetch` has no upload-progress event, so a plain
- * `XMLHttpRequest` is used instead purely to get `xhr.upload.onprogress`. Kept as its
- * own composable (rather than folded into a generic fetch helper) since this progress
- * requirement is the only reason it isn't just `$fetch`.
+ * (useVideoUpload, consumed by media/videos.vue) — `$fetch`/`ofetch` has no
+ * upload-progress event, so a plain `XMLHttpRequest` is used instead purely to get
+ * `xhr.upload.onprogress`. Kept as its own composable (rather than folded into a
+ * generic fetch helper) since this progress requirement is the only reason it isn't
+ * just `$fetch`.
  */
 export function useVideoUploadXhr() {
   function uploadFileViaXhr(url: string, file: File, onProgress?: (progress: VideoUploadProgress) => void): Promise<void> {

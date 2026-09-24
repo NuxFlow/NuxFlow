@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { zipSync } from 'fflate'
 import { apiPost, apiPatch, apiPostZip, authenticateOrExit, AUTH_ARGS } from '../utils/api'
-import { scaffoldTheme } from '../utils/scaffold'
+import { scaffoldTheme } from '../utils/scaffold-theme'
 import { readManifest as readManifestFile, orExit } from '../utils/manifest'
 
 interface ThemeManifest {

@@ -2,6 +2,8 @@
 // Uses the Web Crypto API (globalThis.crypto.subtle) — native in Cloudflare Workers and Node 18+.
 // Never imports node:crypto.
 
+import { bufferToHex } from './buffer'
+
 export interface SigningPayload {
   id: string
   version: string
@@ -19,12 +21,6 @@ function fromBase64Url(s: string): ArrayBuffer {
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
   return bytes.buffer
-}
-
-function toHex(buffer: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
 }
 
 // ── Canonical signing input ───────────────────────────────────────────────────
@@ -45,7 +41,7 @@ function canonicalInput(payload: SigningPayload): ArrayBuffer {
 
 export async function computeSha256(data: string): Promise<string> {
   const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(data))
-  return toHex(buffer)
+  return bufferToHex(buffer)
 }
 
 /**

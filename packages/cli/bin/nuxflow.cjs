@@ -2906,7 +2906,7 @@ var require_output_file = __commonJS({
     var path = require("path");
     var mkdir2 = require_mkdirs();
     var pathExists = require_path_exists().pathExists;
-    async function outputFile2(file, data, encoding = "utf-8") {
+    async function outputFile3(file, data, encoding = "utf-8") {
       const dir = path.dirname(file);
       if (!await pathExists(dir)) {
         await mkdir2.mkdirs(dir);
@@ -2921,7 +2921,7 @@ var require_output_file = __commonJS({
       fs.writeFileSync(file, ...args);
     }
     module2.exports = {
-      outputFile: u4(outputFile2),
+      outputFile: u4(outputFile3),
       outputFileSync
     };
   }
@@ -2932,10 +2932,10 @@ var require_output_json = __commonJS({
   "../../node_modules/.pnpm/fs-extra@11.3.5/node_modules/fs-extra/lib/json/output-json.js"(exports2, module2) {
     "use strict";
     var { stringify } = require_utils2();
-    var { outputFile: outputFile2 } = require_output_file();
+    var { outputFile: outputFile3 } = require_output_file();
     async function outputJson(file, data, options = {}) {
       const str = stringify(data, options);
-      await outputFile2(file, str, options);
+      await outputFile3(file, str, options);
     }
     module2.exports = outputJson;
   }
@@ -5380,7 +5380,7 @@ async function buildPlugin(pluginDir) {
   };
 }
 
-// src/utils/scaffold.ts
+// src/utils/scaffold-plugin.ts
 var import_fs_extra = __toESM(require_lib(), 1);
 var import_node_path3 = require("node:path");
 async function scaffoldPlugin(dir, id, name, description) {
@@ -5572,133 +5572,6 @@ into \`dist/plugin.json\`, which is what the deploy command uploads.
 | \`${id}/example\` | Starter example \u2014 replace with your own |
 
 Enable this plugin in the NuxFlow admin \u2192 Plugins after deploying.
-`
-  };
-  for (const [filePath, content] of Object.entries(files)) {
-    await (0, import_fs_extra.outputFile)((0, import_node_path3.join)(dir, filePath), content);
-  }
-}
-async function scaffoldTheme(dir, name) {
-  const files = {
-    "nuxflow.theme.json": JSON.stringify({ name, version: "1.0.0" }, null, 2) + "\n",
-    "theme.css": `/*
- * ${name} \u2014 NuxFlow CSS Theme
- *
- * This stylesheet is injected into the <head> of every SSR page render.
- * Use the selectors and custom properties below, or write any CSS you need.
- *
- * Deploy:  nuxflow theme deploy --site https://your-site.com
- * Update:  nuxflow theme update --site https://your-site.com  (after first deploy)
- *
- * Full token/selector reference: themes/default/assets/css/theme.css in the
- * NuxFlow repo (also covers admin-dashboard chrome, which this starter omits).
- */
-
-
-/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-   Appearance settings bridge
-   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-   Two custom properties are injected automatically into every public page from
-   Admin \u2192 Themes \u2192 Appearance \u2014 reference them so a single admin setting can
-   drive your whole theme. Both ship with a safe fallback.
-
-     --nuxflow-primary   The "Accent colour" value chosen in the picker.
-     --nuxflow-font      The "Body font" value (font-family stack).
-
-   Example: .canvas-hero a { background: var(--nuxflow-primary, #6366f1); }
-   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-
-
-/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-   Canvas block selectors
-   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-   Every Canvas block renders with a semantic class on its root element. Target
-   these to style pages built with the visual page builder. All blocks sit
-   inside .nux-blocks. (canvas-video has no stable wrapper class yet \u2014 inspect
-   the rendered HTML if you need to target it.)
-
-     .canvas-hero          Hero / banner section
-     .canvas-text          Rich text / prose block
-     .canvas-image         Image block (figure inside holds the image)
-     .canvas-columns       Multi-column layout block
-     .canvas-container     Generic container / nesting block
-     .canvas-features      Feature grid section
-     .canvas-testimonial   Testimonial / quote card block
-     .canvas-cta           Call-to-action banner block
-     .canvas-spacer        Vertical spacer / divider block
-     .canvas-gdpr          Cookie / GDPR consent banner block
-     .canvas-footer        Footer block
-     .canvas-button        Standalone button block
-     .canvas-accordion     Accordion / FAQ block
-     .canvas-pricing       Pricing table block
-     .canvas-gallery       Image gallery block
-     .canvas-carousel      Carousel / slider block
-     .canvas-calendar      Calendar / events block
-
-   Canvas pages render full-width with no container \u2014 add max-width constraints
-   inside your own selectors for large-screen layouts.
-
-   .nux-content wraps TipTap-rendered rich text on non-Canvas pages (blog posts,
-   simple content pages).
-   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-
-/* Style the hero headline with gradient text: */
-/* .canvas-hero h1 {
-  background: linear-gradient(135deg, #fff 30%, var(--nuxflow-primary, #6366f1) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-} */
-
-/* Body copy follows the admin-configured font automatically: */
-/* body { font-family: var(--nuxflow-font, system-ui, -apple-system, sans-serif); } */
-
-.nux-content a       { color: var(--nuxflow-primary, #6366f1); }
-.nux-content blockquote { border-left-color: var(--nuxflow-primary, #6366f1); }
-`,
-    "README.md": `# ${name}
-
-A NuxFlow CSS theme.
-
-## Quick start
-
-\`\`\`bash
-# Deploy for the first time (activates automatically if no theme is active)
-nuxflow theme deploy --site https://your-site.com \\
-  --email admin@your-site.com --password yourpassword
-
-# Update CSS after making changes
-nuxflow theme update --site https://your-site.com \\
-  --email admin@your-site.com --password yourpassword
-\`\`\`
-
-The \`deployedId\` field in \`nuxflow.theme.json\` is written automatically on first deploy
-so the update command knows which theme to patch.
-
-## How it works
-
-The CSS in \`theme.css\` is stored in Cloudflare KV and injected into the HTML
-\`<head>\` on every server-rendered page \u2014 no redeploy required.
-
-## Bundling demo content (optional)
-
-A theme can ship with seed content \u2014 pages, posts, menus, forms \u2014 that the
-admin can one-click import after activating the theme (Admin \u2192 Themes \u2192
-Import demo content). To include it:
-
-1. Build the pages/posts/menus/forms you want to ship on a real NuxFlow site.
-2. Export them: \`GET /api/v1/backup\` on that site (admin-only) downloads a zip
-   containing \`backup.json\` + an \`images/\` folder.
-3. Copy \`backup.json\` into this folder as \`demo.json\`, and copy the \`images/\`
-   folder alongside it.
-4. Run \`nuxflow theme deploy\` again \u2014 the CLI automatically zips
-   \`theme.css\` + \`theme.json\` + \`demo.json\` + \`images/\` and uploads the
-   bundle instead of a bare CSS payload whenever \`demo.json\` or \`images/\`
-   is present.
-
-Bundled (zip) deploys always create a new theme \u2014 the \`update\` command only
-patches CSS on an existing theme, since demo content is a one-time import, not
-something that's re-synced.
 `
   };
   for (const [filePath, content] of Object.entries(files)) {
@@ -5960,7 +5833,7 @@ var pluginCommand = defineCommand({
 // src/commands/theme.ts
 var import_promises4 = require("node:fs/promises");
 var import_node_fs3 = require("node:fs");
-var import_node_path6 = require("node:path");
+var import_node_path7 = require("node:path");
 
 // ../../node_modules/.pnpm/fflate@0.8.3/node_modules/fflate/esm/index.mjs
 var import_module = require("module");
@@ -6678,18 +6551,149 @@ function zipSync(data, opts) {
   return out;
 }
 
+// src/utils/scaffold-theme.ts
+var import_fs_extra2 = __toESM(require_lib(), 1);
+var import_node_path6 = require("node:path");
+async function scaffoldTheme(dir, name) {
+  const files = {
+    "nuxflow.theme.json": JSON.stringify({ name, version: "1.0.0" }, null, 2) + "\n",
+    "theme.css": `/*
+ * ${name} \u2014 NuxFlow CSS Theme
+ *
+ * This stylesheet is injected into the <head> of every SSR page render.
+ * Use the selectors and custom properties below, or write any CSS you need.
+ *
+ * Deploy:  nuxflow theme deploy --site https://your-site.com
+ * Update:  nuxflow theme update --site https://your-site.com  (after first deploy)
+ *
+ * Full token/selector reference: themes/default/assets/css/theme.css in the
+ * NuxFlow repo (also covers admin-dashboard chrome, which this starter omits).
+ */
+
+
+/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   Appearance settings bridge
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   Two custom properties are injected automatically into every public page from
+   Admin \u2192 Themes \u2192 Appearance \u2014 reference them so a single admin setting can
+   drive your whole theme. Both ship with a safe fallback.
+
+     --nuxflow-primary   The "Accent colour" value chosen in the picker.
+     --nuxflow-font      The "Body font" value (font-family stack).
+
+   Example: .canvas-hero a { background: var(--nuxflow-primary, #6366f1); }
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+
+/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   Canvas block selectors
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   Every Canvas block renders with a semantic class on its root element. Target
+   these to style pages built with the visual page builder. All blocks sit
+   inside .nux-blocks. (canvas-video has no stable wrapper class yet \u2014 inspect
+   the rendered HTML if you need to target it.)
+
+     .canvas-hero          Hero / banner section
+     .canvas-text          Rich text / prose block
+     .canvas-image         Image block (figure inside holds the image)
+     .canvas-columns       Multi-column layout block
+     .canvas-container     Generic container / nesting block
+     .canvas-features      Feature grid section
+     .canvas-testimonial   Testimonial / quote card block
+     .canvas-cta           Call-to-action banner block
+     .canvas-spacer        Vertical spacer / divider block
+     .canvas-gdpr          Cookie / GDPR consent banner block
+     .canvas-footer        Footer block
+     .canvas-button        Standalone button block
+     .canvas-accordion     Accordion / FAQ block
+     .canvas-pricing       Pricing table block
+     .canvas-gallery       Image gallery block
+     .canvas-carousel      Carousel / slider block
+     .canvas-calendar      Calendar / events block
+
+   Canvas pages render full-width with no container \u2014 add max-width constraints
+   inside your own selectors for large-screen layouts.
+
+   .nux-content wraps TipTap-rendered rich text on non-Canvas pages (blog posts,
+   simple content pages).
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+/* Style the hero headline with gradient text: */
+/* .canvas-hero h1 {
+  background: linear-gradient(135deg, #fff 30%, var(--nuxflow-primary, #6366f1) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+} */
+
+/* Body copy follows the admin-configured font automatically: */
+/* body { font-family: var(--nuxflow-font, system-ui, -apple-system, sans-serif); } */
+
+.nux-content a       { color: var(--nuxflow-primary, #6366f1); }
+.nux-content blockquote { border-left-color: var(--nuxflow-primary, #6366f1); }
+`,
+    "README.md": `# ${name}
+
+A NuxFlow CSS theme.
+
+## Quick start
+
+\`\`\`bash
+# Deploy for the first time (activates automatically if no theme is active)
+nuxflow theme deploy --site https://your-site.com \\
+  --email admin@your-site.com --password yourpassword
+
+# Update CSS after making changes
+nuxflow theme update --site https://your-site.com \\
+  --email admin@your-site.com --password yourpassword
+\`\`\`
+
+The \`deployedId\` field in \`nuxflow.theme.json\` is written automatically on first deploy
+so the update command knows which theme to patch.
+
+## How it works
+
+The CSS in \`theme.css\` is stored in Cloudflare KV and injected into the HTML
+\`<head>\` on every server-rendered page \u2014 no redeploy required.
+
+## Bundling demo content (optional)
+
+A theme can ship with seed content \u2014 pages, posts, menus, forms \u2014 that the
+admin can one-click import after activating the theme (Admin \u2192 Themes \u2192
+Import demo content). To include it:
+
+1. Build the pages/posts/menus/forms you want to ship on a real NuxFlow site.
+2. Export them: \`GET /api/v1/backup\` on that site (admin-only) downloads a zip
+   containing \`backup.json\` + an \`images/\` folder.
+3. Copy \`backup.json\` into this folder as \`demo.json\`, and copy the \`images/\`
+   folder alongside it.
+4. Run \`nuxflow theme deploy\` again \u2014 the CLI automatically zips
+   \`theme.css\` + \`theme.json\` + \`demo.json\` + \`images/\` and uploads the
+   bundle instead of a bare CSS payload whenever \`demo.json\` or \`images/\`
+   is present.
+
+Bundled (zip) deploys always create a new theme \u2014 the \`update\` command only
+patches CSS on an existing theme, since demo content is a one-time import, not
+something that's re-synced.
+`
+  };
+  for (const [filePath, content] of Object.entries(files)) {
+    await (0, import_fs_extra2.outputFile)((0, import_node_path6.join)(dir, filePath), content);
+  }
+}
+
 // src/commands/theme.ts
 function readManifest3(dir) {
   return readManifest(dir, "nuxflow.theme.json", "theme");
 }
 async function readCss(dir) {
-  const p2 = (0, import_node_path6.join)(dir, "theme.css");
+  const p2 = (0, import_node_path7.join)(dir, "theme.css");
   if (!(0, import_node_fs3.existsSync)(p2)) throw new Error("theme.css not found \u2014 run this command from a theme directory");
   return (0, import_promises4.readFile)(p2, "utf-8");
 }
 async function buildBundleZip(dir, manifest, css) {
-  const demoPath = (0, import_node_path6.join)(dir, "demo.json");
-  const imagesDir = (0, import_node_path6.join)(dir, "images");
+  const demoPath = (0, import_node_path7.join)(dir, "demo.json");
+  const imagesDir = (0, import_node_path7.join)(dir, "images");
   const hasDemo = (0, import_node_fs3.existsSync)(demoPath);
   const hasImages = (0, import_node_fs3.existsSync)(imagesDir);
   if (!hasDemo && !hasImages) return null;
@@ -6703,7 +6707,7 @@ async function buildBundleZip(dir, manifest, css) {
   if (hasImages) {
     for (const entry of await (0, import_promises4.readdir)(imagesDir, { withFileTypes: true })) {
       if (!entry.isFile()) continue;
-      files[`images/${entry.name}`] = await (0, import_promises4.readFile)((0, import_node_path6.join)(imagesDir, entry.name));
+      files[`images/${entry.name}`] = await (0, import_promises4.readFile)((0, import_node_path7.join)(imagesDir, entry.name));
     }
   }
   return zipSync(files);
@@ -6723,7 +6727,7 @@ var themeCommand = defineCommand({
         }
         const name = rawName.trim();
         const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-        const outDir = (0, import_node_path6.resolve)(process.cwd(), slug);
+        const outDir = (0, import_node_path7.resolve)(process.cwd(), slug);
         if ((0, import_node_fs3.existsSync)(outDir)) {
           consola.error(`Directory already exists: ${outDir}`);
           process.exit(1);
@@ -6769,7 +6773,7 @@ var themeCommand = defineCommand({
           });
           if (res.id) {
             const updated = { ...manifest, deployedId: res.id };
-            await (0, import_promises4.writeFile)((0, import_node_path6.join)(dir, "nuxflow.theme.json"), JSON.stringify(updated, null, 2) + "\n");
+            await (0, import_promises4.writeFile)((0, import_node_path7.join)(dir, "nuxflow.theme.json"), JSON.stringify(updated, null, 2) + "\n");
           }
           s2.stop("Deployed!");
           if (res.hasDemoContent) consola.info("Demo content uploaded \u2014 import it from Admin \u2192 Themes after activating.");

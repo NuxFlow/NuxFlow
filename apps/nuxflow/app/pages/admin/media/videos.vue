@@ -13,11 +13,7 @@ interface VideoAsset {
 }
 
 const toast = useToast()
-const uploading = ref(false)
-const progress = ref(0)
-const statusText = ref('')
 const fileInput = ref<HTMLInputElement>()
-const streamError = ref<string | null>(null)
 
 // Check Stream credentials before showing upload controls
 const { data: streamStatus } = await useFetch<{ configured: boolean }>('/api/v1/media/video/configured')
@@ -25,19 +21,6 @@ const streamConfigured = computed(() => streamStatus.value?.configured ?? false)
 
 // Fetch videos
 const { data: videos, refresh } = await useFetch<VideoAsset[]>('/api/v1/media/video')
-
-// Form editing details
-const showDetailModal = ref(false)
-const selectedVideo = ref<VideoAsset | null>(null)
-const editTitle = ref('')
-const savingDetail = ref(false)
-const deletingDetail = ref(false)
-
-// Video Player Modal
-const showPlayerModal = ref(false)
-const playerVideo = ref<VideoAsset | null>(null)
-
-const { uploadFileViaXhr } = useVideoUploadXhr()
 
 // Poller for processing videos — no completion predicate (there's always another
 // video that could start processing later) and no timeout, so it just does
@@ -62,64 +45,26 @@ onMounted(() => {
   videoPoller.start()
 })
 
+const { uploading, progress, statusText, streamError, upload } = useVideoUpload(async () => {
+  await refresh()
+  videoPoller.start()
+})
+
 async function handleUpload(e: Event) {
   const input = e.target as HTMLInputElement
   if (!input.files?.length) return
   const file = input.files[0]
   if (!file) return
-  await uploadFile(file)
+  await upload(file)
+  if (fileInput.value) fileInput.value.value = ''
 }
 
-async function uploadFile(file: File) {
-  uploading.value = true
-  progress.value = 0
-  statusText.value = 'Preparing upload...'
-  streamError.value = null
-
-  try {
-    // 1. Get a pre-authorised upload.cloudflarestream.com URL from the backend.
-    //    TUS cannot be used from the browser: the authenticated CF TUS endpoint has no
-    //    CORS headers, and the direct_upload URL doesn't implement TUS properly.
-    //    A plain XHR POST to the direct_upload URL is the correct approach.
-    const { uploadUrl, uid } = await $fetch<{ uploadUrl: string; uid: string }>('/api/v1/media/video/token', {
-      method: 'POST',
-      body: { title: file.name },
-    })
-
-    statusText.value = 'Uploading to Cloudflare Stream...'
-
-    // 2. Upload via XHR so we get upload progress events.
-    await uploadFileViaXhr(uploadUrl, file, (p) => {
-      progress.value = p.percent
-      statusText.value = `Uploading: ${p.percent}% (${formatBytes(p.loaded)} of ${formatBytes(p.total)})`
-    })
-
-    // 3. Register the video in NuxFlow and let the poller sync processing status.
-    statusText.value = 'Registering video with library...'
-    await $fetch('/api/v1/media/video', {
-      method: 'POST',
-      body: { uid, title: file.name.replace(/\.[^/.]+$/, ''), size: file.size },
-    })
-    toast.add({ title: 'Video uploaded!', color: 'success', description: 'Cloudflare Stream is now processing the file.' })
-    await refresh()
-    videoPoller.start()
-  }
-  catch (err: unknown) {
-    console.error('Video upload failed:', err)
-    const status = (err as { status?: number })?.status
-    const errorMsg = getErrorMessage(err, 'Verify your Cloudflare Stream settings.')
-    if (status === 402) {
-      streamError.value = errorMsg
-    }
-    else {
-      toast.add({ title: 'Upload failed', color: 'error', description: errorMsg })
-    }
-  }
-  finally {
-    uploading.value = false
-    if (fileInput.value) fileInput.value.value = ''
-  }
-}
+// Form editing details
+const showDetailModal = ref(false)
+const selectedVideo = ref<VideoAsset | null>(null)
+const editTitle = ref('')
+const savingDetail = ref(false)
+const deletingDetail = ref(false)
 
 function openDetail(video: VideoAsset) {
   selectedVideo.value = video
@@ -168,23 +113,13 @@ async function deleteVideo() {
   }
 }
 
-async function copyStreamUrl(streamId: string) {
-  const url = `https://iframe.videodelivery.net/${streamId}`
-  await navigator.clipboard.writeText(url)
-  toast.add({ title: 'URL copied!', description: 'Paste it into a Canvas Video block.', color: 'success' })
-}
+// Video Player Modal
+const showPlayerModal = ref(false)
+const playerVideo = ref<VideoAsset | null>(null)
 
 function playVideo(video: VideoAsset) {
   playerVideo.value = video
   showPlayerModal.value = true
-}
-
-// Helper formatting utilities
-function formatDuration(seconds: number | null) {
-  if (seconds === null) return '--:--'
-  const m = Math.floor(seconds / 60)
-  const s = Math.floor(seconds % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
 }
 </script>
 
@@ -284,98 +219,13 @@ function formatDuration(seconds: number | null) {
 
     <!-- Main Grid -->
     <div v-if="videos && videos.length" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      <div
+      <VideoCard
         v-for="video in videos"
         :key="video.id"
-        class="group relative flex flex-col rounded-xl overflow-hidden bg-white/70 dark:bg-gray-900/40 border border-gray-200/80 dark:border-gray-800/80 backdrop-blur-sm shadow-sm transition-all duration-300 hover:shadow-md hover:border-gray-300 dark:hover:border-gray-700 hover:translate-y-[-2px]"
-      >
-        <!-- Thumbnail preview wrapper -->
-        <div class="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
-          <img
-            v-if="video.thumbnailUrl"
-            :src="video.thumbnailUrl"
-            :alt="video.title"
-            class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-            loading="lazy"
-          >
-          <!-- Custom Status Overlay -->
-          <div
-            v-if="video.status !== 'ready'"
-            class="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2 p-3 text-center"
-          >
-            <UIcon
-              v-if="video.status === 'processing' || video.status === 'uploading'"
-              name="i-lucide-refresh-cw"
-              class="w-8 h-8 text-primary-400 animate-spin"
-            />
-            <UIcon
-              v-else
-              name="i-lucide-alert-circle"
-              class="w-8 h-8 text-red-500"
-            />
-            <span class="text-xs text-gray-300 font-medium capitalize">{{ video.status }}...</span>
-          </div>
-
-          <!-- Hover Overlay -->
-          <div
-            v-if="video.status === 'ready'"
-            class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center"
-          >
-            <UButton
-              icon="i-lucide-play"
-              size="lg"
-              color="neutral"
-              variant="solid"
-              class="rounded-full shadow-lg scale-90 group-hover:scale-100 transition-all duration-300"
-              @click="playVideo(video)"
-            />
-          </div>
-
-          <!-- Duration badge -->
-          <span
-            v-if="video.status === 'ready'"
-            class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/75 text-[10px] font-semibold text-white tracking-wide"
-          >
-            {{ formatDuration(video.duration) }}
-          </span>
-        </div>
-
-        <!-- Meta -->
-        <div class="p-4 flex-1 flex flex-col justify-between min-w-0">
-          <div class="min-w-0">
-            <h3 class="font-semibold text-gray-900 dark:text-white truncate" :title="video.title">
-              {{ video.title }}
-            </h3>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {{ formatBytes(video.size) }} · {{ new Date(video.createdAt).toLocaleDateString() }}
-            </p>
-          </div>
-
-          <div class="flex gap-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-800/50">
-            <UButton
-              icon="i-lucide-settings"
-              size="xs"
-              variant="ghost"
-              color="neutral"
-              class="flex-1"
-              @click="openDetail(video)"
-            >
-              Manage
-            </UButton>
-            <UButton
-              v-if="video.status === 'ready'"
-              icon="i-lucide-play-circle"
-              size="xs"
-              variant="soft"
-              color="primary"
-              class="flex-1"
-              @click="playVideo(video)"
-            >
-              Play
-            </UButton>
-          </div>
-        </div>
-      </div>
+        :video="video"
+        @open-detail="openDetail(video)"
+        @play="playVideo(video)"
+      />
     </div>
 
     <!-- Empty state -->
@@ -419,83 +269,19 @@ function formatDuration(seconds: number | null) {
       </div>
     </div>
 
-    <!-- Video Detail / Rename Modal -->
-    <UModal v-model:open="showDetailModal" title="Edit Video Details">
-      <template #body>
-        <div v-if="selectedVideo" class="space-y-4">
-          <div class="flex gap-4 items-start pb-4 border-b border-gray-100 dark:border-gray-800">
-            <div class="w-24 aspect-video rounded-lg overflow-hidden bg-black shrink-0 flex items-center justify-center">
-              <img
-                v-if="selectedVideo.thumbnailUrl"
-                :src="selectedVideo.thumbnailUrl"
-                class="w-full h-full object-cover"
-              >
-              <UIcon v-else name="i-lucide-video" class="w-8 h-8 text-gray-600" />
-            </div>
-            <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-              <p class="flex items-center gap-1.5">
-                <span class="font-medium shrink-0">Stream URL:</span>
-                <code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded truncate max-w-[140px]" :title="`https://iframe.videodelivery.net/${selectedVideo.cloudflareStreamId}`">
-                  {{ selectedVideo.cloudflareStreamId }}
-                </code>
-                <UButton
-                  icon="i-lucide-copy"
-                  size="xs"
-                  variant="ghost"
-                  color="neutral"
-                  title="Copy video URL for use in Canvas Video block"
-                  @click="copyStreamUrl(selectedVideo.cloudflareStreamId)"
-                />
-              </p>
-              <p><span class="font-medium">Duration:</span> {{ formatDuration(selectedVideo.duration) }}</p>
-              <p><span class="font-medium">Size:</span> {{ formatBytes(selectedVideo.size) }}</p>
-            </div>
-          </div>
+    <VideoDetailModal
+      v-model:open="showDetailModal"
+      v-model:edit-title="editTitle"
+      :video="selectedVideo"
+      :saving="savingDetail"
+      :deleting="deletingDetail"
+      @save="saveDetail"
+      @delete="deleteVideo"
+    />
 
-          <UFormField label="Video Title">
-            <UInput v-model="editTitle" placeholder="Enter a descriptive title..." />
-          </UFormField>
-        </div>
-      </template>
-
-      <template #footer>
-        <div class="flex justify-between w-full">
-          <UButton
-            color="error"
-            variant="ghost"
-            icon="i-lucide-trash-2"
-            :loading="deletingDetail"
-            @click="deleteVideo"
-          >
-            Delete Permanently
-          </UButton>
-          <div class="flex gap-2">
-            <UButton variant="ghost" @click="showDetailModal = false">Cancel</UButton>
-            <UButton :loading="savingDetail" color="primary" @click="saveDetail">Save changes</UButton>
-          </div>
-        </div>
-      </template>
-    </UModal>
-
-    <!-- Visual Streaming Player Modal -->
-    <UModal v-model:open="showPlayerModal" :title="playerVideo?.title ?? 'Video Player'" size="xl">
-      <template #body>
-        <div v-if="playerVideo" class="aspect-video bg-black rounded-lg overflow-hidden shadow-inner">
-          <iframe
-            :src="`https://iframe.videodelivery.net/${playerVideo.cloudflareStreamId}?controls=true&letterbox=false`"
-            class="w-full h-full border-0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowfullscreen
-            loading="lazy"
-          />
-        </div>
-      </template>
-      <template #footer>
-        <div class="flex justify-between items-center w-full">
-          <span class="text-xs text-gray-400">Powered by Cloudflare Stream Edge CDN</span>
-          <UButton variant="ghost" @click="showPlayerModal = false">Close</UButton>
-        </div>
-      </template>
-    </UModal>
+    <VideoPlayerModal
+      v-model:open="showPlayerModal"
+      :video="playerVideo"
+    />
   </div>
 </template>

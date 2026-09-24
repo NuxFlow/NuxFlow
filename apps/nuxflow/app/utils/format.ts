@@ -25,3 +25,14 @@ export function formatBytes(bytes: number | null | undefined): string {
   } while (value >= 1024 && unit < units.length - 1)
   return `${value.toFixed(value < 10 ? 2 : 1)} ${units[unit]}`
 }
+
+/**
+ * Shared video-duration formatter (m:ss) — used by both the video library grid card
+ * and its detail modal so the two stay in sync.
+ */
+export function formatDuration(seconds: number | null): string {
+  if (seconds === null) return '--:--'
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}

@@ -5,7 +5,7 @@ import { pushSubscriptions } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { created, validationError } from '../../../utils/response'
-import { isSafeUrl } from '../../../utils/security'
+import { isSafeUrl } from '../../../utils/ssrf'
 
 const bodySchema = z.object({
   endpoint: z.string().url(),

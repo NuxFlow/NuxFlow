@@ -5,7 +5,7 @@ import { contentTypes, contentItems, taxonomies, taxonomyTerms, contentTaxonomyT
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { and, eq, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
-import { isSafeUrl, safeFetch } from '../../../utils/security'
+import { isSafeUrl, safeFetch } from '../../../utils/ssrf'
 import { errorMessage } from '../../../utils/errors'
 import { htmlToTipTap } from '../../../utils/html-to-tiptap'
 import { parseWxr } from '../../../utils/wxr-parser'

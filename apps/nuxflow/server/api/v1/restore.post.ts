@@ -8,7 +8,7 @@ import { getActiveProvider } from '../../utils/media-providers/index'
 import { media } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { useDb } from '../../utils/db'
-import { validateZipArchive } from '../../utils/security'
+import { validateZipArchive } from '../../utils/zip-validate'
 import { isHttpError } from '../../utils/errors'
 import { writeAuditLog } from '../../utils/audit'
 

@@ -3,7 +3,7 @@ import { useDb } from './db'
 import { pushSubscriptions } from '@nuxflow/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { resolveSetting } from './settings'
-import { isSafeUrl } from './security'
+import { isSafeUrl } from './ssrf'
 
 // ─── Base64url ────────────────────────────────────────────────────────────────
 

@@ -392,46 +392,14 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
         </UCard>
 
         <!-- Event Settings Panel -->
-        <UCard v-if="activeTypeSlug === 'event'" class="text-sm">
-          <p class="font-medium mb-3">Event Details</p>
-          <div class="space-y-3">
-            <UFormField label="Start Date & Time" class="text-xs">
-              <UInput
-                v-model="form.eventStartAt"
-                type="datetime-local"
-                class="text-sm"
-              />
-            </UFormField>
-            <UFormField label="End Date & Time" class="text-xs">
-              <UInput
-                v-model="form.eventEndAt"
-                type="datetime-local"
-                class="text-sm"
-              />
-            </UFormField>
-            <div class="flex items-center gap-2">
-              <USwitch
-                id="event-all-day"
-                v-model="form.eventAllDay"
-              />
-              <label for="event-all-day" class="text-xs text-gray-500 dark:text-gray-400 select-none cursor-pointer">All Day Event</label>
-            </div>
-            <UFormField label="Location / Venue" class="text-xs">
-              <UInput
-                v-model="form.eventLocation"
-                placeholder="e.g. Online, Paris Office..."
-                class="text-sm"
-              />
-            </UFormField>
-            <UFormField label="Event Link / Registration URL" class="text-xs">
-              <UInput
-                v-model="form.eventUrl"
-                placeholder="https://..."
-                class="text-sm"
-              />
-            </UFormField>
-          </div>
-        </UCard>
+        <EditorEventSettingsPanel
+          v-if="activeTypeSlug === 'event'"
+          v-model:event-start-at="form.eventStartAt"
+          v-model:event-end-at="form.eventEndAt"
+          v-model:event-all-day="form.eventAllDay"
+          v-model:event-location="form.eventLocation"
+          v-model:event-url="form.eventUrl"
+        />
 
         <!-- Excerpt & featured image -->
         <UCard class="text-sm">

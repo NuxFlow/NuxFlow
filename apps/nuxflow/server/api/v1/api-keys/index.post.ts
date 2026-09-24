@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { bufferToHex } from '../../../utils/buffer'
 import { useDb } from '../../../utils/db'
 import { requireRole, API_KEY_SCOPES } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
@@ -25,7 +26,7 @@ export default defineEventHandler(async (event) => {
   const rawKey = `nf_${btoa(String.fromCharCode(...rawBytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')}`
 
   const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawKey))
-  const keyHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('')
+  const keyHash = bufferToHex(hashBuffer)
 
   const id = ulid()
 

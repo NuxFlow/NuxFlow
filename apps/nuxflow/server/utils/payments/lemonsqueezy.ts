@@ -1,5 +1,5 @@
 import type { PaymentProvider } from './types'
-import { constantTimeEqualHex, hmacSha256Hex } from '../security'
+import { constantTimeEqualHex, hmacSha256Hex } from '../webhook-crypto'
 
 export interface LsSubscription {
   id: string

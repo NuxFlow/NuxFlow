@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { apiPost, apiDelete, authenticateOrExit, AUTH_ARGS } from '../utils/api'
 import { buildPlugin } from '../utils/build'
-import { scaffoldPlugin } from '../utils/scaffold'
+import { scaffoldPlugin } from '../utils/scaffold-plugin'
 import { generateKeyPair, signPayload, type SigningPayload } from '../utils/signing'
 import { readManifest as readManifestFile, orExit } from '../utils/manifest'
 
