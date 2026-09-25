@@ -24,7 +24,7 @@ function mkEvent(opts: {
   const url = `https://example.com${opts.path ?? '/about'}`
   const cloudflare = opts.noCloudflareContext
     ? undefined
-    : { request: new Request(url), env: {} as never, ctx: { waitUntil: vi.fn() } }
+    : { request: new Request(url), env: {} as never, context: { waitUntil: vi.fn() } }
 
   return {
     method: opts.method ?? 'GET',

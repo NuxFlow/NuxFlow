@@ -2,6 +2,7 @@ import { sendStream } from 'h3'
 import { requireSuperAdmin } from '../../../utils/permissions'
 import { prepareD1Dump, streamD1TableData } from '../../../utils/d1-export'
 import { writeAuditLog } from '../../../utils/audit'
+import { notifySiteRole } from '../../../utils/notify'
 
 // Whole-D1-instance raw SQL export — every site's data in one file. Gated on
 // requireSuperAdmin (cross-site), not the site-scoped requireRole() the per-site
@@ -57,6 +58,16 @@ export default defineEventHandler(async (event) => {
         resourceId: 'all-sites',
         after: { tableCount, rowCount },
       })
+      // A whole-platform export contains every tenant's data — tell the other super admins.
+      await notifySiteRole(event, {
+        siteId: event.context.siteId as string,
+        minRole: 'super_admin',
+        excludeUserId: userId,
+        type: 'system.db_export',
+        title: 'A full database export was downloaded',
+        body: `A super admin downloaded a complete export of every site's data (${tableCount} tables, ${rowCount} rows).`,
+        sendEmailNotification: true,
+      }).catch(err => console.error('[db-export] Notification failed:', err))
     } catch (err) {
       console.error('[db-export] D1 export failed mid-stream:', err)
       const message = err instanceof Error ? err.message : String(err)

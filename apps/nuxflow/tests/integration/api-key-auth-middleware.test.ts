@@ -69,7 +69,7 @@ describe('03.api-key-auth middleware', () => {
   it('records lastUsedAt for a successfully authenticated key', async () => {
     const pending: Promise<unknown>[] = []
     const event = mkApiKeyEvent({ authorization: `Bearer ${RAW_KEY}` }) as unknown as { context: Record<string, unknown> }
-    event.context.cloudflare = { ctx: { waitUntil: (p: Promise<unknown>) => pending.push(p) } }
+    event.context.cloudflare = { context: { waitUntil: (p: Promise<unknown>) => pending.push(p) } }
 
     await (apiKeyMiddleware as MiddlewareFn)(event as unknown as H3Event)
     expect(pending).toHaveLength(1)

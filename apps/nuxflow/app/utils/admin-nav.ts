@@ -38,6 +38,8 @@ export interface AdminNavItem {
   minRole?: Role
   /** Requires requireSuperAdmin() cross-site status, not a per-site role. */
   superAdminOnly?: boolean
+  /** Route-guard rule only — not listed in the sidebar (a sub-page reached from its parent). */
+  hidden?: boolean
 }
 
 export const ADMIN_NAV: AdminNavItem[] = [
@@ -47,6 +49,8 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Calendar', to: '/admin/calendar', icon: 'i-lucide-calendar-days' },
   { label: 'Taxonomies', to: '/admin/taxonomies', icon: 'i-lucide-tag' },
   { label: 'Comments', to: '/admin/comments', icon: 'i-lucide-message-circle', minRole: 'editor' },
+  { label: 'Inbox', to: '/admin/inbox', icon: 'i-lucide-inbox', minRole: 'editor' },
+  { label: 'Inbox addresses', to: '/admin/inbox/mailboxes', icon: 'i-lucide-at-sign', minRole: 'admin', hidden: true },
   { label: 'Navigation', to: '/admin/menus', icon: 'i-lucide-navigation' },
   { label: 'Media', to: '/admin/media', icon: 'i-lucide-image' },
   { label: 'Videos', to: '/admin/media/videos', icon: 'i-lucide-video' },
@@ -64,6 +68,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
 export const SUPER_ADMIN_NAV: AdminNavItem[] = [
   { label: 'Sites', to: '/admin/super/sites', icon: 'i-lucide-globe', superAdminOnly: true },
   { label: 'Database', to: '/admin/super/database', icon: 'i-lucide-database', superAdminOnly: true },
+  { label: 'Email', to: '/admin/super/email', icon: 'i-lucide-send', superAdminOnly: true },
 ]
 
 export function canAccessNavItem(item: AdminNavItem, access: { role: Role | null; isSuperAdmin: boolean } | null | undefined): boolean {

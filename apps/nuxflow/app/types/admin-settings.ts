@@ -26,6 +26,7 @@ export interface AppearanceState {
 export interface EmailState {
   provider: string
   fromAddress: string
+  fromName: string
   resendApiKey: string
   brevoApiKey: string
   zeptoApiKey: string

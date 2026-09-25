@@ -1,5 +1,8 @@
 import { toWebRequest } from 'h3'
 import { rateLimit } from '../utils/rate-limit'
+import { authRequestContext } from '../utils/auth-request-context'
+import { AUTH_PATH_ALERTS, alertForAuthPath } from '../utils/security-alerts'
+import { waitUntil } from '../utils/cf-env'
 
 // Rate limits for the specific auth sub-paths that are meaningful brute-force /
 // abuse targets. Deliberately narrow — session checks (get-session) and OAuth
@@ -53,5 +56,35 @@ export default defineEventHandler(async (event) => {
   }
 
   const auth = await getOrCreateBetterAuth(event)
-  return auth.handler(toWebRequest(event))
+
+  // Security-alert paths: capture who is acting *before* the handler runs —
+  // change-password with revokeOtherSessions replaces the very session the request
+  // arrived with, so asking afterwards would find nobody.
+  let alertUserId: string | null = null
+  // (reset-password is alerted from onPasswordReset instead — its user usually isn't signed in.)
+  if (AUTH_PATH_ALERTS[pathname] && pathname !== '/api/auth/reset-password') {
+    try {
+      // Headers only — building a second Request via toWebRequest() here would share the
+      // body stream the real handler call below still needs.
+      const headers = new Headers()
+      for (const [name, value] of Object.entries(getRequestHeaders(event))) {
+        if (value !== undefined) headers.set(name, value)
+      }
+      const session = await auth.api.getSession({ headers })
+      alertUserId = session?.user.id ?? null
+    }
+    catch {
+      alertUserId = null
+    }
+  }
+
+  // Run inside the request context so Better Auth's own hooks (session.create.after,
+  // onPasswordReset) can reach this live event — see auth-request-context.ts.
+  const response = await authRequestContext.run({ event }, () => auth.handler(toWebRequest(event)))
+
+  if (alertUserId && response.ok) {
+    waitUntil(event, alertForAuthPath(event, alertUserId, pathname)
+      .catch(err => console.error('[auth] Security alert failed:', err)))
+  }
+  return response
 })

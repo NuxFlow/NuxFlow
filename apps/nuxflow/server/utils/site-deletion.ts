@@ -6,6 +6,7 @@ import { writeAuditLog } from './audit'
 import { deletePluginAssets } from './cf-plugin-kv'
 import { deleteThemeCSS, deleteThemeDemo } from './cf-theme-kv'
 import { errorMessage } from './errors'
+import { deleteSiteEmailObjects } from './inbox'
 import {
   sites, users, userSiteRoles, media,
   accounts, sessions, passkeys, themes, dynamicPlugins,
@@ -72,6 +73,17 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
         }))
       }
     }
+  }
+
+  // 1b. Received email (raw messages + attachments) lives in R2 under a private prefix —
+  // the email_messages rows go with the step-4 cascade, the objects don't. It's personal
+  // data from outside senders, so a failure is surfaced like a media failure.
+  try {
+    await deleteSiteEmailObjects(event, siteId)
+  }
+  catch (err) {
+    failedMediaDeletes.push(`_private/${siteId}/email/*`)
+    console.error(JSON.stringify({ event: 'site.delete.email_failed', siteId, error: errorMessage(err, String(err)) }))
   }
 
   // 2. Delete KV-stored theme CSS/demo data and dynamic plugin server/client code for

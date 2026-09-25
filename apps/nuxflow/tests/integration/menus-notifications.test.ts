@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import type { H3Event } from 'h3'
+import type { TemplatedEmail } from '../../server/utils/email-template'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole } from '../helpers/seed'
@@ -30,12 +31,13 @@ vi.mock('../../server/utils/edge-cache', () => ({
 vi.mock('../../server/utils/cf-env', () => ({
   waitUntil: (_event: unknown, promise: Promise<unknown>) => { void promise },
 }))
-vi.mock('../../server/utils/email', async (importOriginal) => ({
+vi.mock('../../server/utils/email-template', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  sendEmail: mockSendEmail,
+  sendTemplatedEmail: mockSendEmail,
 }))
 vi.mock('../../server/utils/webpush', () => ({ sendPushToUser: mockSendPush }))
 
+const { renderEmailTemplate } = await import('../../server/utils/email-template')
 const { default: listMenusHandler } = await import('../../server/api/v1/menus/index.get')
 const { default: getMenuHandler } = await import('../../server/api/v1/menus/[id].get')
 const { default: patchMenuHandler } = await import('../../server/api/v1/menus/[id].patch')
@@ -174,10 +176,15 @@ describe('notifications', () => {
       sendEmailNotification: true, sendPush: true, pushUrl: '/admin',
     }, ev(editorId))
 
-    const email = mockSendEmail.mock.calls[0][1] as { to: string; html: string; subject: string }
+    const email = mockSendEmail.mock.calls[0][1] as TemplatedEmail
     expect(email.to).toBe('editor@mn.test')
-    expect(email.html).not.toContain('<script>')
-    expect(email.html).toContain('&lt;script&gt;')
+    expect(email.subject).toBe('Alert')
+    // The body reaches the template as plain text; the template escapes it.
+    const { html } = renderEmailTemplate({ ...email.template, siteName: 'Test' })
+    expect(html).not.toContain('<script>')
+    expect(html).toContain('&lt;script&gt;')
+    // Relative deep links become absolute for the email button.
+    expect(email.template.action?.url).toMatch(/^https?:\/\/.+\/admin$/)
     expect(mockSendPush).toHaveBeenCalledWith(expect.anything(), editorId, expect.objectContaining({ url: '/admin' }))
   })
 

@@ -43,6 +43,10 @@ const PUBLIC_KEY_SHAPED_EXCEPTIONS = new Set([
   // secret (CLOUDFLARE_TURNSTILE_SECRET_KEY) isn't a site setting at all — it's read
   // directly from process.env in server/utils/turnstile.ts.
   'integrations.turnstile_site_key',
+  // Notification *type* names (server/utils/notify.ts's NOTIFICATION_TYPES), not setting
+  // keys — they only share the dotted shape the literal scan above looks for.
+  'security.api_key_created',
+  'security.password_changed',
 ])
 
 function collectTsFiles(dir: string, out: string[] = []): string[] {

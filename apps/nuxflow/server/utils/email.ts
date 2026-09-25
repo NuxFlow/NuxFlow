@@ -1,6 +1,10 @@
 import type { H3Event } from 'h3'
+import { ulid } from 'ulid'
+import { eq } from 'drizzle-orm'
+import { emailLog, sites } from '@nuxflow/db/schema'
 import { resolveSetting } from './settings'
 import { getEmailBinding } from './cf-env'
+import { useDb } from './db'
 
 const HTML_ESCAPE_MAP: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
 
@@ -8,53 +12,77 @@ export function escapeHtml(str: string): string {
   return str.replace(/[&<>"']/g, c => HTML_ESCAPE_MAP[c]!)
 }
 
-interface EmailMessage {
+export type EmailProvider = 'console' | 'cloudflare' | 'resend' | 'brevo' | 'zepto'
+export const EMAIL_PROVIDERS: readonly EmailProvider[] = ['console', 'cloudflare', 'resend', 'brevo', 'zepto']
+
+export interface EmailMessage {
   to: string | string[]
   subject: string
   html: string
   text?: string
+  /** Overrides the configured From address (e.g. an inbox reply sent from `contact@`). */
   from?: string
+  /** Overrides the configured display name. */
+  fromName?: string
   replyTo?: string
+  /**
+   * Extra headers — threading (`In-Reply-To`, `References`) and `List-Unsubscribe`.
+   * Cloudflare's binding only accepts its whitelisted headers
+   * (https://developers.cloudflare.com/email-service/reference/headers/) and throws
+   * E_HEADER_NOT_ALLOWED on anything else, so stick to standard ones.
+   */
+  headers?: Record<string, string>
+  /** Grouping label for email_log ('auth', 'invite', 'notification', 'inbox_reply', …). */
+  category?: string
 }
 
-interface EmailConfig {
+export interface EmailConfig {
   emailProvider: string
   fromAddress?: string
+  fromName?: string
   resendApiKey?: string
   brevoApiKey?: string
   zeptoApiKey?: string
   domain: string
+  /** Attributes the send in email_log; omitted only by callers with no site (tests). */
+  siteId?: string
+  /** The site's display name, for templates — distinct from fromName, which may be e.g. "Acme Support". */
+  siteName?: string
 }
 
-async function loadEmailConfig(event: H3Event): Promise<EmailConfig> {
-  let host = getHeader(event, 'host')?.split(':')[0] ?? 'nuxflow.app'
-  if (host === '127.0.0.1' || host === '::1') {
-    host = 'localhost'
-  }
-  // Five independent settings lookups — parallelized so a cache-miss (first call per
-  // isolate per 30s window) costs one round trip's worth of latency instead of five
-  // serialized ones. Fires on every email send (password resets, invites, form
-  // notifications), so this is a real per-request hot path, not an admin-only rarity.
-  const [emailProvider, fromAddress, resendApiKey, brevoApiKey, zeptoApiKey] = await Promise.all([
-    resolveSetting(event, 'email.provider', 'emailProvider'),
-    resolveSetting(event, 'email.from_address', 'emailFromAddress'),
-    resolveSetting(event, 'email.resend_api_key', 'resendApiKey'),
-    resolveSetting(event, 'email.brevo_api_key', 'brevoApiKey'),
-    resolveSetting(event, 'email.zepto_api_key', 'zeptoApiKey'),
-  ])
+export interface SendResult {
+  /** Provider-assigned id — Cloudflare's is the RFC Message-ID used for reply threading. */
+  messageId?: string
+}
 
-  return {
-    emailProvider: emailProvider || 'console',
-    fromAddress,
-    resendApiKey,
-    brevoApiKey,
-    zeptoApiKey,
-    domain: host,
+interface ResolvedSender { address: string; name?: string }
+
+function resolveSender(msg: EmailMessage, config: EmailConfig): ResolvedSender {
+  const address = msg.from ?? (config.fromAddress || `noreply@${config.domain}`)
+  const name = (msg.fromName ?? config.fromName)?.trim() || undefined
+  return { address, name }
+}
+
+/** RFC 5322 `"Name" <addr>` — quotes and backslashes in the name escaped. */
+function formatAddress({ address, name }: ResolvedSender): string {
+  if (!name) return address
+  return `"${name.replace(/["\\]/g, '\\$&')}" <${address}>`
+}
+
+function toList(to: string | string[]): string[] {
+  return Array.isArray(to) ? to : [to]
+}
+
+async function readJson(res: Response): Promise<Record<string, unknown> | null> {
+  try {
+    return await res.json() as Record<string, unknown>
+  }
+  catch {
+    return null
   }
 }
 
-async function sendViaResend(msg: EmailMessage, config: EmailConfig): Promise<void> {
-  const from = msg.from ?? (config.fromAddress || `noreply@${config.domain}`)
+async function sendViaResend(msg: EmailMessage, config: EmailConfig): Promise<SendResult> {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -62,19 +90,22 @@ async function sendViaResend(msg: EmailMessage, config: EmailConfig): Promise<vo
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from,
-      to: Array.isArray(msg.to) ? msg.to : [msg.to],
+      from: formatAddress(resolveSender(msg, config)),
+      to: toList(msg.to),
       subject: msg.subject,
       html: msg.html,
       text: msg.text,
       ...(msg.replyTo ? { reply_to: msg.replyTo } : {}),
+      ...(msg.headers ? { headers: msg.headers } : {}),
     }),
   })
   if (!res.ok) throw new Error(`Resend error ${res.status}: ${await res.text()}`)
+  const body = await readJson(res)
+  return { messageId: typeof body?.id === 'string' ? body.id : undefined }
 }
 
-async function sendViaBrevo(msg: EmailMessage, config: EmailConfig): Promise<void> {
-  const from = msg.from ?? (config.fromAddress || `noreply@${config.domain}`)
+async function sendViaBrevo(msg: EmailMessage, config: EmailConfig): Promise<SendResult> {
+  const sender = resolveSender(msg, config)
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
@@ -82,19 +113,22 @@ async function sendViaBrevo(msg: EmailMessage, config: EmailConfig): Promise<voi
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      sender: { email: from },
-      to: (Array.isArray(msg.to) ? msg.to : [msg.to]).map(e => ({ email: e })),
+      sender: { email: sender.address, ...(sender.name ? { name: sender.name } : {}) },
+      to: toList(msg.to).map(e => ({ email: e })),
       ...(msg.replyTo ? { replyTo: { email: msg.replyTo } } : {}),
+      ...(msg.headers ? { headers: msg.headers } : {}),
       subject: msg.subject,
       htmlContent: msg.html,
       textContent: msg.text,
     }),
   })
   if (!res.ok) throw new Error(`Brevo error ${res.status}: ${await res.text()}`)
+  const body = await readJson(res)
+  return { messageId: typeof body?.messageId === 'string' ? body.messageId : undefined }
 }
 
-async function sendViaZepto(msg: EmailMessage, config: EmailConfig): Promise<void> {
-  const from = msg.from ?? (config.fromAddress || `noreply@${config.domain}`)
+async function sendViaZepto(msg: EmailMessage, config: EmailConfig): Promise<SendResult> {
+  const sender = resolveSender(msg, config)
   const res = await fetch('https://api.zeptomail.com/v1.1/email', {
     method: 'POST',
     headers: {
@@ -102,41 +136,18 @@ async function sendViaZepto(msg: EmailMessage, config: EmailConfig): Promise<voi
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: { address: from },
-      to: (Array.isArray(msg.to) ? msg.to : [msg.to]).map(e => ({ email_address: { address: e } })),
-      ...(msg.replyTo ? { reply_to: { address: msg.replyTo } } : {}),
+      from: { address: sender.address, ...(sender.name ? { name: sender.name } : {}) },
+      to: toList(msg.to).map(e => ({ email_address: { address: e } })),
+      ...(msg.replyTo ? { reply_to: [{ address: msg.replyTo }] } : {}),
+      ...(msg.headers ? { mime_headers: msg.headers } : {}),
       subject: msg.subject,
       htmlbody: msg.html,
       textbody: msg.text,
     }),
   })
   if (!res.ok) throw new Error(`ZeptoMail error ${res.status}: ${await res.text()}`)
-}
-
-async function sendViaMailChannels(msg: EmailMessage, config: EmailConfig): Promise<void> {
-  // MailChannels' free anonymous relay for Cloudflare Workers was shut down for new
-  // customers in mid-2024 — using this now requires an existing MailChannels account
-  // relationship and DNS domain-lockdown records, which most self-hosters won't have.
-  // It does NOT use config.smtpHost/smtpUser/smtpPass — MailChannels has no concept of
-  // user-supplied SMTP credentials, it authorizes purely via the sending domain's DNS.
-  // Prefer the 'cloudflare' provider (sendViaCloudflareEmail below) instead — it needs
-  // no third-party account, just `wrangler email sending enable <domain>`.
-  const from = msg.from ?? (config.fromAddress || `noreply@${config.domain}`)
-  const res = await fetch('https://api.mailchannels.net/tx/v1/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      personalizations: [{ to: (Array.isArray(msg.to) ? msg.to : [msg.to]).map(e => ({ email: e })) }],
-      from: { email: from },
-      ...(msg.replyTo ? { reply_to: { email: msg.replyTo } } : {}),
-      subject: msg.subject,
-      content: [
-        { type: 'text/html', value: msg.html },
-        ...(msg.text ? [{ type: 'text/plain', value: msg.text }] : []),
-      ],
-    }),
-  })
-  if (!res.ok && res.status !== 202) throw new Error(`MailChannels error ${res.status}: ${await res.text()}`)
+  const body = await readJson(res)
+  return { messageId: typeof body?.request_id === 'string' ? body.request_id : undefined }
 }
 
 /**
@@ -144,57 +155,135 @@ async function sendViaMailChannels(msg: EmailMessage, config: EmailConfig): Prom
  * third-party account or API key needed, just `wrangler email sending enable <domain>`
  * for whichever domain `from` uses. This is the recommended provider for NuxFlow sites,
  * since every deployment already has a Cloudflare account by definition.
+ *
+ * Transactional only — Cloudflare's Email Service terms exclude marketing/bulk mail, so a
+ * future newsletter feature must send through a third-party provider, never this one.
  */
-async function sendViaCloudflareEmail(msg: EmailMessage, config: EmailConfig, event: H3Event): Promise<void> {
+async function sendViaCloudflareEmail(msg: EmailMessage, config: EmailConfig, event: H3Event): Promise<SendResult> {
   const email = getEmailBinding(event)
   if (!email) {
     throw new Error('Cloudflare Email Sending is not available — add a send_email binding (name "EMAIL") to wrangler.toml and run `wrangler email sending enable <domain>` for your sending domain.')
   }
-  const from = msg.from ?? (config.fromAddress || `noreply@${config.domain}`)
-  await email.send({
+  const sender = resolveSender(msg, config)
+  const result = await email.send({
     to: msg.to,
-    // Cloudflare's send_email binding rejects an EmailAddress object that has
-    // `email` but no `name` — the runtime validator requires both fields to be
-    // present together (unlike the published type, which marks `name` optional).
-    // There's no display-name setting to attach here, so pass a plain string
-    // instead of constructing a partial object.
-    from,
+    // The binding's runtime validator rejects an EmailAddress object that has `email` but
+    // no `name` (the published type marks `name` optional), so only build the object form
+    // when there is a display name to put in it.
+    from: sender.name ? { email: sender.address, name: sender.name } : sender.address,
     subject: msg.subject,
     html: msg.html,
     text: msg.text,
     ...(msg.replyTo ? { replyTo: msg.replyTo } : {}),
+    ...(msg.headers ? { headers: msg.headers } : {}),
   })
+  return { messageId: (result as { messageId?: string } | undefined)?.messageId }
 }
 
-export async function sendEmailWithConfig(config: EmailConfig, msg: EmailMessage, event: H3Event): Promise<void> {
+async function dispatch(config: EmailConfig, msg: EmailMessage, event: H3Event): Promise<SendResult> {
   switch (config.emailProvider) {
     case 'cloudflare':
-      await sendViaCloudflareEmail(msg, config, event)
-      break
+      return sendViaCloudflareEmail(msg, config, event)
     case 'resend':
       if (!config.resendApiKey) throw new Error('Resend API key is not configured')
-      await sendViaResend(msg, config)
-      break
+      return sendViaResend(msg, config)
     case 'brevo':
       if (!config.brevoApiKey) throw new Error('Brevo API key is not configured')
-      await sendViaBrevo(msg, config)
-      break
+      return sendViaBrevo(msg, config)
     case 'zepto':
       if (!config.zeptoApiKey) throw new Error('ZeptoMail API key is not configured')
-      await sendViaZepto(msg, config)
-      break
-    case 'smtp':
-      await sendViaMailChannels(msg, config)
-      break
+      return sendViaZepto(msg, config)
     case 'console':
     default:
       console.warn('[email] To:', msg.to, '| Subject:', msg.subject)
       console.warn('[email] Body:', msg.text ?? msg.html)
-      break
+      return {}
   }
 }
 
-export async function sendEmail(event: H3Event, msg: EmailMessage): Promise<void> {
+/**
+ * Best-effort email_log write. Never throws — a logging failure must not turn a delivered
+ * email into a reported failure, or mask the real error of a failed one.
+ */
+async function logEmail(event: H3Event, config: EmailConfig, msg: EmailMessage, outcome: { messageId?: string; error?: string }): Promise<void> {
+  if (!config.siteId) return
+  try {
+    await useDb(event).insert(emailLog).values({
+      id: ulid(),
+      siteId: config.siteId,
+      toAddress: toList(msg.to).join(', ').slice(0, 500),
+      subject: msg.subject.slice(0, 500),
+      category: msg.category ?? 'general',
+      provider: config.emailProvider || 'console',
+      status: outcome.error ? 'failed' : 'sent',
+      error: outcome.error?.slice(0, 1000) ?? null,
+      providerMessageId: outcome.messageId ?? null,
+    })
+  }
+  catch (err) {
+    console.error('[email] Failed to write email_log row:', err)
+  }
+}
+
+export async function sendEmailWithConfig(config: EmailConfig, msg: EmailMessage, event: H3Event): Promise<SendResult> {
+  try {
+    const result = await dispatch(config, msg, event)
+    await logEmail(event, config, msg, { messageId: result.messageId })
+    return result
+  }
+  catch (err) {
+    await logEmail(event, config, msg, { error: err instanceof Error ? err.message : String(err) })
+    throw err
+  }
+}
+
+export async function loadEmailConfig(event: H3Event): Promise<EmailConfig> {
+  let host = getHeader(event, 'host')?.split(':')[0] ?? 'nuxflow.app'
+  if (host === '127.0.0.1' || host === '::1') {
+    host = 'localhost'
+  }
+  const siteId = event.context.siteId as string | undefined
+  // Independent settings lookups — parallelized so a cache-miss (first call per isolate
+  // per 30s window) costs one round trip's worth of latency instead of several serialized
+  // ones. Fires on every email send (password resets, invites, form notifications), so
+  // this is a real per-request hot path, not an admin-only rarity.
+  const [emailProvider, fromAddress, fromName, resendApiKey, brevoApiKey, zeptoApiKey, siteName] = await Promise.all([
+    resolveSetting(event, 'email.provider', 'emailProvider'),
+    resolveSetting(event, 'email.from_address', 'emailFromAddress'),
+    resolveSetting(event, 'email.from_name'),
+    resolveSetting(event, 'email.resend_api_key', 'resendApiKey'),
+    resolveSetting(event, 'email.brevo_api_key', 'brevoApiKey'),
+    resolveSetting(event, 'email.zepto_api_key', 'zeptoApiKey'),
+    siteId ? getSiteName(event, siteId) : Promise.resolve(''),
+  ])
+
+  return {
+    emailProvider: emailProvider || 'console',
+    fromAddress,
+    // An explicit From name wins; otherwise mail goes out under the site's own name
+    // ("Acme Bakery <noreply@…>") rather than a bare address, which is both friendlier
+    // and better for deliverability.
+    fromName: fromName || siteName || undefined,
+    resendApiKey,
+    brevoApiKey,
+    zeptoApiKey,
+    domain: host,
+    siteId,
+    siteName: siteName || undefined,
+  }
+}
+
+async function getSiteName(event: H3Event, siteId: string): Promise<string> {
+  try {
+    const site = await useDb(event).query.sites.findFirst({ where: eq(sites.id, siteId), columns: { name: true } })
+    return site?.name ?? ''
+  }
+  catch {
+    return ''
+  }
+}
+
+export async function sendEmail(event: H3Event, msg: EmailMessage): Promise<SendResult> {
   const config = await loadEmailConfig(event)
-  await sendEmailWithConfig(config, msg, event)
+  return sendEmailWithConfig(config, msg, event)
 }

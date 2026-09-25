@@ -160,6 +160,9 @@ export default defineNuxtConfig({
     auditLogRetentionDays: 90,   // NUXT_AUDIT_LOG_RETENTION_DAYS
     revisionRetentionCount: 20,  // NUXT_REVISION_RETENTION_COUNT
     staleContentDays: 180,       // NUXT_STALE_CONTENT_DAYS — server/scheduled/stale-content-scan.ts
+    // NUXT_INBOUND_EMAIL_DOMAIN — optional shared receiving domain for sites whose own
+    // domain isn't a zone in this Cloudflare account (server/utils/inbound-email.ts).
+    inboundEmailDomain: '',
     public: {
       siteUrl: '',
       cloudflareImagesDeliveryUrl: '',

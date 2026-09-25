@@ -49,6 +49,7 @@
     "nuxt-seo-utils": "^8.4.3",
     "openai": "^7.15.0",
     "pinia": "^4.0.3",
+    "postal-mime": "^3.0.1",
     "reflect-metadata": "^0.2.2",
     "stripe": "^22.6.0",
     "ulid": "^3.0.2",

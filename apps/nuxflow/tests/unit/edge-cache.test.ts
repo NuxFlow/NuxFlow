@@ -38,7 +38,7 @@ function mkEvent(overrides: { noCloudflareContext?: boolean; waitUntil?: ((p: Pr
     : {
         request: new Request('https://example.com/api/public/site'),
         env: {} as never,
-        ctx: overrides.waitUntil === null ? undefined : { waitUntil: overrides.waitUntil ?? vi.fn() },
+        context: overrides.waitUntil === null ? undefined : { waitUntil: overrides.waitUntil ?? vi.fn() },
       }
   return { context: { cloudflare } } as unknown as H3Event
 }

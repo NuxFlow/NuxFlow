@@ -570,7 +570,9 @@ The one thing that is per-domain is registering your sending domain with Cloudfl
 wrangler email sending enable yourdomain.com
 ```
 
-This adds the SPF/DKIM DNS records receiving mail servers (Gmail, Outlook, etc.) check before trusting a message — skip it and sends can still go through, but they're more likely to land in spam or get silently dropped, and Cloudflare's Email Sending product is still in Beta, so unenforced requirements like this one could become hard-enforced later. In a multi-site install, run it once per site's custom sending domain, not once per installation.
+This adds the SPF/DKIM DNS records receiving mail servers (Gmail, Outlook, etc.) check before trusting a message. Until the domain is onboarded, Cloudflare only delivers to *verified destination addresses* in your own Cloudflare account — so password resets, invites, and notifications to anyone else won't arrive. The domain must be a zone in the same Cloudflare account as this Worker. In a multi-site install, run it once per site's custom sending domain, not once per installation.
+
+Cloudflare Email Service is for **transactional** mail only (its terms exclude marketing and bulk sends), and its sending quota is per Cloudflare account — shared by every site on the deployment. Admin → Super Admin → Email shows per-site usage from NuxFlow's own send log. See [Email](email.md) for receiving mail (inboxes, email-to-draft).
 
 Select **Cloudflare** as the email provider in **Admin → Settings → Email** — no redeploy needed for that part, since the binding is already present.
 
@@ -583,9 +585,5 @@ Add the relevant secret for your chosen provider, then select it in **Admin → 
 | Resend | `NUXT_RESEND_API_KEY` |
 | Brevo | `NUXT_BREVO_API_KEY` |
 | ZeptoMail | `NUXT_ZEPTO_API_KEY` |
-
-#### MailChannels
-
-Selecting "smtp" as the provider actually routes through MailChannels' free relay for Cloudflare Workers, not a generic SMTP server — there is no host/user/password to configure. MailChannels authorizes senders via DNS records on your sending domain, not credentials. As of mid-2024 their free anonymous relay also requires an existing MailChannels account and domain-lockdown DNS records, so most self-hosted installs should use **Cloudflare** above instead.
 
 If no provider is configured, NuxFlow logs emails to the console in development.

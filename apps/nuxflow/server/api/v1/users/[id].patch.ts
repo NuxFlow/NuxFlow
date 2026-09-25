@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole, assertNotSelfTarget, assertTargetNotSuperAdmin } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { clearCachedRole } from '../../../utils/role-cache'
+import { alertRoleChanged } from '../../../utils/security-alerts'
 
 const bodySchema = z.object({
   role: z.enum(['admin', 'editor', 'author', 'viewer', 'member']).optional(),
@@ -39,6 +40,7 @@ export default defineEventHandler(async (event) => {
     })
     await batchWithAudit(db, [roleUpdate], auditInsert)
     clearCachedRole(targetId, siteId)
+    if (existing?.role !== body.role) alertRoleChanged(event, targetId, existing?.role, body.role)
   }
 
   return { success: true }

@@ -7,6 +7,8 @@ import { verifyPluginSignature, computeSha256 } from '../../../utils/plugin-sign
 import { dynamicPlugins, dynamicPluginTrust } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { notifySiteRole } from '../../../utils/notify'
+import { waitUntil } from '../../../utils/cf-env'
 
 // Shape/type validation only — this does not (and cannot) validate cryptographic
 // correctness. Checksum matching and Ed25519 signature verification still happen
@@ -178,6 +180,18 @@ export default defineEventHandler(async (event) => {
   }
 
   await writeAuditLog(event, userId, { action: 'install', resource: 'dynamic_plugin', resourceId: body.id, after: { name: body.name, version: body.version } })
+  // Plugins run code on this site — every other admin should hear about a new one.
+  waitUntil(event, notifySiteRole(event, {
+    siteId: event.context.siteId as string,
+    minRole: 'admin',
+    excludeUserId: userId,
+    type: 'system.plugin_installed',
+    title: `Plugin installed: ${body.name}`,
+    body: `${body.name} ${body.version} was installed on this site. Review it under Admin → Plugins if you weren't expecting this.`,
+    sendEmailNotification: true,
+    pushUrl: '/admin/plugins',
+    actionLabel: 'Review plugins',
+  }).catch(err => console.error('[plugins] Install notification failed:', err)))
 
   return { success: true }
 })

@@ -121,6 +121,11 @@ database_id = "your-d1-database-id"
 [[send_email]]
 name = "EMAIL"
 
+# Receiving email (Admin → Inbox, post-by-email) needs NO binding here: Nitro already
+# exports the Worker's email() handler. Per receiving domain, enable Email Routing in the
+# Cloudflare dashboard and point its catch-all rule at this Worker ("Send to a Worker").
+# Addresses themselves are created in NuxFlow (Admin → Inbox → Addresses). docs/email.md
+
 # Workers AI — zero-config AI provider (text generation, image generation via Flux,
 # vision/alt-text, embeddings, transcription, text-to-speech). Unlike every binding above,
 # this needs no external resource created and no id to paste in. Included on the Workers

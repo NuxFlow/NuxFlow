@@ -47,12 +47,23 @@ export function getCfBindings(event: H3Event): CfBindings {
  * fallback in `withEdgeCache`.
  */
 export function waitUntil(event: H3Event, promise: Promise<unknown>): void {
-  const ctx = event.context.cloudflare?.ctx
-  if (ctx?.waitUntil) {
+  const ctx = getExecutionContext(event)
+  if (ctx) {
     ctx.waitUntil(promise)
   } else {
     void promise
   }
+}
+
+/**
+ * The Worker's ExecutionContext for this request, or null outside Workers (tests). Nitro
+ * stores it at `event.context.cloudflare.context` — an earlier version of waitUntil()
+ * above read `.ctx`, which Nitro never sets, so every "background" promise silently
+ * degraded to an unregistered fire-and-forget in production.
+ */
+export function getExecutionContext(event: H3Event): { waitUntil(promise: Promise<unknown>): void } | null {
+  const ctx = event?.context?.cloudflare?.context
+  return ctx?.waitUntil ? ctx : null
 }
 
 export function getAnalyticsEngine(event: H3Event): AnalyticsEngineDataset | null {

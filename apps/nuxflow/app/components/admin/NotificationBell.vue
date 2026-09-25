@@ -1,12 +1,20 @@
 <script setup lang="ts">
-const { data, refresh } = await useFetch<{ notifications?: { id: string; readAt: string | null; title: string; body: string }[] }>('/api/v1/notifications')
+const { data, refresh } = await useFetch<{ notifications?: { id: string; readAt: string | null; title: string; body: string; data?: { url?: string } | null }[] }>('/api/v1/notifications')
 const notifications = computed(() => data.value?.notifications ?? [])
 const unread = computed(() => notifications.value.filter((n: { readAt: string | null }) => !n.readAt).length)
 const open = ref(false)
 
-async function markRead(id: string) {
-  await $fetch(`/api/v1/notifications/${id}/read`, { method: 'POST' })
-  await refresh()
+async function openNotification(notif: { id: string; readAt: string | null; data?: { url?: string } | null }) {
+  if (!notif.readAt) {
+    await $fetch(`/api/v1/notifications/${notif.id}/read`, { method: 'POST' })
+    await refresh()
+  }
+  // Only site-relative links — data.url is written server-side, but never navigate off-site from it.
+  const url = notif.data?.url
+  if (url && url.startsWith('/') && !url.startsWith('//')) {
+    open.value = false
+    await navigateTo(url)
+  }
 }
 </script>
 
@@ -38,7 +46,7 @@ async function markRead(id: string) {
           :key="notif.id"
           class="px-4 py-3 flex gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
           :class="!notif.readAt ? 'bg-primary-50 dark:bg-primary-950' : ''"
-          @click="markRead(notif.id)"
+          @click="openNotification(notif)"
         >
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ notif.title }}</p>

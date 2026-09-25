@@ -21,7 +21,10 @@ vi.mock('../../server/utils/db', () => ({
 }))
 
 const { mockSendEmailWithConfig } = vi.hoisted(() => ({ mockSendEmailWithConfig: vi.fn() }))
-vi.mock('../../server/utils/email', () => ({ sendEmailWithConfig: mockSendEmailWithConfig }))
+vi.mock('../../server/utils/email', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  sendEmailWithConfig: mockSendEmailWithConfig,
+}))
 
 const { default: getSettingsHandler } = await import('../../server/api/v1/settings/index.get')
 const { default: emailTestHandler } = await import('../../server/api/v1/settings/email-test.post')

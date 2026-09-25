@@ -25,7 +25,7 @@ const bodySchema = z.object({
     password: z.string().max(128).optional().default(''),
   }),
   email: z.object({
-    provider: z.enum(['console', 'cloudflare', 'resend', 'brevo', 'zepto', 'smtp']).default('console'),
+    provider: z.enum(['console', 'cloudflare', 'resend', 'brevo', 'zepto']).default('console'),
   }).optional(),
   template: z.enum(['landing', 'blog', 'portfolio', 'blank']).default('landing'),
   setupToken: z.string().optional(),

@@ -17,9 +17,9 @@ vi.mock('../../server/utils/rate-limit', () => ({
 }))
 
 const mockSendEmail = vi.fn().mockResolvedValue(undefined)
-vi.mock('../../server/utils/email', async (importOriginal) => {
+vi.mock('../../server/utils/email-template', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
-  return { ...actual, sendEmail: (...args: unknown[]) => mockSendEmail(...args) }
+  return { ...actual, sendTemplatedEmail: (...args: unknown[]) => mockSendEmail(...args) }
 })
 
 // Argon2 at production cost is slow and irrelevant to what's under test here.

@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { requireSuperAdmin, getUserSiteRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { clearCachedRole } from '../../../../utils/role-cache'
+import { alertRoleChanged } from '../../../../utils/security-alerts'
 
 // Revokes super_admin on the CURRENT site for the target user, downgrading them to
 // 'admin' rather than deleting their access to the site outright — this is a demotion,
@@ -40,6 +41,7 @@ export default defineEventHandler(async (event) => {
   })
   await batchWithAudit(db, [roleUpdate], auditInsert)
   clearCachedRole(targetId, siteId)
+  alertRoleChanged(event, targetId, 'super_admin', 'admin')
 
   return { success: true }
 })
