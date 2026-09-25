@@ -1,5 +1,48 @@
 # @nuxflow/app
 
+## 2.0.0-beta.18
+
+### Minor Changes
+
+- a9dcb09: feat: zero-config R2 media storage, one-click move of database-stored media, and clearer storage status
+  
+  **R2 works with just the bucket binding**
+  - With the `MEDIA_BUCKET` R2 binding present, uploads now go to R2 even when no public bucket URL is configured — files are served by the Worker itself at `/_nuxflow/media/<key>` (tenant-isolated, ETag/304, byte ranges, year-long cache for upload keys, forced `CSP: sandbox` + `nosniff`). Previously, a bound bucket without a public URL silently fell back to storing base64 in D1. A public R2 URL remains an optional performance setting.
+  - Binding-only R2 is checked after explicitly configured S3/Bunny.net, so adding the binding never moves a site off a provider it chose on purpose.
+  - `wrangler.toml.example` now enables the `[[r2_buckets]]` binding by default (`wrangler r2 bucket create nuxflow-media` once; `wrangler dev` simulates it locally).
+  - RSS/Atom feeds, both sitemaps, and og:image/Twitter/JSON-LD always emit absolute media URLs; the image sitemap no longer includes base64 `data:` URIs.
+  
+  **Move database-stored media to real storage**
+  - Settings → Media has a new status card and a **Move to …** button that moves media-library files stored in D1 — and images embedded directly in pages/settings — to the active provider, verifying each copy before rewriting every reference (content, drafts, revisions, og images, menus, themes, settings, avatars) and only then dropping the database copy.
+  - Runs in small, bounded, resumable batches (`GET`/`POST /api/v1/media/migration`, admin-only): rows are rewritten one at a time within a per-request query/time budget, so a file embedded in many large drafts can't exceed the Worker's memory or D1 query limits.
+  
+  **Clearer storage messaging**
+  - Super Admin → Database now distinguishes "no media storage connected" from "storage connected, older files still in the database", with a link to move them.
+  - The setup wizard shows a plain status line for file storage instead of asking anything.
+- afbb452: fix: close auth, tenancy, XSS, and CSRF gaps found in a full security sweep
+  
+  **Authentication**
+  - Auth rate limits are matched on the path without its query string — `?anything` previously skipped every limit on sign-in, sign-up, and password reset.
+  - Better Auth's own `POST /api/auth/sign-up/email` is blocked; it ignored the per-site registration setting. Invites and backup restores now reclaim an existing account whose email was never verified and that holds no staff role anywhere (sessions and passkeys revoked, password reset) before granting it a role, so a pre-registered address can't capture an invite. Completing a password reset now marks the email verified.
+  - The setup wizard requires an existing account's current password (checked before the one-time token is consumed).
+  
+  **Multi-tenant boundaries**
+  - Completing a secondary site's setup link grants `admin`, not platform-wide `super_admin`.
+  - `requireSuperAdmin` now requires a `super_admin` grant on the site the request arrived on, so script on a tenant's domain can't use a visiting operator's session for platform actions. **Existing deployments:** review `super_admin` grants on secondary sites created before this change and downgrade tenant owners to `admin`.
+  
+  **Content permissions**
+  - Authors can only edit their own items while in draft or review, and can only set those statuses (REST and MCP); the editor shows a read-only notice otherwise.
+  
+  **XSS / sandboxing**
+  - Theme CSS escapes every `<`, so no `</style` variant can break out of the injected style block.
+  - The SVG upload sanitizer was rewritten (fixed-point, namespace-aware, entity-decoded URL checks, DOCTYPE/ENTITY/xml-stylesheet removal); MIME parameters no longer skip it, and R2/S3 store SVGs as attachments.
+  - Plugin frames carry a CSP `sandbox` even when opened directly; plugin server responses are forced into a sandbox with `Set-Cookie` stripped.
+  
+  **Other**
+  - CSRF: cookie-bearing cross-origin POST/PUT/PATCH/DELETE to `/api/**` is rejected (covers same-site sibling subdomains that SameSite=Lax doesn't).
+  - Page cache skips requests with an `Authorization` header; comments require a published item with comments enabled; `sourceItemId` must be same-site; Paddle webhooks enforce a 5-minute replay window; membership return URLs must be same-host http(s).
+  - Draft preview links now work (and use the site's own domain); API key `lastUsedAt` is recorded.
+
 ## 2.0.0-beta.17
 
 ### Patch Changes
