@@ -6,6 +6,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { created } from '../../../utils/response'
 import { apiKeys } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
+import { alertInBackground } from '../../../utils/security-alerts'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -48,6 +49,8 @@ export default defineEventHandler(async (event) => {
   })
 
   await batchWithAudit(db, [keyInsert], auditInsert)
+  alertInBackground(event, userId, 'security.api_key_created', 'A new API key was created',
+    `An API key named "${body.name}" (${body.scopes.join(', ')}) was created for your account. It can act on this site as you until it's deleted.`)
 
   // Raw key shown only once — client must copy it
   return created(event, { id, key: rawKey })

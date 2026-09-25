@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const props = defineProps<{
-  modelValue: { provider: 'console' | 'cloudflare' | 'resend' | 'brevo' | 'zepto' | 'smtp' }
+  modelValue: { provider: 'console' | 'cloudflare' | 'resend' | 'brevo' | 'zepto' }
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: typeof props.modelValue]
@@ -16,7 +16,6 @@ const providers = [
   { label: 'Resend', value: 'resend' },
   { label: 'Brevo (Sendinblue)', value: 'brevo' },
   { label: 'ZeptoMail', value: 'zepto' },
-  { label: 'MailChannels (requires an existing account)', value: 'smtp' },
 ]
 </script>
 
@@ -36,16 +35,9 @@ const providers = [
       color="info"
       variant="soft"
       icon="i-lucide-info"
-      description="No API key needed. Sends can go through even without it, but for reliable inbox delivery run `wrangler email sending enable <your-domain>` once for your sending domain (via Cloudflare's CLI or dashboard) — it sets up the SPF/DKIM records recipients check."
+      description="No API key needed. Run `wrangler email sending enable <your-domain>` once (or onboard the domain under Email Service in the Cloudflare dashboard) for the domain your From address uses. Until then Cloudflare only delivers to verified addresses in your own account, so password resets and invites to anyone else won't arrive. Cloudflare Email is for transactional mail only — no newsletters or bulk sends."
     />
 
-    <UAlert
-      v-else-if="local.provider === 'smtp'"
-      color="warning"
-      variant="soft"
-      icon="i-lucide-triangle-alert"
-      description="MailChannels' free relay requires an existing MailChannels account and DNS domain-lockdown records — most new setups won't have this. Cloudflare Email is the zero-setup option."
-    />
 
     <UAlert
       v-else

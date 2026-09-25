@@ -13,7 +13,6 @@ const emailProviderOptions = [
   { label: 'Resend', value: 'resend' },
   { label: 'Brevo', value: 'brevo' },
   { label: 'ZeptoMail', value: 'zepto' },
-  { label: 'MailChannels', value: 'smtp' },
   { label: 'Console (dev)', value: 'console' },
 ]
 
@@ -34,6 +33,7 @@ async function sendTestEmail() {
         sendTo: emailTestAddress.value || undefined,
         provider: email.value.provider,
         fromAddress: email.value.fromAddress || undefined,
+        fromName: email.value.fromName || undefined,
         resendApiKey: email.value.resendApiKey || undefined,
         brevoApiKey: email.value.brevoApiKey || undefined,
         zeptoApiKey: email.value.zeptoApiKey || undefined,
@@ -61,6 +61,9 @@ async function sendTestEmail() {
         <UFormField label="From address" :hint="`Optional — defaults to noreply@${domain || 'yourdomain.com'}`">
           <UInput v-model="email.fromAddress" type="email" placeholder="noreply@yourdomain.com" />
         </UFormField>
+        <UFormField label="From name" hint="Optional — defaults to the site name">
+          <UInput v-model="email.fromName" placeholder="Acme Bakery" />
+        </UFormField>
       </template>
 
       <template v-if="email.provider === 'resend'">
@@ -86,18 +89,10 @@ async function sendTestEmail() {
           color="info"
           variant="soft"
           icon="i-lucide-info"
-          description="No API key needed. Sends can go through even without it, but for reliable inbox delivery run `wrangler email sending enable <your-domain>` once (via Cloudflare's CLI or dashboard) for whichever domain your From address uses — it sets up the SPF/DKIM records recipients check."
+          description="No API key needed. Run `wrangler email sending enable <your-domain>` once (or onboard the domain under Email Service in the Cloudflare dashboard) for the domain your From address uses. Until then Cloudflare only delivers to verified addresses in your own account, so password resets and invites to anyone else won't arrive. Cloudflare Email is for transactional mail only — no newsletters or bulk sends."
         />
       </template>
 
-      <template v-if="email.provider === 'smtp'">
-        <UAlert
-          color="warning"
-          variant="soft"
-          icon="i-lucide-triangle-alert"
-          description="Sent via MailChannels' API, not a generic SMTP relay — there are no host/username/password to configure here. MailChannels' free anonymous relay for Cloudflare Workers requires an existing MailChannels account and DNS domain-lockdown records set up outside NuxFlow; most new setups won't have this. Cloudflare Email (above) needs no third-party account."
-        />
-      </template>
 
       <template v-if="email.provider === 'console'">
         <p class="text-sm text-gray-400">Emails are logged to the server console. Use for local development only.</p>

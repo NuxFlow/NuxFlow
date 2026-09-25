@@ -5,6 +5,8 @@ import { clearSiteCache } from '../../../../middleware/02.multi-site'
 import { sites, auditLogs } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { notifySiteRole } from '../../../../utils/notify'
+import { waitUntil } from '../../../../utils/cf-env'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -48,5 +50,21 @@ export default defineEventHandler(async (event) => {
   // Domain (or status) may have changed — drop the whole cache rather than
   // tracking the old domain key, since a rename means the old key is now stale too.
   clearSiteCache()
+
+  if (body.status && body.status !== existing.status) {
+    const described = { active: 'reactivated', maintenance: 'put into maintenance mode', suspended: 'suspended by the platform operator' }[body.status]
+    waitUntil(event, notifySiteRole(event, {
+      siteId: id,
+      minRole: 'admin',
+      excludeUserId: userId,
+      type: 'system.site_status',
+      title: `${existing.name} was ${described}`,
+      body: body.status === 'suspended'
+        ? `${existing.name} (${existing.domain}) is now suspended: visitors and the admin panel are closed. Contact the platform operator for details.`
+        : `${existing.name} (${existing.domain}) was ${described}.`,
+      sendEmailNotification: true,
+      sendPush: true,
+    }).catch(err => console.error('[sites] Status notification failed:', err)))
+  }
   return { id }
 })

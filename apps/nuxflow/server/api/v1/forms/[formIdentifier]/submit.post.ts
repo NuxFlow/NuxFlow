@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { verifyTurnstile } from '../../../../utils/turnstile'
 import { rateLimit } from '../../../../utils/rate-limit'
-import { sendEmail, escapeHtml } from '../../../../utils/email'
+import { sendTemplatedEmail } from '../../../../utils/email-template'
 import { resolveSetting } from '../../../../utils/settings'
 import { formSubmissions, userSiteRoles } from '@nuxflow/db/schema'
 import type { FormField } from '@nuxflow/db/schema'
@@ -126,15 +126,20 @@ export default defineEventHandler(async (event) => {
         throw new Error('No notification email address is configured, and no admin users were found to use as a fallback.')
       }
 
-      const dataEntries = Object.entries(body.data)
-        .map(([key, value]) => `<p><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(value))}</p>`)
-        .join('')
+      // Reply-To the submitter when the form collected an email-typed field, so the
+      // notification can be answered directly.
+      const emailField = form.fields.find(f => f.type === 'email')
+      const submitterEmail = emailField ? body.data[emailField.name] : undefined
 
-      await sendEmail(event, {
+      await sendTemplatedEmail(event, {
         to: notifyEmail,
         subject: `New submission: ${form.name}`,
-        html: `<p>A new submission was received for <strong>${escapeHtml(form.name)}</strong>.</p>${dataEntries}`,
-        text: `New submission for ${form.name}:\n\n${Object.entries(body.data).map(([k, v]) => `${k}: ${v}`).join('\n')}`,
+        category: 'form_notification',
+        ...(typeof submitterEmail === 'string' && submitterEmail.includes('@') ? { replyTo: submitterEmail } : {}),
+        template: {
+          heading: `New submission: ${form.name}`,
+          paragraphs: Object.entries(body.data).map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`),
+        },
       })
     } catch (err: unknown) {
       console.error('Failed to send form submission notification email:', err)

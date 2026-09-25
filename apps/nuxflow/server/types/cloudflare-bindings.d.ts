@@ -27,7 +27,10 @@ declare module 'h3' {
     cloudflare?: {
       env: NuxFlowCloudflareEnv
       request: Request
-      ctx: { waitUntil(promise: Promise<unknown>): void }
+      // Nitro's cloudflare-module preset (fetchHandler in nitropack's _module-handler)
+      // exposes the Worker's ExecutionContext as `context` — there is no `ctx` key. Read
+      // it through getExecutionContext() in server/utils/cf-env.ts rather than directly.
+      context: { waitUntil(promise: Promise<unknown>): void }
     }
   }
 }

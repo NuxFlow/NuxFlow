@@ -291,6 +291,9 @@ function formatDate(dateStr: string | null) {
       </UCard>
     </ClientOnly>
 
+    <AccountNotificationPreferences />
+    <AccountPostByEmail />
+
     <!-- Security -->
     <UCard>
       <template #header>

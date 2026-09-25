@@ -36,3 +36,12 @@ export function formatDuration(seconds: number | null): string {
   const s = Math.floor(seconds % 60)
   return `${m}:${s.toString().padStart(2, '0')}`
 }
+
+/**
+ * D1 `datetime('now')` columns are UTC strings with a space and no zone
+ * ("2026-09-25 14:03:00"). Parsed as-is, most browsers read them as local time and
+ * Safari rejects the space outright — normalise to ISO-8601 UTC first.
+ */
+export function parseDbDate(value: string): Date {
+  return new Date(/z|[+-]\d\d:?\d\d$/i.test(value) ? value : `${value.replace(' ', 'T')}Z`)
+}

@@ -1,6 +1,6 @@
 import { useDb } from '../utils/db'
-import { auditLogs, contentRevisions, rateLimits, notifications } from '@nuxflow/db/schema'
-import { and, count, eq, lt, notInArray, sql, isNotNull, or } from 'drizzle-orm'
+import { auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages } from '@nuxflow/db/schema'
+import { and, count, eq, inArray, lt, ne, notInArray, sql, isNotNull, or } from 'drizzle-orm'
 
 // Bounds how many overflowing content items get their excess revisions pruned in a
 // single scheduled run. Each item needs its own `findMany` (Drizzle/D1 has no
@@ -109,8 +109,11 @@ export const pruneOldData = async () => {
     .toISOString().replace('T', ' ').slice(0, 19)
   const notificationHardCutoff = cutoffDate
 
+  // security.new_sign_in rows are exempt from the read-cutoff: they double as the list of
+  // devices a user has already signed in from (security-alerts.ts), and forgetting a
+  // device after 30 days would re-alert on it every month.
   const notificationsWhere = or(
-    and(isNotNull(notifications.readAt), lt(notifications.createdAt, notificationReadCutoff)),
+    and(isNotNull(notifications.readAt), lt(notifications.createdAt, notificationReadCutoff), ne(notifications.type, 'security.new_sign_in')),
     lt(notifications.createdAt, notificationHardCutoff),
   )
   const [notificationRow] = await db
@@ -122,5 +125,32 @@ export const pruneOldData = async () => {
     await db.delete(notifications).where(notificationsWhere)
   }
 
-  return { prunedAuditLogs, prunedRevisions, prunedRateLimits, prunedNotifications }
+  // --- Email send log --- same retention as audit logs.
+  const [emailLogRow] = await db.select({ value: count() }).from(emailLog).where(lt(emailLog.createdAt, cutoffDate))
+  const prunedEmailLog = emailLogRow?.value ?? 0
+  if (prunedEmailLog > 0) {
+    await db.delete(emailLog).where(lt(emailLog.createdAt, cutoffDate))
+  }
+
+  // --- Spam email --- 30 days in the Spam folder, then gone, R2 objects included.
+  // Bounded per run like the revision pruning above; the remainder goes next run.
+  const spamCutoff = notificationReadCutoff
+  const spam = await db.query.emailMessages.findMany({
+    where: and(eq(emailMessages.status, 'spam'), lt(emailMessages.createdAt, spamCutoff)),
+    columns: { id: true, rawKey: true, attachments: true },
+    limit: MAX_OVERFLOW_ITEMS_PER_RUN,
+  })
+  if (spam.length) {
+    const bucket = (globalThis as { __env__?: { MEDIA_BUCKET?: R2Bucket } }).__env__?.MEDIA_BUCKET
+    const keys = spam.flatMap(m => [m.rawKey, ...(m.attachments ?? []).map(a => a.key)]).filter((k): k is string => !!k)
+    if (bucket && keys.length) {
+      // R2's bulk delete takes up to 1000 keys per call.
+      for (const part of chunk(keys, 1000)) await bucket.delete(part).catch(err => console.error('[prune] Spam R2 delete failed:', err))
+    }
+    for (const ids of chunk(spam.map(m => m.id), DELETE_BATCH_CHUNK_SIZE)) {
+      await db.delete(emailMessages).where(inArray(emailMessages.id, ids))
+    }
+  }
+
+  return { prunedAuditLogs, prunedRevisions, prunedRateLimits, prunedNotifications, prunedEmailLog, prunedSpamEmail: spam.length }
 }

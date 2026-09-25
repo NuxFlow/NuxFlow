@@ -11,8 +11,8 @@ const isSuperAdmin = computed(() => access?.isSuperAdmin ?? false)
 // Filtered against the same rule table 02.admin-role-guard.global.ts enforces server-side
 // navigation against — see app/utils/admin-nav.ts. A user only ever sees links to
 // sections their role can actually use.
-const coreNav = computed(() => ADMIN_NAV.filter(item => canAccessNavItem(item, access)))
-const superAdminNav = computed(() => SUPER_ADMIN_NAV.filter(item => canAccessNavItem(item, access)))
+const coreNav = computed(() => ADMIN_NAV.filter(item => !item.hidden && canAccessNavItem(item, access)))
+const superAdminNav = computed(() => SUPER_ADMIN_NAV.filter(item => !item.hidden && canAccessNavItem(item, access)))
 
 function isActive(to: string) {
   return route.path === to || (to !== '/admin' && route.path.startsWith(to))

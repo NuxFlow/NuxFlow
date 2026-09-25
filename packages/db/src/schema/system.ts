@@ -62,6 +62,24 @@ export const notifications = sqliteTable('notifications', {
   index('idx_notifications_user_site').on(t.userId, t.siteId),
 ])
 
+/**
+ * Per-user, per-site opt-outs for notification delivery channels. Absence of a row means
+ * the notification type's default (see NOTIFICATION_TYPES in server/utils/notify.ts).
+ * Security alerts (`security.*`) ignore `email: false` — they're always emailed, since
+ * the whole point is reaching the account owner when someone else may be in the account.
+ */
+export const notificationPreferences = sqliteTable('notification_preferences', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(),
+  email: integer('email', { mode: 'boolean' }).notNull().default(true),
+  push: integer('push', { mode: 'boolean' }).notNull().default(true),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  uniqueIndex('uq_notification_prefs').on(t.userId, t.siteId, t.type),
+])
+
 
 export const rateLimits = sqliteTable('rate_limits', {
   key: text('key').primaryKey(),

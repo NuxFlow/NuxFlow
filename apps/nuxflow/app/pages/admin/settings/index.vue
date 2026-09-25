@@ -73,6 +73,7 @@ const appearance = reactive<AppearanceState>({
 const email = reactive<EmailState>({
   provider: 'console',
   fromAddress: '',
+  fromName: '',
   resendApiKey: '',
   brevoApiKey: '',
   zeptoApiKey: '',
@@ -168,6 +169,7 @@ watch(data, (d) => {
   general.allowPublicRegistration = s['auth.allow_public_registration'] === 'true'
   email.provider = (s['email.provider'] as string) ?? 'console'
   email.fromAddress = (s['email.from_address'] as string) ?? ''
+  email.fromName = (s['email.from_name'] as string) ?? ''
   email.resendApiKey = (s['email.resend_api_key'] as string) ?? ''
   email.brevoApiKey = (s['email.brevo_api_key'] as string) ?? ''
   email.zeptoApiKey = (s['email.zepto_api_key'] as string) ?? ''
@@ -240,6 +242,7 @@ async function save() {
     const settingsMap: Record<string, unknown> = {
       'email.provider': email.provider,
       'email.from_address': email.fromAddress,
+      'email.from_name': email.fromName,
       'email.resend_api_key': email.resendApiKey,
       'email.brevo_api_key': email.brevoApiKey,
       'email.zepto_api_key': email.zeptoApiKey,

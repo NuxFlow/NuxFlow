@@ -90,21 +90,53 @@ describe('sendEmailWithConfig — resend/brevo/zepto', () => {
   })
 })
 
-describe('sendEmailWithConfig — smtp (MailChannels)', () => {
-  it('posts to the MailChannels API regardless of any smtp credentials', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 202 })
-    vi.stubGlobal('fetch', fetchMock)
-
-    await sendEmailWithConfig({ emailProvider: 'smtp', domain: 'example.com' }, msg, mkEvent())
-
-    expect(fetchMock).toHaveBeenCalledWith('https://api.mailchannels.net/tx/v1/send', expect.any(Object))
+describe('sendEmailWithConfig — sender name, headers, message id', () => {
+  it('passes a named sender to the Cloudflare binding as an object, and returns its messageId', async () => {
+    const send = vi.fn().mockResolvedValue({ messageId: '<m1@acme.test>' })
+    const result = await sendEmailWithConfig(
+      { emailProvider: 'cloudflare', fromAddress: 'hello@acme.test', fromName: 'Acme Bakery', domain: 'acme.test' },
+      { ...msg, headers: { 'In-Reply-To': '<x@y>' } },
+      mkEvent({ send }),
+    )
+    const [sent] = send.mock.calls[0] as [{ from: unknown; headers: Record<string, string> }]
+    expect(sent.from).toEqual({ email: 'hello@acme.test', name: 'Acme Bakery' })
+    expect(sent.headers).toEqual({ 'In-Reply-To': '<x@y>' })
+    expect(result.messageId).toBe('<m1@acme.test>')
   })
 
-  it('throws with the response body when MailChannels rejects the request', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, text: () => Promise.resolve('Unauthorized') }))
+  it('lets a per-message from/fromName override the configured sender', async () => {
+    const send = vi.fn().mockResolvedValue({ messageId: 'm2' })
+    await sendEmailWithConfig(
+      { emailProvider: 'cloudflare', fromAddress: 'noreply@acme.test', fromName: 'Acme', domain: 'acme.test' },
+      { ...msg, from: 'contact@acme.test', fromName: 'Acme Support' },
+      mkEvent({ send }),
+    )
+    const [sent] = send.mock.calls[0] as [{ from: unknown }]
+    expect(sent.from).toEqual({ email: 'contact@acme.test', name: 'Acme Support' })
+  })
 
-    await expect(
-      sendEmailWithConfig({ emailProvider: 'smtp', domain: 'example.com' }, msg, mkEvent()),
-    ).rejects.toThrow(/MailChannels error 401/)
+  it('quotes the display name for Resend and returns the provider id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 're_123' }) })
+    vi.stubGlobal('fetch', fetchMock)
+    const result = await sendEmailWithConfig(
+      { emailProvider: 'resend', resendApiKey: 're_test', fromAddress: 'hi@acme.test', fromName: 'Acme "Best" Co', domain: 'acme.test' },
+      msg,
+      mkEvent(),
+    )
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as { body: string }).body) as { from: string }
+    expect(body.from).toBe('"Acme \\"Best\\" Co" <hi@acme.test>')
+    expect(result.messageId).toBe('re_123')
+  })
+
+  it('still reports success when the provider response has no JSON body', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => { throw new Error('no body') } }))
+    await expect(sendEmailWithConfig({ emailProvider: 'resend', resendApiKey: 'k', domain: 'acme.test' }, msg, mkEvent()))
+      .resolves.toEqual({ messageId: undefined })
+  })
+
+  it('treats a removed/unknown provider value as console rather than failing', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await expect(sendEmailWithConfig({ emailProvider: 'smtp', domain: 'acme.test' }, msg, mkEvent())).resolves.toEqual({})
+    warn.mockRestore()
   })
 })

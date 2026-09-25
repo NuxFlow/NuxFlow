@@ -6,7 +6,7 @@ import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
 import { verifyTurnstile } from '../../../utils/turnstile'
 import { rateLimit } from '../../../utils/rate-limit'
-import { sendEmail, escapeHtml } from '../../../utils/email'
+import { sendTemplatedEmail } from '../../../utils/email-template'
 import { resolveSetting } from '../../../utils/settings'
 import { created } from '../../../utils/response'
 import { sendNotification } from '../../../utils/notify'
@@ -108,15 +108,20 @@ export default defineEventHandler(async (event) => {
       throw new Error('No notification email address is configured, and no admin users were found to use as a fallback.')
     }
 
-    await sendEmail(event, {
+    await sendTemplatedEmail(event, {
       to: notifyEmail,
       replyTo: body.email,
       subject: `New contact: ${body.subject || body.name}`,
-      html: `<p><strong>From:</strong> ${escapeHtml(body.name)} &lt;${escapeHtml(body.email)}&gt;</p>
-<p><strong>Subject:</strong> ${escapeHtml(body.subject ?? '(none)')}</p>
-<p><strong>Message:</strong></p>
-<pre style="white-space:pre-wrap">${escapeHtml(body.message)}</pre>`,
-      text: `From: ${body.name} <${body.email}>\nSubject: ${body.subject ?? '(none)'}\n\n${body.message}`,
+      category: 'form_notification',
+      template: {
+        heading: 'New contact form message',
+        paragraphs: [
+          `From: ${body.name} <${body.email}>`,
+          `Subject: ${body.subject ?? '(none)'}`,
+          body.message,
+        ],
+        footnote: 'Reply to this email to answer the sender directly.',
+      },
     })
   } catch (err: unknown) {
     console.error('Failed to send contact notification email:', err)

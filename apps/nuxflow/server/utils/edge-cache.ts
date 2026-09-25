@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { and, eq } from 'drizzle-orm'
 import { contentItems } from '@nuxflow/db/schema'
 import { useDb } from './db'
+import { getExecutionContext } from './cf-env'
 
 // `dom` and `webworker` (both in this project's tsconfig lib list) each declare their own
 // standard CacheStorage — neither has `.default`, which is a Cloudflare-specific extension
@@ -79,8 +80,9 @@ export async function withEdgeCache<T>(
       },
     })
     const put = cache.put(cacheKey, response).catch(err => console.error('[edge-cache] write failed', err))
-    if (cf.ctx?.waitUntil) {
-      cf.ctx.waitUntil(put)
+    const execCtx = getExecutionContext(event)
+    if (execCtx) {
+      execCtx.waitUntil(put)
     } else {
       await put
     }

@@ -47,3 +47,22 @@ export function deriveVisibilityFromSettings(settings: Record<string, unknown> |
   const access = (settings as { access?: string } | null)?.access
   return access && access !== 'public' ? 'members' : 'public'
 }
+
+/**
+ * First free slug on the site, starting from `baseSlug` (normalised) and appending -2, -3…
+ * For background work that can't answer a 409 — AI site generation, email-to-draft.
+ */
+export async function uniqueContentSlug(db: Db, siteId: string, baseSlug: string): Promise<string> {
+  const base = (baseSlug || 'page').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'page'
+  let slug = base
+  let suffix = 1
+  for (;;) {
+    const existing = await db.query.contentItems.findFirst({
+      where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, slug)),
+      columns: { id: true },
+    })
+    if (!existing) return slug
+    suffix++
+    slug = `${base}-${suffix}`
+  }
+}

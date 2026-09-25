@@ -7,6 +7,10 @@ import { eq, and } from 'drizzle-orm'
 import * as schema from '@nuxflow/db/schema'
 import { nuxflowPasswordHasher } from './pw'
 import { createIsolateCache } from './isolate-cache'
+import { renderEmailTemplate, type EmailTemplateInput } from './email-template'
+import { currentAuthEvent } from './auth-request-context'
+import { alertOnNewSignIn, alertForAuthPath } from './security-alerts'
+import { waitUntil } from './cf-env'
 
 // Per-host auth instance cache with 5-minute TTL so newly-registered custom
 // domains — and per-site social-login credential changes — start working
@@ -110,7 +114,7 @@ async function buildBetterAuthInstance(event: H3Event) {
   // Shared by sendResetPassword and sendVerificationEmail below — both need the same
   // "resolve the site for this email link's host, then decrypt its email-provider
   // settings" lookup, previously only written once for sendResetPassword.
-  async function resolveSiteEmailSettings(host: string): Promise<{ siteId: string; sm: Record<string, string> } | null> {
+  async function resolveSiteEmailSettings(host: string): Promise<{ siteId: string; siteName: string; sm: Record<string, string> } | null> {
     const site = await db.query.sites.findFirst({ where: eq(schema.sites.domain, host) })
     if (!site) return null
     const settingRows = await db.query.siteSettings.findMany({
@@ -129,7 +133,7 @@ async function buildBetterAuthInstance(event: H3Event) {
         sm[row.key] = row.value as string
       }
     }
-    return { siteId: site.id, sm }
+    return { siteId: site.id, siteName: site.name, sm }
   }
 
   // Shared by sendResetPassword and sendVerificationEmail below — both resolve the
@@ -139,7 +143,7 @@ async function buildBetterAuthInstance(event: H3Event) {
   // decrypted email-provider settings, and send through the shared provider dispatch.
   // Collapsed here so both closures fail (and log) identically instead of maintaining
   // two copies of the same six-field settings-to-config mapping.
-  async function sendAuthEmail(linkUrl: string, opts: { name: string; to: string; subject: string; html: string; text: string }): Promise<void> {
+  async function sendAuthEmail(linkUrl: string, opts: { name: string; to: string; subject: string; template: Omit<EmailTemplateInput, 'siteName' | 'accentColor'> }): Promise<void> {
     let host = 'localhost'
     try { host = new URL(linkUrl).hostname } catch { /* keep default */ }
     try {
@@ -148,22 +152,24 @@ async function buildBetterAuthInstance(event: H3Event) {
         console.warn(`[auth] ${opts.name}: no site found for host`, host)
         return
       }
-      const { sm } = resolved
+      const { sm, siteId, siteName } = resolved
+      const { html, text } = renderEmailTemplate({
+        ...opts.template,
+        siteName,
+        accentColor: sm['theme.primary_color'],
+      })
       await sendEmailWithConfig(
         {
           emailProvider: sm['email.provider'] || 'console',
           fromAddress: sm['email.from_address'] || `noreply@${host}`,
+          fromName: sm['email.from_name'] || siteName,
           resendApiKey: sm['email.resend_api_key'],
           brevoApiKey: sm['email.brevo_api_key'],
           zeptoApiKey: sm['email.zepto_api_key'],
           domain: host,
+          siteId,
         },
-        {
-          to: opts.to,
-          subject: opts.subject,
-          html: opts.html,
-          text: opts.text,
-        },
+        { to: opts.to, subject: opts.subject, html, text, category: 'auth' },
         event,
       )
     }
@@ -219,8 +225,13 @@ async function buildBetterAuthInstance(event: H3Event) {
           name: 'sendResetPassword',
           to: user.email,
           subject: 'Reset your password',
-          html: `<p>Hi ${escapeHtml(user.name)},</p><p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Reset password</a></p><p style="color:#6b7280;font-size:14px;">If you did not request this, you can safely ignore this email.</p>`,
-          text: `Hi ${user.name},\n\nReset your password:\n${resetUrl}\n\nIf you did not request this, ignore this email.`,
+          template: {
+            heading: 'Reset your password',
+            preheader: 'This link expires in 1 hour.',
+            paragraphs: [`Hi ${user.name},`, 'Use the button below to choose a new password. This link expires in 1 hour.'],
+            action: { label: 'Reset password', url: resetUrl },
+            footnote: 'If you did not request this, you can safely ignore this email — your password will not change.',
+          },
         })
       },
       // Without this, completing a "Forgot password" reset leaves any existing session
@@ -238,6 +249,11 @@ async function buildBetterAuthInstance(event: H3Event) {
       // point may belong to someone who pre-registered the address, so passkeys are
       // dropped too (sessions are already revoked by revokeSessionsOnPasswordReset).
       onPasswordReset: async ({ user }) => {
+        const requestEvent = currentAuthEvent()
+        if (requestEvent) {
+          waitUntil(requestEvent, alertForAuthPath(requestEvent, user.id, '/api/auth/reset-password')
+            .catch(err => console.error('[auth] Password-reset alert failed:', err)))
+        }
         if (user.emailVerified) return
         await db.delete(schema.passkeys).where(eq(schema.passkeys.userId, user.id))
         await db.update(schema.users).set({ emailVerified: true }).where(eq(schema.users.id, user.id))
@@ -260,11 +276,30 @@ async function buildBetterAuthInstance(event: H3Event) {
           name: 'sendVerificationEmail',
           to: user.email,
           subject: 'Verify your email address',
-          html: `<p>Hi ${escapeHtml(user.name)},</p><p>Click the link below to verify your email address.</p><p><a href="${verifyUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Verify email</a></p><p style="color:#6b7280;font-size:14px;">If you did not create this account, you can safely ignore this email.</p>`,
-          text: `Hi ${user.name},\n\nVerify your email address:\n${verifyUrl}\n\nIf you did not create this account, ignore this email.`,
+          template: {
+            heading: 'Verify your email address',
+            paragraphs: [`Hi ${user.name},`, 'Confirm this is your email address by using the button below.'],
+            action: { label: 'Verify email', url: verifyUrl },
+            footnote: 'If you did not create this account, you can safely ignore this email.',
+          },
         })
       },
       autoSignInAfterVerification: true,
+    },
+    // New-device sign-in alerts. Runs in the background on the live request (see
+    // auth-request-context.ts); sessions created outside an /api/auth request (the invite
+    // flow's in-process signUpEmail) have no request context and are skipped.
+    databaseHooks: {
+      session: {
+        create: {
+          after: async (session) => {
+            const requestEvent = currentAuthEvent()
+            if (!requestEvent) return
+            waitUntil(requestEvent, alertOnNewSignIn(requestEvent, session)
+              .catch(err => console.error('[auth] New sign-in alert failed:', err)))
+          },
+        },
+      },
     },
     // Better Auth's own rate limiter defaults to in-memory storage, which doesn't
     // persist across Cloudflare Worker isolates. Rate limiting for sign-in/sign-up/

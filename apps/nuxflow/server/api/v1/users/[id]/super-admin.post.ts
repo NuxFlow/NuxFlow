@@ -5,6 +5,7 @@ import { ulid } from 'ulid'
 import { requireSuperAdmin, getUserSiteRole } from '../../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { clearCachedRole } from '../../../../utils/role-cache'
+import { alertRoleChanged } from '../../../../utils/security-alerts'
 
 // Grants super_admin on the CURRENT site for the target user. hasSuperAdminRole()
 // treats "a super_admin row on ANY site" as platform-wide super admin status, so this
@@ -44,6 +45,7 @@ export default defineEventHandler(async (event) => {
   })
   await batchWithAudit(db, [write], auditInsert)
   clearCachedRole(targetId, siteId)
+  alertRoleChanged(event, targetId, existing?.role, 'super_admin')
 
   return { success: true, alreadySuperAdmin: false }
 })

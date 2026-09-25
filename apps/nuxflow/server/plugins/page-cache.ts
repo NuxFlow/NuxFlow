@@ -1,5 +1,6 @@
 import type { EdgeCacheStorage } from '../utils/edge-cache'
 import { isPageCacheEligible, pageCacheRequest, PAGE_CACHE_TTL_SECONDS } from '../utils/page-cache'
+import { getExecutionContext } from '../utils/cf-env'
 
 // Write side of the full-page edge cache — see server/utils/page-cache.ts for the
 // eligibility rules (shared with the read side in 07.page-cache.ts) and server/middleware/
@@ -34,8 +35,9 @@ export default defineNitroPlugin((nitro) => {
       const put = cache.put(pageCacheRequest(event), cacheResponse).catch((err) => {
         console.error('[page-cache] write failed', err)
       })
-      if (cf.ctx?.waitUntil) {
-        cf.ctx.waitUntil(put)
+      const execCtx = getExecutionContext(event)
+      if (execCtx) {
+        execCtx.waitUntil(put)
       } else {
         await put
       }

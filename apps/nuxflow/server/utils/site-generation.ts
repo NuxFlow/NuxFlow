@@ -2,11 +2,11 @@ import { generateObject } from 'ai'
 import { z } from 'zod'
 import { ulid } from 'ulid'
 import type { H3Event } from 'h3'
-import { eq, and, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { useDb, type Db } from './db'
 import { requireAiSdkModel, callAiOrThrow } from './ai-sdk'
 import { generateCanvasBlocks } from './canvas-generation'
-import { getContentTypeBySlugOrThrow } from './content-queries'
+import { getContentTypeBySlugOrThrow, uniqueContentSlug } from './content-queries'
 import { aiGenerationJobs, contentItems } from '@nuxflow/db/schema'
 
 // Backs the job-queue multi-page "Generate site…" flow (POST /api/v1/ai/generate,
@@ -60,23 +60,6 @@ export async function generateSitePlan(event: H3Event, jobId: string): Promise<v
   }
 }
 
-async function uniqueSlug(db: Db, siteId: string, baseSlug: string): Promise<string> {
-  const base = (baseSlug || 'page').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'page'
-  let slug = base
-  let suffix = 1
-  // A background job can't ask the user to resolve a slug conflict the way
-  // content/index.post.ts's 409 does — auto-dedupe instead so the job always completes.
-  for (;;) {
-    const existing = await db.query.contentItems.findFirst({
-      where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, slug)),
-      columns: { id: true },
-    })
-    if (!existing) return slug
-    suffix++
-    slug = `${base}-${suffix}`
-  }
-}
-
 /**
  * Phase 2 — generates every planned page's canvas blocks and inserts each as a draft
  * content item, one at a time (not Promise.all — bounds how many concurrent AI calls and
@@ -102,7 +85,7 @@ export async function generateSitePages(event: H3Event, jobId: string): Promise<
     for (const page of job.plan) {
       try {
         const content = await generateCanvasBlocks(model, page.description, 'professional', 'general')
-        const slug = await uniqueSlug(db, job.siteId, page.slug)
+        const slug = await uniqueContentSlug(db, job.siteId, page.slug)
         const id = ulid()
         await db.insert(contentItems).values({
           id,

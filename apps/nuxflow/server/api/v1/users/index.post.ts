@@ -5,7 +5,8 @@ import { ulid } from 'ulid'
 import { eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
-import { sendEmail, escapeHtml } from '../../../utils/email'
+import { sendTemplatedEmail } from '../../../utils/email-template'
+import { waitUntil } from '../../../utils/cf-env'
 import { rateLimit } from '../../../utils/rate-limit'
 import { created } from '../../../utils/response'
 import { getOrCreateBetterAuth } from '../../../utils/better-auth'
@@ -93,14 +94,17 @@ export default defineEventHandler(async (event) => {
     // Existing user already has working credentials for their account — being
     // added to this site just needs a pointer to sign in, same as before.
     const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { name: true, domain: true } })
-    const siteName = escapeHtml(site?.name ?? 'NuxFlow')
-    const loginUrl = `https://${escapeHtml(site?.domain ?? 'nuxflow.app')}/login`
-    void sendEmail(event, {
+    const siteName = site?.name ?? 'NuxFlow'
+    waitUntil(event, sendTemplatedEmail(event, {
       to: body.email,
-      subject: `You've been invited to ${site?.name ?? 'NuxFlow'}`,
-      html: `<p>Hi ${escapeHtml(body.name)},</p><p>You have been invited to join <strong>${siteName}</strong> as <strong>${escapeHtml(body.role)}</strong>.</p><p>Visit <a href="${loginUrl}">${loginUrl}</a> to sign in.</p>`,
-      text: `Hi ${body.name}, you have been invited to join ${site?.name ?? 'NuxFlow'} as ${body.role}. Visit https://${site?.domain ?? 'nuxflow.app'}/login to sign in.`,
-    }).catch(err => console.error('[invite] Email delivery failed:', err))
+      subject: `You've been added to ${siteName}`,
+      category: 'invite',
+      template: {
+        heading: `You've been added to ${siteName}`,
+        paragraphs: [`Hi ${body.name},`, `You now have ${body.role} access to ${siteName}. Sign in with your existing account to get started.`],
+        action: { label: 'Sign in', url: `https://${site?.domain ?? 'nuxflow.app'}/login` },
+      },
+    }).catch(err => console.error('[invite] Email delivery failed:', err)))
   }
 
   return created(event, { id: newUserId, name: body.name, email: body.email, role: body.role })
