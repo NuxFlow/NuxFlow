@@ -32,7 +32,11 @@ export default defineEventHandler(async (event) => {
   const knownBlockIds = new Set((plugin.blockDefinitions as Array<{ id?: string }> | null ?? []).map(b => b.id))
   if (!knownBlockIds.has(blockId)) throw notFound('Block id not declared by this plugin')
 
-  const html = renderPluginFrameHtml(pluginId, blockId)
+  const script = renderPluginFrameScript(pluginId, blockId)
+  const html = renderPluginFrameHtml(script)
+  // The bootstrap below is an inline <script>, which `script-src 'self'` alone blocks —
+  // allow exactly this script by hash instead of loosening the policy with 'unsafe-inline'.
+  const scriptHash = await sha256Base64(script)
 
   setHeader(event, 'content-type', 'text/html; charset=utf-8')
   setHeader(event, 'cache-control', 'no-store')
@@ -51,15 +55,22 @@ export default defineEventHandler(async (event) => {
   // as a top-level page (e.g. a link sent to a signed-in admin), where plugin client code
   // would otherwise run with the site's own origin, cookies, and credentialed access to
   // /api/v1. The header version of the sandbox applies in both cases.
-  setHeader(event, 'content-security-policy', "sandbox allow-scripts; default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; img-src * data:")
+  setHeader(event, 'content-security-policy', `sandbox allow-scripts; default-src 'none'; script-src 'self' 'sha256-${scriptHash}'; connect-src 'self'; style-src 'unsafe-inline'; img-src * data:`)
   return html
 })
 
-function renderPluginFrameHtml(pluginId: string, blockId: string): string {
-  const blockIdJson = JSON.stringify(blockId)
-  const bundleUrl = `/_nuxflow/plugin-bundle/${encodeURIComponent(pluginId)}`
-  const bundleUrlJson = JSON.stringify(bundleUrl)
+async function sha256Base64(text: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))
+  return btoa(String.fromCharCode(...digest))
+}
 
+// JSON.stringify leaves `<` alone, so a value containing `</script>` would end the inline
+// script early. < is the same string to JS but can't close the element.
+function inlineJson(value: string): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c')
+}
+
+function renderPluginFrameHtml(script: string): string {
   return `<!doctype html>
 <html>
 <head>
@@ -68,7 +79,18 @@ function renderPluginFrameHtml(pluginId: string, blockId: string): string {
 </head>
 <body>
 <div id="app"></div>
-<script type="module">
+<script type="module">${script}</script>
+</body>
+</html>
+`
+}
+
+function renderPluginFrameScript(pluginId: string, blockId: string): string {
+  const blockIdJson = inlineJson(blockId)
+  const bundleUrl = `/_nuxflow/plugin-bundle/${encodeURIComponent(pluginId)}`
+  const bundleUrlJson = inlineJson(bundleUrl)
+
+  return `
 import * as Vue from '/_nuxflow/vendor/vue-runtime.js'
 
 const blockId = ${blockIdJson}
@@ -126,8 +148,5 @@ ro.observe(document.getElementById('app'))
 // Report an initial height immediately too, in case content never resizes again
 // (ResizeObserver's first callback is already async on some browsers).
 requestAnimationFrame(() => reportHeight(document.getElementById('app').getBoundingClientRect().height))
-</script>
-</body>
-</html>
 `
 }

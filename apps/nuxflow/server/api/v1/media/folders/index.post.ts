@@ -7,7 +7,9 @@ import { mediaFolders } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 
 const bodySchema = z.object({
-  name: z.string().min(1).max(100).trim(),
+  // trim() must come first — Zod runs checks in order, so min(1) before trim() lets a
+  // whitespace-only name through and saves it as ''.
+  name: z.string().trim().min(1).max(100),
 })
 
 export default defineEventHandler(async (event) => {

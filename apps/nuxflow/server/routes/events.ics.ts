@@ -42,6 +42,8 @@ async function buildEventsIcs(event: H3Event, siteId: string) {
       eq(contentItems.siteId, siteId),
       eq(contentItems.typeId, type.id),
       eq(contentItems.status, 'published'),
+      // Public subscription feed — private/members-only events must not appear here.
+      eq(contentItems.visibility, 'public'),
       gte(contentItems.eventStartAt, fromTs)
     ),
     orderBy: [desc(contentItems.eventStartAt)],

@@ -19,5 +19,12 @@ export default defineConfig({
     include: ['tests/integration/**/*.test.ts'],
     setupFiles: ['tests/helpers/globals.ts'],
     testTimeout: 30_000,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', 'lcov'],
+      reportsDirectory: 'coverage/integration',
+      include: ['server/**'],
+      exclude: ['**/*.d.ts', 'server/assets/**', 'server/stubs/**'],
+    },
   },
 })

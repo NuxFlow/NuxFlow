@@ -16,6 +16,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:integration:watch": "vitest --config vitest.integration.config.ts",
     "test:all": "vitest run --config vitest.config.ts && vitest run --config vitest.integration.config.ts",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage && vitest run --config vitest.integration.config.ts --coverage",
     "test:e2e": "playwright test",
     "deploy": "wrangler deploy"
   },
@@ -62,6 +63,7 @@
     "@types/node": "^22.20.0",
     "@typescript-eslint/eslint-plugin": "^8.62.0",
     "@vitejs/plugin-vue": "^6.0.7",
+    "@vitest/coverage-v8": "^5.0.1",
     "@vue/test-utils": "^2.4.11",
     "cross-env": "^7.0.3",
     "eslint": "^10.10.0",

@@ -22,6 +22,11 @@ export function isPrivateIPv6(host: string): boolean {
   const clean = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
   const lower = clean.toLowerCase()
 
+  // Only IPv6 literals from here on. isSafeUrl() passes every hostname through this, and
+  // the prefix checks below would otherwise match ordinary domains — fcm.googleapis.com
+  // (Chrome's push service), fdroid.org, feature.example — as "fc00::/7"/"fe80::/10".
+  if (!lower.includes(':')) return false
+
   // Loopback / Unspecified
   if (lower === '::1' || lower === '::' || lower === '0:0:0:0:0:0:0:1' || lower === '0:0:0:0:0:0:0:0') {
     return true

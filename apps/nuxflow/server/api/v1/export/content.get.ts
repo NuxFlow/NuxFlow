@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   if (format === 'csv') {
     const cols = ['id', 'title', 'slug', 'status', 'publishedAt', 'updatedAt'] as const
     const header = cols.join(',')
-    const rows = items.map(i => cols.map(c => JSON.stringify(i[c] ?? '')).join(','))
+    const rows = items.map(i => cols.map(c => csvCell(i[c])).join(','))
     setHeader(event, 'Content-Type', 'text/csv')
     setHeader(event, 'Content-Disposition', 'attachment; filename="content-export.csv"')
     return [header, ...rows].join('\n')
@@ -31,3 +31,12 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'Content-Disposition', 'attachment; filename="content-export.json"')
   return JSON.stringify(items)
 })
+
+// RFC 4180 quoting (embedded quotes are doubled, not backslash-escaped), plus a leading
+// apostrophe on values a spreadsheet would otherwise evaluate as a formula — titles are
+// author-controlled, and this file is opened by admins in Excel/Sheets.
+function csvCell(value: unknown): string {
+  let s = value == null ? '' : String(value)
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
+  return `"${s.replace(/"/g, '""')}"`
+}

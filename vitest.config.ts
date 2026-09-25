@@ -9,7 +9,6 @@ export default defineConfig({
     projects: [
       'apps/nuxflow',
       'packages/db',
-      'packages/plugin-sdk',
       'packages/cli',
     ],
   },

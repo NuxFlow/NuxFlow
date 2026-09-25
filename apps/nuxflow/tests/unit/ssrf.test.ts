@@ -39,3 +39,29 @@ describe('SSRF Prevention (isSafeUrl)', () => {
     expect(isSafeUrl('javascript:alert(1)')).toBe(false)
   })
 })
+
+describe('isSafeUrl — public hostnames that look like IPv6 prefixes', () => {
+  // Regression: the fc00::/7 and fe80::/10 prefix checks used to run against every
+  // hostname, blocking Chrome's push service and any domain starting with fc/fd/fe8-feb.
+  it.each([
+    'https://fcm.googleapis.com/fcm/send/abc',
+    'https://fdroid.org/',
+    'https://feature.example/',
+    'https://fe80.example.com/',
+    'https://febreze.example/',
+  ])('allows %s', (url) => {
+    expect(isSafeUrl(url)).toBe(true)
+  })
+
+  it.each([
+    'https://[fd00::1]/',
+    'https://[fc00::abcd]/',
+    'https://[fe80::1]/',
+    'https://[feb0::1]/',
+    'https://[::1]/',
+    'https://[::ffff:127.0.0.1]/',
+    'https://[::ffff:a9fe:a9fe]/',
+  ])('still blocks private IPv6 literal %s', (url) => {
+    expect(isSafeUrl(url)).toBe(false)
+  })
+})

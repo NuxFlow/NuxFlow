@@ -1,6 +1,22 @@
 import Stripe from 'stripe'
 import type { PaymentProvider } from './types'
 
+// https://docs.stripe.com/currencies#zero-decimal and #three-decimal
+const ZERO_DECIMAL = new Set(['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'])
+const THREE_DECIMAL = new Set(['BHD', 'JOD', 'KWD', 'OMR', 'TND'])
+
+/**
+ * Tier prices are stored in major units (e.g. 9.99). Stripe wants the smallest currency
+ * unit, which is not always cents: ¥1000 is unit_amount 1000, not 100000, and three-decimal
+ * currencies use thousandths with the last digit 0.
+ */
+export function toStripeUnitAmount(amount: number, currency: string): number {
+  const code = currency.toUpperCase()
+  if (ZERO_DECIMAL.has(code)) return Math.round(amount)
+  if (THREE_DECIMAL.has(code)) return Math.round(amount * 100) * 10
+  return Math.round(amount * 100)
+}
+
 export class StripeProvider implements PaymentProvider {
   private client: Stripe
 
@@ -35,7 +51,7 @@ export class StripeProvider implements PaymentProvider {
     const isRecurring = interval !== 'one_time'
     return this.client.prices.create({
       product: productId,
-      unit_amount: Math.round(unitAmount * 100),
+      unit_amount: toStripeUnitAmount(unitAmount, currency),
       currency: currency.toLowerCase(),
       ...(isRecurring ? {
         recurring: {

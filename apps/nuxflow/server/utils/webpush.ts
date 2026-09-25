@@ -120,10 +120,11 @@ async function encryptPayload(p256dh: string, auth: string, payload: string): Pr
   const prk1 = await hkdfExtract(authSecret, sharedSecret)
   const ikm = await hkdfExpand(prk1, keyInfo, 32)
 
-  // CEK and nonce (RFC 8188 aes128gcm derivation)
+  // CEK and nonce (RFC 8188 aes128gcm derivation). hkdfExpand() appends the 0x01 counter
+  // itself — the info strings end at the 0x00 separator, per RFC 8291 §3.4.
   const prk2 = await hkdfExtract(salt, ikm)
-  const cek = await hkdfExpand(prk2, new Uint8Array(enc.encode('Content-Encoding: aes128gcm\x00\x01').buffer), 16)
-  const nonce = await hkdfExpand(prk2, new Uint8Array(enc.encode('Content-Encoding: nonce\x00\x01').buffer), 12)
+  const cek = await hkdfExpand(prk2, new Uint8Array(enc.encode('Content-Encoding: aes128gcm\x00').buffer), 16)
+  const nonce = await hkdfExpand(prk2, new Uint8Array(enc.encode('Content-Encoding: nonce\x00').buffer), 12)
 
   // AES-128-GCM encrypt: pad with delimiter 0x02 (single-record)
   const padded = concat(plaintext, new Uint8Array([2]))
@@ -215,6 +216,8 @@ export async function sendPushToUser(event: H3Event, userId: string, payload: Pu
       .catch(async (err) => {
         if (err instanceof SubscriptionExpiredError) {
           await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id))
+        } else {
+          console.error('[webpush] Push dispatch failed:', err)
         }
       }),
   ))
@@ -234,6 +237,8 @@ export async function broadcastPushToSite(event: H3Event, payload: PushPayload):
       .catch(async (err) => {
         if (err instanceof SubscriptionExpiredError) {
           await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id))
+        } else {
+          console.error('[webpush] Push dispatch failed:', err)
         }
       }),
   ))

@@ -158,6 +158,28 @@ export default defineEventHandler(async (event) => {
   }
 
   // Serialize strings to a numbered bundle for the AI
+  const slugSuffix = targetSlugSuffix || `-${targetLocale}`
+  const newSlug = `${source.slug}${slugSuffix}`
+
+  const existing = await db.query.contentItems.findFirst({
+    where: and(
+      eq(contentItems.siteId, siteId),
+      eq(contentItems.sourceItemId, source.id),
+      eq(contentItems.locale, targetLocale),
+    )!,
+  })
+
+  // Checked before the (paid, rate-limited) AI call: slugs are unique per site, so an
+  // unrelated item already using the translation's slug would otherwise surface as a raw
+  // constraint error only after the translation had been generated.
+  if (!existing) {
+    const slugTaken = await db.query.contentItems.findFirst({
+      where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, newSlug)),
+      columns: { id: true },
+    })
+    if (slugTaken) throw conflict(`The slug "${newSlug}" is already in use — choose a different slug suffix`)
+  }
+
   const bundle: Record<string, string> = {}
   strings.forEach((val, key) => { bundle[key] = val })
   const bundleJson = JSON.stringify(bundle, null, 2)
@@ -181,17 +203,6 @@ export default defineEventHandler(async (event) => {
   }
 
   const translatedTitle = translations['__title__'] ?? source.title
-  const slugSuffix = targetSlugSuffix || `-${targetLocale}`
-  const newSlug = `${source.slug}${slugSuffix}`
-
-  // Check if a translation already exists for this locale+source
-  const existing = await db.query.contentItems.findFirst({
-    where: and(
-      eq(contentItems.siteId, siteId),
-      eq(contentItems.sourceItemId, source.id),
-      eq(contentItems.locale, targetLocale),
-    )!,
-  })
 
   if (existing) {
     // Update the existing translation

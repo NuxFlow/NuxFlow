@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import { useDb } from '../../utils/db'
 import { getContentTypeBySlug } from '../../utils/content-queries'
 import { contentItems } from '@nuxflow/db/schema'
-import { and, eq, gte, lte, desc } from 'drizzle-orm'
+import { and, eq, gte, lte, asc } from 'drizzle-orm'
 import { notFound } from '../../utils/response'
 import { withEdgeCache } from '../../utils/edge-cache'
 
@@ -11,8 +11,8 @@ async function loadEvents(event: H3Event, siteId: string) {
   const query = getQuery(event)
   const from = (query.from as string) || new Date().toISOString()
   const to = query.to as string | undefined
-  const limit = Math.min(100, parseInt(query.limit as string || '20'))
-  const offset = parseInt(query.offset as string || '0')
+  const limit = Math.min(100, Math.max(1, parseInt(query.limit as string) || 20))
+  const offset = Math.max(0, parseInt(query.offset as string) || 0)
 
   // Find the event content type ID
   const type = await getContentTypeBySlug(db, siteId, 'event', { id: true })
@@ -22,6 +22,9 @@ async function loadEvents(event: H3Event, siteId: string) {
     eq(contentItems.siteId, siteId),
     eq(contentItems.typeId, type.id),
     eq(contentItems.status, 'published'),
+    // Same rule as every other anonymous surface (posts, feeds, sitemap, taxonomy
+    // archives): private/members-only events must not be listed here.
+    eq(contentItems.visibility, 'public'),
     gte(contentItems.eventStartAt, from)
   ]
 
@@ -29,11 +32,26 @@ async function loadEvents(event: H3Event, siteId: string) {
     conditions.push(lte(contentItems.eventStartAt, to))
   }
 
+  // Soonest first — this is an "upcoming events" list, so a descending sort plus LIMIT
+  // would drop the nearest events once there are more than `limit` of them.
+  // Only the fields CanvasBlockCalendar renders: the full row would include the event's
+  // body (`content`) and settings, which this anonymous, edge-cached route must not expose.
   const events = await db.query.contentItems.findMany({
     where: and(...conditions),
-    orderBy: [desc(contentItems.eventStartAt)],
+    orderBy: [asc(contentItems.eventStartAt)],
     limit,
     offset,
+    columns: {
+      id: true,
+      slug: true,
+      title: true,
+      excerpt: true,
+      eventStartAt: true,
+      eventEndAt: true,
+      eventAllDay: true,
+      eventLocation: true,
+      eventUrl: true,
+    },
   })
 
   return { events }
