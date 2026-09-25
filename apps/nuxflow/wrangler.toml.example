@@ -82,15 +82,19 @@ preview_id = "your-kv-preview-namespace-id"
 [[worker_loaders]]
 binding = "LOADER"
 
-# Cloudflare R2 bucket (optional) — native object storage for the media system, checked
-# right after Cloudflare Images in server/utils/media-providers/index.ts. Zero egress
-# fees, no API keys. Create with: wrangler r2 bucket create nuxflow-media
-# Then enable public access on it (a custom domain, or its r2.dev subdomain) via the
-# Cloudflare dashboard, and set that URL in Settings → Media → Cloudflare R2 storage
-# (or the NUXT_R2_PUBLIC_URL env var).
-# [[r2_buckets]]
-# binding = "MEDIA_BUCKET"
-# bucket_name = "nuxflow-media"
+# Cloudflare R2 bucket — media storage (images, video, audio, PDFs). Create it once with:
+#   wrangler r2 bucket create nuxflow-media
+# That's all it takes: with this binding present, uploads go to R2 and are served through
+# this Worker at /_nuxflow/media/... — no public bucket access or settings required.
+# Optional speed-up: enable public access on the bucket (a custom domain, or its r2.dev
+# subdomain) and set that URL in Settings → Media → Cloudflare R2 (or NUXT_R2_PUBLIC_URL)
+# so browsers fetch media straight from R2 instead of through the Worker.
+# Without this binding (and no other provider configured in Settings → Media), uploads
+# fall back to base64 in the database — capped at 512 KB each and meant only for trying
+# NuxFlow out. wrangler dev simulates R2 locally, so no real bucket is needed for dev.
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "nuxflow-media"
 
 # Cloudflare Analytics Engine (optional — included in Workers Paid plan).
 # Enables edge-native, cookie-free page view and event analytics.

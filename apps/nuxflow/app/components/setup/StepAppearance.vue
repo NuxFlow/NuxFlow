@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const templateModel = defineModel<string>({ default: 'landing' })
 
-defineProps<{ loading?: boolean; error?: string }>()
+defineProps<{ loading?: boolean; error?: string; mediaStorage?: 'r2' | 'none' }>()
 defineEmits<{ next: []; back: [] }>()
 
 const templates = [
@@ -99,6 +99,22 @@ const templates = [
           <UIcon name="i-lucide-check" class="w-4 h-4 font-bold" />
         </div>
       </div>
+    </div>
+
+    <!-- A status line, not a form: nothing to fill in, just what will happen to uploads. -->
+    <div v-if="mediaStorage" class="flex items-start gap-2 rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-2 text-sm">
+      <UIcon
+        :name="mediaStorage === 'r2' ? 'i-lucide-circle-check' : 'i-lucide-info'"
+        :class="mediaStorage === 'r2' ? 'text-green-500' : 'text-gray-400'"
+        class="w-4 h-4 mt-0.5 shrink-0"
+      />
+      <p v-if="mediaStorage === 'r2'" class="text-gray-700 dark:text-gray-300">
+        <strong>File storage:</strong> R2 bucket connected — your images and files will be stored there.
+      </p>
+      <p v-else class="text-gray-700 dark:text-gray-300">
+        <strong>File storage:</strong> not connected yet, so images will be kept in the database for now. That's fine for trying things out —
+        you can connect storage later in Settings → Media and move everything over in one click.
+      </p>
     </div>
 
     <UAlert v-if="error" color="error" variant="soft" :description="error" />

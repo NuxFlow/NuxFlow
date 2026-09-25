@@ -3,6 +3,7 @@ import { useReplicaDb } from '../utils/db'
 import { getFeedSite, getPublishedPostsForFeed } from '@nuxflow/db/queries'
 import { withEdgeCache } from '../utils/edge-cache'
 import { escXml, cdataSafe } from '../utils/xml'
+import { absolutizeHtmlUrls } from '../utils/media-url'
 
 function tiptapToHtml(node: unknown): string {
   if (!node || typeof node !== 'object') return ''
@@ -63,7 +64,7 @@ async function buildAtomFeed(event: H3Event) {
   const entries = posts.map((p) => {
     const contentObj = p.content as Record<string, unknown> | null
     const isCanvas = contentObj?.type === 'canvas'
-    const html = !isCanvas && contentObj ? tiptapToHtml(contentObj) : ''
+    const html = !isCanvas && contentObj ? absolutizeHtmlUrls(tiptapToHtml(contentObj), baseUrl) : ''
     const url = `${baseUrl}/${p.slug}`
     const pub = new Date(p.publishedAt ?? p.updatedAt).toISOString()
     const mod = new Date(p.updatedAt).toISOString()

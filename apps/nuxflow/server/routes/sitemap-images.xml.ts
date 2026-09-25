@@ -4,6 +4,7 @@ import { media, sites, siteSettings } from '@nuxflow/db/schema'
 import { and, eq, like } from 'drizzle-orm'
 import { withEdgeCache } from '../utils/edge-cache'
 import { escXml } from '../utils/xml'
+import { absoluteUrl } from '../utils/media-url'
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Content-Type', 'application/xml')
@@ -45,12 +46,15 @@ async function buildImageSitemap(event: H3Event) {
   ])
 
   const domainBase = site ? `https://${site.domain}` : config.public.siteUrl
-  const baseUrl = escXml((canonicalSetting?.value as string | undefined)?.trim() || domainBase)
+  const rawBaseUrl = (canonicalSetting?.value as string | undefined)?.trim() || domainBase
+  const baseUrl = escXml(rawBaseUrl)
 
   const imageEntries = images
-    .filter(img => img.url)
+    // data: URIs (media stored in the database by the storage fallback) aren't
+    // crawlable URLs — they'd only bloat the sitemap with base64.
+    .filter(img => img.url && !img.url.startsWith('data:'))
     .map(img => {
-      const lines: string[] = [`    <image:loc>${escXml(img.url)}</image:loc>`]
+      const lines: string[] = [`    <image:loc>${escXml(absoluteUrl(img.url, rawBaseUrl))}</image:loc>`]
       if (img.altText) lines.push(`    <image:title>${escXml(img.altText)}</image:title>`)
       if (img.caption) lines.push(`    <image:caption>${escXml(img.caption)}</image:caption>`)
       return `  <image:image>\n${lines.join('\n')}\n  </image:image>`

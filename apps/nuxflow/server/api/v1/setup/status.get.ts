@@ -2,6 +2,7 @@ import { useDb } from '../../../utils/db'
 import { sites, users } from '@nuxflow/db/schema'
 import { count, eq } from 'drizzle-orm'
 import { createIsolateCache } from '../../../utils/isolate-cache'
+import { getCfBindings } from '../../../utils/cf-env'
 
 type SetupStatus = {
   hasSite: boolean
@@ -9,6 +10,13 @@ type SetupStatus = {
   setupCompleted: boolean
   needsSetup: boolean
   site: { name: string; domain: string; locale: string; timezone: string } | null
+  /**
+   * Whether the MEDIA_BUCKET R2 binding is present — shown in the setup wizard as a plain
+   * status line so an operator learns about file storage at install time rather than
+   * months later. Deployment-wide (a binding, not a per-site setting); per-site providers
+   * configured later in Settings → Media still take effect as normal.
+   */
+  mediaStorage: 'r2' | 'none'
 }
 
 // app/middleware/00.setup-guard.global.ts calls this route once per SSR render (its own
@@ -72,6 +80,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const result: SetupStatus = {
+      mediaStorage: getCfBindings(event).r2 ? 'r2' : 'none',
       hasSite,
       hasAdmin,
       setupCompleted,
@@ -82,6 +91,6 @@ export default defineEventHandler(async (event) => {
     return result
   } catch {
     // DB schema not yet migrated — report as needing setup.
-    return { hasSite: false, hasAdmin: false, setupCompleted: false, needsSetup: true, site: null }
+    return { hasSite: false, hasAdmin: false, setupCompleted: false, needsSetup: true, site: null, mediaStorage: getCfBindings(event).r2 ? 'r2' : 'none' }
   }
 })

@@ -17,6 +17,13 @@ export interface MediaProvider {
   upload(file: File, key: string, siteId: string): Promise<UploadResult>
   delete(storageKey: string): Promise<void>
   getUrl(storageKey: string): string
+  /**
+   * Optional cheap existence check for a just-uploaded object (R2 implements it via
+   * head()). Used by the move-to-storage migration (media-migration.ts) to confirm a
+   * copy really landed before the database copy is dropped; providers without it are
+   * verified by fetching their public URL instead.
+   */
+  exists?(storageKey: string): Promise<boolean>
 }
 
 // Percent-encodes a storage key for safe inclusion in a URL path, one segment at a time
@@ -96,11 +103,9 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
     return new CloudflareImagesProvider(accountId, imagesToken, deliveryUrl)
   }
 
-  // R2 comes next, ahead of S3/Bunny — it's Cloudflare's own object storage (zero egress
-  // fees, no third-party account), and needs only the `MEDIA_BUCKET` binding plus a public
-  // URL (a custom domain or the bucket's r2.dev subdomain — R2 buckets are private by
-  // default, wrangler.toml can't express that access grant, so it's a setting, not
-  // inferred from the binding's presence alone).
+  // R2 with a public URL comes next, ahead of S3/Bunny — it's Cloudflare's own object
+  // storage (zero egress fees, no third-party account). The public URL (a custom domain
+  // or the bucket's r2.dev subdomain) lets browsers fetch objects straight from R2.
   const { r2 } = getCfBindings(event)
   if (r2 && r2PublicUrl) {
     return new R2Provider({ bucket: r2, publicUrl: r2PublicUrl })
@@ -129,22 +134,31 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
     })
   }
 
+  // Zero-config R2: the MEDIA_BUCKET binding alone, no public URL. Objects are served
+  // through this Worker at /_nuxflow/media/<key> (server/routes/_nuxflow/media/), so
+  // having the bucket bound is all it takes for real media storage — nobody has to find
+  // and paste a public bucket URL first, which is the step operators kept missing and
+  // silently ending up on the database fallback below. Deliberately AFTER every provider
+  // that needs explicit settings, so an operator who configured S3/Bunny on purpose
+  // keeps using it even if the bucket binding also exists.
+  if (r2) {
+    return new R2Provider({ bucket: r2 })
+  }
+
   return {
     name: 'local',
     async upload(file) {
       if (file.size > LOCAL_PROVIDER_MAX_BYTES) {
         throw createError({
           statusCode: 413,
-          message: `File too large for the local storage fallback (max ${Math.floor(LOCAL_PROVIDER_MAX_BYTES / 1024)} KB — it's stored as base64 directly in the database with no real provider configured). Configure Cloudflare Images, S3, or Bunny.net in Settings → Media for normal-sized uploads.`,
+          message: `File too large for the database storage fallback (max ${Math.floor(LOCAL_PROVIDER_MAX_BYTES / 1024)} KB — with no media storage connected, files are stored as base64 directly in the database). Connect an R2 bucket (the MEDIA_BUCKET binding in wrangler.toml) or configure a provider in Settings → Media for normal-sized uploads.`,
         })
       }
       // Loud on purpose — GET /api/v1/media/storage-status (surfaced via
       // AdminMediaFallbackWarning.vue on the dashboard and media library) already warns
-      // in the UI, but this fallback has no onboarding-time prompt to configure a real
-      // provider (the setup wizard never asks), so an operator relying only on
-      // `wrangler tail`/logs still needs a signal the moment it's actually used, not
-      // just when they happen to open the admin UI.
-      console.warn(`[nuxflow:media] Storing "${file.name}" as base64 in D1 — no real media provider configured. See Settings → Media.`)
+      // in the UI, and the setup wizard shows storage status, but an operator relying
+      // only on `wrangler tail`/logs still needs a signal the moment it's actually used.
+      console.warn(`[nuxflow:media] Storing "${file.name}" as base64 in D1 — no media storage connected. See Settings → Media.`)
       const buf = await file.arrayBuffer()
       const b64 = Buffer.from(buf).toString('base64')
       const url = `data:${file.type};base64,${b64}`
@@ -154,3 +168,17 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
     getUrl(key) { return key },
   }
 }
+
+/**
+ * The provider a *given* site would upload to — getActiveProvider() for a site other than
+ * the one this request is for (the Super Admin → Database page reports on every site).
+ * resolveSetting() reads the site from event.context, so this evaluates against a
+ * prototype-linked copy of the event with only `context.siteId` swapped.
+ */
+export async function getActiveProviderNameForSite(event: H3Event, siteId: string): Promise<string> {
+  const scoped = Object.create(event, {
+    context: { value: { ...event.context, siteId }, enumerable: true },
+  }) as H3Event
+  return (await getActiveProvider(scoped)).name
+}
+

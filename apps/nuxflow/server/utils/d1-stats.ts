@@ -1,6 +1,8 @@
 import type { H3Event } from 'h3'
 import { getD1 } from './db'
 import { createIsolateCache } from './isolate-cache'
+import { getCfBindings } from './cf-env'
+import { getActiveProviderNameForSite } from './media-providers/index'
 
 // Cloudflare's own stated design philosophy: "D1 is optimized for per-user, per-tenant,
 // or per-entity database patterns rather than single large databases." A single D1
@@ -39,7 +41,14 @@ export interface SiteSizeStats {
   revisionBytes: number
   mediaCount: number
   mediaBytes: number
+  /** Media-library rows whose file is stored in D1 (the storage fallback), not in real storage. */
   localFallbackMediaCount: number
+  /**
+   * The provider new uploads go to for this site right now ('local' = no storage
+   * connected). Lets the UI tell "nothing connected" apart from "connected, but older
+   * files are still in the database and can be moved".
+   */
+  storageProvider: string
   approxTotalBytes: number
 }
 
@@ -116,6 +125,17 @@ async function computeD1SizeStats(event: H3Event): Promise<D1SizeStats> {
   const revisionBySite = new Map(revisionResult.results.map(r => [r.siteId, r]))
   const mediaBySite = new Map(mediaResult.results.map(r => [r.siteId, r]))
 
+  // With the R2 binding present every site has real storage (binding-only R2 needs no
+  // per-site settings — see getActiveProvider), so the per-site settings lookups are only
+  // needed when it's absent.
+  const { r2 } = getCfBindings(event)
+  const providerBySite = new Map<string, string>(await Promise.all(
+    sitesResult.results.map(async site => [
+      site.id,
+      r2 ? 'r2' : await getActiveProviderNameForSite(event, site.id).catch(() => 'unknown'),
+    ] as [string, string]),
+  ))
+
   const sites: SiteSizeStats[] = sitesResult.results.map((site) => {
     const contentStats = contentBySite.get(site.id) ?? { count: 0, bytes: 0 }
     const revisionStats = revisionBySite.get(site.id) ?? { count: 0, bytes: 0 }
@@ -131,6 +151,7 @@ async function computeD1SizeStats(event: H3Event): Promise<D1SizeStats> {
       mediaCount: mediaStats.count,
       mediaBytes: mediaStats.bytes,
       localFallbackMediaCount: mediaStats.localCount,
+      storageProvider: providerBySite.get(site.id) ?? 'unknown',
       approxTotalBytes: contentStats.bytes + revisionStats.bytes + mediaStats.bytes,
     }
   }).sort((a, b) => b.approxTotalBytes - a.approxTotalBytes)

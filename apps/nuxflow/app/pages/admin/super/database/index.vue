@@ -13,6 +13,7 @@ interface SiteSizeStats {
   mediaCount: number
   mediaBytes: number
   localFallbackMediaCount: number
+  storageProvider: string
   approxTotalBytes: number
 }
 interface D1Stats {
@@ -33,7 +34,18 @@ const capUsageColor = computed(() => {
   return 'success'
 })
 
-const sitesWithLocalFallback = computed(() => (stats.value?.sites ?? []).filter(s => s.localFallbackMediaCount > 0))
+// Two different situations, worded differently: a site with no media storage connected
+// at all (new uploads are still landing in the database), versus a site that HAS storage
+// now but still has files from before it was connected — those just need moving.
+const sitesWithoutStorage = computed(() => (stats.value?.sites ?? []).filter(s => s.storageProvider === 'local'))
+const sitesWithLeftovers = computed(() => (stats.value?.sites ?? []).filter(s => s.storageProvider !== 'local' && s.localFallbackMediaCount > 0))
+
+function mediaSettingsUrl(domain: string): string {
+  const here = import.meta.client ? window.location : null
+  const path = '/admin/settings?tab=Media'
+  if (here && here.hostname === domain) return path
+  return `https://${domain}${path}`
+}
 
 const sizeColumns = [
   { accessorKey: 'siteName', header: 'Site' },
@@ -138,20 +150,42 @@ async function downloadExport() {
         </p>
       </div>
 
-      <!-- Local media fallback warning -->
+      <!-- Media storage: nothing connected -->
       <UAlert
-        v-if="sitesWithLocalFallback.length"
+        v-if="sitesWithoutStorage.length"
         class="mt-4"
         icon="i-lucide-triangle-alert"
         color="warning"
         variant="soft"
-        :title="`${sitesWithLocalFallback.length} site${sitesWithLocalFallback.length === 1 ? '' : 's'} storing media directly in D1`"
+        :title="`No media storage connected for ${sitesWithoutStorage.length} site${sitesWithoutStorage.length === 1 ? '' : 's'}`"
       >
         <template #description>
           <span class="text-gray-800 dark:text-gray-200">
-            No real media provider is configured for: <strong>{{ sitesWithLocalFallback.map(s => s.siteDomain).join(', ') }}</strong>.
-            Uploads are falling back to base64-in-D1 (512 KB/file cap) instead of R2/Cloudflare Images/S3/Bunny — the single biggest avoidable contributor to database size. Configure a provider in that site's Settings → Media.
+            New uploads on <strong>{{ sitesWithoutStorage.map(s => s.siteDomain).join(', ') }}</strong> are being stored inside the database (512 KB per file max), which is the biggest avoidable contributor to database size.
+            Connect an R2 bucket by adding the <code>MEDIA_BUCKET</code> binding to <code>wrangler.toml</code> and redeploying — no other setup needed — or configure a provider in that site's Settings → Media.
           </span>
+        </template>
+      </UAlert>
+
+      <!-- Media storage: connected, but older files still in the database -->
+      <UAlert
+        v-if="sitesWithLeftovers.length"
+        class="mt-4"
+        icon="i-lucide-database"
+        color="info"
+        variant="soft"
+        title="Older files are still stored in the database"
+      >
+        <template #description>
+          <div class="space-y-1 text-gray-800 dark:text-gray-200">
+            <p>These sites have media storage connected, but still have files from before it was set up. Moving them frees up database space; nothing on the site changes.</p>
+            <ul class="list-disc pl-5">
+              <li v-for="s in sitesWithLeftovers" :key="s.siteId">
+                <strong>{{ s.siteDomain }}</strong> — {{ s.localFallbackMediaCount }} file{{ s.localFallbackMediaCount === 1 ? '' : 's' }}
+                · <a :href="mediaSettingsUrl(s.siteDomain)" class="underline">Move them to storage</a>
+              </li>
+            </ul>
+          </div>
         </template>
       </UAlert>
 
@@ -173,7 +207,7 @@ async function downloadExport() {
           <template #media-cell="{ row }">
             <span class="text-sm text-gray-600 dark:text-gray-300">
               {{ row.original.mediaCount }} · {{ formatBytes(row.original.mediaBytes) }}
-              <UBadge v-if="row.original.localFallbackMediaCount" color="warning" variant="subtle" size="xs" class="ml-1">local fallback</UBadge>
+              <UBadge v-if="row.original.localFallbackMediaCount" :color="row.original.storageProvider === 'local' ? 'warning' : 'info'" variant="subtle" size="xs" class="ml-1">{{ row.original.localFallbackMediaCount }} in database</UBadge>
             </span>
           </template>
           <template #approxTotalBytes-cell="{ row }">

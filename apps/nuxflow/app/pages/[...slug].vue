@@ -92,13 +92,23 @@ const pageUrl = computed(() => {
   return canonicalBase.value ? `${canonicalBase.value}/${page.value?.slug ?? slug.value}` : ''
 })
 
+// Social scrapers and search engines need an absolute image URL; media served through
+// the Worker (/_nuxflow/media/...) is stored site-relative, so resolve it against this
+// request's own origin. Already-absolute URLs pass through unchanged.
+const requestOrigin = useRequestURL().origin
+const shareImage = computed(() => {
+  const url = page.value?.ogImage
+  if (!url || url.startsWith('data:')) return undefined
+  return url.startsWith('/') && !url.startsWith('//') ? `${requestOrigin}${url}` : url
+})
+
 useSeoMeta({
   title: pageTitle,
   description: pageDesc,
   robots: computed(() => page.value?.metaRobots ?? undefined),
   ogTitle: pageTitle,
   ogDescription: pageDesc,
-  ogImage: computed(() => page.value?.ogImage ?? undefined),
+  ogImage: shareImage,
   ogType: 'article',
   ogUrl: pageUrl,
   ogSiteName: siteName,
@@ -108,7 +118,7 @@ useSeoMeta({
   twitterCard: 'summary_large_image',
   twitterTitle: pageTitle,
   twitterDescription: pageDesc,
-  twitterImage: computed(() => page.value?.ogImage ?? undefined),
+  twitterImage: shareImage,
 })
 
 useHead({
@@ -125,7 +135,7 @@ useHead({
       '@type': 'Article',
       headline: pageTitle.value,
       description: pageDesc.value || undefined,
-      image: page.value.ogImage || undefined,
+      image: shareImage.value,
       datePublished: page.value.publishedAt || undefined,
       dateModified: page.value.updatedAt || page.value.publishedAt || undefined,
       url: pageUrl.value || undefined,

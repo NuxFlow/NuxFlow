@@ -4,6 +4,7 @@ import { contentItems, sites, siteSettings, taxonomies, taxonomyTerms } from '@n
 import { and, eq } from 'drizzle-orm'
 import { withEdgeCache } from '../utils/edge-cache'
 import { escXml } from '../utils/xml'
+import { absoluteUrl } from '../utils/media-url'
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Content-Type', 'application/xml')
@@ -31,7 +32,8 @@ async function buildSitemap(event: H3Event) {
   ])
 
   const domainBase = site ? `https://${site.domain}` : config.public.siteUrl
-  const baseUrl = escXml((canonicalSetting?.value as string | undefined)?.trim() || domainBase)
+  const rawBaseUrl = (canonicalSetting?.value as string | undefined)?.trim() || domainBase
+  const baseUrl = escXml(rawBaseUrl)
 
   // The sitemap protocol caps a single file at 50,000 URLs. This route only ever emits
   // one file (no sitemap-index pagination), so without a bound, an increasingly large
@@ -70,7 +72,7 @@ async function buildSitemap(event: H3Event) {
     <lastmod>${p.updatedAt}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
-    ${p.ogImage ? `<image:image><image:loc>${escXml(p.ogImage)}</image:loc></image:image>` : ''}
+    ${p.ogImage && !p.ogImage.startsWith('data:') ? `<image:image><image:loc>${escXml(absoluteUrl(p.ogImage, rawBaseUrl))}</image:loc></image:image>` : ''}
   </url>`).join('')
 
   const taxUrls = taxRows.map(t => `

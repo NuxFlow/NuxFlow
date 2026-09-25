@@ -3,6 +3,7 @@ import { useReplicaDb } from '../utils/db'
 import { getFeedSite, getPublishedPostsForFeed } from '@nuxflow/db/queries'
 import { withEdgeCache } from '../utils/edge-cache'
 import { escXml, cdataSafe } from '../utils/xml'
+import { absoluteUrl, absolutizeHtmlUrls } from '../utils/media-url'
 
 function escHtml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -75,13 +76,16 @@ async function buildFeed(event: H3Event) {
     getFeedSite(db, siteId),
     getPublishedPostsForFeed(db, siteId),
   ])
-  const baseUrl = escXml(site ? `https://${site.domain}` : config.public.siteUrl)
+  const rawBaseUrl = site ? `https://${site.domain}` : config.public.siteUrl
+  const baseUrl = escXml(rawBaseUrl)
   const siteName = escXml(site?.name ?? 'NuxFlow')
 
   const items = posts.map((p) => {
     const contentObj = p.content as Record<string, unknown> | null
     const isCanvas = contentObj?.type === 'canvas'
-    const fullHtml = !isCanvas && contentObj ? tiptapToHtml(contentObj) : ''
+    // Worker-served media (/_nuxflow/media/...) is site-relative; feed readers need absolute URLs.
+    const fullHtml = !isCanvas && contentObj ? absolutizeHtmlUrls(tiptapToHtml(contentObj), rawBaseUrl) : ''
+    const image = p.ogImage ? absoluteUrl(p.ogImage, rawBaseUrl) : null
     const summary = p.excerpt ?? ''
     const itemUrl = `${baseUrl}/${escXml(p.slug)}`
     return `
@@ -93,7 +97,7 @@ async function buildFeed(event: H3Event) {
       ${summary ? `<description><![CDATA[${cdataSafe(summary)}]]></description>` : ''}
       ${fullHtml ? `<content:encoded><![CDATA[${cdataSafe(fullHtml)}]]></content:encoded>` : ''}
       ${p.authorName ? `<author>${escXml(p.authorName)}</author>` : ''}
-      ${p.ogImage ? `<media:thumbnail url="${escXml(p.ogImage)}" /><media:content url="${escXml(p.ogImage)}" medium="image" />` : ''}
+      ${image ? `<media:thumbnail url="${escXml(image)}" /><media:content url="${escXml(image)}" medium="image" />` : ''}
     </item>`
   }).join('')
 

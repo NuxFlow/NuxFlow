@@ -20,6 +20,7 @@ const { data: status } = await useFetch<{
   setupCompleted: boolean
   needsSetup: boolean
   site: { name: string; domain: string; locale: string; timezone: string } | null
+  mediaStorage?: 'r2' | 'none'
 }>('/api/v1/setup/status')
 if (status.value?.site) {
   form.site.name = status.value.site.name || ''
@@ -118,7 +119,7 @@ async function complete() {
       <SetupStepSite v-if="step === 1" v-model="form.site" @next="next" />
       <SetupStepAdmin v-else-if="step === 2" v-model="form.admin" :has-global-admin="status?.hasAdmin" @next="next" @back="back" />
       <SetupStepEmail v-else-if="step === 3" v-model="form.email" @next="next" @back="back" />
-      <SetupStepAppearance v-else-if="step === 4" v-model="form.template" :loading="loading" :error="error" @next="complete" @back="back" />
+      <SetupStepAppearance v-else-if="step === 4" v-model="form.template" :loading="loading" :error="error" :media-storage="status?.mediaStorage" @next="complete" @back="back" />
       <SetupStepDone v-else-if="step === 5" />
     </div>
   </div>

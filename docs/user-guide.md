@@ -488,4 +488,4 @@ Community packages follow the naming convention `nuxflow-plugin-*` on npm.
 
 Themes are CSS files uploaded through **Admin → Themes → Install theme**. Switching themes is instant and does not affect live visitors until **Activate** is clicked.
 
-Some themes bundle starter content (sample pages) with images. If you haven't configured a media provider yet (**Admin → Settings → Media**), large images in that starter content may fail to upload and appear broken on the page — you'll see a warning after install listing which ones. Set up a media provider first and reinstall the theme to fix it.
+Some themes bundle starter content (sample pages) with images. If no file storage is connected yet (the status card at the top of **Admin → Settings → Media** tells you), images are kept in the database instead, and any over 512 KB fail to upload and appear broken — you'll see a warning after install listing which ones. Connect storage and reinstall the theme to fix those. Images that *did* fit can be moved to your storage later with the **Move to …** button on the same page; every page using them is updated automatically.

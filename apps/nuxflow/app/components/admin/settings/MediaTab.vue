@@ -12,6 +12,8 @@ defineProps<{
 </script>
 
 <template>
+  <AdminSettingsMediaStoragePanel :saving="saving" />
+
   <UCard>
     <template #header>
       <div class="flex items-center gap-2">
@@ -122,7 +124,7 @@ defineProps<{
     icon="i-lucide-arrow-down-up"
     color="neutral"
     variant="soft"
-    description="Only one image storage provider is active at a time, checked in this order: Cloudflare Images above → R2 below → S3 below that → Bunny.net below that. The first one with credentials configured wins. If none are configured, uploads fall back to storing small files directly in the database — fine for a quick test, not for real use."
+    description="Only one storage provider is active at a time, checked in this order: Cloudflare Images → R2 with a public URL → S3 → Bunny.net → R2 through your site (the bucket binding alone, no settings) → the database. The first one that's set up wins. The status card at the top of this page always shows which one is in use."
   />
 
   <UCard>
@@ -131,10 +133,10 @@ defineProps<{
         <UIcon name="i-lucide-cloud" class="w-4 h-4 text-primary-500" />
         <p class="text-sm font-semibold text-gray-900 dark:text-white">Cloudflare R2 storage</p>
       </div>
-      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Cloudflare's own object storage — zero egress fees, no API keys. Requires a `MEDIA_BUCKET` R2 bucket binding in wrangler.toml (see wrangler.toml.example) and a public URL below, since R2 buckets are private by default. Used when Cloudflare Images above isn't configured.</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Cloudflare's own object storage — zero egress fees, no API keys. The <code class="font-mono">MEDIA_BUCKET</code> binding in wrangler.toml is all it needs: files are then served from this site's own address. The public URL below is <strong>optional</strong> — set it to have browsers load files straight from R2 instead.</p>
     </template>
     <div class="space-y-4">
-      <UFormField label="Public URL" hint="A custom domain connected to the bucket, or its r2.dev subdomain — enable one in the Cloudflare dashboard under R2 → your bucket → Settings">
+      <UFormField label="Public URL (optional)" hint="A custom domain connected to the bucket, or its r2.dev subdomain — enable one in the Cloudflare dashboard under R2 → your bucket → Settings. Not the S3 API endpoint.">
         <UInput v-model="r2.publicUrl" placeholder="https://media.yourdomain.com" />
       </UFormField>
     </div>
