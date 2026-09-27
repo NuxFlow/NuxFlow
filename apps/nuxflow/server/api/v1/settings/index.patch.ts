@@ -8,6 +8,9 @@ import { clearAppearanceCache } from '../../../utils/appearance-cache'
 import { writeAuditLog } from '../../../utils/audit'
 import { purgeEdgeCache, purgeAllPublicPages } from '../../../utils/edge-cache'
 import { waitUntil } from '../../../utils/cf-env'
+import { clearSeoSettingsCache, getSeoSettings } from '../../../utils/seo'
+import { normalizeSeoSettings } from '../../../utils/seo-settings-schema'
+import { generateIndexNowKey } from '../../../utils/indexnow'
 
 const bodySchema = z.object({
   // Site columns
@@ -89,8 +92,17 @@ export default defineEventHandler(async (event) => {
   const settingEntries: [string, unknown][] = []
 
   if (body.settings) {
-    for (const [key, value] of Object.entries(body.settings)) {
-      settingEntries.push([key, value])
+    // seo.* keys are validated/normalized (seo-settings-schema.ts); everything else
+    // passes through unchanged.
+    const normalized = normalizeSeoSettings(Object.entries(body.settings))
+    settingEntries.push(...normalized)
+
+    // Turning IndexNow on generates the site's key the first time — it's served at
+    // /indexnow-key.txt and sent with every submission (utils/indexnow.ts).
+    const enablingIndexNow = normalized.some(([k, v]) => k === 'seo.indexnow_enabled' && v === true)
+    if (enablingIndexNow && !normalized.some(([k]) => k === 'seo.indexnow_key')) {
+      const current = await getSeoSettings(db, siteId)
+      if (!current.indexnowKey) settingEntries.push(['seo.indexnow_key', generateIndexNowKey()])
     }
   }
 
@@ -159,6 +171,7 @@ export default defineEventHandler(async (event) => {
   }
 
   await batchSaveSettings(event, settingEntries)
+  if (settingEntries.some(([k]) => k.startsWith('seo.'))) clearSeoSettingsCache(siteId)
 
   if (body.auth) {
     // The Better Auth instance caches socialProviders per host for 5 minutes —

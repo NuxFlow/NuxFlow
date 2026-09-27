@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { and, eq } from 'drizzle-orm'
-import { contentItems } from '@nuxflow/db/schema'
+import { contentItems, sites } from '@nuxflow/db/schema'
+import { publicPathForItem } from './seo'
 import { useDb } from './db'
 import { getExecutionContext } from './cf-env'
 
@@ -57,10 +58,25 @@ export async function withEdgeCache<T>(
   maxAgeSeconds: number,
   compute: () => Promise<T>,
 ): Promise<T> {
+  return withEdgeCacheKey(event, getRequestURL(event).toString(), maxAgeSeconds, compute)
+}
+
+/**
+ * Same as withEdgeCache, but under an explicit cache-key URL instead of the request's own.
+ * For a response that shares its URL with a *different* representation — the Markdown
+ * alternate served on `Accept: text/markdown` for a page URL whose HTML already lives in
+ * the page cache — so the two can never read back each other's entry.
+ */
+export async function withEdgeCacheKey<T>(
+  event: H3Event,
+  cacheUrl: string,
+  maxAgeSeconds: number,
+  compute: () => Promise<T>,
+): Promise<T> {
   const cf = event.context.cloudflare
   if (!cf?.request) return compute()
 
-  const cacheKey = new Request(getRequestURL(event).toString(), { method: 'GET' })
+  const cacheKey = new Request(cacheUrl, { method: 'GET' })
   const cache = (caches as unknown as EdgeCacheStorage).default
 
   try {
@@ -137,7 +153,20 @@ const GLOBAL_CONTENT_CACHE_PATHS = [
   '/feed.xml',
   '/atom.xml',
   '/llms.txt',
+  '/llms-full.txt',
 ]
+
+// Views derived from site settings rather than from content — only purged by
+// purgeAllPublicPages() (every settings save), not on every content write.
+const SETTINGS_CACHE_PATHS = [
+  '/robots.txt',
+  '/indexnow-key.txt',
+]
+
+/** Edge-cache key for a page's Markdown alternate (see middleware/06.markdown.ts). */
+export function markdownCachePath(pagePath: string): string {
+  return `/_nuxflow/md${pagePath === '/' ? '/index' : pagePath}`
+}
 
 // The homepage is a special case: its content item has slug 'home', but it's actually
 // served (and, now, page-cached) at the site root, not at /home — see app/pages/index.vue,
@@ -154,11 +183,17 @@ function pagePathForSlug(slug: string): string {
  */
 export async function purgeContentCache(
   event: H3Event,
-  opts: { slugs: string[]; taxonomyTerms?: { taxonomySlug: string; termSlug: string }[] },
+  opts: {
+    slugs: string[]
+    taxonomyTerms?: { taxonomySlug: string; termSlug: string }[]
+    /** Additional public page paths (e.g. a translation's `/es/about`) to purge. */
+    extraPaths?: string[]
+  },
 ): Promise<void> {
   const uniqueSlugs = [...new Set(opts.slugs.filter(Boolean)).values()]
   const jsonPaths = uniqueSlugs.map(slug => `/api/public/pages/${slug}`)
-  const pagePaths = uniqueSlugs.map(pagePathForSlug)
+  const pagePaths = [...uniqueSlugs.map(pagePathForSlug), ...(opts.extraPaths ?? [])]
+  const markdownPaths = pagePaths.map(markdownCachePath)
 
   const taxonomyJsonPaths = (opts.taxonomyTerms ?? [])
     .map(t => `/api/public/taxonomy/${t.taxonomySlug}/${t.termSlug}`)
@@ -166,7 +201,7 @@ export async function purgeContentCache(
     .map(t => `/${t.taxonomySlug}/${t.termSlug}`)
 
   await purgeEdgeCache(event, [
-    ...jsonPaths, ...pagePaths,
+    ...jsonPaths, ...pagePaths, ...markdownPaths,
     ...GLOBAL_CONTENT_CACHE_PATHS,
     ...taxonomyJsonPaths, ...taxonomyPagePaths,
   ])
@@ -211,10 +246,25 @@ export async function purgeAllPublicPages(event: H3Event, siteId: string): Promi
       eq(contentItems.status, 'published'),
       eq(contentItems.visibility, 'public'),
     ),
-    columns: { slug: true },
+    columns: { id: true, slug: true, locale: true, sourceItemId: true },
   })
+  const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true } })
+  const defaultLocale = site?.locale || 'en'
+  const slugById = new Map(rows.map(r => [r.id, r.slug]))
 
-  const pagePaths = rows.map(r => pagePathForSlug(r.slug))
-  const jsonPaths = rows.map(r => `/api/public/pages/${r.slug}`)
-  await purgeEdgeCache(event, [...new Set(['/', ...pagePaths, ...jsonPaths, ...GLOBAL_CONTENT_CACHE_PATHS])])
+  // Translations are served (and page-cached) at /{locale}/{source slug}, not at their
+  // stored slug — purge both, plus the locale-prefixed JSON URL the page fetches.
+  const translated = rows
+    .filter(r => r.sourceItemId && slugById.has(r.sourceItemId))
+    .map(r => publicPathForItem({ slug: r.slug, locale: r.locale, sourceSlug: slugById.get(r.sourceItemId!) }, defaultLocale))
+  const pagePaths = [...rows.map(r => pagePathForSlug(r.slug)), ...translated]
+  const jsonPaths = [
+    ...rows.map(r => `/api/public/pages/${r.slug}`),
+    ...translated.map(p => `/api/public/pages${p}`),
+  ]
+  const markdownPaths = ['/', ...pagePaths].map(markdownCachePath)
+  await purgeEdgeCache(event, [...new Set([
+    '/', '/blog', ...pagePaths, ...jsonPaths, ...markdownPaths,
+    ...GLOBAL_CONTENT_CACHE_PATHS, ...SETTINGS_CACHE_PATHS,
+  ])])
 }

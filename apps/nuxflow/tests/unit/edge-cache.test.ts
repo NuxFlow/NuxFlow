@@ -6,7 +6,12 @@ import type { H3Event } from 'h3'
 // don't need a real D1/libSQL database, just a controllable list of "published" rows.
 const findManyMock = vi.fn()
 vi.mock('../../server/utils/db', () => ({
-  useDb: () => ({ query: { contentItems: { findMany: findManyMock } } }),
+  useDb: () => ({
+    query: {
+      contentItems: { findMany: findManyMock },
+      sites: { findFirst: async () => ({ locale: 'en' }) },
+    },
+  }),
 }))
 
 const { withEdgeCache, purgeContentCache, purgeAllPublicPages } = await import('../../server/utils/edge-cache')
@@ -234,6 +239,25 @@ describe('purgeAllPublicPages', () => {
     expect(purged).toContain('/pricing')
     expect(purged).toContain('/') // both the explicit root purge and 'home''s mapped path
     expect(purged).not.toContain('/home')
+  })
+
+  it('also purges translations at their /{locale}/{source slug} path, Markdown alternates, and robots.txt', async () => {
+    findManyMock.mockResolvedValue([
+      { id: 'src', slug: 'about', locale: 'en', sourceItemId: null },
+      { id: 'tr', slug: 'about-es', locale: 'es', sourceItemId: 'src' },
+    ])
+    const del = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('caches', { default: { delete: del } })
+
+    await purgeAllPublicPages(mkEvent(), 'site-1')
+
+    const purged = del.mock.calls.map(([req]: [Request]) => new URL(req.url).pathname)
+    expect(purged).toContain('/es/about')
+    expect(purged).toContain('/api/public/pages/es/about')
+    expect(purged).toContain('/_nuxflow/md/es/about')
+    expect(purged).toContain('/_nuxflow/md/index')
+    expect(purged).toContain('/robots.txt')
+    expect(purged).toContain('/llms-full.txt')
   })
 
   it('is a no-op when there is no Cloudflare context (never queries the DB)', async () => {

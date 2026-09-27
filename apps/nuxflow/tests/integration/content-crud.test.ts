@@ -139,6 +139,16 @@ describe('POST /api/v1/content', () => {
     const { id } = await (createHandler as HandlerFn)(event) as { id: string }
     const item = await getCurrentTestDb().query.contentItems.findFirst({ where: eq(contentItems.id, id) })
     expect(item!.status).toBe('published')
+    // Feeds, sitemaps, and JSON-LD datePublished all read this — it used to stay null
+    // for items created already published.
+    expect(item!.publishedAt).toBeTruthy()
+  })
+
+  it('leaves publishedAt null for drafts', async () => {
+    const event = mkCreateEvent({ title: 'Draft Post', slug: 'draft-post-pa', typeSlug: 'post' }, 'editor')
+    const { id } = await (createHandler as HandlerFn)(event) as { id: string }
+    const item = await getCurrentTestDb().query.contentItems.findFirst({ where: eq(contentItems.id, id) })
+    expect(item!.publishedAt).toBeNull()
   })
 
   it('returns 403 when an author tries to create content already published', async () => {

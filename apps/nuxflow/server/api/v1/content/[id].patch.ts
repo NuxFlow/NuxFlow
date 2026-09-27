@@ -13,6 +13,9 @@ import { purgeContentCache } from '../../../utils/edge-cache'
 import { getContentItemTerms } from '@nuxflow/db/queries'
 import { waitUntil } from '../../../utils/cf-env'
 import { upsertContentEmbedding } from '../../../utils/embeddings'
+import { itemPublicPath } from '../../../utils/public-page'
+import { redirectMovedPaths } from '../../../utils/redirects'
+import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexnow'
 import type { BatchItem } from 'drizzle-orm/batch'
 
 const bodySchema = z.object({
@@ -130,11 +133,61 @@ export default defineEventHandler(async (event) => {
     : [itemUpdate]
   await batchWithAudit(db, writes, auditInsert)
 
+  // Public URL bookkeeping. A translation is served at /{locale}/{source slug}, and a
+  // source item's slug change moves every one of its translations' URLs with it.
+  const nextItem = {
+    slug: updateFields.slug ?? existing.slug,
+    locale: updateFields.locale ?? existing.locale,
+    sourceItemId: updateFields.sourceItemId !== undefined ? updateFields.sourceItemId : existing.sourceItemId,
+  }
+  const [oldPath, newPath] = await Promise.all([itemPublicPath(db, siteId, existing), itemPublicPath(db, siteId, nextItem)])
+  const moves: { from: string; to: string }[] = []
+  const slugChanged = updateFields.slug !== undefined && updateFields.slug !== existing.slug
+  if (slugChanged) {
+    moves.push({ from: `/${existing.slug}`, to: newPath })
+    if (oldPath !== `/${existing.slug}`) moves.push({ from: oldPath, to: newPath })
+    if (!existing.sourceItemId) {
+      const translations = await db.query.contentItems.findMany({
+        where: and(eq(contentItems.siteId, siteId), eq(contentItems.sourceItemId, id)),
+        columns: { locale: true },
+      })
+      for (const t of translations) {
+        moves.push({
+          from: existing.slug === 'home' ? `/${t.locale}` : `/${t.locale}/${existing.slug}`,
+          to: nextItem.slug === 'home' ? `/${t.locale}` : `/${t.locale}/${nextItem.slug}`,
+        })
+      }
+    }
+  }
+
+  // A published URL that moves keeps its search ranking and inbound links only if the old
+  // address 301s to the new one — done automatically (and chain-flattened) here rather
+  // than left for someone to remember in Admin → SEO → Redirects.
+  if (moves.length > 0 && existing.status === 'published') {
+    await redirectMovedPaths(db, siteId, moves)
+  }
+
   const terms = await getContentItemTerms(db, id)
   await purgeContentCache(event, {
     slugs: [existing.slug, updateFields.slug].filter((s): s is string => Boolean(s)),
     taxonomyTerms: terms.map(t => ({ taxonomySlug: t.taxonomySlug, termSlug: t.termSlug })),
+    extraPaths: [oldPath, newPath, ...moves.flatMap(m => [m.from, m.to])],
   })
+
+  // IndexNow: tell participating search engines about a live URL's change (or its
+  // removal, on unpublish/archive/visibility change). Throttled per URL inside
+  // submitToIndexNow, since the editor autosaves published pages repeatedly.
+  const nextStatus = updateFields.status ?? existing.status
+  const nextVisibility = visibility ?? existing.visibility
+  if (nextStatus === 'published' || existing.status === 'published') {
+    waitUntil(event, (async () => {
+      const paths = nextStatus === 'published' && nextVisibility === 'public'
+        ? await indexablePathsForItems(db, siteId, [{ ...nextItem, typeId: existing.typeId, metaRobots: updateFields.metaRobots !== undefined ? updateFields.metaRobots : existing.metaRobots }])
+        : [newPath]
+      if (existing.status === 'published') paths.push(...moves.map(m => m.from))
+      await submitToIndexNow(db, siteId, paths)
+    })().catch(err => console.error('[indexnow] Content update notification failed:', err)))
+  }
 
   // Re-embed with the fully-merged state (fields not touched by this PATCH keep their
   // existing value) — not just updateFields, which would otherwise treat every untouched

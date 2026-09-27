@@ -31,6 +31,7 @@ const { default: taxonomyHandler } = await import('../../server/api/public/taxon
 const { default: registrationStatusHandler } = await import('../../server/api/public/auth/registration-status.get')
 const { default: pluginsHandler } = await import('../../server/api/public/dynamic-plugins.get')
 const { default: imageSitemapHandler } = await import('../../server/routes/sitemap-images.xml')
+const { clearSeoSettingsCache } = await import('../../server/utils/seo')
 
 type Handler = (e: H3Event) => Promise<unknown>
 
@@ -262,28 +263,60 @@ describe('GET /api/public/dynamic-plugins', () => {
 })
 
 describe('GET /sitemap-images.xml', () => {
-  it('lists this site\'s images with escaped metadata, skipping data: URIs and non-images', async () => {
-    const db = getCurrentTestDb()
-    await seedMedia(db, SITE, { url: 'https://cdn.example.com/a.jpg', altText: 'Fish & chips', caption: '<b>c</b>' })
-    await seedMedia(db, SITE, { url: 'data:image/png;base64,AAAA' })
-    await seedMedia(db, SITE, { url: 'https://cdn.example.com/doc.pdf', mimeType: 'application/pdf' })
-    await seedMedia(db, SITE, { url: '/_nuxflow/media/site/rel.png', mimeType: 'image/png' })
-    await seedMedia(db, OTHER, { url: 'https://cdn.example.com/foreign.jpg' })
+  const IMG = 'site-public-routes-img'
 
-    const xml = await (imageSitemapHandler as Handler)(ev()) as string
-    expect(xml).toContain('<loc>https://pub.localhost/</loc>')
-    expect(xml).toContain('<image:loc>https://cdn.example.com/a.jpg</image:loc>')
-    expect(xml).toContain('<image:title>Fish &amp; chips</image:title>')
-    expect(xml).toContain('<image:caption>&lt;b&gt;c&lt;/b&gt;</image:caption>')
-    expect(xml).toContain('<image:loc>https://pub.localhost/_nuxflow/media/site/rel.png</image:loc>')
+  beforeAll(async () => {
+    const db = getCurrentTestDb()
+    await seedSite(db, { id: IMG, domain: 'img.localhost' })
+    const pageType = await seedContentType(db, IMG, { slug: 'page', name: 'Page' })
+    await seedContentItem(db, IMG, pageType, {
+      slug: 'gallery-page',
+      title: 'Gallery',
+      ogImage: 'https://cdn.example.com/og.jpg',
+      content: {
+        type: 'canvas',
+        blocks: [
+          { id: 'b1', type: 'canvas-image', props: { src: { url: '/_nuxflow/media/img/rel.png', width: 10, height: 10 }, alt: 'Fish & chips' } },
+          { id: 'b2', type: 'canvas-gallery', props: { images: '[{"url":"https://cdn.example.com/g1.webp","alt":"a"}]' } },
+          { id: 'b3', type: 'canvas-text', props: { content: '<p>Hi <img src="https://cdn.example.com/inline.jpg" alt="x"></p><a href="https://cdn.example.com/doc.pdf">pdf</a>' } },
+          { id: 'b4', type: 'canvas-image', props: { src: 'data:image/png;base64,AAAA' } },
+        ],
+      },
+    })
+    await seedContentItem(db, IMG, pageType, { slug: 'members-page', title: 'Members', visibility: 'members', ogImage: 'https://cdn.example.com/members-only.jpg' })
+    await seedContentItem(db, IMG, pageType, { slug: 'draft-page', title: 'Draft', status: 'draft', ogImage: 'https://cdn.example.com/draft.jpg' })
+    await seedContentItem(db, IMG, pageType, { slug: 'hidden-page', title: 'Hidden', metaRobots: 'noindex,follow', ogImage: 'https://cdn.example.com/hidden.jpg' })
+    // A library image no published page uses must not be listed.
+    await seedMedia(db, IMG, { url: 'https://cdn.example.com/unused.jpg' })
+  })
+
+  it('lists each indexable page with the images it actually shows', async () => {
+    const xml = await (imageSitemapHandler as Handler)(ev({ siteId: IMG })) as string
+    expect(xml).toContain('<loc>https://img.localhost/gallery-page</loc>')
+    expect(xml).toContain('<image:loc>https://cdn.example.com/og.jpg</image:loc>')
+    expect(xml).toContain('<image:loc>https://img.localhost/_nuxflow/media/img/rel.png</image:loc>')
+    expect(xml).toContain('<image:loc>https://cdn.example.com/g1.webp</image:loc>')
+    expect(xml).toContain('<image:loc>https://cdn.example.com/inline.jpg</image:loc>')
     expect(xml).not.toContain('data:image')
     expect(xml).not.toContain('doc.pdf')
-    expect(xml).not.toContain('foreign.jpg')
+  })
+
+  it('never lists images from members-only, draft, noindexed, or unused media', async () => {
+    const xml = await (imageSitemapHandler as Handler)(ev({ siteId: IMG })) as string
+    expect(xml).not.toContain('members-only.jpg')
+    expect(xml).not.toContain('draft.jpg')
+    expect(xml).not.toContain('hidden.jpg')
+    expect(xml).not.toContain('unused.jpg')
+    // Google dropped support for these in 2022.
+    expect(xml).not.toContain('<image:title>')
+    expect(xml).not.toContain('<image:caption>')
   })
 
   it('prefers the seo.canonical_url setting as the base URL', async () => {
-    await seedSetting(getCurrentTestDb(), SITE, 'seo.canonical_url', 'https://www.canonical.test')
-    const xml = await (imageSitemapHandler as Handler)(ev()) as string
-    expect(xml).toContain('<loc>https://www.canonical.test/</loc>')
+    await seedSetting(getCurrentTestDb(), IMG, 'seo.canonical_url', 'https://www.canonical.test/')
+    clearSeoSettingsCache(IMG)
+    const xml = await (imageSitemapHandler as Handler)(ev({ siteId: IMG })) as string
+    // Trailing slash on the setting is normalized away (no `//gallery-page`).
+    expect(xml).toContain('<loc>https://www.canonical.test/gallery-page</loc>')
   })
 })

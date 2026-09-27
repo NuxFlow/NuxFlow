@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { NuxImage } from '@nuxflow/canvas'
+import type { PublicSiteInfo } from '~/utils/seo'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,16 +41,26 @@ const { data, error } = await useFetch<PostsResponse>('/api/public/posts', {
   headers: useRequestHeaders(['host']),
 })
 
-const { data: site } = await useFetch('/api/public/site', { headers: useRequestHeaders(['host']) })
-const canonicalBase = computed(() => (site.value as { canonicalBase?: string } | null)?.canonicalBase ?? '')
-const siteName = computed(() => (site.value as { name?: string } | null)?.name ?? '')
+const { data: site } = await useFetch<PublicSiteInfo>('/api/public/site', { headers: useRequestHeaders(['host']) })
+const canonicalBase = computed(() => site.value?.canonicalBase ?? '')
+const siteName = computed(() => site.value?.name ?? '')
+
+const blogTitle = computed(() => (page.value > 1 ? `Blog — page ${page.value}` : 'Blog'))
+const blogDesc = computed(() => {
+  const latest = data.value?.posts.slice(0, 3).map(p => p.title).join(', ')
+  const who = siteName.value ? ` from ${siteName.value}` : ''
+  return latest ? `The latest articles${who}: ${latest}.` : `Articles and updates${who}.`
+})
+const blogUrl = computed(() => canonicalBase.value ? `${canonicalBase.value}/blog${page.value > 1 ? `?page=${page.value}` : ''}` : '')
 
 useSeoMeta({
-  title: 'Blog',
-  description: computed(() => data.value ? `${data.value.total} posts` : 'All posts'),
+  title: blogTitle,
+  description: blogDesc,
   ogType: 'website',
-  ogTitle: computed(() => siteName.value ? `Blog — ${siteName.value}` : 'Blog'),
-  ogUrl: computed(() => canonicalBase.value ? `${canonicalBase.value}/blog` : ''),
+  ogTitle: computed(() => siteName.value ? `${blogTitle.value} — ${siteName.value}` : blogTitle.value),
+  ogDescription: blogDesc,
+  ogUrl: blogUrl,
+  ogImage: computed(() => site.value?.seo?.ogImage || undefined),
   twitterCard: 'summary',
 })
 
@@ -61,9 +72,14 @@ useHead({
       innerHTML: JSON.stringify({
         '@context': 'https://schema.org',
         '@type': 'CollectionPage',
-        name: 'Blog',
-        url: `${canonicalBase.value}/blog`,
-        numberOfItems: data.value.total,
+        name: blogTitle.value,
+        description: blogDesc.value,
+        url: blogUrl.value,
+        mainEntity: {
+          '@type': 'ItemList',
+          numberOfItems: data.value.total,
+          itemListElement: data.value.posts.map((p, i) => ({ '@type': 'ListItem', position: (page.value - 1) * 10 + i + 1, url: `${canonicalBase.value}/${p.slug}`, name: p.title })),
+        },
         ...(siteName.value ? { publisher: { '@type': 'Organization', name: siteName.value } } : {}),
       }),
     }]

@@ -143,13 +143,14 @@ test.describe('Admin settings pages', () => {
     await expect(page.locator('body')).not.toContainText('404')
   })
 
-  test('SEO page shows the AI Crawlers tab', async ({ page }) => {
+  test('SEO page shows the AI & crawlers tab', async ({ page }) => {
     await page.goto('/admin/seo')
     await page.waitForLoadState('networkidle')
 
-    const aiCrawlersTab = page.getByRole('tab', { name: /ai crawlers/i })
-      .or(page.getByText(/ai crawlers/i).first())
-    await expect(aiCrawlersTab).toBeVisible({ timeout: 10_000 })
+    const aiTab = page.getByRole('button', { name: /ai & crawlers/i })
+    await expect(aiTab).toBeVisible({ timeout: 10_000 })
+    await aiTab.click()
+    await expect(page.getByText(/ai crawler access \(geo\)/i)).toBeVisible({ timeout: 10_000 })
   })
 
   test('loads /admin/settings/ai without error', async ({ page }) => {

@@ -4,8 +4,11 @@ import { sites, siteSettings, dynamicPlugins } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { withEdgeCache } from '../../utils/edge-cache'
 import { notFound } from '../../utils/response'
+import { getSeoSettings, siteBaseUrl } from '../../utils/seo'
+import { getActiveLocales } from '../../utils/locale-cache'
+import { absoluteUrl } from '../../utils/media-url'
 
-const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'seo.canonical_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations'] as const
+const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations'] as const
 
 const CACHE_MAX_AGE = 300
 
@@ -34,8 +37,8 @@ async function buildPayload(event: H3Event, siteId: string) {
     columns: { id: true },
   })
 
-  const canonicalSetting = (kvMap['seo.canonical_url'] as string | undefined)?.trim()
-  const canonicalBase = canonicalSetting || `https://${site.domain}`
+  const [seo, locales] = await Promise.all([getSeoSettings(db, siteId), getActiveLocales(db, siteId)])
+  const canonicalBase = siteBaseUrl(seo, site.domain)
 
   return {
     ...site,
@@ -61,6 +64,22 @@ async function buildPayload(event: H3Event, siteId: string) {
     // Lets dynamic-plugins.client.ts skip its own plugin-listing fetch entirely on the
     // (common) plugin-free site — see the query above for exactly what this reflects.
     hasPlugins: Boolean(activePlugin),
+    // Every locale the site has content in (the default one included) — lets the
+    // [taxonomySlug]/[termSlug] route recognize /es/about as a translated page rather
+    // than a taxonomy archive.
+    locales: [...new Set([site.locale || 'en', ...locales])],
+    // Site-wide SEO defaults (Admin → SEO) consumed by app.vue / layouts / pages.
+    seo: {
+      title: seo.title,
+      description: seo.description,
+      ogImage: seo.ogImage ? absoluteUrl(seo.ogImage, canonicalBase) : '',
+      twitterHandle: seo.twitterHandle,
+      socialProfiles: seo.socialProfiles,
+      verification: seo.verification,
+      noindex: seo.noindex,
+      noindexTaxonomies: seo.noindexTaxonomies,
+      markdownEnabled: seo.markdownEnabled && seo.aiCrawlers !== 'disallow',
+    },
   }
 }
 

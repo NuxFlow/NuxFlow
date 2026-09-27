@@ -1,72 +1,58 @@
 import type { H3Event } from 'h3'
 import { useReplicaDb } from '../utils/db'
-import { media, sites, siteSettings } from '@nuxflow/db/schema'
-import { and, eq, like } from 'drizzle-orm'
+import { sites } from '@nuxflow/db/schema'
+import { eq } from 'drizzle-orm'
 import { withEdgeCache } from '../utils/edge-cache'
 import { escXml } from '../utils/xml'
 import { absoluteUrl } from '../utils/media-url'
+import { getSeoSettings, siteBaseUrl } from '../utils/seo'
+import { getIndexableEntries, imagesForEntries } from '../utils/sitemap-entries'
 
 export default defineEventHandler(async (event) => {
-  setHeader(event, 'Content-Type', 'application/xml')
-  setHeader(event, 'Cache-Control', 'public, max-age=3600')
+  setHeader(event, 'Content-Type', 'application/xml; charset=utf-8')
+  setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
 
   return withEdgeCache(event, 3600, () => buildImageSitemap(event))
 })
 
+// Pages scanned for images per build. Each page's content is read (in small chunks), so
+// this bounds both D1 reads and the response on a very large site; newest pages first.
+const IMAGE_SITEMAP_PAGE_CAP = 1000
+
+/**
+ * Google image sitemap: each indexable page listed with the images it actually shows
+ * (its featured image plus every image referenced in its body). An image must be listed
+ * under the page it appears on — the previous version put every media-library image under
+ * the homepage, including images only used in drafts or members-only content. `image:title`
+ * and `image:caption` are omitted: Google stopped supporting them in 2022; alt text in the
+ * page itself is what's used.
+ */
 async function buildImageSitemap(event: H3Event) {
-  // Anonymous, read-only, edge-cached — safe to read from a D1 read replica when one is
-  // enabled (see the "D1 read replication" note on useReplicaDb in server/utils/db.ts).
   const db = useReplicaDb(event)
   const siteId = event.context.siteId as string
-  const config = useRuntimeConfig()
 
-  const [site, canonicalSetting, images] = await Promise.all([
-    db.query.sites.findFirst({
-      where: eq(sites.id, siteId),
-      columns: { domain: true },
-    }),
-    db.query.siteSettings.findFirst({
-      where: and(eq(siteSettings.siteId, siteId), eq(siteSettings.key, 'seo.canonical_url')),
-      columns: { value: true },
-    }),
-    // The image-sitemap extension caps a single <url> entry at 1,000 <image:image>
-    // children — this route puts every image under one <url> entry (the site root), so
-    // that cap applies directly. It also bounds what was previously an unbounded query
-    // (and unbounded response) on a media-heavy site.
-    db.select({
-      url: media.url,
-      altText: media.altText,
-      caption: media.caption,
-    }).from(media).where(
-      and(
-        eq(media.siteId, siteId),
-        like(media.mimeType, 'image/%'),
-      ),
-    ).limit(1000),
+  const [site, seo] = await Promise.all([
+    db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } }),
+    getSeoSettings(db, siteId),
   ])
+  const rawBaseUrl = siteBaseUrl(seo, site?.domain, useRuntimeConfig().public.siteUrl as string)
 
-  const domainBase = site ? `https://${site.domain}` : config.public.siteUrl
-  const rawBaseUrl = (canonicalSetting?.value as string | undefined)?.trim() || domainBase
-  const baseUrl = escXml(rawBaseUrl)
+  const { entries } = await getIndexableEntries(db, siteId, seo, IMAGE_SITEMAP_PAGE_CAP)
+  const images = await imagesForEntries(db, siteId, entries, IMAGE_SITEMAP_PAGE_CAP)
 
-  const imageEntries = images
-    // data: URIs (media stored in the database by the storage fallback) aren't
-    // crawlable URLs — they'd only bloat the sitemap with base64.
-    .filter(img => img.url && !img.url.startsWith('data:'))
-    .map(img => {
-      const lines: string[] = [`    <image:loc>${escXml(absoluteUrl(img.url, rawBaseUrl))}</image:loc>`]
-      if (img.altText) lines.push(`    <image:title>${escXml(img.altText)}</image:title>`)
-      if (img.caption) lines.push(`    <image:caption>${escXml(img.caption)}</image:caption>`)
-      return `  <image:image>\n${lines.join('\n')}\n  </image:image>`
+  const urls = entries
+    .filter(e => images.has(e.id))
+    .map((e) => {
+      const tags = images.get(e.id)!
+        .filter(u => !u.startsWith('data:'))
+        .map(u => `    <image:image><image:loc>${escXml(absoluteUrl(u, rawBaseUrl))}</image:loc></image:image>`)
+        .join('\n')
+      return `  <url>\n    <loc>${escXml(`${rawBaseUrl}${e.path}`)}</loc>\n${tags}\n  </url>`
     })
-    .join('\n')
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
-  <url>
-    <loc>${baseUrl}/</loc>
-${imageEntries}
-  </url>
+${urls.join('\n')}
 </urlset>`
 }

@@ -46,7 +46,6 @@
     "drizzle-orm": "0.45.2",
     "fflate": "^0.8.3",
     "highlight.js": "^11.12.0",
-    "nuxt-seo-utils": "^8.4.3",
     "openai": "^7.15.0",
     "pinia": "^4.0.3",
     "postal-mime": "^3.0.1",

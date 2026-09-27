@@ -1,5 +1,5 @@
 import { useDb } from '../utils/db'
-import { auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages } from '@nuxflow/db/schema'
+import { auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits } from '@nuxflow/db/schema'
 import { and, count, eq, inArray, lt, ne, notInArray, sql, isNotNull, or } from 'drizzle-orm'
 
 // Bounds how many overflowing content items get their excess revisions pruned in a
@@ -152,5 +152,13 @@ export const pruneOldData = async () => {
     }
   }
 
-  return { prunedAuditLogs, prunedRevisions, prunedRateLimits, prunedNotifications, prunedEmailLog, prunedSpamEmail: spam.length }
+  // --- Crawler activity counters --- the SEO page shows at most 90 days.
+  const crawlerCutoff = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10)
+  const [crawlerRow] = await db.select({ value: count() }).from(crawlerHits).where(lt(crawlerHits.day, crawlerCutoff))
+  const prunedCrawlerHits = crawlerRow?.value ?? 0
+  if (prunedCrawlerHits > 0) {
+    await db.delete(crawlerHits).where(lt(crawlerHits.day, crawlerCutoff))
+  }
+
+  return { prunedAuditLogs, prunedRevisions, prunedRateLimits, prunedNotifications, prunedEmailLog, prunedSpamEmail: spam.length, prunedCrawlerHits }
 }

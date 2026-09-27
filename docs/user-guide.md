@@ -89,34 +89,68 @@ In **Settings > Site**, you can update your site's title, description, and prima
 
 ### Per-Page SEO
 Every Page and Post has an **SEO & Access** panel in the editor sidebar where you can:
-- **SEO Title & Meta Description** — with live character-count progress bars (50–60 and 150–160 are the target ranges).
+- **SEO Title & Meta Description** — with live character-count progress bars (50–60 and 150–160 are the target ranges). **AI suggest** writes both from the page's saved content.
 - **Google Snippet Preview** — see exactly how your title, URL slug, and description will appear in a search result card before publishing.
 - **Focus Keyword** — enter the primary keyword for the page; NuxFlow checks whether it appears in both the title and description and shows a ✓/✗ indicator for each.
 - **Canonical URL** — override the canonical link for this specific page (useful for syndicated content or content that lives under multiple URLs).
-- **Robots Override** — set `noindex`, `nofollow`, or combinations per-page, independently of the global setting.
+- **Robots Override** — set `noindex`, `nofollow`, or combinations per-page. This overrides the content type's default (Admin → SEO → Indexing); the site-wide "hide from search engines" switch still wins.
 - **OG / Featured Image** — used as `og:image` and as the Twitter card image.
 - **Content Access** — control whether the page is public, members-only, or tier-gated.
 
-### Generative Engine Optimization (GEO / LLMO)
+### Site-wide SEO (Admin → SEO)
 
-NuxFlow bakes AI discoverability features into the routing layer — no plugins or third-party services required.
+Admins configure site-wide SEO in **Admin → SEO**. Editors can open the same page to manage **Redirects** and run the **Audit**.
 
-#### What's auto-generated
-- **`/llms.txt`** — a machine-readable Markdown index of your site for AI assistants (ChatGPT, Claude, Perplexity, etc.). Lists your 20 most recent published posts with excerpts, links to your sitemap, feeds, and public API. No configuration needed.
-- **`/atom.xml`** — an Atom 1.0 feed alongside the existing RSS 2.0 feed at `/feed.xml`. Both include author attribution and media thumbnail tags for better feed-reader and AI parser support.
-- **JSON-LD structured data** — `Article`, `BreadcrumbList`, `Organization`, and `WebSite` (with `SearchAction`) schemas are automatically injected into every public page's `<head>`. These help AI systems and search engines understand your content structure without reading the full page.
-- **`image:image` tags in sitemap.xml** — pages with a featured OG image now expose that image URL directly in the sitemap, improving image indexing.
-- **`/sitemap-images.xml`** — a dedicated Google Image Sitemap Extension that lists every image in your media library with its alt text and caption. Submit it to Google Search Console so your photos can appear in Google Images search results. The sitemap is cached for one hour and uses the canonical URL configured in **Admin → Settings → SEO**.
+- **Global defaults** — the homepage title and default meta description (used by the homepage, the blog index, archives, and any page without its own description), the canonical URL prefix, a default share image picked from the media library, and a switch that hides the whole site from search engines. **AI suggest** writes a title and description from your site's published content.
+- **Social & verification** — your X (Twitter) handle (sent as `twitter:site`), links to your social profiles (published as schema.org `sameAs` so search engines and AI assistants connect them to your site), and verification codes for Google Search Console, Bing Webmaster Tools, Yandex, and Pinterest. You can paste either the code or the whole `<meta>` tag.
+- **AI & crawlers** — see below.
+- **Indexing** — hide whole content types (for example, events) or category/tag archives from search engines, add custom `robots.txt` rules, turn on IndexNow, and handle duplicate hostnames.
+- **Redirects** — see below.
+- **Audit** — lists every published page with missing, short, long, or duplicate titles and descriptions, missing share images, and noindexed pages, plus site-level gaps. Each row links straight to the editor.
+
+> Hiding the site from search engines sends a `noindex` header on every page but keeps crawling allowed. A crawler that isn't allowed to fetch a page never sees its `noindex`, so a page that is already indexed could otherwise stay in search results.
+
+### Generative Engine Optimization (GEO)
+
+NuxFlow builds AI discoverability into the site itself, with no plugins or third-party services.
+
+#### What's generated automatically
+- **`/llms.txt`**: a Markdown index of your site for AI assistants ([llmstxt.org](https://llmstxt.org)). Pages are grouped by content type, with your optional introduction at the top. Each link points to the page's Markdown version.
+- **`/llms-full.txt`**: the full text of your pages as Markdown in one file.
+- **Markdown versions of every page**: add `.md` to any page URL (`/about.md`; the homepage is `/index.md`), or request the page with `Accept: text/markdown`, to get clean Markdown. It uses about 80% fewer tokens than the HTML. Pages advertise this version with a `<link rel="alternate" type="text/markdown">` tag.
+- **Structured data (JSON-LD)**: `BlogPosting` for posts, `Event` for events (dates, location, or online link), `WebPage` for everything else, `FAQPage` whenever a page has an Accordion block, `BreadcrumbList`, and site-wide `Organization` (with your social profiles) and `WebSite` with `SearchAction`.
+- **hreflang**: translated pages link to each other in the page `<head>` and in `sitemap.xml`.
+- **`/sitemap.xml`**: every indexable page at its real URL. Translations appear at `/es/page`. Pages marked noindex are left out, and each page carries a valid `lastmod` date. Category and tag archives are listed only when they have published content.
+- **`/sitemap-images.xml`**: each page listed with the images it actually shows: its featured image plus every image in its body. Images used only in drafts or members-only content are never listed.
+- **`/atom.xml`**: an Atom 1.0 feed alongside the RSS 2.0 feed at `/feed.xml`.
 
 #### AI crawler settings
-Go to **Admin → SEO → AI Crawlers** to control which AI bots can crawl your site:
-- **Allow all AI crawlers** (default) — your site is eligible to be cited as a source in AI-generated answers across ChatGPT, Claude, Perplexity, Google AI, and others.
-- **Block all AI crawlers** — adds explicit `Disallow` rules for GPTBot, ClaudeBot, PerplexityBot, ChatGPT-User, anthropic-ai, Googlebot-Extended, cohere-ai, CCBot, Applebot-Extended, and FacebookBot in your `robots.txt`.
+Go to **Admin → SEO → AI & crawlers** to choose one of three options:
+- **Allow all AI crawlers**: training, AI search, and live assistant fetches are all allowed.
+- **Block AI training, allow AI search** (recommended): blocks model-training crawlers such as GPTBot, ClaudeBot, Google-Extended, Applebot-Extended, CCBot, Meta's crawler, and Bytespider. AI search and answer crawlers can still read and cite your pages; these include OAI-SearchBot, ChatGPT-User, Claude-SearchBot, PerplexityBot, and DuckAssistBot.
+- **Block all AI crawlers**: your site won't be cited in AI answers. `llms.txt` and the Markdown versions are also switched off.
 
-> Blocking AI crawlers means your site will not appear in AI-generated answers or recommendations. Allow is recommended for most sites that want discoverability.
+Your choice is also published as a **Content Signal** (`Content-Signal: search=yes, ai-input=yes, ai-train=no`, for example). It appears in `robots.txt` and as a header on every page. Without that header, Cloudflare's Markdown for Agents feature would label converted pages as allowed for AI training.
+
+The **Crawler activity** table shows which search engines and AI crawlers have been visiting over the last 7, 30, or 90 days, and which pages they fetched last. Crawlers are identified by the name they report (their user agent).
+
+> **Cloudflare settings override this page.** In the Cloudflare dashboard, **AI Crawl Control → Block AI bots** blocks AI crawlers before they reach your site. **Managed robots.txt** adds Cloudflare's own AI-blocking rules in front of yours. Both apply to every site on that Cloudflare zone. If you want AI search visibility, check that neither contradicts your choice here.
+
+#### IndexNow
+Turn on **Admin → SEO → Indexing → IndexNow** to notify Bing, Yandex, Seznam, Naver, and other IndexNow search engines the moment a page is published, updated, renamed, or deleted. Google doesn't take part in IndexNow and finds changes through your sitemap. NuxFlow creates your key and serves it at `/indexnow-key.txt`. Use **Submit all URLs now** once after turning it on.
+
+#### Duplicate hostnames
+Your site may also answer on its `*.workers.dev` address or on a www/apex twin of your domain. NuxFlow sends `noindex` on every hostname other than your primary domain. You can also have those hostnames 301-redirect to it (**Indexing → Duplicate hostnames**). To stop serving the `workers.dev` address entirely, set `workers_dev = false` and `preview_urls = false` in `wrangler.toml` once your custom domain works.
 
 ### Redirects
-Manage **301 and 302 redirects** directly from the dashboard to ensure visitors never hit a 404 page when you move content.
+In **Admin → SEO → Redirects** you can create, edit, and delete redirects of these types:
+- **301 / 308**: permanent.
+- **302 / 307**: temporary.
+- **410 Gone**: tells search engines a page was removed for good. It needs no destination.
+
+Rules match regardless of letter case, trailing slashes, and query strings, and the visitor's query string (such as `?utm_source=…`) is passed on to the destination. Chains are collapsed automatically: if A→B exists and you add B→C, A is updated to point straight to C. Use **Import CSV** to bulk-load `from,to[,status]` lines, for example when migrating from another CMS.
+
+**Renaming a published page creates its redirect for you.** Changing a published page's URL slug automatically adds a 301 from the old URL to the new one, including the URLs of its translations.
 
 ---
 

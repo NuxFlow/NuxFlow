@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, index, uniqueIndex, primaryKey } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 import { sites } from './sites'
 import { users } from './users'
@@ -161,6 +161,24 @@ export const aiGenerationJobs = sqliteTable('ai_generation_jobs', {
 }, (t) => [
   index('idx_ai_gen_jobs_site').on(t.siteId),
   index('idx_ai_gen_jobs_user_site').on(t.userId, t.siteId),
+])
+
+// Daily per-site hit counts for known search-engine and AI crawlers (see
+// apps/nuxflow/server/utils/seo.ts's KNOWN_CRAWLERS and crawler-tracking.ts). One row per
+// site+UTC day+bot, incremented with an upsert — a counter table rather than a row per hit,
+// so a busy crawler costs one small row a day instead of thousands. Backs the "Crawler
+// activity" view on Admin → SEO; pruned after 90 days by prune-old-data.
+export const crawlerHits = sqliteTable('crawler_hits', {
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  day: text('day').notNull(), // YYYY-MM-DD (UTC)
+  bot: text('bot').notNull(),
+  category: text('category').notNull(), // 'search' | 'ai-training' | 'ai-search' | 'ai-user'
+  hits: integer('hits').notNull().default(0),
+  lastPath: text('last_path'),
+  lastSeenAt: text('last_seen_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  primaryKey({ columns: [t.siteId, t.day, t.bot] }),
+  index('idx_crawler_hits_day').on(t.day),
 ])
 
 // Server-side proof-of-consent record — written by POST /api/public/consent, which both

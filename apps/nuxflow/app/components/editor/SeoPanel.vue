@@ -46,7 +46,9 @@ async function suggestSeo() {
   try {
     const res = await $fetch<{ seoTitle: string; seoDescription: string }>('/api/v1/ai/seo-suggest', {
       method: 'POST',
-      body: { title: props.title ?? local.seoTitle },
+      // contentId lets the server read the page's actual body (Canvas pages included),
+      // rather than guessing from the title alone. Unsaved new items send the title only.
+      body: { title: props.title || local.seoTitle, contentId: props.contentId || undefined },
     })
     local.seoTitle = res.seoTitle
     local.seoDescription = res.seoDescription

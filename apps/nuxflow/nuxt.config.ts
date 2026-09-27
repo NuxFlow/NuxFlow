@@ -22,7 +22,6 @@ export default defineNuxtConfig({
     '@nuxt/ui',
     '@nuxtjs/turnstile',
     '@pinia/nuxt',
-    'nuxt-seo-utils',
   ],
 
   // Deliberately NOT using @nuxt/image: confirmed via its own provider contract
@@ -174,19 +173,11 @@ export default defineNuxtConfig({
     typeCheck: false, // run separately with `nuxt typecheck`
   },
 
-  // nuxt-seo-utils: Open Graph defaults and structured data helpers
-  site: {
-    url: process.env.NUXT_PUBLIC_SITE_URL || 'https://example.com',
-    name: 'NuxFlow',
-    description: 'A CMS powered by NuxFlow',
-    defaultLocale: 'en',
-    identity: {
-      type: 'Organization',
-    },
-    twitter: '@nuxflow',
-    trailingSlash: false,
-    indexable: process.env.NODE_ENV === 'production',
-  },
+  // No SEO module: nuxt-seo-utils was removed because its site config (name, URL, X
+  // handle) is fixed at build time — on this multi-tenant Worker it stamped NuxFlow's own
+  // `@nuxflow` twitter:site, "NuxFlow" og:site_name, and the build-time URL as og:url onto
+  // every tenant's pages. Per-site SEO defaults now come from the site's own settings via
+  // GET /api/public/site (app.vue, layouts/default.vue, PublicContentPage).
 
   vite: {
     optimizeDeps: {

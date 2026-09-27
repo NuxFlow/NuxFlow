@@ -60,7 +60,9 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Memberships', to: '/admin/memberships', icon: 'i-lucide-credit-card', minRole: 'admin' },
   { label: 'Themes', to: '/admin/themes', icon: 'i-lucide-palette', minRole: 'admin' },
   { label: 'Plugins', to: '/admin/plugins', icon: 'i-lucide-puzzle', minRole: 'admin' },
-  { label: 'SEO', to: '/admin/seo', icon: 'i-lucide-search', minRole: 'admin' },
+  // Editors get Redirects and the SEO audit; the settings tabs on that page are admin-only
+  // (PATCH /api/v1/settings requires admin).
+  { label: 'SEO', to: '/admin/seo', icon: 'i-lucide-search', minRole: 'editor' },
   { label: 'Import', to: '/admin/import', icon: 'i-lucide-upload', minRole: 'admin' },
   { label: 'Settings', to: '/admin/settings', icon: 'i-lucide-settings', minRole: 'admin' },
 ]

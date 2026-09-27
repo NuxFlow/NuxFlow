@@ -1,18 +1,31 @@
 <script setup lang="ts">
+import type { PublicSiteInfo } from '~/utils/seo'
+
 interface PublicPage {
   id: string
   title: string
+  path?: string
   seoTitle?: string | null
   seoDescription?: string | null
+  excerpt?: string | null
+  ogImage?: string | null
+  canonicalUrl?: string | null
+  robots?: string | null
+  locale?: string | null
+  publishedAt?: string | null
+  updatedAt?: string | null
   content: unknown
   hasComments?: boolean | null
+  availableLocales?: Array<{ locale: string; slug: string; rawSlug?: string }> | null
+  alternates?: Array<{ locale: string; path: string }> | null
 }
 
 // `cookie` is forwarded so a draft-preview cookie (api/preview/[token].get.ts) reaches the
-// page API during SSR — same as app/pages/[...slug].vue.
+// page API during SSR — same as PublicContentPage.
 const { data: page } = await useFetch<PublicPage>('/api/public/pages/home', {
   headers: useRequestHeaders(['host', 'cookie']),
 })
+const { data: site } = await useFetch<PublicSiteInfo>('/api/public/site', { headers: useRequestHeaders(['host']) })
 
 const hasCustomContent = computed(() =>
   page.value !== null && page.value?.content !== null && page.value?.content !== undefined,
@@ -23,9 +36,66 @@ const isCanvasPage = computed(() => {
   return typeof c === 'object' && c !== null && (c as { type: string }).type === 'canvas'
 })
 
+// Language switcher (SiteHeader) — same shared state PublicContentPage fills.
+const activeLocalesState = useState<Array<{ locale: string; slug: string; rawSlug?: string }>>('active-locales', () => [])
+watch(page, (val) => {
+  activeLocalesState.value = val?.availableLocales || []
+}, { immediate: true })
+
+// Homepage title, used as written (it bypasses the "Page | Site" template): the homepage
+// item's own SEO title, else the site-wide default title (Admin → SEO), else the site name.
+const seo = computed(() => site.value?.seo)
+const siteName = computed(() => site.value?.name ?? '')
+const canonicalBase = computed(() => site.value?.canonicalBase ?? '')
+const homeTitle = computed(() => page.value?.seoTitle || seo.value?.title || siteName.value || 'NuxFlow')
+const homeDesc = computed(() => page.value?.seoDescription || seo.value?.description || page.value?.excerpt || '')
+const homeUrl = computed(() => page.value?.canonicalUrl || (canonicalBase.value ? `${canonicalBase.value}/` : ''))
+const requestOrigin = useRequestURL().origin
+const homeImage = computed(() => absolutize(page.value?.ogImage, requestOrigin) || seo.value?.ogImage || undefined)
+
+useHead({
+  title: homeTitle,
+  titleTemplate: null,
+  link: computed(() => {
+    const links: HeadLink[] = []
+    if (homeUrl.value) links.push({ rel: 'canonical' as const, href: homeUrl.value })
+    const alternates = page.value?.alternates ?? []
+    if (alternates.length > 1 && canonicalBase.value) {
+      for (const a of alternates) links.push({ rel: 'alternate' as const, hreflang: a.locale, href: `${canonicalBase.value}${a.path}` })
+      links.push({ rel: 'alternate' as const, hreflang: 'x-default', href: `${canonicalBase.value}/` })
+    }
+    if (seo.value?.markdownEnabled && page.value) links.push({ rel: 'alternate' as const, type: 'text/markdown', href: '/index.md' })
+    return links
+  }),
+  script: computed(() => {
+    if (!homeUrl.value) return []
+    return buildPageJsonLd({
+      title: homeTitle.value,
+      description: homeDesc.value,
+      url: homeUrl.value,
+      image: homeImage.value,
+      locale: page.value?.locale ?? site.value?.locale ?? undefined,
+      publishedAt: page.value?.publishedAt,
+      updatedAt: page.value?.updatedAt,
+      content: page.value?.content,
+      isHome: true,
+    }, { name: siteName.value, base: canonicalBase.value }).map(schema => ({ type: 'application/ld+json', innerHTML: JSON.stringify(schema) }))
+  }),
+})
+
 useSeoMeta({
-  title: page.value?.seoTitle || page.value?.title || 'NuxFlow',
-  description: page.value?.seoDescription || 'A modern, edge-deployed CMS built on Nuxt, Cloudflare Workers, and D1.',
+  description: homeDesc,
+  robots: computed(() => page.value?.robots ?? undefined),
+  ogTitle: homeTitle,
+  ogDescription: homeDesc,
+  ogType: 'website',
+  ogUrl: homeUrl,
+  ogImage: homeImage,
+  ogLocale: computed(() => ogLocale(page.value?.locale ?? site.value?.locale)),
+  twitterCard: computed(() => (homeImage.value ? 'summary_large_image' : 'summary')),
+  twitterTitle: homeTitle,
+  twitterDescription: homeDesc,
+  twitterImage: homeImage,
 })
 
 const features = [

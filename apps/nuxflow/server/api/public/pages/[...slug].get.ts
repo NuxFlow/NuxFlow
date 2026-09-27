@@ -1,12 +1,13 @@
 import type { H3Event } from 'h3'
 import { useDb, useReplicaDb, type Db } from '../../../utils/db'
 import { trackPageView } from '../../../utils/analytics'
-import { contentItems, contentTypes, membershipTiers, subscriptions, users } from '@nuxflow/db/schema'
+import { contentItems, contentTypes, membershipTiers, sites, subscriptions, users } from '@nuxflow/db/schema'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { withEdgeCache } from '../../../utils/edge-cache'
 import { findRedirect } from '../../../utils/redirect-cache'
-import { getActiveLocales } from '../../../utils/locale-cache'
 import { findPreviewItem } from '../../../utils/preview'
+import { findPublishedPage, parseLocalePath } from '../../../utils/public-page'
+import { effectiveItemRobots, getSeoSettings, publicPathForItem } from '../../../utils/seo'
 
 type ContentItemRow = typeof contentItems.$inferSelect
 
@@ -90,38 +91,14 @@ export default defineEventHandler(async (event) => {
   // Check redirects first
   const redirect = await findRedirect(db, siteId, `/${slug}`)
   if (redirect) {
+    if (redirect.statusCode === 410) throw createError({ statusCode: 410, statusMessage: 'Gone' })
     return sendRedirect(event, redirect.to, redirect.statusCode)
   }
 
-  // Multilingual URL parsing:
-  // Detect if slug starts with a locale prefix (e.g. "es/my-page" or is exactly "es")
-  const SUPPORTED_LOCALES = new Set([
-    'en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'pl', 'ja', 'zh-CN', 'zh-TW', 'ko', 'ar', 'ru', 'hi'
-  ])
-
-  let requestedLocale: string | null = null
-  let actualSlug = slug
-
-  const parts = slug.split('/')
-  const potentialLocale = parts[0]
-
-  let hasLocaleMatch = false
-  if (potentialLocale && potentialLocale.length >= 2 && potentialLocale.length <= 10) {
-    if (SUPPORTED_LOCALES.has(potentialLocale)) {
-      hasLocaleMatch = true
-    } else {
-      // Dynamic fallback: check the site's active locales (cached — see locale-cache.ts)
-      const activeSet = await getActiveLocales(db, siteId)
-      if (activeSet.has(potentialLocale)) {
-        hasLocaleMatch = true
-      }
-    }
-  }
-
-  if (hasLocaleMatch) {
-    requestedLocale = potentialLocale!
-    actualSlug = parts.slice(1).join('/') || 'home'
-  }
+  // Locale-prefixed URLs ("es/my-page", or just "es") resolve to a linked translation —
+  // see parseLocalePath/findPublishedPage in utils/public-page.ts (shared with the
+  // Markdown alternate in middleware/06.markdown.ts so both resolve identically).
+  const { locale: requestedLocale, slug: actualSlug } = await parseLocalePath(db, siteId, slug)
 
   // Draft preview (a link from the editor's "Preview link" button — see
   // api/preview/[token].get.ts): a valid token for exactly this slug serves that item
@@ -132,54 +109,11 @@ export default defineEventHandler(async (event) => {
   if (previewItem) {
     setHeader(event, 'Cache-Control', 'private, no-store')
     setHeader(event, 'X-Robots-Tag', 'noindex')
-    return assemblePageResponse(useDb(event), previewItem, siteId)
+    const response = await assemblePageResponse(useDb(event), previewItem, siteId)
+    return { ...response, robots: 'noindex,nofollow' }
   }
 
-  // 1. Try finding by exact slug first
-  let page = await db.query.contentItems.findFirst({
-    where: and(
-      eq(contentItems.siteId, siteId),
-      eq(contentItems.slug, actualSlug),
-      eq(contentItems.status, 'published'),
-    ),
-  })
-
-  // 2. Resolve translations:
-  if (!page && requestedLocale) {
-    // Look up by original slug, then find its translation
-    const sourcePage = await db.query.contentItems.findFirst({
-      where: and(
-        eq(contentItems.siteId, siteId),
-        eq(contentItems.slug, actualSlug),
-        eq(contentItems.status, 'published')
-      ),
-    })
-    if (sourcePage) {
-      const translation = await db.query.contentItems.findFirst({
-        where: and(
-          eq(contentItems.siteId, siteId),
-          eq(contentItems.sourceItemId, sourcePage.id),
-          eq(contentItems.locale, requestedLocale),
-          eq(contentItems.status, 'published')
-        ),
-      })
-      page = translation || sourcePage
-    }
-  } else if (page && requestedLocale && page.locale !== requestedLocale) {
-    // Exact slug matches but locale differs — search for a linked translation
-    const sourceId = page.sourceItemId || page.id
-    const translation = await db.query.contentItems.findFirst({
-      where: and(
-        eq(contentItems.siteId, siteId),
-        eq(contentItems.sourceItemId, sourceId),
-        eq(contentItems.locale, requestedLocale),
-        eq(contentItems.status, 'published')
-      ),
-    })
-    if (translation) {
-      page = translation
-    }
-  }
+  const page = await findPublishedPage(db, siteId, actualSlug, requestedLocale)
 
   if (!page) throw notFound('Not found')
 
@@ -208,14 +142,14 @@ export default defineEventHandler(async (event) => {
 })
 
 async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string) {
-  // Content type, author, and source-page lookups are all independent of each
-  // other (they only need `page`, already resolved above), so run them as one
-  // round trip each in parallel instead of three sequential ones.
-  const [type, authorUser, sourcePageResolved] = await Promise.all([
+  // Content type, author, source-page, site-locale, and SEO-settings lookups are all
+  // independent of each other (they only need `page`, already resolved above), so run
+  // them as one round trip each in parallel instead of sequentially.
+  const [type, authorUser, sourcePageResolved, site, seo] = await Promise.all([
     page.typeId
       ? db.query.contentTypes.findFirst({
           where: eq(contentTypes.id, page.typeId),
-          columns: { hasComments: true },
+          columns: { hasComments: true, slug: true, name: true, singularName: true },
         })
       : Promise.resolve(null),
     page.authorId
@@ -236,7 +170,10 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
           columns: { locale: true, slug: true },
         })
       : Promise.resolve(null),
+    db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true } }),
+    getSeoSettings(db, siteId),
   ])
+  const defaultLocale = site?.locale || 'en'
 
   // Per-item override takes precedence; null means "inherit from content type"
   const hasComments = page.allowComments !== null && page.allowComments !== undefined
@@ -254,34 +191,47 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
 
   if (sourcePage) {
     availableLocales.push({
-      locale: sourcePage.locale || 'en',
+      locale: sourcePage.locale || defaultLocale,
       slug: sourcePage.slug,
-      rawSlug: sourcePage.slug
+      rawSlug: sourcePage.slug,
     })
 
     const siblings = await db.query.contentItems.findMany({
       where: and(
         eq(contentItems.siteId, siteId),
         eq(contentItems.sourceItemId, sourceId),
-        eq(contentItems.status, 'published')
+        eq(contentItems.status, 'published'),
       ),
       columns: { locale: true, slug: true },
     })
 
-    siblings.forEach(s => {
+    siblings.forEach((s) => {
       availableLocales.push({
         locale: s.locale,
         slug: sourcePage.slug, // clean prefix routing uses parent slug
-        rawSlug: s.slug
+        rawSlug: s.slug,
       })
     })
   }
+
+  // The item's own public path (translations live at /{locale}/{source slug}, the
+  // homepage at /) and its hreflang alternates — computed here so the page, the sitemap,
+  // and the Markdown alternate all agree on one URL per item.
+  const path = publicPathForItem({ slug: page.slug, locale: page.locale, sourceSlug: sourcePage && sourcePage !== page ? sourcePage.slug : null }, defaultLocale)
+  const alternates = availableLocales.length > 1
+    ? availableLocales.map(l => ({
+        locale: l.locale,
+        path: publicPathForItem({ slug: l.rawSlug, locale: l.locale, sourceSlug: l.rawSlug === l.slug ? null : l.slug }, defaultLocale),
+      }))
+    : []
 
   return {
     id: page.id,
     title: page.title,
     slug: page.slug,
-    locale: page.locale || 'en',
+    path,
+    locale: page.locale || defaultLocale,
+    defaultLocale,
     content: page.content,
     excerpt: page.excerpt,
     seoTitle: page.seoTitle,
@@ -289,10 +239,24 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
     ogImage: page.ogImage,
     canonicalUrl: page.canonicalUrl,
     metaRobots: page.metaRobots,
+    // Effective robots directive: the item's own override, else the site's per-content-
+    // type default, else (site-wide noindex) noindex — null means index,follow.
+    robots: effectiveItemRobots({ metaRobots: page.metaRobots, typeSlug: type?.slug }, seo),
     publishedAt: page.publishedAt,
     updatedAt: page.updatedAt,
+    type: type ? { slug: type.slug, name: type.singularName || type.name } : null,
+    event: page.eventStartAt
+      ? {
+          startAt: page.eventStartAt,
+          endAt: page.eventEndAt,
+          allDay: page.eventAllDay,
+          location: page.eventLocation,
+          url: page.eventUrl,
+        }
+      : null,
     hasComments,
     author,
     availableLocales,
+    alternates,
   }
 }
