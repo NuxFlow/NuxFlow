@@ -17,7 +17,7 @@ The **Gallery** block is the core building block for photography pages. It rende
 
 ### Adding images
 
-In the **Images** field, paste an image URL into the input and click **Add**. Each image you add appears as a thumbnail row with an optional **alt text** field beside it. Fill in the alt text for every image — it improves accessibility and is used by the image sitemap for Google Images indexing.
+In the **Images** field, paste an image URL into the input and click **Add**. Each image you add appears as a thumbnail row with an optional **alt text** field beside it. Fill in the alt text for every image — it improves accessibility, and Google Images uses it to understand what each photo shows.
 
 To remove an image, click the trash icon on its row.
 
@@ -102,29 +102,23 @@ The toggle appears in the top-right corner of the blog page header. The chosen l
 
 ## Image Sitemap
 
-NuxFlow generates a dedicated image sitemap at `/sitemap-images.xml`. This is a Google Image Sitemap Extension file that lists all images in your media library along with their alt text and caption.
+NuxFlow generates a dedicated image sitemap at `/sitemap-images.xml`. This Google Image Sitemap Extension file lists each of your published pages together with the images shown on it.
 
 Google Images uses this sitemap to discover and index your photos. For a photography site, this is one of the most effective ways to drive search traffic — your photos can appear directly in Google Images searches and in Google Discover.
 
 ### What is included
 
-Every file in your media library with an image MIME type (`image/jpeg`, `image/png`, `image/webp`, etc.) is listed. The sitemap uses the site's canonical URL (configured in **Admin → Settings → SEO**) as the base.
+Every published, public page that search engines may index is listed, together with every image it shows: its featured image, Image blocks, Gallery and Carousel images, and images inside text. Google requires each image to be listed under the page it appears on. Images used only in drafts, members-only pages, or pages marked noindex are left out, and so are library images no page uses yet. The sitemap uses the site's canonical URL (set in **Admin → SEO → Global defaults**) as its base.
 
-Each image entry includes:
-- `<image:loc>` — the full URL of the image file.
-- `<image:title>` — the **alt text** set on the media item (when present).
-- `<image:caption>` — the **caption** set on the media item (when present).
+Each page entry lists one `<image:loc>` per image, containing the image's full URL.
 
-### Improving your image sitemap
+### Improving how your photos rank
 
-The quality of your image sitemap depends directly on how well you have filled in the metadata for each image:
+Google reads each image's description from the **alt text** on the page itself (it no longer uses titles or captions in image sitemaps). To give your photos the best chance:
 
-1. Go to **Admin → Media Library**.
-2. Click any image and add **Alt text** — describe what is in the photo clearly and concisely. The AI **Generate alt text** button can draft this for you.
-3. Add a **Caption** for photos that have one — a location name, a brief description, or the subject's name.
-4. Click **Save**.
-
-Repeat for all images in your library. Images with no alt text or caption still appear in the sitemap but with less information for search engines to work with.
+1. Fill in the **Alt text** field on every image in your Image and Gallery blocks. Describe what is in the photo clearly and concisely.
+2. In **Admin → Media Library**, add alt text to library items too. The AI **Generate alt text** button can draft it for you.
+3. Give each gallery page a descriptive title and meta description, which search engines use as context for the images on it.
 
 ### Submitting to Google
 

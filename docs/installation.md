@@ -267,12 +267,16 @@ NuxFlow ships several AI-discoverability features out of the box — no configur
 
 | Endpoint | What it does |
 |---|---|
-| `/llms.txt` | Machine-readable Markdown index of your site for ChatGPT, Claude, Perplexity, etc. |
+| `/llms.txt`, `/llms-full.txt` | Markdown index (and full text) of your site for ChatGPT, Claude, Perplexity, and other assistants |
+| `/<page>.md` or `Accept: text/markdown` | A clean Markdown version of any page, for AI agents |
+| `/sitemap.xml`, `/sitemap-images.xml` | Indexable pages with `lastmod`, hreflang alternates, and each page's images |
+| `/robots.txt` | Generated from Admin → SEO, including a `Content-Signal` line |
 | `/atom.xml` | Atom 1.0 feed (alongside RSS 2.0 at `/feed.xml`) with author and image metadata |
-| `/sitemap.xml` | Includes `image:image` namespace tags for pages with OG images |
-| JSON-LD | `Article`, `BreadcrumbList`, `Organization`, and `WebSite` schemas auto-injected per page |
+| JSON-LD | `BlogPosting` / `Event` / `WebPage`, `FAQPage`, `BreadcrumbList`, `Organization`, and `WebSite` |
 
-**To control AI crawler access**, go to **Admin → SEO → AI Crawlers** after deploying. The "allow/block all AI crawlers" toggle adds or removes explicit `robots.txt` rules for GPTBot, ClaudeBot, PerplexityBot, and seven others without requiring a redeploy.
+**To control AI crawler access**, go to **Admin → SEO → AI & crawlers** after deploying. Choose between allowing all AI crawlers, blocking AI *training* while still allowing AI search and answers (recommended), or blocking every AI crawler. No redeploy is needed.
+
+**Cloudflare-side settings to check:** in the Cloudflare dashboard, **AI Crawl Control → Block AI bots** and **Managed robots.txt** act before requests reach NuxFlow, for every site on that zone. Turn them off if they contradict your choice in Admin → SEO. Once your custom domain works, you can also set `workers_dev = false` and `preview_urls = false` in `wrangler.toml` so the site isn't also served (duplicated) at its `workers.dev` address. NuxFlow already marks that address `noindex`.
 
 ### Media Storage
 

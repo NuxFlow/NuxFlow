@@ -27,7 +27,9 @@ const { data, pending, error, execute } = await useLazyFetch<SearchResponse>('/a
   immediate: !!route.query.q,
 })
 
-useSeoMeta({ title: computed(() => query.value ? `Search: ${query.value}` : 'Search') })
+// Internal search results are kept out of indexes (also sent as X-Robots-Tag by
+// server/middleware/05.seo-headers.ts and disallowed in robots.txt).
+useSeoMeta({ title: computed(() => query.value ? `Search: ${query.value}` : 'Search'), robots: 'noindex,follow' })
 
 // Semantic search is a supplement, not a replacement (see CLAUDE.md's Search section) —
 // only tried as a fallback when keyword search comes up empty, rather than always running

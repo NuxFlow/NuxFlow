@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
     try {
       site = await db.query.sites.findFirst({
         where: eq(sites.domain, host),
-        columns: { id: true, status: true, setupCompleted: true },
+        columns: { id: true, status: true, setupCompleted: true, domain: true },
       })
 
       // Resilient Fallback: If no site matches the request domain but there is
@@ -113,6 +113,10 @@ export default defineEventHandler(async (event) => {
   event.context.siteId = site?.id ?? null
   event.context.siteStatus = site?.status ?? null
   event.context.setupCompleted = site?.setupCompleted ?? false
+  // The site's own stored domain. Differs from the request host when the site was
+  // reached through the single-site / *.workers.dev fallback above — 05.seo-headers.ts
+  // uses this to keep those duplicate hostnames out of search indexes.
+  event.context.siteDomain = site?.domain ?? null
 
   if (site?.status === 'suspended') {
     // Unlike maintenance mode (self-service, temporary — /admin and /api stay open so

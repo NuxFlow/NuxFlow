@@ -1,36 +1,24 @@
-import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
+import { writeAuditLog } from '../../../utils/audit'
 import { created } from '../../../utils/response'
-import { redirects } from '@nuxflow/db/schema'
-import { ulid } from 'ulid'
-import { clearRedirectCache } from '../../../utils/redirect-cache'
-
-const bodySchema = z.object({
-  from: z.string().startsWith('/'),
-  to: z.string().min(1),
-  statusCode: z.union([z.literal(301), z.literal(302)]).default(301),
-})
+import { redirectRuleSchema, saveRedirect } from '../../../utils/redirects'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  const body = await parseBody(event, bodySchema)
+  const body = await parseBody(event, redirectRuleSchema)
 
-  const id = ulid()
-  const redirectInsert = db.insert(redirects).values({ id, siteId, ...body })
+  const saved = await saveRedirect(db, siteId, body, { overwrite: false })
+  if (saved.action === 'unchanged') conflict(`A redirect from "${saved.from}" already exists — edit it instead`)
 
-  const auditInsert = buildAuditLogInsert(event, userId, {
+  await writeAuditLog(event, userId, {
     action: 'create',
     resource: 'redirect',
-    resourceId: id,
-    after: body,
+    resourceId: saved.id,
+    after: { from: saved.from, to: saved.to, statusCode: saved.statusCode },
   })
 
-  await batchWithAudit(db, [redirectInsert], auditInsert)
-  clearRedirectCache(siteId)
-
-  return created(event, { id })
+  return created(event, { id: saved.id })
 })

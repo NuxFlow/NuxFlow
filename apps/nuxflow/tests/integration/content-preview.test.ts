@@ -15,7 +15,7 @@ vi.mock('../../server/utils/db', () => ({
 
 const { default: previewLinkHandler } = await import('../../server/api/v1/content/[id]/preview-link.post')
 const { default: previewTokenHandler } = await import('../../server/api/preview/[token].get')
-const { default: pageHandler } = await import('../../server/api/public/pages/[slug].get')
+const { default: pageHandler } = await import('../../server/api/public/pages/[...slug].get')
 
 const SITE = 'site-preview-01'
 let authorId: string

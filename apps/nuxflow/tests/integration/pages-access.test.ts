@@ -3,7 +3,7 @@ import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedContentType, seedContentItem, seedTier, seedSubscription } from '../helpers/seed'
-import handler from '../../server/api/public/pages/[slug].get'
+import handler from '../../server/api/public/pages/[...slug].get'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),

@@ -12,7 +12,7 @@ import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedContentType, seedContentItem } from '../helpers/seed'
 import getHandler from '../../server/api/v1/content/[id].get'
 import patchHandler from '../../server/api/v1/content/[id].patch'
-import publicPageHandler from '../../server/api/public/pages/[slug].get'
+import publicPageHandler from '../../server/api/public/pages/[...slug].get'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),

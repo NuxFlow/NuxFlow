@@ -130,12 +130,7 @@ function getLocaleName(code: string) {
 }
 
 function getLocalePath(item: { locale: string; slug: string }) {
-  const defaultLocale = site.value?.locale || 'en'
-  const slugPath = item.slug === 'home' ? '' : item.slug
-  if (item.locale === defaultLocale) {
-    return `/${slugPath}`
-  }
-  return `/${item.locale}/${slugPath}`
+  return localePath(item.locale, item.slug, site.value?.locale || 'en')
 }
 
 function handleClickOutside(e: MouseEvent) {

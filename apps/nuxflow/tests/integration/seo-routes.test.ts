@@ -129,14 +129,16 @@ describe('GET /robots.txt', () => {
     expect(result).not.toContain('User-agent: PerplexityBot')
   })
 
-  it('disallows everything when seo.robots is noindex', async () => {
+  it('signals search=no when seo.robots is noindex, but keeps crawling allowed so the noindex header is seen', async () => {
     const db = getCurrentTestDb()
     const noindexSite = 'site-seo-noindex'
     await seedSite(db, { id: noindexSite, domain: 'noindex.localhost' })
     await seedSetting(db, noindexSite, 'seo.robots', 'noindex')
     const event = createMockEvent({ siteId: noindexSite }) as unknown as H3Event
     const result = await (robotsHandler as HandlerFn)(event) as string
-    expect(result).toBe('User-agent: *\nDisallow: /\n')
+    expect(result).toContain('Content-Signal: search=no, ai-input=no, ai-train=no')
+    expect(result).toContain('Allow: /')
+    expect(result.split('\n')).not.toContain('Disallow: /')
   })
 
   it('adds per-bot Disallow blocks when seo.ai_crawlers is disallow', async () => {
@@ -178,11 +180,11 @@ describe('GET /sitemap.xml', () => {
     expect(result).toContain('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"')
   })
 
-  it('includes homepage, blog index, and search', async () => {
+  it('includes the homepage and blog index, but not internal search results', async () => {
     const result = await (sitemapHandler as HandlerFn)(mkEvent()) as string
     expect(result).toContain('<loc>https://seo.localhost/</loc>')
     expect(result).toContain('<loc>https://seo.localhost/blog</loc>')
-    expect(result).toContain('<loc>https://seo.localhost/search</loc>')
+    expect(result).not.toContain('<loc>https://seo.localhost/search</loc>')
   })
 
   it('includes published public content items', async () => {
@@ -334,10 +336,10 @@ describe('GET /llms.txt', () => {
     expect(result).toContain('> A great test site for SEO testing')
   })
 
-  it('lists published public content with markdown links', async () => {
+  it('lists published public content, linking each page\'s Markdown alternate', async () => {
     const result = await (llmsHandler as HandlerFn)(mkEvent()) as string
-    expect(result).toContain('[Hello World](https://seo.localhost/hello-world)')
-    expect(result).toContain('[No Image Post](https://seo.localhost/no-image-post)')
+    expect(result).toContain('[Hello World](https://seo.localhost/hello-world.md)')
+    expect(result).toContain('[No Image Post](https://seo.localhost/no-image-post.md)')
   })
 
   it('excludes draft content from the listing', async () => {
@@ -355,16 +357,17 @@ describe('GET /llms.txt', () => {
     expect(result).toContain('My first post excerpt')
   })
 
-  it('has a Content Discovery section with sitemap, feeds, and search', async () => {
+  it('has an Optional section with llms-full.txt, the sitemap, and feeds', async () => {
     const result = await (llmsHandler as HandlerFn)(mkEvent()) as string
+    expect(result).toContain('## Optional')
+    expect(result).toContain('/llms-full.txt')
     expect(result).toContain('/sitemap.xml')
     expect(result).toContain('/feed.xml')
     expect(result).toContain('/atom.xml')
-    expect(result).toContain('/search')
   })
 
-  it('has a Content API section pointing to the public posts endpoint', async () => {
+  it('no longer advertises the JSON API, which robots.txt disallows', async () => {
     const result = await (llmsHandler as HandlerFn)(mkEvent()) as string
-    expect(result).toContain('/api/public/posts')
+    expect(result).not.toContain('/api/public/')
   })
 })

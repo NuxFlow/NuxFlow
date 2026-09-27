@@ -46,6 +46,8 @@ const EXCLUDED_EXACT_PATHS = new Set([
   '/events.ics',
   '/robots.txt',
   '/llms.txt',
+  '/llms-full.txt',
+  '/indexnow-key.txt',
 ])
 
 export const PAGE_CACHE_TTL_SECONDS = 3600

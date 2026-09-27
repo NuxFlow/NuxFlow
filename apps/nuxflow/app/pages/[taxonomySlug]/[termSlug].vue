@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { PublicSiteInfo } from '~/utils/seo'
+
 const route = useRoute()
 const router = useRouter()
 const taxonomySlug = route.params.taxonomySlug as string
@@ -14,6 +16,14 @@ interface PostItem {
   publishedAt: string | null
 }
 
+// Vue Router ranks this two-segment route above the `[...slug]` catch-all, so a translated
+// page (/es/about) or any other two-segment content path lands here too. The site's active
+// locales identify the translated case up front (no wasted taxonomy lookup); anything else
+// that isn't a real taxonomy archive falls back to the content page renderer, which 404s
+// properly if there's no content either.
+const { data: site } = await useFetch<PublicSiteInfo>('/api/public/site', { headers: useRequestHeaders(['host']) })
+const isLocalePath = (site.value?.locales ?? []).includes(taxonomySlug)
+
 const { data, error } = await useFetch<{
   taxonomy: { id: string; name: string; slug: string }
   term: { id: string; name: string; slug: string; description: string | null }
@@ -25,15 +35,72 @@ const { data, error } = await useFetch<{
 }>(`/api/public/taxonomy/${taxonomySlug}/${termSlug}`, {
   query: computed(() => ({ page: page.value, limit: 10 })),
   headers: useRequestHeaders(['host']),
+  immediate: !isLocalePath,
 })
 
-if (error.value) {
-  throw createError({ statusCode: 404, message: 'Not found' })
+const renderAsPage = computed(() => isLocalePath || error.value?.statusCode === 404)
+if (error.value && !renderAsPage.value) {
+  throw createError({ statusCode: error.value.statusCode ?? 500, message: 'Something went wrong' })
 }
 
-useSeoMeta({
-  title: computed(() => data.value ? `${data.value.term.name} — ${data.value.taxonomy.name}` : ''),
+const canonicalBase = computed(() => site.value?.canonicalBase ?? '')
+const siteName = computed(() => site.value?.name ?? '')
+const archiveUrl = computed(() => canonicalBase.value ? `${canonicalBase.value}/${taxonomySlug}/${termSlug}` : '')
+const archiveTitle = computed(() => data.value ? `${data.value.term.name} — ${data.value.taxonomy.name}` : '')
+const archiveDesc = computed(() => {
+  if (!data.value) return ''
+  return data.value.term.description
+    || `${data.value.total} ${data.value.total === 1 ? 'post' : 'posts'} filed under ${data.value.term.name}${siteName.value ? ` on ${siteName.value}` : ''}.`
 })
+
+// Only when this route is actually rendering an archive — PublicContentPage sets its own.
+if (!renderAsPage.value) {
+  useSeoMeta({
+    title: archiveTitle,
+    description: archiveDesc,
+    robots: computed(() => (site.value?.seo?.noindexTaxonomies ? 'noindex,follow' : undefined)),
+    ogTitle: archiveTitle,
+    ogDescription: archiveDesc,
+    ogType: 'website',
+    ogUrl: archiveUrl,
+    ogImage: computed(() => site.value?.seo?.ogImage || undefined),
+    twitterCard: 'summary',
+  })
+
+  useHead({
+    script: computed(() => {
+      if (!data.value || !archiveUrl.value) return []
+      return [
+        {
+          type: 'application/ld+json',
+          innerHTML: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'CollectionPage',
+            name: archiveTitle.value,
+            description: archiveDesc.value,
+            url: archiveUrl.value,
+            mainEntity: {
+              '@type': 'ItemList',
+              numberOfItems: data.value.total,
+              itemListElement: data.value.items.map((it, i) => ({ '@type': 'ListItem', position: i + 1, url: `${canonicalBase.value}/${it.slug}`, name: it.title })),
+            },
+          }),
+        },
+        {
+          type: 'application/ld+json',
+          innerHTML: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              { '@type': 'ListItem', position: 1, name: siteName.value || 'Home', item: `${canonicalBase.value}/` },
+              { '@type': 'ListItem', position: 2, name: data.value.term.name, item: archiveUrl.value },
+            ],
+          }),
+        },
+      ]
+    }),
+  })
+}
 
 function goToPage(p: number) {
   router.push({ query: { ...route.query, page: p > 1 ? p : undefined } })
@@ -47,7 +114,8 @@ function formatDate(d: string) {
 </script>
 
 <template>
-  <div v-if="data" class="max-w-3xl mx-auto px-4 py-12 space-y-8">
+  <PublicContentPage v-if="renderAsPage" :slug-path="`${taxonomySlug}/${termSlug}`" />
+  <div v-else-if="data" class="max-w-3xl mx-auto px-4 py-12 space-y-8">
     <!-- Header -->
     <div>
       <p class="text-sm text-gray-500 uppercase tracking-wide font-medium mb-1">{{ data.taxonomy.name }}</p>

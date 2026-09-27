@@ -65,7 +65,7 @@ export default defineEventHandler(async (event) => {
   // draft or to a page whose comments are switched off — filling the moderation queue
   // with content no visitor could ever have posted through the site.
   // Per-item override takes precedence; null means "inherit from content type" (same
-  // rule as api/public/pages/[slug].get.ts).
+  // rule as api/public/pages/[...slug].get.ts).
   const commentsEnabled = item.allowComments ?? (await db.query.contentTypes.findFirst({
     where: eq(contentTypes.id, item.typeId),
     columns: { hasComments: true },

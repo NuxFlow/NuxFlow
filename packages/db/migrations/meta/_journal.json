@@ -162,6 +162,13 @@
       "when": 1790350901711,
       "tag": "0022_aspiring_loners",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1790512769463,
+      "tag": "0023_bitter_mole_man",
+      "breakpoints": true
     }
   ]
 }

@@ -47,6 +47,10 @@ const PUBLIC_KEY_SHAPED_EXCEPTIONS = new Set([
   // keys — they only share the dotted shape the literal scan above looks for.
   'security.api_key_created',
   'security.password_changed',
+  // IndexNow's key is public by design: it's served in plain text at /indexnow-key.txt
+  // (server/routes/indexnow-key.txt.ts) so search engines can verify host ownership —
+  // publishing it is the whole mechanism, so encrypting it at rest would protect nothing.
+  'seo.indexnow_key',
 ])
 
 function collectTsFiles(dir: string, out: string[] = []): string[] {

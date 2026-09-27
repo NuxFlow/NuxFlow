@@ -5,10 +5,11 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getContentTypeBySlugOrThrow, getContentItemOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
 import { created, conflict } from '../../../utils/response'
 import { purgeContentCache } from '../../../utils/edge-cache'
+import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexnow'
 import { waitUntil } from '../../../utils/cf-env'
 import { upsertContentEmbedding } from '../../../utils/embeddings'
 import { contentItems, sites } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 
 const bodySchema = z.object({
@@ -72,6 +73,9 @@ export default defineEventHandler(async (event) => {
     title: body.title,
     slug: body.slug,
     status: body.status,
+    // Created already-published (e.g. via the API or MCP) — stamp the publish date the
+    // same way PATCH does on a first publish; feeds, sitemaps, and JSON-LD rely on it.
+    publishedAt: body.status === 'published' ? sql`(datetime('now'))` : null,
     visibility: deriveVisibilityFromSettings(body.settings),
     content: body.content,
     seoTitle: body.seoTitle,
@@ -102,6 +106,18 @@ export default defineEventHandler(async (event) => {
     status: body.status,
     visibility: deriveVisibilityFromSettings(body.settings),
   }))
+
+  if (body.status === 'published' && deriveVisibilityFromSettings(body.settings) === 'public') {
+    waitUntil(event, (async () => {
+      const paths = await indexablePathsForItems(db, siteId, [{
+        slug: body.slug,
+        locale: body.locale || siteLocale,
+        sourceItemId: body.sourceItemId || null,
+        typeId: type.id,
+      }])
+      await submitToIndexNow(db, siteId, paths)
+    })().catch(err => console.error('[indexnow] Content create notification failed:', err)))
+  }
 
   return created(event, { id })
 })
