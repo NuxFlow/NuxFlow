@@ -29,7 +29,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // sign-up pages. Deliberately scoped to just these two — /setup and
   // /reset-password/forgot-password have legitimate authenticated use cases
   // (secondary-site setup, changing a password while signed in).
-  if (user.value && (to.path === '/login' || to.path === '/register')) {
+  // On the accounts origin the sign-in pages continue to `next` themselves (a signed-in
+  // visitor there is usually on their way to a site, not to an admin on that host).
+  if (user.value && (to.path === '/login' || to.path === '/register') && !useAccounts().isAccountsHost) {
     return navigateTo('/admin')
   }
 })

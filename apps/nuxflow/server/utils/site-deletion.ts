@@ -1,14 +1,15 @@
 import type { H3Event } from 'h3'
 import { useDb } from './db'
 import { clearSiteCache } from '../middleware/02.multi-site'
-import { getActiveProvider } from './media-providers/index'
+import { deleteStoredMedia } from './media-providers/storage-delete'
 import { writeAuditLog } from './audit'
 import { deletePluginAssets } from './cf-plugin-kv'
 import { deleteThemeCSS, deleteThemeDemo } from './cf-theme-kv'
 import { errorMessage } from './errors'
 import { deleteSiteEmailObjects } from './inbox'
+import { deleteContentEmbeddings } from './embeddings'
 import {
-  sites, users, userSiteRoles, media,
+  sites, users, userSiteRoles, media, contentItems,
   accounts, sessions, passkeys, themes, dynamicPlugins,
 } from '@nuxflow/db/schema'
 import { eq, and, ne, inArray } from 'drizzle-orm'
@@ -57,21 +58,24 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
   // anywhere recording that erasure didn't actually happen. Each failure is now logged
   // with the storage key and returned to the caller so it can surface to whoever
   // triggered the deletion instead of disappearing silently.
-  const allMedia = await db.select({ storageKey: media.storageKey }).from(media).where(eq(media.siteId, siteId))
+  //
+  // deleteStoredMedia() resolves the provider from the *deleted* site's own settings (not
+  // the acting super admin's site — a tenant on its own S3/Bunny/Images account would
+  // otherwise have every delete sent to the wrong storage) and only ever touches keys
+  // under that site's own prefix.
+  const allMedia = await db.select({ storageKey: media.storageKey, storageProvider: media.storageProvider })
+    .from(media).where(eq(media.siteId, siteId))
   const failedMediaDeletes: string[] = []
-  if (allMedia.length > 0) {
-    const provider = await getActiveProvider(event)
-    for (const file of allMedia) {
-      try {
-        await provider.delete(file.storageKey)
-      }
-      catch (err) {
-        failedMediaDeletes.push(file.storageKey)
-        console.error(JSON.stringify({
-          event: 'site.delete.media_failed', siteId, storageKey: file.storageKey,
-          error: errorMessage(err, String(err)),
-        }))
-      }
+  for (const file of allMedia) {
+    try {
+      if (!(await deleteStoredMedia(event, siteId, file))) failedMediaDeletes.push(file.storageKey)
+    }
+    catch (err) {
+      failedMediaDeletes.push(file.storageKey)
+      console.error(JSON.stringify({
+        event: 'site.delete.media_failed', siteId, storageKey: file.storageKey,
+        error: errorMessage(err, String(err)),
+      }))
     }
   }
 
@@ -107,6 +111,10 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
   catch (err) {
     console.error(JSON.stringify({ event: 'site.delete.kv_cleanup_failed', siteId, error: errorMessage(err, String(err)) }))
   }
+
+  // 2b. Semantic-search vectors live in Vectorize (namespaced by site), outside D1.
+  const siteItemIds = await db.select({ id: contentItems.id }).from(contentItems).where(eq(contentItems.siteId, siteId))
+  await deleteContentEmbeddings(event, siteItemIds.map(r => r.id))
 
   // 3. Handle users and roles. `user_site_roles` itself has an `onDelete: 'cascade'` FK to
   // sites.id, so the rows for this site don't need a manual delete here — step 4's final

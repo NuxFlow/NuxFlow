@@ -38,6 +38,19 @@ Sessions are handled directly by the [Better Auth](https://www.better-auth.com/)
 - Sessions expire and are rotated on activity; the rotation window is configurable
 - OAuth sessions (Google, GitHub) follow the same session model — the provider token is stored in the `accounts` table but is not exposed to the frontend
 
+### Signing in across several sites
+
+Accounts are global, and each site's admins can add their own scripts to their own pages. With more than one site, sign-in therefore happens on a dedicated **sign-in domain** (`NUXT_PUBLIC_ACCOUNTS_URL`) that never renders any site's content or code — passwords, reset links, passkeys, OAuth callbacks and account-wide actions (deleting the account, exporting its data) exist only there. Better Auth's endpoints are not served on site domains at all.
+
+A site's own domain gets a **site session** through a one-time-code handoff, the same shape as an OAuth authorization code:
+
+- The site sets a short-lived `state` cookie and sends the browser to the sign-in domain's `/authorize`.
+- Once the person is signed in there, the server stores a single-use code (hashed, valid ~60 seconds) bound to the person, the site and their sign-in session, and sends the browser to a callback URL built from the site's **stored** domain — never from the request.
+- The site's callback checks `state` against its cookie (so a code can't be pushed into someone else's browser), consumes the code server-side, and sets a `__Host-` prefixed, `HttpOnly` cookie valid on that site only.
+- A site that isn't one of the person's own gets an explicit "Continue to …" click first, so no site can learn who a visitor is by silently redirecting them through the sign-in domain.
+
+Site sessions are children of the sign-in session: signing out there, a password reset, or deleting the account ends every site session at once. A stolen site-session cookie reaches that one site only, and never the account itself. The sign-in domain sends `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` and `noindex`, and even on a single-site install custom site code is never injected into the sign-in, reset or account pages.
+
 ---
 
 ## Sensitive Settings Encryption

@@ -5,6 +5,7 @@ import { emailLog, sites } from '@nuxflow/db/schema'
 import { resolveSetting } from './settings'
 import { getEmailBinding } from './cf-env'
 import { useDb } from './db'
+import { getSiteInfo, isPrimarySite } from './site-info'
 
 const HTML_ESCAPE_MAP: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
 
@@ -165,6 +166,7 @@ async function sendViaCloudflareEmail(msg: EmailMessage, config: EmailConfig, ev
     throw new Error('Cloudflare Email Sending is not available — add a send_email binding (name "EMAIL") to wrangler.toml and run `wrangler email sending enable <domain>` for your sending domain.')
   }
   const sender = resolveSender(msg, config)
+  await assertSharedSenderAllowed(event, config.siteId, sender.address)
   const result = await email.send({
     to: msg.to,
     // The binding's runtime validator rejects an EmailAddress object that has `email` but
@@ -178,6 +180,24 @@ async function sendViaCloudflareEmail(msg: EmailMessage, config: EmailConfig, ev
     ...(msg.headers ? { headers: msg.headers } : {}),
   })
   return { messageId: (result as { messageId?: string } | undefined)?.messageId }
+}
+
+/**
+ * The `EMAIL` binding sends through the operator's Cloudflare account, where every
+ * tenant's domain (and the operator's own) may be enabled for sending — so without a check
+ * any site could send as any other. A non-primary site may only send from its own domain
+ * (or a subdomain of it) or the shared inbound platform domain it receives mail on. The
+ * primary site is the operator's and isn't restricted.
+ */
+export async function assertSharedSenderAllowed(event: H3Event, siteId: string | undefined, address: string): Promise<void> {
+  if (!siteId) return
+  const site = await getSiteInfo(event, siteId)
+  if (!site || site.isPrimary) return
+  const senderDomain = address.slice(address.lastIndexOf('@') + 1).toLowerCase()
+  const base = site.domain.replace(/^www\./, '').toLowerCase()
+  const platform = String(useRuntimeConfig().inboundEmailDomain ?? '').trim().toLowerCase()
+  if (senderDomain === base || senderDomain.endsWith(`.${base}`) || (platform && senderDomain === platform)) return
+  throw new Error(`Sending from ${address} isn't allowed for this site — the from address must be on ${base}.`)
 }
 
 async function dispatch(config: EmailConfig, msg: EmailMessage, event: H3Event): Promise<SendResult> {
@@ -247,7 +267,7 @@ export async function loadEmailConfig(event: H3Event): Promise<EmailConfig> {
   // per 30s window) costs one round trip's worth of latency instead of several serialized
   // ones. Fires on every email send (password resets, invites, form notifications), so
   // this is a real per-request hot path, not an admin-only rarity.
-  const [emailProvider, fromAddress, fromName, resendApiKey, brevoApiKey, zeptoApiKey, siteName] = await Promise.all([
+  const [storedProvider, fromAddress, fromName, resendApiKey, brevoApiKey, zeptoApiKey, siteName] = await Promise.all([
     resolveSetting(event, 'email.provider', 'emailProvider'),
     resolveSetting(event, 'email.from_address', 'emailFromAddress'),
     resolveSetting(event, 'email.from_name'),
@@ -257,8 +277,15 @@ export async function loadEmailConfig(event: H3Event): Promise<EmailConfig> {
     siteId ? getSiteName(event, siteId) : Promise.resolve(''),
   ])
 
+  // With nothing configured, a site other than the primary one falls back to the shared
+  // Cloudflare binding (restricted to its own domain — see assertSharedSenderAllowed)
+  // rather than inheriting the operator's provider; resolveSetting() already withholds
+  // the env provider/keys from non-primary sites (PLATFORM_ONLY_ENV_KEYS).
+  const emailProvider = storedProvider
+    || (siteId && getEmailBinding(event) && !(await isPrimarySite(event, siteId)) ? 'cloudflare' : 'console')
+
   return {
-    emailProvider: emailProvider || 'console',
+    emailProvider,
     fromAddress,
     // An explicit From name wins; otherwise mail goes out under the site's own name
     // ("Acme Bakery <noreply@…>") rather than a bare address, which is both friendlier

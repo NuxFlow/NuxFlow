@@ -13,6 +13,7 @@ import { isHttpError } from '../../utils/errors'
 import { purgeAllPublicPages } from '../../utils/edge-cache'
 import { waitUntil } from '../../utils/cf-env'
 import { writeAuditLog } from '../../utils/audit'
+import { rateLimit } from '../../utils/rate-limit'
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB
 
@@ -29,6 +30,9 @@ function looksLikeZip(bytes: Uint8Array): boolean {
 }
 
 export default defineEventHandler(async (event) => {
+  // A restore can provision accounts and send set-password emails for every user it
+  // names (up to MAX_BACKUP_USERS) — bound how often that can be repeated.
+  await rateLimit(event, { limit: 5, windowMs: 60 * 60_000, keyPrefix: 'restore' })
   const { userId } = await requireRole(event, 'admin')
   const siteId = event.context.siteId as string
   const db = useDb(event)
@@ -119,6 +123,7 @@ export default defineEventHandler(async (event) => {
       // (a data: URI needs no hosting), yet it'd be missing from Admin → Media entirely.
       if (item.url.startsWith('data:')) {
         try {
+          const rowId = existing?.id ?? ulid()
           const values = {
             siteId,
             uploadedBy: userId,
@@ -130,14 +135,17 @@ export default defineEventHandler(async (event) => {
             height: item.height ?? undefined,
             url: item.url,
             storageProvider: 'local' as const,
-            storageKey: item.originalName,
+            // Never taken from the backup: a .zip is user-editable, and a storage key naming
+            // another tenant's object was a way to get that object deleted through this
+            // site's media library. A local row's bytes live in `url`, so the key is inert.
+            storageKey: `${siteId}/${rowId}`,
             altText: item.altText ?? undefined,
             caption: item.caption ?? undefined,
           }
           if (existing) {
             await db.update(media).set(values).where(eq(media.id, existing.id))
           } else {
-            await db.insert(media).values({ id: ulid(), ...values })
+            await db.insert(media).values({ id: rowId, ...values })
           }
           mediaResult.uploaded++
         } catch (e) {

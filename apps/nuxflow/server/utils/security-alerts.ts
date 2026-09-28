@@ -5,13 +5,15 @@ import { useDb, type Db } from './db'
 import { createSystemEvent } from './system-event'
 import { getExecutionContext, waitUntil } from './cf-env'
 import { sendNotification } from './notify'
+import { getSiteInfo } from './site-info'
 
 /**
  * Security alerts — emails (always, regardless of preferences — see NOTIFICATION_TYPES in
  * notify.ts) plus in-app/push notices when something sensitive happens on an account.
  *
- * `/api/auth/**` bypasses multi-site resolution (02.multi-site.ts), so these resolve the
- * site from the Host header themselves and run on a system event scoped to it.
+ * `/api/auth/**` bypasses multi-site resolution (02.multi-site.ts) — and under central
+ * sign-in runs on the accounts origin, which is no site at all — so these resolve a site
+ * themselves (see resolveSiteIdForHost) and run on a system event scoped to it.
  */
 
 export async function resolveSiteIdForHost(db: Db, host: string): Promise<string | null> {
@@ -21,7 +23,11 @@ export async function resolveSiteIdForHost(db: Db, host: string): Promise<string
     columns: { id: true },
   })
   if (site) return site.id
-  // Same single-site fallback 02.multi-site.ts uses.
+  // No site answers on this host — the accounts origin (central sign-in), or a
+  // single-site install reached on another hostname. Account-level alerts belong to the
+  // operator's own site then: the primary one, else the only one.
+  const primary = await db.query.sites.findFirst({ where: eq(sites.isPrimary, true), columns: { id: true } })
+  if (primary) return primary.id
   const all = await db.query.sites.findMany({ columns: { id: true }, limit: 2 })
   return all.length === 1 ? all[0]!.id : null
 }
@@ -31,11 +37,14 @@ export async function siteEventForRequest(event: H3Event): Promise<H3Event | nul
   const host = getHeader(event, 'host') ?? ''
   const siteId = (event.context.siteId as string | undefined) ?? await resolveSiteIdForHost(useDb(event), host)
   if (!siteId) return null
+  // The site's own domain, not the request's — on the accounts origin those differ, and
+  // email defaults (sender address, absolute links) are derived from this host.
+  const site = await getSiteInfo(event, siteId)
   return createSystemEvent({
     env: event.context.cloudflare?.env ?? (globalThis as { __env__?: unknown }).__env__,
     ctx: getExecutionContext(event) ?? undefined,
     siteId,
-    host: host.split(':')[0],
+    host: site?.domain ?? host.split(':')[0],
   })
 }
 

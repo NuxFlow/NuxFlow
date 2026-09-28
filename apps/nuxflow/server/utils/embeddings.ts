@@ -101,6 +101,24 @@ export async function deleteContentEmbedding(event: H3Event, contentItemId: stri
   }
 }
 
+/**
+ * Removes every vector for a set of content items — site deletion, where the D1 rows go
+ * with the FK cascade but the Vectorize namespace would otherwise keep them forever.
+ * Batched: Vectorize accepts at most 1000 ids per deleteByIds() call.
+ */
+export async function deleteContentEmbeddings(event: H3Event, contentItemIds: string[]): Promise<void> {
+  const index = getVectorizeIndex(event)
+  if (!index || contentItemIds.length === 0) return
+  for (let i = 0; i < contentItemIds.length; i += 1000) {
+    const batch = contentItemIds.slice(i, i + 1000)
+    try {
+      await index.deleteByIds(batch)
+    } catch (err) {
+      console.error(`[embeddings] Failed to delete ${batch.length} embeddings:`, err)
+    }
+  }
+}
+
 export interface SemanticMatch {
   contentItemId: string
   score: number

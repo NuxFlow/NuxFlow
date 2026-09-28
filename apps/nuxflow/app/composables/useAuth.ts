@@ -28,8 +28,15 @@ export function useUserSession() {
     user.value = res.user
   }
 
+  // Resolved here, not inside signOut(): composables need the Nuxt context, which an
+  // event handler calling signOut() later may no longer have.
+  const { onSiteDomain } = useAccounts()
+
   async function signOut() {
-    await useAuthClient().signOut()
+    // On a site's own domain (central sign-in) this ends the login for this site only;
+    // signing out of every site happens on the accounts origin.
+    if (onSiteDomain) await $fetch('/api/v1/auth/sign-out', { method: 'POST' })
+    else await useAuthClient().signOut()
     user.value = null
   }
 

@@ -87,8 +87,13 @@ export const rateLimits = sqliteTable('rate_limits', {
   resetAt: text('reset_at').notNull(),
 })
 
+// Keyed by (site_id, id), not id alone: `id` is the publisher's manifest id, and a global
+// primary key meant only one site in the whole deployment could ever install a given
+// plugin — the second tenant got a raw constraint error, and any tenant could squat a
+// popular plugin's id (signed with their own key) to block every other site from it.
+// Rebuilt in migration 0024; safe because no other table has a FK to this one.
 export const dynamicPlugins = sqliteTable('dynamic_plugins', {
-  id: text('id').primaryKey(),
+  id: text('id').notNull(),
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   version: text('version').notNull(),
@@ -114,7 +119,7 @@ export const dynamicPlugins = sqliteTable('dynamic_plugins', {
   signature: text('signature').notNull().default(''),
   installedAt: text('installed_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
-  index('idx_dynamic_plugins_site').on(t.siteId),
+  primaryKey({ columns: [t.siteId, t.id] }),
 ])
 
 // Pins a plugin id's publisher key per site, independent of the `dynamic_plugins` row

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
 import { clearSiteCache } from '../../../../middleware/02.multi-site'
+import { normalizeDomain } from '../../../../utils/domain'
 import { sites, auditLogs } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -26,6 +27,15 @@ export default defineEventHandler(async (event) => {
     columns: { domain: true, status: true, name: true, locale: true },
   })
   if (!existing) throw notFound('Site not found')
+
+  if (body.domain !== undefined) {
+    // Stored exactly as the Host header will present it (see utils/domain.ts).
+    const domain = normalizeDomain(body.domain)
+    if (!domain) throw validationError('Enter a valid domain, e.g. example.com')
+    const taken = await db.query.sites.findFirst({ where: eq(sites.domain, domain), columns: { id: true } })
+    if (taken && taken.id !== id) throw conflict('Another site already uses that domain')
+    body.domain = domain
+  }
 
   await db.update(sites).set({ ...body, updatedAt: sql`(datetime('now'))` }).where(eq(sites.id, id))
 

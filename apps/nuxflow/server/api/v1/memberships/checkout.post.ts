@@ -135,12 +135,8 @@ export default defineEventHandler(async (event) => {
   // an unhandled exception, matching the pattern subscription.delete.ts already uses.
   try {
     if (stripe && tier.stripePriceId) {
-      const customers = await stripe.listCustomersByEmail(userEmail)
-      let customerId = customers[0]?.id
-      if (!customerId) {
-        const customer = await stripe.createCustomer(userEmail, userName)
-        customerId = customer.id
-      }
+      const customerId = (await stripe.findCustomerForSite(userEmail, siteId))?.id
+        ?? (await stripe.createCustomer(userEmail, userName, siteId)).id
       const checkoutSession = await stripe.createCheckoutSession({
         customerId,
         priceId: tier.stripePriceId,

@@ -156,7 +156,7 @@ describe('Stripe webhooks', () => {
     expect(sub!.providerCustomerId).toBe('cus_wh_001')
   })
 
-  it('throws 400 when the subscription event metadata siteId does not match the request site', async () => {
+  it('acknowledges and ignores a subscription event whose metadata siteId is another site', async () => {
     mockConstructEvent.mockReturnValueOnce({
       type: 'customer.subscription.created',
       data: {
@@ -172,9 +172,15 @@ describe('Stripe webhooks', () => {
       },
     })
 
+    // A 2xx, not an error: a provider account shared by several sites sends every event to
+    // every endpoint, and failing it would get the endpoint disabled (WebhookForOtherSite).
     await expect(
       (handler as HandlerFn)(mkEvent('stripe', '{}', { 'stripe-signature': 'valid-sig' })),
-    ).rejects.toMatchObject({ statusCode: 400 })
+    ).resolves.toEqual({ received: true, ignored: true })
+    const written = await getCurrentTestDb().query.subscriptions.findFirst({
+      where: eq(subscriptions.providerSubscriptionId, 'sub_wrong_site'),
+    })
+    expect(written).toBeUndefined()
   })
 
   it('updates an existing subscription on customer.subscription.updated', async () => {

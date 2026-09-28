@@ -66,8 +66,8 @@ export default defineEventHandler(async (event) => {
       if (!site && siteCount?.value === 1) {
         site = await db.query.sites.findFirst()
       } else if (!site && (siteCount?.value ?? 0) > 1 && (cacheHost === 'localhost' || cacheHost.endsWith('.workers.dev'))) {
-        // Local/Preview fallback: default to the first site in D1
-        site = await db.query.sites.findFirst()
+        // Local/Preview fallback: the primary site, matching 02.multi-site.ts
+        site = await db.query.sites.findFirst({ orderBy: (s, { desc, asc }) => [desc(s.isPrimary), asc(s.createdAt)] })
       }
 
       if (site) {

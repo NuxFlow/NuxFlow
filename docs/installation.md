@@ -525,6 +525,37 @@ Dynamic plugins are a Cloudflare-only feature. They are not available in local d
 
 For a complete walkthrough of building and publishing your own dynamic plugin — including the CLI commands, plugin structure, Canvas block registration, and troubleshooting — see the **[External Plugin Development Guide](./plugins.md)**.
 
+### Hosting several sites
+
+One NuxFlow installation can run many websites, each on its own domain (see [Multi-Site Hosting](./multi-site.md)). Before you add a second site, give sign-in its own domain — NuxFlow refuses to create a second site until you have.
+
+**Why:** accounts are shared — one login works on every site. Each site's admins can also add their own code to their site (Settings → Appearance → custom code). If people typed their password on a site's own domain, that site's code could read it, and with it get into every other site that person uses. So passwords, passkeys and account settings live on one domain that never runs any site's code, the way `accounts.google.com` or `accounts.shopify.com` do.
+
+**What people see:** clicking "Sign in" on `tenant.com` takes them to `accounts.yourplatform.com`, showing that site's name and logo. They sign in there (or are already signed in), and are sent straight back to `tenant.com`, signed in to that site only. Their password never touches `tenant.com`.
+
+**Set it up:**
+
+1. Pick a hostname for it, for example `accounts.yourplatform.com`. It must not be any site's domain.
+2. Route it to the Worker like any other domain (**Workers & Pages → nuxflow → Settings → Domains & Routes → Add → Custom Domain**).
+3. Set the variable in `apps/nuxflow/wrangler.toml` (it isn't a secret) and redeploy:
+
+   ```toml
+   [vars]
+   NUXT_PUBLIC_ACCOUNTS_URL = "https://accounts.yourplatform.com"
+   ```
+4. If you use Google or GitHub sign-in, add the accounts domain's callback URLs to your OAuth apps — see [Social Login](#social-login-google--github) below. One app now covers every site.
+5. Passkeys created before this change were tied to a site's own domain and stop working; everyone adds a new one from their account page (`https://accounts.yourplatform.com/account`).
+
+**Local development:** modern browsers send `*.localhost` to your own machine, so no DNS is needed. Start the dev server with the variable set:
+
+```bash
+npx wrangler dev --var NUXT_PUBLIC_ACCOUNTS_URL:http://accounts.localhost:8787
+```
+
+Your site stays at `http://localhost:8787`; sign-in happens at `http://accounts.localhost:8787`.
+
+**Credentials each site must bring itself:** payment keys (Stripe, Lemon Squeezy, Paddle) and email-provider API keys set as deployment variables are only used by the **main site** — the one created by the first install. Every other site enters its own in **Settings**, so a site can never take payments into your account or send mail through it. A site with no email provider set up sends through Cloudflare Email Sending, and only from addresses on its own domain. AI and media-storage defaults are still shared with every site.
+
 ### Social Login (Google & GitHub)
 
 NuxFlow supports signing in — and registering — with Google and GitHub. Both providers are optional; leave the secrets unset to keep social login disabled.
@@ -533,10 +564,10 @@ NuxFlow supports signing in — and registering — with Google and GitHub. Both
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com) → **APIs & Services → Credentials**
 2. Click **Create Credentials → OAuth 2.0 Client ID**, choose **Web application**
-3. Under **Authorized redirect URIs** add one entry for each domain that will use Google sign-in:
-   - `http://localhost:8787/api/auth/callback/google` (local development — `pnpm dev` and `wrangler dev` are the same thing, see [Local Development](#1-local-development))
-   - `https://yourdomain.com/api/auth/callback/google` (production primary domain)
-   - `https://anotherdomain.com/api/auth/callback/google` (any additional custom domain)
+3. Under **Authorized redirect URIs** add the domain people sign in on:
+   - With a sign-in domain ([Hosting several sites](#hosting-several-sites)): `https://accounts.yourplatform.com/api/auth/callback/google` — this one entry covers every site.
+   - A single site without one: `https://yourdomain.com/api/auth/callback/google`
+   - Local development: `http://localhost:8787/api/auth/callback/google` (or `http://accounts.localhost:8787/...` if you run with a local sign-in domain)
 4. Copy the **Client ID** and **Client Secret**, then add them as secrets:
 
 ```bash
@@ -545,14 +576,12 @@ wrangler secret put NUXT_GOOGLE_CLIENT_ID
 wrangler secret put NUXT_GOOGLE_CLIENT_SECRET
 ```
 
-::note
-**Multi-domain deployments:** you do **not** need a separate Google Cloud project or OAuth client per domain. A single OAuth 2.0 client supports multiple redirect URIs — just add `/api/auth/callback/google` for every custom domain in the same client's **Authorized redirect URIs** list. NuxFlow automatically uses the correct callback URL for each domain using the incoming request's hostname.
-::
+
 
 #### GitHub
 
 1. Go to **github.com → Settings → Developer settings → OAuth Apps → New OAuth App**
-2. Set **Authorization callback URL** to `https://yourdomain.com/api/auth/callback/github`
+2. Set **Authorization callback URL** to `https://accounts.yourplatform.com/api/auth/callback/github` (or `https://yourdomain.com/api/auth/callback/github` for a single site without a sign-in domain)
    - For local dev add a separate OAuth App pointing to `http://localhost:8787/api/auth/callback/github`
 3. Copy the **Client ID** and generate a **Client Secret**, then add them:
 
@@ -568,7 +597,7 @@ If you use automated deploys, add these four variables as build-time environment
 ::
 
 ::note
-**Multi-site deployments:** the `wrangler secret` values above are a single deployment-wide default — every site falls back to them unless it configures its own. Since GitHub OAuth Apps only support one callback URL each, a secondary site that needs GitHub login needs its own OAuth App and its own credentials, set per-site via **Admin → Settings → Integrations → Social Login** on that site's domain rather than as another `wrangler secret`. Google doesn't have this limitation (one client, many redirect URIs), so the shared default is usually enough there. See [Multi-Site Hosting → Social login on custom domains](./multi-site.md#social-login-on-custom-domains) for the full picture.
+**Several sites:** accounts are shared, so Google/GitHub sign-in is one OAuth app for the whole installation. Instead of the secrets above you can also enter the credentials in **Admin → Settings → Integrations → Social Login** on the main site (stored encrypted, no redeploy needed). Other sites don't have this setting.
 ::
 
 ---
@@ -641,6 +670,10 @@ Each item says what goes wrong if you skip it and how to check it's done.
 - **Check:** your pages open on your domain, and the `workers.dev` address no longer serves the site.
 - **If you'd rather keep the `workers.dev` address:** NuxFlow already marks it `noindex` so search engines ignore it. **Admin → SEO → Indexing** can also redirect it to your domain.
 
+#### ☐ Running more than one site? Give sign-in its own domain
+
+Only applies once you host a second site. Set `NUXT_PUBLIC_ACCOUNTS_URL` so passwords and passkeys are only ever entered on a domain no site's code runs on — see [Hosting several sites](#hosting-several-sites). NuxFlow won't create a second site until this is done.
+
 #### ☐ 4. Keep your auth secret safe, and never change it
 
 - **Why it matters:** `NUXT_BETTER_AUTH_SECRET` signs everyone's login sessions and encrypts the API keys and passwords you save in Settings (payment keys, email API keys, and so on). Changing it later signs everyone out and makes every saved key unreadable, so you'd have to re-enter them all.
@@ -675,7 +708,7 @@ This applies if your site has a contact form or other forms.
 
 #### ☐ 8. Secure your admin account
 
-- **Do this:** add a passkey (Face ID, Touch ID, Windows Hello, or a security key) under **Settings → Security → Passkeys & Passwordless Login**. It's faster than a password and can't be phished. Also make sure your account's email address is one you actually receive mail at, since password resets go there.
+- **Do this:** add a passkey (Face ID, Touch ID, Windows Hello, or a security key) under **Settings → Security → Passkeys & Passwordless Login** — or, with a sign-in domain ([Hosting several sites](#hosting-several-sites)), on your account page there. It's faster than a password and can't be phished. Also make sure your account's email address is one you actually receive mail at, since password resets go there.
 
 #### ☐ 9. Know where your backups are
 

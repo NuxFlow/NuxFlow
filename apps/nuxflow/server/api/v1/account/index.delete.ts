@@ -1,9 +1,10 @@
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
-import { subscriptions, sites, users } from '@nuxflow/db/schema'
+import { subscriptions, sites, users, userSiteRoles } from '@nuxflow/db/schema'
 import { buildGdprRedactionStatements } from '@nuxflow/db/queries'
 import { hasSuperAdminRole } from '../../../utils/permissions'
 import { getConfiguredPaymentProvider } from '../../../utils/payments/resolve'
+import { eventForSite } from '../../../utils/site-info'
 import { getOrCreateBetterAuth } from '../../../utils/better-auth'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { errorMessage, rethrowAsProviderError } from '../../../utils/errors'
@@ -44,9 +45,10 @@ import { errorMessage, rethrowAsProviderError } from '../../../utils/errors'
 // the WHERE clauses need `authorId`/`userId` to still equal this user's id, which the
 // DELETE's own cascade would otherwise null out first if it ran before these.
 export default defineEventHandler(async (event) => {
-  const session = await requireSession(event)
+  // Account-wide: only from the accounts origin under central sign-in (never with a
+  // site-session cookie from some site's own domain — see requireAccountSession).
+  const session = await requireAccountSession(event)
   const userId = session.user.id as string
-  const siteId = event.context.siteId as string | null
   const db = useDb(event)
 
   // A super admin's access spans every site in this deployment (hasSuperAdminRole
@@ -59,6 +61,30 @@ export default defineEventHandler(async (event) => {
     throw forbidden('You have super admin access on one or more sites. Have another super admin revoke it (Admin → Users) before deleting your account.')
   }
 
+  // Accounts are global, so this deletion reaches every site the user belongs to — not
+  // just the one they're on. Removing the last admin of some other site would leave that
+  // site with nobody able to manage it (short of the platform operator stepping in), so
+  // block it and name the sites that need another admin first.
+  const adminSites = await db.select({ siteId: userSiteRoles.siteId, domain: sites.domain })
+    .from(userSiteRoles)
+    .innerJoin(sites, eq(sites.id, userSiteRoles.siteId))
+    .where(and(eq(userSiteRoles.userId, userId), eq(userSiteRoles.role, 'admin')))
+  const soleAdminDomains: string[] = []
+  for (const s of adminSites) {
+    const [other] = await db.select({ n: sql<number>`count(*)` }).from(userSiteRoles).where(and(
+      eq(userSiteRoles.siteId, s.siteId),
+      ne(userSiteRoles.userId, userId),
+      inArray(userSiteRoles.role, ['admin', 'super_admin']),
+    ))
+    if (!other?.n) soleAdminDomains.push(s.domain)
+  }
+  if (soleAdminDomains.length > 0) {
+    throw conflict(
+      `You are the only admin of ${soleAdminDomains.join(', ')}. Make someone else an admin there before deleting your account.`,
+      { domains: soleAdminDomains },
+    )
+  }
+
   const activeSubs = await db.select({
     id: subscriptions.id,
     siteId: subscriptions.siteId,
@@ -69,29 +95,19 @@ export default defineEventHandler(async (event) => {
     .innerJoin(sites, eq(sites.id, subscriptions.siteId))
     .where(and(eq(subscriptions.userId, userId), inArray(subscriptions.status, ['active', 'trialing'])))
 
-  // Users are global, but each site's billing relationship is site-scoped — this
-  // request only has settings/credentials for the *current* site's payment provider
-  // (resolveSetting() reads event.context.siteId), so a subscription on a different
-  // site can't be cancelled from here. Rather than silently deleting the account and
-  // orphaning that billing relationship (the provider would keep charging a customer
-  // whose NuxFlow account no longer exists to manage it), block and name the sites
-  // that need it cancelled there first.
-  const otherSiteSubs = activeSubs.filter(s => s.siteId !== siteId)
-  if (otherSiteSubs.length > 0) {
-    throw conflict(
-      `Cancel your active subscription on ${otherSiteSubs.map(s => s.domain).join(', ')} before deleting your account.`,
-      { domains: otherSiteSubs.map(s => s.domain) },
-    )
-  }
-
+  // Users are global, but each site's billing relationship is site-scoped: every
+  // subscription is cancelled with the credentials of the site it belongs to (resolved
+  // through eventForSite, since resolveSetting() reads the site from the event), so the
+  // provider stops charging a customer whose account no longer exists. Any failure aborts
+  // the whole deletion before anything is removed, naming the site involved.
   for (const sub of activeSubs) {
     if (sub.providerSubscriptionId.startsWith('free_')) continue // no real provider behind a free-tier row
     try {
-      const provider = await getConfiguredPaymentProvider(event, sub.provider)
+      const provider = await getConfiguredPaymentProvider(eventForSite(event, sub.siteId), sub.provider)
       await provider.cancelSubscription(sub.providerSubscriptionId)
     }
     catch (err) {
-      rethrowAsProviderError(err, 'cancellation')
+      rethrowAsProviderError(err, `cancellation (${sub.domain})`)
     }
   }
 

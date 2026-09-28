@@ -14,7 +14,7 @@ import {
   userSiteRoles, membershipTiers, redirects,
 } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
-import { SENSITIVE_SETTING_KEYS } from './settings'
+import { SENSITIVE_SETTING_KEYS, SERVER_MANAGED_SETTING_KEYS } from './settings'
 import { decryptText } from './encryption'
 import { getThemeCSS, getThemeDemo } from './cf-theme-kv'
 import { getPluginServerCode, getPluginClientBundle } from './cf-plugin-kv'
@@ -219,6 +219,8 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
   const rc = useRuntimeConfig()
   const settingsMap: Record<string, unknown> = {}
   for (const row of settingRows) {
+    // Deployment-specific identifiers (the inbound email handle) never travel in a backup.
+    if (SERVER_MANAGED_SETTING_KEYS.has(row.key)) continue
     let val = row.value
     if (SENSITIVE_SETTING_KEYS.has(row.key) && typeof val === 'string') {
       try {

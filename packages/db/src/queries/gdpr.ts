@@ -48,6 +48,7 @@ export const GDPR_REDACTION_EXEMPT: Record<string, string> = {
   'media.uploaded_by': 'The uploaded file is the site\'s media library content, not personal data about the uploader — uploadedBy is attribution only, already nulled by the FK\'s own cascade.',
   'video_assets.uploaded_by': 'Same reasoning as media.uploaded_by.',
   'email_messages.sent_by_user_id': 'An inbox reply is the site\'s correspondence with a customer, sent on the site\'s behalf from a site address — not personal data about the staff member who typed it. The FK\'s own SET NULL already removes the attribution.',
+  'site_invitations.invited_by': 'Attribution of which admin sent an invitation — no free text the person typed. The FK\'s own SET NULL removes it.',
   'audit_logs.user_id': 'A compliance/security record — must NEVER be altered by the subject of the action it records, redacted or otherwise. Attribution nulling via the FK\'s own cascade is already the correct and sufficient outcome here.',
 }
 

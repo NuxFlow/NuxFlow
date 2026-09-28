@@ -5,6 +5,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { encryptText, decryptText } from './encryption'
 import { createIsolateCache } from './isolate-cache'
+import { isPrimarySite } from './site-info'
 import { kvReadThrough, kvCacheDelete } from './kv-cache'
 import type { BatchItem } from 'drizzle-orm/batch'
 
@@ -73,6 +74,43 @@ export const SENSITIVE_SETTING_KEYS = new Set([
 export const SECRET_MASK = '••••••••••••••••'
 
 /**
+ * Keys only NuxFlow itself may write — never accepted from the settings PATCH body, a
+ * restored backup, or a theme demo.json. `email.inbound_handle` is looked up *by value
+ * across every site* to route mail sent to the shared platform domain
+ * (inbound-email.ts), so letting a tenant choose it let them claim another tenant's
+ * handle and receive that tenant's mail.
+ */
+/**
+ * Env-var fallbacks only the primary site (the operator's own — see sites.is_primary)
+ * inherits. Every other site must configure these itself: a tenant falling back to the
+ * deployment's Stripe/Lemon Squeezy/Paddle keys would take its customers' payments into
+ * the operator's account, and falling back to the operator's email-provider API key would
+ * let it send mail from any address that account is verified for. (The Cloudflare
+ * `send_email` binding is shared by design, but domain-restricted per site — see
+ * email.ts.) AI, media and social-login defaults remain shared deliberately: those are
+ * the operator's choice to offer every site, not a way to act as the operator.
+ */
+export const PLATFORM_ONLY_ENV_KEYS: ReadonlySet<string> = new Set([
+  'payments.stripe_secret_key',
+  'payments.stripe_webhook_secret',
+  'payments.ls_api_key',
+  'payments.ls_store_id',
+  'payments.ls_webhook_secret',
+  'payments.paddle_api_key',
+  'payments.paddle_vendor_id',
+  'payments.paddle_webhook_secret',
+  'email.provider',
+  'email.from_address',
+  'email.resend_api_key',
+  'email.brevo_api_key',
+  'email.zepto_api_key',
+])
+
+export const SERVER_MANAGED_SETTING_KEYS: ReadonlySet<string> = new Set([
+  'email.inbound_handle',
+])
+
+/**
  * Resolves a site setting. Checks the database first, decrypts if sensitive, and falls back to environment variables.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,6 +168,7 @@ export async function resolveSetting(event: H3Event, key: string, envKey?: strin
 
   // Fall back to runtimeConfig env variables
   if (envKey) {
+    if (PLATFORM_ONLY_ENV_KEYS.has(key) && !(await isPrimarySite(event, siteId))) return ''
     return rc[envKey] || ''
   }
 

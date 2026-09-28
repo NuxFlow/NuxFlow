@@ -54,6 +54,9 @@ export const PAGE_CACHE_TTL_SECONDS = 3600
 
 export function isPageCacheEligible(event: H3Event): boolean {
   if (event.method !== 'GET') return false
+  // The accounts origin (central sign-in) is never cached — it serves no site content and
+  // its pages are marked no-store (03.accounts-routing.ts).
+  if (event.context?.isAccountsHost) return false
 
   const path = getRequestURL(event).pathname
   if (EXCLUDED_PATH_PREFIXES.some(prefix => path.startsWith(prefix))) return false

@@ -76,6 +76,16 @@ globalThis.setCookie = (event: Record<string, unknown>, name: string, value: str
 globalThis.getCookie = (event: Record<string, unknown>, name: string): string | undefined =>
   (event as { _cookies?: Record<string, string> })._cookies?.[name]
 
+globalThis.deleteCookie = (event: Record<string, unknown>, name: string): void => {
+  const e = event as { _cookies?: Record<string, string>; _deletedCookies?: string[] }
+  if (e._cookies) Reflect.deleteProperty(e._cookies, name)
+  ;(e._deletedCookies ??= []).push(name)
+}
+
+globalThis.setResponseHeaders = (event: Record<string, unknown>, headers: Record<string, string>): void => {
+  for (const [name, value] of Object.entries(headers)) globalThis.setHeader(event, name, value)
+}
+
 globalThis.parseCookies = (event: Record<string, unknown>): Record<string, string> =>
   ({ ...(event as { _cookies?: Record<string, string> })._cookies })
 
@@ -215,6 +225,10 @@ globalThis.requireUserSession = async (event: Record<string, unknown>) => {
 // test fixtures (event.context._session) keep working unchanged.
 globalThis.requireSession = globalThis.requireUserSession
 globalThis.getAuthSession = globalThis.getUserSession
+// requireAccountSession only differs from requireSession on a site's own domain under
+// central sign-in (NUXT_PUBLIC_ACCOUNTS_URL set), which these tests don't configure —
+// see tests/unit/accounts-origin.test.ts for that path.
+globalThis.requireAccountSession = globalThis.requireUserSession
 
 // server/utils/better-auth.ts's clearBetterAuthCache() (called by settings/index.patch.ts
 // and backup.ts after an auth-affecting settings change) only clears an in-memory Map —

@@ -5,6 +5,7 @@ const props = defineProps<{
 }>()
 
 const auth = useAuthStore()
+const { onSiteDomain } = useAccounts()
 const toast = useToast()
 
 const deleteConfirm = ref('')
@@ -74,7 +75,8 @@ async function deleteSite() {
       if (deleteCountdown.value <= 0) {
         clearInterval(interval)
         await auth.signOutSilently()
-        await navigateTo(res.wasLastSite ? '/setup' : '/login', { external: true })
+        // No sign-in page on a site's domain under central sign-in (and this site is gone).
+        await navigateTo(res.wasLastSite ? '/setup' : (onSiteDomain ? '/' : '/login'), { external: true })
       }
     }, 1000)
   }, { successTitle: 'Site deleted — you will be signed out shortly', errorTitle: 'Failed to delete site' })

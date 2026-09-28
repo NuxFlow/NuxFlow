@@ -21,11 +21,18 @@ import { zipSync, unzipSync } from 'fflate'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedContentType, seedContentItem } from '../helpers/seed'
-import { contentItems, menus, users } from '@nuxflow/db/schema'
+import { contentItems, media, menus, users } from '@nuxflow/db/schema'
 import { eq, and } from 'drizzle-orm'
 import backupGetHandler from '../../server/api/v1/backup.get'
 import restorePostHandler from '../../server/api/v1/restore.post'
 import type { NuxFlowBackup } from '../../server/utils/backup'
+
+// The route is rate-limited (restores can provision accounts and send email); rate-limit.ts
+// calls useDb() as a bare Nitro auto-import, unavailable here — mocked like the other
+// rate-limited routes' tests.
+vi.mock('../../server/utils/rate-limit', () => ({
+  rateLimit: vi.fn().mockResolvedValue(undefined),
+}))
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -224,6 +231,31 @@ describe('POST /api/v1/restore (real HTTP handler)', () => {
       where: and(eq(contentItems.siteId, RESTORE_JSON_SITE), eq(contentItems.slug, 'restored-post-json')),
     })
     expect(item).toBeTruthy()
+  })
+
+  it('(c.2) never takes a media storage key from the backup (it could name another tenant\'s file)', async () => {
+    const backup = minimalBackup({
+      media: [{
+        id: 'm1',
+        originalName: 'site-victim/their-photo.jpg',
+        mimeType: 'image/png',
+        size: 4,
+        width: null,
+        height: null,
+        altText: null,
+        caption: null,
+        url: 'data:image/png;base64,AAAA',
+        zipPath: null,
+      }],
+    })
+    const event = mkRestoreEvent(RESTORE_JSON_SITE, new TextEncoder().encode(JSON.stringify(backup)))
+    await (restorePostHandler as HandlerFn)(event)
+
+    const row = await getCurrentTestDb().query.media.findFirst({
+      where: and(eq(media.siteId, RESTORE_JSON_SITE), eq(media.originalName, 'site-victim/their-photo.jpg')),
+    })
+    expect(row?.storageProvider).toBe('local')
+    expect(row?.storageKey.startsWith(`${RESTORE_JSON_SITE}/`)).toBe(true)
   })
 
   it('(d) rejects a malformed backup.json with a clear 400 via parseBackupJson()\'s Zod validation', async () => {

@@ -164,6 +164,13 @@ export default defineNuxtConfig({
     inboundEmailDomain: '',
     public: {
       siteUrl: '',
+      // NUXT_PUBLIC_ACCOUNTS_URL — the dedicated sign-in origin (e.g.
+      // https://accounts.example.com). Every password, passkey and account-wide action
+      // happens there and nowhere else; each site's own domain gets a site-scoped login
+      // handed over from it (server/utils/site-auth.ts). Required once a deployment
+      // hosts more than one site; a single-site install may leave it empty and sign in
+      // on its own domain. See docs/installation.md.
+      accountsUrl: '',
       cloudflareImagesDeliveryUrl: '',
     },
   },

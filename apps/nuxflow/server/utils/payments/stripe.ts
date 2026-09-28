@@ -24,13 +24,17 @@ export class StripeProvider implements PaymentProvider {
     this.client = new Stripe(secretKey)
   }
 
-  async createCustomer(email: string, name: string) {
-    return this.client.customers.create({ email, name })
+  // Customers are per (email, site), tagged via metadata. One Stripe account can back
+  // several NuxFlow sites (the operator's own sites share the deployment's key), and a
+  // billing-portal session shows *every* subscription on its customer — a customer shared
+  // across sites let a member of one site see and cancel their subscriptions on another.
+  async createCustomer(email: string, name: string, siteId: string) {
+    return this.client.customers.create({ email, name, metadata: { nuxflowSiteId: siteId } })
   }
 
-  async listCustomersByEmail(email: string) {
-    const result = await this.client.customers.list({ email, limit: 1 })
-    return result.data
+  async findCustomerForSite(email: string, siteId: string) {
+    const result = await this.client.customers.list({ email, limit: 100 })
+    return result.data.find(c => c.metadata?.nuxflowSiteId === siteId) ?? null
   }
 
   async createProduct(name: string, description?: string) {

@@ -4,7 +4,7 @@ import { bufferToHex } from '../../../utils/buffer'
 import { useDb } from '../../../utils/db'
 import { sites, users, accounts, userSiteRoles, contentTypes, contentItems, taxonomies, siteSettings, auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
-import { count, eq, and } from 'drizzle-orm'
+import { count, eq, and, ne } from 'drizzle-orm'
 import { nuxflowPasswordHasher } from '../../../utils/pw'
 import { created } from '../../../utils/response'
 import { rateLimit } from '../../../utils/rate-limit'
@@ -110,6 +110,9 @@ async function _handleSetup(event: H3Event) {
       await db.delete(siteSettings).where(eq(siteSettings.siteId, siteId))
       await db.delete(userSiteRoles).where(eq(userSiteRoles.siteId, siteId))
 
+      // The first-ever install's site is the operator's own (sites.is_primary). Clear any
+      // stale flag first — the unique index allows only one.
+      await db.update(sites).set({ isPrimary: false }).where(ne(sites.id, siteId))
       await db.update(sites)
         .set({
           name: body.site.name,
@@ -117,6 +120,7 @@ async function _handleSetup(event: H3Event) {
           timezone: body.site.timezone,
           status: 'active',
           setupCompleted: true,
+          isPrimary: true,
         })
         .where(eq(sites.id, siteId))
     } else {
@@ -129,6 +133,8 @@ async function _handleSetup(event: H3Event) {
         timezone: body.site.timezone,
         status: 'active',
         setupCompleted: true,
+        // The first-ever install's site is the operator's own (sites.is_primary).
+        isPrimary: !(await db.query.sites.findFirst({ where: eq(sites.isPrimary, true), columns: { id: true } })),
       })
     }
   } else {

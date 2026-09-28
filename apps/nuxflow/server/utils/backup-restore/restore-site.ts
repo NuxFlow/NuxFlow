@@ -3,7 +3,7 @@ import type { H3Event } from 'h3'
 import { and, eq } from 'drizzle-orm'
 import { sites, siteSettings } from '@nuxflow/db/schema'
 import type { Db } from '../db'
-import { saveSetting } from '../settings'
+import { saveSetting, SERVER_MANAGED_SETTING_KEYS } from '../settings'
 import { clearBetterAuthCache } from '../better-auth'
 import { SEO_SETTING_SCHEMAS } from '../seo-settings-schema'
 import { clearSeoSettingsCache, getSeoSettings } from '../seo'
@@ -52,6 +52,9 @@ export async function restoreSettings(
     let touchedAuthSettings = false
     let touchedSeoSettings = false
     for (const [key, raw] of Object.entries(backup.settings)) {
+      // A backup/demo.json is hand-editable — never let it set a server-managed key (a
+      // copied inbound handle would route another site's mail here).
+      if (SERVER_MANAGED_SETTING_KEYS.has(key)) continue
       let value = raw
       // seo.* values get the same validation/normalization as a save from Admin → SEO
       // (seo-settings-schema.ts). A backup or theme demo.json is hand-editable, so an

@@ -219,6 +219,8 @@ export interface NuxFlowBackup {
 // through parseBackupJson(), so the loop must not rely solely on the upload-time schema).
 export const RESTORABLE_ROLES = ['admin', 'editor', 'author', 'viewer', 'member'] as const
 
+export const MAX_BACKUP_USERS = 500
+
 const backupUserRoleSchema = z.object({
   email: z.string().email(),
   name: z.string(),
@@ -390,7 +392,9 @@ export const nuxFlowBackupSchema = z.object({
   media: z.array(backupMediaItemSchema),
   themes: z.array(backupThemeSchema),
   plugins: z.array(backupDynamicPluginSchema),
-  users: z.array(backupUserRoleSchema),
+  // Capped: every entry can create an account and send an email through this site's
+  // email provider, and a backup is user-editable before upload.
+  users: z.array(backupUserRoleSchema).max(MAX_BACKUP_USERS),
   membershipTiers: z.array(backupMembershipTierSchema),
   redirects: z.array(backupRedirectSchema).optional(),
 }) satisfies z.ZodType<NuxFlowBackup>

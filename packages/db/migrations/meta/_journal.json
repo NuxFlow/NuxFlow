@@ -169,6 +169,34 @@
       "when": 1790512769463,
       "tag": "0023_bitter_mole_man",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1790599988157,
+      "tag": "0024_rare_shiva",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1790600083526,
+      "tag": "0025_nifty_post",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1790600576936,
+      "tag": "0026_green_kulan_gath",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1790600593674,
+      "tag": "0027_pretty_weapon_omega",
+      "breakpoints": true
     }
   ]
 }

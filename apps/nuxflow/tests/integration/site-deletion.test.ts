@@ -148,9 +148,10 @@ describe('deleteSiteCompletely — media failures and KV cleanup', () => {
     const siteId = await seedSite(db, { id: 'del-media-fail-01', domain: 'del-media-fail.localhost' })
     const userId = await seedUser(db, { email: 'admin-media-fail@example.com' })
     await seedRole(db, userId, siteId, 'admin')
-    const mediaId = await seedMedia(db, siteId, { storageKey: 'media/will-fail.jpg' })
+    const mediaId = await seedMedia(db, siteId, { storageKey: `${siteId}/will-fail.jpg`, storageProvider: 'r2' })
 
     vi.mocked(getActiveProvider).mockResolvedValue({
+      name: 'r2',
       upload: vi.fn(),
       delete: vi.fn().mockRejectedValue(new Error('provider unreachable')),
       getUrl: vi.fn(),
@@ -159,11 +160,37 @@ describe('deleteSiteCompletely — media failures and KV cleanup', () => {
     const event = mkEvent(siteId, userId)
     const result = await deleteSiteCompletely(event, siteId, userId)
 
-    expect(result.failedMediaDeletes).toEqual(['media/will-fail.jpg'])
+    expect(result.failedMediaDeletes).toEqual([`${siteId}/will-fail.jpg`])
     // The site (and the media row) is still fully gone from D1 even though the
     // provider-side file delete failed — only the file itself may be left behind.
     expect(await db.query.sites.findFirst({ where: eq(sites.id, siteId) })).toBeUndefined()
     expect(await db.query.media.findFirst({ where: eq(media.id, mediaId) })).toBeUndefined()
+  })
+
+  it('deletes files with the deleted site\'s own storage settings, not the acting super admin\'s', async () => {
+    const db = getCurrentTestDb()
+    const siteId = await seedSite(db, { id: 'del-media-scope-01', domain: 'del-media-scope.localhost' })
+    const actingSiteId = await seedSite(db, { id: 'del-media-scope-02', domain: 'del-media-scope-2.localhost' })
+    const userId = await seedUser(db, { email: 'super-media-scope@example.com' })
+    await seedRole(db, userId, actingSiteId, 'super_admin')
+    await seedMedia(db, siteId, { storageKey: `${siteId}/photo.jpg`, storageProvider: 'r2' })
+    // A row naming someone else's object must never reach the provider.
+    await seedMedia(db, siteId, { storageKey: `${actingSiteId}/not-theirs.jpg`, storageProvider: 'r2' })
+
+    const providerDelete = vi.fn().mockResolvedValue(undefined)
+    vi.mocked(getActiveProvider).mockClear()
+    vi.mocked(getActiveProvider).mockResolvedValue({ name: 'r2', upload: vi.fn(), delete: providerDelete, getUrl: vi.fn() })
+
+    const result = await deleteSiteCompletely(mkEvent(actingSiteId, userId), siteId, userId)
+
+    const resolvedFor = vi.mocked(getActiveProvider).mock.calls.map(([e]) => (e as H3Event).context.siteId)
+    expect(resolvedFor.length).toBeGreaterThan(0)
+    expect(resolvedFor.every(id => id === siteId)).toBe(true)
+    expect(providerDelete).toHaveBeenCalledTimes(1)
+    expect(providerDelete).toHaveBeenCalledWith(`${siteId}/photo.jpg`)
+    expect(result.failedMediaDeletes).toEqual([`${actingSiteId}/not-theirs.jpg`])
+
+    await cleanupSites(actingSiteId)
   })
 
   it('cleans up KV-stored theme and plugin assets before the D1 rows are cascade-deleted', async () => {

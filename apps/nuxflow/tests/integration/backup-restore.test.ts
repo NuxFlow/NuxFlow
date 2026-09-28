@@ -340,25 +340,25 @@ describe('applyBackup() — restoring themes and plugins', () => {
     expect(kvStore.get(`plugin:${SOURCE_SITE}:demo-plugin:server`)).toBe('server-code')
   })
 
-  it('skips (does not crash) restoring a plugin already installed on a different site', async () => {
-    // dynamicPlugins.id is a globally-unique primary key (the publisher's manifest id,
-    // used directly as the KV key segment) — not scoped per site like every other table
-    // in this file. SOURCE_SITE still holds 'demo-plugin', so restoring the same backup
-    // onto TARGET_SITE can't insert a second row with that id; it must skip cleanly
-    // instead of surfacing a raw SQLITE_CONSTRAINT_PRIMARYKEY error.
+  it('restores a plugin that is also installed on a different site — plugin ids are per site', async () => {
+    // dynamicPlugins is keyed by (site_id, id) (migration 0024): SOURCE_SITE still holds
+    // 'demo-plugin', and TARGET_SITE gets its own independent install of the same plugin.
     const backup = await buildBackup(mkEvent(SOURCE_SITE), SOURCE_SITE)
     const result = await applyBackup(mkEvent(TARGET_SITE), TARGET_SITE, backup, {
       what: ['plugins'],
       conflictMode: 'skip',
     })
-    expect(result.plugins.skipped).toBe(1)
-    expect(result.plugins.created).toBe(0)
+    expect(result.plugins.created).toBe(1)
+    expect(result.plugins.skipped).toBe(0)
 
     const db = getCurrentTestDb()
-    const row = await db.query.dynamicPlugins.findFirst({
-      where: and(eq(dynamicPlugins.siteId, TARGET_SITE), eq(dynamicPlugins.id, 'demo-plugin')),
-    })
-    expect(row).toBeFalsy()
+    const [target, source] = await Promise.all([
+      db.query.dynamicPlugins.findFirst({ where: and(eq(dynamicPlugins.siteId, TARGET_SITE), eq(dynamicPlugins.id, 'demo-plugin')) }),
+      db.query.dynamicPlugins.findFirst({ where: and(eq(dynamicPlugins.siteId, SOURCE_SITE), eq(dynamicPlugins.id, 'demo-plugin')) }),
+    ])
+    expect(target).toBeTruthy()
+    expect(target?.isActive).toBe(false)
+    expect(source).toBeTruthy()
   })
 
   it('rejects a plugin whose signature no longer verifies, without touching KV or D1', async () => {
@@ -431,7 +431,7 @@ describe('applyBackup() — restoring users and membership tiers', () => {
     expect(role?.role).toBe('editor')
 
     expect(mockRequestPasswordReset).toHaveBeenCalledWith({
-      body: { email: 'brand-new@backup-src.test', redirectTo: '/reset-password' },
+      body: { email: 'brand-new@backup-src.test', redirectTo: `/reset-password?${new URLSearchParams({ site: TARGET_SITE, purpose: 'invite' })}` },
     })
   })
 
@@ -486,7 +486,7 @@ describe('applyBackup() — restoring users and membership tiers', () => {
     })
     expect(role?.role).toBe('viewer')
     expect(mockRequestPasswordReset).not.toHaveBeenCalledWith({
-      body: { email: 'already-here@backup-src.test', redirectTo: '/reset-password' },
+      body: { email: 'already-here@backup-src.test', redirectTo: expect.stringContaining('/reset-password') },
     })
   })
 

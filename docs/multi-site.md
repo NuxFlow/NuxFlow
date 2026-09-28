@@ -28,6 +28,12 @@ This allows you to host an unlimited number of custom domains with absolute data
 
 ---
 
+## Before your second site: a sign-in domain
+
+Accounts are shared across every site — one login, one password. Because each site's admins can add their own code to their own pages, nobody types their password on a site's domain. Sign-in, passkeys and account settings live on a separate **sign-in domain** (for example `accounts.yourplatform.com`) that never runs any site's code; each site receives a login that works on that site only. NuxFlow won't create a second site until this is set up — see [Installation → Hosting several sites](./installation.md#hosting-several-sites) for the three steps.
+
+---
+
 ## Adding a new site
 
 New sites are created from within the super admin panel of any existing NuxFlow instance. You must be logged in with a `super_admin` role.
@@ -43,7 +49,7 @@ Click **New site** and fill in the following fields:
 | Field | Description |
 |---|---|
 | **Site name** | A human-readable label shown in the admin panel |
-| **Domain** | The bare hostname the site will respond to, e.g. `example.com` |
+| **Domain** | The hostname the site will respond to, e.g. `example.com`. A pasted URL is fine — it's stored as the bare lower-case hostname. Each domain can belong to one site only, and only a super admin can change it later. |
 | **Default locale** | BCP 47 language tag, e.g. `en`, `fr`, `de` (defaults to `en`) |
 | **Timezone** | IANA timezone string, e.g. `Europe/London`, `America/New_York` (defaults to `UTC`) |
 
@@ -57,7 +63,7 @@ Creating the site immediately shows a **setup link**: a URL of the form `https:/
 The token only works as part of that exact URL — there's no field anywhere to type or paste the token by itself. Visiting the bare domain (`https://example.com/setup` with no `?token=...` in the address) fails with **"Invalid or missing setup token."** Copy the full link and paste it directly into your browser's address bar.
 ::
 
-Send that link to whoever will configure the site, or paste it into your own browser if that's you. Opening it runs the same 5-step Setup Wizard as a first install — site details, admin account, email settings, and a starter template (Landing, Blog, Portfolio, Blank) — and fully seeds the new site's content types, homepage, and taxonomies automatically. If you're the one completing it and you're already a super admin elsewhere in the deployment, enter your existing email and password in the admin-account step rather than creating a new account — NuxFlow recognizes the existing user and grants it `super_admin` on the new site instead of erroring.
+Send that link to whoever will configure the site, or paste it into your own browser if that's you. Opening it runs the same 5-step Setup Wizard as a first install — site details, admin account, email settings, and a starter template (Landing, Blog, Portfolio, Blank) — and fully seeds the new site's content types, homepage, and taxonomies automatically. If whoever completes it already has an account (on any site), they enter that account's existing email and password in the admin-account step rather than creating a new one — NuxFlow checks the password and makes that account the new site's `admin`. (Not `super_admin`: that stays with the platform operator. A super admin can still grant it deliberately.)
 
 A setup attempt that fails or is abandoned partway through doesn't consume the token, so the same link can be reused until setup completes successfully.
 
@@ -108,18 +114,14 @@ The admin dashboard is fully domain-aware. You do not manage your secondary site
 
 Any pages, blog posts, forms, media assets, or settings you create while logged into `https://xyz.com/admin` are strictly scoped to `xyz.com` and will never leak or display on your other domains.
 
-### 2. Logging in for the First Time
+### 2. Signing in
 Visiting `https://xyz.com/admin` directly won't work until setup is completed on that domain — a newly created site record redirects any request to `/setup` and rejects it without the one-time token from Step 3 above. Complete setup via the copied setup link first.
 
-You do not need to register a brand new user account to do that:
-- **Global Super Admins:** Your primary site's `super_admin` credentials work across **all** domains in the deployment. On the setup wizard's admin-account step, enter your existing super admin email and password instead of new ones — NuxFlow recognizes the existing account and grants it `super_admin` on this site too, rather than creating a duplicate. From then on, that same login works on `https://xyz.com/admin` like any other site.
-- **Tenant Scope:** Once setup is complete, you can configure the site and invite local users (such as editors or authors) who will be scoped strictly to that specific site.
+After that, **Sign in** on `xyz.com` goes to the sign-in domain, shows xyz.com's name and logo, and comes straight back to `xyz.com/admin` signed in. Someone already signed in there (to any site) just passes through. The login they get on `xyz.com` works on `xyz.com` only; signing out on the sign-in domain signs them out of every site.
 
-Because `requireSuperAdmin` is not scoped to a single site, your existing super admin account has access to every site's admin panel. From here you can:
-
-- Add content types under **Admin → Content Types**
-- Create pages and posts under **Admin → Content**
-- Configure themes, plugins, and settings for this site in isolation from your other sites
+- **The platform operator (super admin)** can open any site's admin with read-only access, and runs platform actions (Super Admin → Sites, database export, suspending sites) from the main site.
+- **Site teams:** once setup is complete, the site's admin invites editors and authors from **Admin → Users**. Their roles apply to that site only.
+- **Account settings** — password, passkeys, connected Google/GitHub accounts, downloading your data, deleting your account — are on the sign-in domain's account page (`https://accounts.yourplatform.com/account`), not in any site's admin.
 
 Each site's data is scoped by its internal site ID, so content, media, forms, and settings created here will never appear on other sites.
 
@@ -133,7 +135,7 @@ Each site has one of three statuses that you can update via the API or the admin
 |---|---|
 | `active` | Normal operation — all requests are served |
 | `maintenance` | Public pages return a 503 maintenance page; the admin panel and API remain accessible |
-| `suspended` | Reserved for administrative use; treat as equivalent to maintenance |
+| `suspended` | Everything is closed — public pages, admin, API and sign-in — for everyone except a super admin; scheduled posts wait until it's reactivated |
 
 To change a site's status, send a `PATCH` request to `/api/v1/admin/sites/:id`:
 
@@ -169,7 +171,7 @@ The Danger Zone tab in **Admin → Settings** always targets whichever site's do
 
 - **Only site in the deployment:** fully deleted, exactly like the cross-site path above. You're signed out and taken to the ordinary fresh-install `/setup` wizard.
 - **Main site, while addon sites still exist:** blocked with a 409 and the list of addon domains that must be deleted first. The UI shows this list up front so you don't have to attempt the delete to find out.
-- **Addon site:** fully deleted, same as the cross-site path — the row is dropped entirely rather than kept around in any reset state, so it doesn't linger as a phantom entry that would block a later main-site deletion. You're signed out here too: this delete only ever targets the domain you're currently on, and once that domain no longer has a site, a session cookie for it is meaningless — cookies don't carry over to your other domains anyway, since they're genuinely separate origins, not subdomains of one parent. You land on `/login` on this domain. To bring the deleted domain back, create it again from **Super Admin → Sites → New** on a site you can still reach — the same flow as adding any other new site — which issues a fresh one-time setup link.
+- **Addon site:** fully deleted, same as the cross-site path — the row is dropped entirely rather than kept around in any reset state, so it doesn't linger as a phantom entry that would block a later main-site deletion. You're signed out here too: this delete only ever targets the domain you're currently on, and once that domain no longer has a site, a session cookie for it is meaningless — cookies don't carry over to your other domains anyway, since they're genuinely separate origins, not subdomains of one parent. You land on this domain's home page. To bring the deleted domain back, create it again from **Super Admin → Sites → New** on a site you can still reach — the same flow as adding any other new site — which issues a fresh one-time setup link.
 
 ::warning
 Whichever path you use, ensure you have taken a D1 backup via **Cloudflare Dashboard → D1 → your database → Backups** before deleting a site with live content — a full delete has no undo.
@@ -177,50 +179,26 @@ Whichever path you use, ensure you have taken a D1 backup via **Cloudflare Dashb
 
 ---
 
-## Social login on custom domains
+## Social login across sites
 
-NuxFlow automatically resolves OAuth redirect URIs from the incoming request's hostname, so Google and GitHub sign-in work correctly on every custom domain without any code changes.
+Google and GitHub sign-in happen on the sign-in domain, so **one OAuth app serves every site** — there's nothing to set up per domain, and GitHub's one-callback-URL limit no longer matters.
 
-There are two ways to configure the actual OAuth app credentials (client ID/secret), and which one applies depends on the provider:
+- Register one callback URL per provider: `https://accounts.yourplatform.com/api/auth/callback/google` and `…/callback/github`.
+- Enter the credentials either as the `NUXT_GOOGLE_CLIENT_ID` / `NUXT_GOOGLE_CLIENT_SECRET` / `NUXT_GITHUB_CLIENT_ID` / `NUXT_GITHUB_CLIENT_SECRET` variables, or in **Admin → Settings → Integrations → Social Login** on the main site (the settings win over the variables). Other sites don't show this setting.
 
-- **`NUXT_GOOGLE_CLIENT_ID` / `NUXT_GOOGLE_CLIENT_SECRET` / `NUXT_GITHUB_CLIENT_ID` / `NUXT_GITHUB_CLIENT_SECRET`** (`[vars]`/secrets in `wrangler.toml`) — a single deployment-wide default, used by any site that hasn't configured its own.
-- **Admin → Settings → Integrations → Social Login**, per site — overrides the env-var default for that one site only. Values are stored encrypted in the database (same mechanism as email/payments/AI provider keys) and take effect immediately, no redeploy needed.
-
-Which one you need depends on the provider:
-
-### Google
-
-One Google Cloud OAuth Client already supports unlimited domains — Google lets you register multiple **Authorized redirect URIs** on the same client. So for most deployments, the env-var default is all you need:
-
-In the [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services → Credentials**, open your existing OAuth 2.0 Client ID (the same one used for your primary domain — you do **not** need a new project or client). Under **Authorized redirect URIs**, add:
-
-```
-https://yournewdomain.com/api/auth/callback/google
-```
-
-Do this for every custom domain you add. Google validates the `redirect_uri` on every sign-in attempt, so a domain that is not listed will fail with a `redirect_uri_mismatch` error.
-
-Use the per-site override instead if a specific site needs to show its *own* Google identity/branding on the consent screen (e.g. a tenant bringing their own Google Cloud project), rather than sharing yours.
-
-### GitHub
-
-GitHub OAuth Apps only support **one** callback URL each — there's no multi-domain equivalent of Google's redirect-URI list. This means the env-var default only ever works for one domain. To get GitHub login working on a secondary site, give that site its own OAuth App via the per-site override:
-
-1. Go to **github.com → Settings → Developer settings → OAuth Apps → New OAuth App**
-2. Set **Authorization callback URL** to `https://yournewdomain.com/api/auth/callback/github`
-3. Copy the new app's **Client ID** and **Client Secret**
-4. On that domain's admin panel, go to **Settings → Integrations → Social Login** and paste them into the GitHub fields
-5. Save — the change is live immediately, no redeploy required
-
-Repeat for each additional domain that needs GitHub login. Sites with no override configured keep using the env-var default (effectively just the primary domain).
+See [Installation → Social Login](./installation.md#social-login-google--github) for creating the apps.
 
 ---
 
 ## Roles and access across sites
 
-User accounts are global — a user can hold a role on any number of sites using the same login. Roles are always resolved against the site that handled the request, so a user with `editor` access on site A and `viewer` access on site B will see different permissions depending on which domain they are visiting.
+User accounts are global — a user can hold a role on any number of sites using the same login. Roles are always resolved against the site that handled the request, so a user with `editor` access on site A and `viewer` access on site B will see different permissions depending on which domain they are visiting. Someone with no role on a site can't open its admin at all.
 
-`super_admin` is the only role that crosses site boundaries. A user holding `super_admin` on any site can create and manage all sites in the deployment. All other roles are strictly site-scoped.
+`super_admin` is the platform operator's role. It gives read-only access to every site's admin, and platform actions (managing sites, the whole-database export) work only on a site where the operator actually holds `super_admin` — normally the main one.
+
+**Inviting someone who already has an account.** Accounts are shared, so inviting an address that already exists adds a role to that account. If the account has never proven it owns its email address (not verified, and no staff role anywhere), the invitation waits instead: the person gets an "Accept invitation" email, and the role only appears once they set a password through it. The existing account is never changed or locked by an invitation.
+
+**Deleting an account** removes it from every site, cancels its paid subscriptions on each site first, and is refused while the person is the only admin of any site.
 
 See the [Installation Guide](./installation.md) for details on how to assign roles to users.
 

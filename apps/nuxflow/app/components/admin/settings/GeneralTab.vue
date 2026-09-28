@@ -7,6 +7,11 @@ defineProps<{
   onSave: () => Promise<void>
 }>()
 
+// The server only accepts a domain change from a super admin of this site (domains are
+// platform routing — see settings/index.patch.ts), so everyone else sees it read-only.
+const access = useAdminAccessState()
+const canEditDomain = computed(() => Boolean(access.value?.isSuperAdmin))
+
 const localeOptions = [
   { label: 'English', value: 'en' },
   { label: 'French', value: 'fr' },
@@ -30,8 +35,11 @@ const timezones = [
       <UFormField label="Site name">
         <UInput v-model="general.name" placeholder="My Site" />
       </UFormField>
-      <UFormField label="Primary domain" hint="The primary domain this site runs on (e.g. nuxflow.dev)">
-        <UInput v-model="general.domain" placeholder="example.com" />
+      <UFormField
+        label="Primary domain"
+        :hint="canEditDomain ? 'The primary domain this site runs on (e.g. nuxflow.dev)' : 'Managed by the platform operator — contact them to change it.'"
+      >
+        <UInput v-model="general.domain" placeholder="example.com" :disabled="!canEditDomain" />
       </UFormField>
       <UFormField label="Notification email" hint="The email address where contact form submissions will be sent. Falls back to your admin email address if empty.">
         <UInput v-model="general.notificationEmail" type="email" placeholder="you@domain.com" />

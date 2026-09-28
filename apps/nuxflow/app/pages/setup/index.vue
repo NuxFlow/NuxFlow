@@ -40,6 +40,7 @@ const steps = [
 ]
 
 const signInEmail = useSignIn('email')
+const { onSiteDomain } = useAccounts()
 const needsSetup = useState<boolean | null>('setup:needs-setup')
 
 function next() {
@@ -68,10 +69,14 @@ async function complete() {
     }
     // Clear stale setup-guard state so navigating to / doesn't loop back to /setup
     needsSetup.value = false
-    // Auto sign-in is best-effort — if it fails the user lands on / and can sign in manually
-    try {
-      await signInEmail.execute({ email: form.admin.email, password: form.admin.password })
-    } catch { /* non-fatal */ }
+    // Auto sign-in is best-effort — if it fails the user lands on / and can sign in manually.
+    // Under central sign-in there is nothing to sign in to on this domain: "Go to admin"
+    // on the next step goes through the accounts origin like every other sign-in.
+    if (!onSiteDomain) {
+      try {
+        await signInEmail.execute({ email: form.admin.email, password: form.admin.password })
+      } catch { /* non-fatal */ }
+    }
     step.value = totalSteps
   } catch (e: unknown) {
     error.value = getErrorMessage(e, 'Setup failed. Check the browser console for details.')

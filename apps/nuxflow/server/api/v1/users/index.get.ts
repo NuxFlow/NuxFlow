@@ -1,6 +1,6 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { userSiteRoles, sessions } from '@nuxflow/db/schema'
+import { userSiteRoles, sessions, siteInvitations } from '@nuxflow/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -16,9 +16,16 @@ export default defineEventHandler(async (event) => {
 
   const userRows = roles.filter(r => r.user)
 
-  // "Pending" == invited but never completed a sign-in. There's no separate invitations
-  // table (see server/api/v1/users/index.post.ts) — a user is indistinguishable from a
-  // fully active member except by whether they've ever established a real session.
+  // Invitations to unclaimed accounts that haven't been accepted yet — no role row
+  // exists for these until the invitee sets their password (see site_invitations).
+  const invitations = await db.query.siteInvitations.findMany({
+    where: eq(siteInvitations.siteId, siteId),
+    with: { user: { columns: { id: true, name: true, email: true, image: true, createdAt: true } } },
+    limit: 1000,
+  })
+
+  // "Pending" == invited but never completed a sign-in: either a pending invitation above,
+  // or a member who has never established a real session.
   const everLoggedIn = userRows.length > 0
     ? new Set(
         (await db.query.sessions.findMany({
@@ -30,10 +37,18 @@ export default defineEventHandler(async (event) => {
 
   type UserRow = { id: string; name: string; email: string; image: string | null; createdAt: string }
   return {
-    users: userRows.map((r) => ({
-      ...(r.user as UserRow),
-      role: r.role,
-      pending: !everLoggedIn.has(r.user!.id),
-    })),
+    users: [
+      ...userRows.map(r => ({
+        ...(r.user as UserRow),
+        role: r.role,
+        pending: !everLoggedIn.has(r.user!.id),
+      })),
+      ...invitations.filter(i => i.user).map(i => ({
+        ...(i.user as UserRow),
+        role: i.role,
+        pending: true,
+        invitationExpiresAt: i.expiresAt,
+      })),
+    ],
   }
 })

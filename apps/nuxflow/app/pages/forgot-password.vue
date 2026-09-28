@@ -3,6 +3,12 @@ import { z } from 'zod'
 
 definePageMeta({ layout: 'auth' })
 
+const { onSiteDomain, accountsLink } = useAccounts()
+// Password resets happen on the accounts origin under central sign-in (the server
+// redirects this path there too; this covers client-side navigation).
+if (onSiteDomain) await navigateTo(accountsLink('/forgot-password'), { external: true })
+const { siteId, site } = await useAccountsSite()
+
 const schema = z.object({
   email: z.string().email('Enter a valid email address'),
 })
@@ -18,7 +24,10 @@ async function submit() {
     // future Better Auth endpoint rename fails typecheck instead of silently 404ing —
     // this exact page previously broke that way when the underlying endpoint was
     // renamed from /forget-password to /request-password-reset.
-    await useAuthClient().requestPasswordReset({ email: state.email, redirectTo: '/reset-password' })
+    // `site` (when resetting on the way into a particular site) brands the email and the
+    // reset page, and brings them back to that site afterwards.
+    const redirectTo = siteId.value ? `/reset-password?${new URLSearchParams({ site: siteId.value })}` : '/reset-password'
+    await useAuthClient().requestPasswordReset({ email: state.email, redirectTo })
     sent.value = true
   } catch {
     // Always show success to prevent email enumeration
@@ -31,13 +40,12 @@ async function submit() {
 
 <template>
   <div class="space-y-6">
-    <div class="text-center">
-      <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary-500 mb-4 shadow-lg shadow-primary-500/30">
-        <UIcon name="i-lucide-key-round" class="w-6 h-6 text-white" />
-      </div>
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Forgot password</h1>
-      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Enter your email and we'll send a reset link</p>
-    </div>
+    <AccountsSiteBrand
+      :site="site"
+      fallback-icon="i-lucide-key-round"
+      heading="Forgot password"
+      subheading="Enter your email and we'll send a reset link"
+    />
 
     <div v-if="sent" class="glass rounded-2xl p-6 text-center space-y-3">
       <UIcon name="i-lucide-mail-check" class="w-10 h-10 text-green-500 mx-auto" />
@@ -45,7 +53,7 @@ async function submit() {
       <p class="text-sm text-gray-500 dark:text-gray-400">
         If an account exists for <strong>{{ state.email }}</strong>, a reset link has been sent.
       </p>
-      <NuxtLink to="/login" class="text-primary-500 hover:underline text-sm">Back to sign in</NuxtLink>
+      <NuxtLink :to="siteId ? `/login?site=${encodeURIComponent(siteId)}` : '/login'" class="text-primary-500 hover:underline text-sm">Back to sign in</NuxtLink>
     </div>
 
     <UForm v-else :schema="schema" :state="state" class="glass rounded-2xl p-6 space-y-4" @submit="submit">
@@ -59,7 +67,7 @@ async function submit() {
 
       <p class="text-center text-sm text-gray-500 dark:text-gray-400">
         Remembered it?
-        <NuxtLink to="/login" class="text-primary-500 hover:underline font-medium">Sign in</NuxtLink>
+        <NuxtLink :to="siteId ? `/login?site=${encodeURIComponent(siteId)}` : '/login'" class="text-primary-500 hover:underline font-medium">Sign in</NuxtLink>
       </p>
     </UForm>
   </div>

@@ -65,19 +65,55 @@ describe('DELETE /api/v1/account', () => {
     expect(await db.query.users.findFirst({ where: eq(users.id, userId) })).toBeDefined()
   })
 
-  it('blocks deletion when an active subscription exists on a different site', async () => {
+  it('aborts, keeping the account, when another site\'s subscription can\'t be cancelled there', async () => {
     const db = getCurrentTestDb()
     const userId = await seedUser(db, { email: 'other-site-sub@acct-del.test' })
     await seedRole(db, userId, SITE_A, 'member')
+    // SITE_B has no payment provider configured, so its subscription can't be cancelled.
     const tierId = await seedTier(db, SITE_B)
-    await seedSubscription(db, SITE_B, userId, tierId, { status: 'active' })
+    await seedSubscription(db, SITE_B, userId, tierId, { status: 'active', provider: 'stripe', providerSubscriptionId: 'sub_other_site_fail' })
+
+    await expect((handler as HandlerFn)(mkEvent(userId, SITE_A))).rejects.toThrow()
+    expect(await db.query.users.findFirst({ where: eq(users.id, userId) })).toBeDefined()
+  })
+
+  it('cancels a subscription on another site with that site\'s own credentials', async () => {
+    const db = getCurrentTestDb()
+    const SITE_C = 'site-acct-del-c'
+    await seedSite(db, { id: SITE_C, domain: 'acct-del-c.localhost' })
+    await seedSetting(db, SITE_C, 'payments.stripe_secret_key', 'sk_test_site_c')
+    const userId = await seedUser(db, { email: 'cross-site-sub@acct-del.test' })
+    await seedRole(db, userId, SITE_A, 'member')
+    const tierId = await seedTier(db, SITE_C)
+    await seedSubscription(db, SITE_C, userId, tierId, { status: 'active', provider: 'stripe', providerSubscriptionId: 'sub_site_c_001' })
+    mockStripeCancel.mockClear()
+
+    await (handler as HandlerFn)(mkEvent(userId, SITE_A))
+
+    expect(mockStripeCancel).toHaveBeenCalledWith('sub_site_c_001')
+    const { StripeProvider } = await import('../../server/utils/payments/stripe')
+    expect(vi.mocked(StripeProvider)).toHaveBeenLastCalledWith('sk_test_site_c')
+    expect(await db.query.users.findFirst({ where: eq(users.id, userId) })).toBeUndefined()
+  })
+
+  it('refuses to delete the only admin of a site, naming it', async () => {
+    const db = getCurrentTestDb()
+    const SITE_D = 'site-acct-del-d'
+    await seedSite(db, { id: SITE_D, domain: 'acct-del-d.localhost' })
+    const userId = await seedUser(db, { email: 'sole-admin@acct-del.test' })
+    await seedRole(db, userId, SITE_D, 'admin')
 
     await expect((handler as HandlerFn)(mkEvent(userId, SITE_A))).rejects.toMatchObject({
       statusCode: 409,
-      data: { domains: ['acct-del-b.localhost'] },
+      data: { domains: ['acct-del-d.localhost'] },
     })
-
     expect(await db.query.users.findFirst({ where: eq(users.id, userId) })).toBeDefined()
+
+    // With a second admin there, it goes ahead.
+    const other = await seedUser(db, { email: 'second-admin@acct-del.test' })
+    await seedRole(db, other, SITE_D, 'admin')
+    await (handler as HandlerFn)(mkEvent(userId, SITE_A))
+    expect(await db.query.users.findFirst({ where: eq(users.id, userId) })).toBeUndefined()
   })
 
   it('cancels an active subscription on the current site, then deletes the account', async () => {

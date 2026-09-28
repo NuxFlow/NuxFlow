@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import { useDb } from '../../../utils/db'
 import { getPluginClientBundle } from '../../../utils/cf-plugin-kv'
 import { assertCodeIntegrity } from '../../../utils/plugin-signing'
-import { dynamicPlugins, sites } from '@nuxflow/db/schema'
+import { dynamicPlugins } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { withEdgeCache } from '../../../utils/edge-cache'
 
@@ -15,13 +15,11 @@ import { withEdgeCache } from '../../../utils/edge-cache'
 // cached entry points at could go stale.
 async function loadAndVerifyBundle(event: H3Event, pluginId: string): Promise<string> {
   const db = useDb(event)
-  const host = getHeader(event, 'host')?.split(':')[0] ?? ''
-
-  const site = await db.query.sites.findFirst({
-    where: eq(sites.domain, host),
-    columns: { id: true },
-  })
-  if (!site) throw notFound('Site not found')
+  // The site 02.multi-site.ts resolved — same as every other /_nuxflow route, so the
+  // single-site/preview fallbacks and suspension apply here too.
+  const siteId = event.context.siteId as string | null
+  if (!siteId) throw notFound('Site not found')
+  const site = { id: siteId }
 
   const plugin = await db.query.dynamicPlugins.findFirst({
     where: and(eq(dynamicPlugins.id, pluginId), eq(dynamicPlugins.siteId, site.id)),
