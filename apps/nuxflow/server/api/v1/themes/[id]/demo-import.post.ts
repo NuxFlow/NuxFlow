@@ -14,7 +14,8 @@ import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 import { purgeAllPublicPages } from '../../../../utils/edge-cache'
 
 const bodySchema = z.object({
-  what: z.array(z.enum(['content', 'taxonomies', 'menus', 'forms', 'settings'])).default(['content', 'taxonomies', 'menus', 'forms', 'settings']),
+  // A theme's demo.json can also ship redirect rules (e.g. from an older site's URLs).
+  what: z.array(z.enum(['content', 'taxonomies', 'menus', 'forms', 'settings', 'redirects'])).default(['content', 'taxonomies', 'menus', 'forms', 'settings', 'redirects']),
   conflictMode: z.enum(['skip', 'overwrite', 'archive']).default('archive'),
 })
 

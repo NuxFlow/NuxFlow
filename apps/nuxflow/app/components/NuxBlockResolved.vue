@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { resolveDefinition } from '@nuxflow/canvas'
+import { resolveDefinition, toComponentProps } from '@nuxflow/canvas'
 import type { NuxBlockData } from '~/types/blocks'
 
 const props = defineProps<{ block: NuxBlockData }>()
@@ -22,7 +22,7 @@ function childrenFor(slotId: string): NuxBlockData[] {
   <component
     :is="resolve(block.type)"
     v-if="resolve(block.type)"
-    v-bind="block.props"
+    v-bind="toComponentProps(block.props)"
   >
     <template v-for="slot in slotsFor(block.type)" :key="slot.id" #[slot.id]>
       <NuxBlocks :blocks="childrenFor(slot.id)" />

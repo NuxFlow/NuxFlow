@@ -105,6 +105,9 @@
 
      .canvas-hero          Hero / banner section
      .canvas-features      Feature grid section
+       .canvas-features-grid[data-count="1-4"]  the grid (use data-count, not its
+                                               responsive grid-cols-* classes)
+       .canvas-features-card                    each feature card
      .canvas-image         Image block — the <figure> inside holds the image
      .canvas-text          Rich text / prose block
      .canvas-columns       Multi-column layout block
@@ -140,10 +143,10 @@
 } */
 
 /* Lift feature cards on hover: */
-/* .canvas-features .grid > div {
+/* .canvas-features-card {
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
-.canvas-features .grid > div:hover {
+.canvas-features-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
 } */

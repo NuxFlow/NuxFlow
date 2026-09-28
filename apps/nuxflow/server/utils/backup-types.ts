@@ -37,6 +37,24 @@ export interface BackupContentItem {
   termSlugs: string[] // "{taxonomySlug}/{termSlug}"
   locale: string | null
   sourceItemSlug: string | null
+  // Per-page SEO and event fields. Optional so backups made before they were exported
+  // still validate and restore (the fields are just left at their defaults).
+  canonicalUrl?: string | null
+  metaRobots?: string | null
+  focusKeyword?: string | null
+  allowComments?: boolean | null
+  eventStartAt?: string | null
+  eventEndAt?: string | null
+  eventAllDay?: boolean | null
+  eventLocation?: string | null
+  eventUrl?: string | null
+}
+
+/** A redirect rule (Admin → SEO → Redirects). Paths are site-relative, so they carry over to any domain. */
+export interface BackupRedirect {
+  from: string
+  to: string
+  statusCode: number
 }
 
 export interface BackupTerm {
@@ -181,6 +199,8 @@ export interface NuxFlowBackup {
   plugins: BackupDynamicPlugin[]
   users: BackupUserRole[]
   membershipTiers: BackupMembershipTier[]
+  /** Optional: absent from backups made before redirects were included. */
+  redirects?: BackupRedirect[]
 }
 
 // ── Backup format runtime validation ──────────────────────────────────────────
@@ -231,6 +251,21 @@ const backupContentItemSchema = z.object({
   termSlugs: z.array(z.string()),
   locale: z.string().nullable(),
   sourceItemSlug: z.string().nullable(),
+  canonicalUrl: z.string().max(2048).nullable().optional(),
+  metaRobots: z.string().max(50).nullable().optional(),
+  focusKeyword: z.string().max(200).nullable().optional(),
+  allowComments: z.boolean().nullable().optional(),
+  eventStartAt: z.string().nullable().optional(),
+  eventEndAt: z.string().nullable().optional(),
+  eventAllDay: z.boolean().nullable().optional(),
+  eventLocation: z.string().max(500).nullable().optional(),
+  eventUrl: z.string().max(2048).nullable().optional(),
+})
+
+const backupRedirectSchema = z.object({
+  from: z.string().max(2048),
+  to: z.string().max(2048),
+  statusCode: z.number().int(),
 })
 
 const backupTermSchema = z.object({
@@ -357,6 +392,7 @@ export const nuxFlowBackupSchema = z.object({
   plugins: z.array(backupDynamicPluginSchema),
   users: z.array(backupUserRoleSchema),
   membershipTiers: z.array(backupMembershipTierSchema),
+  redirects: z.array(backupRedirectSchema).optional(),
 }) satisfies z.ZodType<NuxFlowBackup>
 
 // Parses and validates an uploaded backup.json against the schema above, throwing a
@@ -400,7 +436,7 @@ export interface RestoreOptions {
   // 'site' in the `what` it passes to applyBackup(), so importing a theme's demo content
   // can never overwrite the live site's name/locale/timezone. Only the real restore route
   // (restore.post.ts) opts into 'site'.
-  what: ('content' | 'settings' | 'menus' | 'taxonomies' | 'forms' | 'site' | 'themes' | 'plugins' | 'users' | 'membershipTiers')[]
+  what: ('content' | 'settings' | 'menus' | 'taxonomies' | 'forms' | 'site' | 'themes' | 'plugins' | 'users' | 'membershipTiers' | 'redirects')[]
   conflictMode: 'skip' | 'overwrite' | 'archive'
 }
 
@@ -416,4 +452,5 @@ export interface RestoreResult {
   plugins: { created: number; updated: number; skipped: number; rejected: number }
   users: { created: number; updated: number; skipped: number }
   membershipTiers: { created: number; updated: number; skipped: number }
+  redirects: { created: number; updated: number; skipped: number }
 }

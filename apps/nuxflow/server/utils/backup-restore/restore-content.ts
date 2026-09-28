@@ -6,6 +6,26 @@ import type { Db } from '../db'
 import type { NuxFlowBackup, RestoreOptions, RestoreResult } from '../backup-types'
 import { archiveSuffix } from './shared'
 
+const META_ROBOTS_VALUES = new Set(['index,follow', 'noindex,follow', 'noindex,nofollow', 'index,nofollow'])
+
+// Per-page SEO + event columns. Only keys actually present in the backup are returned, so
+// restoring an older backup (made before these were exported) never blanks out values an
+// overwrite target already has. A robots value outside the editor's four options is
+// dropped rather than written — a backup file is user-editable.
+function extraItemFields(item: NuxFlowBackup['content'][number]) {
+  const out: Partial<typeof contentItems.$inferInsert> = {}
+  if (item.canonicalUrl !== undefined) out.canonicalUrl = item.canonicalUrl
+  if (item.metaRobots !== undefined) out.metaRobots = item.metaRobots && META_ROBOTS_VALUES.has(item.metaRobots) ? item.metaRobots : null
+  if (item.focusKeyword !== undefined) out.focusKeyword = item.focusKeyword
+  if (item.allowComments !== undefined) out.allowComments = item.allowComments
+  if (item.eventStartAt !== undefined) out.eventStartAt = item.eventStartAt
+  if (item.eventEndAt !== undefined) out.eventEndAt = item.eventEndAt
+  if (item.eventAllDay !== undefined) out.eventAllDay = item.eventAllDay
+  if (item.eventLocation !== undefined) out.eventLocation = item.eventLocation
+  if (item.eventUrl !== undefined) out.eventUrl = item.eventUrl
+  return out
+}
+
 // Replaces a content item's taxonomy-term assignments with the ones from the backup.
 // Used for both freshly-inserted items and 'overwrite'-mode updates — the delete is a
 // no-op for a brand-new id, but is what makes overwrite actually reapply the backup's
@@ -105,6 +125,7 @@ export async function restoreContent(
           publishedAt: backupItem.publishedAt,
           settings: backupItem.settings ?? undefined,
           locale: backupItem.locale || 'en',
+          ...extraItemFields(backupItem),
         }).where(eq(contentItems.id, existing.id))
         // Reapply the backup's term assignments too — without this, overwriting an
         // existing item would update its fields but silently keep whatever
@@ -136,6 +157,7 @@ export async function restoreContent(
       publishedAt: backupItem.publishedAt,
       settings: backupItem.settings ?? undefined,
       locale: backupItem.locale || 'en',
+      ...extraItemFields(backupItem),
     })
 
     await replaceContentTerms(db, id, backupItem.termSlugs, termIdBySlugPath)

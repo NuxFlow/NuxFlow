@@ -10,12 +10,14 @@ import { ulid } from 'ulid'
 import { useDb } from '../../utils/db'
 import { validateZipArchive } from '../../utils/zip-validate'
 import { isHttpError } from '../../utils/errors'
+import { purgeAllPublicPages } from '../../utils/edge-cache'
+import { waitUntil } from '../../utils/cf-env'
 import { writeAuditLog } from '../../utils/audit'
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB
 
 const querySchema = z.object({
-  what: z.string().default('content,taxonomies,menus,forms,settings,site'),
+  what: z.string().default('content,taxonomies,menus,forms,settings,site,redirects'),
   conflictMode: z.enum(['skip', 'overwrite', 'archive']).default('skip'),
 })
 
@@ -34,7 +36,7 @@ export default defineEventHandler(async (event) => {
 
   const what = query.what.split(',').filter(
     (w): w is RestoreOptions['what'][number] =>
-      ['content', 'taxonomies', 'menus', 'forms', 'settings', 'site', 'themes', 'plugins', 'users', 'membershipTiers'].includes(w),
+      ['content', 'taxonomies', 'menus', 'forms', 'settings', 'site', 'themes', 'plugins', 'users', 'membershipTiers', 'redirects'].includes(w),
   )
 
   const formData = await readMultipartFormData(event)
@@ -200,6 +202,13 @@ export default defineEventHandler(async (event) => {
   }
 
   const result = await applyBackup(event, siteId, backup, { what, conflictMode: query.conflictMode })
+
+  // Restored content, settings (SEO, appearance) and redirects all feed cached pages,
+  // sitemaps, robots.txt and llms.txt — clear them now rather than serve pre-restore
+  // copies for up to an hour. Backgrounded, same as a settings save.
+  waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
+    console.error('[restore] Failed to purge page cache after restore:', err)
+  }))
 
   await writeAuditLog(event, userId, {
     action: 'restore',

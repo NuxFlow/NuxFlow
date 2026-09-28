@@ -5,6 +5,9 @@ import { sites, siteSettings } from '@nuxflow/db/schema'
 import type { Db } from '../db'
 import { saveSetting } from '../settings'
 import { clearBetterAuthCache } from '../better-auth'
+import { SEO_SETTING_SCHEMAS } from '../seo-settings-schema'
+import { clearSeoSettingsCache, getSeoSettings } from '../seo'
+import { generateIndexNowKey } from '../indexnow'
 import type { NuxFlowBackup, RestoreOptions, RestoreResult } from '../backup-types'
 
 // Mirrors what buildBackup() exports (name/locale/timezone — see the `site` field on
@@ -47,7 +50,19 @@ export async function restoreSettings(
 ): Promise<void> {
   if (opts.what.includes('settings') && backup.settings) {
     let touchedAuthSettings = false
-    for (const [key, value] of Object.entries(backup.settings)) {
+    let touchedSeoSettings = false
+    for (const [key, raw] of Object.entries(backup.settings)) {
+      let value = raw
+      // seo.* values get the same validation/normalization as a save from Admin → SEO
+      // (seo-settings-schema.ts). A backup or theme demo.json is hand-editable, so an
+      // invalid or unknown seo.* value is skipped rather than written — one bad value
+      // shouldn't fail the rest of the restore.
+      if (key.startsWith('seo.')) {
+        const parsed = SEO_SETTING_SCHEMAS[key]?.safeParse(raw)
+        if (!parsed?.success) continue
+        value = parsed.data
+      }
+
       const existing = await db.query.siteSettings.findFirst({
         where: and(eq(siteSettings.siteId, siteId), eq(siteSettings.key, key)),
         columns: { id: true },
@@ -57,7 +72,18 @@ export async function restoreSettings(
       await saveSetting(event, key, value)
       result.settings.updated++
       if (key.startsWith('auth.')) touchedAuthSettings = true
+      if (key.startsWith('seo.')) touchedSeoSettings = true
     }
     if (touchedAuthSettings) clearBetterAuthCache()
+    if (touchedSeoSettings) {
+      clearSeoSettingsCache(siteId)
+      // IndexNow switched on by a backup/theme without a key of its own (a theme shouldn't
+      // ship one — it's per site): generate it, the same as turning it on in Admin → SEO.
+      const seo = await getSeoSettings(db, siteId)
+      if (seo.indexnowEnabled && !seo.indexnowKey) {
+        await saveSetting(event, 'seo.indexnow_key', generateIndexNowKey())
+        clearSeoSettingsCache(siteId)
+      }
+    }
   }
 }

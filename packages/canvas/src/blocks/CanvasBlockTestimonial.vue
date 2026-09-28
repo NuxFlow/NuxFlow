@@ -12,7 +12,8 @@ const props = withDefaults(defineProps<{
   company?: string
   avatar?: string | ImageFieldValue
   rating?: number
-  style?: 'simple' | 'card' | 'large'
+  /** The "Style" field (stored as `style` — see utils/block-props.ts). */
+  blockStyle?: 'simple' | 'card' | 'large'
   align?: 'left' | 'center'
   bgColor?: string
   textColor?: string
@@ -24,7 +25,7 @@ const props = withDefaults(defineProps<{
   company: '',
   avatar: '',
   rating: 5,
-  style: 'card',
+  blockStyle: 'card',
   align: 'center',
   bgColor: '#ffffff',
   textColor: '#111827',
@@ -53,13 +54,13 @@ const avatarUrl = computed(() => normalizeImageValue(props.avatar).url)
       <div
         class="relative transition-all duration-300 testimonial-card"
         :class="{
-          'bg-white dark:bg-gray-900 rounded-2xl p-8 border border-gray-100 dark:border-gray-800/80 shadow-md shadow-gray-200/50 dark:shadow-none hover:shadow-lg hover:shadow-gray-200/80 dark:hover:shadow-none hover:-translate-y-0.5': style === 'card',
-          'py-8': style === 'simple',
+          'bg-white dark:bg-gray-900 rounded-2xl p-8 border border-gray-100 dark:border-gray-800/80 shadow-md shadow-gray-200/50 dark:shadow-none hover:shadow-lg hover:shadow-gray-200/80 dark:hover:shadow-none hover:-translate-y-0.5': blockStyle === 'card',
+          'py-8': blockStyle === 'simple',
         }"
       >
         <!-- Large quote mark -->
         <svg
-          v-if="style !== 'simple'"
+          v-if="blockStyle !== 'simple'"
           class="absolute top-4 left-6 w-10 h-10 opacity-10 pointer-events-none z-0"
           fill="currentColor"
           viewBox="0 0 24 24"
@@ -84,7 +85,7 @@ const avatarUrl = computed(() => normalizeImageValue(props.avatar).url)
         <!-- Quote -->
         <blockquote
           class="relative z-10 text-lg leading-relaxed mb-6"
-          :class="style === 'large' ? 'text-2xl font-medium' : ''"
+          :class="blockStyle === 'large' ? 'text-2xl font-medium' : ''"
           style="quotes: none;"
         >
           {{ quote }}

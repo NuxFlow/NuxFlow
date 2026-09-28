@@ -337,7 +337,7 @@ Pages using the Canvas page builder render **full-width** with no outer containe
 | Selector | Block |
 |---|---|
 | `.canvas-hero` | Hero / banner section |
-| `.canvas-features` | Feature grid |
+| `.canvas-features` | Feature grid. Inside it, `.canvas-features-grid` carries `data-count` (1–4 cards) and each card is `.canvas-features-card`. Target those rather than the grid's Tailwind `grid-cols-*` classes, which change with screen size: phones show one card per row, tablets two, and desktops three or four. |
 | `.canvas-image` | Image block — `<figure>` inside holds the image |
 | `.canvas-carousel` | Image carousel / slider |
 | `.canvas-text` | Rich text / prose block |
@@ -398,9 +398,29 @@ Windows zip utilities write backslash paths (`images\photo.png`). NuxFlow normal
   "taxonomies": [],
   "menus": [],
   "forms": [],
-  "media": []
+  "media": [],
+  "redirects": []
 }
 ```
+
+**Settings** are applied only where the site doesn't already have a value, so importing demo content never overwrites what an admin has configured. `seo.*` settings are validated the same way as on Admin → SEO: an unknown key or an invalid value is skipped rather than failing the import. Useful ones to ship:
+
+```json
+"settings": {
+  "theme.dark_mode": "dark",
+  "seo.title": "My Site — what it does",
+  "seo.description": "One or two sentences for search results.",
+  "seo.og_image": "images/share.png",
+  "seo.ai_crawlers": "block-training",
+  "seo.social_profiles": ["https://github.com/you"],
+  "seo.llms_intro": "Markdown shown at the top of /llms.txt.",
+  "seo.indexnow_enabled": true
+}
+```
+
+Don't include `seo.indexnow_key`, since each site generates its own when IndexNow is switched on. Leave out `seo.canonical_url` unless the theme is for one specific domain.
+
+**Redirects** (`{ "from": "/old", "to": "/new", "statusCode": 301 }`, or `"to": ""` with `410`) are imported too. That's handy when a theme replaces an older site's URL structure.
 
 **Menu items** must include `id`, `label`, `type`, `target`, and `children` — omitting any of these causes the Save button in the menu editor to fail silently after the demo is applied:
 
