@@ -17,6 +17,9 @@ pnpm create nuxflow-app@beta
 
 After the scaffolder finishes, follow the prompts to create your D1 database and deploy. The sections below cover every step in detail if you need to configure things manually or want to contribute to NuxFlow itself.
 
+> [!IMPORTANT]
+> **A site that loads isn't necessarily set up properly.** NuxFlow is designed to start working even when some pieces are missing. For example, without file storage it keeps images inside the database, and without an email provider it quietly doesn't send emails. Once your site is up, work through the **[After-installation checklist](#5-after-installation-checklist)** at the end of this guide. It takes about 15 minutes.
+
 ---
 
 ## Prerequisites
@@ -179,14 +182,18 @@ Your domain must be on Cloudflare's nameservers for this to work. If it is not, 
 
 ### Step 7: Verify Cron Triggers
 
-NuxFlow uses a scheduled Worker to handle timed content publishing. The trigger is defined in `wrangler.toml`:
+NuxFlow runs scheduled jobs for timed publishing, nightly cleanup, and stuck-video checks. The triggers are defined in `wrangler.toml`:
 
 ```toml
 [triggers]
-crons = ["* * * * *"]
+crons = ["* * * * *", "0 3 * * *", "0 * * * *"]
 ```
 
-After deploying, confirm the trigger is active in **Workers & Pages → nuxflow → Settings → Triggers → Cron Triggers**. You should see one entry running every minute.
+- Every minute: publish scheduled content.
+- Nightly at 3 AM UTC: prune old logs and revisions, and flag stale content.
+- Hourly: mark failed video uploads.
+
+After deploying, confirm all three are active in **Workers & Pages → nuxflow → Settings → Triggers → Cron Triggers**.
 
 To test the scheduled handler locally (run from `apps/nuxflow`):
 
@@ -195,6 +202,9 @@ wrangler dev --test-scheduled
 ```
 
 Then call `http://localhost:8787/__scheduled` to trigger it manually.
+
+> [!TIP]
+> Your site is live. Before you start adding content, go through the **[After-installation checklist](#5-after-installation-checklist)**.
 
 ---
 
@@ -450,14 +460,17 @@ Powers the "You might be looking for" fallback on the public Search page and the
 
 Turnstile protects public forms from bots without showing a CAPTCHA challenge to real users.
 
-1. Go to **Cloudflare Dashboard → Turnstile → Add Site**
-2. Copy the site key and secret key
-3. Add the secrets:
+1. Go to **Cloudflare Dashboard → Turnstile → Add Site** and add your domain.
+2. Paste the **site key** into **Admin → Settings → Integrations → Cloudflare Turnstile** and save.
+3. Add the **secret key** as a Worker secret (from `apps/nuxflow`):
 
 ```bash
-wrangler secret put NUXT_PUBLIC_TURNSTILE_SITE_KEY
-wrangler secret put NUXT_TURNSTILE_SECRET_KEY
+wrangler secret put CLOUDFLARE_TURNSTILE_SECRET_KEY
 ```
+
+Set **both** keys or neither:
+- With only the site key, visitors see the Turnstile widget, but submissions are never actually verified.
+- With only the secret, the widget isn't shown, so every contact-form and form submission is rejected.
 
 ### Dynamic Plugins (KV + Worker Loaders)
 
@@ -591,3 +604,85 @@ Add the relevant secret for your chosen provider, then select it in **Admin → 
 | ZeptoMail | `NUXT_ZEPTO_API_KEY` |
 
 If no provider is configured, NuxFlow logs emails to the console in development.
+
+---
+
+## 5. After-installation checklist
+
+NuxFlow is built to keep working when something isn't set up yet, so a missing piece often shows up as a *slow* or *quietly broken* site rather than an error message. This checklist covers the settings that matter for **every** installation. It leaves out features only some sites need, such as payments, video, or social login.
+
+Each item says what goes wrong if you skip it and how to check it's done.
+
+> [!TIP]
+> **You don't have to check these by hand.** The admin dashboard shows a **Finish setting up your site** card that checks each item live and ticks it off once it's done. Each entry has a button that takes you to where it's fixed, plus a **How to** link back to this page. Essential items can't be skipped. Recommended ones can, and the card can be hidden once every essential item is done. It comes back by itself if something essential breaks later, for example if email starts failing.
+
+### Do not skip
+
+#### ☐ 1. Connect file storage (R2)
+
+- **If you skip it:** every uploaded image is stored inside the database. Each file is limited to 512 KB, and images are inlined into your pages, which makes every page slower to load and fills up the database.
+- **Do this:** run `wrangler r2 bucket create nuxflow-media` once from `apps/nuxflow`, keep the `[[r2_buckets]]` block in `wrangler.toml`, and deploy. There's nothing to type into the admin. See [Media Storage](#media-storage).
+- **Check:** **Admin → Settings → Media** says *"New uploads go to Cloudflare R2"*. If it says *"No file storage connected yet"*, it isn't working.
+- **Already uploaded images before this?** The same page shows how many files are still in the database, with a **Move to Cloudflare R2** button. It's safe to run more than once.
+
+#### ☐ 2. Turn on email sending
+
+- **If you skip it:** NuxFlow doesn't send email at all. It only writes emails to the server log, and nothing warns you. Password-reset links, user invitations, email verification, and security alerts never arrive, which can lock you out of your own site.
+- **Do this:** in **Admin → Settings → Email**, choose **Cloudflare**. Then run `wrangler email sending enable yourdomain.com` once for your domain. See [Email Providers](#email-providers). Resend, Brevo, and ZeptoMail also work.
+- **Check:** use **Send a test email** on that page, sent to an address that *isn't* on your Cloudflare account (a personal Gmail address works). Until the domain is enabled, Cloudflare only delivers to addresses verified on your own account, so a test to yourself can succeed even though other people won't receive anything.
+
+#### ☐ 3. Use your own domain, and only that domain
+
+- **If you skip it:** your site stays on its `something.workers.dev` address. If you add a domain but leave that address on, search engines can find two copies of every page.
+- **Do this:**
+  1. Add your domain ([Step 6](#step-6-add-a-custom-domain)) and set `NUXT_PUBLIC_SITE_URL` in `wrangler.toml` to it.
+  2. Once the domain works, sign in to the admin **on the new domain**.
+  3. Then set `workers_dev = false` and `preview_urls = false` in `wrangler.toml` and deploy again.
+- **Check:** your pages open on your domain, and the `workers.dev` address no longer serves the site.
+- **If you'd rather keep the `workers.dev` address:** NuxFlow already marks it `noindex` so search engines ignore it. **Admin → SEO → Indexing** can also redirect it to your domain.
+
+#### ☐ 4. Keep your auth secret safe, and never change it
+
+- **Why it matters:** `NUXT_BETTER_AUTH_SECRET` signs everyone's login sessions and encrypts the API keys and passwords you save in Settings (payment keys, email API keys, and so on). Changing it later signs everyone out and makes every saved key unreadable, so you'd have to re-enter them all.
+- **Do this:** make sure it's a long random value (the `create-nuxflow-app` scaffolder generates one for you) set with `wrangler secret put NUXT_BETTER_AUTH_SECRET`. Keep a copy in your password manager.
+- **Check:** `wrangler secret list` (from `apps/nuxflow`) shows `NUXT_BETTER_AUTH_SECRET`.
+
+#### ☐ 5. Set up the basics for search engines and AI
+
+- **If you skip it:** your homepage and archive pages have no description, shared links show no picture, and search engines have to find the site on their own.
+- **Do this:**
+  - In **Admin → SEO → Global defaults**, add a default description and a default share image. **AI suggest** can write the description for you.
+  - In **Admin → SEO → AI & crawlers**, choose how AI assistants may use your content. The recommended choice lets them cite you but not train on you.
+  - In the Cloudflare dashboard, check that **AI Crawl Control → Block AI bots** and **Managed robots.txt** don't contradict that choice. Those settings apply before NuxFlow sees the request.
+  - Add your site to [Google Search Console](https://search.google.com/search-console) and [Bing Webmaster Tools](https://www.bing.com/webmasters). Paste their verification codes into **Admin → SEO → Social & verification**, then submit `sitemap.xml` in both.
+- **Check:** **Admin → SEO → Audit** shows no red items in the site-level list at the top.
+
+### Strongly recommended
+
+#### ☐ 6. Turn on AI features (Workers AI)
+
+- **If you skip it:** the AI buttons (alt text, SEO suggestions, writing help, translation, page generation) show an error, and the automatic spam filter for comments and forms is quietly off.
+- **Do this:** uncomment the `[ai]` block in `wrangler.toml` and deploy. There's no API key, and there's a daily free allowance. See [AI Providers](#ai-providers). Alternatively, add an OpenAI, Anthropic, or other key in **Admin → Settings → AI**.
+- **Check:** click **AI suggest** in **Admin → SEO → Global defaults**. It should fill in a title and description.
+
+#### ☐ 7. Protect your forms from bots (Turnstile)
+
+This applies if your site has a contact form or other forms.
+
+- **If you skip it:** bots can submit your forms freely, and the AI spam filter is the only thing catching them.
+- **Do this:** follow [Spam Protection (Turnstile)](#spam-protection-turnstile). Set **both** keys; one on its own doesn't work.
+- **Check:** your contact form shows the small Turnstile check above the submit button, and a test message still arrives.
+
+#### ☐ 8. Secure your admin account
+
+- **Do this:** add a passkey (Face ID, Touch ID, Windows Hello, or a security key) under **Settings → Security → Passkeys & Passwordless Login**. It's faster than a password and can't be phished. Also make sure your account's email address is one you actually receive mail at, since password resets go there.
+
+#### ☐ 9. Know where your backups are
+
+- **Already on:** Cloudflare keeps a restorable history of your database automatically (D1 Time Travel, 30 days on the Workers Paid plan). An operator can roll back to any minute in that window with `wrangler d1 time-travel restore`.
+- **Do this too:** download a backup from **Admin → Import → Backup** once your site has content, and again before big changes. It includes your content, settings, users' roles, and media, and it can be restored onto a fresh installation.
+
+#### ☐ 10. Turn on IndexNow
+
+- **Do this:** switch on **Admin → SEO → Indexing → IndexNow**, then click **Submit all URLs now** once. After that, Bing and other participating search engines hear about new and changed pages within minutes instead of days. There's no account to create.
+
