@@ -76,7 +76,9 @@ const statCards = computed(() => [
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Here's what's happening on your site.</p>
     </div>
 
-    <AdminMediaFallbackWarning />
+    <!-- Covers file storage along with email, domain, SEO, etc. (the media library keeps
+         its own storage-only AdminMediaFallbackWarning). -->
+    <AdminSetupChecklist />
 
     <!-- Stat cards -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
