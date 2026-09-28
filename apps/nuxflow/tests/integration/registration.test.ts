@@ -129,7 +129,7 @@ describe('POST /api/public/auth/register', () => {
       // Self-registration has no other proof of email ownership (unlike the invite
       // flow's emailed password-reset link) — best-effort verification email trigger.
       expect(mockSendVerificationEmail).toHaveBeenCalledWith({
-        body: { email, callbackURL: '/login?verified=1' },
+        body: { email, callbackURL: `/login?${new URLSearchParams({ verified: '1', site: SITE })}` },
       })
     })
 

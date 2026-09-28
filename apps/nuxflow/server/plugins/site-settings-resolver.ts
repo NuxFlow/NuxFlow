@@ -63,6 +63,12 @@ function safeCssColor(value: string): string | null {
   return CSS_COLOR_RE.test(value.trim()) ? value.trim() : null
 }
 
+const AUTH_PATHS = ['/login', '/register', '/forgot-password', '/reset-password', '/account', '/setup', '/authorize']
+
+function isAuthPath(path: string): boolean {
+  return AUTH_PATHS.some(p => path === p || path.startsWith(`${p}/`))
+}
+
 // ── Google Fonts query strings ────────────────────────────────────────────────
 
 const FONT_QUERY: Record<string, string> = {
@@ -188,7 +194,11 @@ export default defineNitroPlugin((nitro) => {
       // deployment's pre-existing behaviour for that traffic; a request with the
       // header present and inside that zone must have an explicit analytics/marketing
       // consent before either field ever reaches the page.
-      if (!isAdmin && (customHeadHtml || customBodyHtml)) {
+      // Never on the sign-in and account pages, even on a single-site install that signs in
+      // on its own domain: script there could read a password as it's typed or a reset
+      // token from the URL. (Under central sign-in those pages don't exist on a site's
+      // domain at all — see utils/accounts-origin.ts.)
+      if (!isAdmin && !isAuthPath(path) && (customHeadHtml || customBodyHtml)) {
         const consent = parseConsentFromHeader(getRequestHeader(event, 'cookie'))
         const regulatedVisitor = isGdprCountry(getRequestHeader(event, 'cf-ipcountry'))
         const allowed = hasOptionalConsent(consent) || !regulatedVisitor

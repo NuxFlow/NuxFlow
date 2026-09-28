@@ -1,18 +1,18 @@
 import { useDb } from '../../../../utils/db'
-import { users } from '@nuxflow/db/schema'
-import { eq } from 'drizzle-orm'
+import { pendingInvitationInsert } from '../../../../utils/invitations'
+import { users, sessions, siteInvitations } from '@nuxflow/db/schema'
+import { and, eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole } from '../../../../utils/permissions'
 import { rateLimit } from '../../../../utils/rate-limit'
-import { getOrCreateBetterAuth } from '../../../../utils/better-auth'
 import { writeAuditLog } from '../../../../utils/audit'
+import { sendSetPasswordEmail } from '../../../../utils/user-provisioning'
 
-// Re-sends the same set-password email a brand-new invitee gets on first invite (see
-// the requestPasswordReset call in index.post.ts) — for when the original link expired
-// or the email never arrived. There's no separate invitations table, so "pending" is
-// inferred client-side from GET /api/v1/users' `pending` flag (no session ever
-// established); this endpoint doesn't gate on that itself; an admin resending it to an
-// already-active user just gives them an extra way back into their account, which is
-// harmless.
+// Re-sends the set-password email an invitee gets on first invite (see
+// sendSetPasswordEmail in user-provisioning.ts) — for when the original link expired or
+// the email never arrived. Only for someone still pending on this site: a pending
+// invitation (an unclaimed account — see site_invitations), or a member who has never
+// signed in. An admin can't use it to push password-reset emails at established members,
+// which would just be a nuisance at best and a phishing lure at worst.
 export default defineEventHandler(async (event) => {
   await rateLimit(event, { limit: 5, windowMs: 60_000, keyPrefix: 'user-resend-invite' })
   const { userId } = await requireRole(event, 'admin')
@@ -21,14 +21,27 @@ export default defineEventHandler(async (event) => {
 
   const db = useDb(event)
 
-  const membership = await getUserSiteRole(db, targetId, siteId)
-  if (!membership) throw notFound('User not found in this site')
+  const [membership, invitation] = await Promise.all([
+    getUserSiteRole(db, targetId, siteId),
+    db.query.siteInvitations.findFirst({
+      where: and(eq(siteInvitations.userId, targetId), eq(siteInvitations.siteId, siteId)),
+    }),
+  ])
+  if (!membership && !invitation) throw notFound('User not found in this site')
+
+  if (membership) {
+    const everSignedIn = await db.query.sessions.findFirst({ where: eq(sessions.userId, targetId), columns: { id: true } })
+    if (everSignedIn) throw conflict('This user has already signed in — they can use "Forgot password" if they need to.')
+  }
 
   const target = await db.query.users.findFirst({ where: eq(users.id, targetId), columns: { email: true } })
   if (!target) throw notFound('User not found')
 
-  const auth = await getOrCreateBetterAuth(event)
-  await auth.api.requestPasswordReset({ body: { email: target.email, redirectTo: '/reset-password' } })
+  // A resend also restarts a pending invitation's expiry clock.
+  if (invitation) {
+    await pendingInvitationInsert(db, { siteId, userId: targetId, role: invitation.role, invitedBy: userId })
+  }
+  await sendSetPasswordEmail(event, target.email, siteId)
 
   await writeAuditLog(event, userId, { action: 'resend_invite', resource: 'user', resourceId: targetId })
 

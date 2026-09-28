@@ -8,6 +8,8 @@ import { and, eq } from 'drizzle-orm'
 // the deliberate escape hatch for legitimate key rotation (see index.post.ts). Requires
 // super admin specifically, a higher bar than the site `admin` role that install/enable/
 // disable/delete use, since this is loosening a security control rather than exercising one.
+// Only works on a site where the caller holds super_admin; for a tenant's site, use
+// DELETE /api/v1/admin/sites/:siteId/plugins/:pluginId/trust from the primary site.
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSuperAdmin(event)
   const db = useDb(event)

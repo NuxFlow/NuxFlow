@@ -1,6 +1,6 @@
 import { useDb } from '../utils/db'
-import { contentItems } from '@nuxflow/db/schema'
-import { and, eq, lte, sql } from 'drizzle-orm'
+import { contentItems, sites } from '@nuxflow/db/schema'
+import { and, eq, lte, notInArray, sql } from 'drizzle-orm'
 import { indexablePathsForItems, submitToIndexNow } from '../utils/indexnow'
 
 export const publishScheduled = async () => {
@@ -9,6 +9,9 @@ export const publishScheduled = async () => {
   const where = and(
     eq(contentItems.status, 'scheduled'),
     lte(contentItems.scheduledAt, sql`(datetime('now'))`),
+    // A suspended site is closed by the operator — nothing on it changes until it's
+    // reactivated, at which point anything overdue publishes on the next tick.
+    notInArray(contentItems.siteId, db.select({ id: sites.id }).from(sites).where(eq(sites.status, 'suspended'))),
   )
 
   const due = await db.query.contentItems.findMany({

@@ -3,25 +3,26 @@ import type { H3Event } from 'h3'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { passkey } from '@better-auth/passkey'
-import { eq, and } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import * as schema from '@nuxflow/db/schema'
 import { nuxflowPasswordHasher } from './pw'
 import { createIsolateCache } from './isolate-cache'
 import { renderEmailTemplate, type EmailTemplateInput } from './email-template'
+import { loadEmailConfig, sendEmailWithConfig } from './email'
 import { currentAuthEvent } from './auth-request-context'
 import { alertOnNewSignIn, alertForAuthPath } from './security-alerts'
 import { waitUntil } from './cf-env'
+import { getAccountsOrigin } from './accounts-origin'
+import { activatePendingInvitations } from './invitations'
+import { clearCachedRole } from './role-cache'
+import { getPrimarySite, eventForSite } from './site-info'
 
-// Per-host auth instance cache with 5-minute TTL so newly-registered custom
-// domains — and per-site social-login credential changes — start working
-// without a redeployment. Keyed by Host header rather than siteId: /api/auth/**
-// deliberately bypasses multi-site middleware (see server/middleware/02.multi-site.ts),
-// so event.context.siteId isn't reliably set here — but the Host header always is,
-// and it's free to read (no DB round-trip) so it's safe to use as the cache key
-// even on the hot cache-hit path. Keyed by host rather than a single shared slot
-// because socialProviders below can now differ per site — a single cache slot
-// would let one site's request silently serve its Google/GitHub credentials to
-// every other site sharing the isolate for the next 5 minutes.
+// Auth instance cache with 5-minute TTL so newly-registered custom domains and
+// social-login credential changes start working without a redeployment. Under central
+// sign-in there is one instance for the deployment. Otherwise it's keyed by Host: in
+// same-origin mode baseURL/passkey origin follow the site's own domain, and
+// /api/auth/** bypasses multi-site resolution, so the Host header (free to read, no D1
+// round trip) is the stable key.
 const _cachedBetterAuth = createIsolateCache<Awaited<ReturnType<typeof buildBetterAuthInstance>>>(5 * 60 * 1000)
 
 async function buildBetterAuthInstance(event: H3Event) {
@@ -32,145 +33,149 @@ async function buildBetterAuthInstance(event: H3Event) {
   const requestProto = getHeader(event, 'x-forwarded-proto')
   const requestHostname = requestHost?.split(':')[0] ?? ''
 
-  // /api/auth/** bypasses multi-site middleware, so event.context.siteId usually
-  // isn't set yet at this point — resolve it ourselves from the Host header (same
-  // domain-lookup pattern already used below for trustedOrigins/sendResetPassword)
-  // so resolveSetting() below can find this site's per-site setting overrides.
-  // Never overwrites an already-set siteId.
-  if (!event.context.siteId) {
-    if (requestHostname && requestHostname !== 'localhost' && requestHostname !== '127.0.0.1' && requestHostname !== '::1') {
-      const currentSite = await db.query.sites.findFirst({ where: eq(schema.sites.domain, requestHostname), columns: { id: true } })
-      if (currentSite) event.context.siteId = currentSite.id
-    }
-  }
-
+  // Social sign-in is one OAuth app for the whole deployment: configured on the primary
+  // (operator's) site — Admin → Settings → Integrations there — with the env vars as the
+  // fallback. Under central sign-in every OAuth callback lands on the accounts origin, so
+  // one app with one callback URL serves every site; per-site OAuth apps no longer exist.
+  const primary = await getPrimarySite(event)
+  const settingsEvent = primary ? eventForSite(event, primary.id) : event
   const [googleClientId, googleClientSecret, githubClientId, githubClientSecret] = await Promise.all([
-    resolveSetting(event, 'auth.google_client_id', 'googleClientId'),
-    resolveSetting(event, 'auth.google_client_secret', 'googleClientSecret'),
-    resolveSetting(event, 'auth.github_client_id', 'githubClientId'),
-    resolveSetting(event, 'auth.github_client_secret', 'githubClientSecret'),
+    resolveSetting(settingsEvent, 'auth.google_client_id', 'googleClientId'),
+    resolveSetting(settingsEvent, 'auth.google_client_secret', 'googleClientSecret'),
+    resolveSetting(settingsEvent, 'auth.github_client_id', 'githubClientId'),
+    resolveSetting(settingsEvent, 'auth.github_client_secret', 'githubClientSecret'),
   ])
 
-  // Whether this is a local dev deployment is a property of the *deployment*, not
-  // of any single request: it must NOT be derived from the current request's Host
-  // header. Nitro dispatches internal self-fetches (e.g. app/middleware/session.global.ts's
-  // SSR session check, which runs on every page load) without forwarding the real
-  // Host unless the caller explicitly passes it — it otherwise defaults to
-  // "localhost", even inside a fully deployed production Worker. An earlier
-  // version of this function branched baseURL/cookie-protocol on
-  // requestHostname === 'localhost', which made those internal SSR calls
-  // intermittently flip into non-secure-cookie mode: they'd look for the session
-  // under the wrong cookie name, fail to find it, and clear it — sign-in would
-  // succeed, then the very next page's SSR session check would silently invalidate
-  // it. A genuine local dev database always has its own site domain set to
-  // "localhost" (see server/api/v1/setup/complete.post.ts), which production never
-  // does — that's a stable, request-independent signal.
-  const sites = await db.query.sites.findMany({ columns: { domain: true } })
-  const siteDomains = sites.map(s => s.domain).filter(Boolean) as string[]
-  const isLocalDeployment = siteDomains.some(d => d === 'localhost' || d === '127.0.0.1' || d === '::1')
+  const accountsOrigin = getAccountsOrigin()
 
-  const primaryConfiguredUrl = (config.public.siteUrl || 'https://nuxflow.dev').replace(/\/$/, '')
-
-  // Passkeys are WebAuthn relying-party scoped — bind them to the browser's actual
-  // origin. `wrangler dev` always performs a production-mode build (see CLAUDE.md),
-  // so NODE_ENV can't detect local dev either, and config.public.siteUrl is a static
-  // deployment-wide value that never matches the floating localhost port dev runs
-  // on. Per-request Host is safe to use here specifically because a passkey
-  // ceremony only ever originates from a genuine top-level/XHR browser request —
-  // never from Nitro's internal self-fetches — so it isn't exposed to the
-  // inconsistency described above. Gated on isLocalDeployment so a production
-  // request can never be misread as local dev just because some internal call
-  // happens to present Host: localhost.
-  const requestIsLoopback = requestHostname === 'localhost' || requestHostname === '127.0.0.1' || requestHostname === '::1'
-  const primaryUrl = (isLocalDeployment && requestIsLoopback)
-    ? `${requestProto ?? 'http'}://${requestHost}`
-    : primaryConfiguredUrl
-
+  // Where Better Auth lives, and what WebAuthn binds passkeys to.
+  //
+  // Central sign-in (NUXT_PUBLIC_ACCOUNTS_URL): one fixed origin. Every sign-in, reset
+  // link, OAuth callback and passkey ceremony happens there, so passkeys (rpID = the
+  // accounts host) work for every site, and nothing Better Auth serves is reachable on a
+  // site's own domain (03.accounts-routing.ts).
+  //
+  // Same-origin (single-site install): the site's own domain, as before.
+  let baseURL: string | { allowedHosts: string[]; protocol: 'https' | 'http' | 'auto'; fallback: string }
   let passkeyRpID: string | undefined
   let passkeyOrigin: string | undefined
-  try {
-    const u = new URL(primaryUrl)
-    passkeyRpID = u.hostname
-    passkeyOrigin = u.origin
-  }
-  catch { /* passkey falls back to Better Auth's resolved baseURL */ }
+  let trustedOrigins: (request?: Request) => Promise<string[]>
 
-  // allowedHosts/protocol are computed once from stable, request-independent
-  // sources (the sites table + the deployment's configured URL) so every build
-  // — real request or internal self-fetch alike — resolves identically.
-  const domains = new Set(siteDomains)
-  try {
-    const configuredHost = new URL(primaryConfiguredUrl).hostname
-    if (configuredHost) domains.add(configuredHost)
+  if (accountsOrigin) {
+    baseURL = accountsOrigin
+    passkeyRpID = new URL(accountsOrigin).hostname
+    passkeyOrigin = accountsOrigin
+    trustedOrigins = async () => [accountsOrigin]
   }
-  catch { /* ignore malformed URL */ }
+  else {
+    // Whether this is a local dev deployment is a property of the *deployment*, not of
+    // any single request: Nitro dispatches internal self-fetches (e.g.
+    // app/middleware/01.session.global.ts's SSR session check) with Host "localhost"
+    // unless the caller forwards the real one, even inside a deployed Worker — branching
+    // cookie security on the request host once made those calls silently clear real
+    // sessions. A genuine local dev database always has its site domain set to
+    // "localhost" (setup/complete.post.ts), which production never does.
+    const sites = await db.query.sites.findMany({ columns: { domain: true } })
+    const siteDomains = sites.map(s => s.domain).filter(Boolean) as string[]
+    const isLocalDeployment = siteDomains.some(d => d === 'localhost' || d === '127.0.0.1' || d === '::1')
+    const primaryConfiguredUrl = (config.public.siteUrl || `https://${siteDomains[0] ?? 'localhost'}`).replace(/\/$/, '')
 
-  const baseURL: { allowedHosts: string[]; protocol: 'https' | 'http' | 'auto'; fallback: string } = {
-    allowedHosts: [...domains],
-    protocol: isLocalDeployment ? 'http' : 'https',
-    fallback: primaryUrl,
-  }
-
-  // Shared by sendResetPassword and sendVerificationEmail below — both need the same
-  // "resolve the site for this email link's host, then decrypt its email-provider
-  // settings" lookup, previously only written once for sendResetPassword.
-  async function resolveSiteEmailSettings(host: string): Promise<{ siteId: string; siteName: string; sm: Record<string, string> } | null> {
-    const site = await db.query.sites.findFirst({ where: eq(schema.sites.domain, host) })
-    if (!site) return null
-    const settingRows = await db.query.siteSettings.findMany({
-      where: and(eq(schema.siteSettings.siteId, site.id)),
-    })
-    const rc = useRuntimeConfig()
-    const secret = rc.betterAuthSecret
-    const sm: Record<string, string> = {}
-    for (const row of settingRows) {
-      if (!row.value) continue
-      if (SENSITIVE_SETTING_KEYS.has(row.key)) {
-        try { sm[row.key] = await decryptText(row.value as string, secret) }
-        catch { sm[row.key] = row.value as string }
-      }
-      else {
-        sm[row.key] = row.value as string
-      }
-    }
-    return { siteId: site.id, siteName: site.name, sm }
-  }
-
-  // Shared by sendResetPassword and sendVerificationEmail below — both resolve the
-  // link's own host to a site (never the enclosing closure's `event`/`requestHost`,
-  // which may belong to a different host than the one embedded in the actual
-  // reset/verify URL — e.g. a cross-host internal call), look up that site's
-  // decrypted email-provider settings, and send through the shared provider dispatch.
-  // Collapsed here so both closures fail (and log) identically instead of maintaining
-  // two copies of the same six-field settings-to-config mapping.
-  async function sendAuthEmail(linkUrl: string, opts: { name: string; to: string; subject: string; template: Omit<EmailTemplateInput, 'siteName' | 'accentColor'> }): Promise<void> {
-    let host = 'localhost'
-    try { host = new URL(linkUrl).hostname } catch { /* keep default */ }
+    // Locally, bind passkeys to the browser's real origin (the floating dev port) — safe
+    // because a passkey ceremony only ever comes from a genuine browser request, never
+    // from Nitro's internal self-fetches, and gated on isLocalDeployment so production
+    // can't be misread as local dev.
+    const requestIsLoopback = requestHostname === 'localhost' || requestHostname === '127.0.0.1' || requestHostname === '::1'
+    const primaryUrl = (isLocalDeployment && requestIsLoopback)
+      ? `${requestProto ?? 'http'}://${requestHost}`
+      : primaryConfiguredUrl
     try {
-      const resolved = await resolveSiteEmailSettings(host)
-      if (!resolved) {
-        console.warn(`[auth] ${opts.name}: no site found for host`, host)
+      const u = new URL(primaryUrl)
+      passkeyRpID = u.hostname
+      passkeyOrigin = u.origin
+    }
+    catch { /* passkey falls back to Better Auth's resolved baseURL */ }
+
+    const domains = new Set(siteDomains)
+    try {
+      const configuredHost = new URL(primaryConfiguredUrl).hostname
+      if (configuredHost) domains.add(configuredHost)
+    }
+    catch { /* ignore malformed URL */ }
+    baseURL = {
+      allowedHosts: [...domains],
+      protocol: isLocalDeployment ? 'http' : 'https',
+      fallback: primaryUrl,
+    }
+    trustedOrigins = async (request) => {
+      if (!request) return []
+      try {
+        const url = new URL(request.url)
+        const host = url.hostname
+        if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return [url.origin]
+        // Only the scheme the request actually arrived on — never also its http://
+        // variant, which would undercut https-only expectations for no legitimate reason.
+        const site = await db.query.sites.findFirst({ where: eq(schema.sites.domain, host) })
+        if (site) return [url.origin]
+      }
+      catch (err) {
+        console.error('[auth] trusted origin check failed:', err)
+      }
+      return []
+    }
+  }
+
+  /**
+   * The site an auth email is about. Links carry it as `site=<id>` on their callback URL
+   * (see sendSetPasswordEmail / registerAccountForSite), since under central sign-in every
+   * link points at the accounts origin, not the site. Otherwise (same-origin install) the
+   * link's own host names the site; failing both, the primary site.
+   */
+  async function resolveEmailSite(linkUrl: string): Promise<{ id: string; name: string; domain: string } | null> {
+    try {
+      const link = new URL(linkUrl)
+      const callback = link.searchParams.get('callbackURL')
+      const siteId = callback ? new URL(callback, link.origin).searchParams.get('site') : null
+      if (siteId) {
+        const site = await db.query.sites.findFirst({ where: eq(schema.sites.id, siteId), columns: { id: true, name: true, domain: true } })
+        if (site) return site
+      }
+      const byHost = await db.query.sites.findFirst({ where: eq(schema.sites.domain, link.hostname), columns: { id: true, name: true, domain: true } })
+      if (byHost) return byHost
+    }
+    catch { /* malformed link — fall through */ }
+    return getPrimarySite(event)
+  }
+
+  function linkPurpose(linkUrl: string): 'invite' | 'reset' {
+    try {
+      const link = new URL(linkUrl)
+      const callback = link.searchParams.get('callbackURL')
+      return callback && new URL(callback, link.origin).searchParams.get('purpose') === 'invite' ? 'invite' : 'reset'
+    }
+    catch { return 'reset' }
+  }
+
+  // Shared by sendResetPassword and sendVerificationEmail below: sends through the email
+  // settings of the site the link is about (see resolveEmailSite), branded as that site.
+  async function sendAuthEmail(linkUrl: string, opts: { name: string; to: string; subject: string; template: Omit<EmailTemplateInput, 'siteName' | 'accentColor'> }): Promise<void> {
+    try {
+      const site = await resolveEmailSite(linkUrl)
+      if (!site) {
+        console.warn(`[auth] ${opts.name}: no site to send as`)
         return
       }
-      const { sm, siteId, siteName } = resolved
+      const siteEvent = eventForSite(event, site.id)
+      const emailConfig = await loadEmailConfig(siteEvent)
+      const accent = await resolveSetting(siteEvent, 'theme.primary_color')
       const { html, text } = renderEmailTemplate({
         ...opts.template,
-        siteName,
-        accentColor: sm['theme.primary_color'],
+        siteName: site.name,
+        accentColor: typeof accent === 'string' ? accent : undefined,
       })
       await sendEmailWithConfig(
-        {
-          emailProvider: sm['email.provider'] || 'console',
-          fromAddress: sm['email.from_address'] || `noreply@${host}`,
-          fromName: sm['email.from_name'] || siteName,
-          resendApiKey: sm['email.resend_api_key'],
-          brevoApiKey: sm['email.brevo_api_key'],
-          zeptoApiKey: sm['email.zepto_api_key'],
-          domain: host,
-          siteId,
-        },
+        { ...emailConfig, domain: site.domain, fromAddress: emailConfig.fromAddress || `noreply@${site.domain.replace(/^www\./, '')}` },
         { to: opts.to, subject: opts.subject, html, text, category: 'auth' },
-        event,
+        siteEvent,
       )
     }
     catch (err) {
@@ -182,27 +187,7 @@ async function buildBetterAuthInstance(event: H3Event) {
     baseURL,
     secret: config.betterAuthSecret,
     advanced: { trustedProxyHeaders: true },
-    trustedOrigins: async (request) => {
-      if (!request) return []
-      try {
-        const url = new URL(request.url)
-        const host = url.hostname
-        const origin = url.origin
-        if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return [origin]
-        const site = await db.query.sites.findFirst({ where: eq(schema.sites.domain, host) })
-        // A non-loopback host is by definition a real deployment, not local dev — trust
-        // only the scheme the request actually arrived on, not both. Whitelisting the
-        // http:// variant here too (an earlier version of this code did) would mean a
-        // same-origin http:// request gets accepted by Better Auth's own origin/CSRF
-        // check even in production, undermining HSTS/https-only expectations for no
-        // legitimate reason (every real deployment path here is https).
-        if (site) return [origin]
-      }
-      catch (err) {
-        console.error('[auth] trusted origin check failed:', err)
-      }
-      return []
-    },
+    trustedOrigins,
     database: drizzleAdapter(db as Parameters<typeof drizzleAdapter>[0], {
       provider: 'sqlite',
       schema: {
@@ -221,6 +206,25 @@ async function buildBetterAuthInstance(event: H3Event) {
       enabled: true,
       password: nuxflowPasswordHasher,
       sendResetPassword: async ({ user, url: resetUrl }) => {
+        if (linkPurpose(resetUrl) === 'invite') {
+          // The same single-use reset token, worded as an invitation — it's how an invitee
+          // proves they own the mailbox (see sendSetPasswordEmail in user-provisioning.ts).
+          const site = await resolveEmailSite(resetUrl)
+          const siteName = site?.name ?? 'the site'
+          await sendAuthEmail(resetUrl, {
+            name: 'sendResetPassword(invite)',
+            to: user.email,
+            subject: `You've been invited to ${siteName}`,
+            template: {
+              heading: `You've been invited to ${siteName}`,
+              preheader: 'Set your password to accept. This link expires in 1 hour.',
+              paragraphs: [`Hi ${user.name},`, `You've been invited to join ${siteName}. Choose a password to accept the invitation and sign in. This link expires in 1 hour — ask whoever invited you to resend it if it runs out.`],
+              action: { label: 'Accept invitation', url: resetUrl },
+              footnote: 'If you weren\'t expecting this, you can ignore it — nothing changes unless you use the link.',
+            },
+          })
+          return
+        }
         await sendAuthEmail(resetUrl, {
           name: 'sendResetPassword',
           to: user.email,
@@ -254,6 +258,11 @@ async function buildBetterAuthInstance(event: H3Event) {
           waitUntil(requestEvent, alertForAuthPath(requestEvent, user.id, '/api/auth/reset-password')
             .catch(err => console.error('[auth] Password-reset alert failed:', err)))
         }
+        // Completing the emailed link proves mailbox ownership and replaces the password,
+        // so any pending invitations (site_invitations — held for an account nobody had
+        // proven they own) become real roles now.
+        const activated = await activatePendingInvitations(db, user.id)
+        for (const siteId of activated) clearCachedRole(user.id, siteId)
         if (user.emailVerified) return
         await db.delete(schema.passkeys).where(eq(schema.passkeys.userId, user.id))
         await db.update(schema.users).set({ emailVerified: true }).where(eq(schema.users.id, user.id))
@@ -368,6 +377,16 @@ export async function getOrCreateBetterAuth(event: H3Event) {
   // server has also been observed to occasionally omit the port on some request
   // types, and keying on hostname alone would let that port-less build get cached
   // and served to later, correctly-ported requests for the rest of the TTL.
+  // Central sign-in: one instance for the whole deployment — nothing in it depends on the
+  // request's host (see buildBetterAuthInstance).
+  if (getAccountsOrigin()) {
+    const central = _cachedBetterAuth.get('central')
+    if (central) return central
+    const instance = await buildBetterAuthInstance(event)
+    _cachedBetterAuth.set('central', instance)
+    return instance
+  }
+
   const rawHost = getHeader(event, 'host') || 'default'
   const hostname = rawHost.split(':')[0] ?? rawHost
   const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'

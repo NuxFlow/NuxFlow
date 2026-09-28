@@ -1,5 +1,5 @@
 import { useDb } from '../utils/db'
-import { auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits } from '@nuxflow/db/schema'
+import { auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits, siteInvitations, siteAuthCodes, siteSessions } from '@nuxflow/db/schema'
 import { and, count, eq, inArray, lt, ne, notInArray, sql, isNotNull, or } from 'drizzle-orm'
 
 // Bounds how many overflowing content items get their excess revisions pruned in a
@@ -160,5 +160,29 @@ export const pruneOldData = async () => {
     await db.delete(crawlerHits).where(lt(crawlerHits.day, crawlerCutoff))
   }
 
-  return { prunedAuditLogs, prunedRevisions, prunedRateLimits, prunedNotifications, prunedEmailLog, prunedSpamEmail: spam.length, prunedCrawlerHits }
+  // --- Expired sign-in state --- invitations nobody accepted, one-time sign-in codes that
+  // were never exchanged (they live ~60s), and site sessions past their expiry. All are
+  // already ignored once expired; this just stops them accumulating.
+  const nowIso = new Date().toISOString()
+  const [expiredInvites, expiredCodes, expiredSiteSessions] = await Promise.all([
+    db.select({ value: count() }).from(siteInvitations).where(lt(siteInvitations.expiresAt, nowIso)),
+    db.select({ value: count() }).from(siteAuthCodes).where(lt(siteAuthCodes.expiresAt, nowIso)),
+    db.select({ value: count() }).from(siteSessions).where(lt(siteSessions.expiresAt, nowIso)),
+  ])
+  if (expiredInvites[0]?.value) await db.delete(siteInvitations).where(lt(siteInvitations.expiresAt, nowIso))
+  if (expiredCodes[0]?.value) await db.delete(siteAuthCodes).where(lt(siteAuthCodes.expiresAt, nowIso))
+  if (expiredSiteSessions[0]?.value) await db.delete(siteSessions).where(lt(siteSessions.expiresAt, nowIso))
+
+  return {
+    prunedAuditLogs,
+    prunedRevisions,
+    prunedRateLimits,
+    prunedNotifications,
+    prunedEmailLog,
+    prunedSpamEmail: spam.length,
+    prunedCrawlerHits,
+    prunedInvitations: expiredInvites[0]?.value ?? 0,
+    prunedSignInCodes: expiredCodes[0]?.value ?? 0,
+    prunedSiteSessions: expiredSiteSessions[0]?.value ?? 0,
+  }
 }

@@ -3,6 +3,12 @@ import { z } from 'zod'
 
 definePageMeta({ layout: 'auth' })
 
+const { onSiteDomain, accountsLink } = useAccounts()
+// Under central sign-in reset links point at the accounts origin; this covers an old
+// link or client-side navigation on a site's own domain.
+if (onSiteDomain) await navigateTo(`${accountsLink('/reset-password')}${useRequestURL().search}`, { external: true })
+const { siteId, site } = await useAccountsSite()
+
 const schema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string(),
@@ -18,6 +24,7 @@ const error = ref('')
 const success = ref(false)
 
 const token = computed(() => route.query.token as string | undefined)
+const isInvite = computed(() => route.query.purpose === 'invite')
 
 async function submit() {
   error.value = ''
@@ -32,7 +39,11 @@ async function submit() {
       body: { newPassword: form.password, token: token.value },
     })
     success.value = true
-    setTimeout(() => navigateTo('/login'), 2500)
+    // Back to signing in — and on into the site the link was for (an invitation or a reset
+    // started from a site), if there was one.
+    setTimeout(() => navigateTo(siteId.value
+      ? `/login?${new URLSearchParams({ site: siteId.value, next: `/authorize?${new URLSearchParams({ site: siteId.value })}` })}`
+      : '/login'), 2500)
   } catch (e: unknown) {
     error.value = getErrorMessage(e, 'Reset failed. The link may have expired.')
   } finally {
@@ -43,13 +54,12 @@ async function submit() {
 
 <template>
   <div class="space-y-6">
-    <div class="text-center">
-      <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary-500 mb-4 shadow-lg shadow-primary-500/30">
-        <UIcon name="i-lucide-lock-keyhole" class="w-6 h-6 text-white" />
-      </div>
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Reset your password</h1>
-      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Choose a new password for your account</p>
-    </div>
+    <AccountsSiteBrand
+      :site="site"
+      fallback-icon="i-lucide-lock-keyhole"
+      :heading="isInvite ? (site ? `Join ${site.name}` : 'Accept your invitation') : 'Reset your password'"
+      :subheading="isInvite ? 'Choose a password to accept the invitation' : 'Choose a new password for your account'"
+    />
 
     <div v-if="!token" class="glass rounded-2xl p-6 text-center space-y-3">
       <UIcon name="i-lucide-circle-x" class="w-10 h-10 text-red-400 mx-auto" />

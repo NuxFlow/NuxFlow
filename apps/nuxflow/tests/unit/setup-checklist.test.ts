@@ -17,6 +17,8 @@ const healthy: ChecklistInputs = {
   formCount: 1,
   userPasskeyCount: 1,
   lastBackupAt: '2026-09-20 10:00:00',
+  siteCount: 1,
+  accountsOrigin: null,
   now: new Date('2026-09-28T00:00:00Z'),
 }
 
@@ -78,6 +80,15 @@ describe('buildSetupChecklist', () => {
     const stale = status(buildSetupChecklist({ ...healthy, lastBackupAt: '2026-07-01 00:00:00' }), 'backup')
     expect(stale.status).toBe('todo')
     expect(stale.detail).toMatch(/last backup was \d+ days ago/)
+  })
+
+  it('requires a central sign-in domain once there is more than one site', () => {
+    expect(buildSetupChecklist(healthy).some(i => i.id === 'accounts')).toBe(false)
+    expect(status(buildSetupChecklist({ ...healthy, siteCount: 2 }), 'accounts')).toMatchObject({ status: 'problem', tier: 'essential' })
+    const central = buildSetupChecklist({ ...healthy, siteCount: 2, accountsOrigin: 'https://accounts.example.com', userPasskeyCount: 0 })
+    expect(status(central, 'accounts').status).toBe('done')
+    // Passkeys live on the accounts origin under central sign-in.
+    expect(status(central, 'passkey').fixUrl).toBe('https://accounts.example.com/account')
   })
 
   it('flags recommended items that are off', () => {

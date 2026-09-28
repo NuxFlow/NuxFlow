@@ -1,8 +1,12 @@
 <script setup lang="ts">
+const { onSiteDomain } = useAccounts()
+
 onMounted(() => {
   // Hard navigate to bypass the setup-guard middleware's cached useFetch state.
-  // A full page reload ensures fresh auth session + setup status checks.
-  setTimeout(() => { window.location.href = '/' }, 2500)
+  // A full page reload ensures fresh auth session + setup status checks. Under central
+  // sign-in the new admin isn't signed in on this domain yet, so /admin sends them
+  // through the accounts origin first.
+  setTimeout(() => { window.location.href = onSiteDomain ? '/admin' : '/' }, 2500)
 })
 </script>
 

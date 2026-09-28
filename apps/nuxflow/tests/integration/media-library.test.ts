@@ -139,23 +139,41 @@ describe('DELETE /api/v1/media/:id', () => {
 
   it('deletes from storage, then the row, and audits', async () => {
     const db = getCurrentTestDb()
-    const id = await seedMedia(db, SITE, { storageKey: 'site/abc.jpg' })
+    const id = await seedMedia(db, SITE, { storageKey: `${SITE}/abc.jpg`, storageProvider: 'r2' })
     const event = ev(editorId, { params: { id } })
     await (deleteHandler as Handler)(event)
 
-    expect(mockProvider.delete).toHaveBeenCalledWith('site/abc.jpg')
+    expect(mockProvider.delete).toHaveBeenCalledWith(`${SITE}/abc.jpg`)
     expect((event as unknown as { _status: number })._status).toBe(204)
     expect(await db.query.media.findFirst({ where: eq(media.id, id) })).toBeUndefined()
     const log = await db.query.auditLogs.findFirst({ where: and(eq(auditLogs.resource, 'media'), eq(auditLogs.resourceId, id)) })
-    expect(log?.before).toMatchObject({ storageKey: 'site/abc.jpg' })
+    expect(log?.before).toMatchObject({ storageKey: `${SITE}/abc.jpg` })
   })
 
   it('keeps the DB row and returns 502 when the storage delete fails', async () => {
     const db = getCurrentTestDb()
-    const id = await seedMedia(db, SITE)
+    const id = await seedMedia(db, SITE, { storageKey: `${SITE}/fail.jpg`, storageProvider: 'r2' })
     mockProvider.delete.mockRejectedValueOnce(new Error('R2 unavailable'))
     await expect((deleteHandler as Handler)(ev(editorId, { params: { id } }))).rejects.toMatchObject({ statusCode: 502 })
     expect(await db.query.media.findFirst({ where: eq(media.id, id) })).toBeDefined()
+  })
+
+  it('never forwards a key outside this site\'s prefix to storage (e.g. a row from a crafted backup)', async () => {
+    const db = getCurrentTestDb()
+    // The row belongs to this site, but names another tenant's object in the shared bucket.
+    const id = await seedMedia(db, SITE, { storageKey: `${OTHER}/their-photo.jpg`, storageProvider: 'r2' })
+    await (deleteHandler as Handler)(ev(editorId, { params: { id } }))
+    expect(mockProvider.delete).not.toHaveBeenCalled()
+    expect(await db.query.media.findFirst({ where: eq(media.id, id) })).toBeUndefined()
+  })
+
+  it('removes only the row for a file stored on a provider the site no longer uses', async () => {
+    const db = getCurrentTestDb()
+    const id = await seedMedia(db, SITE, { storageKey: `${SITE}/old.jpg`, storageProvider: 'bunny' })
+    await (deleteHandler as Handler)(ev(editorId, { params: { id } }))
+    expect(mockProvider.delete).not.toHaveBeenCalled()
+    const log = await db.query.auditLogs.findFirst({ where: and(eq(auditLogs.resource, 'media'), eq(auditLogs.resourceId, id)) })
+    expect(log?.before).toMatchObject({ orphanedOn: 'bunny' })
   })
 
   it('404s for another site\'s file without touching storage', async () => {

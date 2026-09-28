@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { pendingInvitationInsert } from '../../../utils/invitations'
 import { useDb } from '../../../utils/db'
 import { userSiteRoles, sites } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
@@ -9,8 +10,7 @@ import { sendTemplatedEmail } from '../../../utils/email-template'
 import { waitUntil } from '../../../utils/cf-env'
 import { rateLimit } from '../../../utils/rate-limit'
 import { created } from '../../../utils/response'
-import { getOrCreateBetterAuth } from '../../../utils/better-auth'
-import { findOrCreateUserAccount, reclaimAccount } from '../../../utils/user-provisioning'
+import { findOrCreateUserAccount, sendSetPasswordEmail } from '../../../utils/user-provisioning'
 import { clearCachedRole } from '../../../utils/role-cache'
 
 const bodySchema = z.object({
@@ -38,14 +38,24 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  const auditInsert = buildAuditLogInsert(event, userId, {
+    action: 'invite',
+    resource: 'user',
+    resourceId: newUserId,
+    after: { role: body.role, email: body.email, ...(status === 'unclaimed' && { pending: true }) },
+  })
+
   // An account nobody has proven they own (see isUnclaimedAccount) could have been
-  // pre-registered by someone else specifically to catch this invite. Reset its ways in
-  // before attaching the role, then treat it exactly like a brand-new invitee below: the
-  // set-password email goes to the real mailbox, so only its owner can get in.
+  // pre-registered by someone else specifically to catch this invite — so it gets no role
+  // yet. The role is held as a pending invitation and granted only when whoever controls
+  // the mailbox completes the set-password link emailed below. The account itself is left
+  // untouched: it may be a real person's account on another site, and inviting their
+  // address must never lock them out of it.
   if (status === 'unclaimed') {
-    await reclaimAccount(event, newUserId)
+    await batchWithAudit(db, [pendingInvitationInsert(db, { siteId, userId: newUserId, role: body.role, invitedBy: userId })], auditInsert)
+    await sendSetPasswordEmail(event, body.email.toLowerCase(), siteId)
+    return created(event, { id: newUserId, name: body.name, email: body.email, role: body.role, pending: true })
   }
-  const needsPasswordSetup = status !== 'existing'
 
   // onConflictDoNothing: the alreadyMember check above closes the common case, but two
   // concurrent invites for the same not-yet-member (email, site) pair could both pass
@@ -59,40 +69,19 @@ export default defineEventHandler(async (event) => {
     siteId,
     role: body.role,
   }).onConflictDoNothing()
-
-  const auditInsert = buildAuditLogInsert(event, userId, {
-    action: 'invite',
-    resource: 'user',
-    resourceId: newUserId,
-    after: { role: body.role, email: body.email },
-  })
   await batchWithAudit(db, [roleInsert], auditInsert)
   clearCachedRole(newUserId, siteId)
 
-  if (needsPasswordSetup) {
-    // A brand-new (or just-reclaimed) invitee has no password they can actually use (see the
-    // signUpEmail comment above) — sending them a "visit /login" email would be
-    // a dead end. Instead, trigger the exact same requestPasswordReset flow the
-    // "Forgot password?" page (app/pages/forgot-password.vue) uses for an
-    // existing user: it generates a real, single-use token and emails it via the
-    // already-working `sendResetPassword` callback in server/utils/better-auth.ts.
-    // That's the ONE email a newly-invited user receives, and its link lets them
-    // set a password and log in — no separate "you've been invited" email is
-    // sent here, since a second email pointing at a login page they can't yet
-    // use would only add a dead end, not clarity.
-    try {
-      const auth = await getOrCreateBetterAuth(event)
-      await auth.api.requestPasswordReset({
-        body: { email: body.email, redirectTo: '/reset-password' },
-      })
-    }
-    catch (err) {
-      console.error('[invite] Failed to send set-password email:', err)
-    }
+  if (status === 'new') {
+    // A brand-new invitee has no password they can actually use (findOrCreateUserAccount
+    // gives it an unusable random one) — sending them a "sign in" email would be a dead
+    // end. The set-password link is the ONE email a new invitee receives; it's worded as
+    // an invitation to this site and returns them here once their password is set.
+    await sendSetPasswordEmail(event, body.email.toLowerCase(), siteId)
   }
   else {
     // Existing user already has working credentials for their account — being
-    // added to this site just needs a pointer to sign in, same as before.
+    // added to this site just needs a pointer to sign in.
     const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { name: true, domain: true } })
     const siteName = site?.name ?? 'NuxFlow'
     waitUntil(event, sendTemplatedEmail(event, {
@@ -102,7 +91,7 @@ export default defineEventHandler(async (event) => {
       template: {
         heading: `You've been added to ${siteName}`,
         paragraphs: [`Hi ${body.name},`, `You now have ${body.role} access to ${siteName}. Sign in with your existing account to get started.`],
-        action: { label: 'Sign in', url: `https://${site?.domain ?? 'nuxflow.app'}/login` },
+        action: { label: 'Sign in', url: `https://${site?.domain ?? 'nuxflow.app'}/admin` },
       },
     }).catch(err => console.error('[invite] Email delivery failed:', err)))
   }

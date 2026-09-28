@@ -106,6 +106,71 @@ export const userSiteRoles = sqliteTable('user_site_roles', {
   index('idx_user_site_roles_site').on(t.siteId),
 ])
 
+// A role waiting on proof of mailbox ownership. Created when an admin invites (or a
+// backup restore names) an email whose existing account is *unclaimed* — never verified
+// and never granted a staff role anywhere (see isUnclaimedAccount in
+// server/utils/user-provisioning.ts), i.e. possibly pre-registered by someone else to
+// catch the invite. The role row is only written once the mailbox owner completes the
+// emailed set-password link (onPasswordReset in server/utils/better-auth.ts). Nothing
+// about the existing account changes until then, so one tenant inviting an address can't
+// lock its owner out of the account they already use on other sites.
+export const siteInvitations = sqliteTable('site_invitations', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role: text('role', { enum: ['admin', 'editor', 'author', 'viewer', 'member'] }).notNull(),
+  invitedBy: text('invited_by').references(() => users.id, { onDelete: 'set null' }),
+  expiresAt: text('expires_at').notNull(),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  uniqueIndex('idx_site_invitations_site_user').on(t.siteId, t.userId),
+  index('idx_site_invitations_user').on(t.userId),
+])
+
+// ── Tenant-domain sign-in ────────────────────────────────────────────────────────────
+// Passwords, passkeys and every account-wide action live only on the dedicated accounts
+// origin (NUXT_PUBLIC_ACCOUNTS_URL), where no tenant's code ever runs — its Better Auth
+// session is a row in `sessions`. A site's own domain instead gets a *site session*: a
+// login valid for that one site only, issued through a one-time code after signing in on
+// the accounts origin (server/utils/site-auth.ts). A tenant admin's custom script on
+// their own domain can therefore only ever act as the visitor on that same site — never
+// on another site, and never on the account itself.
+//
+// `parentSessionId` ties each site session to the accounts-origin session that created
+// it: signing out there, a password reset, or account deletion removes the parent row
+// and cascades here, ending every site login at once. That makes `sessions` a cascade
+// target — a table-rebuild migration on it would log everyone out of every site (no data
+// loss, but see the landmine note on `users` above before rebuilding it anyway).
+export const siteSessions = sqliteTable('site_sessions', {
+  id: text('id').primaryKey(),
+  // SHA-256 of the cookie value — the raw token is never stored.
+  tokenHash: text('token_hash').notNull().unique(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  parentSessionId: text('parent_session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
+  expiresAt: text('expires_at').notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_site_sessions_user').on(t.userId),
+  index('idx_site_sessions_parent').on(t.parentSessionId),
+])
+
+// Single-use, ~60-second codes handed from the accounts origin back to a site's own
+// domain (like an OAuth authorization code) and exchanged there, server-side, for a
+// site session. Stored hashed; deleted on use.
+export const siteAuthCodes = sqliteTable('site_auth_codes', {
+  codeHash: text('code_hash').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  parentSessionId: text('parent_session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
+  redirectUri: text('redirect_uri').notNull(),
+  expiresAt: text('expires_at').notNull(),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
 export const apiKeys = sqliteTable('api_keys', {
   id: text('id').primaryKey(),
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
@@ -148,6 +213,11 @@ export const usersRelations = relations(users, ({ many }) => ({
 export const userSiteRolesRelations = relations(userSiteRoles, ({ one }) => ({
   user: one(users, { fields: [userSiteRoles.userId], references: [users.id] }),
   site: one(sites, { fields: [userSiteRoles.siteId], references: [sites.id] }),
+}))
+
+export const siteInvitationsRelations = relations(siteInvitations, ({ one }) => ({
+  user: one(users, { fields: [siteInvitations.userId], references: [users.id] }),
+  site: one(sites, { fields: [siteInvitations.siteId], references: [sites.id] }),
 }))
 
 export const accountsRelations = relations(accounts, ({ one }) => ({

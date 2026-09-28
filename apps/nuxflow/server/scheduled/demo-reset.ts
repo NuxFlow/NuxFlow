@@ -32,6 +32,9 @@ import {
   dynamicPlugins,
   pushSubscriptions,
   aiGenerationJobs,
+  siteAuthCodes,
+  siteSessions,
+  siteInvitations,
 } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { nuxflowPasswordHasher } from '../utils/pw'
@@ -54,6 +57,9 @@ async function wipeAllTables(db: Db) {
   await db.delete(subscriptions)
   await db.delete(aiGenerationJobs)
   await db.delete(pushSubscriptions)
+  await db.delete(siteAuthCodes)
+  await db.delete(siteSessions)
+  await db.delete(siteInvitations)
   await db.delete(notifications)
   await db.delete(auditLogs)
   await db.delete(contentItems)
@@ -94,6 +100,7 @@ async function seedDemo(db: Db) {
     timezone: 'UTC',
     status: 'active',
     setupCompleted: true,
+    isPrimary: true,
   })
 
   await db.insert(siteSettings).values([

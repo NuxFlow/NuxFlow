@@ -5,6 +5,7 @@ import { S3Provider } from './s3'
 import { BunnyProvider } from './bunny'
 import { resolveSetting } from '../settings'
 import { getCfBindings } from '../cf-env'
+import { eventForSite } from '../site-info'
 
 export interface UploadResult {
   url: string
@@ -176,9 +177,5 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
  * prototype-linked copy of the event with only `context.siteId` swapped.
  */
 export async function getActiveProviderNameForSite(event: H3Event, siteId: string): Promise<string> {
-  const scoped = Object.create(event, {
-    context: { value: { ...event.context, siteId }, enumerable: true },
-  }) as H3Event
-  return (await getActiveProvider(scoped)).name
+  return (await getActiveProvider(eventForSite(event, siteId))).name
 }
-

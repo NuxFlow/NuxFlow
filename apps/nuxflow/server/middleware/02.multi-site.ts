@@ -2,6 +2,8 @@ import { useDb } from '../utils/db'
 import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { createIsolateCache } from '../utils/isolate-cache'
+import { clearSiteInfoCache } from '../utils/site-info'
+import { isAccountsHost } from '../utils/accounts-origin'
 import { getUserSiteRole, hasSuperAdminRole, roleAtLeast, type Role } from '../utils/permissions'
 
 // getAuthSession is deliberately called as a Nitro auto-import (not an explicit import
@@ -25,9 +27,22 @@ const _siteCache = createIsolateCache<SiteLookup | null>(30_000)
 export function clearSiteCache(host?: string): void {
   if (host) _siteCache.delete(host)
   else _siteCache.clear()
+  clearSiteInfoCache()
 }
 
 export default defineEventHandler(async (event) => {
+  // The accounts origin (central sign-in — see utils/accounts-origin.ts) is never a site:
+  // no content, no settings, no custom code, and none of the single-site/preview
+  // fallbacks below may ever map it onto one.
+  if (isAccountsHost(event)) {
+    event.context.isAccountsHost = true
+    event.context.siteId = null
+    event.context.siteStatus = null
+    event.context.setupCompleted = true
+    event.context.siteDomain = null
+    return
+  }
+
   // Let setup & auth API paths through before touching the DB — the schema
   // may not exist yet (fresh install / wiped DB awaiting migrations).
   const path = event.path
@@ -58,6 +73,9 @@ export default defineEventHandler(async (event) => {
       if (!site) {
         const allSites = await db.query.sites.findMany({
           columns: { id: true, status: true, setupCompleted: true, domain: true },
+          // Primary (operator's) site first, then oldest — so the preview fallback below
+          // is deterministic instead of whichever row the table scan returns first.
+          orderBy: (s, { desc, asc }) => [desc(s.isPrimary), asc(s.createdAt)],
         })
         if (allSites.length === 1) {
           site = allSites[0]!
@@ -98,7 +116,7 @@ export default defineEventHandler(async (event) => {
             }
           }
         } else if (allSites.length > 1 && (host === 'localhost' || host.endsWith('.workers.dev'))) {
-          // Local/Preview fallback: default to the first site in D1
+          // Local/Preview fallback: the primary site (see ordering above)
           site = allSites[0]!
         }
       }

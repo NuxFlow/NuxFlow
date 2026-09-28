@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 
 // Target of `ON DELETE CASCADE` FKs from nearly every other table in this schema
@@ -28,10 +28,19 @@ export const sites = sqliteTable('sites', {
   status: text('status', { enum: ['active', 'maintenance', 'suspended'] }).notNull().default('active'),
   setupCompleted: integer('setup_completed', { mode: 'boolean' }).notNull().default(false),
   setupTokenHash: text('setup_token_hash'),
+  // The platform operator's own site — the one created by the first-ever install, where
+  // Super Admin lives. Only it inherits the deployment's own payment and email-provider
+  // credentials from env vars (see PLATFORM_ONLY_ENV_KEYS in server/utils/settings.ts);
+  // every other site configures its own, so tenants never charge customers into the
+  // operator's Stripe account or send mail through the operator's provider account.
+  isPrimary: integer('is_primary', { mode: 'boolean' }).notNull().default(false),
   settings: text('settings', { mode: 'json' }).$type<Record<string, unknown>>(),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
-})
+}, (t) => [
+  // At most one primary site.
+  uniqueIndex('idx_sites_primary').on(t.isPrimary).where(sql`${t.isPrimary} = 1`),
+])
 
 export const siteSettings = sqliteTable('site_settings', {
   id: text('id').primaryKey(),
@@ -41,4 +50,7 @@ export const siteSettings = sqliteTable('site_settings', {
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_site_settings_site_key').on(t.siteId, t.key),
+  // A site's inbound email handle routes mail for <handle>+<mailbox>@<platform domain>
+  // by value across every site (server/utils/inbound-email.ts), so it must be unique.
+  uniqueIndex('idx_site_settings_inbound_handle').on(t.value).where(sql`${t.key} = 'email.inbound_handle'`),
 ])

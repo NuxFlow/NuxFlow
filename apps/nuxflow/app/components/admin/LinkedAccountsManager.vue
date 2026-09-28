@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { isAccountsHost } = useAccounts()
 const client = useAuthClient()
 const toast = useToast()
 const route = useRoute()
@@ -66,7 +67,9 @@ async function linkProvider(providerId: string) {
   try {
     await client.linkSocial({
       provider: providerId,
-      callbackURL: `${window.location.origin}/admin/settings?tab=Security`,
+      // Back to wherever this panel is shown: the account page on the accounts origin, or the
+      // admin Security tab on a single-site install.
+      callbackURL: `${window.location.origin}${isAccountsHost ? '/account' : '/admin/settings?tab=Security'}`,
     })
     // Browser redirects to OAuth — execution stops here
   }

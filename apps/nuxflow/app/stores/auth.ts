@@ -13,7 +13,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function signOut() {
     await _signOut()
-    await navigateTo('/login')
+    // Under central sign-in there's no sign-in page on a site's domain to return to.
+    await navigateTo(useAccounts().onSiteDomain ? '/' : '/login')
   }
 
   // Clears the session without the default redirect to /login — for callers

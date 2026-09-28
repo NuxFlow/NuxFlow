@@ -18,7 +18,7 @@ import type {
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 interface SiteData {
-  site: { id: string; name: string; domain: string; locale: string; timezone: string; status: string }
+  site: { id: string; name: string; domain: string; locale: string; timezone: string; status: string; isPrimary?: boolean }
   settings: Record<string, unknown>
 }
 
@@ -153,6 +153,9 @@ const security = reactive<SecurityState>({
   newPassword: '',
   confirmPassword: '',
 })
+
+// Social login is configured once, on the primary (operator's) site — see IntegrationsTab.
+const isPrimarySite = computed(() => Boolean(data.value?.site.isPrimary))
 
 // ── Populate from API ─────────────────────────────────────────────────────────
 watch(data, (d) => {
@@ -350,7 +353,7 @@ async function save() {
         <AdminSettingsEmailTab v-if="active === 'Email'" v-model:email="email" :domain="general.domain" :saving="saving" :on-save="save" />
         <AdminSettingsPaymentsTab v-if="active === 'Payments'" v-model:payments="payments" :domain="general.domain" :saving="saving" :on-save="save" />
         <AdminSettingsMediaTab v-if="active === 'Media'" v-model:cloudflare="cloudflare" v-model:r2="r2" v-model:s3="s3" v-model:bunny="bunny" :saving="saving" :on-save="save" />
-        <AdminSettingsIntegrationsTab v-if="active === 'Integrations'" v-model:integrations="integrations" v-model:social="social" :domain="general.domain" :saving="saving" :on-save="save" />
+        <AdminSettingsIntegrationsTab v-if="active === 'Integrations'" v-model:integrations="integrations" v-model:social="social" :domain="general.domain" :is-primary="isPrimarySite" :saving="saving" :on-save="save" />
         <AdminSettingsAiTab v-if="active === 'AI Settings'" v-model:ai="ai" :saving="saving" :on-save="save" />
         <AdminSettingsPushTab v-if="active === 'Push'" v-model:push="push" :saving="saving" :on-save="save" />
         <AdminSettingsSecurityTab v-if="active === 'Security'" v-model:security="security" />

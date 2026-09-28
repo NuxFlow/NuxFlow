@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import type { H3Event } from 'h3'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
-import { accounts, passkeys, sessions, userSiteRoles, users } from '@nuxflow/db/schema'
+import { accounts, passkeys, sessions, siteInvitations, userSiteRoles, users } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole } from '../helpers/seed'
@@ -44,6 +44,7 @@ vi.mock('../../server/utils/better-auth', () => ({
 }))
 
 const { default: inviteHandler } = await import('../../server/api/v1/users/index.post')
+const { activatePendingInvitations } = await import('../../server/utils/invitations')
 
 const SITE = 'site-invite-01'
 const OTHER_SITE = 'site-invite-02'
@@ -92,29 +93,61 @@ describe('POST /api/v1/users — inviting an address that already has an account
   // Pre-registration ("pre-hijacking"): someone creates an account for a colleague's
   // address before the colleague is invited. The invite must not attach its role to an
   // account whose creator never proved they own the mailbox.
-  it('reclaims an unverified, never-vouched-for account before granting the role', async () => {
+  it('holds the role as a pending invitation for an unverified, never-vouched-for account — without touching the account', async () => {
     const db = getCurrentTestDb()
     const squatterId = await seedPreRegistered('new-hire@invite.test')
 
     await invite('new-hire@invite.test')
 
+    // Nothing about the existing account changes: it may just as well be a real person's
+    // account on another site, and one tenant inviting an address must never lock its
+    // owner out (an earlier version revoked sessions and scrambled the password here).
     const cred = await db.query.accounts.findFirst({ where: eq(accounts.userId, squatterId) })
-    expect(cred!.password).not.toBe('hashed:attacker-knows-this')
-    expect(await db.query.sessions.findMany({ where: eq(sessions.userId, squatterId) })).toHaveLength(0)
-    expect(await db.query.passkeys.findMany({ where: eq(passkeys.userId, squatterId) })).toHaveLength(0)
+    expect(cred!.password).toBe('hashed:attacker-knows-this')
+    expect(await db.query.sessions.findMany({ where: eq(sessions.userId, squatterId) })).toHaveLength(1)
+    expect(await db.query.passkeys.findMany({ where: eq(passkeys.userId, squatterId) })).toHaveLength(1)
 
-    // The real owner claims it through the set-password email, not a "just sign in" email.
-    expect(mockRequestPasswordReset).toHaveBeenCalledWith({ body: expect.objectContaining({ email: 'new-hire@invite.test' }) })
-    expect(mockSendEmail).not.toHaveBeenCalled()
-
-    const role = await db.query.userSiteRoles.findFirst({
+    // …and it gets no role yet — whoever set its password could be anyone.
+    expect(await db.query.userSiteRoles.findFirst({
       where: and(eq(userSiteRoles.userId, squatterId), eq(userSiteRoles.siteId, SITE)),
+    })).toBeUndefined()
+    const invitation = await db.query.siteInvitations.findFirst({
+      where: and(eq(siteInvitations.userId, squatterId), eq(siteInvitations.siteId, SITE)),
     })
+    expect(invitation?.role).toBe('admin')
+
+    // The mailbox owner accepts through the set-password link, worded as an invitation.
+    expect(mockRequestPasswordReset).toHaveBeenCalledWith({
+      body: { email: 'new-hire@invite.test', redirectTo: `/reset-password?${new URLSearchParams({ site: SITE, purpose: 'invite' })}` },
+    })
+    expect(mockSendEmail).not.toHaveBeenCalled()
+  })
+
+  it('turns the invitation into the role once the password reset completes (onPasswordReset)', async () => {
+    const db = getCurrentTestDb()
+    const id = await seedPreRegistered('accepts@invite.test')
+    await invite('accepts@invite.test')
+
+    const activated = await activatePendingInvitations(db, id)
+
+    expect(activated).toEqual([SITE])
+    const role = await db.query.userSiteRoles.findFirst({ where: and(eq(userSiteRoles.userId, id), eq(userSiteRoles.siteId, SITE)) })
     expect(role?.role).toBe('admin')
+    expect(await db.query.siteInvitations.findMany({ where: eq(siteInvitations.userId, id) })).toHaveLength(0)
+  })
+
+  it('never activates an expired invitation', async () => {
+    const db = getCurrentTestDb()
+    const id = await seedPreRegistered('too-late@invite.test')
+    await invite('too-late@invite.test')
+    await db.update(siteInvitations).set({ expiresAt: '2000-01-01T00:00:00.000Z' }).where(eq(siteInvitations.userId, id))
+
+    expect(await activatePendingInvitations(db, id)).toEqual([])
+    expect(await db.query.userSiteRoles.findFirst({ where: and(eq(userSiteRoles.userId, id), eq(userSiteRoles.siteId, SITE)) })).toBeUndefined()
   })
 
   // Self-registration only ever grants 'member', so it doesn't count as proof either.
-  it('also reclaims an unverified account that only holds a self-registered member role elsewhere', async () => {
+  it('also holds a pending invitation for an unverified account that only holds a self-registered member role elsewhere', async () => {
     const db = getCurrentTestDb()
     const id = await seedPreRegistered('member-elsewhere@invite.test')
     await seedRole(db, id, OTHER_SITE, 'member')
@@ -122,7 +155,8 @@ describe('POST /api/v1/users — inviting an address that already has an account
     await invite('member-elsewhere@invite.test')
 
     const cred = await db.query.accounts.findFirst({ where: eq(accounts.userId, id) })
-    expect(cred!.password).not.toBe('hashed:attacker-knows-this')
+    expect(cred!.password).toBe('hashed:attacker-knows-this')
+    expect(await db.query.siteInvitations.findFirst({ where: and(eq(siteInvitations.userId, id), eq(siteInvitations.siteId, SITE)) })).toBeDefined()
     expect(mockRequestPasswordReset).toHaveBeenCalled()
   })
 

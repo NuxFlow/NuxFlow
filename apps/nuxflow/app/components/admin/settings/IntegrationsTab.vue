@@ -3,11 +3,17 @@ import type { IntegrationsState, SocialState } from '~/types/admin-settings'
 
 const integrations = defineModel<IntegrationsState>('integrations', { required: true })
 const social = defineModel<SocialState>('social', { required: true })
-defineProps<{
+const props = defineProps<{
   domain: string
+  /** Social login is one OAuth app for the whole deployment, configured on the primary site. */
+  isPrimary: boolean
   saving: boolean
   onSave: () => Promise<void>
 }>()
+
+// OAuth callbacks land on the accounts origin under central sign-in; otherwise on this site.
+const { accountsOrigin } = useAccounts()
+const callbackOrigin = computed(() => accountsOrigin ?? `https://${props.domain || 'yourdomain.com'}`)
 </script>
 
 <template>
@@ -28,11 +34,11 @@ defineProps<{
     </template>
   </UCard>
 
-  <UCard class="mt-6">
+  <UCard v-if="isPrimary" class="mt-6">
     <template #header><p class="text-sm font-semibold text-gray-900 dark:text-white">Social Login</p></template>
     <div class="space-y-6">
       <p class="text-sm text-gray-500 dark:text-gray-400">
-        Bring your own Google/GitHub OAuth app for this site instead of the deployment-wide default. Leave blank to keep using the environment-variable default (if one is configured).
+        "Sign in with Google/GitHub" for every site on this installation — accounts are shared, so there's one OAuth app for all of them, set here on the main site. Leave blank to use the environment-variable default (if one is configured).
       </p>
 
       <div class="space-y-3">
@@ -46,7 +52,7 @@ defineProps<{
           <UInput v-model="social.googleClientSecret" type="password" placeholder="GOCSPX-…" />
         </UFormField>
         <p class="text-xs text-gray-400">
-          Authorized redirect URI: <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">https://{{ domain || 'yourdomain.com' }}/api/auth/callback/google</code>
+          Authorized redirect URI: <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">{{ callbackOrigin }}/api/auth/callback/google</code>
         </p>
       </div>
 
@@ -61,7 +67,7 @@ defineProps<{
           <UInput v-model="social.githubClientSecret" type="password" placeholder="••••••••" />
         </UFormField>
         <p class="text-xs text-gray-400">
-          Authorization callback URL: <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">https://{{ domain || 'yourdomain.com' }}/api/auth/callback/github</code>. GitHub OAuth Apps only support one callback URL each, so a secondary site needs its own GitHub OAuth App — this is exactly what these fields are for.
+          Authorization callback URL: <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">{{ callbackOrigin }}/api/auth/callback/github</code>.
         </p>
       </div>
     </div>

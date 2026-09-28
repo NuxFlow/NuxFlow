@@ -5,6 +5,8 @@
 // every single request to a site that isn't even set up yet.
 export default defineNuxtRouteMiddleware(async (to) => {
   if (to.path.startsWith('/api')) return
+  // The accounts origin (central sign-in) is not a site and has nothing to set up.
+  if (useAccounts().isAccountsHost) return
 
   const needsSetup = useState('setup:needs-setup', () => null as boolean | null)
   if (needsSetup.value === null) {

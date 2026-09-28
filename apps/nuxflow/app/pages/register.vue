@@ -4,7 +4,16 @@ import { z } from 'zod'
 definePageMeta({ layout: 'auth' })
 
 const route = useRoute()
+const { isAccountsHost, onSiteDomain } = useAccounts()
+
+// Under central sign-in passwords are only ever set on the accounts origin (the server
+// already redirects /register there; this covers client-side navigation).
+if (onSiteDomain) {
+  await navigateTo(`/_nuxflow/auth/start?${new URLSearchParams({ return_to: '/account', intent: 'join' })}`, { external: true })
+}
+
 const signInSocialAction = useSignIn('social')
+const { siteId, site } = await useAccountsSite()
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -21,8 +30,16 @@ const loading = ref(false)
 const error = ref('')
 const success = ref(false)
 
-const { data: regStatus } = await useFetch<{ enabled: boolean }>('/api/public/auth/registration-status')
-const registrationEnabled = computed(() => regStatus.value?.enabled ?? false)
+// Registration always belongs to a site (its own "public registration" setting). On the
+// accounts origin that's the `site` it was opened for; on a single-site install, this one.
+const { data: regStatus } = await useFetch<{ enabled: boolean }>('/api/public/auth/registration-status', { immediate: !isAccountsHost })
+const registrationEnabled = computed(() => isAccountsHost ? Boolean(site.value?.allowRegistration) : (regStatus.value?.enabled ?? false))
+
+// After registering on the accounts origin: sign in, then continue into the site as a member.
+const joinPath = computed(() => `/authorize?${new URLSearchParams({ site: siteId.value, intent: 'join' })}`)
+const signInPath = computed(() => isAccountsHost && siteId.value
+  ? `/login?${new URLSearchParams({ site: siteId.value, next: joinPath.value })}`
+  : '/login')
 
 const SOCIAL_ERROR_MESSAGES: Record<string, string> = {
   'account_not_linked': 'This social account is already linked to an existing user. Please sign in instead.',
@@ -41,10 +58,17 @@ async function submit() {
   error.value = ''
   loading.value = true
   try {
-    await $fetch('/api/public/auth/register', {
-      method: 'POST',
-      body: { name: form.name, email: form.email, password: form.password },
-    })
+    if (isAccountsHost) {
+      await $fetch('/api/accounts/register', {
+        method: 'POST',
+        body: { site: siteId.value, name: form.name, email: form.email, password: form.password },
+      })
+    } else {
+      await $fetch('/api/public/auth/register', {
+        method: 'POST',
+        body: { name: form.name, email: form.email, password: form.password },
+      })
+    }
     success.value = true
   } catch (e: unknown) {
     error.value = getErrorMessage(e, 'Registration failed. Please try again.')
@@ -54,25 +78,26 @@ async function submit() {
 }
 
 async function signInSocial(provider: 'google' | 'github') {
-  await signInSocialAction.execute({ provider, callbackURL: '/admin' })
+  // A new social account isn't a member of anything yet — continue into the site's join step.
+  await signInSocialAction.execute({ provider, callbackURL: isAccountsHost && siteId.value ? joinPath.value : '/admin' })
 }
 </script>
 
 <template>
   <div class="space-y-6">
-    <div class="text-center">
-      <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary-500 mb-4 shadow-lg shadow-primary-500/30">
-        <UIcon name="i-lucide-user-plus" class="w-6 h-6 text-white" />
-      </div>
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Create an account</h1>
-    </div>
+    <AccountsSiteBrand
+      :site="site"
+      fallback-icon="i-lucide-user-plus"
+      :heading="site ? `Join ${site.name}` : 'Create an account'"
+      :subheading="isAccountsHost ? 'Your account works on every NuxFlow site.' : undefined"
+    />
 
     <!-- Registration disabled -->
     <div v-if="!registrationEnabled" class="rounded-2xl border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/60 p-6 text-center space-y-3">
       <UIcon name="i-lucide-lock" class="w-10 h-10 text-amber-500 mx-auto" />
       <p class="font-semibold text-gray-900 dark:text-white">Registration is currently closed</p>
       <p class="text-sm text-gray-600 dark:text-gray-400">New account creation is disabled. Please contact the site administrator if you need access.</p>
-      <NuxtLink to="/login" class="inline-block text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">
+      <NuxtLink :to="signInPath" class="inline-block text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">
         Back to sign in
       </NuxtLink>
     </div>
@@ -81,8 +106,8 @@ async function signInSocial(provider: 'google' | 'github') {
     <div v-else-if="success" class="rounded-2xl border border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-900/30 p-6 text-center space-y-3">
       <UIcon name="i-lucide-circle-check" class="w-10 h-10 text-green-500 mx-auto" />
       <p class="font-semibold text-gray-900 dark:text-white">Account created!</p>
-      <p class="text-sm text-gray-600 dark:text-gray-400">Your account is ready. Sign in to get started.</p>
-      <UButton to="/login" color="success" variant="soft" size="sm" leading-icon="i-lucide-log-in">
+      <p class="text-sm text-gray-600 dark:text-gray-400">Your account is ready. Sign in to get started — if you already had an account with this email, sign in with that one instead.</p>
+      <UButton :to="signInPath" color="success" variant="soft" size="sm" leading-icon="i-lucide-log-in">
         Sign in now
       </UButton>
     </div>
@@ -134,7 +159,7 @@ async function signInSocial(provider: 'google' | 'github') {
 
       <p class="text-center text-sm text-gray-500 dark:text-gray-400">
         Already have an account?
-        <NuxtLink to="/login" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">Sign in</NuxtLink>
+        <NuxtLink :to="signInPath" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">Sign in</NuxtLink>
       </p>
     </UForm>
   </div>

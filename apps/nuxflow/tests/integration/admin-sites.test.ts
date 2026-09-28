@@ -100,6 +100,37 @@ describe('GET /api/v1/admin/sites', () => {
 })
 
 describe('POST /api/v1/admin/sites', () => {
+  // A second site needs central sign-in (utils/accounts-origin.ts) — on for this block.
+  const originalRuntimeConfig = globalThis.useRuntimeConfig
+  beforeAll(() => {
+    const base = originalRuntimeConfig()
+    globalThis.useRuntimeConfig = () => ({ ...base, public: { ...base.public, accountsUrl: 'https://accounts.example.test' } })
+  })
+  afterAll(() => {
+    globalThis.useRuntimeConfig = originalRuntimeConfig
+  })
+
+  it('refuses to add a site until a central sign-in domain is configured', async () => {
+    const central = globalThis.useRuntimeConfig
+    globalThis.useRuntimeConfig = originalRuntimeConfig
+    try {
+      await expect((createHandler as Handler)(ev(superId, { body: { name: 'Early', domain: 'early.example.com' } })))
+        .rejects.toMatchObject({ statusCode: 409 })
+    } finally {
+      globalThis.useRuntimeConfig = central
+    }
+  })
+
+  it('stores the domain the way the Host header will present it, and refuses a duplicate', async () => {
+    const res = await (createHandler as Handler)(ev(superId, { body: { name: 'Pasted', domain: '  https://Shop.Example.COM/path ' } })) as { id: string }
+    const row = await getCurrentTestDb().query.sites.findFirst({ where: eq(sites.id, res.id) })
+    expect(row?.domain).toBe('shop.example.com')
+    await expect((createHandler as Handler)(ev(superId, { body: { name: 'Dup', domain: 'shop.example.com' } })))
+      .rejects.toMatchObject({ statusCode: 409 })
+    await expect((createHandler as Handler)(ev(superId, { body: { name: 'Bad', domain: 'not a domain' } })))
+      .rejects.toMatchObject({ statusCode: 422 })
+  })
+
   it('creates an un-setup site, returns a raw setup token, and stores only its hash', async () => {
     const event = ev(superId, { body: { name: 'New Tenant', domain: 'new.localhost' } })
     const res = await (createHandler as Handler)(event) as { id: string; setupToken: string }

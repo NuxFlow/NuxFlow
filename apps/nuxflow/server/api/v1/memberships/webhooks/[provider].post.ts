@@ -2,7 +2,7 @@
 import type { H3Event } from 'h3'
 import type { StripeProvider } from '../../../../utils/payments/stripe'
 import { getStripeProvider, getLemonSqueezyProvider, getPaddleProvider } from '../../../../utils/payments/resolve'
-import { upsertSubscriptionFromWebhook, cancelSubscriptionFromWebhook, assertWebhookSiteMatch, requireWebhookSecret } from '../../../../utils/payments/webhook-sync'
+import { upsertSubscriptionFromWebhook, cancelSubscriptionFromWebhook, assertWebhookSiteMatch, requireWebhookSecret, WebhookForOtherSite } from '../../../../utils/payments/webhook-sync'
 import { rateLimit } from '../../../../utils/rate-limit'
 
 const STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID = {
@@ -257,18 +257,28 @@ export default defineEventHandler(async (event) => {
   const provider = getRouterParam(event, 'provider')
   const rawBody = await readRawBody(event) ?? ''
 
-  switch (provider) {
-    case 'stripe':
-      await handleStripeWebhook(event, rawBody)
-      break
-    case 'lemonsqueezy':
-      await handleLemonSqueezyWebhook(event, rawBody)
-      break
-    case 'paddle':
-      await handlePaddleWebhook(event, rawBody)
-      break
-    default:
-      throw badRequest(`Unknown provider: ${provider}`)
+  try {
+    switch (provider) {
+      case 'stripe':
+        await handleStripeWebhook(event, rawBody)
+        break
+      case 'lemonsqueezy':
+        await handleLemonSqueezyWebhook(event, rawBody)
+        break
+      case 'paddle':
+        await handlePaddleWebhook(event, rawBody)
+        break
+      default:
+        throw badRequest(`Unknown provider: ${provider}`)
+    }
+  } catch (err) {
+    // Signature was valid, but the event is another site's (or not NuxFlow's at all) —
+    // acknowledge so the provider stops retrying; see WebhookForOtherSite.
+    if (err instanceof WebhookForOtherSite) {
+      console.log(`[${provider}-webhook] ignored: ${err.message}`)
+      return { received: true, ignored: true }
+    }
+    throw err
   }
 
   return { received: true }

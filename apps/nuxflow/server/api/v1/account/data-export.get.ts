@@ -28,7 +28,8 @@ import {
 const EXPORT_ROW_LIMIT = 2000
 
 export default defineEventHandler(async (event) => {
-  const session = await requireSession(event)
+  // Account-wide export — accounts origin only under central sign-in (requireAccountSession).
+  const session = await requireAccountSession(event)
   const userId = session.user.id
   const db = useDb(event)
 

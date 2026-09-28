@@ -78,17 +78,24 @@ export async function ensureInboundHandle(event: H3Event, db: Db, siteId: string
 
   const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } })
   const base = (site?.domain ?? 'site').replace(/^www\./, '').split('.')[0]!.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30) || 'site'
-  let handle = base
-  for (let n = 2; ; n++) {
+  // The unique index on handle values (migration 0025) is the real guard: two sites
+  // claiming the same free handle at once both pass the lookup, and the loser's insert
+  // fails — it just moves on to the next suffix.
+  for (let n = 1; n < 1000; n++) {
+    const handle = n === 1 ? base : `${base}${n}`
     const taken = await db.query.siteSettings.findFirst({
       where: and(eq(siteSettings.key, INBOUND_HANDLE_SETTING), eq(siteSettings.value, handle)),
       columns: { id: true },
     })
-    if (!taken) break
-    handle = `${base}${n}`
+    if (taken) continue
+    try {
+      await saveSetting(event, INBOUND_HANDLE_SETTING, handle)
+      return handle
+    } catch (err) {
+      if (!/unique/i.test(String(err) + String((err as { cause?: unknown })?.cause ?? ''))) throw err
+    }
   }
-  await saveSetting(event, INBOUND_HANDLE_SETTING, handle)
-  return handle
+  throw createError({ statusCode: 500, message: 'Could not allocate an inbound email handle' })
 }
 
 /** Addresses a mailbox answers on — the site's own domain and, if configured, the platform domain. */

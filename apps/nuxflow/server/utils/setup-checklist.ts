@@ -7,6 +7,8 @@ import { getActiveProvider } from './media-providers/index'
 import { getAiSdkModel } from './ai-sdk'
 import { getEmailBinding } from './cf-env'
 import { getSeoSettings, type SeoSettings } from './seo'
+import { loadEmailConfig } from './email'
+import { getAccountsOrigin } from './accounts-origin'
 
 /**
  * The admin dashboard's "Finish setting up your site" card (GET /api/v1/site-checklist,
@@ -53,6 +55,9 @@ export interface ChecklistInputs {
   formCount: number
   userPasskeyCount: number
   lastBackupAt: string | null
+  siteCount: number
+  /** The central sign-in origin (NUXT_PUBLIC_ACCOUNTS_URL), or null on a same-origin install. */
+  accountsOrigin: string | null
   now?: Date
 }
 
@@ -135,6 +140,17 @@ export function buildSetupChecklist(i: ChecklistInputs): ChecklistItem[] {
     items.push({ id: 'domain', tier: 'essential', status: 'done', title: 'Custom domain in use', detail: `Your site's address is ${domain}.` })
   }
 
+  if (i.siteCount > 1 && !i.accountsOrigin) {
+    items.push({
+      id: 'accounts', tier: 'essential', status: 'problem',
+      title: 'Move sign-in to its own domain',
+      detail: 'This installation hosts more than one site, but people still sign in on each site\'s own domain — where that site\'s admins can add their own scripts, which could read passwords as they\'re typed. Set NUXT_PUBLIC_ACCOUNTS_URL to a dedicated sign-in domain (for example accounts.yourplatform.com) and route it to this Worker.',
+      docsAnchor: 'hosting-several-sites',
+    })
+  } else if (i.accountsOrigin) {
+    items.push({ id: 'accounts', tier: 'essential', status: 'done', title: 'Sign-in has its own domain', detail: `Passwords and passkeys are only ever entered on ${new URL(i.accountsOrigin).host}.` })
+  }
+
   if (i.authSecret.length < 32 || PLACEHOLDER_SECRET.test(i.authSecret)) {
     items.push({
       id: 'secret', tier: 'essential', status: 'problem',
@@ -215,7 +231,7 @@ export function buildSetupChecklist(i: ChecklistInputs): ChecklistItem[] {
         id: 'passkey', tier: 'recommended', status: 'todo',
         title: 'Add a passkey to your account',
         detail: 'Sign in with Face ID, Touch ID, Windows Hello or a security key. It\'s faster than a password and can\'t be phished.',
-        fixUrl: '/admin/settings?tab=Security', fixLabel: 'Add a passkey',
+        fixUrl: i.accountsOrigin ? `${i.accountsOrigin}/account` : '/admin/settings?tab=Security', fixLabel: 'Add a passkey',
       })
 
   const backupAge = i.lastBackupAt ? daysSince(i.lastBackupAt, now) : Infinity
@@ -249,9 +265,9 @@ export async function gatherSetupChecklistInputs(event: H3Event, userId: string)
   const db = useDb(event)
   const siteId = event.context.siteId as string
 
-  const [provider, emailProvider, aiProviderSetting, turnstileSiteKey, seo, aiModel, site, localMedia, formRows, lastEmail, passkeyRows, lastBackup] = await Promise.all([
+  const [provider, emailProvider, aiProviderSetting, turnstileSiteKey, seo, aiModel, site, localMedia, formRows, lastEmail, passkeyRows, lastBackup, siteCountRow] = await Promise.all([
     getActiveProvider(event),
-    resolveSetting(event, 'email.provider', 'emailProvider'),
+    loadEmailConfig(event).then(c => c.emailProvider),
     resolveSetting(event, 'ai.provider', 'aiProvider'),
     resolveSetting(event, 'integrations.turnstile_site_key'),
     getSeoSettings(db, siteId),
@@ -266,6 +282,7 @@ export async function gatherSetupChecklistInputs(event: H3Event, userId: string)
       orderBy: [desc(auditLogs.createdAt)],
       columns: { createdAt: true },
     }),
+    db.select({ n: count() }).from(sites),
   ])
 
   return {
@@ -284,6 +301,8 @@ export async function gatherSetupChecklistInputs(event: H3Event, userId: string)
     formCount: formRows[0]?.n ?? 0,
     userPasskeyCount: passkeyRows[0]?.n ?? 0,
     lastBackupAt: lastBackup?.createdAt ?? null,
+    siteCount: siteCountRow[0]?.n ?? 1,
+    accountsOrigin: getAccountsOrigin(),
   }
 }
 

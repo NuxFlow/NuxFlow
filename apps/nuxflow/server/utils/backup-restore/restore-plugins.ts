@@ -1,8 +1,8 @@
 // ── Dynamic plugins restore ────────────────────────────────────────────────────
 // Unlike every other backup section, dynamicPlugins.id is the publisher-assigned
-// manifest id — it's both the KV key segment and the primary key, so (a) it's the
-// natural restore-matching key and (b) there's no way to "archive" a duplicate: a
-// second row can't reuse the same id (primary key), and a different id would use a
+// manifest id — it's both the KV key segment and (with site_id) the primary key, so (a)
+// it's the natural restore-matching key and (b) there's no way to "archive" a duplicate: a
+// second row can't reuse the same id on this site, and a different id would use a
 // different KV namespace entirely, i.e. not actually be a restore of this plugin. So
 // conflictMode 'archive' behaves like 'skip' here, and only 'overwrite' can touch an
 // existing install. Every restored plugin is re-verified (checksum + Ed25519 signature
@@ -108,21 +108,6 @@ export async function restoreOnePlugin(
     return
   }
 
-  // dynamicPlugins.id has no per-site scoping in its primary key (see the comment
-  // above) — a plugin id already installed on a DIFFERENT site can't also be inserted
-  // here, that's a raw SQLITE_CONSTRAINT_PRIMARYKEY away. Checked only on the insert
-  // path (not the update-existing path below, which is already this exact row).
-  if (!existing) {
-    const elsewhere = await db.query.dynamicPlugins.findFirst({
-      where: eq(dynamicPlugins.id, backupPlugin.pluginId),
-      columns: { id: true },
-    })
-    if (elsewhere) {
-      result.plugins.skipped++
-      return
-    }
-  }
-
   if (backupPlugin.serverCode) await putPluginServerCode(event, siteId, backupPlugin.pluginId, backupPlugin.serverCode)
   if (backupPlugin.clientBundle) await putPluginClientBundle(event, siteId, backupPlugin.pluginId, backupPlugin.clientBundle)
 
@@ -139,7 +124,7 @@ export async function restoreOnePlugin(
       definitionsChecksum: backupPlugin.definitionsChecksum,
       publisherPublicKey: backupPlugin.publisherPublicKey,
       signature: backupPlugin.signature,
-    }).where(eq(dynamicPlugins.id, existing.id))
+    }).where(and(eq(dynamicPlugins.siteId, siteId), eq(dynamicPlugins.id, existing.id)))
     result.plugins.updated++
   } else {
     await db.insert(dynamicPlugins).values({

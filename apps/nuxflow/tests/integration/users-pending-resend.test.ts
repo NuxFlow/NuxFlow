@@ -98,7 +98,7 @@ describe('POST /api/v1/users/:id/resend-invite', () => {
     const result = await (resendHandler as HandlerFn)(mkEvent(adminId, pendingUserId)) as { success: boolean }
     expect(result.success).toBe(true)
     expect(mockRequestPasswordReset).toHaveBeenCalledWith({
-      body: { email: 'pending@pending-resend.test', redirectTo: '/reset-password' },
+      body: { email: 'pending@pending-resend.test', redirectTo: `/reset-password?${new URLSearchParams({ site: SITE, purpose: 'invite' })}` },
     })
   })
 })

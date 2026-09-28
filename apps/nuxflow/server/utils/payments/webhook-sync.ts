@@ -6,7 +6,6 @@ import { useDb } from '../db'
 import { resolveSetting } from '../settings'
 import { sendNotification } from '../notify'
 import { writeAuditLog } from '../audit'
-import { badRequest } from '../response'
 import type { PaymentProviderName, SubscriptionStatus } from './types'
 
 // The column each provider's webhook payload actually resolves a membership tier by.
@@ -68,9 +67,18 @@ export interface SubscriptionCancellation {
 export function assertWebhookSiteMatch(event: H3Event, payloadSiteId: string | undefined | null): void {
   const contextSiteId = event.context.siteId as string | undefined
   if (!payloadSiteId || !contextSiteId || payloadSiteId !== contextSiteId) {
-    throw badRequest('Webhook event site does not match the request site')
+    throw new WebhookForOtherSite(`Webhook event belongs to site ${payloadSiteId ?? '(none)'}, not ${contextSiteId ?? '(none)'}`)
   }
 }
+
+/**
+ * Thrown by assertWebhookSiteMatch. The webhook route answers it with a 2xx and ignores
+ * the event rather than failing: a provider account shared by several sites (the
+ * operator's own sites all use the deployment's keys) delivers *every* event to *every*
+ * registered endpoint, and an error response makes the provider retry for days and then
+ * disable the endpoint — taking down webhooks for the site it does belong to as well.
+ */
+export class WebhookForOtherSite extends Error {}
 
 /**
  * Resolves a payment provider's webhook signing secret from site settings and throws the

@@ -1,9 +1,11 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
-import { requireRole } from '../../../utils/permissions'
+import { requireRole, isSuperAdminOnSite } from '../../../utils/permissions'
 import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
-import { resolveSetting, batchSaveSettings } from '../../../utils/settings'
+import { resolveSetting, batchSaveSettings, SERVER_MANAGED_SETTING_KEYS } from '../../../utils/settings'
+import { normalizeDomain } from '../../../utils/domain'
+import { clearSiteCache } from '../../../middleware/02.multi-site'
 import { clearAppearanceCache } from '../../../utils/appearance-cache'
 import { writeAuditLog } from '../../../utils/audit'
 import { purgeEdgeCache, purgeAllPublicPages } from '../../../utils/edge-cache'
@@ -72,6 +74,31 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId as string
   const body = await parseBody(event, bodySchema)
 
+  const reserved = Object.keys(body.settings ?? {}).filter(k => SERVER_MANAGED_SETTING_KEYS.has(k))
+  if (reserved.length) throw badRequest(`These settings are managed by NuxFlow and can't be set directly: ${reserved.join(', ')}`)
+
+  // Which domain a site answers on is platform routing, not site configuration: the
+  // domain has to be routed to this Worker by the operator, and a site admin choosing
+  // any value could squat a domain the operator is about to assign to another tenant
+  // (whose traffic would then resolve to this site). Only a super admin of this site —
+  // in practice the operator on their own install — may change it here; tenants' domains
+  // are managed from Admin → Super Admin → Sites.
+  if (body.domain !== undefined) {
+    const normalized = normalizeDomain(body.domain)
+    if (!normalized) throw validationError('Enter a valid domain, e.g. example.com')
+    const current = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } })
+    if (normalized === current?.domain) {
+      body.domain = undefined
+    } else {
+      if (!(await isSuperAdminOnSite(db, userId, siteId))) {
+        throw forbidden('Only the platform operator can change a site\'s domain')
+      }
+      const taken = await db.query.sites.findFirst({ where: eq(sites.domain, normalized), columns: { id: true } })
+      if (taken) throw conflict('Another site already uses that domain')
+      body.domain = normalized
+    }
+  }
+
   const siteUpdate = {
     ...(body.name !== undefined && { name: body.name }),
     ...(body.domain !== undefined && { domain: body.domain }),
@@ -84,6 +111,8 @@ export default defineEventHandler(async (event) => {
     await db.update(sites)
       .set({ ...siteUpdate, updatedAt: sql`(datetime('now'))` })
       .where(eq(sites.id, siteId))
+    // Domain/status are cached per host for site resolution.
+    if (siteUpdate.domain || siteUpdate.status) clearSiteCache()
   }
 
   // Collected across all sections below and written as a single atomic db.batch() at
