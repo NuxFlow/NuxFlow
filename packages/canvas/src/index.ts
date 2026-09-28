@@ -2,6 +2,7 @@ export * from './types'
 export * from './blocks/definitions'
 export { BUILTIN_BLOCK_COMPONENTS } from './blocks/components'
 export { spacingToCss } from './utils/spacing'
+export { toComponentProps } from './utils/block-props'
 export { safeJsonParse, parseImageList, normalizeImageValue } from './utils/json'
 export type { ImageListItem, ImageFieldValue } from './utils/json'
 export {

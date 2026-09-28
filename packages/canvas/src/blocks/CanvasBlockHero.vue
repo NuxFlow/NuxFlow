@@ -92,19 +92,19 @@ const logoStyle = computed(() => {
         <UIcon :name="logoIcon" mode="svg" class="w-8 h-8 text-white" />
       </div>
 
-      <h1 class="text-5xl sm:text-6xl font-extrabold tracking-tight leading-tight">{{ headline }}</h1>
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight text-balance break-words">{{ headline }}</h1>
       <p v-if="subtext" class="text-lg sm:text-xl opacity-80 max-w-2xl leading-relaxed whitespace-pre-wrap" :class="align === 'center' ? 'mx-auto' : ''">{{ subtext }}</p>
 
       <!-- CTAs -->
       <div
         v-if="ctaLabel || cta2Label"
-        class="flex flex-col sm:flex-row items-center gap-4"
-        :class="align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : 'justify-start'"
+        class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 max-w-xs sm:max-w-none"
+        :class="align === 'center' ? 'justify-center mx-auto' : align === 'right' ? 'justify-end ml-auto' : 'justify-start'"
       >
         <a
           v-if="ctaLabel"
           :href="safeHref(ctaUrl)"
-          class="inline-flex items-center px-7 py-3.5 rounded-xl font-semibold text-sm shadow-lg transition-opacity hover:opacity-90"
+          class="inline-flex items-center justify-center w-full sm:w-auto px-7 py-3.5 rounded-xl font-semibold text-sm shadow-lg transition-opacity hover:opacity-90"
           :style="{ backgroundColor: primaryCtaBg, color: primaryCtaColor }"
         >
           {{ ctaLabel }}
@@ -112,7 +112,7 @@ const logoStyle = computed(() => {
         <a
           v-if="cta2Label"
           :href="safeHref(cta2Url)"
-          class="inline-flex items-center px-7 py-3.5 rounded-xl font-semibold text-sm border transition-colors hover:bg-white/10"
+          class="inline-flex items-center justify-center w-full sm:w-auto px-7 py-3.5 rounded-xl font-semibold text-sm border transition-colors hover:bg-white/10"
           style="border-color: rgba(255,255,255,0.2);"
         >
           {{ cta2Label }}

@@ -26,6 +26,7 @@ import { restoreThemes } from './backup-restore/restore-themes'
 import { restorePlugins } from './backup-restore/restore-plugins'
 import { restoreUsers } from './backup-restore/restore-users'
 import { restoreMembershipTiers } from './backup-restore/restore-tiers'
+import { restoreRedirects } from './backup-restore/restore-redirects'
 
 export * from './backup-types'
 export * from './backup-export'
@@ -54,6 +55,7 @@ export async function applyBackup(
     plugins: { created: 0, updated: 0, skipped: 0, rejected: 0 },
     users: { created: 0, updated: 0, skipped: 0 },
     membershipTiers: { created: 0, updated: 0, skipped: 0 },
+    redirects: { created: 0, updated: 0, skipped: 0 },
   }
 
   await restoreSite(db, siteId, backup, opts, result)
@@ -68,6 +70,7 @@ export async function applyBackup(
   await restorePlugins(event, db, siteId, backup, opts, result)
   await restoreUsers(event, db, siteId, backup, opts, result)
   await restoreMembershipTiers(db, siteId, backup, opts, result)
+  await restoreRedirects(db, siteId, backup, opts, result)
 
   return result
 }

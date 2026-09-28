@@ -82,7 +82,7 @@ function minimalBackup(overrides: Partial<NuxFlowBackup> = {}): NuxFlowBackup {
     version: '1',
     exportedAt: new Date().toISOString(),
     site: { name: 'Restored Site', locale: 'en', timezone: 'UTC' },
-    settings: { 'seo.meta_title': 'Restored Title' },
+    settings: { 'seo.title': 'Restored Title' },
     contentTypes: [{
       slug: 'post', name: 'Posts', singularName: 'Post',
       icon: null, isBuiltIn: false, hasRevisions: false, hasComments: false,

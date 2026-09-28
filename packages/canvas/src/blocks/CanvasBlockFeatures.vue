@@ -23,7 +23,8 @@ const props = withDefaults(defineProps<{
   feat4Desc?: string
   iconColor?: string
   align?: 'left' | 'center'
-  style?: 'plain' | 'card' | 'icon-top'
+  /** The "Style" field (stored as `style` — see utils/block-props.ts). */
+  blockStyle?: 'plain' | 'card' | 'icon-top'
   gap?: number
   bgColor?: string
   padding?: SpacingValue
@@ -43,7 +44,7 @@ const props = withDefaults(defineProps<{
   feat4Desc: 'Access from any device, any time.',
   iconColor: '#6366f1',
   align: 'center',
-  style: 'plain',
+  blockStyle: 'plain',
   gap: 32,
 })
 
@@ -59,12 +60,15 @@ const features = computed((): Feature[] => {
   return all.slice(0, Math.max(1, Math.min(4, Number(props.numFeatures ?? 3))))
 })
 
+// One card per row on phones. Four cards used to be `grid-cols-2` even at phone width,
+// leaving ~150px per card; with the icon beside the text that squeezed the text into a
+// ~60px column. Three and four columns only once there's room for them (md/lg).
 const gridCols = computed(() => ({
   1: 'grid-cols-1',
   2: 'grid-cols-1 sm:grid-cols-2',
-  3: 'grid-cols-1 sm:grid-cols-3',
-  4: 'grid-cols-2 sm:grid-cols-4',
-}[features.value.length] ?? 'grid-cols-1 sm:grid-cols-3'))
+  3: 'grid-cols-1 md:grid-cols-3',
+  4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
+}[features.value.length] ?? 'grid-cols-1 md:grid-cols-3'))
 
 const hasBg = computed(() => !!props.bgColor)
 
@@ -113,34 +117,38 @@ const cardStyle  = computed(() => hasBg.value ? {
     <!-- Optional section header -->
     <div v-if="sectionLabel || sectionTitle || sectionDesc" class="mx-auto max-w-5xl text-center mb-12 space-y-3">
       <p v-if="sectionLabel" class="text-xs font-semibold uppercase tracking-widest" :style="{ color: iconColor ?? '#00dc82' }">{{ sectionLabel }}</p>
-      <h2 v-if="sectionTitle" class="text-3xl font-bold" :class="!hasBg && 'text-gray-900 dark:text-white'" :style="titleStyle">{{ sectionTitle }}</h2>
+      <h2 v-if="sectionTitle" class="text-2xl sm:text-3xl font-bold text-balance" :class="!hasBg && 'text-gray-900 dark:text-white'" :style="titleStyle">{{ sectionTitle }}</h2>
       <p v-if="sectionDesc" class="max-w-xl mx-auto" :class="!hasBg && 'text-gray-500 dark:text-gray-400'" :style="muteStyle">{{ sectionDesc }}</p>
     </div>
 
+    <!-- `canvas-features-grid` + `data-count` and `canvas-features-card` are stable hooks
+         for theme CSS (e.g. a bento layout) — target these rather than the Tailwind column
+         classes, which change with the responsive breakpoints above. -->
     <div
-      class="mx-auto max-w-5xl grid"
+      class="canvas-features-grid mx-auto max-w-5xl grid"
       :class="gridCols"
+      :data-count="features.length"
       :style="{ gap: `${gap ?? 32}px` }"
     >
       <div
         v-for="feat in features"
         :key="feat.title"
-        class="flex transition-all duration-300"
+        class="canvas-features-card flex min-w-0 transition-all duration-300"
         :class="{
-          'flex-col': style === 'icon-top' || align === 'center',
-          'flex-row gap-4': style !== 'icon-top' && align === 'left',
+          'flex-col': blockStyle === 'icon-top' || align === 'center',
+          'flex-row gap-4': blockStyle !== 'icon-top' && align === 'left',
           'items-center': align === 'center',
           'text-center': align === 'center',
-          'rounded-2xl p-6 shadow-sm shadow-gray-200/50 dark:shadow-none hover:shadow-md hover:shadow-gray-200/80 dark:hover:shadow-none hover:-translate-y-0.5': style === 'card',
-          'border border-gray-100 dark:border-gray-800/80 bg-white dark:bg-gray-900': style === 'card' && !hasBg,
-          'p-0': style !== 'card',
+          'rounded-2xl p-6 shadow-sm shadow-gray-200/50 dark:shadow-none hover:shadow-md hover:shadow-gray-200/80 dark:hover:shadow-none hover:-translate-y-0.5': blockStyle === 'card',
+          'border border-gray-100 dark:border-gray-800/80 bg-white dark:bg-gray-900': blockStyle === 'card' && !hasBg,
+          'p-0': blockStyle !== 'card',
         }"
-        :style="style === 'card' ? cardStyle : undefined"
+        :style="blockStyle === 'card' ? cardStyle : undefined"
       >
         <!-- Icon -->
         <div
           class="flex items-center justify-center w-11 h-11 rounded-xl shrink-0"
-          :class="align === 'center' ? 'mx-auto mb-4' : style === 'icon-top' ? 'mb-4' : ''"
+          :class="align === 'center' ? 'mx-auto mb-4' : blockStyle === 'icon-top' ? 'mb-4' : ''"
           :style="{ backgroundColor: iconBgColor }"
         >
           <UIcon
@@ -151,8 +159,9 @@ const cardStyle  = computed(() => hasBg.value ? {
           />
         </div>
 
-        <!-- Text -->
-        <div>
+        <!-- Text — min-w-0 lets it shrink inside the flex row instead of pushing past the
+             card edge; break-words wraps a long unbroken token. -->
+        <div class="min-w-0 flex-1 break-words">
           <h3 class="text-base font-semibold mb-1.5" :class="!hasBg && 'text-gray-900 dark:text-white'" :style="titleStyle">{{ feat.title }}</h3>
           <p class="text-sm leading-relaxed" :class="!hasBg && 'text-gray-500 dark:text-gray-400'" :style="muteStyle">{{ feat.desc }}</p>
         </div>

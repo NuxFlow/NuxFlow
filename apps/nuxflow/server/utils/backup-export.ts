@@ -11,7 +11,7 @@ import {
   taxonomies, taxonomyTerms, contentTaxonomyTerms,
   menus, forms, media,
   themes, dynamicPlugins,
-  userSiteRoles, membershipTiers,
+  userSiteRoles, membershipTiers, redirects,
 } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { SENSITIVE_SETTING_KEYS } from './settings'
@@ -26,7 +26,7 @@ import type {
 export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFlowBackup> {
   const db = useDb(event)
 
-  const [site, settingRows, ctRows, itemRows, taxRows, menuRows, formRows, mediaRows, themeRows, pluginRows, roleRows, tierRows] = await Promise.all([
+  const [site, settingRows, ctRows, itemRows, taxRows, menuRows, formRows, mediaRows, themeRows, pluginRows, roleRows, tierRows, redirectRows] = await Promise.all([
     db.query.sites.findFirst({
       where: eq(sites.id, siteId),
       columns: { name: true, locale: true, timezone: true },
@@ -39,6 +39,8 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
         id: true, typeId: true, slug: true, title: true, status: true, visibility: true,
         content: true, excerpt: true, seoTitle: true, seoDescription: true, ogImage: true,
         publishedAt: true, settings: true, locale: true, sourceItemId: true,
+        canonicalUrl: true, metaRobots: true, focusKeyword: true, allowComments: true,
+        eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true,
       },
     }),
     db.query.taxonomies.findMany({ where: eq(taxonomies.siteId, siteId) }),
@@ -61,6 +63,7 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
       with: { user: { columns: { name: true, email: true } } },
     }),
     db.query.membershipTiers.findMany({ where: eq(membershipTiers.siteId, siteId) }),
+    db.query.redirects.findMany({ where: eq(redirects.siteId, siteId), columns: { from: true, to: true, statusCode: true } }),
   ])
 
   // Themes: D1 row plus its KV-only CSS/demo payload (see BackupTheme). getThemeCSS()
@@ -194,6 +197,15 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
       termSlugs,
       locale: item.locale || null,
       sourceItemSlug: item.sourceItemId ? (slugById.get(item.sourceItemId) ?? null) : null,
+      canonicalUrl: item.canonicalUrl,
+      metaRobots: item.metaRobots,
+      focusKeyword: item.focusKeyword,
+      allowComments: item.allowComments,
+      eventStartAt: item.eventStartAt,
+      eventEndAt: item.eventEndAt,
+      eventAllDay: item.eventAllDay,
+      eventLocation: item.eventLocation,
+      eventUrl: item.eventUrl,
     })
   }
 
@@ -253,5 +265,6 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
     plugins: backupPlugins,
     users: backupUsers,
     membershipTiers: backupTiers,
+    redirects: redirectRows.map(r => ({ from: r.from, to: r.to, statusCode: r.statusCode })),
   }
 }

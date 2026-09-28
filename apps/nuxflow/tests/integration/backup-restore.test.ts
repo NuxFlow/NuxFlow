@@ -122,7 +122,7 @@ beforeAll(async () => {
   })
 
   // A plain setting and a sensitive one — saveSetting() encrypts the sensitive one.
-  await saveSetting(mkEvent(SOURCE_SITE), 'seo.meta_title', 'My Site')
+  await saveSetting(mkEvent(SOURCE_SITE), 'seo.title', 'My Site')
   await saveSetting(mkEvent(SOURCE_SITE), 'payments.stripe_secret_key', 'sk_test_supersecret123')
 
   // A theme with CSS living only in KV, and a signed dynamic plugin with server code
@@ -173,7 +173,7 @@ describe('buildBackup()', () => {
 
   it('decrypts sensitive settings back to plaintext for portability', async () => {
     const backup = await buildBackup(mkEvent(SOURCE_SITE), SOURCE_SITE)
-    expect(backup.settings['seo.meta_title']).toBe('My Site')
+    expect(backup.settings['seo.title']).toBe('My Site')
     expect(backup.settings['payments.stripe_secret_key']).toBe('sk_test_supersecret123')
   })
 })

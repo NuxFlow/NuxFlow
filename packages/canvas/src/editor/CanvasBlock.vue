@@ -5,6 +5,7 @@ import type { CanvasBlockData, CanvasBlockRegistry } from '../types'
 import { getBlockDefinition } from '../blocks/definitions'
 import { BUILTIN_BLOCK_COMPONENTS } from '../blocks/components'
 import { getSlotChildren } from '../tree'
+import { toComponentProps } from '../utils/block-props'
 import { canvasApiKey } from './canvasApi'
 
 const props = defineProps<{
@@ -159,7 +160,7 @@ function openAddPicker(slotId: string) {
     </div>
 
     <!-- Rendered block, with nested slot content for container blocks -->
-    <component :is="component" v-else v-bind="block.props">
+    <component :is="component" v-else v-bind="toComponentProps(block.props)">
       <template v-for="slot in activeSlots" :key="slot.id" #[slot.id]>
         <div class="canvas-slot-wrapper" :class="{ 'canvas-slot-wrapper--empty': !childrenFor(slot.id).length }">
           <draggable

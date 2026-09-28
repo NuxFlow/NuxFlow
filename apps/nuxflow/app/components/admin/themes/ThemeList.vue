@@ -171,7 +171,7 @@ async function importDemoContent(themeId: string) {
   try {
     await $fetch(`/api/v1/themes/${themeId}/demo-import`, {
       method: 'POST',
-      body: { what: ['content', 'taxonomies', 'menus', 'forms', 'settings'], conflictMode: 'archive' },
+      body: { what: ['content', 'taxonomies', 'menus', 'forms', 'settings', 'redirects'], conflictMode: 'archive' },
     })
 
     await refresh()

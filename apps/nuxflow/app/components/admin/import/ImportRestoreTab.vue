@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const restoreFile = ref<File | null>(null)
-const restoreWhat = ref(['content', 'taxonomies', 'menus', 'forms'])
+const restoreWhat = ref(['content', 'taxonomies', 'menus', 'forms', 'redirects'])
 const restoreConflict = ref<'skip' | 'overwrite' | 'archive'>('skip')
 const restoring = ref(false)
 const restoreResult = ref<{
@@ -16,6 +16,7 @@ const restoreResult = ref<{
     plugins: { created: number; updated: number; skipped: number; rejected: number }
     users: { created: number; updated: number; skipped: number }
     membershipTiers: { created: number; updated: number; skipped: number }
+    redirects?: { created: number; updated: number; skipped: number }
   }
   media: { uploaded: number; skipped: number }
 } | null>(null)
@@ -26,6 +27,7 @@ const restoreWhatOptions = [
   { value: 'taxonomies', label: 'Categories & Tags' },
   { value: 'menus', label: 'Menus' },
   { value: 'forms', label: 'Forms' },
+  { value: 'redirects', label: 'Redirects' },
   { value: 'settings', label: 'Site settings' },
   { value: 'site', label: 'Site info (name, locale, timezone)' },
   { value: 'themes', label: 'Themes (CSS)' },
@@ -167,6 +169,9 @@ async function runRestore() {
             </li>
             <li v-if="restoreResult.result.membershipTiers.created || restoreResult.result.membershipTiers.updated || restoreResult.result.membershipTiers.skipped">
               Membership tiers: {{ restoreResult.result.membershipTiers.created }} created<span v-if="restoreResult.result.membershipTiers.updated">, {{ restoreResult.result.membershipTiers.updated }} updated</span><span v-if="restoreResult.result.membershipTiers.skipped">, {{ restoreResult.result.membershipTiers.skipped }} skipped</span>
+            </li>
+            <li v-if="restoreResult.result.redirects && (restoreResult.result.redirects.created || restoreResult.result.redirects.updated || restoreResult.result.redirects.skipped)">
+              Redirects: {{ restoreResult.result.redirects.created }} created<span v-if="restoreResult.result.redirects.updated">, {{ restoreResult.result.redirects.updated }} updated</span><span v-if="restoreResult.result.redirects.skipped">, {{ restoreResult.result.redirects.skipped }} skipped</span>
             </li>
             <li v-if="restoreResult.media.uploaded">Media: {{ restoreResult.media.uploaded }} images uploaded<span v-if="restoreResult.media.skipped">, {{ restoreResult.media.skipped }} skipped</span></li>
           </ul>
