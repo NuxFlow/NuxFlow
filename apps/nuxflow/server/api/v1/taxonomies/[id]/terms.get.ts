@@ -1,8 +1,8 @@
 import { useDb } from '../../../../utils/db'
 import { requireAuth } from '../../../../utils/permissions'
 import { getTaxonomyByIdOrThrow } from '../../../../utils/resource-queries'
-import { taxonomyTerms } from '@nuxflow/db/schema'
-import { eq } from 'drizzle-orm'
+import { contentTaxonomyTerms, taxonomyTerms } from '@nuxflow/db/schema'
+import { asc, eq, sql } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
@@ -12,10 +12,24 @@ export default defineEventHandler(async (event) => {
 
   await getTaxonomyByIdOrThrow(db, siteId, taxonomyId)
 
-  const terms = await db.query.taxonomyTerms.findMany({
-    where: eq(taxonomyTerms.taxonomyId, taxonomyId),
-    columns: { id: true, slug: true, name: true, description: true, parentId: true, createdAt: true },
+  const rows = await db.select({
+    id: taxonomyTerms.id,
+    slug: taxonomyTerms.slug,
+    name: taxonomyTerms.name,
+    description: taxonomyTerms.description,
+    parentId: taxonomyTerms.parentId,
+    sortOrder: taxonomyTerms.sortOrder,
+    seoTitle: taxonomyTerms.seoTitle,
+    seoDescription: taxonomyTerms.seoDescription,
+    ogImage: taxonomyTerms.ogImage,
+    createdAt: taxonomyTerms.createdAt,
+    // Items of any status tagged with the term directly — what an editor needs to judge
+    // whether a term is in use before renaming or deleting it.
+    count: sql<number>`(SELECT count(*) FROM ${contentTaxonomyTerms} WHERE ${contentTaxonomyTerms.termId} = ${taxonomyTerms.id})`,
   })
+    .from(taxonomyTerms)
+    .where(eq(taxonomyTerms.taxonomyId, taxonomyId))
+    .orderBy(asc(taxonomyTerms.sortOrder), asc(taxonomyTerms.name))
 
-  return { terms }
+  return { terms: rows.map(r => ({ ...r, count: Number(r.count) })) }
 })

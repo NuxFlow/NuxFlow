@@ -91,7 +91,7 @@ export const rateLimits = sqliteTable('rate_limits', {
 // primary key meant only one site in the whole deployment could ever install a given
 // plugin — the second tenant got a raw constraint error, and any tenant could squat a
 // popular plugin's id (signed with their own key) to block every other site from it.
-// Rebuilt in migration 0024; safe because no other table has a FK to this one.
+// No other table has a FK to this one, so a rebuild migration on it is safe.
 export const dynamicPlugins = sqliteTable('dynamic_plugins', {
   id: text('id').notNull(),
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
@@ -212,6 +212,6 @@ export const consentLogs = sqliteTable('consent_logs', {
 
 // Virtual FTS5 table, backfill, and sync triggers — created via raw SQL in migration,
 // not via Drizzle (drizzle-kit can't express virtual tables or triggers).
-// See migrations/0002_search_index.sql. Kept in sync automatically by AFTER
+// See migrations/0001_search_index.sql. Kept in sync automatically by AFTER
 // INSERT/UPDATE/DELETE triggers on content_items — no application code indexes
 // content explicitly; only published + public items are searchable.

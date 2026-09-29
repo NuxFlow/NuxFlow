@@ -430,6 +430,7 @@ function canvasBlockToMarkdown(block: CanvasBlock): string {
     case 'canvas-gdpr':
     case 'canvas-footer':
     case 'canvas-calendar':
+    case 'canvas-posts':
     case 'contact-form/form':
     case 'dynamic-form/form':
     case 'payments/memberships':

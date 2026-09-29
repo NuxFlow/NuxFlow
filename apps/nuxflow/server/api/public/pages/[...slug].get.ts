@@ -8,6 +8,7 @@ import { findRedirect } from '../../../utils/redirect-cache'
 import { findPreviewItem } from '../../../utils/preview'
 import { findPublishedPage, parseLocalePath } from '../../../utils/public-page'
 import { effectiveItemRobots, getSeoSettings, publicPathForItem } from '../../../utils/seo'
+import { getPublicItemTerms, termArchivePath } from '../../../utils/taxonomy'
 
 type ContentItemRow = typeof contentItems.$inferSelect
 
@@ -145,7 +146,7 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
   // Content type, author, source-page, site-locale, and SEO-settings lookups are all
   // independent of each other (they only need `page`, already resolved above), so run
   // them as one round trip each in parallel instead of sequentially.
-  const [type, authorUser, sourcePageResolved, site, seo] = await Promise.all([
+  const [type, authorUser, sourcePageResolved, site, seo, ownTerms] = await Promise.all([
     page.typeId
       ? db.query.contentTypes.findFirst({
           where: eq(contentTypes.id, page.typeId),
@@ -172,8 +173,16 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
       : Promise.resolve(null),
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true } }),
     getSeoSettings(db, siteId),
+    getPublicItemTerms(db, page.id),
   ])
   const defaultLocale = site?.locale || 'en'
+
+  // A translation that hasn't been tagged itself shows its original's terms — the
+  // archives it links to are shared across languages.
+  const termRows = ownTerms.length === 0 && page.sourceItemId && sourcePageResolved
+    ? await getPublicItemTerms(db, page.sourceItemId)
+    : ownTerms
+  const terms = termRows.map(t => ({ ...t, path: termArchivePath(t.taxonomySlug, t.termSlug) }))
 
   // Per-item override takes precedence; null means "inherit from content type"
   const hasComments = page.allowComments !== null && page.allowComments !== undefined
@@ -256,6 +265,7 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
       : null,
     hasComments,
     author,
+    terms,
     availableLocales,
     alternates,
   }

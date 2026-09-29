@@ -158,6 +158,16 @@ async function applyMigrations(event: H3Event) {
     const { results } = await d1.prepare('SELECT filename FROM _nuxflow_migrations ORDER BY filename ASC').all<{ filename: string }>()
     const applied = new Set(results.map(r => r.filename))
 
+    // The migration history was squashed into a new baseline before the first release. A
+    // database created by the old files records filenames this build no longer ships;
+    // replaying the new baseline there would skip every existing table ("already
+    // exists") and mark it applied, leaving the schema silently incomplete. Refuse
+    // instead — such a database has to be recreated (see CLAUDE.md's Database layer).
+    const unknown = [...applied].filter(f => !keys.includes(f))
+    if (unknown.length > 0) {
+      throw new Error(`Database was migrated by files this build doesn't include (${unknown.slice(0, 3).join(', ')}${unknown.length > 3 ? ', …' : ''}). It predates the migration squash and must be recreated — export per-site backups, create a fresh D1 database, and restore them.`)
+    }
+
     let count = 0
     for (const key of keys) {
       if (applied.has(key)) continue

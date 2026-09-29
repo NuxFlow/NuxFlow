@@ -15,6 +15,7 @@ import {
 } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { SENSITIVE_SETTING_KEYS, SERVER_MANAGED_SETTING_KEYS } from './settings'
+import { getTaxonomyContentTypeSlugs } from './taxonomy'
 import { decryptText } from './encryption'
 import { getThemeCSS, getThemeDemo } from './cf-theme-kv'
 import { getPluginServerCode, getPluginClientBundle } from './cf-plugin-kv'
@@ -133,6 +134,7 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
   const backupTaxonomies: BackupTaxonomy[] = []
   const termSlugById = new Map<string, string>() // termId -> "{taxSlug}/{termSlug}"
 
+  const typeSlugsByTaxonomy = await getTaxonomyContentTypeSlugs(db, taxRows.map(t => t.id))
   for (const tax of taxRows) {
     const terms = await db.query.taxonomyTerms.findMany({
       where: eq(taxonomyTerms.taxonomyId, tax.id),
@@ -145,6 +147,10 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
       name: t.name,
       description: t.description,
       parentSlug: t.parentId ? (termById.get(t.parentId)?.slug ?? null) : null,
+      sortOrder: t.sortOrder,
+      seoTitle: t.seoTitle,
+      seoDescription: t.seoDescription,
+      ogImage: t.ogImage,
     }))
 
     for (const t of terms) {
@@ -155,6 +161,9 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
       slug: tax.slug,
       name: tax.name,
       isHierarchical: tax.isHierarchical,
+      description: tax.description,
+      noindex: tax.noindex,
+      contentTypes: typeSlugsByTaxonomy.get(tax.id) ?? [],
       terms: backupTerms,
     })
   }

@@ -13,6 +13,7 @@ import {
   contentItems,
   contentRevisions,
   taxonomies,
+  taxonomyContentTypes,
   taxonomyTerms,
   contentTaxonomyTerms,
   menus,
@@ -63,6 +64,7 @@ async function wipeAllTables(db: Db) {
   await db.delete(notifications)
   await db.delete(auditLogs)
   await db.delete(contentItems)
+  await db.delete(taxonomyContentTypes)
   await db.delete(contentTypes)
   await db.delete(taxonomies)
   await db.delete(menus)
@@ -235,9 +237,17 @@ async function seedDemo(db: Db) {
     publishedAt: new Date().toISOString(),
   })
 
+  // Categories and Tags apply to posts only (taxonomy_content_types); pages opt in
+  // from Admin → Taxonomies if a site wants them there too.
+  const categoryTaxId = ulid()
+  const tagTaxId = ulid()
   await db.insert(taxonomies).values([
-    { id: ulid(), siteId, slug: 'category', name: 'Categories', isHierarchical: true },
-    { id: ulid(), siteId, slug: 'post_tag', name: 'Tags', isHierarchical: false },
+    { id: categoryTaxId, siteId, slug: 'category', name: 'Categories', isHierarchical: true },
+    { id: tagTaxId, siteId, slug: 'tag', name: 'Tags', isHierarchical: false },
+  ])
+  await db.insert(taxonomyContentTypes).values([
+    { taxonomyId: categoryTaxId, contentTypeId: postTypeId },
+    { taxonomyId: tagTaxId, contentTypeId: postTypeId },
   ])
 
   await db.insert(userSiteRoles).values({

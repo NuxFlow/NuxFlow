@@ -287,11 +287,7 @@ wrangler d1 create nuxflow-dev
 
 Copy the returned `database_id` into `apps/nuxflow/wrangler.toml` under `[[d1_databases]]`.
 
-> **Note:** Migrations are applied automatically on the first request. If you prefer to seed the local database manually before starting the dev server:
-> ```bash
-> cd apps/nuxflow
-> wrangler d1 execute nuxflow-dev --local --file=../../packages/db/migrations/0000_baseline.sql
-> ```
+> **Note:** Migrations are applied automatically on the first request — there's no manual migrate step.
 
 ### 4. Configure environment
 
@@ -345,8 +341,6 @@ wrangler kv namespace create PLUGIN_KV --preview
 wrangler email sending enable yourdomain.com
 
 # Migrations run automatically on the first request after deployment.
-# To seed manually before the first deploy:
-# wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0000_baseline.sql
 
 # Set secrets
 wrangler secret put NUXT_BETTER_AUTH_SECRET

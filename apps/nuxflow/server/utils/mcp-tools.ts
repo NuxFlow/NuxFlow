@@ -1,14 +1,16 @@
 import type { H3Event } from 'h3'
 import { z } from 'zod'
-import { and, eq, desc, sql } from 'drizzle-orm'
+import { and, asc, eq, desc, inArray, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import type { Db } from './db'
-import { contentItems } from '@nuxflow/db/schema'
+import { contentItems, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { roleAtLeast, hasApiKeyScope, canEditContentItem, AUTHOR_SETTABLE_STATUSES, type Role, type ApiKeyScope } from './permissions'
 import { getContentItem, getContentTypeBySlug } from './content-queries'
 import { scopedById } from './db-helpers'
 import { writeAuditLog } from './audit'
 import { semanticSearch } from './embeddings'
+import { purgeContentCache } from './edge-cache'
+import { getContentTermIds, getPublicItemTerms, getTaxonomyContentTypeSlugs, getTermRefsWithAncestors, replaceContentTermsStatements } from './taxonomy'
 
 // Tool implementations for the MCP server (server/api/v1/mcp.ts). Extracted out of that
 // file so it stays protocol/session plumbing (SSE handshake, JSON-RPC dispatch) while the
@@ -82,6 +84,16 @@ const deleteContentArgsSchema = z.object({
 const searchContentArgsSchema = z.object({
   query: z.string().min(1).max(500),
   limit: z.coerce.number().int().positive().optional(),
+})
+
+const listTaxonomiesArgsSchema = z.object({})
+
+// Terms are addressed as "{taxonomySlug}/{termSlug}" (e.g. "category/news") rather than
+// by ULID — the same reason ai/suggest-terms.post.ts avoids ids: a model reproduces a
+// short readable slug path far more reliably than an opaque 26-character id.
+const setContentTermsArgsSchema = z.object({
+  id: z.string().min(1),
+  terms: z.array(z.string().regex(/^[^/]+\/[^/]+$/, 'Each term must be "taxonomySlug/termSlug"')).max(200),
 })
 
 interface McpToolDefinition {
@@ -159,6 +171,23 @@ export const MCP_TOOLS: Record<string, McpToolDefinition> = {
       required: ['id'],
     },
   },
+  list_taxonomies: {
+    description: 'List this site\'s taxonomies (e.g. categories, tags) with their terms, as "taxonomySlug/termSlug" paths usable with set_content_terms. `contentTypes` lists the content types a taxonomy applies to (empty = all).',
+    scope: 'read:content',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  set_content_terms: {
+    description: 'Replace the full set of taxonomy terms (categories/tags) assigned to a page or post. Pass every term the item should have — terms not listed are removed. Use list_taxonomies to find valid term paths.',
+    scope: 'write:content',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The 26-character ULID of the content item' },
+        terms: { type: 'array', items: { type: 'string' }, description: 'Term paths like "category/news" or "tag/nuxt"; an empty array clears all terms' },
+      },
+      required: ['id', 'terms'],
+    },
+  },
   search_content: {
     description: 'Search this site\'s published content by natural-language topic or keyword. Prefer this over list_content when you don\'t already know the exact type/slug and want to find relevant pages or posts by what they\'re about — it grounds answers in the site\'s own real content instead of guessing. Uses semantic (vector) search when the site has it configured, and falls back to keyword search otherwise.',
     scope: 'read:content',
@@ -230,7 +259,8 @@ async function getContent(args: unknown, ctx: McpToolContext): Promise<McpToolRe
   })
 
   if (!item) return textResult('Error: Content item not found.')
-  return textResult(JSON.stringify(item, null, 2))
+  const terms = (await getPublicItemTerms(ctx.db, item.id)).map(t => `${t.taxonomySlug}/${t.termSlug}`)
+  return textResult(JSON.stringify({ ...item, terms }, null, 2))
 }
 
 async function createContent(args: unknown, ctx: McpToolContext): Promise<McpToolResult> {
@@ -370,6 +400,84 @@ async function deleteContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   return textResult(`Success: Content item ${id} has been permanently deleted.`)
 }
 
+async function listTaxonomies(args: unknown, ctx: McpToolContext): Promise<McpToolResult> {
+  const parsed = listTaxonomiesArgsSchema.safeParse(args ?? {})
+  if (!parsed.success) {
+    return textResult(`Error: ${parsed.error.issues.map(i => i.message).join('; ')}`)
+  }
+  const taxRows = await ctx.db.query.taxonomies.findMany({
+    where: eq(taxonomies.siteId, ctx.siteId),
+    columns: { id: true, slug: true, name: true, isHierarchical: true },
+    orderBy: [asc(taxonomies.name)],
+  })
+  const termRows = taxRows.length
+    ? await ctx.db.select({ taxonomyId: taxonomyTerms.taxonomyId, slug: taxonomyTerms.slug, name: taxonomyTerms.name, parentId: taxonomyTerms.parentId, id: taxonomyTerms.id })
+        .from(taxonomyTerms)
+        .where(inArray(taxonomyTerms.taxonomyId, taxRows.map(t => t.id)))
+        .orderBy(asc(taxonomyTerms.sortOrder), asc(taxonomyTerms.name))
+    : []
+  const typeSlugs = await getTaxonomyContentTypeSlugs(ctx.db, taxRows.map(t => t.id))
+  const slugById = new Map(termRows.map(t => [t.id, t.slug]))
+  const out = taxRows.map(tax => ({
+    slug: tax.slug,
+    name: tax.name,
+    isHierarchical: tax.isHierarchical,
+    contentTypes: typeSlugs.get(tax.id) ?? [],
+    terms: termRows.filter(t => t.taxonomyId === tax.id).map(t => ({
+      path: `${tax.slug}/${t.slug}`,
+      name: t.name,
+      parent: t.parentId ? `${tax.slug}/${slugById.get(t.parentId)}` : null,
+    })),
+  }))
+  return textResult(JSON.stringify(out, null, 2))
+}
+
+async function setContentTerms(args: unknown, ctx: McpToolContext): Promise<McpToolResult> {
+  const parsed = setContentTermsArgsSchema.safeParse(args)
+  if (!parsed.success) {
+    return textResult(`Error: ${parsed.error.issues.map(i => i.message).join('; ')}`)
+  }
+  if (!apiKeyRoleAtLeast(ctx.apiKeyRole, 'author')) {
+    return textResult(`Error: Role "${ctx.apiKeyRole}" is unauthorized to edit content.`)
+  }
+  const { id, terms } = parsed.data
+  const existing = await getContentItem(ctx.db, ctx.siteId, id)
+  if (!existing) return textResult(`Error: Content item with ID "${id}" not found.`)
+  // Same rule as PUT /api/v1/content/:id/terms — authors only touch their own unpublished items.
+  if (!canEditContentItem((ctx.apiKeyRole ?? 'viewer') as Role, ctx.apiKeyUserId, existing)) {
+    return textResult(`Error: Role "${ctx.apiKeyRole}" may only update its own draft or in-review content.`)
+  }
+
+  const wanted = [...new Set(terms)]
+  const siteTerms = wanted.length
+    ? await ctx.db.select({ id: taxonomyTerms.id, path: sql<string>`${taxonomies.slug} || '/' || ${taxonomyTerms.slug}` })
+        .from(taxonomyTerms)
+        .innerJoin(taxonomies, eq(taxonomies.id, taxonomyTerms.taxonomyId))
+        .where(eq(taxonomies.siteId, ctx.siteId))
+    : []
+  const idByPath = new Map(siteTerms.map(t => [t.path, t.id]))
+  const unknown = wanted.filter(p => !idByPath.has(p))
+  if (unknown.length) return textResult(`Error: Unknown term(s): ${unknown.join(', ')}. Use list_taxonomies to see valid terms.`)
+  const termIds = wanted.map(p => idByPath.get(p)!)
+
+  const previous = await getContentTermIds(ctx.db, id)
+  const [clearTerms, ...insertTerms] = replaceContentTermsStatements(ctx.db, id, termIds)
+  await ctx.db.batch([clearTerms!, ...insertTerms])
+  await writeAuditLog(ctx.event, ctx.apiKeyUserId, {
+    action: 'update_terms',
+    resource: 'content_item',
+    resourceId: id,
+    before: { termIds: previous },
+    after: { termIds },
+  })
+  await purgeContentCache(ctx.event, {
+    slugs: [existing.slug],
+    taxonomyTerms: await getTermRefsWithAncestors(ctx.db, [...new Set([...previous, ...termIds])]),
+  })
+
+  return textResult(`Success: Content item ${id} now has ${termIds.length} term(s).`)
+}
+
 async function searchContent(args: unknown, ctx: McpToolContext): Promise<McpToolResult> {
   const parsed = searchContentArgsSchema.safeParse(args)
   if (!parsed.success) {
@@ -426,6 +534,8 @@ export async function callTool(name: string, args: unknown, ctx: McpToolContext)
     case 'update_content': return updateContent(args, ctx)
     case 'delete_content': return deleteContent(args, ctx)
     case 'search_content': return searchContent(args, ctx)
+    case 'list_taxonomies': return listTaxonomies(args, ctx)
+    case 'set_content_terms': return setContentTerms(args, ctx)
     default: return textResult(`Error: Unknown tool "${name}"`)
   }
 }

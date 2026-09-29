@@ -10,7 +10,7 @@ import { and, eq, ne, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { scopedById } from '../../../utils/db-helpers'
 import { purgeContentCache } from '../../../utils/edge-cache'
-import { getContentItemTerms } from '@nuxflow/db/queries'
+import { assertContentSlugNotTaxonomy, getContentTermIds, getTermRefsWithAncestors, replaceContentTermsStatements, validateSiteTermIds } from '../../../utils/taxonomy'
 import { waitUntil } from '../../../utils/cf-env'
 import { upsertContentEmbedding } from '../../../utils/embeddings'
 import { itemPublicPath } from '../../../utils/public-page'
@@ -40,6 +40,9 @@ const bodySchema = z.object({
   eventLocation: z.string().max(500).nullable().optional(),
   eventUrl: z.string().max(2048).nullable().optional(),
   eventAllDay: z.boolean().nullable().optional(),
+  // Replaces the item's whole taxonomy-term set when present (the editor sends it with
+  // every save, so tagging follows the same save/autosave flow as every other field).
+  termIds: z.array(z.string()).max(200).optional(),
   // Optional optimistic lock: client sends the version it last saw.
   // Server returns 409 if the item has since been updated by someone else.
   expectedVersion: z.number().int().positive().optional(),
@@ -68,7 +71,7 @@ export default defineEventHandler(async (event) => {
     await getContentItemOrThrow(db, siteId, body.sourceItemId, 'Source item not found', { id: true })
   }
 
-  const { expectedVersion, ...updateFields } = body
+  const { expectedVersion, termIds: requestedTermIds, ...updateFields } = body
   if (expectedVersion !== undefined && existing.version !== expectedVersion) {
     throw conflict('Content has been modified since you last loaded it', { currentVersion: existing.version })
   }
@@ -79,7 +82,13 @@ export default defineEventHandler(async (event) => {
       columns: { id: true },
     })
     if (slugConflict) conflict(`A content item with the slug "${updateFields.slug}" already exists`)
+    await assertContentSlugNotTaxonomy(db, siteId, updateFields.slug)
   }
+
+  const previousTermIds = await getContentTermIds(db, id)
+  const nextTermIds = requestedTermIds !== undefined ? await validateSiteTermIds(db, siteId, requestedTermIds) : previousTermIds
+  const termsChanged = requestedTermIds !== undefined
+    && (nextTermIds.length !== previousTermIds.length || nextTermIds.some(t => !previousTermIds.includes(t)))
 
   const nextVersion = existing.version + 1
 
@@ -117,7 +126,7 @@ export default defineEventHandler(async (event) => {
     resource: 'content_item',
     resourceId: id,
     before: existing,
-    after: updateFields,
+    after: termsChanged ? { ...updateFields, termIds: nextTermIds } : updateFields,
   })
 
   // One D1 round trip instead of three — none of these writes depend on
@@ -131,6 +140,7 @@ export default defineEventHandler(async (event) => {
         content: existing.content,
       }), itemUpdate]
     : [itemUpdate]
+  if (termsChanged) writes.push(...replaceContentTermsStatements(db, id, nextTermIds))
   await batchWithAudit(db, writes, auditInsert)
 
   // Public URL bookkeeping. A translation is served at /{locale}/{source slug}, and a
@@ -167,10 +177,12 @@ export default defineEventHandler(async (event) => {
     await redirectMovedPaths(db, siteId, moves)
   }
 
-  const terms = await getContentItemTerms(db, id)
+  // Old and new terms (plus their parents, whose archives roll sub-terms up) — any of
+  // those archives can list this item differently after this edit.
+  const termRefs = await getTermRefsWithAncestors(db, [...new Set([...previousTermIds, ...nextTermIds])])
   await purgeContentCache(event, {
     slugs: [existing.slug, updateFields.slug].filter((s): s is string => Boolean(s)),
-    taxonomyTerms: terms.map(t => ({ taxonomySlug: t.taxonomySlug, termSlug: t.termSlug })),
+    taxonomyTerms: termRefs,
     extraPaths: [oldPath, newPath, ...moves.flatMap(m => [m.from, m.to])],
   })
 

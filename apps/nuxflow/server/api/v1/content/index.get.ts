@@ -4,8 +4,8 @@ import { getContentTypeBySlugOrThrow } from '../../../utils/content-queries'
 import { parsePagination } from '../../../utils/pagination'
 import { isSiteMember } from '../../../utils/permissions'
 import { paginate, countRows } from '@nuxflow/db/queries'
-import { contentItems } from '@nuxflow/db/schema'
-import { and, eq, desc, gt } from 'drizzle-orm'
+import { contentItems, contentTaxonomyTerms, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
+import { and, eq, desc, gt, inArray } from 'drizzle-orm'
 
 // updatedAfter round-trips contentItems.updatedAt, which is always written as SQLite's
 // datetime('now') — space-separated "YYYY-MM-DD HH:MM:SS", not ISO-8601 — so an offline/
@@ -22,6 +22,9 @@ const querySchema = z.object({
   status: z.enum(['draft', 'review', 'published', 'scheduled', 'archived']).optional(),
   locale: z.string().optional(),
   updatedAfter: updatedAfterSchema.optional(),
+  // Only items tagged with this taxonomy term id (the term itself, not its sub-terms —
+  // an editor filtering the admin list wants exactly what's assigned).
+  term: z.string().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -63,6 +66,15 @@ export default defineEventHandler(async (event) => {
   // Filter by locale
   if (query.locale) {
     conditions.push(eq(contentItems.locale, query.locale))
+  }
+
+  if (query.term) {
+    // Scoped through the term's taxonomy to this site, so a foreign term id matches nothing.
+    conditions.push(inArray(contentItems.id, db.select({ id: contentTaxonomyTerms.contentItemId })
+      .from(contentTaxonomyTerms)
+      .innerJoin(taxonomyTerms, eq(taxonomyTerms.id, contentTaxonomyTerms.termId))
+      .innerJoin(taxonomies, eq(taxonomies.id, taxonomyTerms.taxonomyId))
+      .where(and(eq(contentTaxonomyTerms.termId, query.term), eq(taxonomies.siteId, siteId)))))
   }
 
   // Delta sync: return only items modified after a given timestamp.

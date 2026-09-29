@@ -644,9 +644,9 @@ describe('POST /api/v1/ai/suggest-terms', () => {
 
     const result = await (suggestTermsHandler as HandlerFn)(
       mkEditorEvent({ title: 'How to grow tomatoes' }),
-    ) as { matchedTerms: { id: string; name: string; taxonomySlug: string }[]; newTermSuggestions: unknown[] }
+    ) as { matchedTerms: { id: string; name: string; taxonomyId: string; taxonomySlug: string }[]; newTermSuggestions: unknown[] }
 
-    expect(result.matchedTerms).toEqual([{ id: term1, name: 'Gardening', taxonomySlug: 'topics' }])
+    expect(result.matchedTerms).toEqual([{ id: term1, name: 'Gardening', taxonomyId: taxId, taxonomySlug: 'topics' }])
     expect(result.newTermSuggestions).toEqual([{ taxonomySlug: 'topics', name: 'Composting' }])
   })
 })

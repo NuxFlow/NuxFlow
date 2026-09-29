@@ -22,6 +22,7 @@ const { data: item, refresh } = await useAsyncData(
     eventStartAt?: string | null; eventEndAt?: string | null; eventLocation?: string | null
     eventUrl?: string | null; eventAllDay?: boolean | null
     canEdit?: boolean
+    termIds?: string[]
   }>(`/api/v1/content/${id.value}`),
   { server: false },
 )
@@ -54,6 +55,8 @@ const form = reactive({
   eventLocation: '',
   eventUrl: '',
   eventAllDay: false,
+  // Taxonomy term ids — saved with the rest of the item (see EditorTermPicker).
+  termIds: [] as string[],
 })
 
 const activeTypeSlug = computed(() => {
@@ -86,6 +89,7 @@ watch(item, (val) => {
   form.eventLocation = val.eventLocation ?? ''
   form.eventUrl = val.eventUrl ?? ''
   form.eventAllDay = val.eventAllDay ?? false
+  form.termIds = val.termIds ?? []
 }, { immediate: true })
 
 // ── Editor mode (TipTap vs Canvas) ───────────────────────────────────────────
@@ -121,6 +125,8 @@ function switchToTipTap() {
 // body; a Canvas page has no single HTML body to score, so this stays undefined for it and
 // SeoPanel hides the readability card entirely (see its `v-if="bodyHtml"`).
 const bodyHtml = computed(() => editorMode.value === 'tiptap' ? renderTipTap(form.content) : undefined)
+// Plain text for AI term suggestions — the excerpt, else the prose body with tags stripped.
+const bodyText = computed(() => form.excerpt || (bodyHtml.value ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim())
 
 useHead({ title: computed(() => form.title || (isNew.value ? 'New page' : 'Edit page')) })
 
@@ -192,6 +198,7 @@ async function save(overrideStatus?: string) {
       eventLocation: form.eventLocation || null,
       eventUrl: form.eventUrl || null,
       eventAllDay: form.eventAllDay,
+      termIds: form.termIds,
     }
     if (isNew.value) {
       const result = await $fetch<{ id: string }>('/api/v1/content', {
@@ -447,7 +454,13 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
           </div>
         </UCard>
 
-        <EditorTermPicker :content-id="isNew ? undefined : id" />
+        <EditorTermPicker
+          v-model="form.termIds"
+          :content-type="activeTypeSlug"
+          :disabled="!canEdit"
+          :title="form.title"
+          :body-text="bodyText"
+        />
 
         <EditorRevisionHistory
           v-if="showRevisions && !isNew"

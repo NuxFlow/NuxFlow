@@ -23,6 +23,8 @@ interface Post {
   id: string
   title: string
   slug: string
+  /** Public URL (translations live at /{locale}/{source slug}, the homepage at /). */
+  path: string
   excerpt: string | null
   ogImage: string | null
   publishedAt: string | null
@@ -78,7 +80,7 @@ useHead({
         mainEntity: {
           '@type': 'ItemList',
           numberOfItems: data.value.total,
-          itemListElement: data.value.posts.map((p, i) => ({ '@type': 'ListItem', position: (page.value - 1) * 10 + i + 1, url: `${canonicalBase.value}/${p.slug}`, name: p.title })),
+          itemListElement: data.value.posts.map((p, i) => ({ '@type': 'ListItem', position: (page.value - 1) * 10 + i + 1, url: `${canonicalBase.value}${p.path}`, name: p.title })),
         },
         ...(siteName.value ? { publisher: { '@type': 'Organization', name: siteName.value } } : {}),
       }),
@@ -138,7 +140,7 @@ function formatDate(d: string | null) {
           :key="post.id"
           class="group rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden hover:shadow-md transition-shadow bg-white dark:bg-gray-900"
         >
-          <NuxtLink :to="`/${post.slug}`" class="block">
+          <NuxtLink :to="post.path" class="block">
             <div class="relative overflow-hidden aspect-[4/3] bg-gray-100 dark:bg-gray-800">
               <NuxImage
                 v-if="post.ogImage"
@@ -176,7 +178,7 @@ function formatDate(d: string | null) {
           :key="post.id"
           class="group"
         >
-          <NuxtLink :to="`/${post.slug}`" class="block">
+          <NuxtLink :to="post.path" class="block">
             <NuxImage
               v-if="post.ogImage"
               :src="post.ogImage"
@@ -198,7 +200,7 @@ function formatDate(d: string | null) {
             <time v-if="post.publishedAt" class="text-xs text-gray-400">
               {{ formatDate(post.publishedAt) }}
             </time>
-            <NuxtLink :to="`/${post.slug}`" class="text-xs text-primary-500 hover:underline font-medium">
+            <NuxtLink :to="post.path" class="text-xs text-primary-500 hover:underline font-medium">
               Read more →
             </NuxtLink>
           </div>

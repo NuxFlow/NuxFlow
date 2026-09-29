@@ -341,7 +341,7 @@ describe('applyBackup() — restoring themes and plugins', () => {
   })
 
   it('restores a plugin that is also installed on a different site — plugin ids are per site', async () => {
-    // dynamicPlugins is keyed by (site_id, id) (migration 0024): SOURCE_SITE still holds
+    // dynamicPlugins is keyed by (site_id, id): SOURCE_SITE still holds
     // 'demo-plugin', and TARGET_SITE gets its own independent install of the same plugin.
     const backup = await buildBackup(mkEvent(SOURCE_SITE), SOURCE_SITE)
     const result = await applyBackup(mkEvent(TARGET_SITE), TARGET_SITE, backup, {

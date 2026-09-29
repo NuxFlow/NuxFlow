@@ -1,9 +1,12 @@
-import { contentItems, sites, users } from '../schema'
-import { and, desc, eq } from 'drizzle-orm'
+import { contentItems, contentTaxonomyTerms, sites, users } from '../schema'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import type { Db } from './types'
 
-/** Shared by feed.xml.ts and atom.xml.ts — both list the same published/public posts. */
-export async function getPublishedPostsForFeed(db: Db, siteId: string, limit = 20) {
+/**
+ * Shared by feed.xml.ts and atom.xml.ts — both list the same published/public posts.
+ * `termIds` narrows the feed to items tagged with any of them (a per-term feed).
+ */
+export async function getPublishedPostsForFeed(db: Db, siteId: string, limit = 20, termIds?: string[]) {
   return db
     .select({
       id: contentItems.id,
@@ -18,7 +21,16 @@ export async function getPublishedPostsForFeed(db: Db, siteId: string, limit = 2
     })
     .from(contentItems)
     .leftJoin(users, eq(contentItems.authorId, users.id))
-    .where(and(eq(contentItems.siteId, siteId), eq(contentItems.status, 'published'), eq(contentItems.visibility, 'public')))
+    .where(and(
+      eq(contentItems.siteId, siteId),
+      eq(contentItems.status, 'published'),
+      eq(contentItems.visibility, 'public'),
+      termIds
+        ? inArray(contentItems.id, db.selectDistinct({ id: contentTaxonomyTerms.contentItemId })
+            .from(contentTaxonomyTerms)
+            .where(inArray(contentTaxonomyTerms.termId, termIds.length ? termIds : [''])))
+        : undefined,
+    ))
     .orderBy(desc(contentItems.publishedAt))
     .limit(limit)
 }

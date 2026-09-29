@@ -189,7 +189,7 @@ export async function prepareD1Dump(event: H3Event): Promise<D1DumpPreparation> 
   const entries = master.results
   for (const e of entries) assertSafeIdentifier(e.name)
 
-  // FTS5 virtual tables (e.g. search_index, see migrations/0002_search_index.sql) own a
+  // FTS5 virtual tables (e.g. search_index, see migrations/0001_search_index.sql) own a
   // set of auto-created shadow tables (name_data/_idx/_docsize/_content/_config). Those
   // shadow tables aren't ordinary rows — they're fts5's internal storage, recreated
   // automatically by the virtual table's own CREATE statement and not meaningfully

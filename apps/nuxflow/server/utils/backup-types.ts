@@ -62,6 +62,11 @@ export interface BackupTerm {
   name: string
   description: string | null
   parentSlug: string | null
+  // Optional so backups made before these existed still validate and restore.
+  sortOrder?: number
+  seoTitle?: string | null
+  seoDescription?: string | null
+  ogImage?: string | null
 }
 
 export interface BackupTaxonomy {
@@ -69,6 +74,11 @@ export interface BackupTaxonomy {
   name: string
   isHierarchical: boolean
   terms: BackupTerm[]
+  // Optional so older backups still validate; absent = left as the target site has it.
+  description?: string | null
+  noindex?: boolean
+  /** Content type slugs the taxonomy applies to ([] = every type). */
+  contentTypes?: string[]
 }
 
 export interface BackupMenu {
@@ -271,17 +281,24 @@ const backupRedirectSchema = z.object({
 })
 
 const backupTermSchema = z.object({
-  slug: z.string(),
+  slug: z.string().min(1).max(200),
   name: z.string(),
   description: z.string().nullable(),
   parentSlug: z.string().nullable(),
+  sortOrder: z.number().int().optional(),
+  seoTitle: z.string().max(200).nullable().optional(),
+  seoDescription: z.string().max(500).nullable().optional(),
+  ogImage: z.string().max(2048).nullable().optional(),
 })
 
 const backupTaxonomySchema = z.object({
-  slug: z.string(),
+  slug: z.string().min(1).max(100),
   name: z.string(),
   isHierarchical: z.boolean(),
   terms: z.array(backupTermSchema),
+  description: z.string().max(500).nullable().optional(),
+  noindex: z.boolean().optional(),
+  contentTypes: z.array(z.string()).optional(),
 })
 
 const backupMenuSchema = z.object({

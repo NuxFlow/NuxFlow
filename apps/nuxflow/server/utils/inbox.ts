@@ -78,7 +78,7 @@ export async function ensureInboundHandle(event: H3Event, db: Db, siteId: string
 
   const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } })
   const base = (site?.domain ?? 'site').replace(/^www\./, '').split('.')[0]!.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30) || 'site'
-  // The unique index on handle values (migration 0025) is the real guard: two sites
+  // The unique index on handle values (idx_site_settings_inbound_handle) is the real guard: two sites
   // claiming the same free handle at once both pass the lookup, and the loser's insert
   // fails — it just moves on to the next suffix.
   for (let n = 1; n < 1000; n++) {

@@ -805,6 +805,53 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     },
   },
 
+  // ── Posts ───────────────────────────────────────────────────────────────────
+  {
+    id: 'canvas-posts',
+    name: 'Posts',
+    description: 'A list or grid of the latest published posts, optionally from one category or tag',
+    icon: 'i-lucide-newspaper',
+    category: 'content',
+    component: 'CanvasBlockPosts',
+    thumbnailColor: '#eff6ff',
+    fields: [
+      { key: 'title', label: 'Title', type: 'text', placeholder: 'Latest posts' },
+      { key: 'description', label: 'Description', type: 'textarea' },
+      { key: 'contentType', label: 'Content type', type: 'text', placeholder: 'post (leave empty for every type)' },
+      { key: 'taxonomy', label: 'Taxonomy slug', type: 'text', placeholder: 'e.g. category' },
+      { key: 'term', label: 'Term slug', type: 'text', placeholder: 'e.g. news', condition: p => Boolean(String(p.taxonomy ?? '').trim()) },
+      {
+        key: 'layout',
+        label: 'Layout',
+        type: 'select',
+        options: [
+          { label: 'Grid', value: 'grid' },
+          { label: 'List', value: 'list' },
+        ],
+      },
+      { key: 'limit', label: 'Number of posts', type: 'number', min: 1, max: 50, step: 1 },
+      { key: 'showImage', label: 'Show featured images', type: 'toggle' },
+      { key: 'showExcerpt', label: 'Show excerpts', type: 'toggle' },
+      { key: 'showDate', label: 'Show dates', type: 'toggle' },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      title: 'Latest posts',
+      description: '',
+      contentType: 'post',
+      taxonomy: '',
+      term: '',
+      layout: 'grid',
+      limit: 6,
+      showImage: true,
+      showExcerpt: true,
+      showDate: true,
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
   // ── Contact Form ───────────────────────────────────────────────────────────
   {
     id: 'contact-form/form',

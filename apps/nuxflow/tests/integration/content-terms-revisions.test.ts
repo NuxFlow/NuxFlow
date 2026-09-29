@@ -103,8 +103,12 @@ describe('PUT /api/v1/content/:id/terms', () => {
     mockPurge.mockClear()
     await (putTermsHandler as Handler)(ev(editorId, { params: { id: itemId }, body: { termIds: [termB] } }))
     expect(await assigned(itemId)).toEqual([termB])
+    // Both the removed term's archive (alpha) and the added one's (beta) list it differently now.
     expect(mockPurge).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      taxonomyTerms: [{ taxonomySlug: 'tags', termSlug: 'beta' }],
+      taxonomyTerms: expect.arrayContaining([
+        { taxonomySlug: 'tags', termSlug: 'alpha' },
+        { taxonomySlug: 'tags', termSlug: 'beta' },
+      ]),
     }))
 
     const log = await db.query.auditLogs.findFirst({

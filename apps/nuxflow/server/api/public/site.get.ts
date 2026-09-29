@@ -1,7 +1,7 @@
 import type { H3Event } from 'h3'
 import { useDb } from '../../utils/db'
-import { sites, siteSettings, dynamicPlugins } from '@nuxflow/db/schema'
-import { and, eq, inArray } from 'drizzle-orm'
+import { sites, siteSettings, dynamicPlugins, taxonomies } from '@nuxflow/db/schema'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { withEdgeCache } from '../../utils/edge-cache'
 import { notFound } from '../../utils/response'
 import { getSeoSettings, siteBaseUrl } from '../../utils/seo'
@@ -37,7 +37,12 @@ async function buildPayload(event: H3Event, siteId: string) {
     columns: { id: true },
   })
 
-  const [seo, locales] = await Promise.all([getSeoSettings(db, siteId), getActiveLocales(db, siteId)])
+  const [seo, locales, taxonomyRows] = await Promise.all([
+    getSeoSettings(db, siteId),
+    getActiveLocales(db, siteId),
+    db.select({ slug: taxonomies.slug, name: taxonomies.name }).from(taxonomies)
+      .where(eq(taxonomies.siteId, siteId)).orderBy(asc(taxonomies.name)),
+  ])
   const canonicalBase = siteBaseUrl(seo, site.domain)
 
   return {
@@ -68,6 +73,9 @@ async function buildPayload(event: H3Event, siteId: string) {
     // [taxonomySlug]/[termSlug] route recognize /es/about as a translated page rather
     // than a taxonomy archive.
     locales: [...new Set([site.locale || 'en', ...locales])],
+    // Lets the catch-all route render /{taxonomy} as that taxonomy's overview page.
+    // Purged by every taxonomy create/rename/delete (purgeTaxonomyCache).
+    taxonomies: taxonomyRows,
     // Site-wide SEO defaults (Admin → SEO) consumed by app.vue / layouts / pages.
     seo: {
       title: seo.title,

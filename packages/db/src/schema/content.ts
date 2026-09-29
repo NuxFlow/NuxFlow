@@ -123,10 +123,25 @@ export const taxonomies = sqliteTable('taxonomies', {
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   slug: text('slug').notNull(),
   name: text('name').notNull(),
+  description: text('description'),
   isHierarchical: integer('is_hierarchical', { mode: 'boolean' }).notNull().default(false),
+  // Per-taxonomy noindex for its archive pages, on top of the site-wide
+  // `seo.noindex_taxonomies` switch (either one noindexes the archive).
+  noindex: integer('noindex', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_taxonomies_site_slug').on(t.siteId, t.slug),
+])
+
+// Which content types a taxonomy applies to. No rows for a taxonomy means "every type"
+// (the editor's term picker and the admin UI both treat it that way), so a taxonomy
+// created before this table existed keeps working unchanged.
+export const taxonomyContentTypes = sqliteTable('taxonomy_content_types', {
+  taxonomyId: text('taxonomy_id').notNull().references(() => taxonomies.id, { onDelete: 'cascade' }),
+  contentTypeId: text('content_type_id').notNull().references(() => contentTypes.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('idx_taxonomy_content_types_unique').on(t.taxonomyId, t.contentTypeId),
+  index('idx_taxonomy_content_types_type').on(t.contentTypeId),
 ])
 
 // Besides the self-referencing parentId landmine documented below, this table is
@@ -151,6 +166,14 @@ export const taxonomyTerms = sqliteTable('taxonomy_terms', {
   slug: text('slug').notNull(),
   name: text('name').notNull(),
   description: text('description'),
+  // Manual ordering within a taxonomy (ascending, then name) — admin list, term picker,
+  // and public term lists all sort by it.
+  sortOrder: integer('sort_order').notNull().default(0),
+  // Archive-page SEO overrides; null falls back to "{term} — {taxonomy}" / the term's
+  // description / the site's default share image.
+  seoTitle: text('seo_title'),
+  seoDescription: text('seo_description'),
+  ogImage: text('og_image'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_taxonomy_terms_taxonomy').on(t.taxonomyId),

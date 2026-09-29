@@ -131,3 +131,25 @@ describe('wpDateToIso', () => {
     expect(wpDateToIso('0000-00-00 00:00:00')).toBeNull()
   })
 })
+
+describe('parseWxr — terms referenced only on items', () => {
+  // A filtered WordPress export (e.g. "Posts from one author") can reference terms on its
+  // items without listing them in the channel-level <wp:category>/<wp:tag> blocks.
+  const PARTIAL_WXR = `<rss><channel>
+  <item>
+    <title>Partial</title>
+    <wp:post_type>post</wp:post_type>
+    <wp:post_name>partial</wp:post_name>
+    <category domain="category" nicename="recipes"><![CDATA[Recipes &amp; Food]]></category>
+    <category domain="post_tag" nicename="%e6%97%a5%e6%9c%ac"><![CDATA[日本]]></category>
+  </item>
+</channel></rss>`
+
+  it('registers them from the item element, with decoded names', () => {
+    const { categories, tags, items } = parseWxr(PARTIAL_WXR)
+    expect(categories.get('recipes')).toEqual({ name: 'Recipes & Food', parentSlug: null })
+    expect(tags.get('%e6%97%a5%e6%9c%ac')).toBe('日本')
+    expect(items[0]!.categories).toEqual(['recipes'])
+    expect(items[0]!.tags).toEqual(['%e6%97%a5%e6%9c%ac'])
+  })
+})

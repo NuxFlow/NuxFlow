@@ -44,6 +44,22 @@ Content follows a simple workflow:
 
 ---
 
+### Categories & Tags
+
+Group content with **taxonomies**. Every site starts with **Categories** (nestable) and **Tags** (flat), both offered on posts. Manage them under **Admin → Taxonomies** (editors and admins):
+
+- **Create your own taxonomy** (for example *Series* or *Regions*), choose which content types it applies to, and whether its terms can be nested.
+- **Edit terms**: rename them, change their URL slug, nest them under a parent, reorder them with the arrow buttons, and set an SEO title, description, and share image for their archive page. Changing a slug automatically redirects the old URL.
+- The number next to each term shows how many items use it; click it to see them in the content list.
+
+In the editor, the **Categories & Tags** card lists the taxonomies that apply to what you're editing. Tick terms, add new ones inline (editors), or click **Suggest** to have AI pick matching terms from your title and text. Terms save together with the rest of the page.
+
+On your site:
+- Each term has an archive page at `/<taxonomy>/<term>` (for example `/category/news`), with its own RSS feed. A parent category's archive also lists its sub-categories' posts.
+- `/<taxonomy>` (for example `/category`) lists every term that has published content.
+- Posts show their categories and tags as links at the end of the article.
+- The **Posts** block in the Canvas editor shows the latest posts, optionally from one category or tag.
+
 ## Media Library & Video Streaming
 
 Manage all your assets in one place.

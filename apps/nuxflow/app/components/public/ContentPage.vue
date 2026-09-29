@@ -49,6 +49,16 @@ interface PublicPage {
   event?: { startAt: string; endAt?: string | null; allDay?: boolean | null; location?: string | null; url?: string | null } | null
   availableLocales?: Array<{ locale: string; slug: string; rawSlug?: string }> | null
   alternates?: Array<{ locale: string; path: string }> | null
+  terms?: PublicTerm[] | null
+}
+
+interface PublicTerm {
+  taxonomySlug: string
+  taxonomyName: string
+  isHierarchical: boolean
+  termSlug: string
+  termName: string
+  path: string
 }
 
 interface GateData {
@@ -171,6 +181,7 @@ useHead({
       author: page.value.author,
       type: page.value.type,
       event: page.value.event,
+      terms: page.value.terms ?? [],
       content: page.value.content,
       isHome: isHome.value,
     }, {
@@ -179,6 +190,17 @@ useHead({
       logoUrl: absolutize(site.value?.logoUrl, requestOrigin),
     }).map(schema => ({ type: 'application/ld+json', innerHTML: JSON.stringify(schema) }))
   }),
+})
+
+// The item's terms grouped per taxonomy, hierarchical ones (categories) first.
+const termGroups = computed(() => {
+  const groups = new Map<string, { slug: string; name: string; isHierarchical: boolean; terms: PublicTerm[] }>()
+  for (const t of page.value?.terms ?? []) {
+    const g = groups.get(t.taxonomySlug) ?? { slug: t.taxonomySlug, name: t.taxonomyName, isHierarchical: t.isHierarchical, terms: [] }
+    g.terms.push(t)
+    groups.set(t.taxonomySlug, g)
+  }
+  return [...groups.values()].sort((a, b) => Number(b.isHierarchical) - Number(a.isHierarchical) || a.name.localeCompare(b.name))
 })
 
 const isCanvasPage = computed(() => {
@@ -287,6 +309,22 @@ const formattedDate = computed(() => {
         </div>
 
         <NuxBlock :content="page.content" />
+
+        <!-- Categories & tags -->
+        <div v-if="termGroups.length" class="mt-10 space-y-2 text-sm">
+          <div v-for="group in termGroups" :key="group.slug" class="flex flex-wrap items-center gap-2">
+            <span class="text-gray-500">{{ group.name }}:</span>
+            <NuxtLink
+              v-for="t in group.terms"
+              :key="t.termSlug"
+              :to="t.path"
+              rel="tag"
+              class="rounded-full bg-gray-100 dark:bg-gray-800 px-2.5 py-0.5 text-gray-700 dark:text-gray-300 hover:text-primary-500 transition-colors"
+            >
+              {{ t.termName }}
+            </NuxtLink>
+          </div>
+        </div>
 
         <!-- Social share -->
         <PublicShareButtons :title="page.title" class="mt-10 pt-8 border-t border-gray-100 dark:border-gray-800" />

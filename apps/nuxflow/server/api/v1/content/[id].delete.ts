@@ -5,7 +5,7 @@ import { getContentItemOrThrow } from '../../../utils/content-queries'
 import { contentItems } from '@nuxflow/db/schema'
 import { scopedById } from '../../../utils/db-helpers'
 import { purgeContentCache } from '../../../utils/edge-cache'
-import { getContentItemTerms } from '@nuxflow/db/queries'
+import { getContentTermIds, getTermRefsWithAncestors } from '../../../utils/taxonomy'
 import { waitUntil } from '../../../utils/cf-env'
 import { deleteContentEmbedding } from '../../../utils/embeddings'
 import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexnow'
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   const existing = await getContentItemOrThrow(db, siteId, id, 'Not found', {
     id: true, title: true, slug: true, status: true, visibility: true, locale: true, sourceItemId: true, typeId: true, metaRobots: true,
   })
-  const terms = await getContentItemTerms(db, id)
+  const termRefs = await getTermRefsWithAncestors(db, await getContentTermIds(db, id))
   // Resolved before the delete — a translation's public path needs its source row.
   const wasLive = existing.status === 'published' && existing.visibility === 'public'
   const livePaths = wasLive ? await indexablePathsForItems(db, siteId, [existing]) : []
@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
   await purgeContentCache(event, {
     slugs: [existing.slug],
     extraPaths: livePaths,
-    taxonomyTerms: terms.map(t => ({ taxonomySlug: t.taxonomySlug, termSlug: t.termSlug })),
+    taxonomyTerms: termRefs,
   })
 
   waitUntil(event, deleteContentEmbedding(event, id))
