@@ -29,12 +29,14 @@ directory = ".output/public"
 cpu_ms = 300000
 
 [vars]
-# Set production values in the Cloudflare dashboard or via:
-#   wrangler secret put SECRET_NAME
+# Non-secret settings only. Anything secret (NUXT_BETTER_AUTH_SECRET, API keys, access
+# keys) must NOT go here — this file is plain text. Store secrets on Cloudflare with
+#   wrangler secret put NUXT_BETTER_AUTH_SECRET
+# or in the dashboard (Workers & Pages → nuxflow → Settings → Variables and Secrets).
+# Locally, `wrangler dev` reads them from apps/nuxflow/.env instead.
 # All names below are install-wide fallbacks read via Nuxt runtimeConfig — the NUXT_
 # prefix is required for Nuxt to pick them up. Cloudflare Images, S3, and Bunny.net are
 # also configurable per-site in Settings → Media, which takes priority over these.
-# NUXT_BETTER_AUTH_SECRET =
 #
 # Central sign-in domain — REQUIRED before hosting a second site on this Worker.
 # Passwords, passkeys and account settings are then only ever handled on this origin,
