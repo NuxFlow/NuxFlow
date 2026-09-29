@@ -18,7 +18,7 @@ import type { H3Event } from 'h3'
 import { useDb } from './db'
 import type { NuxFlowBackup, RestoreOptions, RestoreResult } from './backup-types'
 import { restoreSite, restoreSettings } from './backup-restore/restore-site'
-import { restoreTaxonomies } from './backup-restore/restore-taxonomies'
+import { restoreTaxonomies, restoreTaxonomyContentTypes } from './backup-restore/restore-taxonomies'
 import { restoreContent } from './backup-restore/restore-content'
 import { restoreMenus } from './backup-restore/restore-menus'
 import { restoreForms } from './backup-restore/restore-forms'
@@ -63,6 +63,8 @@ export async function applyBackup(
 
   const termIdBySlugPath = await restoreTaxonomies(db, siteId, backup, opts, result)
   await restoreContent(db, siteId, backup, opts, result, termIdBySlugPath)
+  // After content: that's where a backup's custom content types get created.
+  await restoreTaxonomyContentTypes(db, siteId, backup, opts)
 
   await restoreMenus(db, siteId, backup, opts, result)
   await restoreForms(db, siteId, backup, opts, result)

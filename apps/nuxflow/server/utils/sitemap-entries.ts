@@ -83,26 +83,51 @@ export function alternateGroups(entries: IndexableEntry[]): Map<string, Indexabl
   return groups
 }
 
-/** Taxonomy archive pages that actually list something, with the newest item's date. */
+/**
+ * Taxonomy archive pages that actually list something, with the newest item's date —
+ * plus each taxonomy's overview page (/{taxonomy}). A parent term's archive also lists
+ * its sub-terms' content, so a parent with only indirectly-tagged items is included too.
+ * Taxonomies marked noindex are left out entirely.
+ */
 export async function getTaxonomyArchiveEntries(db: Db, siteId: string, limit: number): Promise<{ path: string; lastmod: string | null }[]> {
-  const rows = await db
-    .select({
-      taxSlug: taxonomies.slug,
-      termSlug: taxonomyTerms.slug,
-      lastmod: sql<string | null>`max(${contentItems.updatedAt})`,
-    })
-    .from(taxonomyTerms)
-    .innerJoin(taxonomies, eq(taxonomies.id, taxonomyTerms.taxonomyId))
-    .innerJoin(contentTaxonomyTerms, eq(contentTaxonomyTerms.termId, taxonomyTerms.id))
-    .innerJoin(contentItems, eq(contentItems.id, contentTaxonomyTerms.contentItemId))
-    .where(and(
-      eq(taxonomies.siteId, siteId),
-      eq(contentItems.status, 'published'),
-      eq(contentItems.visibility, 'public'),
-    ))
-    .groupBy(taxonomies.slug, taxonomyTerms.slug)
-    .limit(limit)
-  return rows.map(r => ({ path: `/${r.taxSlug}/${r.termSlug}`, lastmod: r.lastmod }))
+  const [terms, direct] = await Promise.all([
+    db.select({ id: taxonomyTerms.id, slug: taxonomyTerms.slug, parentId: taxonomyTerms.parentId, taxSlug: taxonomies.slug })
+      .from(taxonomyTerms)
+      .innerJoin(taxonomies, eq(taxonomies.id, taxonomyTerms.taxonomyId))
+      .where(and(eq(taxonomies.siteId, siteId), eq(taxonomies.noindex, false))),
+    db.select({ termId: contentTaxonomyTerms.termId, lastmod: sql<string | null>`max(${contentItems.updatedAt})` })
+      .from(contentTaxonomyTerms)
+      .innerJoin(contentItems, eq(contentItems.id, contentTaxonomyTerms.contentItemId))
+      .where(and(
+        eq(contentItems.siteId, siteId),
+        eq(contentItems.status, 'published'),
+        eq(contentItems.visibility, 'public'),
+      ))
+      .groupBy(contentTaxonomyTerms.termId),
+  ])
+
+  const byId = new Map(terms.map(t => [t.id, t]))
+  const lastmodById = new Map<string, string | null>()
+  const newer = (a: string | null | undefined, b: string | null) => (!a ? b : !b ? a : a > b ? a : b)
+  for (const d of direct) {
+    const seen = new Set<string>()
+    let cursor: string | null | undefined = d.termId
+    while (cursor && !seen.has(cursor) && byId.has(cursor)) {
+      seen.add(cursor)
+      lastmodById.set(cursor, newer(lastmodById.get(cursor), d.lastmod))
+      cursor = byId.get(cursor)!.parentId
+    }
+  }
+
+  const out: { path: string; lastmod: string | null }[] = []
+  const overview = new Map<string, string | null>()
+  for (const [id, lastmod] of lastmodById) {
+    const t = byId.get(id)!
+    out.push({ path: `/${t.taxSlug}/${t.slug}`, lastmod })
+    overview.set(t.taxSlug, newer(overview.get(t.taxSlug), lastmod))
+  }
+  for (const [taxSlug, lastmod] of overview) out.push({ path: `/${taxSlug}`, lastmod })
+  return out.slice(0, limit)
 }
 
 // ── Images ───────────────────────────────────────────────────────────────────

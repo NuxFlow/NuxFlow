@@ -24,7 +24,7 @@ async function embedText(event: H3Event, text: string): Promise<number[] | null>
 }
 
 /**
- * Same searchable text FTS5 already indexes (see migrations/0002_search_index.sql's
+ * Same searchable text FTS5 already indexes (see migrations/0001_search_index.sql's
  * `COALESCE(excerpt, seo_description, '')`) — kept identical so semantic search and keyword
  * search cover the same content, not two subtly different corpora.
  */

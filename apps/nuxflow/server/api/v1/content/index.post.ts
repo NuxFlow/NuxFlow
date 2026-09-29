@@ -8,6 +8,7 @@ import { purgeContentCache } from '../../../utils/edge-cache'
 import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexnow'
 import { waitUntil } from '../../../utils/cf-env'
 import { upsertContentEmbedding } from '../../../utils/embeddings'
+import { assertContentSlugNotTaxonomy, getTermRefsWithAncestors, replaceContentTermsStatements, validateSiteTermIds } from '../../../utils/taxonomy'
 import { contentItems, sites } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -28,6 +29,8 @@ const bodySchema = z.object({
   eventLocation: z.string().max(500).nullish(),
   eventUrl: z.string().max(2048).nullish(),
   eventAllDay: z.boolean().nullish(),
+  // Taxonomy terms to assign on creation (same rules as PUT /content/:id/terms).
+  termIds: z.array(z.string()).max(200).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -56,6 +59,9 @@ export default defineEventHandler(async (event) => {
     columns: { id: true },
   })
   if (slugConflict) conflict(`A content item with the slug "${body.slug}" already exists`)
+  await assertContentSlugNotTaxonomy(db, siteId, body.slug)
+
+  const termIds = await validateSiteTermIds(db, siteId, body.termIds ?? [])
 
   // Resolve default site locale
   const site = await db.query.sites.findFirst({
@@ -92,11 +98,12 @@ export default defineEventHandler(async (event) => {
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'create', resource: 'content_item', resourceId: id })
 
-  await batchWithAudit(db, [itemInsert], auditInsert)
+  // Only the inserts — a brand-new item has no assignments to clear.
+  await batchWithAudit(db, [itemInsert, ...replaceContentTermsStatements(db, id, termIds).slice(1)], auditInsert)
 
   // A brand-new slug can't already be cached, but the site-wide views (blog index,
-  // sitemaps, feeds) that could now list it might be — purge those.
-  await purgeContentCache(event, { slugs: [body.slug] })
+  // sitemaps, feeds) and the archives of its terms that could now list it might be.
+  await purgeContentCache(event, { slugs: [body.slug], taxonomyTerms: await getTermRefsWithAncestors(db, termIds) })
 
   waitUntil(event, upsertContentEmbedding(event, {
     contentItemId: id,

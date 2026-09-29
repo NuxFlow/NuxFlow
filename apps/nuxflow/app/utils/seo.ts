@@ -23,6 +23,8 @@ export interface PublicSiteInfo {
   canonicalBase?: string
   logoUrl?: string | null
   locales?: string[]
+  /** The site's taxonomies — /{slug} renders that taxonomy's overview page. */
+  taxonomies?: { slug: string; name: string }[]
   seo?: PublicSiteSeo
 }
 
@@ -108,6 +110,8 @@ export interface JsonLdPage {
   author?: { name: string; image: string | null } | null
   type?: { slug: string; name: string } | null
   event?: { startAt: string; endAt?: string | null; allDay?: boolean | null; location?: string | null; url?: string | null } | null
+  /** Taxonomy terms — hierarchical ones become articleSection, flat ones keywords. */
+  terms?: { isHierarchical: boolean; termName: string }[]
   content?: unknown
   isHome?: boolean
 }
@@ -138,6 +142,8 @@ export function buildPageJsonLd(page: JsonLdPage, site: JsonLdSite): Json[] {
   const datePublished = toIsoDate(page.publishedAt)
   const dateModified = toIsoDate(page.updatedAt) ?? datePublished
   const typeSlug = page.type?.slug
+  const sections = (page.terms ?? []).filter(t => t.isHierarchical).map(t => t.termName)
+  const keywords = (page.terms ?? []).filter(t => !t.isHierarchical).map(t => t.termName)
 
   if (typeSlug === 'event' && page.event?.startAt) {
     const e = page.event
@@ -172,6 +178,8 @@ export function buildPageJsonLd(page: JsonLdPage, site: JsonLdSite): Json[] {
       inLanguage: page.locale,
       url: page.url,
       mainEntityOfPage: { '@type': 'WebPage', '@id': page.url },
+      articleSection: sections.length ? sections : undefined,
+      keywords: keywords.length ? keywords.join(', ') : undefined,
       author,
       publisher,
     })

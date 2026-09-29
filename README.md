@@ -253,9 +253,9 @@ For detailed information on how to install and use NuxFlow, please refer to our 
 
 | Tool | Version | Install |
 |---|---|---|
-| Node.js | 20+ | `nvm install 20` |
+| Node.js | 22+ | `nvm install 22` |
 | pnpm | 9+ | `npm install -g pnpm` |
-| Wrangler | 4+ | `pnpm add -g wrangler` |
+| Wrangler | 4+ | included as a project dependency (`pnpm exec wrangler`), or `pnpm add -g wrangler` |
 
 > [!IMPORTANT]
 > NuxFlow requires a **Cloudflare Workers Paid plan** ($5/month minimum) to run at all — not just for optional features like dynamic plugins. The Free plan's CPU time limit is too tight for a full Nuxt SSR CMS in general use.
@@ -264,7 +264,7 @@ For detailed information on how to install and use NuxFlow, please refer to our 
 
 ```bash
 git clone https://github.com/NuxFlow/NuxFlow.git
-cd nuxflow
+cd NuxFlow
 pnpm install
 ```
 
@@ -276,39 +276,17 @@ NuxFlow uses Wrangler for local development and deployment. Copy the example wra
 cp apps/nuxflow/wrangler.toml.example apps/nuxflow/wrangler.toml
 ```
 
-### 3. Configure the database
-
-NuxFlow uses **Cloudflare D1** — SQLite at the edge, included with every Cloudflare account.
-
-```bash
-wrangler login
-wrangler d1 create nuxflow-dev
-```
-
-Copy the returned `database_id` into `apps/nuxflow/wrangler.toml` under `[[d1_databases]]`.
-
-> **Note:** Migrations are applied automatically on the first request. If you prefer to seed the local database manually before starting the dev server:
-> ```bash
-> cd apps/nuxflow
-> wrangler d1 execute nuxflow-dev --local --file=../../packages/db/migrations/0000_baseline.sql
-> ```
-
-### 4. Configure environment
+### 3. Create a local `.env`
 
 ```bash
 cp apps/nuxflow/.env.example apps/nuxflow/.env
 ```
 
-Minimum required variables:
+Set `NUXT_BETTER_AUTH_SECRET` to a random value of 32+ characters (e.g. `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`). This file is **only for local development** — the dev server reads it; it's never deployed. See [Environment Variables](#environment-variables) for the full reference.
 
-```env
-NUXT_BETTER_AUTH_SECRET=at-least-32-random-characters
-NUXT_PUBLIC_SITE_URL=http://localhost:8787
-```
+No database setup is needed locally: `wrangler dev` creates a local D1 database, and migrations apply automatically on the first request.
 
-See [Environment Variables](#environment-variables) for the full reference.
-
-### 5. Start the dev server
+### 4. Start the dev server
 
 ```bash
 pnpm dev
@@ -322,38 +300,28 @@ This runs `wrangler dev`, which auto-provisions a local D1 database — there's 
 
 ### Cloudflare Workers
 
-> [!IMPORTANT]
-> **Local Build Requirements:**
-> Even when deploying straight to Cloudflare, the build compilation runs on your local machine before upload. You **must** do the following before running `pnpm build`:
-> 1. **Install Dependencies:** If you skipped local dev, run `pnpm install` in the root folder.
-> 2. **Local `.env` File:** Copy the example configuration (`cp apps/nuxflow/.env.example apps/nuxflow/.env`) to satisfy build-time schemas.
+The full walkthrough is in the **[Installation Guide](docs/installation.md#2-cloudflare-deployment)**. In short, from `apps/nuxflow` (no `.env` needed — that's local-only):
 
 ```bash
-# Log in to Cloudflare
 wrangler login
 
-# Create the D1 database and copy the returned database_id into wrangler.toml
+# Create the database, KV namespace, and media bucket; paste the printed ids into wrangler.toml
 wrangler d1 create nuxflow
-
-# Create the dynamic plugin/theme KV namespaces and copy the returned ids into wrangler.toml
 wrangler kv namespace create PLUGIN_KV
 wrangler kv namespace create PLUGIN_KV --preview
+wrangler r2 bucket create nuxflow-media
 
-# Onboard your domain for the native Cloudflare Email provider (optional — only if you
-# select "Cloudflare Email" in Settings → Email, but it's the recommended provider
-# since it needs no third-party account)
-wrangler email sending enable yourdomain.com
+# Build and deploy (note: `pnpm run deploy` — plain `pnpm deploy` is a different, built-in pnpm command)
+pnpm run deploy
 
-# Migrations run automatically on the first request after deployment.
-# To seed manually before the first deploy:
-# wrangler d1 execute nuxflow --remote --file=../../packages/db/migrations/0000_baseline.sql
-
-# Set secrets
+# Add the auth secret straight away (a new random value, not your local one), then open /setup
 wrangler secret put NUXT_BETTER_AUTH_SECRET
 
-# Build and deploy — pnpm deploy builds automatically, no separate pnpm build needed
-pnpm deploy
+# Optional, for the recommended Cloudflare email provider:
+wrangler email sending enable yourdomain.com
 ```
+
+Migrations run automatically on the first request after deployment.
 
 The `wrangler.toml` in `apps/nuxflow/` is preconfigured with the `nodejs_compat` compatibility flag, the KV namespace for dynamic plugins, the WorkerLoader binding, and the scheduled cron trigger for auto-publishing.
 
@@ -368,13 +336,13 @@ Unlike traditional CMS platforms built for legacy VPS servers or complex AWS inf
 
 ## Environment Variables
 
-Most variables are prefixed `NUXT_` (except direct provider envs like `S3_*` or `BUNNY_*`) and set in `apps/nuxflow/.env` (development) or your hosting provider's secret store (production).
+Variables use the `NUXT_` prefix (Turnstile's secret is the one exception). Locally they go in `apps/nuxflow/.env`; in production, set secrets with `wrangler secret put <NAME>` and non-secret values under `[vars]` in `wrangler.toml`. `.env` is never deployed. Most provider keys can instead be entered per site in the admin Settings, which takes priority.
 
 | Variable | Required | Description |
 |---|---|---|
 | `NUXT_BETTER_AUTH_SECRET` | ✅ | Session signing secret — minimum 32 characters |
-| `NUXT_PUBLIC_SITE_URL` | ✅ | Full URL including scheme, used in emails and SEO |
-| `NUXT_EMAIL_PROVIDER` | | `console` (default) · `cloudflare` · `resend` · `brevo` · `zepto` · `smtp` — `cloudflare` needs no key, just the `send_email` binding in `wrangler.toml` (see below); `smtp` is actually MailChannels and needs an existing MailChannels account, not host/user/pass |
+| `NUXT_PUBLIC_SITE_URL` | | Fallback site URL (with scheme), used only when a request has no site domain to go by. Not needed for a normal install |
+| `NUXT_EMAIL_PROVIDER` | | `console` (default) · `cloudflare` · `resend` · `brevo` · `zepto` — `cloudflare` needs no key, just the `send_email` binding in `wrangler.toml`. Usually chosen in Settings → Email instead |
 | `NUXT_RESEND_API_KEY` | | Resend API key (`re_…`) |
 | `NUXT_BREVO_API_KEY` | | Brevo API key (`xkeysib-…`) |
 | `NUXT_ZEPTO_API_KEY` | | ZeptoMail API key |
@@ -383,16 +351,17 @@ Most variables are prefixed `NUXT_` (except direct provider envs like `S3_*` or 
 | `NUXT_CLOUDFLARE_IMAGES_DELIVERY_URL` | | Image delivery base URL |
 | `NUXT_CLOUDFLARE_STREAM_TOKEN` | | Cloudflare Stream API token |
 | `NUXT_PUBLIC_CLOUDFLARE_IMAGES_DELIVERY_URL` | | Same value, exposed to the client |
-| `NUXT_PUBLIC_TURNSTILE_SITE_KEY` | | Cloudflare Turnstile public site key |
-| `S3_BUCKET` | | S3 media provider — bucket name (setting this enables S3) |
-| `S3_ACCESS_KEY` | | S3 media provider — access key ID |
-| `S3_SECRET_KEY` | | S3 media provider — secret access key |
-| `S3_REGION` | | S3 media provider — region (default `us-east-1`) |
-| `S3_ENDPOINT` | | S3 media provider — custom endpoint URL (e.g. for Backblaze B2, R2) |
-| `S3_PUBLIC_URL` | | S3 media provider — public CDN/delivery URL |
-| `BUNNY_API_KEY` | | Bunny.net media provider — API key (setting this enables Bunny.net) |
-| `BUNNY_STORAGE_ZONE` | | Bunny.net media provider — storage zone name |
-| `BUNNY_PULL_ZONE` | | Bunny.net media provider — pull zone subdomain |
+| `CLOUDFLARE_TURNSTILE_SECRET_KEY` | | Turnstile secret key. The site key goes in Settings → Integrations; set both or neither |
+| `NUXT_PUBLIC_ACCOUNTS_URL` | | Central sign-in domain — required before a second site can be created (see the Installation Guide) |
+| `NUXT_S3_BUCKET` | | S3 media provider — bucket name (setting this enables S3) |
+| `NUXT_S3_ACCESS_KEY` | | S3 media provider — access key ID |
+| `NUXT_S3_SECRET_KEY` | | S3 media provider — secret access key |
+| `NUXT_S3_REGION` | | S3 media provider — region (default `us-east-1`) |
+| `NUXT_S3_ENDPOINT` | | S3 media provider — custom endpoint URL (e.g. for Backblaze B2, R2) |
+| `NUXT_S3_PUBLIC_URL` | | S3 media provider — public CDN/delivery URL |
+| `NUXT_BUNNY_API_KEY` | | Bunny.net media provider — API key (setting this enables Bunny.net) |
+| `NUXT_BUNNY_STORAGE_ZONE` | | Bunny.net media provider — storage zone name |
+| `NUXT_BUNNY_PULL_ZONE` | | Bunny.net media provider — pull zone subdomain |
 | `NUXT_STRIPE_SECRET_KEY` | | Payments — Stripe secret key |
 | `NUXT_STRIPE_WEBHOOK_SECRET` | | Payments — Stripe webhook signing secret |
 | `NUXT_LS_API_KEY` | | Payments — Lemon Squeezy API key |
@@ -428,14 +397,11 @@ pnpm lint
 # Production build
 pnpm build
 
-# Preview production build locally
-pnpm preview
+# Deploy to Cloudflare (from apps/nuxflow — `pnpm run deploy`, not the built-in `pnpm deploy`)
+cd apps/nuxflow && pnpm run deploy
 
-# Deploy to Cloudflare
-pnpm deploy
-
-# Run DB migrations
-pnpm --filter @nuxflow/db migrate
+# Generate a migration after a schema change (migrations apply automatically on the next request)
+pnpm --filter @nuxflow/db generate
 ```
 
 ---

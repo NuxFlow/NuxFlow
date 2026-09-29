@@ -198,7 +198,13 @@ export async function purgeContentCache(
   const taxonomyJsonPaths = (opts.taxonomyTerms ?? [])
     .map(t => `/api/public/taxonomy/${t.taxonomySlug}/${t.termSlug}`)
   const taxonomyPagePaths = (opts.taxonomyTerms ?? [])
-    .map(t => `/${t.taxonomySlug}/${t.termSlug}`)
+    .flatMap(t => [
+      `/${t.taxonomySlug}/${t.termSlug}`,
+      `/feed.xml?taxonomy=${encodeURIComponent(t.taxonomySlug)}&term=${encodeURIComponent(t.termSlug)}`,
+    ])
+  // The taxonomy overview page (/{taxonomy}) shows per-term counts.
+  const taxonomySlugs = [...new Set((opts.taxonomyTerms ?? []).map(t => t.taxonomySlug))]
+  taxonomyPagePaths.push(...taxonomySlugs.flatMap(s => [`/${s}`, `/api/public/taxonomy/${s}`]))
 
   await purgeEdgeCache(event, [
     ...jsonPaths, ...pagePaths, ...markdownPaths,

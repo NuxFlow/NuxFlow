@@ -47,7 +47,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Content', to: '/admin/content', icon: 'i-lucide-file-text' },
   { label: 'Generate with AI', to: '/admin/content/generate', icon: 'i-lucide-sparkles', minRole: 'editor' },
   { label: 'Calendar', to: '/admin/calendar', icon: 'i-lucide-calendar-days' },
-  { label: 'Taxonomies', to: '/admin/taxonomies', icon: 'i-lucide-tag' },
+  { label: 'Taxonomies', to: '/admin/taxonomies', icon: 'i-lucide-tag', minRole: 'editor' },
   { label: 'Comments', to: '/admin/comments', icon: 'i-lucide-message-circle', minRole: 'editor' },
   { label: 'Inbox', to: '/admin/inbox', icon: 'i-lucide-inbox', minRole: 'editor' },
   { label: 'Inbox addresses', to: '/admin/inbox/mailboxes', icon: 'i-lucide-at-sign', minRole: 'admin', hidden: true },

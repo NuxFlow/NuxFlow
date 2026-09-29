@@ -1,7 +1,7 @@
 import { sendStream } from 'h3'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
-import { contentTypes, contentItems, taxonomies, taxonomyTerms, contentTaxonomyTerms, media } from '@nuxflow/db/schema'
+import { contentTypes, contentItems, taxonomies, taxonomyContentTypes, taxonomyTerms, contentTaxonomyTerms, media } from '@nuxflow/db/schema'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { and, eq, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -9,6 +9,7 @@ import { isSafeUrl, safeFetch } from '../../../utils/ssrf'
 import { errorMessage } from '../../../utils/errors'
 import { htmlToTipTap } from '../../../utils/html-to-tiptap'
 import { parseWxr } from '../../../utils/wxr-parser'
+import { slugify } from '../../../utils/taxonomy'
 import { writeAuditLog } from '../../../utils/audit'
 
 const MAX_WXR_BYTES = 100 * 1024 * 1024 // 100 MB — WXR exports for large sites can be tens of MB
@@ -125,67 +126,97 @@ export default defineEventHandler(async (event) => {
       if (!pageType || !postType)
         throw validationError('Content types not found — run setup first')
 
-      let catTaxonomy = await db.query.taxonomies.findFirst({
-        where: and(eq(taxonomies.siteId, siteId), eq(taxonomies.slug, 'category')),
-      })
-      if (!catTaxonomy) {
+      const ensureTaxonomy = async (slug: string, name: string, isHierarchical: boolean) => {
+        const existing = await db.query.taxonomies.findFirst({
+          where: and(eq(taxonomies.siteId, siteId), eq(taxonomies.slug, slug)),
+          columns: { id: true },
+        })
+        if (existing) return existing.id
         const id = ulid()
-        await db.insert(taxonomies).values({ id, siteId, slug: 'category', name: 'Categories', isHierarchical: true })
-        catTaxonomy = { id, siteId, slug: 'category', name: 'Categories', isHierarchical: true, createdAt: '' }
+        await db.insert(taxonomies).values({ id, siteId, slug, name, isHierarchical })
+        // WordPress categories/tags are post taxonomies.
+        await db.insert(taxonomyContentTypes).values({ taxonomyId: id, contentTypeId: postType.id })
+        return id
       }
+      const catTaxonomyId = await ensureTaxonomy('category', 'Categories', true)
+      const tagTaxonomyId = await ensureTaxonomy('tag', 'Tags', false)
 
-      let tagTaxonomy = await db.query.taxonomies.findFirst({
-        where: and(eq(taxonomies.siteId, siteId), eq(taxonomies.slug, 'post_tag')),
-      })
-      if (!tagTaxonomy) {
-        const id = ulid()
-        await db.insert(taxonomies).values({ id, siteId, slug: 'post_tag', name: 'Tags', isHierarchical: false })
-        tagTaxonomy = { id, siteId, slug: 'post_tag', name: 'Tags', isHierarchical: false, createdAt: '' }
+      // WordPress nicenames aren't valid NuxFlow slugs as-is: non-Latin names are stored
+      // percent-encoded (%e6%97%a5…) and older exports can carry uppercase. Map each
+      // nicename to a clean, unique slug within its taxonomy, keyed by the original so
+      // item assignments and parent links still resolve.
+      const buildSlugMap = (entries: [string, string][]) => {
+        const out = new Map<string, string>()
+        const used = new Set<string>()
+        for (const [nicename, name] of entries) {
+          let decoded = nicename
+          try { decoded = decodeURIComponent(nicename) } catch { /* keep as-is */ }
+          const base = slugify(decoded) || slugify(name) || 'term'
+          let slug = base
+          for (let n = 2; used.has(slug); n++) slug = `${base}-${n}`
+          used.add(slug)
+          out.set(nicename, slug)
+        }
+        return out
       }
+      const catSlugByNicename = buildSlugMap([...categories].map(([k, v]) => [k, v.name]))
+      const tagSlugByNicename = buildSlugMap([...tags])
 
-      // One prefetch instead of one findFirst() per category — a WXR export can carry
+      // One prefetch instead of one findFirst() per term — a WXR export can carry
       // hundreds of categories.
-      const catSlugs = [...categories.keys()]
-      const existingCatTerms = catSlugs.length > 0
-        ? await db.query.taxonomyTerms.findMany({
-            where: and(eq(taxonomyTerms.taxonomyId, catTaxonomy.id), inArray(taxonomyTerms.slug, catSlugs)),
-            columns: { id: true, slug: true },
-          })
-        : []
-      const catTermMap = new Map(existingCatTerms.map(t => [t.slug, t.id]))
-      for (const [slug, cat] of categories) {
-        if (catTermMap.has(slug)) continue
-        const id = ulid()
-        await db.insert(taxonomyTerms).values({ id, taxonomyId: catTaxonomy.id, slug, name: cat.name })
-        catTermMap.set(slug, id)
+      const prefetch = async (taxonomyId: string, slugs: string[]) => new Map(
+        (slugs.length > 0
+          ? await db.query.taxonomyTerms.findMany({
+              where: and(eq(taxonomyTerms.taxonomyId, taxonomyId), inArray(taxonomyTerms.slug, slugs)),
+              columns: { id: true, slug: true },
+            })
+          : []).map(t => [t.slug, t.id]),
+      )
+      const existingCats = await prefetch(catTaxonomyId, [...catSlugByNicename.values()])
+      const catTermMap = new Map<string, string>() // nicename -> term id
+      for (const [nicename, cat] of categories) {
+        const slug = catSlugByNicename.get(nicename)!
+        let id = existingCats.get(slug)
+        if (!id) {
+          id = ulid()
+          await db.insert(taxonomyTerms).values({ id, taxonomyId: catTaxonomyId, slug, name: cat.name })
+        }
+        catTermMap.set(nicename, id)
       }
 
       // Second pass: wire parent categories now that every category has an id — WXR's
       // wp:category_parent references the parent by nicename/slug, so this can't be done
       // in the same pass as the insert loop above (the parent might not exist yet).
-      for (const [slug, cat] of categories) {
+      for (const [nicename, cat] of categories) {
         if (!cat.parentSlug) continue
-        const childId = catTermMap.get(slug)
+        const childId = catTermMap.get(nicename)
         const parentId = catTermMap.get(cat.parentSlug)
-        if (childId && parentId) {
+        // Only a category that is itself on the loop loses its parent; one merely nested
+        // under a loop keeps it (valid once the loop's own links are skipped).
+        let cyclic = false
+        const seen = new Set<string>()
+        for (let cursor: string | null | undefined = cat.parentSlug; cursor && !seen.has(cursor); cursor = categories.get(cursor)?.parentSlug) {
+          if (cursor === nicename) {
+            cyclic = true
+            break
+          }
+          seen.add(cursor)
+        }
+        if (childId && parentId && !cyclic) {
           await db.update(taxonomyTerms).set({ parentId }).where(eq(taxonomyTerms.id, childId))
         }
       }
 
-      // Same prefetch-and-Map pattern as categories above.
-      const tagSlugs = [...tags.keys()]
-      const existingTagTerms = tagSlugs.length > 0
-        ? await db.query.taxonomyTerms.findMany({
-            where: and(eq(taxonomyTerms.taxonomyId, tagTaxonomy.id), inArray(taxonomyTerms.slug, tagSlugs)),
-            columns: { id: true, slug: true },
-          })
-        : []
-      const tagTermMap = new Map(existingTagTerms.map(t => [t.slug, t.id]))
-      for (const [slug, name] of tags) {
-        if (tagTermMap.has(slug)) continue
-        const id = ulid()
-        await db.insert(taxonomyTerms).values({ id, taxonomyId: tagTaxonomy.id, slug, name })
-        tagTermMap.set(slug, id)
+      const existingTags = await prefetch(tagTaxonomyId, [...tagSlugByNicename.values()])
+      const tagTermMap = new Map<string, string>() // nicename -> term id
+      for (const [nicename, name] of tags) {
+        const slug = tagSlugByNicename.get(nicename)!
+        let id = existingTags.get(slug)
+        if (!id) {
+          id = ulid()
+          await db.insert(taxonomyTerms).values({ id, taxonomyId: tagTaxonomyId, slug, name })
+        }
+        tagTermMap.set(nicename, id)
       }
 
       // Attachment wp:post_id -> its (already-rewritten, if uploaded) local URL — used to
@@ -245,15 +276,10 @@ export default defineEventHandler(async (event) => {
         // pathological one from inserting twice within the same run.
         existingSlugs.add(item.slug)
 
-        const termIds: string[] = []
-        for (const catSlug of item.categories) {
-          const tid = catTermMap.get(catSlug)
-          if (tid) termIds.push(tid)
-        }
-        for (const tagSlug of item.tags) {
-          const tid = tagTermMap.get(tagSlug)
-          if (tid) termIds.push(tid)
-        }
+        const termIds = [...new Set([
+          ...item.categories.map(n => catTermMap.get(n)),
+          ...item.tags.map(n => tagTermMap.get(n)),
+        ].filter((t): t is string => Boolean(t)))]
         if (termIds.length > 0) {
           await db.insert(contentTaxonomyTerms).values(termIds.map(termId => ({ contentItemId: itemId, termId })))
         }

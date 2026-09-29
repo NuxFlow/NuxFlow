@@ -1,9 +1,9 @@
 import { useReplicaDb } from '../../../../utils/db'
-import { taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
-import { getItemsForTerm } from '@nuxflow/db/queries'
+import { taxonomyTerms } from '@nuxflow/db/schema'
+import { asc, eq } from 'drizzle-orm'
 import { withEdgeCache } from '../../../../utils/edge-cache'
 import { parsePagination } from '../../../../utils/pagination'
+import { getPublicItemsForTerms, getTermAncestors, resolvePublicTermFilter } from '../../../../utils/taxonomy'
 
 const CACHE_MAX_AGE = 300
 
@@ -17,25 +17,46 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const { page, perPage: limit, offset } = parsePagination(query, 10, 50)
 
-  // Cached at the edge (Cloudflare Cache API) — TTL-only, no explicit invalidation,
-  // matching the same window this route already promises via Cache-Control below.
+  // Cached at the edge (Cloudflare Cache API); term/content writes purge it explicitly
+  // (purgeContentCache / purgeTaxonomyCache), the TTL is only the staleness ceiling.
   setHeader(event, 'Cache-Control', `public, max-age=${CACHE_MAX_AGE}, stale-while-revalidate=3600`)
 
   return withEdgeCache(event, CACHE_MAX_AGE, async () => {
-    const taxonomy = await db.query.taxonomies.findFirst({
-      where: and(eq(taxonomies.siteId, siteId), eq(taxonomies.slug, taxonomySlug)),
-      columns: { id: true, name: true, slug: true },
-    })
-    if (!taxonomy) throw notFound('Taxonomy not found')
+    const resolved = await resolvePublicTermFilter(db, siteId, taxonomySlug, termSlug)
+    if (!resolved) throw notFound('Term not found')
+    const { taxonomy, term, termIds } = resolved
 
-    const term = await db.query.taxonomyTerms.findFirst({
-      where: and(eq(taxonomyTerms.taxonomyId, taxonomy.id), eq(taxonomyTerms.slug, termSlug)),
-      columns: { id: true, name: true, slug: true, description: true },
-    })
-    if (!term) throw notFound('Term not found')
+    // A hierarchical term's archive also lists its sub-terms' content (WordPress's
+    // category behaviour) — termIds already includes every descendant.
+    const [{ items, total }, ancestors, children] = await Promise.all([
+      getPublicItemsForTerms(db, siteId, termIds, { limit, offset }),
+      taxonomy.isHierarchical ? getTermAncestors(db, taxonomy.id, term.id) : Promise.resolve([]),
+      taxonomy.isHierarchical
+        ? db.select({ slug: taxonomyTerms.slug, name: taxonomyTerms.name })
+            .from(taxonomyTerms)
+            .where(eq(taxonomyTerms.parentId, term.id))
+            .orderBy(asc(taxonomyTerms.sortOrder), asc(taxonomyTerms.name))
+        : Promise.resolve([]),
+    ])
 
-    const { items, total } = await getItemsForTerm(db, siteId, term.id, { limit, offset })
-
-    return { taxonomy, term, items, total, page, limit, totalPages: Math.ceil(total / limit) }
+    return {
+      taxonomy: { id: taxonomy.id, name: taxonomy.name, slug: taxonomy.slug, isHierarchical: taxonomy.isHierarchical, noindex: taxonomy.noindex },
+      term: {
+        id: term.id,
+        name: term.name,
+        slug: term.slug,
+        description: term.description,
+        seoTitle: term.seoTitle,
+        seoDescription: term.seoDescription,
+        ogImage: term.ogImage,
+      },
+      ancestors: ancestors.map(a => ({ slug: a.slug, name: a.name })),
+      children,
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    }
   })
 })

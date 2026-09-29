@@ -50,7 +50,9 @@ describe('admin-nav', () => {
   const BACKING_ROUTE: Record<string, string> = {
     '/admin/content/generate': 'server/api/v1/ai/generate/index.post.ts',
     '/admin/calendar': 'server/api/v1/content/calendar.get.ts',
-    '/admin/taxonomies': 'server/api/v1/taxonomies/index.get.ts',
+    // The GET stays open to authors (the editor's term picker); the page itself manages
+    // taxonomies, so its floor is the create route's.
+    '/admin/taxonomies': 'server/api/v1/taxonomies/index.post.ts',
     '/admin/comments': 'server/api/v1/comments/index.get.ts',
     '/admin/menus': 'server/api/v1/menus/index.get.ts',
     '/admin/media': 'server/api/v1/media/index.get.ts',

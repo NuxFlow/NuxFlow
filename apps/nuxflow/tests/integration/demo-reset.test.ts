@@ -106,7 +106,7 @@ describe('demoNightlyReset()', () => {
     expect(items.length).toBeGreaterThanOrEqual(2) // home page + hello-world post
 
     const taxRows = await db.select().from(taxonomies).where(sql`site_id = ${allSites[0]!.id}`)
-    expect(taxRows.length).toBeGreaterThanOrEqual(2) // category + post_tag
+    expect(taxRows.length).toBeGreaterThanOrEqual(2) // category + tag
   })
 
   it('reseeding twice in a row does not leave duplicate or orphaned rows', async () => {

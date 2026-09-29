@@ -19,6 +19,15 @@ type ContentRow = {
 
 const selectedLocale = ref<string>('all')
 
+// ?term=<id>&termName=<label> — set by the term counts on Admin → Taxonomies.
+const router = useRouter()
+const termFilter = computed(() => (route.query.term as string | undefined) || undefined)
+const termFilterName = computed(() => (route.query.termName as string | undefined) || 'selected term')
+function clearTermFilter() {
+  const { term: _term, termName: _termName, ...rest } = route.query
+  router.replace({ query: rest })
+}
+
 const localeOptions = [
   { label: 'All Languages', value: 'all' },
   { label: 'English', value: 'en' },
@@ -52,9 +61,10 @@ const { data: items, refresh: refreshFirstPage } = await useFetch<{ items: Conte
       if (selectedLocale.value && selectedLocale.value !== 'all') {
         q.locale = selectedLocale.value
       }
+      if (termFilter.value) q.term = termFilter.value
       return q
     }),
-    watch: [selectedLocale, typeSlug],
+    watch: [selectedLocale, typeSlug, termFilter],
   }
 )
 
@@ -76,6 +86,7 @@ async function loadMore() {
     if (selectedLocale.value && selectedLocale.value !== 'all') {
       q.locale = selectedLocale.value
     }
+    if (termFilter.value) q.term = termFilter.value
     const res = await $fetch<{ items: ContentRow[] }>('/api/v1/content', { query: q })
     accumulated.value = [...accumulated.value, ...res.items]
     page.value = next
@@ -152,6 +163,12 @@ async function doDelete() {
           size="sm"
           class="w-40"
         />
+        <UBadge v-if="termFilter" variant="soft" size="md" class="gap-1">
+          Tagged: {{ termFilterName }}
+          <button type="button" class="ml-0.5 opacity-60 hover:opacity-100" aria-label="Clear term filter" @click="clearTermFilter">
+            <UIcon name="i-lucide-x" class="w-3 h-3" />
+          </button>
+        </UBadge>
       </div>
       <UButton :to="`/admin/content/new?type=${typeSlug}`" icon="i-lucide-plus">
         New {{ typeSlug }}

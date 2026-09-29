@@ -6,10 +6,14 @@ import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { eq, inArray } from 'drizzle-orm'
+import { getTaxonomyContentTypeSlugs } from '../../../utils/taxonomy'
 
 const bodySchema = z.object({
   title: z.string().min(1),
   body: z.string().max(8000).optional(),
+  // Only suggest from taxonomies that apply to this content type (the editor's picker
+  // shows the same subset).
+  contentType: z.string().max(100).optional(),
 })
 
 // The model is asked to pick candidates by their index in a server-built list, never by
@@ -29,15 +33,24 @@ const suggestionSchema = z.object({
 const SYSTEM = `You are a content tagging assistant for a CMS. Given a piece of content and a list of existing taxonomy terms (tags/categories), pick the ones that clearly apply. Only suggest a brand-new term when no existing one is a good fit — a few precise tags beat many loose ones.`
 
 export default defineEventHandler(async (event) => {
-  const { userId } = await requireRole(event, 'editor')
+  // Author, not editor: anyone who can tag their own content can ask for suggestions —
+  // this only reads terms and never writes anything.
+  const { userId } = await requireRole(event, 'author')
   await rateLimit(event, { limit: 15, windowMs: 60_000, keyPrefix: 'ai-suggest-terms' })
   const model = await requireAiSdkModel(event, 'fast', { userId })
 
-  const { title, body } = await parseBody(event, bodySchema)
+  const { title, body, contentType } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string
   const db = useDb(event)
 
-  const siteTaxonomies = await db.query.taxonomies.findMany({ where: eq(taxonomies.siteId, siteId) })
+  const allTaxonomies = await db.query.taxonomies.findMany({ where: eq(taxonomies.siteId, siteId) })
+  const typesByTaxonomy = await getTaxonomyContentTypeSlugs(db, allTaxonomies.map(t => t.id))
+  const siteTaxonomies = contentType
+    ? allTaxonomies.filter((t) => {
+        const types = typesByTaxonomy.get(t.id) ?? []
+        return types.length === 0 || types.includes(contentType)
+      })
+    : allTaxonomies
   if (!siteTaxonomies.length) return { matchedTerms: [], newTermSuggestions: [] }
 
   const taxonomyIds = siteTaxonomies.map(t => t.id)
@@ -48,6 +61,7 @@ export default defineEventHandler(async (event) => {
     index,
     id: term.id,
     name: term.name,
+    taxonomyId: term.taxonomyId,
     taxonomySlug: taxonomySlugById.get(term.taxonomyId) ?? '',
   }))
 
@@ -62,7 +76,11 @@ export default defineEventHandler(async (event) => {
   const matchedTerms = object.matchedIndexes
     .map(i => candidates[i])
     .filter((c): c is typeof candidates[number] => Boolean(c))
-    .map(c => ({ id: c.id, name: c.name, taxonomySlug: c.taxonomySlug }))
+    .map(c => ({ id: c.id, name: c.name, taxonomyId: c.taxonomyId, taxonomySlug: c.taxonomySlug }))
 
-  return { matchedTerms, newTermSuggestions: object.newTermSuggestions }
+  // Drop proposals for a taxonomy the model invented or that doesn't apply here.
+  const allowedSlugs = new Set(siteTaxonomies.map(t => t.slug))
+  const newTermSuggestions = object.newTermSuggestions.filter(s => allowedSlugs.has(s.taxonomySlug))
+
+  return { matchedTerms, newTermSuggestions }
 })

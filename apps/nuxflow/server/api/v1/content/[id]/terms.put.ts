@@ -3,14 +3,16 @@ import { useDb } from '../../../../utils/db'
 import { requireRole, assertCanEditContentItem } from '../../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
-import { contentTaxonomyTerms, taxonomyTerms, taxonomies } from '@nuxflow/db/schema'
-import { and, eq, inArray } from 'drizzle-orm'
 import { purgeContentCache } from '../../../../utils/edge-cache'
+import { getContentTermIds, getTermRefsWithAncestors, replaceContentTermsStatements, validateSiteTermIds } from '../../../../utils/taxonomy'
 
 const bodySchema = z.object({
-  termIds: z.array(z.string()),
+  termIds: z.array(z.string()).max(200),
 })
 
+// Headless/API replacement of an item's whole term set. The admin editor sends `termIds`
+// with its normal content PATCH instead, so tagging follows the same save/autosave flow
+// as every other field.
 export default defineEventHandler(async (event) => {
   const { userId, role } = await requireRole(event, 'author')
   const db = useDb(event)
@@ -21,39 +23,22 @@ export default defineEventHandler(async (event) => {
   const item = await getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true, slug: true, authorId: true, status: true })
   assertCanEditContentItem(role, userId, item)
 
-  // Terms must belong to a taxonomy owned by this site — otherwise a caller could link
-  // content to another tenant's taxonomy term by supplying its (unguessable but not
-  // secret) ULID.
-  let validTerms: { id: string; taxonomySlug: string; termSlug: string }[] = []
-  if (body.termIds.length > 0) {
-    validTerms = await db.select({ id: taxonomyTerms.id, taxonomySlug: taxonomies.slug, termSlug: taxonomyTerms.slug })
-      .from(taxonomyTerms)
-      .innerJoin(taxonomies, eq(taxonomyTerms.taxonomyId, taxonomies.id))
-      .where(and(inArray(taxonomyTerms.id, body.termIds), eq(taxonomies.siteId, siteId)))
-
-    if (validTerms.length !== body.termIds.length) {
-      throw validationError('One or more termIds do not belong to this site')
-    }
-  }
-
-  // Replace all term assignments atomically
-  const termsDelete = db.delete(contentTaxonomyTerms).where(eq(contentTaxonomyTerms.contentItemId, itemId))
+  const termIds = await validateSiteTermIds(db, siteId, body.termIds)
+  const previousTermIds = await getContentTermIds(db, itemId)
 
   const auditInsert = buildAuditLogInsert(event, userId, {
-    action: 'update_terms', resource: 'content_item', resourceId: itemId, after: { termIds: body.termIds },
+    action: 'update_terms', resource: 'content_item', resourceId: itemId, before: { termIds: previousTermIds }, after: { termIds },
   })
 
-  if (body.termIds.length > 0) {
-    const termsInsert = db.insert(contentTaxonomyTerms).values(body.termIds.map(termId => ({ contentItemId: itemId, termId })))
-    await batchWithAudit(db, [termsDelete, termsInsert], auditInsert)
-  } else {
-    await batchWithAudit(db, [termsDelete], auditInsert)
-  }
+  const [first, ...rest] = replaceContentTermsStatements(db, itemId, termIds)
+  await batchWithAudit(db, [first!, ...rest], auditInsert)
 
+  // Both the newly added and the removed terms' archives (and their parents', which roll
+  // sub-term content up) list this item differently now.
   await purgeContentCache(event, {
     slugs: [item.slug],
-    taxonomyTerms: validTerms.map(t => ({ taxonomySlug: t.taxonomySlug, termSlug: t.termSlug })),
+    taxonomyTerms: await getTermRefsWithAncestors(db, [...new Set([...previousTermIds, ...termIds])]),
   })
 
-  return { success: true }
+  return { success: true, termIds }
 })

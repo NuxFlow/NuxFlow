@@ -15,7 +15,7 @@ pnpm create nuxflow-app@beta
 > The `@beta` tag is required while NuxFlow is in pre-release. It will be dropped once a stable `1.0` is published.
 
 
-After the scaffolder finishes, follow the prompts to create your D1 database and deploy. The sections below cover every step in detail if you need to configure things manually or want to contribute to NuxFlow itself.
+The scaffolder clones the project, installs dependencies, and creates `wrangler.toml` and a local `.env` with a generated secret. It does **not** create anything on Cloudflare. To go live, continue from [2. Cloudflare Deployment](#2-cloudflare-deployment). The sections below cover every step in detail if you'd rather set things up by hand or want to contribute to NuxFlow itself.
 
 > [!IMPORTANT]
 > **A site that loads isn't necessarily set up properly.** NuxFlow is designed to start working even when some pieces are missing. For example, without file storage it keeps images inside the database, and without an email provider it quietly doesn't send emails. Once your site is up, work through the **[After-installation checklist](#5-after-installation-checklist)** at the end of this guide. It takes about 15 minutes.
@@ -26,9 +26,9 @@ After the scaffolder finishes, follow the prompts to create your D1 database and
 
 Install the following tools before you begin:
 
-- **Node.js** 20 or higher
+- **Node.js** 22 or higher
 - **pnpm** 9 or higher — `npm install -g pnpm`
-- **Wrangler** v4 (Cloudflare CLI) — `pnpm add -g wrangler`
+- **Wrangler** v4 (Cloudflare CLI). It's already a project dependency, so after `pnpm install` you can run it as `pnpm exec wrangler …` from `apps/nuxflow`. This guide writes commands as plain `wrangler …`: either install it globally (`pnpm add -g wrangler`) or put `pnpm exec` in front.
 - A **Cloudflare Workers Paid plan** ($5/month minimum) — NuxFlow requires this to run at all, not just for optional features like dynamic plugins. The Free plan's CPU time limit is too tight for a full Nuxt SSR CMS.
 
 ---
@@ -39,7 +39,7 @@ Install the following tools before you begin:
 
 ```bash
 git clone https://github.com/NuxFlow/NuxFlow.git
-cd nuxflow
+cd NuxFlow
 pnpm install
 ```
 
@@ -51,11 +51,26 @@ NuxFlow uses Wrangler for local development and edge deployment. Copy the exampl
 cp apps/nuxflow/wrangler.toml.example apps/nuxflow/wrangler.toml
 ```
 
-### Set Up a Local Database
+### Create a Local `.env`
 
-**Cloudflare D1 via `wrangler dev`:**
+The local dev server needs an auth secret, which `wrangler dev` reads from `apps/nuxflow/.env`:
 
-This mirrors production exactly. `wrangler dev` provisions a local D1 database automatically — no `.env` file is needed for the database connection.
+```bash
+cp apps/nuxflow/.env.example apps/nuxflow/.env
+```
+
+Replace the `NUXT_BETTER_AUTH_SECRET` placeholder with a random value of at least 32 characters, for example the output of:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+> [!NOTE]
+> **`.env` is only for local development.** Nothing in it is uploaded when you deploy, and the build doesn't need it. Your live site gets its secret from Cloudflare instead ([Step 6](#step-6-add-the-auth-secret)). Use a **different** secret there.
+
+### Start the Dev Server
+
+`wrangler dev` creates a local D1 database (and local KV and R2) automatically, so there's nothing to create on Cloudflare for local development.
 
 Start the dev server from the `apps/nuxflow` directory:
 
@@ -66,7 +81,7 @@ wrangler dev
 
 `pnpm dev` from the repository root does the same thing — `wrangler dev` is the only supported local development workflow; there is no separate `nuxt dev` path.
 
-The first run will compile the Nuxt app before starting (this takes about a minute). Subsequent starts reuse the compiled output and are much faster. To pick up source code changes, stop the server and run `wrangler dev` again — or rebuild manually with `pnpm build` from the repo root and then restart.
+Each start builds the Nuxt app first (a minute or two), because the `[build]` command in `wrangler.toml` runs every time. To pick up source code changes, stop the server and start it again.
 
 Database migrations run automatically on the first request. Visit `http://localhost:8787/setup` to complete the onboarding wizard. Once setup is complete, you can access your admin dashboard at `http://localhost:8787/admin`.
 
@@ -82,13 +97,13 @@ NuxFlow deploys as a **Cloudflare Worker** using the `cloudflare-module` Nitro p
 
 > [!IMPORTANT]
 > **Before deploying, make sure you have:**
-> 1. **Installed dependencies:** If you skipped the local development steps, run `pnpm install` from the repository root first.
-> 2. **A local `.env` file:** Copy the example configuration:
->    ```bash
->    cp apps/nuxflow/.env.example apps/nuxflow/.env
->    ```
->    *(The build compiler validates environment schemas at compile time and will crash if `NUXT_BETTER_AUTH_SECRET` is missing. You can leave the placeholder values as is.)*
+> 1. **Installed dependencies:** if you skipped the local development steps, run `pnpm install` from the repository root first.
+> 2. **`apps/nuxflow/wrangler.toml`:** if you skipped local development, create it with `cp apps/nuxflow/wrangler.toml.example apps/nuxflow/wrangler.toml`.
 > 3. **A Workers Paid plan** ($5/month minimum) on the Cloudflare account you're deploying to — see [Prerequisites](#prerequisites). Argon2id password hashing (~150-175ms per hash) and normal Nuxt SSR rendering both need more CPU time than the Free plan's 10ms budget allows.
+>
+> You do **not** need a `.env` file to deploy. Only the local dev server reads it; the live site's secret is added in [Step 6](#step-6-add-the-auth-secret).
+
+Run every command in this section from the `apps/nuxflow` directory.
 
 ### Step 1: Log In to Cloudflare
 
@@ -100,14 +115,12 @@ This opens a browser window to authenticate your Cloudflare account.
 
 ### Step 2: Create the D1 Database
 
-Run the following from the `apps/nuxflow` directory:
-
 ```bash
 cd apps/nuxflow
 wrangler d1 create nuxflow
 ```
 
-Wrangler prints a `database_id`. Open `apps/nuxflow/wrangler.toml` and paste it into the `[[d1_databases]]` block:
+Wrangler prints a `database_id`. If it offers to add the binding to your config for you, you can accept, but check the result matches the block below: the binding name must be `"DB"`. Open `apps/nuxflow/wrangler.toml` and paste it into the `[[d1_databases]]` block:
 
 ```toml
 [[d1_databases]]
@@ -136,40 +149,61 @@ id = "YOUR_KV_ID_FROM_FIRST_COMMAND"
 preview_id = "YOUR_PREVIEW_ID_FROM_SECOND_COMMAND"
 ```
 
-### Step 4: Build and Deploy the Main App
+### Step 4: Create the R2 Bucket for Media
 
-From the `apps/nuxflow` directory, run:
+`wrangler.toml` already declares an R2 bucket for uploaded images and files, and a deploy fails if that bucket doesn't exist yet. Create it once:
+
+```bash
+wrangler r2 bucket create nuxflow-media
+```
+
+There's nothing else to configure. Uploads are stored in the bucket and served from your site at `/_nuxflow/media/...`. See [Media Storage](#media-storage) for alternatives.
+
+### Step 5: Build and Deploy
 
 ```bash
 pnpm run deploy
 ```
 
-This builds the app and uploads it to Cloudflare in one step — you do not need to run a separate build command. The `[build]` section in `wrangler.toml` instructs Wrangler to compile the Nuxt app before uploading.
+This builds the app and uploads it to Cloudflare in one step, so you don't need a separate build command. The `[build]` section in `wrangler.toml` tells Wrangler to compile the Nuxt app first.
 
-Database migrations run automatically on the first request after deployment. There is nothing else to run.
+Wrangler prints your Worker's address, e.g. `https://nuxflow.<your-subdomain>.workers.dev`. **Don't open it yet.** It has no auth secret until the next step.
 
-### Step 5: Add Production Secrets
+Database migrations run automatically on the first request. There is nothing else to run.
 
-With the worker now deployed, add your runtime secrets. Wrangler will prompt you to type or paste the value — it is never passed as a command-line argument:
+### Step 6: Add the Auth Secret
+
+Generate a new random secret. Don't reuse the one in your local `.env`:
 
 ```bash
-cd apps/nuxflow
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+Store it on Cloudflare. Wrangler asks you to paste the value, so it never ends up in your shell history:
+
+```bash
 wrangler secret put NUXT_BETTER_AUTH_SECRET
 ```
 
-Secrets on Cloudflare Workers take effect immediately — no redeploy is needed after adding them.
+Keep a copy in your password manager. This secret signs every login and encrypts the API keys you save in Settings, so changing it later signs everyone out and makes those saved keys unreadable (see [checklist item 4](#-4-keep-your-auth-secret-safe-and-never-change-it)).
 
-You can also manage secrets in the Cloudflare dashboard under **Workers & Pages → nuxflow → Settings → Variables and Secrets**.
+Secrets take effect immediately and stay in place across future deploys, so you only set this once. You can also manage secrets in the Cloudflare dashboard under **Workers & Pages → nuxflow → Settings → Variables and Secrets**.
 
 ::note
-`NUXT_PUBLIC_SITE_URL` is **not** a secret — it is a plain variable declared in the `[vars]` section of `apps/nuxflow/wrangler.toml`. Set it there before deploying; do not use `wrangler secret put` for this value.
+**Where each kind of value lives:** secrets (like this one) are stored on Cloudflare with `wrangler secret put` or in the dashboard. Non-secret settings (bindings, `[vars]`) go in `wrangler.toml`. `.env` is only read by the local dev server and is never deployed.
 ::
 
 ::note
 D1 does not require any secrets. The database connection is handled automatically through the `DB` binding declared in `wrangler.toml`.
 ::
 
-### Step 6: Add a Custom Domain
+### Step 7: Run the Setup Wizard
+
+Open `https://<your-worker-address>/setup` **straight away** and complete the wizard. On a fresh install, whoever finishes it first becomes the site's owner and super admin, and the address is public, so don't leave a new deploy sitting un-set-up.
+
+After that, your admin dashboard is at `/admin`.
+
+### Step 8: Add a Custom Domain
 
 By default Cloudflare assigns a `*.workers.dev` subdomain. To use your own domain:
 
@@ -180,7 +214,17 @@ By default Cloudflare assigns a `*.workers.dev` subdomain. To use your own domai
 
 Your domain must be on Cloudflare's nameservers for this to work. If it is not, use a **Route** instead and point the DNS record manually.
 
-### Step 7: Verify Cron Triggers
+Also declare the domain in `wrangler.toml`. Otherwise every later deploy warns that the dashboard and your config disagree, and offers to remove the domain:
+
+```toml
+[[routes]]
+pattern = "cms.yourdomain.com"
+custom_domain = true
+```
+
+Then sign in to the admin **on the new domain**. With a single site, NuxFlow notices the new address and updates the site's stored domain, so links in emails, feeds, and sitemaps use it.
+
+### Step 9: Verify Cron Triggers
 
 NuxFlow runs scheduled jobs for timed publishing, nightly cleanup, and stuck-video checks. The triggers are defined in `wrangler.toml`:
 
@@ -223,6 +267,12 @@ To fork:
 1. Go to [github.com/NuxFlow/NuxFlow](https://github.com/NuxFlow/NuxFlow) and click **Fork**
 2. Clone your fork and use it as the basis for your deployment
 
+### Commit Your `wrangler.toml` to the Fork
+
+Cloudflare's build reads `apps/nuxflow/wrangler.toml` from your repository, but the NuxFlow repo ignores that file (it holds each installation's own IDs). In your fork, remove the `apps/nuxflow/wrangler.toml` line from `.gitignore` and commit your filled-in copy, with the D1, KV, and R2 settings from [Cloudflare Deployment](#2-cloudflare-deployment). Those IDs aren't secrets. Never put secrets in this file; they stay in Cloudflare (see [Step 6](#step-6-add-the-auth-secret)).
+
+Do the one-time Cloudflare setup from [Cloudflare Deployment](#2-cloudflare-deployment) first (Steps 1–7, deploying once by hand), then connect Git for later deploys.
+
 ### Connect Your Fork to Cloudflare
 
 1. Open **Workers & Pages → nuxflow → Settings → Build**
@@ -244,22 +294,13 @@ The root directory tells Cloudflare where to find `wrangler.toml` for the deploy
 
 The `NODE_OPTIONS` prefix increases the Node.js heap limit to 4 GB. Cloudflare's build environment defaults to roughly 2 GB, which is not enough for Nitro's bundling phase in a monorepo.
 
-### Build-Time Environment Variables
+### Environment Variables
 
-This is a separate step from the runtime secrets you set with `wrangler secret put`. Secrets added via Wrangler are encrypted and available to your running Worker, but they are **not** injected into the build container. You must add any variables that Nuxt reads at build time as build-time environment variables.
-
-In **Workers & Pages → nuxflow → Settings → Build → Environment variables**, add:
-
-| Variable | Value |
-|---|---|
-| `NUXT_BETTER_AUTH_SECRET` | Your session-signing secret |
-| `NUXT_PUBLIC_SITE_URL` | Your production site URL |
+**None are needed for the build.** NuxFlow reads all its settings and secrets when the site runs, not when it's built. The secrets you added with `wrangler secret put` stay on the Worker across every automated deploy, so leave **Settings → Build → Environment variables** empty.
 
 ::note
-D1 credentials are not required here. The D1 binding in `wrangler.toml` is resolved at deploy time by Wrangler — no environment variable is needed for the build or at runtime.
+Don't copy secrets into the build environment variables "just in case". They aren't used there, and it's one more place a secret can leak from.
 ::
-
-Add any other variables your site uses (Cloudflare Images, Turnstile, email providers) here too. If a variable is required during the Nuxt build and is missing, the build will fail before any code is deployed.
 
 ::note
 After saving the build configuration, push a commit to your connected branch to trigger the first automated build. Subsequent pushes to that branch will deploy automatically.
@@ -390,17 +431,17 @@ To use S3-compatible storage instead of Cloudflare Images:
 1. Create a bucket and credentials in your S3 provider.
 2. Add the following secrets:
 ```bash
-wrangler secret put S3_BUCKET
-wrangler secret put S3_ACCESS_KEY
-wrangler secret put S3_SECRET_KEY
+wrangler secret put NUXT_S3_BUCKET
+wrangler secret put NUXT_S3_ACCESS_KEY
+wrangler secret put NUXT_S3_SECRET_KEY
 ```
 Optional variables can also be set to specify a region, custom endpoint, and custom public delivery URL:
 ```bash
-wrangler secret put S3_REGION
-wrangler secret put S3_ENDPOINT
-wrangler secret put S3_PUBLIC_URL
+wrangler secret put NUXT_S3_REGION
+wrangler secret put NUXT_S3_ENDPOINT
+wrangler secret put NUXT_S3_PUBLIC_URL
 ```
-Setting the `S3_BUCKET` secret automatically activates the S3 provider.
+Setting `NUXT_S3_BUCKET` automatically activates the S3 provider. You can also enter all of these per site in **Admin → Settings → Media** instead, with no redeploy.
 
 ### Bunny.net Storage
 
@@ -408,11 +449,11 @@ To use Bunny.net storage:
 1. Create a storage zone and pull zone on Bunny.net.
 2. Add the following secrets:
 ```bash
-wrangler secret put BUNNY_API_KEY
-wrangler secret put BUNNY_STORAGE_ZONE
-wrangler secret put BUNNY_PULL_ZONE
+wrangler secret put NUXT_BUNNY_API_KEY
+wrangler secret put NUXT_BUNNY_STORAGE_ZONE
+wrangler secret put NUXT_BUNNY_PULL_ZONE
 ```
-Setting the `BUNNY_API_KEY` secret automatically activates the Bunny.net provider.
+Setting `NUXT_BUNNY_API_KEY` automatically activates the Bunny.net provider. These can also be entered per site in **Admin → Settings → Media**.
 
 ### AI Providers
 
@@ -476,52 +517,7 @@ Set **both** keys or neither:
 
 Dynamic plugins run as isolated Cloudflare Workers and are stored in a KV namespace. This allows plugins to be installed or updated without redeploying the site.
 
-**Requirements:** `compatibility_date` must be `2026-03-02` or later (already set in `wrangler.toml`).
-
-**Step 1 — Create the KV namespaces:**
-
-Run both commands from the `apps/nuxflow` directory. The first creates the production namespace, the second creates a separate preview namespace used by `wrangler dev`:
-
-```bash
-wrangler kv namespace create PLUGIN_KV
-wrangler kv namespace create PLUGIN_KV --preview
-```
-
-Each command prints a snippet like this — copy the `id` value from each:
-
-```
-✨ Success!
-[[kv_namespaces]]
-binding = "PLUGIN_KV"
-id = "d6a28a91e4344aabbd952cb68cff4c3d"
-```
-
-Open `apps/nuxflow/wrangler.toml` and paste both IDs into the `[[kv_namespaces]]` block:
-
-```toml
-[[kv_namespaces]]
-binding = "PLUGIN_KV"
-id = "YOUR_ID_FROM_FIRST_COMMAND"
-preview_id = "YOUR_ID_FROM_SECOND_COMMAND"
-```
-
-**Step 2 — Redeploy:**
-
-From the `apps/nuxflow` directory:
-
-```bash
-pnpm run deploy
-```
-
-The `[[worker_loaders]]` binding is enabled automatically once you deploy with the updated `wrangler.toml`.
-
-**Step 3 — Upload plugins:**
-
-After deploying, go to **Admin → Plugins** and use the **Upload plugin** button to install a dynamic plugin bundle without redeploying.
-
-::note
-Dynamic plugins are a Cloudflare-only feature. They are not available in local development with `pnpm dev`. Use `wrangler dev` to test them locally with real KV and Worker Loader bindings.
-::
+**Nothing extra to set up.** The KV namespace was created in [Step 3](#step-3-create-the-kv-namespace), and the `[[worker_loaders]]` binding plus a new enough `compatibility_date` (`2026-03-02` or later) are already in `wrangler.toml`. After deploying, go to **Admin → Plugins** and use **Upload plugin** to install a plugin bundle without redeploying.
 
 For a complete walkthrough of building and publishing your own dynamic plugin — including the CLI commands, plugin structure, Canvas block registration, and troubleshooting — see the **[External Plugin Development Guide](./plugins.md)**.
 
@@ -589,8 +585,6 @@ wrangler secret put NUXT_GOOGLE_CLIENT_SECRET
 wrangler secret put NUXT_GITHUB_CLIENT_ID
 wrangler secret put NUXT_GITHUB_CLIENT_SECRET
 ```
-
-If you use automated deploys, add these four variables as build-time environment variables in **Workers & Pages → nuxflow → Settings → Build → Environment variables** as well — the same way you add `NUXT_BETTER_AUTH_SECRET`.
 
 ::note
 **Account linking:** if a user signs in with Google using the same email address they registered with during onboarding, NuxFlow automatically links the two accounts. No manual steps are required — see the [User Guide](./user-guide.md#social-login--account-linking) for the full flow.
@@ -664,7 +658,7 @@ Each item says what goes wrong if you skip it and how to check it's done.
 
 - **If you skip it:** your site stays on its `something.workers.dev` address. If you add a domain but leave that address on, search engines can find two copies of every page.
 - **Do this:**
-  1. Add your domain ([Step 6](#step-6-add-a-custom-domain)) and set `NUXT_PUBLIC_SITE_URL` in `wrangler.toml` to it.
+  1. Add your domain ([Step 8](#step-8-add-a-custom-domain)).
   2. Once the domain works, sign in to the admin **on the new domain**.
   3. Then set `workers_dev = false` and `preview_urls = false` in `wrangler.toml` and deploy again.
 - **Check:** your pages open on your domain, and the `workers.dev` address no longer serves the site.

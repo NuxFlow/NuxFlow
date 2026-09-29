@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { H3Event } from 'h3'
 import { bufferToHex } from '../../../utils/buffer'
 import { useDb } from '../../../utils/db'
-import { sites, users, accounts, userSiteRoles, contentTypes, contentItems, taxonomies, siteSettings, auditLogs } from '@nuxflow/db/schema'
+import { sites, users, accounts, userSiteRoles, contentTypes, contentItems, taxonomies, taxonomyContentTypes, siteSettings, auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { count, eq, and, ne } from 'drizzle-orm'
 import { nuxflowPasswordHasher } from '../../../utils/pw'
@@ -366,9 +366,17 @@ async function _handleSetup(event: H3Event) {
   })
 
   // Seed default taxonomies
+  // Categories and Tags apply to posts only (taxonomy_content_types); pages opt in
+  // from Admin → Taxonomies if a site wants them there too.
+  const categoryTaxId = ulid()
+  const tagTaxId = ulid()
   await db.insert(taxonomies).values([
-    { id: ulid(), siteId, slug: 'category', name: 'Categories', isHierarchical: true },
-    { id: ulid(), siteId, slug: 'post_tag', name: 'Tags', isHierarchical: false },
+    { id: categoryTaxId, siteId, slug: 'category', name: 'Categories', isHierarchical: true },
+    { id: tagTaxId, siteId, slug: 'tag', name: 'Tags', isHierarchical: false },
+  ])
+  await db.insert(taxonomyContentTypes).values([
+    { taxonomyId: categoryTaxId, contentTypeId: postTypeId },
+    { taxonomyId: tagTaxId, contentTypeId: postTypeId },
   ])
 
   // The very first install's owner is the platform operator and gets super_admin.

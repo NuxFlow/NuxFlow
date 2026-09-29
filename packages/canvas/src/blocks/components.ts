@@ -55,6 +55,7 @@ export const BUILTIN_BLOCK_COMPONENTS: Record<string, Component> = {
   'canvas-accordion': defineAsyncComponent(() => import('./CanvasBlockAccordion.vue')),
   'canvas-pricing': defineAsyncComponent(() => import('./CanvasBlockPricing.vue')),
   'canvas-calendar': defineAsyncComponent(() => import('./CanvasBlockCalendar.vue')),
+  'canvas-posts': defineAsyncComponent(() => import('./CanvasBlockPosts.vue')),
   'canvas-gdpr': defineAsyncComponent(() => import('./CanvasBlockGdpr.vue')),
   'canvas-footer': defineAsyncComponent(() => import('./CanvasBlockFooter.vue')),
   'canvas-gallery': defineAsyncComponent(() => import('./CanvasBlockGallery.vue')),

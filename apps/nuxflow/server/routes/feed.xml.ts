@@ -4,6 +4,7 @@ import { getFeedSite, getPublishedPostsForFeed } from '@nuxflow/db/queries'
 import { withEdgeCache } from '../utils/edge-cache'
 import { escXml, cdataSafe } from '../utils/xml'
 import { absoluteUrl, absolutizeHtmlUrls } from '../utils/media-url'
+import { resolvePublicTermFilter, termArchivePath, termFeedPath } from '../utils/taxonomy'
 
 function escHtml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -72,13 +73,25 @@ async function buildFeed(event: H3Event) {
   const siteId = event.context.siteId as string
   const config = useRuntimeConfig()
 
+  // `?taxonomy=category&term=news` → a per-term feed (sub-terms included), linked from
+  // that term's archive page. An unknown term is a 404 rather than the whole-site feed,
+  // so a subscriber never silently gets posts they didn't ask for.
+  const query = getQuery(event)
+  const taxonomySlug = typeof query.taxonomy === 'string' ? query.taxonomy : ''
+  const termSlug = typeof query.term === 'string' ? query.term : ''
+  const termFilter = taxonomySlug && termSlug ? await resolvePublicTermFilter(db, siteId, taxonomySlug, termSlug) : null
+  if ((taxonomySlug || termSlug) && !termFilter) throw notFound('Feed not found')
+
   const [site, posts] = await Promise.all([
     getFeedSite(db, siteId),
-    getPublishedPostsForFeed(db, siteId),
+    getPublishedPostsForFeed(db, siteId, 20, termFilter?.termIds),
   ])
   const rawBaseUrl = site ? `https://${site.domain}` : config.public.siteUrl
   const baseUrl = escXml(rawBaseUrl)
   const siteName = escXml(site?.name ?? 'NuxFlow')
+  const channelTitle = termFilter ? `${siteName} — ${escXml(termFilter.term.name)}` : siteName
+  const channelLink = termFilter ? `${baseUrl}${escXml(termArchivePath(taxonomySlug, termSlug))}` : baseUrl
+  const selfLink = termFilter ? `${baseUrl}${escXml(termFeedPath(taxonomySlug, termSlug))}` : `${baseUrl}/feed.xml`
 
   const items = posts.map((p) => {
     const contentObj = p.content as Record<string, unknown> | null
@@ -107,10 +120,10 @@ async function buildFeed(event: H3Event) {
      xmlns:content="http://purl.org/rss/1.0/modules/content/"
      xmlns:media="http://search.yahoo.com/mrss/">
   <channel>
-    <title>${siteName}</title>
-    <link>${baseUrl}</link>
-    <description>Latest posts from ${siteName}</description>
-    <atom:link href="${baseUrl}/feed.xml" rel="self" type="application/rss+xml" />
+    <title>${channelTitle}</title>
+    <link>${channelLink}</link>
+    <description>Latest posts from ${channelTitle}</description>
+    <atom:link href="${selfLink}" rel="self" type="application/rss+xml" />
     <atom:link href="${baseUrl}/atom.xml" rel="alternate" type="application/atom+xml" />
     ${items}
   </channel>

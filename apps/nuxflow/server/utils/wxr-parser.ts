@@ -82,12 +82,12 @@ export function parseWxr(xml: string): ParsedWxr {
     const name = cdataOrTag(block, 'wp:cat_name')
     if (!nicename || !name) continue
     const parentSlug = cdataOrTag(block, 'wp:category_parent')
-    categories.set(nicename, { name, parentSlug: parentSlug || null })
+    categories.set(nicename, { name: decodeHtmlEntities(name), parentSlug: parentSlug || null })
   }
 
   const tagRegex = /<wp:tag>[\s\S]*?<wp:tag_slug><!\[CDATA\[(.*?)\]\]><\/wp:tag_slug>[\s\S]*?<wp:tag_name><!\[CDATA\[(.*?)\]\]><\/wp:tag_name>[\s\S]*?<\/wp:tag>/g
   for (const m of xml.matchAll(tagRegex)) {
-    tags.set(m[1]!, m[2]!)
+    tags.set(m[1]!, decodeHtmlEntities(m[2]!))
   }
 
   const itemRegex = /<item>([\s\S]*?)<\/item>/g
@@ -116,10 +116,20 @@ export function parseWxr(xml: string): ParsedWxr {
 
     const itemCats: string[] = []
     const itemTags: string[] = []
-    const termRegex = /<category domain="(category|post_tag)" nicename="([^"]+)"/g
+    const termRegex = /<category domain="(category|post_tag)" nicename="([^"]+)">(?:<!\[CDATA\[([\s\S]*?)\]\]>|([^<]*))<\/category>/g
     for (const tm of block.matchAll(termRegex)) {
-      if (tm[1] === 'category') itemCats.push(tm[2]!)
-      else itemTags.push(tm[2]!)
+      const nicename = tm[2]!
+      const name = decodeHtmlEntities((tm[3] ?? tm[4] ?? '').trim()) || nicename
+      // A filtered WordPress export can reference terms on its items without listing them
+      // in the channel-level <wp:category>/<wp:tag> blocks — register them from the
+      // item's own <category> element so the assignment isn't silently dropped.
+      if (tm[1] === 'category') {
+        itemCats.push(nicename)
+        if (!categories.has(nicename)) categories.set(nicename, { name, parentSlug: null })
+      } else {
+        itemTags.push(nicename)
+        if (!tags.has(nicename)) tags.set(nicename, name)
+      }
     }
 
     // WordPress stores the featured image as a <wp:postmeta> row whose key is

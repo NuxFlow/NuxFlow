@@ -29,6 +29,7 @@ describe('CANVAS_BLOCKS registry', () => {
     expect(ids).toContain('canvas-gallery')
     expect(ids).toContain('canvas-carousel')
     expect(ids).toContain('canvas-calendar')
+    expect(ids).toContain('canvas-posts')
     expect(ids).toContain('contact-form/form')
     expect(ids).toContain('dynamic-form/form')
     expect(ids).toContain('html-block/html')

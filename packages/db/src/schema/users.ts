@@ -54,8 +54,7 @@ export const accounts = sqliteTable('accounts', {
   accountId: text('account_id').notNull(),
   providerId: text('provider_id').notNull(),
   // Better Auth 1.7+ scopes account identity by (issuer, accountId) rather than
-  // (providerId, accountId) alone — see migrations/0004 for the backfill of this
-  // column on pre-1.7 rows. Built-in OAuth providers with no OIDC issuer of their
+  // (providerId, accountId) alone. Built-in OAuth providers with no OIDC issuer of their
   // own (google, github) get the synthetic `local:oauth:<providerId>` issuer;
   // email/password accounts get `local:credential`.
   issuer: text('issuer').notNull().default(''),

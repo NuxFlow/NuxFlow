@@ -8,8 +8,8 @@
  * itself). Orphan prevention is enforced in application code instead, in each of these
  * three delete routes — these tests are what actually verifies that still works.
  *
- * Also covers the user_site_roles unique constraint (idx_user_site_roles_user_site) added
- * in migrations/0013_classy_sabretooth.sql, closing a TOCTOU race in the invite flow.
+ * Also covers the user_site_roles unique constraint (idx_user_site_roles_user_site),
+ * which closes a TOCTOU race in the invite flow.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'

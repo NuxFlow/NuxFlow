@@ -1,6 +1,6 @@
 /**
  * Integration tests for GET /api/v1/search and the search_index sync triggers
- * added in migrations/0002_search_index.sql. The FTS5 index has no application-level
+ * added in migrations/0001_search_index.sql. The FTS5 index has no application-level
  * indexing code — it's maintained entirely by SQLite triggers on content_items, so
  * these tests exercise the triggers indirectly via ordinary content writes.
  */
