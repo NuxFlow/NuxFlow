@@ -6,7 +6,8 @@ import { created } from '../../../../utils/response'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { getCommentByIdOrThrow } from '../../../../utils/resource-queries'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
-import { isSiteMemberForSession } from '../../../../utils/permissions'
+import { getUserSiteRole, roleAtLeast, type Role } from '../../../../utils/permissions'
+import { checkContentAccess } from '../../../../utils/content-access'
 import { waitUntil } from '../../../../utils/cf-env'
 import { moderateText } from '../../../../utils/moderation'
 import { comments, contentTypes } from '@nuxflow/db/schema'
@@ -45,19 +46,17 @@ export default defineEventHandler(async (event) => {
   //   is actually an existing comment on THIS item/site. Without this, a caller could
   //   reply-thread onto an arbitrary/nonexistent id, or onto another tenant's comment by
   //   guessing its ULID, and have it silently accepted.
-  // - Auto-approval requires actual membership of THIS site, not merely "has a valid
+  // - Auto-approval needs a staff role (author+) on THIS site, not merely "has a valid
   //   session somewhere." Accounts/sessions are global across this multi-tenant install,
-  //   so a bare session check would let a user with an account on any other site (or a
-  //   self-registered account where public registration is enabled) post live,
-  //   unmoderated comments here — the same cross-tenant gap requireAuth() exists to
-  //   close for content access, applied to comment moderation instead. Reuses the
+  //   and anyone can become a `member` where public registration is open — so neither a
+  //   bare session nor just any role here is a reason to skip moderation. Reuses the
   //   `session` already fetched above instead of a second Better Auth lookup.
-  const [item, , isMember] = await Promise.all([
-    getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true, status: true, allowComments: true, typeId: true }),
+  const [item, , roleRow] = await Promise.all([
+    getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true, status: true, allowComments: true, typeId: true, visibility: true, settings: true }),
     parsed.parentId
       ? getCommentByIdOrThrow(db, siteId, parsed.parentId, 'Parent comment not found', itemId)
       : Promise.resolve(null),
-    isSiteMemberForSession(db, session, siteId),
+    session ? getUserSiteRole(db, session.user.id, siteId) : Promise.resolve(undefined),
   ])
 
   // Comments are a public-page feature: only published items with comments turned on
@@ -73,8 +72,14 @@ export default defineEventHandler(async (event) => {
   if (item.status !== 'published' || !commentsEnabled) {
     throw forbidden('Comments are not open on this item')
   }
+  // Only people who can read the page may join its discussion — same members/tier gate as
+  // the page itself (and the comments list, content/[id]/comments.get.ts).
+  const isStaff = Boolean(roleRow && roleAtLeast(roleRow.role as Role, 'author'))
+  if (!isStaff && await checkContentAccess(event, { visibility: item.visibility, settings: item.settings as Record<string, unknown> | null }, siteId)) {
+    throw forbidden('Comments are not open on this item')
+  }
 
-  const status = isMember ? 'approved' : 'pending'
+  const status = isStaff ? 'approved' : 'pending'
 
   const id = ulid()
 
@@ -104,7 +109,7 @@ export default defineEventHandler(async (event) => {
 
   await batchWithAudit(db, [commentInsert], auditInsert)
 
-  // Only bother AI-checking comments that already need human review — an approved member
+  // Only bother AI-checking comments that already need human review — an approved staff
   // comment skips this entirely (trusted account, no reason to spend a model call on it).
   if (status === 'pending') {
     waitUntil(event, (async () => {

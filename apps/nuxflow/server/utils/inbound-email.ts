@@ -129,22 +129,46 @@ export async function resolveRecipient(db: Db, to: string, platformDomain: strin
 
 /**
  * Pulls spf/dkim/dmarc verdicts out of an `Authentication-Results` header (RFC 8601),
- * first occurrence of each. Only the header added by the receiving MX (Cloudflare) is
- * meaningful — callers pass `message.headers.get(...)`, whose first value is the topmost,
- * most recently added header.
+ * first occurrence of each, plus the signing domain of every passing DKIM signature.
+ *
+ * Only the header added by the receiving MX (Cloudflare) is meaningful — anything below
+ * it came from the sender and can say whatever they like. Callers pass
+ * `message.headers.get(...)`, which joins every copy with ", " topmost first, so parsing
+ * stops where the second header begins: a comma followed by an authserv-id and `;`. An
+ * authserv-id never contains `=`, while every result entry (`dkim=pass …`) does.
  */
 export function parseAuthResults(header: string | null | undefined): EmailAuthResults {
   const out: EmailAuthResults = {}
   if (!header) return out
-  for (const match of header.matchAll(/\b(spf|dkim|dmarc)\s*=\s*([a-z]+)/gi)) {
-    const key = match[1]!.toLowerCase() as keyof EmailAuthResults
-    out[key] ??= match[2]!.toLowerCase()
+  const own = header.split(/,\s*(?=[^\s;,=]+\s*;)/)[0]!
+  const dkimPassDomains: string[] = []
+  for (const entry of own.split(';')) {
+    const match = /^\s*(spf|dkim|dmarc)\s*=\s*([a-z]+)/i.exec(entry)
+    if (!match) continue
+    const key = match[1]!.toLowerCase() as 'spf' | 'dkim' | 'dmarc'
+    const result = match[2]!.toLowerCase()
+    out[key] ??= result
+    if (key === 'dkim' && result === 'pass') {
+      const domain = /\bheader\.d\s*=\s*([a-z0-9.-]+)/i.exec(entry)?.[1]
+        ?? /\bheader\.i\s*=\s*[^\s@;]*@([a-z0-9.-]+)/i.exec(entry)?.[1]
+      if (domain) dkimPassDomains.push(domain.toLowerCase().replace(/\.$/, ''))
+    }
   }
+  if (dkimPassDomains.length) out.dkimPassDomains = dkimPassDomains
   return out
 }
 
-export function isSenderAuthenticated(auth: EmailAuthResults): boolean {
-  return auth.dmarc === 'pass' || auth.dkim === 'pass'
+/**
+ * Whether the From domain itself vouched for the message: DMARC passed (which already
+ * means aligned with From), or a DKIM signature from that domain (or a parent of it)
+ * passed. A bare `dkim=pass` isn't enough — anyone can sign mail with their own domain's
+ * key while putting someone else's address in From.
+ */
+export function isSenderAuthenticated(auth: EmailAuthResults, fromAddress: string): boolean {
+  if (auth.dmarc === 'pass') return true
+  const fromDomain = fromAddress.toLowerCase().split('@').pop()?.replace(/\.$/, '')
+  if (!fromDomain || !fromAddress.includes('@')) return false
+  return (auth.dkimPassDomains ?? []).some(d => d.includes('.') && (fromDomain === d || fromDomain.endsWith(`.${d}`)))
 }
 
 function firstMailbox(addr: Address | undefined): { address: string; name: string } | null {
@@ -516,8 +540,8 @@ async function handlePostByEmail(input: InboundInput): Promise<void> {
   if (envelopeFrom !== ownerEmail || headerFrom !== ownerEmail) {
     return rejectPost(input, `the sender isn't ${owner.email}`, ownerId)
   }
-  if (!isSenderAuthenticated(auth)) {
-    return rejectPost(input, 'the sender could not be verified (no DKIM or DMARC pass) — send from your normal mail provider rather than a script or relay', ownerId)
+  if (!isSenderAuthenticated(auth, ownerEmail)) {
+    return rejectPost(input, 'the sender could not be verified (no DMARC pass or DKIM signature from your own domain) — send from your normal mail provider rather than a script or relay', ownerId)
   }
 
   const roleRow = await getUserSiteRole(db, ownerId, siteId)

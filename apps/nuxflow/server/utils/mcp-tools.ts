@@ -8,8 +8,10 @@ import { roleAtLeast, hasApiKeyScope, canEditContentItem, AUTHOR_SETTABLE_STATUS
 import { getContentItem, getContentTypeBySlug } from './content-queries'
 import { scopedById } from './db-helpers'
 import { writeAuditLog } from './audit'
-import { semanticSearch } from './embeddings'
+import { semanticSearch, upsertContentEmbedding, deleteContentEmbedding } from './embeddings'
 import { purgeContentCache } from './edge-cache'
+import { waitUntil } from './cf-env'
+import { itemPublicPath } from './public-page'
 import { getContentTermIds, getPublicItemTerms, getTaxonomyContentTypeSlugs, getTermRefsWithAncestors, replaceContentTermsStatements } from './taxonomy'
 
 // Tool implementations for the MCP server (server/api/v1/mcp.ts). Extracted out of that
@@ -263,6 +265,45 @@ async function getContent(args: unknown, ctx: McpToolContext): Promise<McpToolRe
   return textResult(JSON.stringify({ ...item, terms }, null, 2))
 }
 
+type ContentRow = typeof contentItems.$inferSelect
+
+/**
+ * The same follow-up the REST content routes do after a write: purge every cached URL the
+ * item was or is now served at (its archives included), and bring its search vector in
+ * line. Without this, unpublishing or deleting through an API key left the page in the
+ * edge cache for up to an hour and its title in public semantic search.
+ */
+async function syncAfterContentWrite(
+  ctx: McpToolContext,
+  before: ContentRow | null,
+  after: ContentRow | null,
+  // A delete cascades the item's term links away, so its caller reads them beforehand.
+  termIds?: string[],
+): Promise<void> {
+  const rows = [before, after].filter((r): r is ContentRow => r !== null)
+  const itemId = rows[0]!.id
+  const [paths, termRefs] = await Promise.all([
+    Promise.all(rows.map(r => itemPublicPath(ctx.db, ctx.siteId, r))),
+    (termIds ? Promise.resolve(termIds) : getContentTermIds(ctx.db, itemId)).then(ids => getTermRefsWithAncestors(ctx.db, ids)),
+  ])
+  await purgeContentCache(ctx.event, {
+    slugs: [...new Set(rows.map(r => r.slug))],
+    taxonomyTerms: termRefs,
+    extraPaths: paths,
+  })
+  waitUntil(ctx.event, after
+    ? upsertContentEmbedding(ctx.event, {
+        contentItemId: after.id,
+        siteId: ctx.siteId,
+        title: after.title,
+        excerpt: after.excerpt,
+        seoDescription: after.seoDescription,
+        status: after.status,
+        visibility: after.visibility,
+      })
+    : deleteContentEmbedding(ctx.event, itemId))
+}
+
 async function createContent(args: unknown, ctx: McpToolContext): Promise<McpToolResult> {
   if (!apiKeyRoleAtLeast(ctx.apiKeyRole, 'author')) {
     return textResult(`Error: Role "${ctx.apiKeyRole}" is unauthorized to create content.`)
@@ -311,6 +352,9 @@ async function createContent(args: unknown, ctx: McpToolContext): Promise<McpToo
     resourceId: newId,
     after: { title, slug: slugVal, status: statusVal, typeId: type.id },
   })
+
+  const created = await getContentItem(ctx.db, ctx.siteId, newId)
+  if (created) await syncAfterContentWrite(ctx, null, created)
 
   return textResult(`Success: Content item successfully created with ID: ${newId}`)
 }
@@ -363,6 +407,9 @@ async function updateContent(args: unknown, ctx: McpToolContext): Promise<McpToo
     after: updates,
   })
 
+  const updated = await getContentItem(ctx.db, ctx.siteId, id)
+  await syncAfterContentWrite(ctx, existing, updated ?? null)
+
   return textResult(`Success: Content item ${id} successfully updated.`)
 }
 
@@ -387,6 +434,7 @@ async function deleteContent(args: unknown, ctx: McpToolContext): Promise<McpToo
     return textResult(`Error: Role "${ctx.apiKeyRole}" may only update its own draft or in-review content.`)
   }
 
+  const termIds = await getContentTermIds(ctx.db, id)
   await ctx.db.delete(contentItems)
     .where(scopedById(contentItems.id, id, contentItems.siteId, ctx.siteId))
 
@@ -396,6 +444,8 @@ async function deleteContent(args: unknown, ctx: McpToolContext): Promise<McpToo
     resourceId: id,
     before: existing,
   })
+
+  await syncAfterContentWrite(ctx, existing, null, termIds)
 
   return textResult(`Success: Content item ${id} has been permanently deleted.`)
 }

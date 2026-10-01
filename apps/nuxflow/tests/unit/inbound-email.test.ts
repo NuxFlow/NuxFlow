@@ -29,11 +29,21 @@ describe('parseRecipient', () => {
 describe('parseAuthResults', () => {
   it('reads spf, dkim and dmarc verdicts', () => {
     const header = 'mx.cloudflare.net; dkim=pass header.d=example.org header.s=s1; spf=pass smtp.mailfrom=example.org; dmarc=pass header.from=example.org'
-    expect(parseAuthResults(header)).toEqual({ dkim: 'pass', spf: 'pass', dmarc: 'pass' })
+    expect(parseAuthResults(header)).toEqual({ dkim: 'pass', spf: 'pass', dmarc: 'pass', dkimPassDomains: ['example.org'] })
   })
 
-  it('keeps the first verdict for each method', () => {
-    expect(parseAuthResults('x; dkim=fail; dkim=pass')).toEqual({ dkim: 'fail' })
+  it('keeps the first verdict for each method but every passing DKIM domain', () => {
+    expect(parseAuthResults('x; dkim=fail header.d=a.test; dkim=pass header.d=B.test')).toEqual({ dkim: 'fail', dkimPassDomains: ['b.test'] })
+  })
+
+  it('falls back to the header.i domain when a DKIM result has no header.d', () => {
+    expect(parseAuthResults('mx; dkim=pass header.i=@mail.example.org').dkimPassDomains).toEqual(['mail.example.org'])
+  })
+
+  it('ignores Authentication-Results headers the sender added below the MX\'s own', () => {
+    // Headers.get() joins every copy topmost first — only the first is Cloudflare's.
+    const joined = 'mx.cloudflare.net; dkim=none; spf=fail smtp.mailfrom=example.org; dmarc=fail header.from=example.org, forged.example; dkim=pass header.d=example.org; dmarc=pass'
+    expect(parseAuthResults(joined)).toEqual({ dkim: 'none', spf: 'fail', dmarc: 'fail' })
   })
 
   it('returns nothing for a missing header', () => {
@@ -42,14 +52,24 @@ describe('parseAuthResults', () => {
 })
 
 describe('isSenderAuthenticated', () => {
-  it('accepts a DKIM or DMARC pass', () => {
-    expect(isSenderAuthenticated({ dkim: 'pass' })).toBe(true)
-    expect(isSenderAuthenticated({ dmarc: 'pass', dkim: 'fail' })).toBe(true)
+  it('accepts a DMARC pass (already aligned with From)', () => {
+    expect(isSenderAuthenticated({ dmarc: 'pass', dkim: 'fail' }, 'me@example.org')).toBe(true)
+  })
+
+  it('accepts a DKIM pass signed by the From domain or a parent of it', () => {
+    expect(isSenderAuthenticated({ dkim: 'pass', dkimPassDomains: ['example.org'] }, 'me@example.org')).toBe(true)
+    expect(isSenderAuthenticated({ dkim: 'pass', dkimPassDomains: ['example.org'] }, 'me@mail.example.org')).toBe(true)
+  })
+
+  it('rejects a DKIM pass from some other domain', () => {
+    expect(isSenderAuthenticated({ dkim: 'pass', dkimPassDomains: ['attacker.test'] }, 'me@example.org')).toBe(false)
+    expect(isSenderAuthenticated({ dkim: 'pass', dkimPassDomains: ['notexample.org'] }, 'me@example.org')).toBe(false)
+    expect(isSenderAuthenticated({ dkim: 'pass' }, 'me@example.org')).toBe(false)
   })
 
   it('rejects SPF alone (it checks the envelope, not the From the user sees)', () => {
-    expect(isSenderAuthenticated({ spf: 'pass' })).toBe(false)
-    expect(isSenderAuthenticated({})).toBe(false)
+    expect(isSenderAuthenticated({ spf: 'pass' }, 'me@example.org')).toBe(false)
+    expect(isSenderAuthenticated({}, 'me@example.org')).toBe(false)
   })
 })
 

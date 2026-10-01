@@ -91,6 +91,20 @@ describe('GET /api/v1/search/semantic', () => {
     const result = await (semanticSearchHandler as HandlerFn)(publicEvent('ghost')) as { results: unknown[] }
     expect(result.results).toEqual([])
   })
+
+  it('drops matches that are no longer published and public, even if their vector lingers', async () => {
+    const db = getCurrentTestDb()
+    const draft = await seedContentItem(db, SITE, typeId, { title: 'Secret draft', slug: 'secret-draft', status: 'draft' })
+    const members = await seedContentItem(db, SITE, typeId, { title: 'Members only', slug: 'members-only', visibility: 'members' })
+    mockSemanticSearch.mockResolvedValueOnce([
+      { contentItemId: draft, score: 0.9, title: 'Secret draft' },
+      { contentItemId: members, score: 0.8, title: 'Members only' },
+      { contentItemId: itemB, score: 0.7, title: 'Stale title from the vector' },
+    ])
+    const result = await (semanticSearchHandler as HandlerFn)(publicEvent('secret')) as { results: { id: string; title: string }[] }
+    // Title comes from the row, not the vector metadata.
+    expect(result.results).toEqual([{ id: itemB, title: 'Companion Planting', score: 0.7, slug: 'companion-planting' }])
+  })
 })
 
 describe('GET /api/v1/content/:id/related', () => {

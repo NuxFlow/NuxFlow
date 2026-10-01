@@ -1,82 +1,16 @@
-import type { H3Event } from 'h3'
 import { useDb, useReplicaDb, type Db } from '../../../utils/db'
 import { trackPageView } from '../../../utils/analytics'
-import { contentItems, contentTypes, membershipTiers, sites, subscriptions, users } from '@nuxflow/db/schema'
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { contentItems, contentTypes, sites, users } from '@nuxflow/db/schema'
+import { and, eq } from 'drizzle-orm'
 import { withEdgeCache } from '../../../utils/edge-cache'
 import { findRedirect } from '../../../utils/redirect-cache'
 import { findPreviewItem } from '../../../utils/preview'
 import { findPublishedPage, parseLocalePath } from '../../../utils/public-page'
 import { effectiveItemRobots, getSeoSettings, publicPathForItem } from '../../../utils/seo'
 import { getPublicItemTerms, termArchivePath } from '../../../utils/taxonomy'
+import { checkContentAccess } from '../../../utils/content-access'
 
 type ContentItemRow = typeof contentItems.$inferSelect
-
-async function checkContentAccess(event: H3Event, page: { visibility: string; settings: Record<string, unknown> | null | undefined }, siteId: string) {
-  const visibility = page.visibility ?? 'public'
-  if (visibility === 'public') return null
-
-  // private pages are never accessible via public API
-  if (visibility === 'private') return { blocked: true, reason: 'private' as const, requiredTier: null, tiers: [] }
-
-  // members-only: check active subscription
-  if (visibility === 'members') {
-    const access = (page.settings as { access?: string } | null)?.access ?? 'members'
-    if (access === 'public') return null
-
-    const session = await getAuthSession(event).catch(() => null)
-    const apiKeyUserId = event.context.apiKeyUserId as string | undefined
-    const userId = (session?.user?.id as string | undefined) ?? apiKeyUserId
-
-    if (!userId) {
-      const tiers = await fetchTiers(siteId)
-      return { blocked: true, reason: 'members' as const, requiredTier: null, tiers }
-    }
-
-    const db = useDb(event)
-    const requiredTierId = access.startsWith('tier:') ? access.slice(5) : null
-
-    // `status` alone is only as fresh as the last webhook delivery — a failed card during
-    // dunning, or a delayed/dropped webhook, would otherwise leave `status: 'active'`
-    // (and therefore full access) indefinitely. currentPeriodEnd is already stored on
-    // every subscription row (webhook-sync.ts, checkout.post.ts's free-tier path included)
-    // and needs no extra network call, so require it to still be in the future too —
-    // access fails closed when the webhook stream stalls, rather than staying open until
-    // one eventually arrives. `isNull` covers legacy/free rows with no period recorded.
-    // 'trialing' must grant access too — otherwise a user actively paying for (or in) a
-    // trial period is denied the exact content the trial exists to let them evaluate.
-    const activeSub = await db.query.subscriptions.findFirst({
-      where: and(
-        eq(subscriptions.userId, userId),
-        eq(subscriptions.siteId, siteId),
-        inArray(subscriptions.status, ['active', 'trialing']),
-        or(isNull(subscriptions.currentPeriodEnd), sql`datetime(${subscriptions.currentPeriodEnd}) > datetime('now')`),
-      ),
-    })
-
-    if (!activeSub) {
-      const tiers = await fetchTiers(siteId)
-      return { blocked: true, reason: 'members' as const, requiredTier: requiredTierId, tiers }
-    }
-
-    if (requiredTierId && activeSub.tierId !== requiredTierId) {
-      const tiers = await fetchTiers(siteId)
-      return { blocked: true, reason: 'tier' as const, requiredTier: requiredTierId, tiers }
-    }
-  }
-
-  return null
-}
-
-async function fetchTiers(siteId: string) {
-  const db = useDb()
-  const rows = await db.query.membershipTiers.findMany({
-    where: eq(membershipTiers.siteId, siteId),
-    orderBy: (t, { asc }) => [asc(t.price)],
-    columns: { id: true, name: true, price: true, currency: true, interval: true, features: true },
-  })
-  return rows
-}
 
 export default defineEventHandler(async (event) => {
   // Redirect/locale/content lookups below are anonymous, read-only, and already
