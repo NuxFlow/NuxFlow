@@ -118,21 +118,15 @@ Check your internet connection and try again.`);
     [
       `  cd ${relDir}`,
       installNote,
-      "  # 1. Create your Cloudflare D1 database:",
-      "  wrangler login",
+      "  # Try it locally (a local database is created for you):",
       "  cd apps/nuxflow",
-      "  wrangler d1 create nuxflow",
-      "",
-      "  # 2. Paste the returned database_id into:",
-      `  #    ${relDir}/apps/nuxflow/wrangler.toml  \u2192  [[d1_databases]]`,
-      "",
-      "  # 3. Start the local dev server:",
-      "  wrangler dev",
-      "",
+      "  pnpm exec wrangler dev",
       "  # \u2192 Visit http://localhost:8787/setup to finish setup",
       "",
-      "  # 4. When ready to go live:",
-      "  pnpm run deploy"
+      "  # Go live on Cloudflare \u2014 create the D1 database, KV namespace and",
+      "  # R2 bucket, deploy, then add the auth secret. Step by step:",
+      `  #   ${DOCS_URL}`,
+      "  # (The .env created here is for local development only.)"
     ].filter((line) => line !== void 0).join("\n"),
     "Next steps"
   );
