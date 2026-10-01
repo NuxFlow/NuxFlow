@@ -3,7 +3,7 @@ import { requireAuth } from '../../../../utils/permissions'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { semanticSearch } from '../../../../utils/embeddings'
 import { contentItems } from '@nuxflow/db/schema'
-import { inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 
 /**
  * Semantic "related content" suggestions for the editor sidebar — internal linking and
@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
   const rows = await db
     .select({ id: contentItems.id, title: contentItems.title, slug: contentItems.slug })
     .from(contentItems)
-    .where(inArray(contentItems.id, ids))
+    .where(and(inArray(contentItems.id, ids), eq(contentItems.siteId, siteId)))
   const rowMap = new Map(rows.map(r => [r.id, r]))
 
   const results = filtered

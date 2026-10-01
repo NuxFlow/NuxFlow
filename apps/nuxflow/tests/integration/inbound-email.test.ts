@@ -339,6 +339,19 @@ describe('email-to-draft', () => {
     expect(await drafts()).toHaveLength(0)
   })
 
+  it('refuses a forged From signed with some other domain\'s DKIM key', async () => {
+    const auth = 'mx.cloudflare.net; dkim=pass header.d=attacker.test; spf=fail smtp.mailfrom=example.org; dmarc=fail header.from=example.org'
+    await receive(message(mime({ from: 'author@example.org', to: `${POST_LOCAL}@acme.test` }), { from: 'author@example.org', to: `${POST_LOCAL}@acme.test`, auth }))
+    expect(await drafts()).toHaveLength(0)
+  })
+
+  it('accepts a DKIM signature from the owner\'s own domain when DMARC isn\'t published', async () => {
+    const auth = 'mx.cloudflare.net; dkim=pass header.d=example.org; spf=pass smtp.mailfrom=example.org; dmarc=none header.from=example.org'
+    await receive(message(mime({ from: 'author@example.org', to: `${POST_LOCAL}@acme.test`, subject: 'Aligned DKIM' }), { from: 'author@example.org', to: `${POST_LOCAL}@acme.test`, auth }))
+    expect(await drafts()).toHaveLength(1)
+    await getCurrentTestDb().delete(contentItems).where(eq(contentItems.authorId, authorId))
+  })
+
   it('refuses when the owner no longer has author access', async () => {
     const db = getCurrentTestDb()
     const exId = await seedUser(db, { email: 'ex@example.org' })

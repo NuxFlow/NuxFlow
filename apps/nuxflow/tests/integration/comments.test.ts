@@ -207,6 +207,44 @@ describe('GET /api/v1/content/:id/comments (public)', () => {
   })
 })
 
+describe('GET /api/v1/content/:id/comments (public) — who sees what', () => {
+  function listAs(userId: string | null, id: string) {
+    return (publicListHandler as Handler)(createMockEvent({
+      siteId: SITE,
+      session: userId ? { user: { id: userId, name: 'U', email: `${userId}@comments.test` } } : null,
+      params: { id },
+    }) as unknown as H3Event) as Promise<{ comments: { id: string }[] }>
+  }
+
+  it('does not show the moderation queue to a plain site member (below editor)', async () => {
+    const memberId = await seedUser(getCurrentTestDb(), { email: 'member-list@comments.test' })
+    await seedRole(getCurrentTestDb(), memberId, SITE, 'member')
+    const pendingId = await seedComment({ status: 'pending', body: 'Queue only' })
+
+    const result = await listAs(memberId, itemId)
+    expect(result.comments.some(c => c.id === pendingId)).toBe(false)
+  })
+
+  it('404s for visitors on a draft, private, or members-only item — but not for moderators', async () => {
+    const db = getCurrentTestDb()
+    const draft = await seedContentItem(db, SITE, typeId, { status: 'draft', publishedAt: null })
+    const priv = await seedContentItem(db, SITE, typeId, { visibility: 'private' })
+    const members = await seedContentItem(db, SITE, typeId, { visibility: 'members' })
+    for (const id of [draft, priv, members]) {
+      await seedComment({ itemId: id, status: 'approved', body: 'Behind the gate' })
+      await expect(listAs(null, id)).rejects.toMatchObject({ statusCode: 404 })
+      await expect(listAs(authorId, id)).rejects.toMatchObject({ statusCode: 404 })
+      expect((await listAs(editorId, id)).comments).toHaveLength(1)
+    }
+  })
+
+  it("shows a members-only item's comments when access is set to public", async () => {
+    const open = await seedContentItem(getCurrentTestDb(), SITE, typeId, { visibility: 'members', settings: { access: 'public' } })
+    await seedComment({ itemId: open, status: 'approved' })
+    expect((await listAs(null, open)).comments).toHaveLength(1)
+  })
+})
+
 describe('POST /api/v1/content/:id/comments', () => {
   it('auto-approves a comment from a real site member', async () => {
     const event = createMockEvent({
@@ -239,6 +277,32 @@ describe('POST /api/v1/content/:id/comments', () => {
 
     const row = await getCurrentTestDb().query.comments.findFirst({ where: eq(comments.id, result.id) })
     expect(row?.status).toBe('pending')
+  })
+
+  // Regression test: any role used to auto-approve — including `member`, which anyone can
+  // get by self-registering where public registration is open.
+  it("holds a plain member's comment for moderation, but auto-approves an author", async () => {
+    const memberId = await seedUser(getCurrentTestDb(), { email: 'member-post@comments.test' })
+    await seedRole(getCurrentTestDb(), memberId, SITE, 'member')
+    const post = (userId: string) => (postHandler as Handler)(createMockEvent({
+      siteId: SITE,
+      session: { user: { id: userId, name: 'U', email: 'u@comments.test' } },
+      params: { id: itemId },
+      body: { body: 'Hello' },
+    }) as unknown as H3Event) as Promise<{ status: string }>
+
+    expect((await post(memberId)).status).toBe('pending')
+    expect((await post(authorId)).status).toBe('approved')
+  })
+
+  it("rejects a guest comment on a members-only item they can't read", async () => {
+    const members = await seedContentItem(getCurrentTestDb(), SITE, typeId, { visibility: 'members' })
+    await expect((postHandler as Handler)(createMockEvent({
+      siteId: SITE,
+      session: null,
+      params: { id: members },
+      body: { body: 'Hi', guestName: 'Guest', guestEmail: 'guest4@example.com' },
+    }) as unknown as H3Event)).rejects.toMatchObject({ statusCode: 403 })
   })
 
   it('leaves an unauthenticated guest comment pending', async () => {

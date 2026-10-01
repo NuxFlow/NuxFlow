@@ -50,6 +50,8 @@ export interface EmailAuthResults {
   spf?: string
   dkim?: string
   dmarc?: string
+  /** Signing domains (`header.d`) of every DKIM signature that passed. */
+  dkimPassDomains?: string[]
 }
 
 /**

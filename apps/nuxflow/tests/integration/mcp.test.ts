@@ -19,6 +19,7 @@ import { seedSite, seedUser, seedRole, seedContentType, seedContentItem } from '
 import { contentItems, auditLogs } from '@nuxflow/db/schema'
 import { eq, and } from 'drizzle-orm'
 import mcpHandler from '../../server/api/v1/mcp'
+import type * as EmbeddingsModule from '../../server/utils/embeddings'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -30,6 +31,16 @@ vi.mock('../../server/utils/db', () => ({
 // integration test covering a rate-limited route (see ai-routes.test.ts, registration.test.ts).
 vi.mock('../../server/utils/rate-limit', () => ({
   rateLimit: vi.fn().mockResolvedValue(undefined),
+}))
+
+const purgeContentCache = vi.fn().mockResolvedValue(undefined)
+vi.mock('../../server/utils/edge-cache', () => ({ purgeContentCache: (...a: unknown[]) => purgeContentCache(...a) }))
+const upsertContentEmbedding = vi.fn().mockResolvedValue(undefined)
+const deleteContentEmbedding = vi.fn().mockResolvedValue(undefined)
+vi.mock('../../server/utils/embeddings', async importOriginal => ({
+  ...(await importOriginal<typeof EmbeddingsModule>()),
+  upsertContentEmbedding: (...a: unknown[]) => upsertContentEmbedding(...a),
+  deleteContentEmbedding: (...a: unknown[]) => deleteContentEmbedding(...a),
 }))
 
 const SITE = 'site-mcp-01'
@@ -285,5 +296,65 @@ describe('POST /api/v1/mcp — search_content tool', () => {
     }
 
     expect(response.result.content[0].text).toContain('read:content')
+  })
+})
+
+describe('POST /api/v1/mcp — content writes keep the edge cache and search index in sync', () => {
+  let editorUserId: string
+
+  beforeAll(async () => {
+    editorUserId = await seedUser(getCurrentTestDb(), { email: 'mcp-editor@test.com' })
+    await seedRole(getCurrentTestDb(), editorUserId, SITE, 'editor')
+  })
+
+  async function call(name: string, args: Record<string, unknown>) {
+    purgeContentCache.mockClear()
+    upsertContentEmbedding.mockClear()
+    deleteContentEmbedding.mockClear()
+    const event = mkMcpEvent({
+      apiKeyUserId: editorUserId,
+      apiKeyRole: 'editor',
+      body: { jsonrpc: '2.0', id: 20, method: 'tools/call', params: { name, arguments: args } },
+    })
+    const response = await (mcpHandler as HandlerFn)(event) as { result: { content: { text: string }[] } }
+    return response.result.content[0]!.text
+  }
+
+  it('unpublishing purges the live page and drops it from semantic search', async () => {
+    const id = await seedContentItem(getCurrentTestDb(), SITE, pageTypeId, { slug: 'mcp-takedown', title: 'Takedown' })
+
+    expect(await call('update_content', { id, status: 'draft' })).toMatch(/^Success/)
+
+    expect(purgeContentCache).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      slugs: ['mcp-takedown'],
+      extraPaths: expect.arrayContaining(['/mcp-takedown']),
+    }))
+    // upsertContentEmbedding removes the vector itself for a non-public/non-published item.
+    expect(upsertContentEmbedding).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ contentItemId: id, status: 'draft' }))
+  })
+
+  it('a slug change purges both the old and the new URL', async () => {
+    const id = await seedContentItem(getCurrentTestDb(), SITE, pageTypeId, { slug: 'mcp-old-slug' })
+
+    await call('update_content', { id, slug: 'mcp-new-slug' })
+
+    const [, opts] = purgeContentCache.mock.calls[0]! as [unknown, { slugs: string[] }]
+    expect(opts.slugs).toEqual(expect.arrayContaining(['mcp-old-slug', 'mcp-new-slug']))
+  })
+
+  it('deleting purges the page and deletes its vector', async () => {
+    const id = await seedContentItem(getCurrentTestDb(), SITE, pageTypeId, { slug: 'mcp-deleted' })
+
+    expect(await call('delete_content', { id })).toMatch(/^Success/)
+
+    expect(purgeContentCache).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ slugs: ['mcp-deleted'] }))
+    expect(deleteContentEmbedding).toHaveBeenCalledWith(expect.anything(), id)
+  })
+
+  it('creating a published item purges its URL and embeds it', async () => {
+    expect(await call('create_content', { title: 'Fresh', slug: 'mcp-fresh', status: 'published' })).toMatch(/^Success/)
+
+    expect(purgeContentCache).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ slugs: ['mcp-fresh'] }))
+    expect(upsertContentEmbedding).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ status: 'published', title: 'Fresh' }))
   })
 })

@@ -1,6 +1,6 @@
 import { useReplicaDb } from '../../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
-import { inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { rateLimit } from '../../../utils/rate-limit'
 import { semanticSearch } from '../../../utils/embeddings'
 
@@ -29,18 +29,29 @@ export default defineEventHandler(async (event) => {
 
   const db = useReplicaDb(event)
   const ids = matches.map(m => m.contentItemId)
+  // Re-checked here rather than trusting that a vector only exists for public content:
+  // removing one is best-effort and asynchronous (embeddings.ts), so a just-unpublished or
+  // members-only item can still match for a while. Title comes from the row, not the
+  // vector's metadata, for the same reason.
   const items = await db
-    .select({ id: contentItems.id, slug: contentItems.slug })
+    .select({ id: contentItems.id, slug: contentItems.slug, title: contentItems.title })
     .from(contentItems)
-    .where(inArray(contentItems.id, ids))
-  const slugMap = new Map(items.map(i => [i.id, i.slug]))
+    .where(and(
+      inArray(contentItems.id, ids),
+      eq(contentItems.siteId, siteId),
+      eq(contentItems.status, 'published'),
+      eq(contentItems.visibility, 'public'),
+    ))
+  const itemMap = new Map(items.map(i => [i.id, i]))
 
-  const results = matches.map(m => ({
-    id: m.contentItemId,
-    title: m.title ?? '',
-    score: m.score,
-    slug: slugMap.get(m.contentItemId) ?? null,
-  })).filter(r => r.slug !== null) // a matched vector whose content item was since deleted
+  const results = matches
+    .filter(m => itemMap.has(m.contentItemId))
+    .map(m => ({
+      id: m.contentItemId,
+      title: itemMap.get(m.contentItemId)!.title,
+      score: m.score,
+      slug: itemMap.get(m.contentItemId)!.slug,
+    }))
 
   return { available: true, results }
 })
