@@ -13,7 +13,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { ulid } from 'ulid'
-import { contentRevisions } from '@nuxflow/db/schema'
+import { aiGenerationJobs, contentRevisions } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { seedSite, seedUser, seedContentType, seedContentItem } from '../helpers/seed'
 import { pruneOldData } from '../../server/scheduled/prune-old-data'
@@ -28,6 +28,7 @@ const TOTAL_OVERFLOWING_ITEMS = 105
 const MAX_OVERFLOW_ITEMS_PER_RUN = 100 // mirrors the constant in prune-old-data.ts
 
 const itemIds: string[] = []
+let userId: string
 let originalConfig: typeof globalThis.useRuntimeConfig
 
 beforeAll(async () => {
@@ -35,7 +36,7 @@ beforeAll(async () => {
   const db = getCurrentTestDb()
 
   await seedSite(db, { id: SITE, domain: 'prune.localhost' })
-  await seedUser(db, { email: 'admin@prune.test' })
+  userId = await seedUser(db, { email: 'admin@prune.test' })
   const typeId = await seedContentType(db, SITE, { slug: 'post', name: 'Posts', singularName: 'Post' })
 
   // revisionRetentionCount is forced to 1 for this test so every item only needs 2
@@ -103,5 +104,34 @@ describe('pruneOldData() revision cap', () => {
   it('returns zero for every category once nothing is left to prune', async () => {
     const result = await pruneOldData()
     expect(result.prunedRevisions).toBe(0)
+  })
+})
+
+describe('pruneOldData() AI generation jobs', () => {
+  // Jobs are driven step-by-step by the admin page, so a job whose tab was closed for good
+  // just stops — the prune marks it failed after a week, and removes finished jobs after 90 days.
+  it('fails jobs abandoned mid-run, deletes old finished jobs, and leaves recent ones alone', async () => {
+    const db = getCurrentTestDb()
+    const old = '2020-01-01 00:00:00'
+    const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000).toISOString().replace('T', ' ').slice(0, 19)
+    const job = (id: string, status: 'generating' | 'planning' | 'complete', updatedAt?: string) => ({
+      id, siteId: SITE, userId, prompt: 'A site', type: 'site' as const, status, ...(updatedAt && { updatedAt }),
+    })
+    await db.insert(aiGenerationJobs).values([
+      job('job-abandoned', 'generating', tenDaysAgo),
+      job('job-abandoned-plan', 'planning', tenDaysAgo),
+      job('job-old-done', 'complete', old),
+      job('job-recent', 'generating'),
+    ])
+
+    const result = await pruneOldData()
+
+    expect(result.abandonedAiJobs).toBe(2)
+    const rows = await db.query.aiGenerationJobs.findMany()
+    const byId = new Map(rows.map(r => [r.id, r]))
+    expect(byId.get('job-abandoned')?.status).toBe('failed')
+    expect(byId.get('job-abandoned')?.error).toMatch(/Abandoned/)
+    expect(byId.has('job-old-done')).toBe(false)
+    expect(byId.get('job-recent')?.status).toBe('generating')
   })
 })

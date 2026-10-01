@@ -85,101 +85,58 @@ function onAiImageGenerated(url: string) {
 }
 
 // ── Bulk alt text ─────────────────────────────────────────────────────────────
+// The endpoint handles a small batch per request, inline (see bulk-alt-text.post.ts for why
+// it no longer runs in the background), so this just calls it in a loop while it reports
+// more images waiting, updating the library as each batch lands. Images that fail are sent
+// back as `skipIds` so they aren't retried on every batch. Bounded by BULK_ALT_MAX_BATCHES
+// so a server-side bug that always reports `hasMore` can't spin into an unbounded loop of
+// AI-provider calls.
+const BULK_ALT_MAX_BATCHES = 200 // x 5 images = up to 1000 images per click
+type BulkAltTextResponse = { processed: number; skipped: number; updated: Array<{ id: string; altText: string }>; failed: string[]; hasMore: boolean }
 const bulkAltLoading = ref(false)
-type BulkAltTextResponse = { processed?: number; skipped?: number; total?: number; processing?: boolean; mediaIds?: string[]; capped?: boolean; remaining?: number }
-const bulkAltResult = ref<BulkAltTextResponse | null>(null)
+const bulkAltProgress = ref({ done: 0, failed: 0 })
+let bulkAltCancelled = false
 const toast = useToast()
 
-// The bulk alt-text endpoint fires a background `waitUntil` job on Cloudflare and
-// returns immediately with `{ processing: true, mediaIds }` — there's no push/webhook
-// telling us when it finishes, so poll the media list (mirrors the video-processing
-// poller in videos.vue, both built on the shared usePollingUntil()) until every
-// targeted item has non-empty alt text, or bail out after a couple of minutes with a
-// "still processing" toast rather than polling forever.
-//
-// The endpoint also caps how many images it processes per invocation (currently 50 — see
-// MAX_IMAGES_PER_RUN in bulk-alt-text.post.ts) and reports `capped`/`remaining` when the
-// media library has more untagged images than that. When a batch finishes and more remain,
-// automatically kick off the next batch rather than requiring a manual re-click — bounded
-// by BULK_ALT_MAX_ROUNDS so a server-side bug that always reports `capped: true` can't spin
-// this into an unbounded loop of AI-provider calls.
-const BULK_ALT_POLL_INTERVAL_MS = 5000
-const BULK_ALT_POLL_TIMEOUT_MS = 2 * 60 * 1000
-const BULK_ALT_MAX_ROUNDS = 20 // 20 x 50-image batches = up to 1000 images per click
-let bulkAltRound = 0
-let bulkAltTargetIds: string[] = []
-let bulkAltCapped = false
+onBeforeUnmount(() => { bulkAltCancelled = true })
 
-const bulkAltPoll = usePollingUntil({
-  intervalMs: BULK_ALT_POLL_INTERVAL_MS,
-  timeoutMs: BULK_ALT_POLL_TIMEOUT_MS,
-  onTick: refresh,
-  until: () => bulkAltTargetIds.every((id) => {
-    const file = files.value.find(f => f.id === id)
-    return !!file?.altText
-  }),
-  onComplete: async () => {
-    if (bulkAltCapped && bulkAltRound < BULK_ALT_MAX_ROUNDS) {
-      toast.add({ title: 'Batch complete — starting next batch…', color: 'info' })
-      await runBulkAltTextBatch()
-    } else if (bulkAltCapped) {
-      toast.add({
-        title: 'More images remain',
-        description: 'Click "Generate alt text" again to continue processing the rest of the library.',
-        color: 'warning',
-      })
-    } else {
-      toast.add({ title: 'Alt text generation complete', color: 'success' })
-    }
-  },
-  onTimeout: () => {
-    toast.add({
-      title: 'Still processing',
-      description: 'Alt text generation is taking longer than expected — refresh the page later to see the results.',
-      color: 'warning',
-    })
-  },
-})
-
-function startBulkAltPoller(targetIds: string[], capped: boolean) {
-  if (!targetIds.length) {
-    bulkAltPoll.stop()
-    return
-  }
-  bulkAltTargetIds = targetIds
-  bulkAltCapped = capped
-  bulkAltPoll.start()
-}
-
-// Entry point for a manual click — resets the round counter so a fresh click always gets
-// the full BULK_ALT_MAX_ROUNDS budget, regardless of how many auto-continuation rounds a
-// previous click already used.
 async function runBulkAltText() {
-  bulkAltRound = 0
-  await runBulkAltTextBatch()
-}
-
-async function runBulkAltTextBatch() {
   bulkAltLoading.value = true
-  bulkAltResult.value = null
-  bulkAltRound++
+  bulkAltCancelled = false
+  bulkAltProgress.value = { done: 0, failed: 0 }
+  const skipIds: string[] = []
   try {
-    const res = await $fetch<BulkAltTextResponse>('/api/v1/ai/bulk-alt-text', {
-      method: 'POST',
-      body: {},
-    })
-    bulkAltResult.value = res
-    if (res.processing) {
-      toast.add({ title: `Generating alt text for ${res.total} images in background…`, color: 'info' })
-      startBulkAltPoller(res.mediaIds ?? [], !!res.capped)
-    } else if (res.processed !== undefined) {
-      toast.add({ title: `Alt text generated for ${res.processed} image${res.processed !== 1 ? 's' : ''}`, color: 'success' })
-      await refresh()
+    for (let batch = 0; batch < BULK_ALT_MAX_BATCHES && !bulkAltCancelled; batch++) {
+      const res = await $fetch<BulkAltTextResponse>('/api/v1/ai/bulk-alt-text', {
+        method: 'POST',
+        body: { skipIds },
+      })
+      skipIds.push(...res.failed)
+      bulkAltProgress.value = { done: bulkAltProgress.value.done + res.processed, failed: bulkAltProgress.value.failed + res.skipped }
+      for (const { id, altText } of res.updated) {
+        const file = files.value.find(f => f.id === id)
+        if (file) file.altText = altText
+      }
+      if (!res.hasMore) break
     }
-  } catch {
-    toast.add({ title: 'Failed to generate alt text', color: 'error' })
-  } finally {
+    const { done, failed } = bulkAltProgress.value
+    if (!done && !failed) {
+      toast.add({ title: 'Every image already has alt text', color: 'info' })
+    }
+    else {
+      toast.add({
+        title: `Alt text generated for ${done} image${done !== 1 ? 's' : ''}`,
+        description: failed ? `${failed} image${failed !== 1 ? 's' : ''} couldn't be processed — check the AI provider settings, or try those again later.` : undefined,
+        color: failed ? 'warning' : 'success',
+      })
+    }
+  }
+  catch (e: unknown) {
+    toast.add({ title: 'Failed to generate alt text', description: getErrorMessage(e, ''), color: 'error' })
+  }
+  finally {
     bulkAltLoading.value = false
+    await refresh()
   }
 }
 
@@ -274,8 +231,8 @@ async function generateDetailAltText() {
       body: { mediaId: detail.value.id },
     })
     detailForm.value = { ...detailForm.value, altText: res.altText }
-  } catch {
-    // AI not configured — fail silently
+  } catch (e: unknown) {
+    toast.add({ title: "Couldn't generate alt text", description: getErrorMessage(e, 'Check the AI provider in Settings → AI.'), color: 'error' })
   } finally {
     detailAiLoading.value = false
   }
@@ -378,12 +335,11 @@ function copyUrl(url: string) {
           icon="i-lucide-sparkles"
           variant="outline"
           size="sm"
-          :loading="bulkAltLoading || bulkAltPoll.pending.value"
-          :disabled="bulkAltPoll.pending.value"
-          :title="bulkAltPoll.pending.value ? 'Alt text is generating in the background…' : 'Generate alt text for all images missing it'"
+          :loading="bulkAltLoading"
+          title="Generate alt text for all images missing it"
           @click="runBulkAltText"
         >
-          Auto alt text
+          {{ bulkAltLoading ? `Alt text… ${bulkAltProgress.done + bulkAltProgress.failed} done` : 'Auto alt text' }}
         </UButton>
         <UButton icon="i-lucide-upload" :loading="uploading" @click="fileInput?.click()">
           Upload

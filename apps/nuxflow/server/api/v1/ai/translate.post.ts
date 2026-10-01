@@ -9,10 +9,13 @@ import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { buildAuditLogInsert } from '../../../utils/audit'
 import { getContentItemOrThrow } from '../../../utils/content-queries'
+import { applyCanvasTranslations, collectCanvasStrings } from '@nuxflow/canvas/ai'
+import type { CanvasBlockData } from '@nuxflow/canvas'
 
 const bodySchema = z.object({
   contentItemId: z.string(),
-  targetLocale: z.string().min(2).max(10),
+  // Becomes the translation's URL prefix (/es/about), so only a real language-tag shape.
+  targetLocale: z.string().regex(/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/, 'Use a language code such as "es" or "pt-BR"'),
   targetSlugSuffix: z.string().optional(),
 })
 
@@ -21,7 +24,7 @@ const bodySchema = z.object({
 // comments: the model doesn't always comply with a "return ONLY valid JSON" instruction, and
 // this route used to need its own markdown-code-fence-stripping workaround for it. The keys
 // here are dynamic (internal string-path identifiers built by extractTipTapStrings/
-// extractCanvasStrings, e.g. "__title__" or "blockId.propKey"), not a fixed set known ahead of
+// collectCanvasStrings, e.g. "__title__" or "blockId.propKey"), not a fixed set known ahead of
 // time, so the schema is a plain string->string record rather than a z.object() with named
 // fields — this preserves the exact same `Record<string, string>` shape the old manual
 // `JSON.parse()` produced, so every consumer below (translations['__title__'], etc.) keeps
@@ -52,81 +55,28 @@ function applyTipTapTranslations(node: unknown, translations: Record<string, str
   return n
 }
 
-// Extract translatable strings from canvas block props.
-// Only string-valued props whose keys suggest text content are extracted.
-const TEXT_PROP_KEYS = new Set([
-  'headline', 'subtext', 'title', 'description', 'content', 'caption', 'quote', 'author',
-  'role', 'company', 'text', 'label', 'btnLabel', 'ctaLabel', 'cta2Label', 'sectionLabel',
-  'sectionTitle', 'sectionDesc', 'feat1Title', 'feat1Desc', 'feat2Title', 'feat2Desc',
-  'feat3Title', 'feat3Desc', 'feat4Title', 'feat4Desc',
-  'copyrightText', 'logoText', 'col1Title', 'col2Title', 'acceptLabel', 'declineLabel',
-  'policyLabel', 'plan1Name', 'plan2Name', 'plan3Name', 'itemsJson', 'plan1Features',
-  'plan2Features', 'plan3Features', 'col1Links', 'col2Links',
-])
+// Translates `bundle` in chunks small enough that the model's reply always fits its
+// output budget — a single call capped at 8,192 tokens used to fail outright (502) on a
+// long page instead of translating it. Chunks run one after another to stay inside the
+// provider's own rate limits.
+const CHUNK_CHARS = 6000
+const MAX_CHUNKS = 40
 
-// Structural shape shared with CanvasBlockData (@nuxflow/canvas) — declared
-// locally to avoid coupling this route to the canvas package for one type.
-interface CanvasBlockLike {
-  id: string
-  props?: Record<string, unknown>
-  children?: Record<string, CanvasBlockLike[]>
-}
-
-function extractCanvasStrings(content: unknown): Map<string, string> {
-  const out = new Map<string, string>()
-  const c = content as { blocks?: CanvasBlockLike[] }
-  if (!Array.isArray(c?.blocks)) return out
-  extractFromBlocks(c.blocks, out)
-  return out
-}
-
-// Recurses into block.children so text nested inside Columns/Container blocks
-// is translated too, not just root-level block props.
-function extractFromBlocks(blocks: CanvasBlockLike[], out: Map<string, string>) {
-  for (const block of blocks) {
-    if (block.props) {
-      for (const [key, val] of Object.entries(block.props)) {
-        if (TEXT_PROP_KEYS.has(key) && typeof val === 'string' && val.trim()) {
-          out.set(`${block.id}.${key}`, val)
-        }
-      }
+function chunkBundle(bundle: Map<string, string>): Array<Record<string, string>> {
+  const chunks: Array<Record<string, string>> = []
+  let current: Record<string, string> = {}
+  let size = 0
+  for (const [key, val] of bundle) {
+    if (size > 0 && size + val.length > CHUNK_CHARS) {
+      chunks.push(current)
+      current = {}
+      size = 0
     }
-    if (block.children) {
-      for (const slotBlocks of Object.values(block.children)) {
-        extractFromBlocks(slotBlocks, out)
-      }
-    }
+    current[key] = val
+    size += val.length + key.length
   }
-}
-
-function applyCanvasTranslations(content: unknown, translations: Record<string, string>): unknown {
-  const c = content as { type: string; blocks: CanvasBlockLike[] }
-  return {
-    ...c,
-    blocks: c.blocks.map(block => applyToBlock(block, translations)),
-  }
-}
-
-function applyToBlock(block: CanvasBlockLike, translations: Record<string, string>): CanvasBlockLike {
-  return {
-    ...block,
-    props: block.props
-      ? Object.fromEntries(
-          Object.entries(block.props).map(([key, val]) => {
-            const tKey = `${block.id}.${key}`
-            return [key, translations[tKey] !== undefined ? translations[tKey] : val]
-          }),
-        )
-      : block.props,
-    children: block.children
-      ? Object.fromEntries(
-          Object.entries(block.children).map(([slot, slotBlocks]) => [
-            slot,
-            slotBlocks.map(b => applyToBlock(b, translations)),
-          ]),
-        )
-      : block.children,
-  }
+  if (size > 0) chunks.push(current)
+  return chunks
 }
 
 export default defineEventHandler(async (event) => {
@@ -150,9 +100,9 @@ export default defineEventHandler(async (event) => {
 
   const isCanvas = (source.content as Record<string, unknown> | null)?.type === 'canvas'
 
+  const canvasBlocks = isCanvas ? ((source.content as { blocks?: CanvasBlockData[] }).blocks ?? []) : []
   if (isCanvas) {
-    const canvasStrings = extractCanvasStrings(source.content)
-    canvasStrings.forEach((val, key) => strings.set(key, val))
+    collectCanvasStrings(canvasBlocks).forEach((val, key) => strings.set(key, val))
   } else if (source.content) {
     extractTipTapStrings(source.content, strings, 'root')
   }
@@ -180,24 +130,33 @@ export default defineEventHandler(async (event) => {
     if (slugTaken) throw conflict(`The slug "${newSlug}" is already in use — choose a different slug suffix`)
   }
 
-  const bundle: Record<string, string> = {}
-  strings.forEach((val, key) => { bundle[key] = val })
-  const bundleJson = JSON.stringify(bundle, null, 2)
+  const chunks = chunkBundle(strings)
+  if (chunks.length > MAX_CHUNKS) {
+    throw createError({ statusCode: 413, message: 'This page is too long to translate in one go — split it into smaller pages first' })
+  }
 
-  const { object: translations } = await callAiOrThrow(() =>
-    generateObject({
-      model,
-      schema: translationsSchema,
-      system: `You are a professional translator. You will receive a JSON object where keys are internal identifiers and values are text strings. Translate ALL values to ${targetLocale}, returning an object with exactly the same keys. For HTML values, translate only the visible text inside tags, preserving all HTML tags and attributes exactly. For JSON array strings (like feature lists), translate the text values inside the JSON while keeping the JSON structure valid.`,
-      prompt: `Translate to ${targetLocale}:\n\n${bundleJson}`,
-      maxOutputTokens: Math.min(8192, Math.max(1000, bundleJson.length * 2)),
-    }),
-  )
+  const translations: Record<string, string> = {}
+  for (const chunk of chunks) {
+    const chunkJson = JSON.stringify(chunk, null, 2)
+    const { object } = await callAiOrThrow(() =>
+      generateObject({
+        model,
+        schema: translationsSchema,
+        system: `You are a professional translator. You will receive a JSON object whose keys are internal identifiers and whose values are text. Translate every value into the language with code "${targetLocale}", returning an object with exactly the same keys. For HTML values, translate only the visible text, preserving every tag and attribute exactly. Keep brand names, product names, and URLs unchanged.`,
+        prompt: `Translate to ${targetLocale}:\n\n${chunkJson}`,
+        maxOutputTokens: Math.min(8192, Math.max(1000, chunkJson.length)),
+      }),
+    )
+    // Only keys that were asked for — a hallucinated key must never land in the content.
+    for (const key of Object.keys(chunk)) {
+      if (typeof object[key] === 'string' && object[key].trim()) translations[key] = object[key]
+    }
+  }
 
   // Apply translations back to content
   let translatedContent: unknown = source.content
   if (isCanvas) {
-    translatedContent = applyCanvasTranslations(source.content, translations)
+    translatedContent = { ...(source.content as object), blocks: applyCanvasTranslations(canvasBlocks, translations) }
   } else if (source.content) {
     translatedContent = applyTipTapTranslations(source.content, translations, 'root')
   }

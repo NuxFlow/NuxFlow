@@ -1,5 +1,5 @@
 import { useDb } from '../utils/db'
-import { auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits, siteInvitations, siteAuthCodes, siteSessions } from '@nuxflow/db/schema'
+import { aiGenerationJobs, auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits, siteInvitations, siteAuthCodes, siteSessions } from '@nuxflow/db/schema'
 import { and, count, eq, inArray, lt, ne, notInArray, sql, isNotNull, or } from 'drizzle-orm'
 
 // Bounds how many overflowing content items get their excess revisions pruned in a
@@ -173,6 +173,19 @@ export const pruneOldData = async () => {
   if (expiredCodes[0]?.value) await db.delete(siteAuthCodes).where(lt(siteAuthCodes.expiresAt, nowIso))
   if (expiredSiteSessions[0]?.value) await db.delete(siteSessions).where(lt(siteSessions.expiresAt, nowIso))
 
+  // --- AI generation jobs --- a job is driven one step at a time by the admin page (see
+  // utils/site-generation.ts), so one whose tab was closed for good just stops. After a
+  // week it's marked failed so the history doesn't show it as still running; finished
+  // jobs go after 90 days. The drafts a job created are ordinary content and stay.
+  const sqliteNow = (offsetDays: number) => new Date(Date.now() - offsetDays * 86_400_000).toISOString().replace('T', ' ').slice(0, 19)
+  const abandoned = await db.update(aiGenerationJobs)
+    .set({ status: 'failed', error: 'Abandoned before it finished — start a new generation.', lockedUntil: null })
+    .where(and(inArray(aiGenerationJobs.status, ['planning', 'approved', 'generating']), lt(aiGenerationJobs.updatedAt, sqliteNow(7))))
+    .returning({ id: aiGenerationJobs.id })
+  const expiredJobs = await db.delete(aiGenerationJobs)
+    .where(and(inArray(aiGenerationJobs.status, ['complete', 'failed']), lt(aiGenerationJobs.updatedAt, sqliteNow(90))))
+    .returning({ id: aiGenerationJobs.id })
+
   return {
     prunedAuditLogs,
     prunedRevisions,
@@ -181,6 +194,8 @@ export const pruneOldData = async () => {
     prunedEmailLog,
     prunedSpamEmail: spam.length,
     prunedCrawlerHits,
+    abandonedAiJobs: abandoned.length,
+    prunedAiJobs: expiredJobs.length,
     prunedInvitations: expiredInvites[0]?.value ?? 0,
     prunedSignInCodes: expiredCodes[0]?.value ?? 0,
     prunedSiteSessions: expiredSiteSessions[0]?.value ?? 0,

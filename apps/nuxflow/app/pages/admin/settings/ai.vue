@@ -85,6 +85,18 @@ async function test() {
     testing.value = false
   }
 }
+
+// Flags an address the Worker can never reach (see the template note).
+const isLocalOllamaUrl = computed(() => {
+  try {
+    const host = new URL(form.ollamaBaseUrl || 'http://localhost').hostname
+    return host === 'localhost' || host.endsWith('.local') || host.endsWith('.localhost')
+      || /^(?:127\.|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|0\.)/.test(host) || host === '[::1]'
+  }
+  catch {
+    return false
+  }
+})
 </script>
 
 <template>
@@ -142,8 +154,16 @@ async function test() {
         </template>
 
         <template v-if="form.provider === 'ollama'">
-          <UFormField label="Ollama base URL">
-            <UInput v-model="form.ollamaBaseUrl" placeholder="http://localhost:11434" />
+          <UAlert
+            v-if="isLocalOllamaUrl"
+            color="warning"
+            variant="soft"
+            icon="i-lucide-triangle-alert"
+            title="This address can't be reached from Cloudflare"
+            description="NuxFlow runs on Cloudflare's network, so localhost and private addresses never reach your machine. Expose Ollama at a public HTTPS address (for example with a Cloudflare Tunnel) and enter that here."
+          />
+          <UFormField label="Ollama base URL" help="A public HTTPS address — Cloudflare's servers make the request, not your browser.">
+            <UInput v-model="form.ollamaBaseUrl" class="w-full" placeholder="https://ollama.example.com" />
           </UFormField>
           <UFormField label="Model">
             <UInput v-model="form.ollamaModel" placeholder="llama3.2" />

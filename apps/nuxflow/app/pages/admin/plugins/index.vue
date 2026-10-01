@@ -261,7 +261,7 @@ async function dynUninstall(id: string, name: string) {
               v-model="jsonPayloadText"
               :rows="3"
               placeholder='Paste fully signed plugin JSON payload here...'
-              class="font-mono text-xs"
+              class="font-mono text-xs w-full"
               @input="handlePasteJson"
             />
           </div>
@@ -306,15 +306,15 @@ async function dynUninstall(id: string, name: string) {
           </UFormField>
 
           <UFormField label="Server module (base64)" hint="Self-contained ES module exporting a fetch handler">
-            <UTextarea v-model="installForm.serverModule" :rows="3" placeholder="base64-encoded server module..." class="font-mono text-xs" />
+            <UTextarea v-model="installForm.serverModule" :rows="3" placeholder="base64-encoded server module..." class="font-mono text-xs w-full" />
           </UFormField>
 
           <UFormField label="Client bundle (base64)" hint="ES module exporting renderBlock(blockId, vue) — runs sandboxed in an iframe, never in this app">
-            <UTextarea v-model="installForm.clientBundle" :rows="3" placeholder="base64-encoded client bundle..." class="font-mono text-xs" />
+            <UTextarea v-model="installForm.clientBundle" :rows="3" placeholder="base64-encoded client bundle..." class="font-mono text-xs w-full" />
           </UFormField>
 
           <UFormField label="Block definitions (base64)" hint="Raw text of src/blocks.json — plain data, never executed">
-            <UTextarea v-model="installForm.blockDefinitions" :rows="3" placeholder="base64-encoded blocks.json..." class="font-mono text-xs" />
+            <UTextarea v-model="installForm.blockDefinitions" :rows="3" placeholder="base64-encoded blocks.json..." class="font-mono text-xs w-full" />
           </UFormField>
 
           <div class="flex justify-end gap-2 border-t border-gray-100 dark:border-gray-800 pt-3">

@@ -158,6 +158,7 @@ async function submitComment(form: FormState, parentId: string | null = null) {
                     v-if="loggedIn"
                     :id="`reply-input-${root.id}`"
                     v-model="getReplyForm(root.id).body"
+                    class="w-full"
                     :rows="2"
                     size="sm"
                     placeholder="Write a reply…"
@@ -165,6 +166,7 @@ async function submitComment(form: FormState, parentId: string | null = null) {
                   <UTextarea
                     v-else
                     v-model="getReplyForm(root.id).body"
+                    class="w-full"
                     :rows="2"
                     size="sm"
                     placeholder="Write a reply…"
@@ -219,7 +221,7 @@ async function submitComment(form: FormState, parentId: string | null = null) {
           </div>
         </template>
         <UFormField label="Comment" required>
-          <UTextarea v-model="rootForm.body" :rows="4" placeholder="Share your thoughts…" />
+          <UTextarea v-model="rootForm.body" class="w-full" :rows="4" placeholder="Share your thoughts…" />
         </UFormField>
         <p v-if="rootForm.error" class="text-sm text-red-500">{{ rootForm.error }}</p>
         <div class="flex items-center justify-between">

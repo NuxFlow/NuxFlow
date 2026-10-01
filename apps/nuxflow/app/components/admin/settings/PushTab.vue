@@ -172,7 +172,7 @@ onMounted(() => fetchPushSubscriberCount())
         <UInput v-model="broadcastTitle" placeholder="Notification title" :disabled="!push.vapidPublicKey" />
       </UFormField>
       <UFormField label="Message">
-        <UTextarea v-model="broadcastBody" placeholder="Notification body text" :disabled="!push.vapidPublicKey" />
+        <UTextarea v-model="broadcastBody" class="w-full" placeholder="Notification body text" :disabled="!push.vapidPublicKey" />
       </UFormField>
       <UFormField label="Link (optional)" hint="Absolute path e.g. /blog/my-post">
         <UInput v-model="broadcastUrl" placeholder="https://yoursite.com/page" :disabled="!push.vapidPublicKey" />

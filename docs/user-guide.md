@@ -223,16 +223,21 @@ Available inline while editing a page or post:
 - **Improve Writing** — select any text and ask the AI to make it more professional, shorter, longer, or simpler.
 - **Grammar & Style Check** — catches and fixes grammar and style issues.
 - **SEO Generation** — suggests a meta title and description based on your content, in the SEO panel.
-- **Readability Check** — scores your content's reading ease (in the style of Yoast's readability check), with specific flagged sentences and suggested fixes. Lives in the same SEO panel as the SEO generator; prose pages only, since a Canvas page has no single body of text to score.
-- **Alt Text** — generates descriptive alt text for images, one at a time or in bulk for your whole media library (**Admin → Media → Bulk alt text**).
+- **Readability Check** — scores your content's reading ease with the standard Flesch Reading Ease and Flesch-Kincaid grade formulas (English text — other languages get the AI's estimate), plus specific flagged sentences and suggested fixes. Lives in the same SEO panel as the SEO generator; prose pages only, since a Canvas page has no single body of text to score.
+- **Alt Text** — generates descriptive alt text for images, one at a time or in bulk for your whole media library (**Admin → Media → Auto alt text**). Bulk runs work through the library a few images at a time while the page shows progress — keep the tab open until it finishes.
+- **Focal Point** — the ✨ button next to an image's focal point (in the media library, or on an Image block's settings) asks the AI where the subject is and sets the focal point for you.
+- **Dictation** — the **Dictate** button on AI prompt boxes records from your microphone and types what you say (needs the Workers AI binding).
 
 ### Generate with AI
-**Admin → Content → Generate with AI** — describe a single page or an entire small site in plain language, and NuxFlow drafts it as ready-to-edit Canvas blocks:
-- **Single page** — one prompt, one generated draft, ready in seconds.
-- **Full site** — NuxFlow first proposes a **plan**: a list of pages with titles and descriptions, for you to review. Approve it, and each page generates as a separate draft (a multi-page site can take a minute or two — you can navigate away and come back, progress is saved and resumes where it left off). Every generated page lands as an ordinary draft in **Admin → Content** — review, edit, and publish each one like anything else.
+**Admin → Content → Generate with AI** — describe a single page or an entire small site in plain language, pick a tone, and NuxFlow builds it from your site's real Canvas blocks — including forms, post lists, membership plans, and images from your media library when your site has them.
+- **Single page** — one prompt, one generated draft.
+- **Full site** — NuxFlow first proposes a **plan**: a list of pages with titles, URLs, and descriptions. Edit it before anything is generated — rename or reorder pages, rewrite what each should contain, remove pages, or add your own. Then each page is generated in turn; keep the tab open while it runs (if you leave, the generation pauses — reopen it from **Recent generations** to resume where it stopped).
+- **Review before publishing** — nothing goes live on its own. Every page lands as a draft, and the review screen lets you preview each one inline, open the full themed preview, **Regenerate** any page you don't like, discard pages, and then **Publish all** in one click.
+
+The **AI Generate** button inside the Canvas editor works the same way for the page you're editing: the result opens as a preview right on the canvas, where you can **Keep** it, **Regenerate** it, or **Discard** it to get your page back exactly as it was. You can also choose to add the generated sections after your existing blocks instead of replacing them.
 
 ### AI Image Generation
-Generate an image from a text prompt directly in the media picker — it's saved straight to your media library alongside your regular uploads.
+Generate an image from a text prompt (square, landscape, or portrait) from **Admin → Media → AI Image** — it's saved straight to your media library alongside your regular uploads. It uses OpenAI or Google Gemini when you've added one of their keys, otherwise Workers AI.
 
 ### AI-Powered Translation
 See **Multilingual Support** above — the **Translate** button uses the same AI providers as everything on this page.

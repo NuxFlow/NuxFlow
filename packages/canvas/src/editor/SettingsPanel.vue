@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { CanvasBlockData, CanvasBlockDefinition } from '../types'
 import FieldRenderer from './FieldRenderer.vue'
+import { normalizeImageValue } from '../utils/json'
 
 const props = defineProps<{
   block: CanvasBlockData
@@ -22,6 +23,43 @@ const emit = defineEmits<{
 const visibleFields = computed(() =>
   props.definition.fields.filter(f => !f.condition || f.condition(props.block.props)),
 )
+
+// ── AI focal point ───────────────────────────────────────────────────────────
+// Blocks with focalX/focalY sliders (the Image block) get a "Suggest" button that asks a
+// vision model where the subject is (POST /api/v1/ai/suggest-focal-point). The image
+// must be in the site's media library — the server only looks images up there.
+const focalImageUrl = computed(() => {
+  const keys = new Set(visibleFields.value.map(f => f.key))
+  if (!keys.has('focalX') || !keys.has('focalY')) return ''
+  const imageField = props.definition.fields.find(f => f.type === 'image')
+  return imageField ? normalizeImageValue(props.block.props[imageField.key]).url : ''
+})
+const focalLoading = ref(false)
+const focalError = ref('')
+watch(() => props.block.id, () => { focalError.value = '' })
+
+async function suggestFocalPoint() {
+  if (!focalImageUrl.value || focalLoading.value) return
+  focalLoading.value = true
+  focalError.value = ''
+  try {
+    const res = await fetch('/api/v1/ai/suggest-focal-point', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: focalImageUrl.value }),
+    })
+    const data = await res.json().catch(() => ({})) as { focalX?: number; focalY?: number; message?: string }
+    if (!res.ok || data.focalX === undefined || data.focalY === undefined) throw new Error(data.message || 'Could not suggest a focal point')
+    emit('update:prop', 'focalX', data.focalX)
+    emit('update:prop', 'focalY', data.focalY)
+  }
+  catch (e: unknown) {
+    focalError.value = e instanceof Error ? e.message : 'Could not suggest a focal point'
+  }
+  finally {
+    focalLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -99,6 +137,18 @@ const visibleFields = computed(() =>
           :model-value="block.props[field.key]"
           @update:model-value="emit('update:prop', field.key, $event)"
         />
+        <div v-if="field.key === 'focalY' && focalImageUrl" class="mt-2">
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline disabled:opacity-50"
+            :disabled="focalLoading"
+            @click="suggestFocalPoint"
+          >
+            <UIcon :name="focalLoading ? 'i-lucide-loader-2' : 'i-lucide-sparkles'" mode="svg" class="w-3.5 h-3.5" :class="{ 'animate-spin': focalLoading }" />
+            {{ focalLoading ? 'Finding the subject…' : 'Suggest focal point with AI' }}
+          </button>
+          <p v-if="focalError" class="text-xs text-red-500 mt-1">{{ focalError }}</p>
+        </div>
       </div>
 
       <p v-if="!visibleFields.length" class="text-xs text-gray-400 text-center py-4">

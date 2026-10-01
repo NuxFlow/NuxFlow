@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
   // The model needs to actually see the image — a prompt built only from the filename
   // (e.g. "IMG_2384.jpg") gives it nothing to describe and produces plausible-sounding but
   // fabricated alt text, which is worse for accessibility than no alt text at all.
-  const { data, mediaType } = await callAiOrThrow(() => loadImageBytesForAi(file.url, file.mimeType))
+  const { data, mediaType } = await callAiOrThrow(() => loadImageBytesForAi(event, file.url, file.mimeType))
 
   const { text } = await callAiOrThrow(() =>
     generateText({

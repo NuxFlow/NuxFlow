@@ -223,6 +223,17 @@ export function useCanvas(initial?: CanvasContent) {
     history.clear()
   }
 
+  /**
+   * Swaps in a whole new document as ONE undoable step — unlike reset(), which loads a
+   * different document and clears history. Used for AI-generated pages, so applying one
+   * (and discarding it again) can always be undone.
+   */
+  function replaceContent(content: CanvasContent) {
+    recordDiscrete()
+    canvas.value = JSON.parse(JSON.stringify(content))
+    selectedId.value = null
+  }
+
   // ── Serialise ─────────────────────────────────────────────────────────────
 
   function toJSON(): CanvasContent {
@@ -242,6 +253,7 @@ export function useCanvas(initial?: CanvasContent) {
     duplicateBlock,
     selectBlock,
     reset,
+    replaceContent,
     toJSON,
     flushPendingProps,
     undo,

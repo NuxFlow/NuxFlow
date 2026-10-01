@@ -9,7 +9,7 @@
  * config, and which model id was requested.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { H3Event } from 'h3'
+import { createError, type H3Event } from 'h3'
 
 const settingsMap = new Map<string, string>()
 
@@ -18,8 +18,10 @@ vi.mock('../../server/utils/settings', () => ({
 }))
 
 const mockGetWorkersAiBinding = vi.fn()
+const mockR2Get = vi.fn()
 vi.mock('../../server/utils/cf-env', () => ({
   getWorkersAiBinding: (...args: unknown[]) => mockGetWorkersAiBinding(...args),
+  getCfBindings: () => ({ kv: null, loader: null, r2: { get: mockR2Get } }),
 }))
 
 const mockCreateWorkersAI = vi.fn()
@@ -42,7 +44,7 @@ vi.mock('@ai-sdk/google', () => ({
   createGoogleGenerativeAI: (...args: unknown[]) => mockCreateGoogleGenerativeAI(...args),
 }))
 
-const { getAiSdkModel, requireAiSdkModel } = await import('../../server/utils/ai-sdk')
+const { getAiSdkModel, requireAiSdkModel, loadImageBytesForAi, aiErrorMessage } = await import('../../server/utils/ai-sdk')
 
 // Each provider "factory" mock (createWorkersAI/createOpenAI/createAnthropic/
 // createGoogleGenerativeAI) is given a persistent implementation that returns a fn
@@ -172,7 +174,7 @@ describe('getAiSdkModel — BYOK model selection', () => {
     settingsMap.set('ai.gemini_api_key', 'AIza-test')
 
     expect((await getAiSdkModel(fakeEvent(), 'fast') as { __modelId: string }).__modelId).toBe('gemini-3.8-flash')
-    expect((await getAiSdkModel(fakeEvent(), 'smart') as { __modelId: string }).__modelId).toBe('gemini-3.1-pro')
+    expect((await getAiSdkModel(fakeEvent(), 'smart') as { __modelId: string }).__modelId).toBe('gemini-3.1-pro-preview')
   })
 
   it('ollama: defaults to llama3.2 against localhost when unconfigured', async () => {
@@ -219,7 +221,7 @@ describe('getAiSdkModel — AI Gateway routing', () => {
     expect(config.baseURL).toBe('https://gateway.ai.cloudflare.com/v1/acct-123/my-gateway/openai')
   })
 
-  it('gemini: uses the "google-ai-studio" slug, not "google"', async () => {
+  it('gemini: uses the "google-ai-studio" slug (not "google") plus the /v1beta segment the SDK expects', async () => {
     settingsMap.set('ai.provider', 'gemini')
     settingsMap.set('ai.gemini_api_key', 'AIza-test')
     settingsMap.set('ai.gateway_id', 'my-gateway')
@@ -228,7 +230,21 @@ describe('getAiSdkModel — AI Gateway routing', () => {
     await getAiSdkModel(fakeEvent())
 
     const config = mockCreateGoogleGenerativeAI.mock.calls.at(-1)![0] as { baseURL: string }
-    expect(config.baseURL).toBe('https://gateway.ai.cloudflare.com/v1/acct-123/my-gateway/google-ai-studio')
+    // The AI SDK only appends `/models/...` to a custom base URL — without /v1beta every
+    // gateway-routed Gemini call 404'd.
+    expect(config.baseURL).toBe('https://gateway.ai.cloudflare.com/v1/acct-123/my-gateway/google-ai-studio/v1beta')
+  })
+
+  it('anthropic: includes the /v1 segment the AI SDK expects (it only appends /messages)', async () => {
+    settingsMap.set('ai.provider', 'anthropic')
+    settingsMap.set('ai.anthropic_api_key', 'sk-ant-test')
+    settingsMap.set('ai.gateway_id', 'my-gateway')
+    settingsMap.set('cloudflare.account_id', 'acct-123')
+
+    await getAiSdkModel(fakeEvent())
+
+    const config = mockCreateAnthropic.mock.calls.at(-1)![0] as { baseURL: string }
+    expect(config.baseURL).toBe('https://gateway.ai.cloudflare.com/v1/acct-123/my-gateway/anthropic/v1')
   })
 
   it('BYOK: no baseURL override when gateway_id is set but account_id is not (incomplete config)', async () => {
@@ -277,5 +293,54 @@ describe('requireAiSdkModel', () => {
     mockGetWorkersAiBinding.mockReturnValue({ run: vi.fn() })
     const model = await requireAiSdkModel(fakeEvent())
     expect(model).toBeDefined()
+  })
+})
+
+describe('loadImageBytesForAi', () => {
+  // R2 without a public URL stores site-relative /_nuxflow/media/<key> URLs, which fetch()
+  // can't take — these used to make every alt-text/focal-point call fail.
+  it('reads a Worker-served media URL straight from the R2 binding', async () => {
+    mockR2Get.mockResolvedValueOnce({
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+      httpMetadata: { contentType: 'image/webp' },
+    })
+
+    const result = await loadImageBytesForAi(fakeEvent(), '/_nuxflow/media/site-01/photo%20one.webp', 'image/jpeg')
+
+    expect(mockR2Get).toHaveBeenCalledWith('site-01/photo one.webp')
+    expect(result).toEqual({ data: new Uint8Array([1, 2, 3]), mediaType: 'image/webp' })
+  })
+
+  it('refuses a key outside the current site, or a traversal-shaped one', async () => {
+    mockR2Get.mockReset()
+    await expect(loadImageBytesForAi(fakeEvent(), '/_nuxflow/media/other-site/x.jpg', 'image/jpeg')).rejects.toThrow(/not stored under this site/)
+    await expect(loadImageBytesForAi(fakeEvent(), '/_nuxflow/media/site-01/../other-site/x.jpg', 'image/jpeg')).rejects.toThrow(/not stored under this site/)
+    expect(mockR2Get).not.toHaveBeenCalled()
+  })
+
+  it('decodes a data: URL without fetching', async () => {
+    const result = await loadImageBytesForAi(fakeEvent(), 'data:image/png;base64,AQID', 'image/jpeg')
+    expect(result).toEqual({ data: new Uint8Array([1, 2, 3]), mediaType: 'image/png' })
+  })
+
+  it('rejects any other relative or non-http URL', async () => {
+    await expect(loadImageBytesForAi(fakeEvent(), '/uploads/x.jpg', 'image/jpeg')).rejects.toThrow(/Unsupported image URL/)
+    await expect(loadImageBytesForAi(fakeEvent(), 'file:///etc/passwd', 'image/jpeg')).rejects.toThrow(/Unsupported image URL/)
+  })
+})
+
+describe('aiErrorMessage', () => {
+  it('maps provider auth/rate-limit/not-found statuses to actionable copy, ahead of the raw message', () => {
+    expect(aiErrorMessage(Object.assign(new Error('Incorrect API key provided: sk-…'), { statusCode: 401 }))).toMatch(/check your API key/)
+    expect(aiErrorMessage(Object.assign(new Error('Too Many Requests'), { status: 429 }))).toMatch(/rate limit/)
+  })
+
+  it('passes our own H3 errors through unchanged — a 404 lookup isn\'t "model not found"', () => {
+    expect(aiErrorMessage(createError({ statusCode: 404, message: 'Content type not found' }))).toBe('Content type not found')
+  })
+
+  it('falls back to the raw message, then to a generic one', () => {
+    expect(aiErrorMessage(new Error('socket hang up'))).toBe('socket hang up')
+    expect(aiErrorMessage(null)).toBe('AI provider request failed')
   })
 })

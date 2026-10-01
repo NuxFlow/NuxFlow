@@ -69,6 +69,28 @@ function resetFocalPoint() {
   form.value = { ...form.value, focalX: null, focalY: null }
 }
 
+// Vision-model focal point (POST /api/v1/ai/suggest-focal-point) — fills the form like a
+// click on the preview would; nothing is saved until the editor clicks Save.
+const toast = useToast()
+const focalAiLoading = ref(false)
+async function suggestFocalPoint() {
+  if (!props.file) return
+  focalAiLoading.value = true
+  try {
+    const res = await $fetch<{ focalX: number; focalY: number }>('/api/v1/ai/suggest-focal-point', {
+      method: 'POST',
+      body: { mediaId: props.file.id },
+    })
+    form.value = { ...form.value, focalX: res.focalX, focalY: res.focalY }
+  }
+  catch (e: unknown) {
+    toast.add({ title: "Couldn't suggest a focal point", description: getErrorMessage(e, ''), color: 'error' })
+  }
+  finally {
+    focalAiLoading.value = false
+  }
+}
+
 const detailExif = computed<ExifInfo | null>(() => {
   const meta = props.file?.metadata
   return (meta && typeof meta === 'object' && meta.exif) ? (meta.exif as ExifInfo) : null
@@ -128,7 +150,10 @@ watch(() => props.file?.id, () => { copied.value = false })
             <div v-if="isImage(file.mimeType)" class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2.5 py-1 rounded mt-2 border border-gray-100 dark:border-gray-800">
               <span v-if="form.focalX !== null && form.focalY !== null">Focal: {{ form.focalX }}%, {{ form.focalY }}%</span>
               <span v-else class="italic text-gray-400">Click preview to set focal point</span>
-              <UButton v-if="form.focalX !== null || form.focalY !== null" size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" class="h-5 p-1" aria-label="Reset focal point" @click="resetFocalPoint" />
+              <span class="flex items-center gap-1">
+                <UButton size="xs" variant="ghost" icon="i-lucide-sparkles" class="h-5 p-1" :loading="focalAiLoading" aria-label="Suggest focal point with AI" title="Suggest focal point with AI" @click="suggestFocalPoint" />
+                <UButton v-if="form.focalX !== null || form.focalY !== null" size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" class="h-5 p-1" aria-label="Reset focal point" @click="resetFocalPoint" />
+              </span>
             </div>
             <!-- EXIF data -->
             <p v-if="loading && isImage(file.mimeType) && !detailExif" class="text-gray-400 text-xs mt-2 italic">Loading details…</p>

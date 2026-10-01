@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, provide, onMounted, onBeforeUnmount } from 'vue'
 import draggable from 'vuedraggable'
-import type { CanvasContent, CanvasBlockData } from '../types'
+import type { AiGenerateRequest, CanvasContent, CanvasBlockData } from '../types'
 import { isCanvasContent, emptyCanvas } from '../types'
 import { isDescendant } from '../tree'
 import { useCanvas } from './useCanvas'
@@ -29,6 +29,7 @@ const {
   duplicateBlock,
   selectBlock,
   reset,
+  replaceContent,
   toJSON,
   undo,
   redo,
@@ -47,17 +48,42 @@ defineExpose({ flushPendingProps })
 watch(canvas, () => emit('update:modelValue', toJSON()), { deep: true })
 
 watch(() => props.modelValue, (val) => {
-  if (isCanvasContent(val) && JSON.stringify(val) !== JSON.stringify(canvas.value))
+  if (isCanvasContent(val) && JSON.stringify(val) !== JSON.stringify(canvas.value)) {
     reset(val)
+    // A different document was loaded (e.g. a revision restored) — any AI draft under
+    // review belonged to the old one.
+    aiReview.value = null
+  }
 })
 
 // AI generation
 
 const showAiModal = ref(false)
 
-function onAiGenerate(content: CanvasContent) {
-  reset(content)
+// A generated page lands on the canvas as a preview the editor reviews in place — the
+// canvas already renders real blocks, so there's no separate preview surface to keep in
+// sync. `aiReview.before` is the page as it was before the first generation, so
+// "Discard" restores exactly that (even after edits to the draft) and "Regenerate" in
+// append mode replaces only the previously generated sections. Every apply/discard is a
+// normal undoable step (replaceContent) rather than a history-clearing reset().
+const aiReview = ref<{ before: CanvasContent; request: AiGenerateRequest } | null>(null)
+
+function onAiGenerate(content: CanvasContent, request: AiGenerateRequest) {
+  const before = aiReview.value?.before ?? toJSON()
+  replaceContent(request.mode === 'append'
+    ? { type: 'canvas', blocks: [...before.blocks, ...content.blocks] }
+    : content)
+  aiReview.value = { before, request }
   showAiModal.value = false
+}
+
+function keepAiDraft() {
+  aiReview.value = null
+}
+
+function discardAiDraft() {
+  if (aiReview.value) replaceContent(aiReview.value.before)
+  aiReview.value = null
 }
 
 // ── Block picker ───────────────────────────────────────────────────────────
@@ -202,6 +228,31 @@ function onRootUpdate(list: CanvasBlockData[]) {
       </div>
     </div>
 
+    <!-- AI draft review bar -->
+    <div
+      v-if="aiReview"
+      role="status"
+      class="flex flex-wrap items-center gap-3 px-4 py-2.5 border-b border-primary-200 dark:border-primary-900 bg-primary-50 dark:bg-primary-950/40 text-sm"
+    >
+      <span class="flex items-center gap-2 text-primary-800 dark:text-primary-200 flex-1 min-w-[12rem]">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+        </svg>
+        AI draft — review it on the canvas, then keep or discard it.
+      </span>
+      <div class="flex items-center gap-2">
+        <button type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-red-400 hover:text-red-600 transition-colors" @click="discardAiDraft">
+          Discard
+        </button>
+        <button type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-primary-400 hover:text-primary-600 transition-colors" @click="showAiModal = true">
+          Regenerate
+        </button>
+        <button type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 transition-colors" @click="keepAiDraft">
+          Keep
+        </button>
+      </div>
+    </div>
+
     <!-- Editor body -->
     <div class="relative flex flex-1 overflow-hidden">
       <!-- Canvas area -->
@@ -291,7 +342,8 @@ function onRootUpdate(list: CanvasBlockData[]) {
     <!-- AI generate modal -->
     <AiGenerateModal
       v-if="showAiModal"
-      :has-blocks="blockCount > 0"
+      :has-blocks="(aiReview ? aiReview.before.blocks.length : blockCount) > 0"
+      :initial="aiReview?.request"
       @generate="onAiGenerate"
       @close="showAiModal = false"
     />

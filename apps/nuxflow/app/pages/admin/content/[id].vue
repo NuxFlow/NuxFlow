@@ -432,7 +432,7 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
                 v-model="form.excerpt"
                 placeholder="Brief summary shown in listings and RSS…"
                 :rows="3"
-                class="text-sm"
+                class="text-sm w-full"
               />
             </UFormField>
             <UFormField label="Featured image" class="text-xs">

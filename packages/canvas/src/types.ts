@@ -50,6 +50,32 @@ export interface FieldSchema {
   fields?: FieldSchema[]
   /** Hide this field unless the function returns true for the current block props */
   condition?: (props: Record<string, unknown>) => boolean
+  /**
+   * AI page generation (utils/ai-blocks.ts builds the model's block catalog from these
+   * definitions): `false` = the generator never sets this field (focal points and other
+   * fine-tuning knobs), a string = extra guidance for the model. 'spacing' fields are
+   * always left out, so they need no annotation.
+   */
+  ai?: false | string
+  /**
+   * AI translation only considers text/textarea/richtext/list fields; `false` excludes one
+   * whose value is an identifier rather than copy (icon classes, slugs, exact-match names,
+   * URLs kept in a plain text field) — translating those silently breaks the block.
+   */
+  translatable?: false
+}
+
+/** How the AI page generator may use a block — see utils/ai-blocks.ts. */
+export interface BlockAiMeta {
+  /** Never offered to the generator (e.g. the footer, which the site layout already renders). */
+  exclude?: boolean
+  /** When to use the block, shown to the model alongside its fields. */
+  hint?: string
+  /**
+   * Site capabilities the block needs to render anything useful — the block is only
+   * offered when every one is present in the generation context.
+   */
+  requires?: Array<'media' | 'forms' | 'tiers' | 'events' | 'posts'>
 }
 
 // ── Block definition ──────────────────────────────────────────────────────────
@@ -83,6 +109,8 @@ export interface CanvasBlockDefinition {
    * per declared slot for children to actually appear.
    */
   slots?: BlockSlot[]
+  /** AI page generation metadata — see BlockAiMeta. */
+  ai?: BlockAiMeta
 }
 
 // ── Runtime canvas data ───────────────────────────────────────────────────────
@@ -102,6 +130,15 @@ export interface CanvasBlockData {
 export interface CanvasContent {
   type: 'canvas'
   blocks: CanvasBlockData[]
+}
+
+/** An AI page-generation request, kept by the editor so "Regenerate" can reopen it prefilled. */
+export interface AiGenerateRequest {
+  description: string
+  tone: 'professional' | 'casual' | 'friendly' | 'bold' | 'playful' | 'technical'
+  pageGoal: 'landing' | 'about' | 'product' | 'pricing' | 'contact' | 'blog' | 'general'
+  /** Replace the page's blocks, or add the generated sections after them. */
+  mode: 'replace' | 'append'
 }
 
 export function isCanvasContent(value: unknown): value is CanvasContent {

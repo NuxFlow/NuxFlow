@@ -467,7 +467,7 @@ AI features need **no API key and no third-party account** — just the `[ai]` b
 
 #### Bring-your-own-key providers (OpenAI, Anthropic, Google Gemini, DeepSeek, Ollama)
 
-Go to **Admin → Settings → AI**, choose a provider, and paste in an API key (for Ollama, a base URL pointing at a self-hosted instance instead). Credentials are encrypted at rest. Use this instead of Workers AI if you want a specific frontier model, or already have credits with one of these providers.
+Go to **Admin → Settings → AI**, choose a provider, and paste in an API key (for Ollama, a base URL pointing at a self-hosted instance instead — it must be reachable from the internet, e.g. through a Cloudflare Tunnel: NuxFlow runs on Cloudflare's network, so `localhost` there is never your machine). Credentials are encrypted at rest. Use this instead of Workers AI if you want a specific frontier model, or already have credits with one of these providers.
 
 Environment variable equivalents (deployment-wide fallback, overridden by the per-site Admin UI setting): `NUXT_AI_PROVIDER`, `NUXT_OPENAI_API_KEY`, `NUXT_ANTHROPIC_API_KEY`, `NUXT_GEMINI_API_KEY`, `NUXT_DEEPSEEK_API_KEY`, `NUXT_OLLAMA_URL`, `NUXT_OLLAMA_MODEL`.
 
