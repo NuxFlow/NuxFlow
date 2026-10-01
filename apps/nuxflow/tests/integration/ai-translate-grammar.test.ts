@@ -157,6 +157,51 @@ describe('POST /api/v1/ai/translate', () => {
     expect(mockGenerateObject).not.toHaveBeenCalled()
   })
 
+  it('translates list fields item by item, so their JSON can never be broken, and skips identifier fields', async () => {
+    const db = getCurrentTestDb()
+    const content = {
+      type: 'canvas',
+      blocks: [
+        { id: 'faq', type: 'canvas-accordion', props: { title: 'FAQ', itemsJson: JSON.stringify([{ question: 'Open late?', answer: 'Until 9pm.' }]) } },
+        { id: 'feat', type: 'canvas-features', props: { feat1Icon: 'i-lucide-zap', feat1Title: 'Fast' } },
+        { id: 'img', type: 'canvas-gallery', props: { images: JSON.stringify([{ url: '/a.jpg', alt: 'A latte' }]) } },
+      ],
+    }
+    const src = await seedContentItem(db, SITE, typeId, { slug: 'faq-page', title: 'FAQ page', content })
+    const res = await (translateHandler as Handler)(ev(editorId, { contentItemId: src, targetLocale: 'es' })) as { id: string }
+
+    expect(lastBundle['faq.itemsJson.0.question']).toBe('Open late?')
+    expect(Object.keys(lastBundle)).not.toContain('faq.itemsJson')
+    expect(Object.keys(lastBundle)).not.toContain('feat.feat1Icon')
+    const t = await row(res.id) as { content: { blocks: { props: Record<string, string> }[] } }
+    expect(JSON.parse(t.content.blocks[0]!.props.itemsJson!)).toEqual([{ question: 'ES:Open late?', answer: 'ES:Until 9pm.' }])
+    expect(t.content.blocks[1]!.props).toMatchObject({ feat1Icon: 'i-lucide-zap', feat1Title: 'ES:Fast' })
+    expect(JSON.parse(t.content.blocks[2]!.props.images!)).toEqual([{ url: '/a.jpg', alt: 'ES:A latte' }])
+  })
+
+  it('rejects a target locale that isn\'t a language code (it becomes a URL prefix)', async () => {
+    const src = await seedContentItem(getCurrentTestDb(), SITE, typeId, { slug: 'bad-locale' })
+    await expect((translateHandler as Handler)(ev(editorId, { contentItemId: src, targetLocale: '../admin' }))).rejects.toThrow()
+    expect(mockGenerateObject).not.toHaveBeenCalled()
+  })
+
+  it('splits a long page into several model calls instead of failing at the output limit, and ignores invented keys', async () => {
+    const db = getCurrentTestDb()
+    const blocks = Array.from({ length: 6 }, (_, i) => ({ id: `t${i}`, type: 'canvas-text', props: { content: `<p>${'word '.repeat(400)}${i}</p>` } }))
+    const src = await seedContentItem(db, SITE, typeId, { slug: 'long-page', title: 'Long', content: { type: 'canvas', blocks } })
+    mockGenerateObject.mockImplementation(async ({ prompt }: { prompt: string }) => {
+      const bundle = JSON.parse(prompt.slice(prompt.indexOf('{'))) as Record<string, string>
+      return { object: { ...Object.fromEntries(Object.entries(bundle).map(([k, v]) => [k, `ES:${v}`])), 'evil.injected': '<script>' } }
+    })
+
+    const res = await (translateHandler as Handler)(ev(editorId, { contentItemId: src, targetLocale: 'es' })) as { id: string }
+
+    expect(mockGenerateObject.mock.calls.length).toBeGreaterThan(1)
+    const t = await row(res.id) as { content: { blocks: { id: string; props: Record<string, string> }[] } }
+    expect(t.content.blocks.every(b => b.props.content!.startsWith('ES:'))).toBe(true)
+    expect(JSON.stringify(t.content)).not.toContain('<script>')
+  })
+
   it('404s for an unknown item and surfaces a model failure as 502', async () => {
     await expect((translateHandler as Handler)(ev(editorId, { contentItemId: 'nope', targetLocale: 'es' }))).rejects.toMatchObject({ statusCode: 404 })
     const src = await seedContentItem(getCurrentTestDb(), SITE, typeId, { slug: 'fails' })

@@ -10,7 +10,9 @@ import { ulid } from 'ulid'
 
 const bodySchema = z.object({
   prompt: z.string().min(5).max(1000),
-  size: z.enum(['1024x1024', '1792x1024', '1024x1792']).optional().default('1024x1024'),
+  shape: z.enum(['square', 'landscape', 'portrait']).optional(),
+  // Older clients sent DALL-E 3's pixel sizes; mapped onto a shape.
+  size: z.enum(['1024x1024', '1792x1024', '1024x1792']).optional(),
   quality: z.enum(['standard', 'hd']).optional().default('standard'),
   saveToLibrary: z.boolean().optional().default(true),
 })
@@ -19,15 +21,16 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   await rateLimit(event, { limit: 5, windowMs: 60_000, keyPrefix: 'ai-image' })
 
-  const imageProvider = await getImageProvider(event)
+  const imageProvider = await getImageProvider(event, { userId })
   if (!imageProvider) {
-    throw createError({ statusCode: 503, message: 'No image generation provider available. Configure an OpenAI or Google Gemini key.' })
+    throw createError({ statusCode: 503, message: 'No image generation provider available. Add an OpenAI or Google Gemini key in Settings → AI, or enable the Workers AI binding.' })
   }
 
-  const { prompt, size, quality, saveToLibrary } = await parseBody(event, bodySchema)
+  const { prompt, shape: requestedShape, size, quality, saveToLibrary } = await parseBody(event, bodySchema)
+  const shape = requestedShape ?? (size === '1792x1024' ? 'landscape' : size === '1024x1792' ? 'portrait' : 'square')
   const siteId = event.context.siteId as string
 
-  const imageUrl = await callAiOrThrow(() => imageProvider.generate(prompt, { size, quality }))
+  const imageUrl = await callAiOrThrow(() => imageProvider.generate(prompt, { shape, quality }))
 
   if (!saveToLibrary) {
     return { url: imageUrl, saved: false }
@@ -38,24 +41,13 @@ export default defineEventHandler(async (event) => {
   let mediaId: string | undefined
 
   try {
-    const isDataUrl = imageUrl.startsWith('data:')
-    let imageBlob: Blob
+    // Every provider returns a data: URL (image-providers/index.ts).
+    const commaIdx = imageUrl.indexOf(',')
+    const mime = imageUrl.slice(5, commaIdx).replace(';base64', '') || 'image/png'
+    const bytes = Uint8Array.from(atob(imageUrl.slice(commaIdx + 1)), c => c.charCodeAt(0))
+    const imageBlob = new Blob([bytes], { type: mime })
 
-    if (isDataUrl) {
-      // Imagen returns a base64 data URL
-      const commaIdx = imageUrl.indexOf(',')
-      const header = commaIdx > -1 ? imageUrl.slice(0, commaIdx) : ''
-      const b64 = commaIdx > -1 ? imageUrl.slice(commaIdx + 1) : ''
-      const mime = header.replace('data:', '').replace(';base64', '')
-      const bytes = Uint8Array.from(atob(b64 as string), c => c.charCodeAt(0))
-      imageBlob = new Blob([bytes], { type: mime })
-    } else {
-      // DALL-E returns a temporary HTTPS URL — fetch it
-      const imgRes = await fetch(imageUrl)
-      imageBlob = await imgRes.blob()
-    }
-
-    const ext = imageBlob.type.includes('png') ? 'png' : 'jpg'
+    const ext = imageBlob.type.includes('png') ? 'png' : imageBlob.type.includes('webp') ? 'webp' : 'jpg'
     const filename = `ai-${ulid()}.${ext}`
     const file = new File([imageBlob], filename, { type: imageBlob.type })
 

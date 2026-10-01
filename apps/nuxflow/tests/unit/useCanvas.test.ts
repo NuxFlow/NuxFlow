@@ -310,6 +310,21 @@ describe('useCanvas — undo/redo', () => {
     expect(c.canUndo.value).toBe(false)
     expect(c.canRedo.value).toBe(false)
   })
+
+  it('replaceContent() swaps the document as one undoable step (AI-generated pages)', () => {
+    const c = useCanvas()
+    c.addBlock('canvas-text')
+    const original = c.toJSON()
+
+    c.replaceContent({ type: 'canvas', blocks: [{ id: 'ai-1', type: 'canvas-hero', props: { headline: 'Generated' } }] })
+    expect(c.canvas.value.blocks.map(b => b.id)).toEqual(['ai-1'])
+    expect(c.selectedId.value).toBeNull()
+
+    c.undo()
+    expect(c.toJSON()).toEqual(original)
+    c.redo()
+    expect(c.canvas.value.blocks.map(b => b.id)).toEqual(['ai-1'])
+  })
 })
 
 describe('useCanvas — misc', () => {

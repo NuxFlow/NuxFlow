@@ -27,6 +27,10 @@ const formatOptions = [
   { label: 'FAQ', value: 'faq' },
 ]
 
+function appendDictation(text: string) {
+  generateDescription.value = generateDescription.value ? `${generateDescription.value.trimEnd()} ${text}` : text
+}
+
 async function generateContent() {
   if (generateDescription.value.length < 5) return
   generating.value = true
@@ -40,8 +44,8 @@ async function generateContent() {
     emit('update:modelValue', props.editor?.getJSON())
     generateDescription.value = ''
     emit('close')
-  } catch {
-    generateError.value = 'Generation failed. Check your AI provider settings.'
+  } catch (e: unknown) {
+    generateError.value = getErrorMessage(e, 'Generation failed. Check your AI provider settings.')
   } finally {
     generating.value = false
   }
@@ -51,9 +55,16 @@ async function generateContent() {
 <template>
   <div class="space-y-4">
     <UFormField label="Describe what you want to write">
+      <template #hint>
+        <AiVoiceInput @transcribed="appendDictation" />
+      </template>
       <UTextarea
         v-model="generateDescription"
-        :rows="3"
+        class="w-full"
+        :rows="5"
+        autoresize
+        :maxrows="12"
+        :maxlength="500"
         placeholder="e.g. An introduction to Cloudflare Workers explaining what they are and why developers should use them."
       />
     </UFormField>

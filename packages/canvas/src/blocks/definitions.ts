@@ -9,6 +9,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-layout-template',
     category: 'content',
     component: 'CanvasBlockHero',
+    ai: { hint: 'Opening section of a home, landing, or product page. At most one per page, always first.' },
     thumbnailColor: '#eef2ff',
     fields: [
       { key: 'headline', label: 'Headline', type: 'text', placeholder: 'Your big headline' },
@@ -28,9 +29,9 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
           { label: 'Right', value: 'right' },
         ],
       },
-      { key: 'logoIcon', label: 'Logo icon class (optional)', type: 'text', placeholder: 'i-lucide-layers' },
+      { key: 'logoIcon', translatable: false, label: 'Logo icon class (optional)', type: 'text', placeholder: 'i-lucide-layers' },
       { key: 'showDecorations', label: 'Show glow & grid overlay', type: 'toggle' },
-      { key: 'bgGradient', label: 'Background gradient (CSS)', type: 'text', placeholder: 'linear-gradient(to bottom right, #030712, #111827, #030712)' },
+      { key: 'bgGradient', translatable: false, label: 'Background gradient (CSS)', type: 'text', placeholder: 'linear-gradient(to bottom right, #030712, #111827, #030712)' },
       { key: 'bgColor', label: 'Background colour (fallback)', type: 'color' },
       { key: 'textColor', label: 'Text colour', type: 'color' },
       { key: 'padding', label: 'Padding', type: 'spacing' },
@@ -55,6 +56,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-type',
     category: 'content',
     component: 'CanvasBlockText',
+    ai: { hint: 'Prose: <h2>/<h3> headings, paragraphs, lists. Use for story, detail, and explanatory sections.' },
     thumbnailColor: '#f9fafb',
     fields: [
       { key: 'content', label: 'Content', type: 'richtext' },
@@ -85,6 +87,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-image',
     category: 'media',
     component: 'CanvasBlockImage',
+    ai: { requires: ['media'], hint: 'Only with an image from the MEDIA LIBRARY list.' },
     thumbnailColor: '#f3f4f6',
     fields: [
       { key: 'src', label: 'Image URL', type: 'image' },
@@ -113,8 +116,8 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       },
       { key: 'rounded', label: 'Rounded corners', type: 'toggle' },
       { key: 'lightbox', label: 'Open lightbox on click', type: 'toggle' },
-      { key: 'focalX', label: 'Focal point X (%)', type: 'number', min: 0, max: 100 },
-      { key: 'focalY', label: 'Focal point Y (%)', type: 'number', min: 0, max: 100 },
+      { key: 'focalX', ai: false, label: 'Focal point X (%)', type: 'number', min: 0, max: 100 },
+      { key: 'focalY', ai: false, label: 'Focal point Y (%)', type: 'number', min: 0, max: 100 },
       { key: 'padding', label: 'Padding', type: 'spacing' },
     ],
     defaultProps: {
@@ -139,6 +142,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-play-circle',
     category: 'media',
     component: 'CanvasBlockVideo',
+    ai: { hint: 'Only when the request includes a specific YouTube, Vimeo, or Cloudflare Stream URL.' },
     thumbnailColor: '#1e1e2e',
     fields: [
       { key: 'url', label: 'Video URL', type: 'url', placeholder: 'YouTube, Vimeo, or Cloudflare Stream URL...' },
@@ -176,6 +180,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-columns-3',
     category: 'layout',
     component: 'CanvasBlockColumns',
+    ai: { hint: 'Places 2-4 short blocks side by side (e.g. text beside an image, or several buttons). Put children in col1..col4.' },
     thumbnailColor: '#eff6ff',
     slots: [
       { id: 'col1', label: 'Column 1' },
@@ -212,6 +217,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-square',
     category: 'layout',
     component: 'CanvasBlockContainer',
+    ai: { hint: 'Groups child blocks on a shared background colour. Put children in "default".' },
     thumbnailColor: '#f8fafc',
     slots: [{ id: 'default', label: 'Content' }],
     fields: [
@@ -243,6 +249,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-layout-grid',
     category: 'content',
     component: 'CanvasBlockFeatures',
+    ai: { hint: 'Grid of 1-4 benefits/services, each with an icon, title, and short description.' },
     thumbnailColor: '#fafaff',
     fields: [
       { key: 'sectionLabel', label: 'Section label (e.g. "Everything you need")', type: 'text', placeholder: 'Everything you need' },
@@ -281,19 +288,19 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       { key: 'iconColor', label: 'Icon colour', type: 'color' },
       { key: 'bgColor', label: 'Background colour', type: 'color' },
       // Feature 1
-      { key: 'feat1Icon', label: 'Feature 1 — Icon class', type: 'text', placeholder: 'i-lucide-zap' },
+      { key: 'feat1Icon', translatable: false, ai: 'Lucide icon class, e.g. i-lucide-zap, i-lucide-shield-check, i-lucide-heart', label: 'Feature 1 — Icon class', type: 'text', placeholder: 'i-lucide-zap' },
       { key: 'feat1Title', label: 'Feature 1 — Title', type: 'text', placeholder: 'Fast & reliable' },
       { key: 'feat1Desc', label: 'Feature 1 — Description', type: 'textarea' },
       // Feature 2
-      { key: 'feat2Icon', label: 'Feature 2 — Icon class', type: 'text', placeholder: 'i-lucide-shield-check', condition: p => p.numFeatures !== '1' },
+      { key: 'feat2Icon', translatable: false, ai: 'Lucide icon class, e.g. i-lucide-zap, i-lucide-shield-check, i-lucide-heart', label: 'Feature 2 — Icon class', type: 'text', placeholder: 'i-lucide-shield-check', condition: p => p.numFeatures !== '1' },
       { key: 'feat2Title', label: 'Feature 2 — Title', type: 'text', condition: p => p.numFeatures !== '1' },
       { key: 'feat2Desc', label: 'Feature 2 — Description', type: 'textarea', condition: p => p.numFeatures !== '1' },
       // Feature 3
-      { key: 'feat3Icon', label: 'Feature 3 — Icon class', type: 'text', placeholder: 'i-lucide-sparkles', condition: p => p.numFeatures === '3' || p.numFeatures === '4' },
+      { key: 'feat3Icon', translatable: false, ai: 'Lucide icon class, e.g. i-lucide-zap, i-lucide-shield-check, i-lucide-heart', label: 'Feature 3 — Icon class', type: 'text', placeholder: 'i-lucide-sparkles', condition: p => p.numFeatures === '3' || p.numFeatures === '4' },
       { key: 'feat3Title', label: 'Feature 3 — Title', type: 'text', condition: p => p.numFeatures === '3' || p.numFeatures === '4' },
       { key: 'feat3Desc', label: 'Feature 3 — Description', type: 'textarea', condition: p => p.numFeatures === '3' || p.numFeatures === '4' },
       // Feature 4
-      { key: 'feat4Icon', label: 'Feature 4 — Icon class', type: 'text', placeholder: 'i-lucide-globe', condition: p => p.numFeatures === '4' },
+      { key: 'feat4Icon', translatable: false, ai: 'Lucide icon class, e.g. i-lucide-zap, i-lucide-shield-check, i-lucide-heart', label: 'Feature 4 — Icon class', type: 'text', placeholder: 'i-lucide-globe', condition: p => p.numFeatures === '4' },
       { key: 'feat4Title', label: 'Feature 4 — Title', type: 'text', condition: p => p.numFeatures === '4' },
       { key: 'feat4Desc', label: 'Feature 4 — Description', type: 'textarea', condition: p => p.numFeatures === '4' },
       { key: 'gap', label: 'Gap (px)', type: 'number', min: 8, max: 96, step: 8 },
@@ -330,6 +337,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-quote',
     category: 'content',
     component: 'CanvasBlockTestimonial',
+    ai: { hint: 'A customer quote. Unless the request supplies real testimonials, use an obvious placeholder author such as "Customer name" — never invent a real-sounding person or company.' },
     thumbnailColor: '#fefce8',
     fields: [
       { key: 'quote', label: 'Quote', type: 'textarea', placeholder: 'What did they say?' },
@@ -384,6 +392,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-megaphone',
     category: 'cta',
     component: 'CanvasBlockCta',
+    ai: { hint: 'Full-width call-to-action strip, typically the last section of a page.' },
     thumbnailColor: '#ecfdf5',
     fields: [
       { key: 'headline', label: 'Headline', type: 'text', placeholder: 'Ready to get started?' },
@@ -415,6 +424,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-move-vertical',
     category: 'layout',
     component: 'CanvasBlockSpacer',
+    ai: { hint: 'Extra vertical space between sections. Use sparingly — sections already have their own padding.' },
     thumbnailColor: '#f9fafb',
     fields: [
       { key: 'height', label: 'Height (px)', type: 'number', min: 8, max: 400, step: 8 },
@@ -434,6 +444,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-cookie',
     category: 'cta',
     component: 'CanvasBlockGdpr',
+    ai: { exclude: true },
     thumbnailColor: '#fff1f2',
     fields: [
       { key: 'text', label: 'Consent text', type: 'textarea' },
@@ -481,10 +492,11 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-panel-bottom',
     category: 'layout',
     component: 'CanvasBlockFooter',
+    ai: { exclude: true },
     thumbnailColor: '#f8fafc',
     fields: [
       { key: 'logoText', label: 'Logo text', type: 'text' },
-      { key: 'logoIcon', label: 'Logo icon class', type: 'text' },
+      { key: 'logoIcon', translatable: false, label: 'Logo icon class', type: 'text' },
       { key: 'description', label: 'Description', type: 'textarea' },
       { key: 'col1Title', label: 'Column 1 Title', type: 'text' },
       {
@@ -530,6 +542,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-square-play',
     category: 'cta',
     component: 'CanvasBlockButton',
+    ai: { hint: 'A single standalone button.' },
     thumbnailColor: '#ecfdf5',
     fields: [
       { key: 'label', label: 'Button Label', type: 'text', placeholder: 'Click here' },
@@ -589,6 +602,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-fold-vertical',
     category: 'content',
     component: 'CanvasBlockAccordion',
+    ai: { hint: 'FAQ: collapsible question/answer pairs.' },
     thumbnailColor: '#f5f3ff',
     fields: [
       { key: 'title', label: 'Section Title', type: 'text', placeholder: 'Frequently Asked Questions' },
@@ -620,6 +634,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-credit-card',
     category: 'cta',
     component: 'CanvasBlockPricing',
+    ai: { hint: 'Static pricing table with 2-3 plans written into the page.' },
     thumbnailColor: '#fffbeb',
     fields: [
       { key: 'title', label: 'Section Title', type: 'text', placeholder: 'Simple, transparent pricing' },
@@ -635,27 +650,27 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       },
       // Plan 1
       { key: 'plan1Name', label: 'Plan 1 — Name', type: 'text', placeholder: 'Hobby' },
-      { key: 'plan1Price', label: 'Plan 1 — Price', type: 'text', placeholder: '0' },
+      { key: 'plan1Price', translatable: false, label: 'Plan 1 — Price', type: 'text', placeholder: '0' },
       { key: 'plan1Period', label: 'Plan 1 — Period', type: 'text', placeholder: '/mo' },
       { key: 'plan1Features', label: 'Plan 1 — Features', type: 'list' },
       { key: 'plan1BtnLabel', label: 'Plan 1 — Button Label', type: 'text', placeholder: 'Start free' },
-      { key: 'plan1BtnUrl', label: 'Plan 1 — Button URL', type: 'text', placeholder: '#' },
+      { key: 'plan1BtnUrl', translatable: false, label: 'Plan 1 — Button URL', type: 'text', placeholder: '#' },
       { key: 'plan1Popular', label: 'Plan 1 — Popular (highlighted)', type: 'toggle' },
       // Plan 2
       { key: 'plan2Name', label: 'Plan 2 — Name', type: 'text', placeholder: 'Pro' },
-      { key: 'plan2Price', label: 'Plan 2 — Price', type: 'text', placeholder: '29' },
+      { key: 'plan2Price', translatable: false, label: 'Plan 2 — Price', type: 'text', placeholder: '29' },
       { key: 'plan2Period', label: 'Plan 2 — Period', type: 'text', placeholder: '/mo' },
       { key: 'plan2Features', label: 'Plan 2 — Features', type: 'list' },
       { key: 'plan2BtnLabel', label: 'Plan 2 — Button Label', type: 'text', placeholder: 'Get started' },
-      { key: 'plan2BtnUrl', label: 'Plan 2 — Button URL', type: 'text', placeholder: '#' },
+      { key: 'plan2BtnUrl', translatable: false, label: 'Plan 2 — Button URL', type: 'text', placeholder: '#' },
       { key: 'plan2Popular', label: 'Plan 2 — Popular (highlighted)', type: 'toggle' },
       // Plan 3
       { key: 'plan3Name', label: 'Plan 3 — Name', type: 'text', placeholder: 'Enterprise', condition: p => p.numPlans === '3' },
-      { key: 'plan3Price', label: 'Plan 3 — Price', type: 'text', placeholder: '99', condition: p => p.numPlans === '3' },
+      { key: 'plan3Price', translatable: false, label: 'Plan 3 — Price', type: 'text', placeholder: '99', condition: p => p.numPlans === '3' },
       { key: 'plan3Period', label: 'Plan 3 — Period', type: 'text', placeholder: '/mo', condition: p => p.numPlans === '3' },
       { key: 'plan3Features', label: 'Plan 3 — Features', type: 'list', condition: p => p.numPlans === '3' },
       { key: 'plan3BtnLabel', label: 'Plan 3 — Button Label', type: 'text', placeholder: 'Contact sales', condition: p => p.numPlans === '3' },
-      { key: 'plan3BtnUrl', label: 'Plan 3 — Button URL', type: 'text', placeholder: '#', condition: p => p.numPlans === '3' },
+      { key: 'plan3BtnUrl', translatable: false, label: 'Plan 3 — Button URL', type: 'text', placeholder: '#', condition: p => p.numPlans === '3' },
       { key: 'plan3Popular', label: 'Plan 3 — Popular (highlighted)', type: 'toggle', condition: p => p.numPlans === '3' },
       // Styles
       { key: 'bgColor', label: 'Background colour', type: 'color' },
@@ -699,6 +714,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-images',
     category: 'media',
     component: 'CanvasBlockGallery',
+    ai: { requires: ['media'], hint: 'Grid of images from the MEDIA LIBRARY list.' },
     thumbnailColor: '#f8f9fa',
     fields: [
       { key: 'images', label: 'Images', type: 'images' },
@@ -735,6 +751,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-gallery-horizontal',
     category: 'media',
     component: 'CanvasBlockCarousel',
+    ai: { requires: ['media'], hint: 'Slider of images from the MEDIA LIBRARY list.' },
     thumbnailColor: '#f0fdfa',
     fields: [
       { key: 'images', label: 'Images', type: 'images' },
@@ -778,6 +795,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-calendar',
     category: 'content',
     component: 'CanvasBlockCalendar',
+    ai: { requires: ['events'], hint: 'Lists the site\'s upcoming events automatically.' },
     thumbnailColor: '#fdf2f8',
     fields: [
       { key: 'title', label: 'Title', type: 'text', placeholder: 'Upcoming Events' },
@@ -813,13 +831,14 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-newspaper',
     category: 'content',
     component: 'CanvasBlockPosts',
+    ai: { requires: ['posts'], hint: 'Lists the site\'s latest published posts automatically — use on blog/news pages and as a "latest news" section.' },
     thumbnailColor: '#eff6ff',
     fields: [
       { key: 'title', label: 'Title', type: 'text', placeholder: 'Latest posts' },
       { key: 'description', label: 'Description', type: 'textarea' },
-      { key: 'contentType', label: 'Content type', type: 'text', placeholder: 'post (leave empty for every type)' },
-      { key: 'taxonomy', label: 'Taxonomy slug', type: 'text', placeholder: 'e.g. category' },
-      { key: 'term', label: 'Term slug', type: 'text', placeholder: 'e.g. news', condition: p => Boolean(String(p.taxonomy ?? '').trim()) },
+      { key: 'contentType', translatable: false, ai: 'content type slug — usually "post"', label: 'Content type', type: 'text', placeholder: 'post (leave empty for every type)' },
+      { key: 'taxonomy', translatable: false, label: 'Taxonomy slug', type: 'text', placeholder: 'e.g. category' },
+      { key: 'term', translatable: false, label: 'Term slug', type: 'text', placeholder: 'e.g. news', condition: p => Boolean(String(p.taxonomy ?? '').trim()) },
       {
         key: 'layout',
         label: 'Layout',
@@ -860,6 +879,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-mail',
     category: 'forms',
     component: 'ContactFormBlock',
+    ai: { hint: 'Built-in contact form — use on contact pages.' },
     thumbnailColor: '#ecfdf5',
     fields: [
       { key: 'title', label: 'Form Title', type: 'text', placeholder: 'Get in touch' },
@@ -885,9 +905,10 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-list-checks',
     category: 'forms',
     component: 'DynamicFormBlock',
+    ai: { requires: ['forms'], hint: 'Embeds one of the site\'s existing forms (see FORMS).' },
     thumbnailColor: '#eef2ff',
     fields: [
-      { key: 'formSlug', label: 'Form (slug)', type: 'text', placeholder: 'contact' },
+      { key: 'formSlug', translatable: false, ai: 'slug of one of the site\'s FORMS', label: 'Form (slug)', type: 'text', placeholder: 'contact' },
       { key: 'title', label: 'Title', type: 'text', placeholder: 'Get in touch' },
       { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Fill out the form below.' },
       { key: 'submitLabel', label: 'Submit button label', type: 'text', placeholder: 'Submit' },
@@ -912,10 +933,12 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-code-xml',
     category: 'advanced',
     component: 'HtmlBlock',
+    ai: { exclude: true },
     thumbnailColor: '#fef3c7',
     fields: [
       {
         key: 'html',
+        translatable: false,
         label: 'HTML',
         type: 'textarea',
         rows: 10,
@@ -937,12 +960,13 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-badge-dollar-sign',
     category: 'commerce',
     component: 'MembershipsBlock',
+    ai: { requires: ['tiers'], hint: 'Live membership plans with checkout buttons, pulled from the site\'s real membership tiers. Prefer this over canvas-pricing when it is available.' },
     thumbnailColor: '#eff6ff',
     fields: [
       { key: 'title', label: 'Section title', type: 'text', placeholder: 'Membership Plans' },
       { key: 'subtitle', label: 'Subtitle', type: 'textarea', placeholder: 'Choose the plan that works for you' },
       { key: 'ctaLabel', label: 'Button label', type: 'text', placeholder: 'Get started' },
-      { key: 'highlightTierName', label: 'Highlight tier name (exact match, optional)', type: 'text', placeholder: 'Pro' },
+      { key: 'highlightTierName', translatable: false, label: 'Highlight tier name (exact match, optional)', type: 'text', placeholder: 'Pro' },
       { key: 'showAccountLink', label: 'Show "Already a member?" link', type: 'toggle' },
       { key: 'bgColor', label: 'Background colour', type: 'color' },
       { key: 'textColor', label: 'Text colour', type: 'color' },

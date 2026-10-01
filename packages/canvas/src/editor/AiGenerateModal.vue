@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, resolveComponent } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
-import type { CanvasContent } from '../types'
+import type { AiGenerateRequest, CanvasContent } from '../types'
 
-const props = defineProps<{ hasBlocks: boolean }>()
+const props = defineProps<{ hasBlocks: boolean; initial?: AiGenerateRequest | null }>()
 const emit = defineEmits<{
-  generate: [content: CanvasContent]
+  generate: [content: CanvasContent, request: AiGenerateRequest]
   close: []
 }>()
 
 // ── Dialog semantics: Escape-to-close, initial focus, and focus restore ─────
-// Mirrors BlockPicker.vue's identical handling — this modal was missing all of it despite
-// being opened from the same editor toolbar.
+// Mirrors BlockPicker.vue's identical handling.
 const modalRef = ref<HTMLElement | null>(null)
 let previouslyFocused: HTMLElement | null = null
 
@@ -30,21 +29,29 @@ onUnmounted(() => {
   previouslyFocused?.focus()
 })
 
-const description = ref('')
-const tone = ref<'professional' | 'casual' | 'friendly' | 'bold'>('professional')
-const pageGoal = ref<'landing' | 'about' | 'product' | 'pricing' | 'contact' | 'blog' | 'general'>('landing')
+const description = ref(props.initial?.description ?? '')
+const tone = ref<AiGenerateRequest['tone']>(props.initial?.tone ?? 'professional')
+const pageGoal = ref<AiGenerateRequest['pageGoal']>(props.initial?.pageGoal ?? 'landing')
+const mode = ref<AiGenerateRequest['mode']>(props.initial?.mode ?? 'replace')
 const loading = ref(false)
 const error = ref('')
-// Replaces window.confirm() (blocking, unstyled, not dark-mode-aware) with an inline
-// two-step confirm: the first click when hasBlocks reveals a stronger warning + explicit
-// confirm button instead of proceeding straight to generation.
-const confirmingReplace = ref(false)
+
+// Voice dictation lives in the host app (it needs the app's auth'd API and Nuxt UI), so
+// it's resolved by name like EditorMediaPicker — absent outside the NuxFlow admin.
+const resolvedVoice = resolveComponent('AiVoiceInput')
+const voiceInput = typeof resolvedVoice === 'string' ? null : resolvedVoice
+
+function appendDictation(text: string) {
+  description.value = description.value ? `${description.value.trimEnd()} ${text}` : text
+}
 
 const toneOptions = [
   { label: 'Professional', value: 'professional' },
   { label: 'Casual', value: 'casual' },
   { label: 'Friendly', value: 'friendly' },
   { label: 'Bold', value: 'bold' },
+  { label: 'Playful', value: 'playful' },
+  { label: 'Technical', value: 'technical' },
 ]
 
 const goalOptions = [
@@ -58,12 +65,8 @@ const goalOptions = [
 ]
 
 async function generate() {
-  if (description.value.length < 10) {
+  if (description.value.trim().length < 10) {
     error.value = 'Please describe your page in at least 10 characters.'
-    return
-  }
-  if (props.hasBlocks && !confirmingReplace.value) {
-    confirmingReplace.value = true
     return
   }
   loading.value = true
@@ -72,19 +75,24 @@ async function generate() {
     const res = await fetch('/api/v1/ai/generate-canvas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description: description.value, tone: tone.value, pageGoal: pageGoal.value }),
+      body: JSON.stringify({ description: description.value.trim(), tone: tone.value, pageGoal: pageGoal.value }),
     })
     if (!res.ok) {
-      const err = await res.json() as { message?: string }
-      throw Object.assign(new Error(err.message ?? 'Generation failed'), { data: err })
+      const err = await res.json().catch(() => ({})) as { message?: string }
+      throw new Error(err.message || 'Generation failed')
     }
     const result = await res.json() as CanvasContent
-    emit('generate', result)
-  } catch (e: unknown) {
-    const msg = (e as { data?: { message?: string } })?.data?.message
-    error.value = msg || 'Generation failed. Check your AI provider settings.'
-    confirmingReplace.value = false
-  } finally {
+    emit('generate', result, {
+      description: description.value.trim(),
+      tone: tone.value,
+      pageGoal: pageGoal.value,
+      mode: props.hasBlocks ? mode.value : 'replace',
+    })
+  }
+  catch (e: unknown) {
+    error.value = (e instanceof Error && e.message) || 'Generation failed. Check your AI provider settings.'
+  }
+  finally {
     loading.value = false
   }
 }
@@ -98,7 +106,7 @@ async function generate() {
       aria-modal="true"
       aria-labelledby="ai-generate-modal-title"
       tabindex="-1"
-      class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg outline-none"
+      class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl outline-none"
     >
       <!-- Header -->
       <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-800">
@@ -114,19 +122,24 @@ async function generate() {
       <!-- Body -->
       <div class="px-5 py-4 space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Describe your page <span class="text-red-500">*</span>
-          </label>
+          <div class="flex items-center justify-between mb-1">
+            <label for="ai-generate-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Describe your page <span class="text-red-500">*</span>
+            </label>
+            <component :is="voiceInput" v-if="voiceInput" @transcribed="appendDictation" />
+          </div>
           <textarea
+            id="ai-generate-description"
             v-model="description"
-            rows="4"
+            rows="6"
+            maxlength="2000"
             placeholder="e.g. A landing page for a SaaS project management tool targeting small teams. Highlight real-time collaboration, easy setup, and affordable pricing."
-            class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 px-3 py-2 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
-            @input="confirmingReplace = false"
+            class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 px-3 py-2 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y"
           />
+          <p class="text-xs text-gray-400 text-right">{{ description.length }}/2000</p>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Page goal</label>
             <select
@@ -147,18 +160,26 @@ async function generate() {
           </div>
         </div>
 
+        <fieldset v-if="hasBlocks" class="space-y-1.5">
+          <legend class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">This page already has blocks</legend>
+          <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="mode" type="radio" value="replace" class="text-primary-600 focus:ring-primary-500">
+            Replace them with the generated page
+          </label>
+          <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="mode" type="radio" value="append" class="text-primary-600 focus:ring-primary-500">
+            Add the generated sections after them
+          </label>
+        </fieldset>
+
+        <p class="text-xs text-gray-500 dark:text-gray-400 flex items-start gap-1.5">
+          <UIcon name="i-lucide-eye" mode="svg" class="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          The result opens as a preview on the canvas — keep it, regenerate it, or discard it to get the page back exactly as it was.
+        </p>
+
         <p v-if="error" class="text-sm text-red-500 flex items-center gap-1.5">
           <UIcon name="i-lucide-alert-circle" mode="svg" class="w-4 h-4" />
           {{ error }}
-        </p>
-
-        <p v-if="hasBlocks && !confirmingReplace" class="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-          <UIcon name="i-lucide-triangle-alert" mode="svg" class="w-3.5 h-3.5" />
-          Existing blocks will be replaced.
-        </p>
-        <p v-if="confirmingReplace" class="text-xs font-medium text-red-600 dark:text-red-400 flex items-center gap-1.5">
-          <UIcon name="i-lucide-triangle-alert" mode="svg" class="w-3.5 h-3.5" />
-          Click "Replace blocks" again to confirm — this cannot be undone.
         </p>
       </div>
 
@@ -171,14 +192,13 @@ async function generate() {
           Cancel
         </button>
         <button
-          :disabled="loading || description.length < 10"
-          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          :class="confirmingReplace ? 'bg-red-600 hover:bg-red-700' : 'bg-primary-600 hover:bg-primary-700'"
+          :disabled="loading || description.trim().length < 10"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           @click="generate"
         >
           <UIcon v-if="loading" name="i-lucide-loader-2" mode="svg" class="w-4 h-4 animate-spin" />
           <UIcon v-else name="i-lucide-sparkles" mode="svg" class="w-4 h-4" />
-          {{ loading ? 'Generating…' : confirmingReplace ? 'Replace blocks' : 'Generate page' }}
+          {{ loading ? 'Generating…' : initial ? 'Regenerate' : 'Generate page' }}
         </button>
       </div>
     </div>

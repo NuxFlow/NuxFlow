@@ -149,13 +149,30 @@ export const pushSubscriptions = sqliteTable('push_subscriptions', {
   index('idx_push_subs_user_site').on(t.userId, t.siteId),
 ])
 
+export interface AiGenerationPlanPage {
+  title: string
+  slug: string
+  description: string
+  contentItemId?: string
+  error?: string
+}
+
 export const aiGenerationJobs = sqliteTable('ai_generation_jobs', {
   id: text('id').primaryKey(),
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   prompt: text('prompt').notNull(),
   type: text('type', { enum: ['page', 'site'] }).notNull().default('page'),
-  plan: text('plan', { mode: 'json' }).$type<Array<{ title: string; slug: string; description: string }>>(),
+  // One entry per page to generate. A 'page' job has a single entry whose title/slug are
+  // filled in from the model's output. `contentItemId`/`error` record each page's outcome,
+  // so the review screen can map drafts back to the plan and retry a failed page.
+  plan: text('plan', { mode: 'json' }).$type<AiGenerationPlanPage[]>(),
+  tone: text('tone'),
+  // Lease held by whichever POST .../step request is currently doing this job's work (see
+  // server/utils/site-generation.ts) — generation is driven one page per request by the
+  // admin page, and this stops a second tab from generating the same page twice. A lease
+  // left behind by a request that died simply expires.
+  lockedUntil: text('locked_until'),
   status: text('status', { enum: ['planning', 'approved', 'generating', 'complete', 'failed'] }).notNull().default('planning'),
   generatedCount: integer('generated_count').notNull().default(0),
   totalCount: integer('total_count').notNull().default(0),

@@ -178,7 +178,7 @@ const readabilityColor = computed(() => {
       </UFormField>
 
       <UFormField label="Meta description" :hint="`${descLength}/160`">
-        <UTextarea v-model="local.seoDescription" :rows="3" maxlength="160" />
+        <UTextarea v-model="local.seoDescription" class="w-full" :rows="3" maxlength="160" />
         <div class="mt-1 h-1 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
           <div
             class="h-full rounded-full transition-all"

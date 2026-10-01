@@ -459,7 +459,7 @@ async function saveCSS() {
                 v-model="uploadForm.css"
                 :rows="10"
                 placeholder=":root { --nuxflow-primary: #7c3aed; }"
-                class="font-mono text-xs"
+                class="font-mono text-xs w-full"
               />
             </UFormField>
           </template>
@@ -615,7 +615,7 @@ async function saveCSS() {
               v-model="editCss"
               :rows="14"
               placeholder="Paste updated CSS here…"
-              class="font-mono text-xs"
+              class="font-mono text-xs w-full"
             />
           </UFormField>
 

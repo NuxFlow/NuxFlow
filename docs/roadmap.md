@@ -150,13 +150,10 @@ Then deploy. Page views start recording immediately. No code changes, no migrati
 
 ## AI feature UI follow-ups
 
-Five small, well-scoped items left over from the Sept 2026 Cloudflare AI integration pass (Workers AI, AI Gateway, Vectorize/semantic search, AI page & site generation, and a batch of smaller AI features — all shipped; see CLAUDE.md's "AI providers"/"Multilingual content"/"Events system" sections for the technical reference and `docs/user-guide.md`'s "AI Features" section for the user-facing summary). Each of these already has working backend/API support — what's listed here is specifically the remaining frontend work:
+Small, well-scoped items left over from the Sept 2026 Cloudflare AI integration pass (Workers AI, AI Gateway, Vectorize/semantic search, AI page & site generation, and a batch of smaller AI features — all shipped; see CLAUDE.md's "AI providers"/"Multilingual content"/"Events system" sections for the technical reference and `docs/user-guide.md`'s "AI Features" section for the user-facing summary). What's still open:
 
-- **Voice-to-text recording UI** — `POST /api/v1/ai/transcribe` (Whisper) works today; needs a browser mic-permission + `MediaRecorder` recording widget in the editor to call it from.
-- **AI-suggested focal point UI** — `POST /api/v1/ai/suggest-focal-point` works today; needs an "AI suggest" button wired into `CanvasBlockImage`'s focal-point sliders (a cross-package UI change in `@nuxflow/canvas`).
-- **Cherry-pick / regenerate individual AI-generated pages** — a completed AI site-generation job's pages can only be reviewed as a whole batch today (each lands as an independent draft an editor can edit/delete individually, but there's no "regenerate just this one page" action tied back to the job).
-- **Unsplash / placeholder image suggestions** for AI-generated pages — image blocks are left with empty `src` fields by default.
-- **Full RAG grounding for AI page/site generation** — `generate-content.post.ts` (prose generation) already grounds its output in the site's existing content via semantic search; the block-based generators (`generateCanvasBlocks()`/`generateSitePages()`) don't yet do the same.
+- **Stock / AI-generated images for AI-generated pages** — page generation now uses images already in the site's media library (when there are any); a page on a fresh site still gets no imagery. Suggesting stock photos, or generating images for the page, is the follow-up.
+- **Full RAG grounding for AI page/site generation** — `generate-content.post.ts` (prose generation) already grounds its output in the site's existing content via semantic search; the block-based generator (`generateCanvasPage()` in `canvas-generation.ts`) doesn't yet do the same.
 
 ---
 

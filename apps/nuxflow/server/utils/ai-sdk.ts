@@ -1,7 +1,8 @@
 import type { LanguageModel } from 'ai'
-import type { H3Event } from 'h3'
+import { isError, type H3Event } from 'h3'
 import { resolveSetting } from './settings'
-import { getWorkersAiBinding } from './cf-env'
+import { getCfBindings, getWorkersAiBinding } from './cf-env'
+import { WORKER_MEDIA_PREFIX } from './media-url'
 
 /**
  * 'vision' is for routes that send image bytes to the model (alt-text.post.ts,
@@ -23,7 +24,7 @@ export interface GetAiSdkModelOptions {
   userId?: string
 }
 
-interface GatewaySettings { gatewayId: string; accountId: string; token: string }
+export interface GatewaySettings { gatewayId: string; accountId: string; token: string }
 
 /**
  * Reads the optional AI Gateway settings (Settings → AI → AI Gateway). All three come back
@@ -33,7 +34,7 @@ interface GatewaySettings { gatewayId: string; accountId: string; token: string 
  * + `accountId` to build the universal gateway URL, and `token` only for an authenticated
  * gateway (an unauthenticated one is a valid, simpler setup for a single-operator site).
  */
-async function resolveGatewaySettings(event: H3Event): Promise<GatewaySettings> {
+export async function resolveGatewaySettings(event: H3Event): Promise<GatewaySettings> {
   const [gatewayId, accountId, token] = await Promise.all([
     resolveSetting(event, 'ai.gateway_id', 'aiGatewayId') as Promise<string>,
     resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId') as Promise<string>,
@@ -49,11 +50,19 @@ async function resolveGatewaySettings(event: H3Event): Promise<GatewaySettings> 
  * omitted), cf-aig-metadata is the documented mechanism for attaching arbitrary per-request
  * metadata (max 5 flat entries) that shows up in the Gateway dashboard's request log.
  */
-function gatewayRequestHeaders(token: string, userId?: string): Record<string, string> | undefined {
+export function gatewayRequestHeaders(token: string, userId?: string): Record<string, string> | undefined {
   const headers: Record<string, string> = {}
   if (token) headers['cf-aig-authorization'] = `Bearer ${token}`
   if (userId) headers['cf-aig-metadata'] = JSON.stringify({ userId })
   return Object.keys(headers).length ? headers : undefined
+}
+
+/**
+ * AI Gateway's provider-native endpoint for `path` (provider slug plus whatever version
+ * segment the AI SDK provider expects its base URL to end in — see each call site).
+ */
+export function gatewayBaseUrl(accountId: string, gatewayId: string, path: string): string {
+  return `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/${path}`
 }
 
 /**
@@ -106,7 +115,7 @@ export async function getAiSdkModel(event: H3Event, quality: AiQuality = 'fast',
       const openai = createOpenAI({
         apiKey,
         ...(gatewayId && accountId && {
-          baseURL: `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/openai`,
+          baseURL: gatewayBaseUrl(accountId, gatewayId, 'openai'),
           headers: gatewayRequestHeaders(token, opts.userId),
         }),
       })
@@ -120,7 +129,10 @@ export async function getAiSdkModel(event: H3Event, quality: AiQuality = 'fast',
       const anthropic = createAnthropic({
         apiKey,
         ...(gatewayId && accountId && {
-          baseURL: `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/anthropic`,
+          // The AI SDK appends just `/messages` to a custom base URL (its default already
+          // includes /v1), so the version segment must be part of the gateway URL — without
+          // it every gateway-routed Anthropic call 404'd.
+          baseURL: gatewayBaseUrl(accountId, gatewayId, 'anthropic/v1'),
           headers: gatewayRequestHeaders(token, opts.userId),
         }),
       })
@@ -136,7 +148,9 @@ export async function getAiSdkModel(event: H3Event, quality: AiQuality = 'fast',
         // Cloudflare's AI Gateway provider slug for the Gemini API is "google-ai-studio",
         // not "google" — see https://developers.cloudflare.com/ai-gateway/usage/providers/.
         ...(gatewayId && accountId && {
-          baseURL: `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/google-ai-studio`,
+          // Same as Anthropic: the SDK's default base URL ends in /v1beta and only
+          // `/models/...` is appended to it.
+          baseURL: gatewayBaseUrl(accountId, gatewayId, 'google-ai-studio/v1beta'),
           headers: gatewayRequestHeaders(token, opts.userId),
         }),
       })
@@ -145,7 +159,7 @@ export async function getAiSdkModel(event: H3Event, quality: AiQuality = 'fast',
       // the current generation instead. Given how fast Google is deprecating Gemini model
       // IDs (three generations retired inside a year), re-check
       // https://ai.google.dev/gemini-api/docs/models before assuming these stay valid.
-      return google(quality === 'smart' ? 'gemini-3.1-pro' : 'gemini-3.8-flash')
+      return google(quality === 'smart' ? 'gemini-3.1-pro-preview' : 'gemini-3.8-flash')
     }
     case 'deepseek': {
       // DeepSeek's chat API has no vision support — returning null here converts what
@@ -160,7 +174,7 @@ export async function getAiSdkModel(event: H3Event, quality: AiQuality = 'fast',
       const deepseek = createOpenAI(gatewayId && accountId
         ? {
             apiKey,
-            baseURL: `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/deepseek`,
+            baseURL: gatewayBaseUrl(accountId, gatewayId, 'deepseek'),
             headers: gatewayRequestHeaders(token, opts.userId),
           }
         : { apiKey, baseURL: 'https://api.deepseek.com/v1' })
@@ -206,12 +220,16 @@ export async function callAiOrThrow<T>(fn: () => Promise<T>): Promise<T> {
 
 /**
  * Fetches an already-uploaded media item's bytes so they can be passed to a multimodal
- * `generateText`/`generateObject` call as an image content part. `fetch()` in a Cloudflare
- * Worker only supports http(s) URLs — it can't fetch a `data:` URI, which is exactly what
- * the local media-provider fallback stores in `media.url` (see media-providers/index.ts) —
- * so a data URL is decoded directly instead of fetched.
+ * `generateText`/`generateObject` call as an image content part. Three URL shapes exist:
+ *  - `data:` — the local fallback stores the file inline; decoded directly (fetch() in a
+ *    Worker only supports http(s)).
+ *  - `/_nuxflow/media/<key>` — R2 without a public URL serves files through this Worker
+ *    (see media-providers/r2.ts). fetch() can't take a relative URL, so the object is read
+ *    straight from the bucket binding — scoped to this site's own key prefix, exactly like
+ *    the serving route.
+ *  - an absolute http(s) URL — every other provider; fetched.
  */
-export async function loadImageBytesForAi(url: string, fallbackMediaType: string): Promise<{ data: Uint8Array; mediaType: string }> {
+export async function loadImageBytesForAi(event: H3Event, url: string, fallbackMediaType: string): Promise<{ data: Uint8Array; mediaType: string }> {
   if (url.startsWith('data:')) {
     const commaIndex = url.indexOf(',')
     if (commaIndex === -1) throw new Error('Malformed data URL')
@@ -225,26 +243,42 @@ export async function loadImageBytesForAi(url: string, fallbackMediaType: string
     return { data, mediaType }
   }
 
+  if (url.startsWith(WORKER_MEDIA_PREFIX)) {
+    const siteId = event.context.siteId as string | undefined
+    const key = url.slice(WORKER_MEDIA_PREFIX.length).split('/').map(decodeURIComponent).join('/')
+    if (!siteId || !key.startsWith(`${siteId}/`) || key.split('/').some(seg => seg === '' || seg === '.' || seg === '..')) {
+      throw new Error('Image is not stored under this site')
+    }
+    const { r2 } = getCfBindings(event)
+    if (!r2) throw new Error('Media bucket binding (MEDIA_BUCKET) is not available')
+    const object = await r2.get(key)
+    if (!object) throw new Error('Image not found in the media bucket')
+    return { data: new Uint8Array(await object.arrayBuffer()), mediaType: object.httpMetadata?.contentType || fallbackMediaType }
+  }
+
+  if (!/^https?:\/\//i.test(url)) throw new Error('Unsupported image URL')
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Failed to fetch image for AI processing (${res.status})`)
   const buf = await res.arrayBuffer()
   return { data: new Uint8Array(buf), mediaType: res.headers.get('content-type') || fallbackMediaType }
 }
 
-/** Extracts a human-readable message from a provider SDK error. */
+/**
+ * Extracts a human-readable message from a provider SDK error. Known HTTP statuses map to
+ * actionable copy first — provider SDK errors always carry a raw `message` too, so checking
+ * that first (as this used to) meant the friendly versions never showed.
+ */
 export function aiErrorMessage(err: unknown): string {
+  // Our own errors (createError — e.g. callAiOrThrow's 502, a 404 from a lookup) already
+  // carry the right message; only provider errors need translating.
+  if (isError(err)) return err.message
   if (err && typeof err === 'object') {
-    // AI SDK wraps errors with a message property
-    if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
-      return (err as { message: string }).message
-    }
-    // Some provider SDKs expose a status code
-    if ('status' in err) {
-      const s = (err as { status: unknown }).status
-      if (s === 401 || s === 403) return 'AI provider authentication failed — check your API key in Settings → AI'
-      if (s === 429) return 'AI provider rate limit exceeded — try again in a moment'
-      if (s === 404) return 'AI model not found — check your provider settings'
-    }
+    const e = err as { status?: unknown; statusCode?: unknown; message?: unknown }
+    const status = typeof e.statusCode === 'number' ? e.statusCode : e.status
+    if (status === 401 || status === 403) return 'AI provider authentication failed — check your API key in Settings → AI'
+    if (status === 429) return 'AI provider rate limit exceeded — try again in a moment'
+    if (status === 404) return 'AI model not found — check your provider settings'
+    if (typeof e.message === 'string' && e.message) return e.message
   }
   return 'AI provider request failed'
 }

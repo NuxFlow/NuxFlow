@@ -87,22 +87,6 @@ let mediaId: string
 
 type HandlerFn = (e: H3Event) => Promise<unknown>
 
-// bulk-alt-text.post.ts now always processes via the shared waitUntil() helper
-// (server/utils/cf-env.ts), which is fire-and-forget in every environment (there's no
-// ctx.waitUntil in these mock events, so it falls into `void promise` rather than being
-// awaited by the handler) — matching real Cloudflare behavior, where the response must
-// return before the background job is guaranteed to finish. The handler's own promise
-// resolves in the background regardless, so poll for the expected side effect instead of
-// asserting on the handler's return value.
-async function waitFor(predicate: () => Promise<boolean> | boolean, timeoutMs = 2000, intervalMs = 10): Promise<void> {
-  const startedAt = Date.now()
-  while (Date.now() - startedAt < timeoutMs) {
-    if (await predicate()) return
-    await new Promise(resolve => setTimeout(resolve, intervalMs))
-  }
-  throw new Error(`waitFor: condition not met within ${timeoutMs}ms`)
-}
-
 beforeAll(async () => {
   await initTestDb()
   const db = getCurrentTestDb()
@@ -227,7 +211,7 @@ describe('POST /api/v1/ai/alt-text', () => {
 
     // The model must actually receive the image, not just a filename-only text prompt —
     // this is the exact "looks done but doesn't look at the image" gap being fixed.
-    expect(mockLoadImageBytesForAi).toHaveBeenCalledWith('https://example.com/hero-photo.jpg', 'image/jpeg')
+    expect(mockLoadImageBytesForAi).toHaveBeenCalledWith(expect.anything(), 'https://example.com/hero-photo.jpg', 'image/jpeg')
     const [callArgs] = mockGenerateText.mock.calls.at(-1) as [Record<string, unknown>]
     const messages = callArgs.messages as Array<{ content: Array<{ type: string; text?: string; image?: unknown }> }>
     const textPart = messages[0]!.content.find(p => p.type === 'text')
@@ -276,6 +260,9 @@ describe('POST /api/v1/ai/improve', () => {
 // ---------------------------------------------------------------------------
 
 describe('POST /api/v1/ai/bulk-alt-text', () => {
+  // The route now handles one small batch inline per request (the media page loops while
+  // `hasMore`) instead of a waitUntil() background job, whose 30 s budget a batch of
+  // vision calls couldn't fit — so these assert on the response and DB directly.
   it('returns 503 when no AI model is configured', async () => {
     mockGetAiSdkModel.mockResolvedValueOnce(null)
 
@@ -290,24 +277,17 @@ describe('POST /api/v1/ai/bulk-alt-text', () => {
 
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
     mockLoadImageBytesForAi.mockResolvedValueOnce({ data: new Uint8Array([1, 2, 3]), mediaType: 'image/jpeg' })
-    mockGenerateText.mockResolvedValueOnce({ text: 'Generated alt text' })
+    mockGenerateText.mockResolvedValueOnce({ text: '  Generated alt text ' })
 
     const result = await (bulkAltTextHandler as HandlerFn)(
       mkEditorEvent({ mediaIds: [mediaId, docId] }),
-    ) as { processing: boolean; total: number; mediaIds: string[]; capped: boolean }
+    ) as { processed: number; skipped: number; updated: { id: string; altText: string }[]; failed: string[]; hasMore: boolean }
 
-    // The route now always fires the background job via the shared waitUntil() helper
-    // instead of awaiting it inline, so the response reports it's processing rather than
-    // returning synchronous processed/skipped counts.
-    expect(result.processing).toBe(true)
-    expect(result.total).toBe(1)
-    expect(result.mediaIds).toEqual([mediaId])
-    expect(result.capped).toBe(false)
+    expect(result).toMatchObject({ processed: 1, skipped: 0, failed: [], hasMore: false })
+    expect(result.updated).toEqual([{ id: mediaId, altText: 'Generated alt text' }])
 
-    await waitFor(async () => {
-      const updated = await db.query.media.findFirst({ where: eq(media.id, mediaId) })
-      return updated?.altText === 'Generated alt text'
-    })
+    const updated = await db.query.media.findFirst({ where: eq(media.id, mediaId) })
+    expect(updated?.altText).toBe('Generated alt text')
 
     const [logEntry] = await db.select().from(auditLogs)
       .where(and(eq(auditLogs.resource, 'media'), eq(auditLogs.resourceId, 'bulk-alt-text')))
@@ -316,7 +296,7 @@ describe('POST /api/v1/ai/bulk-alt-text', () => {
     expect(logEntry.after).toMatchObject({ siteId: SITE, processed: 1, skipped: 0, total: 1 })
   })
 
-  it('logs the error and counts a failure as skipped rather than silently dropping it', async () => {
+  it('logs and reports a failed image instead of silently dropping it', async () => {
     const db = getCurrentTestDb()
     const failId = await seedMedia(db, SITE, { originalName: 'will-fail.jpg', mimeType: 'image/jpeg' })
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -327,65 +307,44 @@ describe('POST /api/v1/ai/bulk-alt-text', () => {
 
     const result = await (bulkAltTextHandler as HandlerFn)(
       mkEditorEvent({ mediaIds: [failId] }),
-    ) as { processing: boolean; total: number }
-    expect(result.processing).toBe(true)
+    ) as { processed: number; skipped: number; failed: string[] }
 
-    await waitFor(async () => {
-      const [logEntry] = await db.select().from(auditLogs)
-        .where(and(eq(auditLogs.resource, 'media'), eq(auditLogs.resourceId, 'bulk-alt-text'), eq(auditLogs.userId, editorId)))
-        .orderBy(auditLogs.createdAt)
-      return !!logEntry
-    })
-
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining(failId),
-      expect.any(Error),
-    )
+    expect(result).toMatchObject({ processed: 0, skipped: 1, failed: [failId] })
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining(failId), expect.any(Error))
     consoleErrorSpy.mockRestore()
   })
 
-  it('caps the number of images processed per invocation and reports how many remain', async () => {
+  it('handles a small batch per call, reports hasMore, and skips ids that already failed', async () => {
     const db = getCurrentTestDb()
-    // MAX_IMAGES_PER_RUN is 50 — seed one past the cap using the "process all untagged
-    // images" path (no explicit mediaIds) so the cap logic (not the mediaIds filter) is
-    // what's under test.
-    const capSite = 'site-ai-cap-01'
-    await seedSite(db, { id: capSite, domain: 'ai-cap.localhost' })
-    const capEditorId = await seedUser(db, { email: 'editor@ai-cap.test' })
-    await seedRole(db, capEditorId, capSite, 'editor')
-
-    const ids: string[] = []
-    for (let i = 0; i < 51; i++) {
-      ids.push(await seedMedia(db, capSite, { originalName: `cap-${i}.jpg`, mimeType: 'image/jpeg' }))
+    const batchSite = 'site-ai-batch-01'
+    await seedSite(db, { id: batchSite, domain: 'ai-batch.localhost' })
+    const batchEditorId = await seedUser(db, { email: 'editor@ai-batch.test' })
+    await seedRole(db, batchEditorId, batchSite, 'editor')
+    for (let i = 0; i < 7; i++) {
+      await seedMedia(db, batchSite, { originalName: `batch-${i}.jpg`, mimeType: 'image/jpeg' })
     }
 
-    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGetAiSdkModel.mockResolvedValue(Symbol('fake-model'))
     mockLoadImageBytesForAi.mockResolvedValue({ data: new Uint8Array([1, 2, 3]), mediaType: 'image/jpeg' })
     mockGenerateText.mockResolvedValue({ text: 'Generated alt text' })
 
-    const event = createMockEvent({
-      siteId: capSite,
-      session: { user: { id: capEditorId, name: 'Cap Editor', email: 'editor@ai-cap.test' } },
-      body: {},
-    }) as unknown as H3Event
+    const call = (body: unknown) => (bulkAltTextHandler as HandlerFn)(createMockEvent({
+      siteId: batchSite,
+      session: { user: { id: batchEditorId, name: 'Batch Editor', email: 'editor@ai-batch.test' } },
+      body,
+    }) as unknown as H3Event) as Promise<{ processed: number; hasMore: boolean }>
 
-    const result = await (bulkAltTextHandler as HandlerFn)(event) as {
-      processing: boolean; total: number; capped: boolean; remaining: number
-    }
+    const first = await call({})
+    expect(first).toMatchObject({ processed: 5, hasMore: true })
 
-    expect(result.total).toBe(50)
-    expect(result.capped).toBe(true)
-    expect(result.remaining).toBe(1)
+    // The remaining two untagged images; skipIds excludes one of them.
+    const untagged = (await db.query.media.findMany({ where: eq(media.siteId, batchSite) })).filter(r => !r.altText)
+    expect(untagged).toHaveLength(2)
+    const second = await call({ skipIds: [untagged[0]!.id] })
+    expect(second).toMatchObject({ processed: 1, hasMore: false })
 
-    await waitFor(async () => {
-      const rows = await db.query.media.findMany({ where: eq(media.siteId, capSite) })
-      return rows.filter(r => r.altText === 'Generated alt text').length === 50
-    })
-
-    // Exactly one of the 51 seeded images should have been left untouched by the capped run.
-    const rows = await db.query.media.findMany({ where: eq(media.siteId, capSite) })
-    expect(rows.filter(r => !r.altText).length).toBe(1)
-    expect(ids.length).toBe(51)
+    const rows = await db.query.media.findMany({ where: eq(media.siteId, batchSite) })
+    expect(rows.filter(r => !r.altText).map(r => r.id)).toEqual([untagged[0]!.id])
   })
 })
 
@@ -494,23 +453,86 @@ describe('POST /api/v1/ai/generate-canvas', () => {
   it('returns the generated canvas blocks with server-assigned ULIDs', async () => {
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
     mockGenerateObject.mockResolvedValueOnce({
-      object: { blocks: [{ type: 'canvas-hero', props: { headline: 'Welcome' } }] },
+      object: { title: 'Home', slug: 'home', blocks: [{ type: 'canvas-hero', props: { headline: 'Welcome' }, children: [] }] },
     })
 
     const result = await (generateCanvasHandler as HandlerFn)(
       mkEditorEvent({ description: 'A landing page for a coffee shop', tone: 'friendly', pageGoal: 'landing' }),
-    ) as { type: string; blocks: { id: string; type: string }[] }
+    ) as { type: string; blocks: { id: string; type: string; props: Record<string, unknown> }[] }
 
     expect(result.type).toBe('canvas')
     expect(result.blocks).toHaveLength(1)
     expect(result.blocks[0].type).toBe('canvas-hero')
+    expect(result.blocks[0].props.headline).toBe('Welcome')
     expect(typeof result.blocks[0].id).toBe('string')
     expect(result.blocks[0].id.length).toBeGreaterThan(0)
   })
 
+  it('cleans model output: drops unknown/excluded blocks and invalid values, serializes list fields', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockResolvedValueOnce({
+      object: {
+        title: 'Page',
+        slug: 'page',
+        blocks: [
+          { type: 'canvas-made-up', props: { headline: 'x' }, children: [] },
+          // The site layout renders the footer — a generated one would be a second footer.
+          { type: 'canvas-footer', props: { logoText: 'Acme' }, children: [] },
+          {
+            type: 'canvas-accordion',
+            props: {
+              itemsJson: [{ question: 'Q1?', answer: 'A1', extra: 'dropped' }],
+              bgColor: 'not-a-colour',
+              madeUpProp: true,
+            },
+            children: [],
+          },
+          { type: 'canvas-button', props: { label: 'Go', url: 'javascript:alert(1)', size: 'huge' }, children: [] },
+        ],
+      },
+    })
+
+    const result = await (generateCanvasHandler as HandlerFn)(
+      mkEditorEvent({ description: 'An FAQ page for a coffee shop' }),
+    ) as { blocks: { type: string; props: Record<string, unknown> }[] }
+
+    expect(result.blocks.map(b => b.type)).toEqual(['canvas-accordion', 'canvas-button'])
+    const [accordion, button] = result.blocks
+    expect(JSON.parse(accordion!.props.itemsJson as string)).toEqual([{ question: 'Q1?', answer: 'A1' }])
+    expect(accordion!.props.bgColor).toBeUndefined()
+    expect(accordion!.props.madeUpProp).toBeUndefined()
+    expect(button!.props.label).toBe('Go')
+    // Unsafe URL and out-of-range select fall back to the block's defaults.
+    expect(button!.props.url).not.toBe('javascript:alert(1)')
+    expect(button!.props.size).not.toBe('huge')
+  })
+
+  it('builds the block catalog from the real block definitions', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockResolvedValueOnce({ object: { title: 'Contact', slug: 'contact', blocks: [{ type: 'contact-form/form', props: {}, children: [] }] } })
+
+    await (generateCanvasHandler as HandlerFn)(mkEditorEvent({ description: 'A contact page for a coffee shop' }))
+
+    const [args] = mockGenerateObject.mock.calls.at(-1) as [{ system: string }]
+    expect(args.system).toContain('contact-form/form')
+    expect(args.system).toContain('canvas-columns')
+    expect(args.system).not.toMatch(/^canvas-footer /m)
+    expect(args.system).not.toMatch(/^html-block\/html /m)
+    expect(args.system).toMatch(/never build a footer/i)
+  })
+
+  it('returns 502 when the model returns nothing usable', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockResolvedValueOnce({ object: { title: 'x', slug: 'x', blocks: [{ type: 'canvas-nope', props: {}, children: [] }] } })
+
+    await expect(
+      (generateCanvasHandler as HandlerFn)(mkEditorEvent({ description: 'A landing page for a coffee shop' })),
+    ).rejects.toMatchObject({ statusCode: 502 })
+  })
+
   it('requests the "smart" quality tier', async () => {
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
-    mockGenerateObject.mockResolvedValueOnce({ object: { blocks: [{ type: 'canvas-text', props: {} }] } })
+    mockGenerateObject.mockResolvedValueOnce({ object: { title: 'Page', slug: 'page', blocks: [{ type: 'canvas-text', props: {}, children: [] }] } })
 
     await (generateCanvasHandler as HandlerFn)(mkEditorEvent({ description: 'A landing page for a coffee shop' }))
 
@@ -543,6 +565,23 @@ describe('POST /api/v1/ai/readability', () => {
     expect(mockGenerateObject).not.toHaveBeenCalled()
   })
 
+  it('scores English text with the real Flesch formulas, not the model\'s guess', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockResolvedValueOnce({
+      object: { score: 3, gradeLevel: 'Graduate', issues: [], summary: 'Fine.' },
+    })
+
+    const result = await (readabilityHandler as HandlerFn)(mkEditorEvent({
+      html: '<h2>Our story</h2><p>We are a small cafe in the heart of the town. We roast our own beans and bake our bread each day. You can sit in the sun and read a book, or take a cup to go.</p>',
+    })) as { score: number; gradeLevel: string; method: string; summary: string }
+
+    expect(result.method).toBe('flesch')
+    expect(result.score).toBeGreaterThan(70)
+    expect(result.gradeLevel).toMatch(/grade$/)
+    expect(result.summary).toBe('Fine.')
+  })
+
+  // Short text (and non-English text) falls back to the model's estimate.
   it('returns the schema-validated readability object from the AI response', async () => {
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
     mockGenerateObject.mockResolvedValueOnce({
