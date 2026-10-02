@@ -13,6 +13,7 @@ import { sanitizeRichText, sanitizeCustomHtml, safeHref } from '../../../../pack
 import { safeJsonParse, parseImageList, normalizeImageValue } from '../../../../packages/canvas/src/utils/json'
 import { findBlockById, findParentList, getSlotChildren, isDescendant, cloneWithNewIds } from '../../../../packages/canvas/src/tree'
 import type { CanvasBlockData } from '../../../../packages/canvas/src/types'
+import { lazyBlock } from '../../../../packages/canvas/src/blocks/components'
 
 describe('CLI auth (API key, not email/password)', () => {
   afterEach(() => {
@@ -188,5 +189,16 @@ describe('canvas block tree', () => {
     expect(ids).toEqual(['new-1', 'new-2', 'new-3', 'new-4'])
     ;(clone.children!.left![0]!.props as { t: number }).t = 99
     expect((original.children!.left![0]!.props as { t: number }).t).toBe(1)
+  })
+})
+
+// Regression: every Canvas block server-rendered as an empty `<!---->` on Workers. Vue
+// only unwraps `.default` from a lazily loaded module when it looks like an ES module
+// namespace; the Workers server build's didn't, so Vue rendered the module object itself.
+describe('lazyBlock (code-split Canvas blocks)', () => {
+  it('resolves to the component itself even when the module object is a plain object', async () => {
+    const Comp = { name: 'X', render: () => null }
+    const wrapper = lazyBlock(() => Promise.resolve({ default: Comp })) as { __asyncLoader: () => Promise<unknown> }
+    expect(await wrapper.__asyncLoader()).toBe(Comp)
   })
 })
