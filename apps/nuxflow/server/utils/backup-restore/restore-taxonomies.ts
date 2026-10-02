@@ -5,21 +5,6 @@ import { ulid } from 'ulid'
 import type { Db } from '../db'
 import type { BackupTerm, NuxFlowBackup, RestoreOptions, RestoreResult } from '../backup-types'
 
-// Backups from early betas name the default tags taxonomy `post_tag`; it's
-// `tag` now. Mapped on the way in so an old backup restores onto the current slug (and
-// its content's "post_tag/…" term paths still resolve).
-const LEGACY_TAXONOMY_SLUGS: Record<string, string> = { post_tag: 'tag' }
-
-export function normalizeTaxonomySlug(slug: string): string {
-  return LEGACY_TAXONOMY_SLUGS[slug] ?? slug
-}
-
-/** Normalizes a "{taxonomySlug}/{termSlug}" path from a backup (see LEGACY_TAXONOMY_SLUGS). */
-export function normalizeTermSlugPath(path: string): string {
-  const i = path.indexOf('/')
-  return i === -1 ? path : `${normalizeTaxonomySlug(path.slice(0, i))}${path.slice(i)}`
-}
-
 /**
  * parentSlug links from a (user-editable) backup that would form a cycle are dropped —
  * parentId has no DB-level FK or cycle check, and a loop would hang every parent-chain
@@ -76,7 +61,7 @@ export async function restoreTaxonomies(
 
   // One prefetch instead of one findFirst() per taxonomy — a backup with many
   // taxonomies previously meant one D1 round trip per taxonomy before any write.
-  const taxSlugs = backup.taxonomies.map(t => normalizeTaxonomySlug(t.slug))
+  const taxSlugs = backup.taxonomies.map(t => t.slug)
   const existingTaxRows = taxSlugs.length > 0
     ? await db.query.taxonomies.findMany({
         where: and(eq(taxonomies.siteId, siteId), inArray(taxonomies.slug, taxSlugs)),
@@ -99,7 +84,7 @@ export async function restoreTaxonomies(
   const termIdByTaxAndSlug = new Map(existingTermRows.map(t => [`${t.taxonomyId}/${t.slug}`, t.id]))
 
   for (const backupTax of backup.taxonomies) {
-    const taxSlug = normalizeTaxonomySlug(backupTax.slug)
+    const taxSlug = backupTax.slug
     let taxId = taxIdBySlug.get(taxSlug)
     if (!taxId) {
       taxId = ulid()
@@ -209,7 +194,7 @@ export async function restoreTaxonomyContentTypes(
   const typeIdBySlug = new Map(typeRows.map(t => [t.slug, t.id]))
 
   for (const backupTax of withTypes) {
-    const taxId = taxIdBySlug.get(normalizeTaxonomySlug(backupTax.slug))
+    const taxId = taxIdBySlug.get(backupTax.slug)
     if (!taxId) continue
     const existing = await db.query.taxonomyContentTypes.findFirst({
       where: eq(taxonomyContentTypes.taxonomyId, taxId),

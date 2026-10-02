@@ -117,7 +117,7 @@ export const themeCommand = defineCommand({
         const s = spinner()
         s.start('Authenticating…')
 
-        const { site, cookie } = await authenticateOrExit(s, args)
+        const { site, apiKey } = authenticateOrExit(s, args)
 
         s.message(bundleZip
           ? `Uploading "${manifest.name}" v${manifest.version} (with demo content)…`
@@ -125,8 +125,8 @@ export const themeCommand = defineCommand({
 
         try {
           const res = bundleZip
-            ? await apiPostZip(site, '/api/v1/themes', cookie, `${manifest.name.toLowerCase().replace(/\s+/g, '-')}.zip`, bundleZip) as DeployResponse
-            : await apiPost(site, '/api/v1/themes', cookie, {
+            ? await apiPostZip(site, '/api/v1/themes', apiKey, `${manifest.name.toLowerCase().replace(/\s+/g, '-')}.zip`, bundleZip) as DeployResponse
+            : await apiPost(site, '/api/v1/themes', apiKey, {
                 name: manifest.name,
                 version: manifest.version,
                 css,
@@ -172,12 +172,12 @@ export const themeCommand = defineCommand({
         const s = spinner()
         s.start('Authenticating…')
 
-        const { site, cookie } = await authenticateOrExit(s, args)
+        const { site, apiKey } = authenticateOrExit(s, args)
 
         s.message(`Updating "${manifest.name}"…`)
 
         try {
-          await apiPatch(site, `/api/v1/themes/${manifest.deployedId}/css`, cookie, {
+          await apiPatch(site, `/api/v1/themes/${manifest.deployedId}/css`, apiKey, {
             css,
             version: manifest.version,
           })

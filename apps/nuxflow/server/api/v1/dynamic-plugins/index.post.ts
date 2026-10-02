@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
-import { requireRole } from '../../../utils/permissions'
+import { requireRoleOrApiKey } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
 import { putPluginServerCode, putPluginClientBundle } from '../../../utils/cf-plugin-kv'
 import { verifyPluginSignature, computeSha256 } from '../../../utils/plugin-signing'
@@ -57,7 +57,7 @@ function decodeBase64(encoded: string): string {
 }
 
 export default defineEventHandler(async (event) => {
-  const { userId } = await requireRole(event, 'admin')
+  const { userId } = await requireRoleOrApiKey(event, 'admin', 'manage:plugins')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const body: InstallBody = await parseBody(event, installBodySchema)

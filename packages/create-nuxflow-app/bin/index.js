@@ -6,7 +6,9 @@ import { downloadTemplate } from "giget";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { execSync } from "child_process";
 import { join, resolve, basename } from "path";
-var REPO = "github:NuxFlow/NuxFlow";
+var VERSION = true ? "1.0.0-beta.0" : void 0;
+var TEMPLATE_REF = process.env.NUXFLOW_TEMPLATE_REF || (VERSION ? `create-nuxflow-app@${VERSION}` : "main");
+var REPO = `github:NuxFlow/NuxFlow#${TEMPLATE_REF}`;
 var DOCS_URL = "https://nuxflow.dev/docs";
 var GITHUB_URL = "https://github.com/NuxFlow/NuxFlow";
 function generateSecret() {
@@ -75,12 +77,12 @@ async function main() {
     process.exit(0);
   }
   const s = p.spinner();
-  s.start("Downloading NuxFlow...");
+  s.start(`Downloading NuxFlow (${TEMPLATE_REF})...`);
   try {
     await downloadTemplate(REPO, { dir: targetDir, preferOffline: false });
   } catch (err) {
     s.stop("Download failed");
-    p.cancel(`Could not download template: ${err.message}
+    p.cancel(`Could not download NuxFlow (${TEMPLATE_REF}): ${err.message}
 
 Check your internet connection and try again.`);
     process.exit(1);

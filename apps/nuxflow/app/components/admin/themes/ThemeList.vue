@@ -366,37 +366,27 @@ async function saveCSS() {
             <UIcon name="i-lucide-info" class="w-4 h-4 text-primary-500" />
           </div>
           <div class="space-y-1">
-            <p class="text-sm font-medium text-gray-900 dark:text-white">Two ways to theme your site</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">Ways to theme your site</p>
             <p class="text-sm text-gray-500 dark:text-gray-400">
-              <strong>CSS themes</strong> — upload a stylesheet and it takes effect immediately, no redeploy needed. Ideal for colour palettes, typography, and spacing.
-              <strong>Bundled themes</strong> — installed via the CLI and deployed, required for layout or component changes.
+              <strong>Visual Customizer</strong> — point-and-click colours, fonts, and spacing, published as a theme.
+              <strong>CSS themes</strong> — install a theme package (.zip) or a stylesheet with <strong>Install theme</strong>; it takes effect immediately, no redeploy needed.
+              <strong>Header and footer</strong> — to replace their markup, pick a plugin block under Layout regions.
             </p>
           </div>
         </div>
 
         <div class="border-t border-gray-100 dark:border-gray-800 pt-4 space-y-2">
-          <p class="text-sm font-medium text-gray-700 dark:text-gray-300">To install a bundled theme from npm:</p>
+          <p class="text-sm font-medium text-gray-700 dark:text-gray-300">To build your own theme with the CLI:</p>
           <div class="flex items-start gap-2">
             <UBadge color="neutral" variant="soft" size="xs" class="mt-0.5 shrink-0 font-mono">1</UBadge>
             <div class="bg-gray-900 dark:bg-gray-950 rounded-lg px-4 py-2.5 font-mono text-xs text-green-400 flex-1">
-              npx nuxflow add @author/theme-name
+              npx @nuxflow/cli theme create my-theme
             </div>
           </div>
           <div class="flex items-start gap-2">
             <UBadge color="neutral" variant="soft" size="xs" class="mt-0.5 shrink-0 font-mono">2</UBadge>
-            <div class="bg-gray-900 dark:bg-gray-950 rounded-lg px-4 py-2.5 font-mono text-xs text-green-400 flex-1">
-              pnpm build &amp;&amp; wrangler deploy
-            </div>
+            <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Edit <span class="font-mono">theme.css</span>, then upload it here with <strong>Install theme</strong> → <strong>CSS only</strong> (or run <span class="font-mono">npx @nuxflow/cli theme deploy</span>) and click <strong>Activate</strong>.</p>
           </div>
-          <div class="flex items-start gap-2">
-            <UBadge color="neutral" variant="soft" size="xs" class="mt-0.5 shrink-0 font-mono">3</UBadge>
-            <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Return here and click <strong>Activate</strong>.</p>
-          </div>
-        </div>
-
-        <div class="border-t border-gray-100 dark:border-gray-800 pt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-          <UIcon name="i-lucide-package-search" class="w-3.5 h-3.5 shrink-0" />
-          Find community themes by searching npm for <span class="font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">nuxflow-theme</span>
         </div>
       </div>
     </UCard>

@@ -89,13 +89,16 @@ A NuxFlow CSS theme.
 ## Quick start
 
 \`\`\`bash
+# Create an API key on your site first: Admin → Settings → API keys, with
+# "Upload and update themes". Then:
+export NUXFLOW_SITE=https://your-site.com
+export NUXFLOW_API_KEY=nf_...
+
 # Deploy for the first time (activates automatically if no theme is active)
-nuxflow theme deploy --site https://your-site.com \\
-  --email admin@your-site.com --password yourpassword
+nuxflow theme deploy
 
 # Update CSS after making changes
-nuxflow theme update --site https://your-site.com \\
-  --email admin@your-site.com --password yourpassword
+nuxflow theme update
 \`\`\`
 
 The \`deployedId\` field in \`nuxflow.theme.json\` is written automatically on first deploy

@@ -1,4 +1,4 @@
-import { requireRole } from '../../../utils/permissions'
+import { requireRoleOrApiKey } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
 import { waitUntil } from '../../../utils/cf-env'
 import { putThemeCSS, putThemeDemo } from '../../../utils/cf-theme-kv'
@@ -33,7 +33,7 @@ function parseDemoSummary(backup: NuxFlowBackup) {
 }
 
 export default defineEventHandler(async (event) => {
-  const { userId } = await requireRole(event, 'admin')
+  const { userId } = await requireRoleOrApiKey(event, 'admin', 'manage:themes')
   const db = useDb(event)
   const siteId = event.context.siteId as string
 

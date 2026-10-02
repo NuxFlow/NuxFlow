@@ -15,10 +15,10 @@ const deletedWasLastSite = ref(false)
 const deleteCountdown = ref(3)
 
 // Every site sharing this deployment — fetched lazily the first time the tab
-// is opened. "Main" is simply the oldest site (no separate flag for it); the
-// server applies the exact same rule, this is only for showing the blocking
-// message up front instead of making the admin click delete to find out.
-interface SiteRow { id: string; name: string; domain: string; createdAt: string }
+// is opened. The primary site (`isPrimary`) can't be deleted while others exist;
+// the server enforces that rule (deleteSiteCompletely), this only shows the
+// blocking message up front instead of making the admin click delete to find out.
+interface SiteRow { id: string; name: string; domain: string; isPrimary: boolean }
 const allSites = ref<SiteRow[]>([])
 const loadingAllSites = ref(false)
 const allSitesLoaded = ref(false)
@@ -41,12 +41,7 @@ async function loadAllSites() {
 
 onMounted(() => loadAllSites())
 
-const sortedSites = computed(() => [...allSites.value].sort((a, b) => a.createdAt.localeCompare(b.createdAt)))
-
-const isMainSite = computed(() => {
-  if (allSites.value.length === 0) return false
-  return sortedSites.value[0]?.id === props.siteId
-})
+const isMainSite = computed(() => allSites.value.some(s => s.id === props.siteId && s.isPrimary))
 
 const blockingSites = computed(() => allSites.value.filter(s => s.id !== props.siteId))
 
@@ -98,10 +93,10 @@ async function deleteSite() {
       </p>
     </div>
 
-    <!-- Blocked: this is the main site and other sites still exist -->
+    <!-- Blocked: this is the primary site and other sites still exist -->
     <div v-else-if="isMainSite && blockingSites.length > 0" class="space-y-3">
       <p class="text-sm text-gray-600 dark:text-gray-400">
-        This is the main site for this deployment — delete the other site{{ blockingSites.length === 1 ? '' : 's' }} below first before this one can be deleted.
+        This is the primary site for this deployment — delete the other site{{ blockingSites.length === 1 ? '' : 's' }} below first before this one can be deleted.
       </p>
       <ul class="space-y-1.5">
         <li v-for="s in blockingSites" :key="s.id" class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">

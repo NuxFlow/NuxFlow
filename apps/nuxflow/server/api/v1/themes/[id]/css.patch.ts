@@ -1,5 +1,5 @@
 import { useDb } from '../../../../utils/db'
-import { requireRole } from '../../../../utils/permissions'
+import { requireRoleOrApiKey } from '../../../../utils/permissions'
 import { writeAuditLog } from '../../../../utils/audit'
 import { waitUntil } from '../../../../utils/cf-env'
 import { putThemeCSS } from '../../../../utils/cf-theme-kv'
@@ -9,7 +9,7 @@ import { scopedById } from '../../../../utils/db-helpers'
 import { purgeAllPublicPages } from '../../../../utils/edge-cache'
 
 export default defineEventHandler(async (event) => {
-  const { userId } = await requireRole(event, 'admin')
+  const { userId } = await requireRoleOrApiKey(event, 'admin', 'manage:themes')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!

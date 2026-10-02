@@ -85,6 +85,20 @@ function editorEvent(opts: { body?: unknown; params?: Record<string, string> } =
   }) as unknown as H3Event
 }
 
+// An API-key request as 03.api-key-auth.ts leaves it: no session, just the key's owner,
+// that owner's current site role, and the key's declared scopes.
+function apiKeyEvent(userId: string, role: string, scopes: string[], opts: { body?: unknown; params?: Record<string, string> } = {}) {
+  return createMockEvent({
+    siteId: SITE,
+    session: null,
+    apiKeyUserId: userId,
+    apiKeyRole: role,
+    apiKeyScopes: scopes,
+    body: opts.body,
+    params: opts.params,
+  }) as unknown as H3Event
+}
+
 async function seedTheme(overrides: Partial<typeof themes.$inferInsert> = {}) {
   const db = getCurrentTestDb()
   const id = overrides.id ?? ulid()
@@ -242,6 +256,29 @@ describe('PATCH /api/v1/themes/:id/css', () => {
     await expect(
       (cssPatchHandler as Handler)(adminEvent({ params: { id }, body: { css: '' } })),
     ).rejects.toMatchObject({ statusCode: 400 })
+  })
+
+  // The `nuxflow theme update` CLI path: an API key instead of a session, so it works on
+  // a site's own domain under central sign-in.
+  it("accepts an admin's API key with the manage:themes permission", async () => {
+    putThemeCSSMock.mockClear()
+    const id = await seedTheme({ hasCss: true })
+    await (cssPatchHandler as Handler)(apiKeyEvent(adminId, 'admin', ['manage:themes'], { params: { id }, body: { css: ':root{--k:1}' } }))
+    expect(putThemeCSSMock).toHaveBeenCalledWith(expect.anything(), SITE, id, ':root{--k:1}')
+  })
+
+  it('refuses an API key without the manage:themes permission', async () => {
+    const id = await seedTheme({ hasCss: true })
+    await expect(
+      (cssPatchHandler as Handler)(apiKeyEvent(adminId, 'admin', ['read:content', 'write:content', 'manage:plugins'], { params: { id }, body: { css: ':root{}' } })),
+    ).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('refuses a manage:themes key whose owner is no longer an admin', async () => {
+    const id = await seedTheme({ hasCss: true })
+    await expect(
+      (cssPatchHandler as Handler)(apiKeyEvent(editorId, 'editor', ['manage:themes'], { params: { id }, body: { css: ':root{}' } })),
+    ).rejects.toMatchObject({ statusCode: 403 })
   })
 })
 

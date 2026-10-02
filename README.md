@@ -30,7 +30,7 @@ By optimizing strictly for Cloudflare Workers instead of legacy VPS hosting or c
 
 **For users:** A guided onboarding wizard, a drag-and-drop Canvas page builder, media library, multi-step forms, and an intuitive admin dashboard — all with zero database configuration or server setups.
 
-**For developers:** A fully typed Nuxt 4 monorepo with Drizzle ORM, a typed REST + GraphQL API, a plugin SDK, and a secure, cryptographically signed dynamic plugin sandbox powered exclusively by Cloudflare's Dynamic Workers.
+**For developers:** A fully typed Nuxt 4 monorepo with Drizzle ORM, a REST API plus an MCP server for AI agents, a CLI for building plugins and themes, and a secure, cryptographically signed dynamic plugin sandbox powered by Cloudflare's Dynamic Workers.
 
 ---
 
@@ -68,8 +68,8 @@ Every feature in the admin is fully functional. The demo resets automatically at
 
 ### Canvas Visual Page Builder
 - **Elementor-style drag-and-drop editor** — build pages visually without writing code
-- **Built-in block types**: Hero, Text, Image, Video, Columns, Features, Testimonial, CTA Banner, Spacer, GDPR Banner, Footer, Button, Accordion, Pricing Table
-- **Third-party blocks** — install dynamic plugins to add new block types (Countdown, Pricing Table, Map, etc.)
+- **Built-in block types**: Hero, Text, Image, Video, Columns, Container, Features, Testimonial, CTA Banner, Spacer, GDPR Banner, Footer, Button, Accordion, Pricing Table, Gallery, Carousel, Events Calendar, Posts, Contact Form, Form, HTML, Membership Pricing
+- **Third-party blocks** — install dynamic plugins to add new block types (a countdown, a map, etc.)
 - **State-driven editing** — every property change updates live JSON, saved with a single API call
 - **Fully server-side rendered** — canvas pages are SSR'd at the edge for instant first paint and SEO
 
@@ -83,52 +83,50 @@ Every feature in the admin is fully functional. The demo resets automatically at
 - **Shareable preview links** — 48-hour signed URL, no login required
 - **Auto-save** — debounced 10-second background save on existing items
 - **Content taxonomies** — tags, categories, and admin-defined custom taxonomies
-- **Multi-language** — per-item locale assignment via `@nuxtjs/i18n`
+- **Multi-language** — one-click AI translation of any page or post into a linked draft, served at `/{locale}/{slug}` with hreflang alternates and a language switcher
 
 ### Media Management & Video Streaming
-- **Drag-and-drop upload** to the media library
-- **Provider abstraction** — Cloudflare Images (default), AWS S3 / Backblaze B2, and Bunny.net (configured via environment variables)
-- **Alt text and caption** editor per asset
-- **Responsive image delivery** via Cloudflare Images variants
+- **Drag-and-drop upload** to the media library, with folders
+- **Storage** — Cloudflare R2 out of the box (just bind a bucket — no keys or public URL needed), or Cloudflare Images, S3-compatible storage (AWS S3, Backblaze B2, …), or Bunny.net, configured per site in Settings → Media
+- **Alt text and caption** editor per asset, with AI-generated alt text from the actual image
+- **Responsive image delivery** via optional Cloudflare Image Transformations
 - **Media picker** component embedded in the block editor
-- **Cloudflare Stream Integration** — direct browser-to-edge resumable uploads (TUS protocol), background HLS/DASH transcoding, and interactive analytics tracking
+- **Cloudflare Stream integration** — direct browser uploads, automatic transcoding, and an embedded player
 
 
 ### Authentication & Users
 - Email/password login with **Argon2id** hashing (OWASP 2024 first choice, m=19456 KiB), running directly in the Worker
 - **Social login** — Google and GitHub OAuth
 - **Passkey / Passwordless login** — register and authenticate with biometrics (Touch ID, Face ID) or hardware keys via WebAuthn
-- **Role-based access control**: Super Admin, Admin, Editor, Author, Viewer, plus custom roles
+- **Role-based access control**: Super Admin, Admin, Editor, Author, Member, Viewer
 - **Multi-site roles** — users can have different roles on different sites
 - Password reset via email (24-hour links)
 - User invitation workflow with role assignment
 
 ### Site Settings & SEO
-- **Per-item SEO** — meta title, description, canonical URL, Open Graph, Twitter Card, Schema.org structured data
-- **Auto-generated XML sitemap** at `/sitemap.xml`
-- **Dynamic robots.txt** — toggle index/noindex settings from the admin
-- **301/302 redirect manager** — create and delete redirects from the admin
-- **Analytics integration** — setting field for Google Analytics ID (to be wired in theme templates)
-- **RSS/Atom feed** at `/feed.xml`
+- **Per-item SEO** — meta title, description, canonical URL, robots, Open Graph, Twitter Card, and Schema.org structured data (BlogPosting, Event, FAQPage, BreadcrumbList)
+- **XML sitemaps** at `/sitemap.xml` and `/sitemap-images.xml`, plus RSS (`/feed.xml`) and Atom (`/atom.xml`) feeds
+- **robots.txt and AI crawlers** — allow, block AI training only, or block all AI crawlers; `Content-Signal` headers; `llms.txt` and a Markdown version of every page
+- **Redirect manager** — 301/302/307/308/410, CSV import, and automatic 301s when a published page's slug changes
+- **IndexNow** pings on publish, plus an SEO audit and a crawler activity report
+- **Analytics** — cookie-free page views via Cloudflare Analytics Engine, or paste any analytics script into the head/body code settings
 
 ### Forms Builder
-- **Multi-step form builder** (Typeform-style)
-- **Field types**: Text, Number, Email, File Upload, Select, Radio, Checkbox, Date, Signature, Computed
-- **Conditional logic** — "Show field if X equals Y"
+- **Form builder** with field types: Short text, Long text, Email, Number, Select, Radio, Checkbox, Date, File upload, Signature, Hidden, and Computed
 - **Computed fields** — real-time expression evaluation (e.g. `{{quantity}} * {{price}}`)
-- **Spam protection** via Cloudflare Turnstile
-- Submissions stored in database; viewable and **exportable as CSV**
+- **Spam protection** via Cloudflare Turnstile plus a background AI moderation pass
+- Submissions stored in the database; viewable and **exportable as CSV**
 - Optional email notification on submission
 
 ### Theme System & Visual Customizer
 - **Visual Customizer** — full-screen, no-code style editor with a side-by-side live preview of your site; change fonts (17 Google Fonts), colours, backgrounds, spacing density, content width, and corner radius in real time, then publish with one click
 - **Site logo** — upload a logo image (PNG/SVG/WebP) to replace the text site name in the public header; managed from Settings → Appearance
 - **Custom code injection** — inject analytics tags, chat widgets, or any HTML into `<head>` or `<body>` of every public page via Settings → Appearance, with no redeploy required
-- Themes are **Nuxt layers** — override any component, page, or layout
+- Themes are **CSS files** stored in KV and injected at render time — upload, preview, and activate with no redeploy
 - **Live theme preview** — admin sees new theme while visitors see the current one
 - **Instant activation** — new theme takes effect immediately on activation
-- Per-block render components defined in the theme
-- CLI scaffolding: `npx nuxflow theme create`
+- **Layout regions** — a plugin block can replace the built-in header or footer
+- CLI scaffolding: `npx @nuxflow/cli theme create`
 
 ### Membership & Payments
 - **Membership tiers** with recurring subscription pricing
@@ -151,20 +149,21 @@ Every feature in the admin is fully functional. The demo resets automatically at
 - One installation manages **unlimited sites** with full data isolation
 - Per-site domain, theme, plugins, users, and content
 - All database queries scoped by `site_id`
-- **Super-admin dashboard** with cross-site stats
-- Site creation wizard
+- **Super-admin dashboard** with cross-site stats, database size monitoring, and a whole-database export
+- Site creation wizard, plus a central sign-in domain so passwords are never typed on a tenant's own pages
 
-### AI Writing Assistant
-- LLM providers: **OpenAI**, **Anthropic**, **Google Gemini**, **DeepSeek**, **Ollama** (local, free)
-- **Improve** — select text → receive 2–3 alternative rewrites
-- **SEO suggestions** — generate meta title and description from content
-- **Alt text generation** for media uploads
-- AI toolbar only appears when a provider is configured — zero friction when unused
+### AI
+- **Works out of the box with Workers AI** (no API key), or bring your own **OpenAI**, **Anthropic**, **Google Gemini**, **DeepSeek**, or **Ollama**; optional Cloudflare AI Gateway for caching and logging
+- **Page and whole-site generation** — plan, review, and publish AI-built Canvas pages
+- **Writing tools** — improve/shorten/expand text, grammar, readability score, SEO title and description suggestions, tag suggestions, translation
+- **Images** — AI image generation, alt text, and focal points from the actual image
+- **Voice** — dictation into prompts, and "Listen to this article" on public posts
+- **Semantic search** (optional, Vectorize) alongside built-in full-text search
 
-### REST & GraphQL API
+### REST API & MCP
 - **REST API v1** — full CRUD on all content types, paginated and filterable
-- **GraphQL API** — `graphql-yoga` endpoint at `/api/graphql`
-- **API keys** — generate named keys with scoped permissions, revoke anytime
+- **MCP server** — let AI agents read and edit content (see [docs/mcp.md](docs/mcp.md))
+- **API keys** — generate named keys with `read:content` / `write:content` scopes (plus `manage:plugins` / `manage:themes` for the CLI), revoke anytime
 - Bearer token authentication for external consumers
 - Unauthenticated requests automatically restricted to published content
 
@@ -193,11 +192,9 @@ Every feature in the admin is fully functional. The demo resets automatically at
 | UI | Nuxt UI (free) — TipTap integrated directly via `@tiptap/vue-3`, admin layout is hand-built |
 | Auth | Better Auth (hand-rolled integration, no Nuxt auth module) |
 | State | Pinia |
-| GraphQL | graphql-yoga |
 | Validation | Zod |
 | Animations | Vue's built-in `<Transition>` — no animation library dependency |
-| i18n | @nuxtjs/i18n |
-| SEO | nuxt-seo-utils |
+| AI | Vercel AI SDK + Workers AI |
 | Monorepo | pnpm workspaces + Turborepo |
 | Testing | Vitest + Playwright |
 
@@ -213,14 +210,13 @@ nuxflow/
 │   │   ├── pages/setup/        # Onboarding wizard
 │   │   ├── components/         # Editor, forms, media, setup components
 │   │   ├── layouts/            # Admin + public layouts
-│   │   └── stores/             # Pinia stores (auth, content, site)
+│   │   └── stores/             # Pinia store (auth)
 │   └── server/
-│       ├── api/v1/             # REST API handlers
-│       ├── api/graphql/        # GraphQL endpoint
+│       ├── api/v1/             # REST API handlers (and the MCP endpoint)
 │       ├── middleware/         # Site resolution, auth, redirects, maintenance
 │       ├── plugins/            # Plugin loader, theme resolver
 │       ├── routes/             # sitemap.xml, robots.txt, feed.xml
-│       ├── scheduled/          # Cron tasks (scheduled publish)
+│       ├── scheduled/          # Scheduled task logic (wrapped by tasks/)
 │       └── utils/              # Permissions, audit, rate limiting, providers
 ├── packages/
 │   ├── canvas/                 # Canvas page builder — block components + editor (@nuxflow/canvas)
@@ -228,7 +224,7 @@ nuxflow/
 │   ├── cli/                    # `nuxflow` CLI — scaffold/build/deploy plugins and themes
 │   └── create-nuxflow-app/     # `pnpm create nuxflow-app` scaffolder
 └── themes/
-    └── default/                # Default theme (Nuxt layer, block renderers)
+    └── default/                # theme.css — reference for every token and selector a theme can use
 ```
 
 `@nuxflow/canvas` and `@nuxflow/db` are private/internal to the monorepo — only `@nuxflow/cli` and `create-nuxflow-app` are published to npm. Contact forms, memberships, and HTML embeds are core features of `apps/nuxflow`, not separate bundled plugin packages. Dynamic (third-party) plugins have no shared SDK package to depend on — see the [External Plugin Development Guide](docs/plugins.md).
@@ -408,11 +404,11 @@ pnpm --filter @nuxflow/db generate
 
 ## Plugins
 
-Plugins extend NuxFlow with new server routes, admin pages, and UI components. They declare their required permissions upfront; an admin must approve them before activation.
+Plugins extend NuxFlow with new server routes and Canvas blocks. Each plugin runs as an isolated Worker with no outbound network access, and its block code renders only inside a sandboxed iframe.
 
 ### Creating a dynamic plugin
 
-Dynamic plugins are standalone packages built and deployed independently from NuxFlow itself. The CLI handles the full lifecycle.
+Dynamic plugins are standalone packages built and deployed independently from NuxFlow itself. The CLI (`pnpm add -g @nuxflow/cli`, or prefix each command with `npx @nuxflow/cli`) handles the full lifecycle.
 
 ```bash
 # Scaffold a new plugin project
@@ -424,16 +420,19 @@ nuxflow plugin keygen
 # Build (compiles server Worker + client bundle, computes SHA-256 checksums)
 nuxflow plugin build
 
-# Deploy to a NuxFlow site
-nuxflow plugin deploy --site https://your-site.com --email admin@example.com --password ••••
+# Deploy to a NuxFlow site, with an API key from Admin → Settings → API keys
+# ("Install and remove plugins")
+export NUXFLOW_SITE=https://your-site.com
+export NUXFLOW_API_KEY=nf_...
+nuxflow plugin deploy
 
 # Push an update
-nuxflow plugin update --site https://your-site.com --email admin@example.com --password ••••
+nuxflow plugin update
 ```
 
 The server verifies the Ed25519 signature and SHA-256 checksums on install and on every request. Code that fails verification is rejected before execution.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full plugin authoring guide including how to register Canvas block types with a field schema.
+See the [plugin development guide](docs/plugins.md) for the full authoring guide, including how to register Canvas block types with a field schema.
 
 ---
 
@@ -470,7 +469,7 @@ A theme is a CSS file (plus optional `theme.json` metadata and `demo.json` seed 
 ### Creating a theme
 
 ```bash
-npx nuxflow theme create my-theme
+npx @nuxflow/cli theme create my-theme
 ```
 
 ### Layout regions (structural theming)

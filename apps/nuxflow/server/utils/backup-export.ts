@@ -68,8 +68,8 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
   ])
 
   // Themes: D1 row plus its KV-only CSS/demo payload (see BackupTheme). getThemeCSS()
-  // is reused here rather than a raw kv.get() so a legacy pre-versioning CSS key still
-  // gets picked up, and the value comes back already sanitized.
+  // is reused here rather than a raw kv.get() so it resolves the current versioned key
+  // and the value comes back already sanitized.
   const backupThemes: BackupTheme[] = []
   for (const t of themeRows) {
     backupThemes.push({

@@ -5,7 +5,6 @@ import { ulid } from 'ulid'
 import type { Db } from '../db'
 import type { NuxFlowBackup, RestoreOptions, RestoreResult } from '../backup-types'
 import { archiveSuffix } from './shared'
-import { normalizeTermSlugPath } from './restore-taxonomies'
 
 const META_ROBOTS_VALUES = new Set(['index,follow', 'noindex,follow', 'noindex,nofollow', 'index,nofollow'])
 
@@ -42,7 +41,7 @@ async function replaceContentTerms(
   // De-duplicated: a hand-edited backup listing the same term twice would otherwise hit
   // the (item, term) unique index and abort the whole restore.
   const termIds = [...new Set(termSlugs
-    .map(s => termIdBySlugPath.get(normalizeTermSlugPath(s)))
+    .map(s => termIdBySlugPath.get(s))
     .filter((t): t is string => t !== undefined))]
   if (termIds.length > 0) {
     await db.insert(contentTaxonomyTerms).values(termIds.map(termId => ({ contentItemId: itemId, termId })))

@@ -5,19 +5,25 @@ import { videoAssets } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { created } from '../../../../utils/response'
+import { parseBody } from '../../../../utils/validate'
+import { z } from 'zod'
+
+const bodySchema = z.object({
+  // Cloudflare Stream video UIDs are 32 hex characters; anything else is never a real
+  // upload, and the value is interpolated into a Cloudflare API URL below.
+  uid: z.string().regex(/^[a-f0-9]{32}$/i, 'Invalid video UID'),
+  title: z.string().trim().max(500).optional(),
+  size: z.number().int().nonnegative().optional(),
+})
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
   const siteId = event.context.siteId as string
 
-  const body = await readBody(event)
-  const uid = body?.uid as string | undefined
-  let title = body?.title as string | undefined
-  const size = body?.size as number | undefined
-
-  if (!uid) {
-    throw badRequest('Missing video UID (cloudflareStreamId)')
-  }
+  const body = await parseBody(event, bodySchema)
+  const uid = body.uid
+  let title = body.title
+  const size = body.size
 
   const accountId = await resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
   const streamToken = await resolveSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')

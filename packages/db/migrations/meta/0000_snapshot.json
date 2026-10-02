@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "84c8b939-2ea4-4493-a1bf-7d0a1dc2cc5f",
+  "id": "6e09f4b6-be98-4bed-8617-1fac081a6de2",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "site_settings": {
@@ -253,13 +253,6 @@
         },
         "id_token": {
           "name": "id_token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "expires_at": {
-          "name": "expires_at",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3179,6 +3172,20 @@
         },
         "plan": {
           "name": "plan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tone": {
+          "name": "tone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "locked_until": {
+          "name": "locked_until",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

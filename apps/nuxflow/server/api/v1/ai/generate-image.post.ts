@@ -10,9 +10,7 @@ import { ulid } from 'ulid'
 
 const bodySchema = z.object({
   prompt: z.string().min(5).max(1000),
-  shape: z.enum(['square', 'landscape', 'portrait']).optional(),
-  // Older clients sent DALL-E 3's pixel sizes; mapped onto a shape.
-  size: z.enum(['1024x1024', '1792x1024', '1024x1792']).optional(),
+  shape: z.enum(['square', 'landscape', 'portrait']).optional().default('square'),
   quality: z.enum(['standard', 'hd']).optional().default('standard'),
   saveToLibrary: z.boolean().optional().default(true),
 })
@@ -26,8 +24,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 503, message: 'No image generation provider available. Add an OpenAI or Google Gemini key in Settings → AI, or enable the Workers AI binding.' })
   }
 
-  const { prompt, shape: requestedShape, size, quality, saveToLibrary } = await parseBody(event, bodySchema)
-  const shape = requestedShape ?? (size === '1792x1024' ? 'landscape' : size === '1024x1792' ? 'portrait' : 'square')
+  const { prompt, shape, quality, saveToLibrary } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string
 
   const imageUrl = await callAiOrThrow(() => imageProvider.generate(prompt, { shape, quality }))

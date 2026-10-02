@@ -4,14 +4,14 @@
 
 | Version | Supported |
 |---|---|
-| Latest `main` | ✅ |
-| Older releases | Bug fixes backported on a case-by-case basis |
+| Latest release | ✅ |
+| Older releases | Fixes backported on a case-by-case basis |
 
 ## Reporting a Vulnerability
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Send a report to **[security@nuxflow.io](mailto:security@nuxflow.io)** with:
+Report it privately through GitHub: **[Report a vulnerability](https://github.com/NuxFlow/NuxFlow/security/advisories/new)** (the repository's Security tab → "Report a vulnerability"). If you can't use GitHub, email **[security@nuxflow.dev](mailto:security@nuxflow.dev)** instead. Include:
 
 1. A clear description of the vulnerability
 2. Steps to reproduce

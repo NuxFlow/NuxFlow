@@ -225,12 +225,12 @@ export const pluginCommand = defineCommand({
 
         s.message('Authenticating…')
 
-        const { site, cookie } = await authenticateOrExit(s, args)
+        const { site, apiKey } = authenticateOrExit(s, args)
 
         s.message(`Deploying ${manifest.name as string} v${manifest.version as string}…`)
 
         try {
-          await apiPost(site, '/api/v1/dynamic-plugins', cookie, {
+          await apiPost(site, '/api/v1/dynamic-plugins', apiKey, {
             ...dist,
             publisherPublicKey: manifest.publisherPublicKey,
             signature,
@@ -274,15 +274,15 @@ export const pluginCommand = defineCommand({
 
         s.message('Authenticating…')
 
-        const { site, cookie } = await authenticateOrExit(s, args)
+        const { site, apiKey } = authenticateOrExit(s, args)
 
         s.message('Removing old version…')
         // Ignore 404 — plugin may not be installed yet
-        await apiDelete(site, `/api/v1/dynamic-plugins/${manifest.id}`, cookie).catch(() => {})
+        await apiDelete(site, `/api/v1/dynamic-plugins/${manifest.id}`, apiKey).catch(() => {})
 
         s.message(`Deploying ${manifest.name} v${manifest.version}…`)
         try {
-          await apiPost(site, '/api/v1/dynamic-plugins', cookie, {
+          await apiPost(site, '/api/v1/dynamic-plugins', apiKey, {
             ...dist,
             publisherPublicKey: manifest.publisherPublicKey,
             signature,

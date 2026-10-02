@@ -350,7 +350,7 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
           <!-- TipTap rich-text editor -->
           <EditorContentEditor v-if="editorMode === 'tiptap'" v-model="form.content" />
 
-          <!-- Canvas block editor (requires @nuxflow/plugin-canvas to be installed) -->
+          <!-- Canvas block editor (@nuxflow/canvas) -->
           <component
             :is="resolveComponent('CanvasContentEditor')"
             v-else-if="editorMode === 'canvas'"

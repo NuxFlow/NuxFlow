@@ -1,5 +1,5 @@
 import { useDb } from '../../../../utils/db'
-import { requireRole } from '../../../../utils/permissions'
+import { requireRoleOrApiKey } from '../../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { deletePluginAssets } from '../../../../utils/cf-plugin-kv'
 import { getDynamicPluginByIdOrThrow } from '../../../../utils/resource-queries'
@@ -8,7 +8,7 @@ import { scopedById } from '../../../../utils/db-helpers'
 import { purgeEdgeCache } from '../../../../utils/edge-cache'
 
 export default defineEventHandler(async (event) => {
-  const { userId } = await requireRole(event, 'admin')
+  const { userId } = await requireRoleOrApiKey(event, 'admin', 'manage:plugins')
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!

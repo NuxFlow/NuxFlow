@@ -160,25 +160,19 @@ A NuxFlow dynamic plugin.
 # 2. Build
 nuxflow plugin build
 
-# 3. Deploy (first time)
-nuxflow plugin deploy --site https://your-site.com \\
-  --email admin@your-site.com --password yourpassword
-
-# 4. Update after changes
-nuxflow plugin build
-nuxflow plugin update --site https://your-site.com \\
-  --email admin@your-site.com --password yourpassword
-\`\`\`
-
-Or use environment variables to avoid repeating flags:
-
-\`\`\`bash
+# 3. Create an API key on your site: Admin → Settings → API keys, with
+#    "Install and remove plugins". Environment variables keep it out of shell history:
 export NUXFLOW_SITE=https://your-site.com
-export NUXFLOW_EMAIL=admin@your-site.com
-export NUXFLOW_PASSWORD=yourpassword
+export NUXFLOW_API_KEY=nf_...
 
+# 4. Deploy (first time)
+nuxflow plugin deploy
+
+# 5. Update after changes
 nuxflow plugin build && nuxflow plugin update
 \`\`\`
+
+\`--site\` and \`--api-key\` flags work too, instead of the environment variables.
 
 ## How it works
 

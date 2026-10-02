@@ -54,9 +54,14 @@ apps/nuxflow/tests/e2e/.auth/
 apps/nuxflow/wrangler.toml
 apps/nuxflow/wrangler.demo.toml
 
-# Claude Code
+# AI agent context and locally installed agent skills — per-developer, never shipped
+# (create-nuxflow-app downloads this repo, so anything tracked lands in every new project)
 .claude/settings.local.json
+.claude/skills/
+.agent/
 CLAUDE.md
+GEMINI.md
+skills-lock.json
 
 # Personal scratch space (themes-in-progress, demo assets, etc.) — never pushed
 /MYSTUFF/

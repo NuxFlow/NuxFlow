@@ -6,6 +6,7 @@ import { writeAuditLog } from './audit'
 import { deletePluginAssets } from './cf-plugin-kv'
 import { deleteThemeCSS, deleteThemeDemo } from './cf-theme-kv'
 import { errorMessage } from './errors'
+import { conflict } from './response'
 import { deleteSiteEmailObjects } from './inbox'
 import { deleteContentEmbeddings } from './embeddings'
 import {
@@ -34,8 +35,30 @@ export interface SiteDeletionResult {
   failedMediaDeletes: string[]
 }
 
+/**
+ * The primary site (`sites.is_primary`) is the operator's own: it alone inherits the
+ * deployment's payment/email env credentials, holds the social-login settings, and
+ * receives account-level alerts. Deleting it while tenants remain would silently strip
+ * all of that from the platform with nothing to reassign it, so it can only go once it's
+ * the last site. The 409 carries the other sites (`blockingSites`) so the UI can list them.
+ */
+export async function assertPrimarySiteDeletable(event: H3Event, siteId: string): Promise<void> {
+  const db = useDb(event)
+  const target = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { isPrimary: true } })
+  if (!target?.isPrimary) return
+  const others = await db.query.sites.findMany({ where: ne(sites.id, siteId), columns: { id: true, domain: true } })
+  if (others.length > 0) {
+    conflict(
+      `This is the primary site — delete the other ${others.length} site${others.length === 1 ? '' : 's'} first: ${others.map(s => s.domain).join(', ')}`,
+      { blockingSites: others },
+    )
+  }
+}
+
 export async function deleteSiteCompletely(event: H3Event, siteId: string, actorUserId: string): Promise<SiteDeletionResult> {
   const db = useDb(event)
+
+  await assertPrimarySiteDeletable(event, siteId)
 
   console.warn(JSON.stringify({
     event: 'site.delete', siteId, actorUserId, at: new Date().toISOString(),

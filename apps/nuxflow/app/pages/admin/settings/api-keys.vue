@@ -11,7 +11,12 @@ const form = reactive({ name: '', scopes: ['read:content'] as string[] })
 const SCOPE_OPTIONS = [
   { value: 'read:content', label: 'Read content' },
   { value: 'write:content', label: 'Write content (create, update, delete, publish)' },
+  { value: 'manage:plugins', label: 'Install and remove plugins (for the nuxflow CLI)' },
+  { value: 'manage:themes', label: 'Upload and update themes (for the nuxflow CLI)' },
 ]
+// Plugins run code on this site, so a key that can install them is as powerful as an
+// admin login. The server also requires the key's owner to still be an admin.
+const grantsAdminPower = computed(() => form.scopes.some(s => s.startsWith('manage:')))
 
 async function create() {
   creating.value = true
@@ -82,6 +87,14 @@ const columns = [
             />
           </div>
         </UFormField>
+        <UAlert
+          v-if="grantsAdminPower"
+          color="warning"
+          variant="soft"
+          icon="i-lucide-shield-alert"
+          title="Treat this key like an admin password"
+          description="It can change the code and styling your site runs. Keep it out of shared files and repositories, and revoke it when you're done. It only works while you're still an admin of this site."
+        />
       </div>
     </UCard>
 

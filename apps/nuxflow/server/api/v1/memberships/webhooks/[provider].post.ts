@@ -34,7 +34,6 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         metadata: Record<string, string>
         payment_status: string
       }
-      console.log('[stripe-webhook] checkout.session.completed', { sessionId: session.id, sub: session.subscription, meta: session.metadata })
       // Only handle subscription checkouts
       if (!session.subscription) break
       const userId = session.metadata?.userId
@@ -75,7 +74,6 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
         pushOnActivation: true,
       })
-      console.log('[stripe-webhook] checkout.session.completed handled', { userId, subId: stripeSub.id })
       break
     }
     case 'customer.subscription.created':
@@ -103,7 +101,6 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         throw createError({ statusCode: 502, message: `Failed to fetch Stripe subscription ${eventSub.id}: ${detail}` })
       }
       const stripeSubItem = stripeSub.items.data[0]
-      console.log('[stripe-webhook] subscription event', stripeEvent.type, { subId: stripeSub.id, userId })
 
       await upsertSubscriptionFromWebhook(event, {
         provider: 'stripe',

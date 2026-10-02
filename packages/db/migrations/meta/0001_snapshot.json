@@ -1,6 +1,6 @@
 {
-  "id": "d03a08ef-4cba-4005-8683-766911683992",
-  "prevId": "84c8b939-2ea4-4493-a1bf-7d0a1dc2cc5f",
+  "id": "728e880c-aea2-4fed-b4cc-9a2f7ea1d09a",
+  "prevId": "6e09f4b6-be98-4bed-8617-1fac081a6de2",
   "version": "6",
   "dialect": "sqlite",
   "tables": {
@@ -253,13 +253,6 @@
         },
         "id_token": {
           "name": "id_token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "expires_at": {
-          "name": "expires_at",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3179,6 +3172,20 @@
         },
         "plan": {
           "name": "plan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tone": {
+          "name": "tone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "locked_until": {
+          "name": "locked_until",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

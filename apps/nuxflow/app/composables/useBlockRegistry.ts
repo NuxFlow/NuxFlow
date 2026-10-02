@@ -7,7 +7,7 @@ interface BlockRegistryEntry {
   icon?: string
   component: Component
   // Full CanvasBlockDefinition for the settings panel field editor.
-  // Typed as unknown to avoid coupling this composable to @nuxflow/plugin-canvas.
+  // Typed as unknown to avoid coupling this composable to @nuxflow/canvas.
   // useCanvas.ts casts it to CanvasBlockDefinition after retrieval.
   definition?: unknown
 }

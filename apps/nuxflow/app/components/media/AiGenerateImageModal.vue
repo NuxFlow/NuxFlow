@@ -93,7 +93,7 @@ function useImage() {
       color="info"
       variant="soft"
       size="sm"
-      description="Requires an OpenAI (DALL-E 3) or Google Gemini (Imagen 3) API key. Images are saved to your media library."
+      description="Uses OpenAI or Google Gemini when a key is set in Settings → AI, otherwise Workers AI. Images are saved to your media library."
     />
 
     <div class="flex justify-end gap-2 pt-1">

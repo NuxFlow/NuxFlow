@@ -142,6 +142,36 @@ function mkEvent(uid: string | null, body?: unknown, params?: Record<string, str
   }) as unknown as H3Event
 }
 
+// An API-key request as 03.api-key-auth.ts leaves it (the `nuxflow plugin deploy` path).
+function keyEvent(uid: string, role: string, scopes: string[], body?: unknown) {
+  return createMockEvent({
+    siteId: SITE, session: null, apiKeyUserId: uid, apiKeyRole: role, apiKeyScopes: scopes, body,
+  }) as unknown as H3Event
+}
+
+describe('POST /api/v1/dynamic-plugins (install via API key)', () => {
+  it("installs with an admin's manage:plugins key, recording the key owner as installer", async () => {
+    const body = await buildInstallBody({ id: 'plugin-via-key', serverCode: 'export default { fetch() {} }', privateKey: keyA.privateKey, publicKeyB64Url: keyA.publicKeyB64Url })
+    const result = await (installHandler as HandlerFn)(keyEvent(adminId, 'admin', ['manage:plugins'], body)) as { success: boolean }
+    expect(result.success).toBe(true)
+
+    const db = getCurrentTestDb()
+    const audit = await db.query.auditLogs.findFirst({ where: and(eq(auditLogs.siteId, SITE), eq(auditLogs.resourceId, 'plugin-via-key')) })
+    expect(audit?.userId).toBe(adminId)
+    await db.delete(dynamicPlugins).where(and(eq(dynamicPlugins.id, 'plugin-via-key'), eq(dynamicPlugins.siteId, SITE)))
+  })
+
+  it('refuses a key that only has manage:themes', async () => {
+    const body = await buildInstallBody({ id: 'plugin-wrong-scope', serverCode: 'export default { fetch() {} }', privateKey: keyA.privateKey, publicKeyB64Url: keyA.publicKeyB64Url })
+    await expect((installHandler as HandlerFn)(keyEvent(adminId, 'admin', ['manage:themes'], body))).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('refuses a manage:plugins key whose owner is only an author', async () => {
+    const body = await buildInstallBody({ id: 'plugin-author-key', serverCode: 'export default { fetch() {} }', privateKey: keyA.privateKey, publicKeyB64Url: keyA.publicKeyB64Url })
+    await expect((installHandler as HandlerFn)(keyEvent(authorId, 'author', ['manage:plugins'], body))).rejects.toMatchObject({ statusCode: 403 })
+  })
+})
+
 describe('POST /api/v1/dynamic-plugins (install)', () => {
   it('throws 403 for a non-admin (author) caller', async () => {
     const body = await buildInstallBody({ id: 'plugin-forbidden', serverCode: 'export default { fetch() {} }', privateKey: keyA.privateKey, publicKeyB64Url: keyA.publicKeyB64Url })

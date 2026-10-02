@@ -24,7 +24,11 @@ export function roleAtLeast(role: Role, minimum: Role): boolean {
 // declared scopes are a ceiling on top of (never a substitute for) the issuing user's
 // site role: 03.api-key-auth.ts sets event.context.apiKeyScopes from the authenticated
 // key's row, and requireApiKeyScope below is the one real enforcement point for it.
-export const API_KEY_SCOPES = ['read:content', 'write:content'] as const
+//
+// `manage:plugins` / `manage:themes` exist for the `nuxflow` CLI's deploy commands. They
+// replace signing in with an email and password, which can't work on a site's own domain
+// once central sign-in is on (/api/auth/** only exists on the accounts origin there).
+export const API_KEY_SCOPES = ['read:content', 'write:content', 'manage:plugins', 'manage:themes'] as const
 export type ApiKeyScope = typeof API_KEY_SCOPES[number]
 
 /**
@@ -111,6 +115,23 @@ export async function requireRole(event: H3Event, minimum: Role) {
   const { userId, role } = await requireAuth(event)
   if (!roleAtLeast(role, minimum)) throw forbidden()
   return { userId, role }
+}
+
+/**
+ * requireRole() for routes that also accept an API key (03.api-key-auth.ts). A key
+ * request needs BOTH the key's declared `scope` and a current site role of at least
+ * `minimum` for the user who owns it — the role is re-read on every request, so a key
+ * stops working the moment its owner is demoted or removed. Session requests fall
+ * through to requireRole() unchanged.
+ */
+export async function requireRoleOrApiKey(event: H3Event, minimum: Role, scope: ApiKeyScope): Promise<{ userId: string; role: Role }> {
+  const apiKeyUserId = event.context.apiKeyUserId as string | undefined
+  if (!apiKeyUserId) return requireRole(event, minimum)
+
+  if (!hasApiKeyScope(event, scope)) throw forbidden(`This API key doesn't have the ${scope} permission`)
+  const role = event.context.apiKeyRole as Role
+  if (!roleAtLeast(role, minimum)) throw forbidden()
+  return { userId: apiKeyUserId, role }
 }
 
 /**

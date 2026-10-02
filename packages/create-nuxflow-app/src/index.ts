@@ -4,7 +4,17 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { join, resolve, basename } from 'node:path'
 
-const REPO = 'github:NuxFlow/NuxFlow'
+// Injected by tsup from package.json (see tsup.config.ts); undefined under `tsx` in dev.
+declare const __NUXFLOW_VERSION__: string | undefined
+
+// Download the exact release this scaffolder was published with, never whatever happens
+// to be on `main`: changesets tags every published version as `create-nuxflow-app@<v>`,
+// and the package is in a changesets `fixed` group with the app, so a new app release
+// always ships a new scaffolder pointing at it. NUXFLOW_TEMPLATE_REF overrides it (a
+// branch, tag, or commit) for testing unreleased changes.
+const VERSION = typeof __NUXFLOW_VERSION__ === 'string' ? __NUXFLOW_VERSION__ : undefined
+const TEMPLATE_REF = process.env.NUXFLOW_TEMPLATE_REF || (VERSION ? `create-nuxflow-app@${VERSION}` : 'main')
+const REPO = `github:NuxFlow/NuxFlow#${TEMPLATE_REF}`
 const DOCS_URL = 'https://nuxflow.dev/docs'
 const GITHUB_URL = 'https://github.com/NuxFlow/NuxFlow'
 
@@ -79,14 +89,14 @@ async function main() {
 
   // ── 4. Download template ──────────────────────────────────────────────────
   const s = p.spinner()
-  s.start('Downloading NuxFlow...')
+  s.start(`Downloading NuxFlow (${TEMPLATE_REF})...`)
 
   try {
     await downloadTemplate(REPO, { dir: targetDir, preferOffline: false })
   }
   catch (err) {
     s.stop('Download failed')
-    p.cancel(`Could not download template: ${(err as Error).message}\n\nCheck your internet connection and try again.`)
+    p.cancel(`Could not download NuxFlow (${TEMPLATE_REF}): ${(err as Error).message}\n\nCheck your internet connection and try again.`)
     process.exit(1)
   }
 

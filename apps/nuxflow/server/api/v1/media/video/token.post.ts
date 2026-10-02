@@ -1,6 +1,13 @@
 import { requireRole } from '../../../../utils/permissions'
 import { resolveSetting } from '../../../../utils/settings'
 import { isHttpError } from '../../../../utils/errors'
+import { parseBody } from '../../../../utils/validate'
+import { z } from 'zod'
+
+// The body is optional — the client may request an upload URL before naming the video.
+const bodySchema = z.object({
+  title: z.string().trim().max(500).optional(),
+}).nullish()
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
@@ -16,8 +23,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const body = await readBody(event)
-  const title = (body?.title as string | undefined) || 'Untitled Video'
+  const body = await parseBody(event, bodySchema)
+  const title = body?.title || 'Untitled Video'
 
   // direct_upload returns a pre-authorised upload.cloudflarestream.com URL that supports
   // browser cross-origin POST (FormData). The authenticated TUS endpoint returns URLs
