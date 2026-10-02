@@ -5,13 +5,45 @@
  *  - @nuxflow/canvas HTML sanitizers and safeHref (the v-html / :href XSS chokepoints)
  *  - @nuxflow/canvas JSON and block-tree helpers
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import * as cliSigning from '../../../../packages/cli/src/utils/signing'
+import { resolveAuth, apiPost } from '../../../../packages/cli/src/utils/api'
 import { verifyPluginSignature, computeSha256 as serverSha256 } from '../../server/utils/plugin-signing'
 import { sanitizeRichText, sanitizeCustomHtml, safeHref } from '../../../../packages/canvas/src/utils/sanitize-html'
 import { safeJsonParse, parseImageList, normalizeImageValue } from '../../../../packages/canvas/src/utils/json'
 import { findBlockById, findParentList, getSlotChildren, isDescendant, cloneWithNewIds } from '../../../../packages/canvas/src/tree'
 import type { CanvasBlockData } from '../../../../packages/canvas/src/types'
+import { lazyBlock } from '../../../../packages/canvas/src/blocks/components'
+
+describe('CLI auth (API key, not email/password)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
+  it('takes the site and key from flags, falling back to NUXFLOW_SITE / NUXFLOW_API_KEY', () => {
+    expect(resolveAuth({ 'site': 'https://a.example/', 'api-key': 'nf_flag' })).toEqual({ site: 'https://a.example', apiKey: 'nf_flag' })
+    vi.stubEnv('NUXFLOW_SITE', 'https://b.example')
+    vi.stubEnv('NUXFLOW_API_KEY', 'nf_env')
+    expect(resolveAuth({})).toEqual({ site: 'https://b.example', apiKey: 'nf_env' })
+  })
+
+  it('requires a key, and refuses to send it over plain http except to localhost', () => {
+    vi.stubEnv('NUXFLOW_API_KEY', '')
+    expect(() => resolveAuth({ site: 'https://a.example' })).toThrow('--api-key is required')
+    expect(() => resolveAuth({ 'site': 'http://a.example', 'api-key': 'k' })).toThrow('https://')
+    expect(resolveAuth({ 'site': 'http://localhost:8787', 'api-key': 'k' }).site).toBe('http://localhost:8787')
+  })
+
+  it('sends the key as a Bearer token and no cookie', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{"ok":true}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await apiPost('https://a.example', '/api/v1/dynamic-plugins', 'nf_key', { x: 1 })
+    const headers = fetchMock.mock.calls[0]![1].headers as Record<string, string>
+    expect(headers.Authorization).toBe('Bearer nf_key')
+    expect(headers).not.toHaveProperty('Cookie')
+  })
+})
 
 describe('CLI signing ↔ server verification', () => {
   const payload = {
@@ -157,5 +189,16 @@ describe('canvas block tree', () => {
     expect(ids).toEqual(['new-1', 'new-2', 'new-3', 'new-4'])
     ;(clone.children!.left![0]!.props as { t: number }).t = 99
     expect((original.children!.left![0]!.props as { t: number }).t).toBe(1)
+  })
+})
+
+// Regression: every Canvas block server-rendered as an empty `<!---->` on Workers. Vue
+// only unwraps `.default` from a lazily loaded module when it looks like an ES module
+// namespace; the Workers server build's didn't, so Vue rendered the module object itself.
+describe('lazyBlock (code-split Canvas blocks)', () => {
+  it('resolves to the component itself even when the module object is a plain object', async () => {
+    const Comp = { name: 'X', render: () => null }
+    const wrapper = lazyBlock(() => Promise.resolve({ default: Comp })) as { __asyncLoader: () => Promise<unknown> }
+    expect(await wrapper.__asyncLoader()).toBe(Comp)
   })
 })

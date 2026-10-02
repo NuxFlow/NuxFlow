@@ -5,7 +5,6 @@ const _dirname = fileURLToPath(new URL('.', import.meta.url))
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  future: { compatibilityVersion: 4 },
   compatibilityDate: '2026-08-27',
 
   css: ['~/assets/css/main.css'],
@@ -47,7 +46,6 @@ export default defineNuxtConfig({
     // a supported dev path.
     preset: 'cloudflare-module',
     experimental: {
-      wasm: true,
       tasks: true,
     },
     rollupConfig: {
@@ -56,8 +54,8 @@ export default defineNuxtConfig({
       },
     },
     // @better-auth/core ships optional OpenTelemetry instrumentation that imports
-    // @opentelemetry/api. That package is not installed and Cloudflare Pages preset
-    // forbids externals, so we stub it out here.
+    // @opentelemetry/api. That package is not installed and the cloudflare-module preset
+    // bundles everything (no externals), so we stub it out here.
     alias: {
       '@opentelemetry/api': resolve(_dirname, 'server/stubs/opentelemetry-api.mjs'),
     },
@@ -83,6 +81,15 @@ export default defineNuxtConfig({
       //   cp node_modules/vue/dist/vue.runtime.esm-browser.prod.js server/assets/vendor/vue-runtime.js
       { baseName: 'vendor', dir: resolve(_dirname, 'server/assets/vendor') },
     ],
+  },
+
+  // Bundle every icon the app references into the client instead of fetching it from the
+  // Iconify API at runtime (the default for edge presets). Scanning finds `i-lucide-*` /
+  // `i-simple-icons-*` names in source; the collections are devDependencies, only the
+  // icons actually used ship. Anything the scan can't see (e.g. a name built at runtime)
+  // still falls back to the remote server bundle.
+  icon: {
+    clientBundle: { scan: true },
   },
 
   ui: {
@@ -199,6 +206,4 @@ export default defineNuxtConfig({
       ],
     },
   },
-
-  devtools: { enabled: true },
 })

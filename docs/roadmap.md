@@ -24,7 +24,7 @@ The following changes were made proactively to make the offline sync implementat
 
 #### `version` column on `content_items`
 
-(Present since `packages/db/migrations/0000_baseline.sql` — earlier revisions of this doc cited migration `0004`, which is stale after a schema-history squash; check the migrations folder directly rather than trusting a specific migration number here.)
+(Present since `packages/db/migrations/0000_initial.sql` — earlier revisions of this doc cited migration `0004`, which is stale after a schema-history squash; check the migrations folder directly rather than trusting a specific migration number here.)
 
 Every content item now carries an integer `version` that is incremented on every `PATCH`. This enables **optimistic locking**:
 
@@ -222,7 +222,7 @@ Recommended default order: **Brevo** (if already configured) → **Twilio** → 
 
 #### `phone` column on `users`
 
-(Present since `packages/db/migrations/0000_baseline.sql` — earlier revisions of this doc cited migration `0008`, which is stale after a schema-history squash.)
+(Present since `packages/db/migrations/0000_initial.sql` — earlier revisions of this doc cited migration `0008`, which is stale after a schema-history squash.)
 
 A nullable `phone` text column was added to the `users` table proactively. It stores the user's phone number in E.164 format (e.g. `+447700900123`). Because it is nullable with no unique constraint, it has zero impact on existing users and zero risk of breaking the auth flow (Better Auth does not touch this column).
 

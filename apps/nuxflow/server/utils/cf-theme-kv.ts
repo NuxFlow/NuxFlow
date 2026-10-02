@@ -17,17 +17,6 @@ function themeCssKey(siteId: string, themeId: string, version: number): string {
   return `theme:${siteId}:${themeId}:css:v${version}`
 }
 
-// Pre-versioning key format. Any theme published before the `cssVersion` migration has
-// its real CSS sitting under this key, not a versioned one — the migration backfills
-// `cssVersion` to 0 for existing rows, but there was never a data migration to actually
-// move (or copy) the KV content itself to the new `:v0` key, since KV writes can't be
-// bundled into a D1 schema migration. Without this fallback, every theme published
-// before this change goes dark (getThemeCSS returns null, no CSS is ever injected) the
-// moment this code ships, until someone happens to re-publish it.
-function legacyThemeCssKey(siteId: string, themeId: string): string {
-  return `theme:${siteId}:${themeId}:css`
-}
-
 async function getThemeCssVersion(event: H3Event, siteId: string, themeId: string): Promise<number> {
   const db = useDb(event)
   const row = await db.query.themes.findFirst({
@@ -49,22 +38,10 @@ export async function getThemeCSS(event: H3Event, siteId: string, themeId: strin
   // resolving a base theme by id alone) falls back to reading it here.
   const version = knownVersion ?? await getThemeCssVersion(event, siteId, themeId)
 
-  let raw = await kv.get(themeCssKey(siteId, themeId, version))
-  if (raw === null && version === 0) {
-    // Never republished since the versioning migration — fall back to the pre-versioning
-    // key. Copy it forward to the versioned key (best-effort; a failure here just means
-    // this same fallback runs again next cache-miss, not a functional problem) so future
-    // reads hit the fast path and every isolate converges on the same key going forward.
-    raw = await kv.get(legacyThemeCssKey(siteId, themeId))
-    if (raw !== null) {
-      await kv.put(themeCssKey(siteId, themeId, version), raw).catch((err) => {
-        console.error('[cf-theme-kv] Failed to copy legacy theme CSS forward to versioned key', err)
-      })
-    }
-  }
-  // Sanitize on read too (not just on write) so themes stored before sanitization
-  // existed are protected with no data migration — cached sanitized so this cost is
-  // paid once per TTL window (60s) instead of on every single SSR request.
+  const raw = await kv.get(themeCssKey(siteId, themeId, version))
+  // Sanitize on read too (not just on write), so nothing that reached KV by any other
+  // route is ever injected unsanitized — cached sanitized so this cost is paid once per
+  // TTL window (60s) instead of on every single SSR request.
   const sanitized = raw !== null ? sanitizeThemeCss(raw) : null
   setCachedThemeCss(siteId, themeId, sanitized)
   return sanitized

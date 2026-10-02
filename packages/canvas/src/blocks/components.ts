@@ -40,25 +40,35 @@ import { defineAsyncComponent, type Component } from 'vue'
  * block (`NuxBlocks.vue`) — is unaffected; only the underlying `.vue` module's
  * fetch/instantiation is deferred until Vue actually mounts that block instance.
  */
+// Unwraps the module's default export explicitly instead of leaving it to Vue. Vue only
+// unwraps `.default` when the loaded value looks like an ES module namespace
+// (`__esModule`, or `Symbol.toStringTag === 'Module'`); in the Workers server build it
+// doesn't, so Vue treated the namespace object itself as the component and every block
+// server-rendered as an empty `<!---->` (pages had no content until hydration, and
+// crawlers saw none at all). Browsers were unaffected, which is why it went unnoticed.
+export function lazyBlock(load: () => Promise<{ default: Component }>): Component {
+  return defineAsyncComponent(() => load().then(m => m.default))
+}
+
 export const BUILTIN_BLOCK_COMPONENTS: Record<string, Component> = {
-  'canvas-hero': defineAsyncComponent(() => import('./CanvasBlockHero.vue')),
-  'canvas-text': defineAsyncComponent(() => import('./CanvasBlockText.vue')),
-  'canvas-image': defineAsyncComponent(() => import('./CanvasBlockImage.vue')),
-  'canvas-columns': defineAsyncComponent(() => import('./CanvasBlockColumns.vue')),
-  'canvas-container': defineAsyncComponent(() => import('./CanvasBlockContainer.vue')),
-  'canvas-cta': defineAsyncComponent(() => import('./CanvasBlockCta.vue')),
-  'canvas-spacer': defineAsyncComponent(() => import('./CanvasBlockSpacer.vue')),
-  'canvas-video': defineAsyncComponent(() => import('./CanvasBlockVideo.vue')),
-  'canvas-testimonial': defineAsyncComponent(() => import('./CanvasBlockTestimonial.vue')),
-  'canvas-features': defineAsyncComponent(() => import('./CanvasBlockFeatures.vue')),
-  'canvas-button': defineAsyncComponent(() => import('./CanvasBlockButton.vue')),
-  'canvas-accordion': defineAsyncComponent(() => import('./CanvasBlockAccordion.vue')),
-  'canvas-pricing': defineAsyncComponent(() => import('./CanvasBlockPricing.vue')),
-  'canvas-calendar': defineAsyncComponent(() => import('./CanvasBlockCalendar.vue')),
-  'canvas-posts': defineAsyncComponent(() => import('./CanvasBlockPosts.vue')),
-  'canvas-gdpr': defineAsyncComponent(() => import('./CanvasBlockGdpr.vue')),
-  'canvas-footer': defineAsyncComponent(() => import('./CanvasBlockFooter.vue')),
-  'canvas-gallery': defineAsyncComponent(() => import('./CanvasBlockGallery.vue')),
-  'canvas-carousel': defineAsyncComponent(() => import('./CanvasBlockCarousel.vue')),
-  'html-block/html': defineAsyncComponent(() => import('./HtmlBlock.vue')),
+  'canvas-hero': lazyBlock(() => import('./CanvasBlockHero.vue')),
+  'canvas-text': lazyBlock(() => import('./CanvasBlockText.vue')),
+  'canvas-image': lazyBlock(() => import('./CanvasBlockImage.vue')),
+  'canvas-columns': lazyBlock(() => import('./CanvasBlockColumns.vue')),
+  'canvas-container': lazyBlock(() => import('./CanvasBlockContainer.vue')),
+  'canvas-cta': lazyBlock(() => import('./CanvasBlockCta.vue')),
+  'canvas-spacer': lazyBlock(() => import('./CanvasBlockSpacer.vue')),
+  'canvas-video': lazyBlock(() => import('./CanvasBlockVideo.vue')),
+  'canvas-testimonial': lazyBlock(() => import('./CanvasBlockTestimonial.vue')),
+  'canvas-features': lazyBlock(() => import('./CanvasBlockFeatures.vue')),
+  'canvas-button': lazyBlock(() => import('./CanvasBlockButton.vue')),
+  'canvas-accordion': lazyBlock(() => import('./CanvasBlockAccordion.vue')),
+  'canvas-pricing': lazyBlock(() => import('./CanvasBlockPricing.vue')),
+  'canvas-calendar': lazyBlock(() => import('./CanvasBlockCalendar.vue')),
+  'canvas-posts': lazyBlock(() => import('./CanvasBlockPosts.vue')),
+  'canvas-gdpr': lazyBlock(() => import('./CanvasBlockGdpr.vue')),
+  'canvas-footer': lazyBlock(() => import('./CanvasBlockFooter.vue')),
+  'canvas-gallery': lazyBlock(() => import('./CanvasBlockGallery.vue')),
+  'canvas-carousel': lazyBlock(() => import('./CanvasBlockCarousel.vue')),
+  'html-block/html': lazyBlock(() => import('./HtmlBlock.vue')),
 }

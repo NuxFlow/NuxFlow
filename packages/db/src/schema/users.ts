@@ -62,8 +62,6 @@ export const accounts = sqliteTable('accounts', {
   accessToken: text('access_token'),
   refreshToken: text('refresh_token'),
   idToken: text('id_token'),
-  // expiresAt kept for backward compatibility with existing rows; new OAuth tokens use the fields below
-  expiresAt: dateText('expires_at'),
   accessTokenExpiresAt: dateText('access_token_expires_at'),
   refreshTokenExpiresAt: dateText('refresh_token_expires_at'),
   scope: text('scope'),

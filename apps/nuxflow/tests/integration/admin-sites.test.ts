@@ -209,6 +209,15 @@ describe('DELETE /api/v1/admin/sites/:id', () => {
     expect(await db.query.sites.findFirst({ where: eq(sites.id, PRIMARY) })).toBeDefined()
   })
 
+  it('refuses to delete the primary site from another domain while other sites exist', async () => {
+    const db = getCurrentTestDb()
+    const primaryElsewhere = await seedSite(db, { domain: 'flagged-primary.localhost', isPrimary: true })
+    await expect((deleteHandler as Handler)(ev(superId, { params: { id: primaryElsewhere } })))
+      .rejects.toMatchObject({ statusCode: 409 })
+    expect(await db.query.sites.findFirst({ where: eq(sites.id, primaryElsewhere) })).toBeDefined()
+    await db.delete(sites).where(eq(sites.id, primaryElsewhere))
+  })
+
   it('deletes another site and returns 204', async () => {
     const db = getCurrentTestDb()
     const doomed = await seedSite(db, { domain: 'doomed.localhost' })

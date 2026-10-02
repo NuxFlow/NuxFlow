@@ -197,14 +197,15 @@ describe('cf-theme-kv', () => {
     expect(await themeKv.getThemeCSS(ev(), SITE, 'th-put')).toBe('body{color:blue}')
   })
 
-  it('falls back to the pre-versioning key for v0 themes, copies it forward, and sanitizes on read', async () => {
+  it('sanitizes on read, and ignores the old unversioned key', async () => {
     const db = getCurrentTestDb()
-    await db.insert(themes).values({ id: 'th-legacy', siteId: SITE, packageName: 'x', name: 'L', version: '1', hasCss: true })
-    kvStore.set(`theme:${SITE}:th-legacy:css`, 'a{background:url(https://evil.test/?x)}')
+    await db.insert(themes).values({ id: 'th-v0', siteId: SITE, packageName: 'x', name: 'L', version: '1', hasCss: true })
+    kvStore.set(`theme:${SITE}:th-v0:css`, 'a{color:red}')
+    expect(await themeKv.getThemeCSS(ev(), SITE, 'th-v0')).toBeNull()
 
-    const css = await themeKv.getThemeCSS(ev(), SITE, 'th-legacy')
-    expect(css).not.toContain('evil.test')
-    expect(kvStore.get(`theme:${SITE}:th-legacy:css:v0`)).toBe('a{background:url(https://evil.test/?x)}')
+    clearCachedThemeCss(SITE, 'th-v0')
+    kvStore.set(`theme:${SITE}:th-v0:css:v0`, 'a{background:url(https://evil.test/?x)}')
+    expect(await themeKv.getThemeCSS(ev(), SITE, 'th-v0')).not.toContain('evil.test')
   })
 
   it('503s on publish without a KV binding', async () => {

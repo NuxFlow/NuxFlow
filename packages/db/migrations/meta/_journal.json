@@ -5,22 +5,15 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1790664919275,
-      "tag": "0000_baseline",
+      "when": 1790848468790,
+      "tag": "0000_initial",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "6",
-      "when": 1790664935737,
+      "when": 1790848476522,
       "tag": "0001_search_index",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1790833912480,
-      "tag": "0002_ai_generation_job_lease",
       "breakpoints": true
     }
   ]

@@ -59,13 +59,15 @@ nuxflow plugin keygen
 # 4. Build the plugin, computing checksums
 nuxflow plugin build
 
-# 5. Deploy to your live site (signs the payload locally using your private key)
-nuxflow plugin deploy \
-  --site https://your-site.workers.dev \
-  --email admin@example.com \
-  --password yourpassword
+# 5. Create an API key in your site's Admin → Settings → API keys, with
+#    "Install and remove plugins" (see "Create an API key" below)
+export NUXFLOW_SITE=https://your-site.com
+export NUXFLOW_API_KEY=nf_...
 
-# 6. Enable it in Admin → Plugins
+# 6. Deploy (signs the payload locally using your private key)
+nuxflow plugin deploy
+
+# 7. Enable it in Admin → Plugins
 ```
 
 ---
@@ -235,26 +237,24 @@ The `dist/` folder is not committed to git — it is regenerated on every build 
 
 ## Deploying
 
+### Create an API key
+
+The CLI authenticates with an API key, not your password. In your site's admin, go to **Settings → API keys**, create a key, and tick **Install and remove plugins** (and **Upload and update themes** if you'll deploy themes too). Copy the key — it's shown once.
+
+The key only works while the person who created it is still an admin of that site, and only on that site. Treat it like an admin password, and revoke it when you no longer need it.
+
 ### First deploy
 
 ```bash
-nuxflow plugin deploy \
-  --site https://your-site.workers.dev \
-  --email admin@example.com \
-  --password yourpassword
-```
-
-Or set environment variables to avoid repeating the flags:
-
-```bash
-export NUXFLOW_SITE=https://your-site.workers.dev
-export NUXFLOW_EMAIL=admin@example.com
-export NUXFLOW_PASSWORD=yourpassword
+export NUXFLOW_SITE=https://your-site.com
+export NUXFLOW_API_KEY=nf_...
 
 nuxflow plugin deploy
 ```
 
-The deploy command authenticates with your NuxFlow admin account and POSTs `dist/plugin.json` to `/api/v1/dynamic-plugins`. The plugin code is stored in your Cloudflare KV namespace and a database row is created with `isActive: false`.
+`--site` and `--api-key` flags work too, but the environment variable keeps the key out of your shell history.
+
+The deploy command sends `dist/plugin.json` to `/api/v1/dynamic-plugins` with the key as a `Bearer` token. This works the same whether or not the site uses central sign-in. The plugin code is stored in your Cloudflare KV namespace and a database row is created with `isActive: false`.
 
 ### Updating an existing plugin
 
@@ -349,8 +349,7 @@ Note that `wrangler dev` uses a local KV simulation — you will need to deploy 
 | Variable | Flag equivalent | Purpose |
 |---|---|---|
 | `NUXFLOW_SITE` | `--site` | Base URL of your NuxFlow site |
-| `NUXFLOW_EMAIL` | `--email` | Admin account email |
-| `NUXFLOW_PASSWORD` | `--password` | Admin account password |
+| `NUXFLOW_API_KEY` | `--api-key` | API key with the "Install and remove plugins" or "Upload and update themes" permission |
 
 ---
 

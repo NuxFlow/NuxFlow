@@ -1,32 +1,29 @@
 import type { spinner } from '@clack/prompts'
 import { consola } from 'consola'
 
-export async function authenticate(site: string, email: string, password: string): Promise<string> {
-  const res = await fetch(`${site}/api/auth/sign-in/email`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Origin': site },
-    body: JSON.stringify({ email, password, rememberMe: false }),
-  })
+// Every call authenticates with an API key (Admin → Settings → API keys, with the
+// `manage:plugins` / `manage:themes` permission) sent as a Bearer token. The CLI used to
+// sign in with an email and password instead, which can't work on a site's own domain
+// once central sign-in is on: passwords are only ever accepted on the accounts origin.
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Authentication failed (${res.status}): ${text || res.statusText}`)
-  }
-
-  const setCookie = res.headers.get('set-cookie')
-  if (!setCookie) throw new Error('No session cookie returned — check your email and password')
-
-  // Return only the name=value pair (strip attributes like Path, HttpOnly, etc.)
-  return setCookie.split(';')[0]!
+async function readJson(res: Response): Promise<Record<string, unknown>> {
+  return await res.json().catch(() => ({ error: res.statusText })) as Record<string, unknown>
 }
 
-async function request(method: string, site: string, path: string, cookie: string, body?: unknown): Promise<unknown> {
+function apiError(res: Response, data: Record<string, unknown>): Error {
+  const msg = (data.message ?? data.error ?? res.statusText) as string
+  if (res.status === 401 || res.status === 403) {
+    return new Error(`API error (${res.status}): ${msg} — check the API key is for this site, has the right permission, and belongs to an admin`)
+  }
+  return new Error(`API error (${res.status}): ${msg}`)
+}
+
+async function request(method: string, site: string, path: string, apiKey: string, body?: unknown): Promise<unknown> {
   const res = await fetch(`${site}${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
-      'Cookie': cookie,
-      'Origin': site,
+      'Authorization': `Bearer ${apiKey}`,
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   })
@@ -34,55 +31,42 @@ async function request(method: string, site: string, path: string, cookie: strin
   // Allow 404 on DELETE — treat as success (already gone)
   if (method === 'DELETE' && res.status === 404) return {}
 
-  const data = await res.json().catch(() => ({ error: res.statusText })) as Record<string, unknown>
-
-  if (!res.ok) {
-    const msg = (data.message ?? data.error ?? res.statusText) as string
-    throw new Error(`API error (${res.status}): ${msg}`)
-  }
-
+  const data = await readJson(res)
+  if (!res.ok) throw apiError(res, data)
   return data
 }
 
-export const apiPost   = (site: string, path: string, cookie: string, body: unknown) => request('POST',   site, path, cookie, body)
-export const apiPatch  = (site: string, path: string, cookie: string, body: unknown) => request('PATCH',  site, path, cookie, body)
-export const apiDelete = (site: string, path: string, cookie: string)                => request('DELETE', site, path, cookie)
+export const apiPost   = (site: string, path: string, apiKey: string, body: unknown) => request('POST',   site, path, apiKey, body)
+export const apiPatch  = (site: string, path: string, apiKey: string, body: unknown) => request('PATCH',  site, path, apiKey, body)
+export const apiDelete = (site: string, path: string, apiKey: string)                => request('DELETE', site, path, apiKey)
 
-export async function apiPostZip(site: string, path: string, cookie: string, filename: string, data: Uint8Array): Promise<unknown> {
+export async function apiPostZip(site: string, path: string, apiKey: string, filename: string, data: Uint8Array): Promise<unknown> {
   const form = new FormData()
   form.append('file', new Blob([data as unknown as BlobPart]), filename)
 
   const res = await fetch(`${site}${path}`, {
     method: 'POST',
-    headers: { 'Cookie': cookie, 'Origin': site },
+    headers: { 'Authorization': `Bearer ${apiKey}` },
     body: form,
   })
 
-  const data2 = await res.json().catch(() => ({ error: res.statusText })) as Record<string, unknown>
-
-  if (!res.ok) {
-    const msg = (data2.message ?? data2.error ?? res.statusText) as string
-    throw new Error(`API error (${res.status}): ${msg}`)
-  }
-
-  return data2
+  const json = await readJson(res)
+  if (!res.ok) throw apiError(res, json)
+  return json
 }
 
 const LOCAL_HTTP_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 export function resolveAuth(opts: Record<string, unknown>) {
   const site = ((opts.site as string | undefined) ?? process.env.NUXFLOW_SITE ?? '').replace(/\/$/, '')
-  const email = (opts.email as string | undefined) ?? process.env.NUXFLOW_EMAIL ?? ''
-  const password = (opts.password as string | undefined) ?? process.env.NUXFLOW_PASSWORD ?? ''
+  const apiKey = (opts['api-key'] as string | undefined) ?? (opts.apiKey as string | undefined) ?? process.env.NUXFLOW_API_KEY ?? ''
 
-  if (!site)     throw new Error('--site is required (or set NUXFLOW_SITE)')
-  if (!email)    throw new Error('--email is required (or set NUXFLOW_EMAIL)')
-  if (!password) throw new Error('--password is required (or set NUXFLOW_PASSWORD)')
+  if (!site)   throw new Error('--site is required (or set NUXFLOW_SITE)')
+  if (!apiKey) throw new Error('--api-key is required (or set NUXFLOW_API_KEY). Create one in Admin → Settings → API keys with the "Install and remove plugins" or "Upload and update themes" permission.')
 
-  // authenticate()/request() send the admin email/password and session cookie in the
-  // clear over whatever scheme `site` uses — reject plain http:// (except an explicit
-  // localhost/loopback target, the normal case for local dev against `wrangler dev`)
-  // rather than silently leaking credentials to anyone on the network path.
+  // The API key travels in a header on every request — reject plain http:// (except an
+  // explicit localhost/loopback target, the normal case for local dev against
+  // `wrangler dev`) rather than leaking it to anyone on the network path.
   let parsed: URL
   try {
     parsed = new URL(site)
@@ -93,34 +77,29 @@ export function resolveAuth(opts: Record<string, unknown>) {
     throw new Error(`--site must use https:// (got ${parsed.protocol}//${parsed.hostname}) — refusing to send credentials over an insecure connection`)
   }
 
-  return { site, email, password }
+  return { site, apiKey }
 }
 
 /**
- * Shared `--site`/`--email`/`--password` arg definitions for citty commands
- * that authenticate against a live site (`plugin deploy`/`update`,
- * `theme deploy`/`update`). Spread into each command's own `args` object.
+ * Shared `--site`/`--api-key` arg definitions for citty commands that talk to a live
+ * site (`plugin deploy`/`update`, `theme deploy`/`update`). Spread into each command's
+ * own `args` object. Prefer the env var for the key so it stays out of shell history.
  */
 export const AUTH_ARGS = {
-  site:     { type: 'string', description: 'Site URL             (or NUXFLOW_SITE)' },
-  email:    { type: 'string', description: 'Admin email          (or NUXFLOW_EMAIL)' },
-  password: { type: 'string', description: 'Admin password       (or NUXFLOW_PASSWORD)' },
+  'site':    { type: 'string', description: 'Site URL                          (or NUXFLOW_SITE)' },
+  'api-key': { type: 'string', description: 'API key from Settings → API keys  (or NUXFLOW_API_KEY)' },
 } as const
 
 /**
- * Resolves auth from CLI args/env and signs in, stopping the given spinner
- * and exiting the process with a friendly error on failure. Identical
- * try/catch behavior previously duplicated across `plugin.ts`'s `deploy`/
- * `update` and `theme.ts`'s `deploy`/`update` commands.
+ * Resolves the site and API key from CLI args/env, stopping the given spinner and
+ * exiting the process with a friendly error when either is missing or unsafe.
  */
-export async function authenticateOrExit(
+export function authenticateOrExit(
   s: ReturnType<typeof spinner>,
   args: Record<string, unknown>,
-): Promise<{ site: string, cookie: string }> {
+): { site: string, apiKey: string } {
   try {
-    const auth = resolveAuth(args)
-    const cookie = await authenticate(auth.site, auth.email, auth.password)
-    return { site: auth.site, cookie }
+    return resolveAuth(args)
   } catch (e: unknown) {
     s.stop('Auth failed.')
     consola.error((e as Error).message)

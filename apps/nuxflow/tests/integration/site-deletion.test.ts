@@ -5,11 +5,12 @@
  * Behaviour under test:
  *  - Deleting the only site in the installation fully removes it, wasLastSite: true
  *    (the client then redirects to fresh-install onboarding).
- *  - Deleting the "main" (oldest) site while other sites still exist is blocked with 409
- *    and the list of blocking sites — nothing is touched.
- *  - Deleting a non-main ("addon") site while other sites exist is a full delete too
+ *  - Deleting the primary site (`is_primary`) while other sites still exist is blocked
+ *    with 409 and the list of blocking sites — nothing is touched. Which site is primary
+ *    comes from the flag, never from creation order.
+ *  - Deleting a non-primary ("addon") site while other sites exist is a full delete too
  *    (wasLastSite: false) — the row is dropped entirely, not reset/kept, so it doesn't
- *    linger as a phantom entry blocking a later main-site deletion.
+ *    linger as a phantom entry blocking a later primary-site deletion.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
@@ -80,11 +81,11 @@ describe('DELETE /api/v1/settings', () => {
     expect(row).toBeUndefined()
   })
 
-  it('blocks deleting the main (oldest) site while another site still exists', async () => {
+  it('blocks deleting the primary site while another site still exists', async () => {
     const db = getCurrentTestDb()
     const mainId = await seedSite(db, {
       id: 'blocked-main-01', domain: 'main.localhost', name: 'Main Site',
-      createdAt: '2026-01-01 00:00:00',
+      createdAt: '2026-01-01 00:00:00', isPrimary: true,
     })
     const addonId = await seedSite(db, {
       id: 'blocked-addon-01', domain: 'addon.localhost', name: 'Addon Site',
@@ -106,11 +107,36 @@ describe('DELETE /api/v1/settings', () => {
     await cleanupSites(mainId, addonId)
   })
 
-  it('fully deletes a non-main site while other sites exist, leaving no phantom row behind', async () => {
+  it('goes by the primary flag, not age: a newer primary blocks, an older non-primary site deletes', async () => {
+    const db = getCurrentTestDb()
+    const olderId = await seedSite(db, {
+      id: 'flag-older-01', domain: 'flag-older.localhost', name: 'Older Site',
+      createdAt: '2026-01-01 00:00:00',
+    })
+    const primaryId = await seedSite(db, {
+      id: 'flag-primary-01', domain: 'flag-primary.localhost', name: 'Primary Site',
+      createdAt: '2026-02-01 00:00:00', isPrimary: true,
+    })
+    const userId = await seedUser(db, { email: 'admin-flag@example.com' })
+    await seedRole(db, userId, primaryId, 'super_admin')
+    await seedRole(db, userId, olderId, 'super_admin')
+
+    await expect((deleteSettingsHandler as Handler)(mkEvent(primaryId, userId)))
+      .rejects.toMatchObject({ statusCode: 409 })
+
+    const res = await (deleteSettingsHandler as Handler)(mkEvent(olderId, userId)) as { wasLastSite: boolean }
+    expect(res.wasLastSite).toBe(false)
+    expect(await db.query.sites.findFirst({ where: eq(sites.id, olderId) })).toBeUndefined()
+    expect(await db.query.sites.findFirst({ where: eq(sites.id, primaryId) })).toBeDefined()
+
+    await cleanupSites(primaryId)
+  })
+
+  it('fully deletes a non-primary site while other sites exist, leaving no phantom row behind', async () => {
     const db = getCurrentTestDb()
     const mainId = await seedSite(db, {
       id: 'addon-del-main-01', domain: 'addon-del-main.localhost', name: 'Main Site',
-      createdAt: '2026-01-01 00:00:00',
+      createdAt: '2026-01-01 00:00:00', isPrimary: true,
     })
     const addonId = await seedSite(db, {
       id: 'addon-del-addon-01', domain: 'addon-del-addon.localhost', name: 'Addon Site',
@@ -134,7 +160,7 @@ describe('DELETE /api/v1/settings', () => {
     expect(await db.query.contentTypes.findFirst({ where: eq(contentTypes.siteId, addonId) })).toBeUndefined()
     expect(await db.query.userSiteRoles.findFirst({ where: eq(userSiteRoles.siteId, addonId) })).toBeUndefined()
 
-    // The main site is untouched, and no longer sees the addon site as a blocker
+    // The primary site is untouched, and no longer sees the addon site as a blocker
     const remaining = await db.query.sites.findMany({ where: eq(sites.id, mainId) })
     expect(remaining).toHaveLength(1)
 

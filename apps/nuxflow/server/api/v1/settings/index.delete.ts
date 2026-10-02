@@ -1,37 +1,17 @@
 import { requireRole } from '../../../utils/permissions'
 import { deleteSiteCompletely } from '../../../utils/site-deletion'
 import { useDb } from '../../../utils/db'
-import { sites } from '@nuxflow/db/schema'
-import { asc } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'super_admin')
   const siteId = event.context.siteId as string
   const db = useDb(event)
 
-  // The "main" site is simply the oldest one — there's no separate flag for
-  // it. It's the site that was either the very first install, or (if that one
-  // has since been deleted) whichever site is now the longest-running.
-  const allSites = await db.query.sites.findMany({
-    columns: { id: true, name: true, domain: true },
-    orderBy: [asc(sites.createdAt)],
-  })
+  const siteCount = (await db.query.sites.findMany({ columns: { id: true } })).length
 
-  const isMain = allSites[0]?.id === siteId
-
-  if (isMain && allSites.length > 1) {
-    const blockingSites = allSites.filter(s => s.id !== siteId)
-    throw conflict(
-      `This is the main site — delete the other ${blockingSites.length} site${blockingSites.length === 1 ? '' : 's'} first: ${blockingSites.map(s => s.domain).join(', ')}`,
-      { blockingSites },
-    )
-  }
-
-  // Always a full delete — main site when it's the last one left, or any
-  // addon site regardless of how many others remain. Re-provisioning an addon
-  // domain afterward goes through the normal Super Admin → Sites → New flow,
-  // the same as adding any other new site.
-  const wasLastSite = allSites.length === 1
+  // Always a full delete. deleteSiteCompletely() refuses (409, listing the blocking sites)
+  // when this is the primary site and other sites still exist; any other site can go
+  // regardless. Re-provisioning a domain afterward goes through Super Admin → Sites → New.
   const { failedMediaDeletes } = await deleteSiteCompletely(event, siteId, userId)
-  return { id: siteId, wasLastSite, failedMediaDeletes }
+  return { id: siteId, wasLastSite: siteCount === 1, failedMediaDeletes }
 })

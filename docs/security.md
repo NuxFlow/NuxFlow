@@ -55,7 +55,7 @@ Site sessions are children of the sign-in session: signing out there, a password
 
 ## Sensitive Settings Encryption
 
-API keys, SMTP passwords, payment provider secrets, and other sensitive settings stored in the `site_settings` table are encrypted at rest using **AES-256-GCM** before writing to D1.
+API keys, email provider keys, payment provider secrets, and other sensitive settings stored in the `site_settings` table are encrypted at rest using **AES-256-GCM** before writing to D1.
 
 - The encryption key is derived from `NUXT_BETTER_AUTH_SECRET` using the Web Crypto API (`globalThis.crypto.subtle`)
 - Each encrypted value includes a unique 96-bit IV and a 128-bit authentication tag — tampering with the ciphertext causes decryption to fail rather than returning corrupt plaintext

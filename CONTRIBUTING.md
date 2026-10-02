@@ -214,7 +214,7 @@ See the **[External Plugin Development Guide](docs/plugins.md)** for the full ma
 A NuxFlow theme is just a CSS file — no Nuxt layer, no Vue components. It overrides design tokens and selectors targeting public-facing pages, and can optionally bundle starter content.
 
 ```bash
-npx nuxflow theme create my-theme
+npx @nuxflow/cli theme create my-theme
 cd themes/my-theme
 ```
 

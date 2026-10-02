@@ -5159,64 +5159,51 @@ var import_node_fs2 = require("node:fs");
 var import_node_path5 = require("node:path");
 
 // src/utils/api.ts
-async function authenticate(site, email, password) {
-  const res = await fetch(`${site}/api/auth/sign-in/email`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Origin": site },
-    body: JSON.stringify({ email, password, rememberMe: false })
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Authentication failed (${res.status}): ${text || res.statusText}`);
-  }
-  const setCookie = res.headers.get("set-cookie");
-  if (!setCookie) throw new Error("No session cookie returned \u2014 check your email and password");
-  return setCookie.split(";")[0];
+async function readJson(res) {
+  return await res.json().catch(() => ({ error: res.statusText }));
 }
-async function request(method, site, path, cookie, body) {
+function apiError(res, data) {
+  const msg = data.message ?? data.error ?? res.statusText;
+  if (res.status === 401 || res.status === 403) {
+    return new Error(`API error (${res.status}): ${msg} \u2014 check the API key is for this site, has the right permission, and belongs to an admin`);
+  }
+  return new Error(`API error (${res.status}): ${msg}`);
+}
+async function request(method, site, path, apiKey, body) {
   const res = await fetch(`${site}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",
-      "Cookie": cookie,
-      "Origin": site
+      "Authorization": `Bearer ${apiKey}`
     },
     ...body !== void 0 ? { body: JSON.stringify(body) } : {}
   });
   if (method === "DELETE" && res.status === 404) return {};
-  const data = await res.json().catch(() => ({ error: res.statusText }));
-  if (!res.ok) {
-    const msg = data.message ?? data.error ?? res.statusText;
-    throw new Error(`API error (${res.status}): ${msg}`);
-  }
+  const data = await readJson(res);
+  if (!res.ok) throw apiError(res, data);
   return data;
 }
-var apiPost = (site, path, cookie, body) => request("POST", site, path, cookie, body);
-var apiPatch = (site, path, cookie, body) => request("PATCH", site, path, cookie, body);
-var apiDelete = (site, path, cookie) => request("DELETE", site, path, cookie);
-async function apiPostZip(site, path, cookie, filename, data) {
+var apiPost = (site, path, apiKey, body) => request("POST", site, path, apiKey, body);
+var apiPatch = (site, path, apiKey, body) => request("PATCH", site, path, apiKey, body);
+var apiDelete = (site, path, apiKey) => request("DELETE", site, path, apiKey);
+async function apiPostZip(site, path, apiKey, filename, data) {
   const form = new FormData();
   form.append("file", new Blob([data]), filename);
   const res = await fetch(`${site}${path}`, {
     method: "POST",
-    headers: { "Cookie": cookie, "Origin": site },
+    headers: { "Authorization": `Bearer ${apiKey}` },
     body: form
   });
-  const data2 = await res.json().catch(() => ({ error: res.statusText }));
-  if (!res.ok) {
-    const msg = data2.message ?? data2.error ?? res.statusText;
-    throw new Error(`API error (${res.status}): ${msg}`);
-  }
-  return data2;
+  const json = await readJson(res);
+  if (!res.ok) throw apiError(res, json);
+  return json;
 }
 var LOCAL_HTTP_HOSTS = /* @__PURE__ */ new Set(["localhost", "127.0.0.1", "[::1]"]);
 function resolveAuth(opts) {
   const site = (opts.site ?? process.env.NUXFLOW_SITE ?? "").replace(/\/$/, "");
-  const email = opts.email ?? process.env.NUXFLOW_EMAIL ?? "";
-  const password = opts.password ?? process.env.NUXFLOW_PASSWORD ?? "";
+  const apiKey = opts["api-key"] ?? opts.apiKey ?? process.env.NUXFLOW_API_KEY ?? "";
   if (!site) throw new Error("--site is required (or set NUXFLOW_SITE)");
-  if (!email) throw new Error("--email is required (or set NUXFLOW_EMAIL)");
-  if (!password) throw new Error("--password is required (or set NUXFLOW_PASSWORD)");
+  if (!apiKey) throw new Error('--api-key is required (or set NUXFLOW_API_KEY). Create one in Admin \u2192 Settings \u2192 API keys with the "Install and remove plugins" or "Upload and update themes" permission.');
   let parsed;
   try {
     parsed = new URL(site);
@@ -5226,18 +5213,15 @@ function resolveAuth(opts) {
   if (parsed.protocol !== "https:" && !LOCAL_HTTP_HOSTS.has(parsed.hostname)) {
     throw new Error(`--site must use https:// (got ${parsed.protocol}//${parsed.hostname}) \u2014 refusing to send credentials over an insecure connection`);
   }
-  return { site, email, password };
+  return { site, apiKey };
 }
 var AUTH_ARGS = {
-  site: { type: "string", description: "Site URL             (or NUXFLOW_SITE)" },
-  email: { type: "string", description: "Admin email          (or NUXFLOW_EMAIL)" },
-  password: { type: "string", description: "Admin password       (or NUXFLOW_PASSWORD)" }
+  "site": { type: "string", description: "Site URL                          (or NUXFLOW_SITE)" },
+  "api-key": { type: "string", description: "API key from Settings \u2192 API keys  (or NUXFLOW_API_KEY)" }
 };
-async function authenticateOrExit(s2, args) {
+function authenticateOrExit(s2, args) {
   try {
-    const auth = resolveAuth(args);
-    const cookie = await authenticate(auth.site, auth.email, auth.password);
-    return { site: auth.site, cookie };
+    return resolveAuth(args);
   } catch (e3) {
     s2.stop("Auth failed.");
     consola.error(e3.message);
@@ -5534,25 +5518,19 @@ A NuxFlow dynamic plugin.
 # 2. Build
 nuxflow plugin build
 
-# 3. Deploy (first time)
-nuxflow plugin deploy --site https://your-site.com \\
-  --email admin@your-site.com --password yourpassword
-
-# 4. Update after changes
-nuxflow plugin build
-nuxflow plugin update --site https://your-site.com \\
-  --email admin@your-site.com --password yourpassword
-\`\`\`
-
-Or use environment variables to avoid repeating flags:
-
-\`\`\`bash
+# 3. Create an API key on your site: Admin \u2192 Settings \u2192 API keys, with
+#    "Install and remove plugins". Environment variables keep it out of shell history:
 export NUXFLOW_SITE=https://your-site.com
-export NUXFLOW_EMAIL=admin@your-site.com
-export NUXFLOW_PASSWORD=yourpassword
+export NUXFLOW_API_KEY=nf_...
 
+# 4. Deploy (first time)
+nuxflow plugin deploy
+
+# 5. Update after changes
 nuxflow plugin build && nuxflow plugin update
 \`\`\`
+
+\`--site\` and \`--api-key\` flags work too, instead of the environment variables.
 
 ## How it works
 
@@ -5769,10 +5747,10 @@ var pluginCommand = defineCommand({
         const signingPayload = await buildSigningPayload(manifest, dist);
         const signature = await signPayload(privateKey, signingPayload);
         s2.message("Authenticating\u2026");
-        const { site, cookie } = await authenticateOrExit(s2, args);
+        const { site, apiKey } = authenticateOrExit(s2, args);
         s2.message(`Deploying ${manifest.name} v${manifest.version}\u2026`);
         try {
-          await apiPost(site, "/api/v1/dynamic-plugins", cookie, {
+          await apiPost(site, "/api/v1/dynamic-plugins", apiKey, {
             ...dist,
             publisherPublicKey: manifest.publisherPublicKey,
             signature
@@ -5807,13 +5785,13 @@ var pluginCommand = defineCommand({
         const signingPayload = await buildSigningPayload(manifest, dist);
         const signature = await signPayload(privateKey, signingPayload);
         s2.message("Authenticating\u2026");
-        const { site, cookie } = await authenticateOrExit(s2, args);
+        const { site, apiKey } = authenticateOrExit(s2, args);
         s2.message("Removing old version\u2026");
-        await apiDelete(site, `/api/v1/dynamic-plugins/${manifest.id}`, cookie).catch(() => {
+        await apiDelete(site, `/api/v1/dynamic-plugins/${manifest.id}`, apiKey).catch(() => {
         });
         s2.message(`Deploying ${manifest.name} v${manifest.version}\u2026`);
         try {
-          await apiPost(site, "/api/v1/dynamic-plugins", cookie, {
+          await apiPost(site, "/api/v1/dynamic-plugins", apiKey, {
             ...dist,
             publisherPublicKey: manifest.publisherPublicKey,
             signature
@@ -6639,13 +6617,16 @@ A NuxFlow CSS theme.
 ## Quick start
 
 \`\`\`bash
+# Create an API key on your site first: Admin \u2192 Settings \u2192 API keys, with
+# "Upload and update themes". Then:
+export NUXFLOW_SITE=https://your-site.com
+export NUXFLOW_API_KEY=nf_...
+
 # Deploy for the first time (activates automatically if no theme is active)
-nuxflow theme deploy --site https://your-site.com \\
-  --email admin@your-site.com --password yourpassword
+nuxflow theme deploy
 
 # Update CSS after making changes
-nuxflow theme update --site https://your-site.com \\
-  --email admin@your-site.com --password yourpassword
+nuxflow theme update
 \`\`\`
 
 The \`deployedId\` field in \`nuxflow.theme.json\` is written automatically on first deploy
@@ -6763,10 +6744,10 @@ var themeCommand = defineCommand({
         const bundleZip = await buildBundleZip(dir, manifest, css);
         const s2 = L4();
         s2.start("Authenticating\u2026");
-        const { site, cookie } = await authenticateOrExit(s2, args);
+        const { site, apiKey } = authenticateOrExit(s2, args);
         s2.message(bundleZip ? `Uploading "${manifest.name}" v${manifest.version} (with demo content)\u2026` : `Uploading "${manifest.name}" v${manifest.version}\u2026`);
         try {
-          const res = bundleZip ? await apiPostZip(site, "/api/v1/themes", cookie, `${manifest.name.toLowerCase().replace(/\s+/g, "-")}.zip`, bundleZip) : await apiPost(site, "/api/v1/themes", cookie, {
+          const res = bundleZip ? await apiPostZip(site, "/api/v1/themes", apiKey, `${manifest.name.toLowerCase().replace(/\s+/g, "-")}.zip`, bundleZip) : await apiPost(site, "/api/v1/themes", apiKey, {
             name: manifest.name,
             version: manifest.version,
             css
@@ -6801,10 +6782,10 @@ var themeCommand = defineCommand({
         const css = await orExit(readCss(dir));
         const s2 = L4();
         s2.start("Authenticating\u2026");
-        const { site, cookie } = await authenticateOrExit(s2, args);
+        const { site, apiKey } = authenticateOrExit(s2, args);
         s2.message(`Updating "${manifest.name}"\u2026`);
         try {
-          await apiPatch(site, `/api/v1/themes/${manifest.deployedId}/css`, cookie, {
+          await apiPatch(site, `/api/v1/themes/${manifest.deployedId}/css`, apiKey, {
             css,
             version: manifest.version
           });

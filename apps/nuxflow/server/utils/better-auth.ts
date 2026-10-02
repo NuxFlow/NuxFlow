@@ -316,6 +316,10 @@ async function buildBetterAuthInstance(event: H3Event) {
     // using the app's existing D1-backed rateLimit() utility.
     rateLimit: { enabled: false },
     account: {
+      // Google/GitHub access/refresh/id tokens are only ever needed by Better Auth itself
+      // during sign-in; encrypt them at rest (AES-256-GCM under betterAuthSecret) so a
+      // leaked D1 export or backup doesn't hand out live third-party tokens.
+      encryptOAuthTokens: true,
       accountLinking: {
         enabled: true,
         trustedProviders: ['google', 'github'],

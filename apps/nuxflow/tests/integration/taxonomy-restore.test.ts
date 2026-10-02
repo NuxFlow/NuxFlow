@@ -1,6 +1,6 @@
 /**
  * Taxonomy-specific restore behaviour (restore-taxonomies.ts / restore-content.ts):
- *  - old backups' `post_tag` taxonomy and "post_tag/…" term paths land on `tag`
+ *  - content "taxonomy/term" paths resolve to the restored terms, de-duplicated
  *  - cyclic parentSlug links in a (user-editable) backup are dropped
  *  - term SEO/order fields and taxonomy content-type scoping round-trip
  *  - an overwrite restore without the taxonomies section keeps content's existing terms
@@ -68,10 +68,10 @@ const baseItem = {
 }
 
 describe('taxonomy restore', () => {
-  it('maps a legacy post_tag taxonomy onto tag, including content term paths', async () => {
+  it('resolves content term paths onto the restored terms, de-duplicated', async () => {
     await restore({
-      taxonomies: [{ slug: 'post_tag', name: 'Tags', isHierarchical: false, terms: [{ slug: 'nuxt', name: 'Nuxt', description: null, parentSlug: null }] }],
-      content: [{ ...baseItem, slug: 'legacy-post', termSlugs: ['post_tag/nuxt', 'post_tag/nuxt'] }],
+      taxonomies: [{ slug: 'tag', name: 'Tags', isHierarchical: false, terms: [{ slug: 'nuxt', name: 'Nuxt', description: null, parentSlug: null }] }],
+      content: [{ ...baseItem, slug: 'legacy-post', termSlugs: ['tag/nuxt', 'tag/nuxt'] }],
     }, { what: ['taxonomies', 'content'], conflictMode: 'skip' })
 
     const db = getCurrentTestDb()

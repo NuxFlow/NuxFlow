@@ -127,10 +127,10 @@ describe('POST /api/v1/media/video', () => {
     ).rejects.toMatchObject({ statusCode: 403 })
   })
 
-  it('returns 400 when uid is missing', async () => {
+  it('returns 422 when uid is missing', async () => {
     await expect(
       (registerHandler as HandlerFn)(mkEvent({ userId: authorUserId, body: {} })),
-    ).rejects.toMatchObject({ statusCode: 400 })
+    ).rejects.toMatchObject({ statusCode: 422 })
   })
 
   it('returns 501 when Cloudflare Stream is not configured', async () => {
@@ -170,12 +170,18 @@ describe('POST /api/v1/media/video', () => {
     }
   })
 
+  it('returns 422 for a uid that is not a Stream UID (e.g. a path traversal attempt)', async () => {
+    await expect(
+      (registerHandler as HandlerFn)(mkEvent({ userId: authorUserId, body: { uid: '../../zones' } })),
+    ).rejects.toMatchObject({ statusCode: 422 })
+  })
+
   it('rejects registration when the upload uid belongs to a different site (cross-tenant IDOR)', async () => {
     // token.post.ts stamps meta.siteId with the site that requested the upload URL — a
     // shared Cloudflare account across tenants (the default unless a site overrides
     // cloudflare.account_id/stream_token) means the `uid` itself is otherwise entirely
     // client-supplied with no proof it was issued to this site's upload flow.
-    const uid = 'other0031234567890abcdef12345678'
+    const uid = 'a0e70031234567890abcdef12345678f'
     const originalConfig = globalThis.useRuntimeConfig
 
     globalThis.useRuntimeConfig = () => ({
@@ -440,16 +446,16 @@ describe('PATCH /api/v1/media/video/:id', () => {
     ).rejects.toMatchObject({ statusCode: 404 })
   })
 
-  it('returns 400 when title is empty', async () => {
+  it('returns 422 when title is empty', async () => {
     await expect(
       (patchHandler as HandlerFn)(mkEvent({ params: { id: videoId }, body: { title: '' } })),
-    ).rejects.toMatchObject({ statusCode: 400 })
+    ).rejects.toMatchObject({ statusCode: 422 })
   })
 
-  it('returns 400 when title is whitespace only', async () => {
+  it('returns 422 when title is whitespace only', async () => {
     await expect(
       (patchHandler as HandlerFn)(mkEvent({ params: { id: videoId }, body: { title: '   ' } })),
-    ).rejects.toMatchObject({ statusCode: 400 })
+    ).rejects.toMatchObject({ statusCode: 422 })
   })
 
   it('updates the title and returns success', async () => {

@@ -9,7 +9,7 @@ export default defineConfig({
   reporter: process.env.CI ? 'github' : 'list',
 
   use: {
-    baseURL: process.env.TEST_BASE_URL || 'http://localhost:3000',
+    baseURL: process.env.TEST_BASE_URL || 'http://localhost:8787',
     trace: 'on-first-retry',
   },
 
@@ -26,7 +26,7 @@ export default defineConfig({
 
   webServer: process.env.TEST_BASE_URL ? undefined : {
     command: 'pnpm dev',
-    url: 'http://localhost:3000',
+    url: 'http://localhost:8787',
     reuseExistingServer: !process.env.CI,
     cwd: './apps/nuxflow',
   },

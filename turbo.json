@@ -32,7 +32,6 @@
       "outputs": []
     },
     "deploy": {
-      "dependsOn": ["build"],
       "cache": false
     }
   }

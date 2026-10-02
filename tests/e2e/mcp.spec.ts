@@ -5,7 +5,7 @@ import path from 'path'
 // Load environment variables from apps/nuxflow/.env
 dotenv.config({ path: path.resolve(__dirname, '../../apps/nuxflow/.env') })
 
-const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000'
+const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:8787'
 
 test.describe('NuxFlow Model Context Protocol (MCP) Server E2E Integration', () => {
   let apiKey: string
