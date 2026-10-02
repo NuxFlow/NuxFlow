@@ -17,7 +17,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@clack/prompts": "^0.9.1",
+    "@clack/prompts": "^1.8.1",
     "citty": "^0.1.6",
     "consola": "^3.4.2",
     "esbuild": "^0.25.12",
