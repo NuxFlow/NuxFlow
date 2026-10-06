@@ -91,7 +91,7 @@ provide(SEO_FORM_KEY, {
         <AdminSeoSocialTab v-else-if="active === 'social' && isAdmin" />
         <AdminSeoAiTab v-else-if="active === 'ai' && isAdmin" />
         <AdminSeoIndexingTab v-else-if="active === 'indexing' && isAdmin" />
-        <AdminSeoSeoRedirectsTab v-else-if="active === 'redirects'" />
+        <AdminSeoRedirectsTab v-else-if="active === 'redirects'" />
         <AdminSeoAuditTab v-else-if="active === 'audit'" />
       </div>
     </div>

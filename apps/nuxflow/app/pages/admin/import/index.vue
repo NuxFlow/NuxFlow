@@ -35,8 +35,8 @@ const tabs: { value: Tab; label: string; icon: string }[] = [
       </button>
     </div>
 
-    <AdminImportImportBackupTab v-if="activeTab === 'backup'" />
-    <AdminImportImportRestoreTab v-else-if="activeTab === 'restore'" />
-    <AdminImportImportWordpressTab v-else-if="activeTab === 'wordpress'" />
+    <AdminImportBackupTab v-if="activeTab === 'backup'" />
+    <AdminImportRestoreTab v-else-if="activeTab === 'restore'" />
+    <AdminImportWordpressTab v-else-if="activeTab === 'wordpress'" />
   </div>
 </template>

@@ -151,6 +151,16 @@ describe('the handoff', () => {
     expect(stranger.user).toBeTruthy()
   })
 
+  it('authorize: a super admin without a role on the site still gets the explicit choice', async () => {
+    // Right after a new site's setup the browser is usually still signed in here as the
+    // platform operator; auto-continuing signed *them* in to the new site.
+    const db = getCurrentTestDb()
+    const operatorId = await seedUser(db, { email: 'operator@central.test' })
+    await seedRole(db, operatorId, SITE_B, 'super_admin')
+    const res = await (authorizeGet as Handler)(onAccounts(operatorId, { query: { site: SITE_A } }) as unknown as H3Event) as { isMember: boolean }
+    expect(res.isMember).toBe(false)
+  })
+
   it('authorize: "join" adds the member role only where public registration is open', async () => {
     const db = getCurrentTestDb()
     await expect((authorizePost as Handler)(onAccounts(strangerId, { body: { site: SITE_B, state: 's'.repeat(24), join: true } }) as unknown as H3Event))
@@ -179,10 +189,13 @@ describe('the handoff', () => {
     const { redirect } = await (authorizePost as Handler)(onAccounts(memberId, { body: { site: SITE_A, state } }) as unknown as H3Event) as { redirect: string }
     const query = Object.fromEntries(new URL(redirect).searchParams)
 
-    // Wrong browser (no state cookie) — nothing issued, back to the start.
+    // Wrong browser (no state cookie) — nothing issued, and a "try again" page rather than
+    // an automatic restart (which looped forever when the accounts origin auto-continued).
     const noCookie = onSite(SITE_A, 'a.example.test', { query })
-    await (callbackHandler as Handler)(noCookie as unknown as H3Event)
-    expect(noCookie._redirect?.url).toContain('/_nuxflow/auth/start')
+    const page = await (callbackHandler as Handler)(noCookie as unknown as H3Event) as string
+    expect(noCookie._redirect).toBeUndefined()
+    expect(page).toContain("Sign-in didn't complete")
+    expect(page).toContain('/_nuxflow/auth/start?return_to=%2Fadmin')
     expect(noCookie._cookies['__Host-nuxflow_site']).toBeUndefined()
 
     // Another site's callback can't redeem it.

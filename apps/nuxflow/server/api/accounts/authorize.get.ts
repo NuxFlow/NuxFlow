@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../utils/db'
 import { getSiteBranding } from '../../utils/accounts-sites'
-import { getUserSiteRole, hasSuperAdminRole } from '../../utils/permissions'
+import { getUserSiteRole } from '../../utils/permissions'
 import { isAccountsHost } from '../../utils/accounts-origin'
 
 const querySchema = z.object({ site: z.string().min(1).max(64) })
@@ -21,8 +21,12 @@ export default defineEventHandler(async (event) => {
   const session = await getAuthSession(event)
   if (!session) return { site, user: null, isMember: false }
 
+  // Only a real role on this site skips the "Continue to …?" step. A super admin can open
+  // any site, but isn't automatically *its* person: right after a new site's setup the
+  // browser is often still signed in here as the platform operator, and auto-continuing
+  // signed that account in to the new site instead of offering "Use a different account".
   const db = useDb(event)
-  const isMember = Boolean(await getUserSiteRole(db, session.user.id, siteId)) || await hasSuperAdminRole(db, session.user.id)
+  const isMember = Boolean(await getUserSiteRole(db, session.user.id, siteId))
   return {
     site,
     user: { name: session.user.name, email: session.user.email, image: session.user.image ?? null },
