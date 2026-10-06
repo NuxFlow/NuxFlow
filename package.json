@@ -17,21 +17,21 @@
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
-    "@commitlint/cli": "^21.1.0",
-    "@commitlint/config-conventional": "^21.1.0",
-    "@commitlint/types": "^21.1.0",
-    "@nuxt/eslint-config": "^1.16.0",
-    "@typescript-eslint/eslint-plugin": "^8.62.0",
-    "turbo": "^2.10.0",
-    "vitest": "^5.0.1",
-    "wrangler": "^4.135.0"
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@commitlint/types": "^21.2.3",
+    "@nuxt/eslint-config": "^1.17.0",
+    "@typescript-eslint/eslint-plugin": "^8.71.0",
+    "turbo": "^2.11.5",
+    "vitest": "^5.0.2",
+    "wrangler": "^4.145.0"
   },
   "pnpm": {
     "overrides": {
       "better-auth": "^1.7.7",
-      "drizzle-orm": "0.45.2",
+      "drizzle-orm": "0.45.3",
       "kysely": "^0.28.17",
-      "vue": "3.5.42",
+      "vue": "3.5.43",
       "undici@>=7.0.0 <7.29.1": "^7.29.1",
       "undici@>=8.0.0 <8.10.2": "^8.10.2",
       "valibot@>=1.0.0 <1.4.2": "^1.4.2"

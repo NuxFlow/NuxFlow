@@ -15,10 +15,10 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@tiptap/core": "^3.30.5",
-    "@tiptap/extension-link": "^3.30.5",
-    "@tiptap/starter-kit": "^3.30.5",
-    "@tiptap/vue-3": "^3.30.5",
+    "@tiptap/core": "^3.31.3",
+    "@tiptap/extension-link": "^3.31.3",
+    "@tiptap/starter-kit": "^3.31.3",
+    "@tiptap/vue-3": "^3.31.3",
     "vuedraggable": "^4.1.0",
     "xss": "^1.0.15"
   },
@@ -28,9 +28,9 @@
   },
   "devDependencies": {
     "@nuxt/ui": "^4.11.2",
-    "@vue/runtime-core": "^3.5.39",
+    "@vue/runtime-core": "^3.5.43",
     "typescript": "^5.9.3",
-    "vue": "^3.5.39",
-    "vue-tsc": "^3.3.5"
+    "vue": "^3.5.43",
+    "vue-tsc": "^3.3.11"
   }
 }
