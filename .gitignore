@@ -61,6 +61,7 @@ apps/nuxflow/wrangler.demo.toml
 .agent/
 CLAUDE.md
 GEMINI.md
+AGENTS.md
 skills-lock.json
 
 # Personal scratch space (themes-in-progress, demo assets, etc.) — never pushed
