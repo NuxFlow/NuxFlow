@@ -22,6 +22,13 @@ watch(() => props.hasGlobalAdmin, (newVal) => {
   }
 }, { immediate: true })
 
+// The two modes mean different passwords (an existing one vs a new one) — never carry
+// one over into the other.
+watch(useExisting, () => {
+  local.password = ''
+  confirm.value = ''
+})
+
 const showPassword = ref(false)
 const showConfirm = ref(false)
 const confirm = ref('')
@@ -31,10 +38,15 @@ const passwordMismatch = computed(() => !useExisting.value && confirm.value.leng
 // Standard, highly resilient email validation regex
 const emailRegex = /^[\w.%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i
 
+// An existing account is never taken on trust by email alone: the server asks for its
+// current password (setup/complete.post.ts), since accounts are shared by every site.
+const { accountsLink } = useAccounts()
+const forgotPasswordUrl = accountsLink('/forgot-password')
+
 const valid = computed(() => {
   const email = (local.email || '').trim()
   if (useExisting.value) {
-    return emailRegex.test(email)
+    return emailRegex.test(email) && local.password.length > 0
   }
   return (
     local.name.trim().length > 0 &&
@@ -78,8 +90,30 @@ const valid = computed(() => {
       </UFormField>
     </template>
 
-    <UFormField label="Email address" required :hint="useExisting ? 'Enter your existing global administrator email' : undefined">
+    <UFormField label="Email address" required :hint="useExisting ? 'The email you already sign in with' : undefined">
       <UInput v-model="local.email" type="email" placeholder="jane@example.com" />
+    </UFormField>
+
+    <UFormField v-if="useExisting" label="Current password" required>
+      <template #hint>
+        <a :href="forgotPasswordUrl" target="_blank" rel="noopener" class="text-primary-500 hover:underline">Forgot it?</a>
+      </template>
+      <UInput
+        v-model="local.password"
+        :type="showPassword ? 'text' : 'password'"
+        placeholder="••••••••"
+        autocomplete="current-password"
+        @keyup.enter="valid && emit('next')"
+      >
+        <template #trailing>
+          <button type="button" tabindex="-1" class="flex items-center" @click.prevent="showPassword = !showPassword">
+            <UIcon
+              :name="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+              class="size-4 text-gray-400 hover:text-gray-600 cursor-pointer"
+            />
+          </button>
+        </template>
+      </UInput>
     </UFormField>
 
     <template v-if="!useExisting">
