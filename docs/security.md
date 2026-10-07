@@ -154,13 +154,18 @@ The properties above apply automatically to every Workers deployment. The follow
 
 Every public domain receives constant automated scanning for common vulnerabilities — requests probing for `/wp-includes/wlwmanifest.xml`, `/xmlrpc.php`, `/.git/config`, `.env`, and similar paths that don't exist on a NuxFlow site but still cost a full request cycle (SSR render + 404 lookup) if they reach the Worker. None of this is NuxFlow-specific; it's internet background noise every domain gets. Left unfiltered, a large enough burst of this traffic landing at once can still meaningfully add to request volume and D1 load during a migration or any other cold-start-sensitive window.
 
-Cloudflare's dashboard was reorganized into a unified **Security** section (replacing the older "Security → Bots" / "Security → WAF" layout some older guides still describe) with two relevant pages: **Settings** (toggle-based, filterable by category) and **Security rules** (for custom rule logic). All three of the following are available on Cloudflare's free plan:
+The recommended setup below blocks that scanner traffic precisely, at Cloudflare's edge, without any risk of blocking real visitors. Both items are on Cloudflare's free plan, under the dashboard's **Security** section (**Settings** for toggles, **Security rules** for custom rules):
 
-1. **Bot Fight Mode** — dash.cloudflare.com → your domain → **Security → Settings** → filter by **Bot traffic** → toggle **Bot fight mode** on. Targets exactly the scripted/automated traffic described above.
-2. **Cloudflare Managed Ruleset** — **Security → Settings** → filter by **Web application exploits** → toggle **Cloudflare managed ruleset** on → **Save**. Broader signature-based coverage (SQLi, XSS, path traversal) beyond bot detection.
-3. **A custom rule for known scanner paths** — **Security → Security rules** → **Create rule** → **Custom rules**. Field **URI Path**, operator **contains**, value `wp-includes` (add more OR'd conditions for `xmlrpc.php`, `.git`, `.env`), action **Block**, then **Deploy**. Free tier includes 5 custom rules.
+1. **Cloudflare Managed Ruleset** — dash.cloudflare.com → your domain → **Security → Settings** → filter by **Web application exploits** → turn **Cloudflare managed ruleset** on (on some plans it's shown as **Always active**, with no toggle). Signature-based protection against known exploits (SQL injection, XSS, path traversal, WordPress vulnerabilities and so on), maintained by Cloudflare.
+2. **A custom rule for scanner-only paths** — **Security → Security rules** → **Create rule** → **Custom rules**. Name it e.g. `Block scanner paths`, then add these conditions joined with **Or**, each with field **URI Path** and operator **contains**: `.php`, `/wp-admin`, `/wp-includes`, `/wp-content`, `/wp-json`, `xmlrpc`, `/.env`, `/.git`. Set the action to **Block** and click **Deploy**. NuxFlow serves none of these paths, so a real visitor can never match it. The free plan includes 5 custom rules; this uses one.
 
-All three block matching requests at Cloudflare's edge, before they ever reach the Worker or touch D1 — the strongest defense available, since it's independent of anything the application code does.
+Both block matching requests at Cloudflare's edge, before they reach the Worker or touch D1, independent of anything the application does. NuxFlow's own protections stay in place on top: rate limits on sign-in and other sensitive endpoints, Turnstile on public forms, and the central sign-in domain on multi-site installs.
+
+#### Why not Bot Fight Mode?
+
+Cloudflare's free **Bot Fight Mode** is not recommended for NuxFlow. Cloudflare describes it as aggressive by design with expected false positives, and on the free plan it can't be given exceptions: WAF Skip rules and Page Rules have no effect on it. On NuxFlow it intermittently answers real visitors with an empty `403` (Chrome shows "Access to … was denied"). That's most noticeable on multi-site installs, where signing in hops between a site, the accounts domain and back. These requests never reach the Worker, so nothing appears in NuxFlow's logs. If you see unexplained empty 403s, check **Security → Settings → Bot traffic** first.
+
+On a paid plan (Pro and above), **Super Bot Fight Mode** is a reasonable alternative, because it supports Skip rules: exclude your accounts domain and the `/_nuxflow/auth/` paths from it.
 
 ---
 
