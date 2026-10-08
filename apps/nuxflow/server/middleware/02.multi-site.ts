@@ -23,10 +23,21 @@ type SiteLookup = { id: string; status: string; setupCompleted: boolean; domain?
 // (which createIsolateCache also returns for "nothing cached yet") so a
 // never-onboarded domain doesn't defeat the cache on every request.
 const _siteCache = createIsolateCache<SiteLookup | null>(30_000)
+// Hosts that match no site while several sites exist (see below) — distinct from a cached
+// `null`, which on a fresh install still means "go to setup". Short-lived: a super admin can
+// create a site for one of these hosts at any moment, and clearSiteCache() only reaches the
+// isolate that created it, so its setup link must not 404 elsewhere for long. Still enough
+// to spare D1 from a burst of hits on a junk subdomain.
+const _unknownHostCache = createIsolateCache<true>(5_000)
 
 export function clearSiteCache(host?: string): void {
-  if (host) _siteCache.delete(host)
-  else _siteCache.clear()
+  if (host) {
+    _siteCache.delete(host)
+    _unknownHostCache.delete(host)
+  } else {
+    _siteCache.clear()
+    _unknownHostCache.clear()
+  }
   clearSiteInfoCache()
 }
 
@@ -57,7 +68,10 @@ export default defineEventHandler(async (event) => {
 
   const cached = _siteCache.get(host)
   let site: SiteLookup | undefined
-  if (cached !== undefined) {
+  let unknownHost = false
+  if (_unknownHostCache.get(host)) {
+    unknownHost = true
+  } else if (cached !== undefined) {
     site = cached ?? undefined
   } else {
     const db = useDb(event)
@@ -118,9 +132,15 @@ export default defineEventHandler(async (event) => {
         } else if (allSites.length > 1 && (host === 'localhost' || host.endsWith('.workers.dev'))) {
           // Local/Preview fallback: the primary site (see ordering above)
           site = allSites[0]!
+        } else if (allSites.length > 1) {
+          // Several sites, none on this host — e.g. www.example.com or a typo'd subdomain
+          // reaching a wildcard route. This used to fall through as "setup not completed",
+          // so the visitor landed on a /setup wizard they could never finish (no token).
+          unknownHost = true
         }
       }
-      _siteCache.set(host, site ?? null)
+      if (unknownHost) _unknownHostCache.set(host, true)
+      else _siteCache.set(host, site ?? null)
     } catch {
       // DB not yet migrated — treat as no site so the setup guard can redirect.
       // Not cached, so the next request retries once migrations complete.
@@ -135,6 +155,36 @@ export default defineEventHandler(async (event) => {
   // reached through the single-site / *.workers.dev fallback above — 05.seo-headers.ts
   // uses this to keep those duplicate hostnames out of search indexes.
   event.context.siteDomain = site?.domain ?? null
+
+  if (unknownHost) {
+    setResponseStatus(event, 404)
+    setHeader(event, 'X-Robots-Tag', 'noindex')
+    if (path.startsWith('/api') || path.startsWith('/_')) {
+      setHeader(event, 'Content-Type', 'application/json')
+      return { statusCode: 404, statusMessage: 'No site is served at this address.' }
+    }
+    setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
+    return `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Site not found</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:#f8fafc}
+  .wrap{text-align:center;max-width:480px;padding:2.5rem 2rem}
+  .icon{font-size:3rem;margin-bottom:1.5rem}
+  h1{font-size:1.75rem;font-weight:700;letter-spacing:-.02em;margin-bottom:.75rem}
+  p{color:#94a3b8;line-height:1.6;font-size:1rem}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="icon">🔍</div>
+    <h1>Site not found</h1>
+    <p>There's no website at this address. Check the address for typos, or contact the site's owner.</p>
+  </div>
+</body>
+</html>`
+  }
 
   if (site?.status === 'suspended') {
     // Unlike maintenance mode (self-service, temporary — /admin and /api stay open so

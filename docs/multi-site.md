@@ -103,6 +103,8 @@ Use this for your platform's own domain: the primary site, the accounts domain, 
 
 3. **Other Workers on the same domain** (e.g. a separate demo Worker at `demo.yourplatform.com`) need their own, more specific route such as `demo.yourplatform.com/*` — the most specific route always wins over the wildcard.
 
+4. **`www` and other unused addresses** — the wildcard sends *every* subdomain to NuxFlow, including ones no site uses (`www.yourplatform.com`, typos). Those get a plain 404 "Site not found" page. To send `www` to your main site instead, add a redirect rule (a **single redirect**, not Bulk Redirects): your domain → **Rules** → **Overview** → **Templates** → **Redirect from WWW to root** → **Deploy**. It runs before the Worker, so NuxFlow needs no change. (If one of your sites *is* `www.yourplatform.com`, skip this.)
+
 The domain's free Universal SSL certificate (`yourplatform.com` + `*.yourplatform.com`) covers everything, so there's nothing to wait for. Note that it covers one level of subdomain only: `a.yourplatform.com` works, `a.b.yourplatform.com` doesn't.
 
 ### Option B — Custom Domain (a customer's own, separate domain)
@@ -182,7 +184,7 @@ curl -X DELETE https://yourdomain.com/api/v1/admin/sites/SITE_ID
 
 You must be viewing a *different* site's domain than the one you're deleting — this endpoint refuses to delete the site you're currently on. It always fully removes the row, regardless of how many other sites exist. There's no confirmation step here and no undo.
 
-After deleting, remove its Custom Domain (Option B) from the Cloudflare dashboard and from `wrangler.toml`. A subdomain served by the wildcard route (Option A) needs no change: with no site record, it simply shows nothing.
+After deleting, remove its Custom Domain (Option B) from the Cloudflare dashboard and from `wrangler.toml`. A subdomain served by the wildcard route (Option A) needs no change: with no site record, its address shows a 404 "Site not found" page.
 
 ### Settings → Danger Zone (self-service, per-site)
 
