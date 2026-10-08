@@ -118,6 +118,10 @@ Fine when a site's domain is the **only** hostname this Worker serves in that Cl
 
 If that customer later also wants `www.theircafe.co.uk`, switch that domain to Routes (Option A) instead of adding a second Custom Domain in the same zone, for the same reason as above. Domains on DNS outside Cloudflare need [Cloudflare for SaaS](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/) (custom hostnames), which also uses routes.
 
+### Email for each site
+
+A new site can't email anyone outside your own Cloudflare account until its domain is onboarded for Cloudflare Email Sending, and that includes subdomains: `site-a.yourplatform.com` is onboarded separately from `yourplatform.com` (Cloudflare dashboard → **Email Service** → **Email Sending** → **Onboard Domain**, or `wrangler email sending enable site-a.yourplatform.com`). Until then, its invite and password-reset emails only reach addresses verified in your Cloudflare account, and the Users page warns that an invite email wasn't sent. See [Email Providers](installation.md#email-providers) for the details and the per-zone limit.
+
 ### Keep `wrangler.toml` and the dashboard in step
 
 Wrangler treats the `[[routes]]` in `wrangler.toml` as the full list for this Worker: a route or Custom Domain added only in the dashboard is reported as drift on the next deploy, and Wrangler offers to remove it. Declare every route and Custom Domain in `wrangler.toml` (a Custom Domain is `pattern = "theircafe.co.uk"` plus `custom_domain = true`). With the wildcard route from Option A, subdomain sites never need an entry.

@@ -6,6 +6,7 @@ import { requireRole, getUserSiteRole } from '../../../../utils/permissions'
 import { rateLimit } from '../../../../utils/rate-limit'
 import { writeAuditLog } from '../../../../utils/audit'
 import { sendSetPasswordEmail } from '../../../../utils/user-provisioning'
+import { emailLogTimestamp, lastEmailOutcome } from '../../../../utils/email'
 
 // Re-sends the set-password email an invitee gets on first invite (see
 // sendSetPasswordEmail in user-provisioning.ts) — for when the original link expired or
@@ -41,9 +42,11 @@ export default defineEventHandler(async (event) => {
   if (invitation) {
     await pendingInvitationInsert(db, { siteId, userId: targetId, role: invitation.role, invitedBy: userId })
   }
+  const since = emailLogTimestamp()
   await sendSetPasswordEmail(event, target.email, siteId)
+  const emailDelivery = await lastEmailOutcome(event, siteId, target.email, since)
 
   await writeAuditLog(event, userId, { action: 'resend_invite', resource: 'user', resourceId: targetId })
 
-  return { success: true }
+  return { success: true, emailDelivery }
 })

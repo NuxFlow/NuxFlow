@@ -18,6 +18,13 @@ const removingId = ref<string | null>(null)
 const resendingId = ref<string | null>(null)
 const superAdminActionId = ref<string | null>(null)
 const actionError = ref('')
+// Set when an invite/resend succeeded but its email didn't go out (e.g. the sending domain
+// isn't onboarded yet) — the user is still added, so this is a warning, not an error.
+const emailWarning = ref('')
+type EmailDelivery = { sent: true } | { sent: false; reason: string }
+function noteEmailDelivery(email: string, delivery: EmailDelivery | undefined) {
+  emailWarning.value = delivery && !delivery.sent ? `The invitation email to ${email} wasn't sent. ${delivery.reason}` : ''
+}
 const { confirm } = useConfirm()
 
 async function removeUser(userId: string) {
@@ -43,7 +50,8 @@ async function resendInvite(userId: string) {
   resendingId.value = userId
   actionError.value = ''
   try {
-    await $fetch(`/api/v1/users/${userId}/resend-invite`, { method: 'POST' })
+    const res = await $fetch<{ emailDelivery?: EmailDelivery }>(`/api/v1/users/${userId}/resend-invite`, { method: 'POST' })
+    noteEmailDelivery(users.value.find(u => u.id === userId)?.email ?? 'this user', res.emailDelivery)
   } catch (e: unknown) {
     actionError.value = getErrorMessage(e, 'Failed to resend invite')
   } finally {
@@ -101,7 +109,8 @@ async function invite() {
   inviteError.value = ''
   inviting.value = true
   try {
-    await $fetch('/api/v1/users', { method: 'POST', body: inviteForm })
+    const res = await $fetch<{ emailDelivery?: EmailDelivery }>('/api/v1/users', { method: 'POST', body: inviteForm })
+    noteEmailDelivery(inviteForm.email, res.emailDelivery)
     showInvite.value = false
     inviteForm.name = ''
     inviteForm.email = ''
@@ -215,6 +224,16 @@ const columns = [
     </UCard>
 
     <UAlert v-if="actionError" icon="i-lucide-circle-x" color="error" variant="soft" :description="actionError" />
+    <UAlert
+      v-if="emailWarning"
+      icon="i-lucide-mail-warning"
+      color="warning"
+      variant="soft"
+      title="User added, but no email was sent"
+      :description="emailWarning"
+      close
+      @update:open="emailWarning = ''"
+    />
 
     <UModal v-model:open="showInvite" title="Invite user">
       <template #body>

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import type { H3Event } from 'h3'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
-import { accounts, passkeys, sessions, siteInvitations, userSiteRoles, users } from '@nuxflow/db/schema'
+import { accounts, emailLog, passkeys, sessions, siteInvitations, userSiteRoles, users } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole } from '../helpers/seed'
@@ -203,5 +203,55 @@ describe('POST /api/v1/users — inviting an address that already has an account
     const created = await getCurrentTestDb().query.users.findFirst({ where: eq(users.email, 'brand-new@invite.test') })
     expect(created).toBeTruthy()
     expect(mockRequestPasswordReset).toHaveBeenCalledWith({ body: expect.objectContaining({ email: 'brand-new@invite.test' }) })
+  })
+})
+
+describe('POST /api/v1/users — reports whether the invitation email went out', () => {
+  // The real send path (Better Auth → sendAuthEmail) swallows its own errors and only
+  // records the outcome in email_log, so these stand in for it by writing that row.
+  function logSend(to: string, status: 'sent' | 'failed', opts: { provider?: string; error?: string } = {}) {
+    return getCurrentTestDb().insert(emailLog).values({
+      id: ulid(), siteId: SITE, toAddress: to, subject: "You've been invited", category: 'auth',
+      provider: opts.provider ?? 'cloudflare', status, error: opts.error ?? null,
+    })
+  }
+  type Delivery = { emailDelivery: { sent: boolean; reason?: string } }
+
+  it('says the email was sent when the provider accepted it', async () => {
+    mockRequestPasswordReset.mockImplementationOnce(({ body }: { body: { email: string } }) => logSend(body.email, 'sent'))
+    const res = await invite('delivered@invite.test') as Delivery
+    expect(res.emailDelivery).toEqual({ sent: true })
+  })
+
+  it('explains an unonboarded sending domain instead of reporting success', async () => {
+    mockRequestPasswordReset.mockImplementationOnce(({ body }: { body: { email: string } }) =>
+      logSend(body.email, 'failed', { error: 'destination address is not a verified address' }))
+    const res = await invite('User+Plus@invite.test') as Delivery
+    expect(res.emailDelivery.sent).toBe(false)
+    expect(res.emailDelivery.reason).toMatch(/Email Sending/)
+    // The user is still added — only the email is missing.
+    const added = await getCurrentTestDb().query.users.findFirst({ where: eq(users.email, 'user+plus@invite.test') })
+    expect(added).toBeTruthy()
+  })
+
+  it('flags the console provider, which only logs the email', async () => {
+    mockRequestPasswordReset.mockImplementationOnce(({ body }: { body: { email: string } }) => logSend(body.email, 'sent', { provider: 'console' }))
+    const res = await invite('console@invite.test') as Delivery
+    expect(res.emailDelivery.sent).toBe(false)
+    expect(res.emailDelivery.reason).toMatch(/No email provider/)
+  })
+
+  it('reports not sent when nothing was logged at all', async () => {
+    const res = await invite('silent@invite.test') as Delivery
+    expect(res.emailDelivery.sent).toBe(false)
+  })
+
+  it('ignores an older log row for the same address', async () => {
+    await getCurrentTestDb().insert(emailLog).values({
+      id: ulid(), siteId: SITE, toAddress: 'old@invite.test', subject: 'old', category: 'auth',
+      provider: 'cloudflare', status: 'sent', createdAt: '2020-01-01 00:00:00',
+    })
+    const res = await invite('old@invite.test') as Delivery
+    expect(res.emailDelivery.sent).toBe(false)
   })
 })
