@@ -10,7 +10,8 @@ import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole } from '../helpers/seed'
 import { sites } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
-import multiSiteMiddleware from '../../server/middleware/02.multi-site'
+import multiSiteMiddleware, { clearSiteCache } from '../../server/middleware/02.multi-site'
+import setupStatusHandler from '../../server/api/v1/setup/status.get'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -69,8 +70,59 @@ describe('02.multi-site middleware', () => {
     await (multiSiteMiddleware as MiddlewareFn)(event)
     const ctx = (event as unknown as { context: Record<string, unknown> }).context
 
-    // Two sites exist → no fallback → null
+    // Several sites exist → no fallback → null
     expect(ctx.siteId).toBeNull()
+  })
+
+  it('serves a 404 "Site not found" page (not the setup wizard) for a host no site uses', async () => {
+    const event = mkSiteEvent({ host: 'www.unknown.localhost', path: '/' })
+    const result = await (multiSiteMiddleware as MiddlewareFn)(event) as string
+
+    expect(typeof result).toBe('string')
+    expect(result).toContain('Site not found')
+    expect((event as unknown as { _status: number })._status).toBe(404)
+  })
+
+  it('answers API requests on an unknown host with a JSON 404', async () => {
+    const event = mkSiteEvent({ host: 'www.unknown.localhost', path: '/api/public/site' })
+    const result = await (multiSiteMiddleware as MiddlewareFn)(event)
+    expect(result).toMatchObject({ statusCode: 404 })
+  })
+
+  it('stops serving the 404 once a site is created for that host', async () => {
+    const host = 'later.localhost'
+    const first = mkSiteEvent({ host, path: '/' })
+    expect(await (multiSiteMiddleware as MiddlewareFn)(first)).toContain('Site not found')
+
+    // What POST /api/v1/admin/sites does: insert the row, then clear the host's cache.
+    await seedSite(getCurrentTestDb(), { id: 'site-mw-later', domain: host, status: 'active', setupCompleted: false })
+    clearSiteCache(host)
+
+    const second = mkSiteEvent({ host, path: '/setup' })
+    expect(await (multiSiteMiddleware as MiddlewareFn)(second)).toBeUndefined()
+    expect((second as unknown as { context: Record<string, unknown> }).context.siteId).toBe('site-mw-later')
+    await getCurrentTestDb().delete(sites).where(eq(sites.id, 'site-mw-later'))
+    clearSiteCache(host)
+  })
+
+  describe('GET /api/v1/setup/status on an unknown host', () => {
+    beforeAll(async () => {
+      await seedUser(getCurrentTestDb(), { email: 'setup-status@middleware.test' })
+    })
+
+    it('does not ask for setup when other sites exist', async () => {
+      const event = mkSiteEvent({ host: 'www.unknown.localhost', path: '/api/v1/setup/status' })
+      const result = await (setupStatusHandler as MiddlewareFn)(event) as { needsSetup: boolean }
+      expect(result.needsSetup).toBe(false)
+    })
+
+    it('still asks for setup on a known site that has not finished it', async () => {
+      await seedSite(getCurrentTestDb(), { id: 'site-mw-pending', domain: 'pending.localhost', status: 'active', setupCompleted: false })
+      const event = mkSiteEvent({ host: 'pending.localhost', path: '/api/v1/setup/status' })
+      const result = await (setupStatusHandler as MiddlewareFn)(event) as { needsSetup: boolean }
+      expect(result.needsSetup).toBe(true)
+      await getCurrentTestDb().delete(sites).where(eq(sites.id, 'site-mw-pending'))
+    })
   })
 
   it('bypasses DB lookup for /api/v1/setup paths', async () => {

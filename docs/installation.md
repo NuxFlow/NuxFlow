@@ -214,6 +214,8 @@ By default Cloudflare assigns a `*.workers.dev` subdomain. To use your own domai
 
 Your domain must be on Cloudflare's nameservers for this to work. If it is not, use a **Route** instead and point the DNS record manually.
 
+This is right for a **single** site. Before you add a sign-in domain (`accounts.…`) or more sites under the same domain, switch to the wildcard Routes setup in [Multi-site → Pointing a domain at the Worker](./multi-site.md#pointing-a-domain-at-the-worker): several Custom Domains under one domain cause intermittent, unlogged `403` errors.
+
 Also declare the domain in `wrangler.toml`. Otherwise every later deploy warns that the dashboard and your config disagree, and offers to remove the domain:
 
 ```toml
@@ -532,7 +534,7 @@ One NuxFlow installation can run many websites, each on its own domain (see [Mul
 **Set it up:**
 
 1. Pick a hostname for it, for example `accounts.yourplatform.com`. It must not be any site's domain.
-2. Route it to the Worker like any other domain (**Workers & Pages → nuxflow → Settings → Domains & Routes → Add → Custom Domain**).
+2. Route it to the Worker with a **Route**, not a Custom Domain, since it shares your platform's domain. The wildcard setup in [Multi-site → Pointing a domain at the Worker](./multi-site.md#pointing-a-domain-at-the-worker) covers it along with every subdomain site. Custom Domains for several hostnames under one domain cause intermittent, unlogged `403` errors.
 3. Set the variable in `apps/nuxflow/wrangler.toml` (it isn't a secret) and redeploy:
 
    ```toml

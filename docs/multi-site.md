@@ -71,35 +71,56 @@ A setup attempt that fails or is abandoned partway through doesn't consume the t
 
 ## Pointing a domain at the Worker
 
-NuxFlow runs as a Cloudflare Worker, so new domains must be routed to it through the Cloudflare dashboard.
+NuxFlow runs as a single Cloudflare Worker, so every site's domain — and the central sign-in domain — has to be routed to it. Cloudflare offers two ways: **Routes** and **Custom Domains**. Which one to use depends on whether hostnames share a parent domain.
 
 > [!IMPORTANT]
-> **Can I add multiple custom domains to one Worker?**
-> **Yes!** For **every single new site** you add, you should choose **Option A (Custom Domain)**. 
-> - Do **not** switch to Option B (Worker Route) just because it is a second or third domain.
-> - Cloudflare allows you to add up to **500 Custom Domains** mapped to a single Worker!
-> - Choosing "Custom Domain" for every site is highly recommended because Cloudflare will automatically provision a free, dedicated SSL/TLS certificate for each domain and configure DNS records instantly.
+> **Several hostnames under one domain (`yourplatform.com`, `accounts.yourplatform.com`, `site-a.yourplatform.com`, …) must use Routes, not Custom Domains.**
+>
+> Each Custom Domain gets its own certificate, and every one of those also lists the parent domain. Browsers reuse a secure connection opened for one hostname to fetch another the certificate covers; Cloudflare then sees a request for `yourplatform.com` arriving on a connection opened for `site-a.yourplatform.com` and refuses it with an **empty, unlogged `403`** (Chrome: "Access to … was denied"). It's intermittent, switches between sites depending on which you visited last, and never appears in your Worker's logs. With Routes, every hostname shares the domain's one wildcard certificate, which Cloudflare handles correctly.
 
-### Option A — Custom Domain (recommended)
+### Option A — Routes with a wildcard (recommended for a platform domain)
 
-Use this option when your domain is on Cloudflare's nameservers.
+Use this for your platform's own domain: the primary site, the accounts domain, and any sites you host as its subdomains. Once set up, **new subdomain sites need no Cloudflare changes at all**.
+
+1. **DNS** — in the Cloudflare dashboard → your domain → **DNS** → **Records**, add two proxied (orange cloud) records. `100::` is a placeholder address used when a Worker answers instead of a server:
+
+   | Type | Name | IPv6 address | Proxy |
+   |---|---|---|---|
+   | AAAA | `@` | `100::` | Proxied |
+   | AAAA | `*` | `100::` | Proxied |
+
+2. **Routes** — declare them in `apps/nuxflow/wrangler.toml` and deploy (`pnpm run deploy` from `apps/nuxflow`):
+
+   ```toml
+   [[routes]]
+   pattern = "yourplatform.com/*"
+   zone_name = "yourplatform.com"
+
+   [[routes]]
+   pattern = "*.yourplatform.com/*"
+   zone_name = "yourplatform.com"
+   ```
+
+3. **Other Workers on the same domain** (e.g. a separate demo Worker at `demo.yourplatform.com`) need their own, more specific route such as `demo.yourplatform.com/*` — the most specific route always wins over the wildcard.
+
+4. **`www` and other unused addresses** — the wildcard sends *every* subdomain to NuxFlow, including ones no site uses (`www.yourplatform.com`, typos). Those get a plain 404 "Site not found" page. To send `www` to your main site instead, add a redirect rule (a **single redirect**, not Bulk Redirects): your domain → **Rules** → **Overview** → **Templates** → **Redirect from WWW to root** → **Deploy**. It runs before the Worker, so NuxFlow needs no change. (If one of your sites *is* `www.yourplatform.com`, skip this.)
+
+The domain's free Universal SSL certificate (`yourplatform.com` + `*.yourplatform.com`) covers everything, so there's nothing to wait for. Note that it covers one level of subdomain only: `a.yourplatform.com` works, `a.b.yourplatform.com` doesn't.
+
+### Option B — Custom Domain (a customer's own, separate domain)
+
+Fine when a site's domain is the **only** hostname this Worker serves in that Cloudflare zone — typically a customer's own domain such as `theircafe.co.uk`, which shares nothing with your platform domain.
 
 1. Open **Workers & Pages → nuxflow → Settings → Domains & Routes**
 2. Click **Add** → **Custom Domain**
-3. Enter the bare hostname you registered in the site record (e.g. `example.com` or `shop.example.com`)
-4. Cloudflare creates the DNS record and provisions a TLS certificate automatically
+3. Enter the hostname you registered in the site record (e.g. `theircafe.co.uk`)
+4. Cloudflare creates the DNS record and certificate automatically, usually in under two minutes
 
-The domain is live as soon as the certificate is issued, which typically takes under two minutes.
+If that customer later also wants `www.theircafe.co.uk`, switch that domain to Routes (Option A) instead of adding a second Custom Domain in the same zone, for the same reason as above. Domains on DNS outside Cloudflare need [Cloudflare for SaaS](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/) (custom hostnames), which also uses routes.
 
-### Option B — Worker Route
+### Keep `wrangler.toml` and the dashboard in step
 
-Use this option when your domain's DNS is managed outside Cloudflare. You must add a DNS record pointing to Cloudflare's proxy yourself before the route can receive traffic.
-
-1. In your DNS provider, create an `A` record pointing the hostname to `192.0.2.1` with Cloudflare proxying enabled (orange cloud), **or** point the nameservers to Cloudflare and use Option A instead
-2. In Cloudflare, open **Workers & Pages → nuxflow → Settings → Domains & Routes**
-3. Click **Add** → **Route**
-4. Enter the route pattern, e.g. `example.com/*`
-5. Select the `nuxflow` worker
+Wrangler treats the `[[routes]]` in `wrangler.toml` as the full list for this Worker: a route or Custom Domain added only in the dashboard is reported as drift on the next deploy, and Wrangler offers to remove it. Declare every route and Custom Domain in `wrangler.toml` (a Custom Domain is `pattern = "theircafe.co.uk"` plus `custom_domain = true`). With the wildcard route from Option A, subdomain sites never need an entry.
 
 ---
 
@@ -163,7 +184,7 @@ curl -X DELETE https://yourdomain.com/api/v1/admin/sites/SITE_ID
 
 You must be viewing a *different* site's domain than the one you're deleting — this endpoint refuses to delete the site you're currently on. It always fully removes the row, regardless of how many other sites exist. There's no confirmation step here and no undo.
 
-After deleting, remove the corresponding Custom Domain or Route from the Cloudflare dashboard to stop routing traffic to the Worker for that hostname.
+After deleting, remove its Custom Domain (Option B) from the Cloudflare dashboard and from `wrangler.toml`. A subdomain served by the wildcard route (Option A) needs no change: with no site record, its address shows a 404 "Site not found" page.
 
 ### Settings → Danger Zone (self-service, per-site)
 
@@ -270,23 +291,3 @@ Then build and deploy as normal. The second instance appears as a separate Worke
 ::note
 Each NuxFlow instance runs its own setup wizard (`/setup`) and maintains its own user database. Super admin accounts do not cross instance boundaries — a super admin on one instance has no access to another.
 ::
-
----
-
-## Gotcha: Custom Domains Being Wiped on Deploy? ⚠️
-
-A common Cloudflare Wrangler gotcha in multi-site setups is custom domains being deleted or wiped every time you redeploy changes using `wrangler deploy` (or `pnpm run deploy`).
-
-### Why this happens:
-If your `wrangler.toml` file contains a declarative `[[routes]]` block, Wrangler assumes it has **exclusive ownership** over all domains and routes for that Worker. During deployment, Wrangler compares your active Cloudflare settings to `wrangler.toml` and **deletes** any custom domains or routes that were added in the dashboard but are missing from the configuration file.
-
-### How to resolve it:
-1. **Remove `[[routes]]` from configuration:** Delete the `[[routes]]` block completely from [wrangler.toml](file:///c:/DEV/NuxFlow/apps/nuxflow/wrangler.toml):
-   ```toml
-   # REMOVE THIS BLOCK ENTIRELY:
-   [[routes]]
-   pattern = "nuxflow.dev"
-   custom_domain = true
-   ```
-2. **Add all domains in the dashboard:** Go to the Cloudflare Worker Dashboard under **Settings → Domains & Routes** and add **all** of your custom domains there manually (including your primary domain `nuxflow.dev`).
-3. **Enjoy persistent routing:** Because `wrangler.toml` no longer specifies any routes, Wrangler switches to non-declarative routing mode and will **never** touch, alter, or delete any of your custom domains during deployment again!

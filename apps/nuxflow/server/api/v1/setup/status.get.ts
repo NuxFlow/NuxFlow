@@ -51,6 +51,7 @@ export default defineEventHandler(async (event) => {
     const hasAdmin = (userCount?.value ?? 0) > 0
 
     let setupCompleted = false
+    let unknownHost = false
     let siteName = ''
     let siteDomain = ''
     let siteLocale = 'en'
@@ -70,6 +71,10 @@ export default defineEventHandler(async (event) => {
         site = await db.query.sites.findFirst({ orderBy: (s, { desc, asc }) => [desc(s.isPrimary), asc(s.createdAt)] })
       }
 
+      // Several sites, none on this host: nothing here to set up (02.multi-site.ts serves
+      // a 404 for it). A secondary site awaiting setup always has its own row.
+      if (!site) unknownHost = true
+
       if (site) {
         setupCompleted = site.setupCompleted ?? false
         siteName = site.name ?? ''
@@ -84,10 +89,12 @@ export default defineEventHandler(async (event) => {
       hasSite,
       hasAdmin,
       setupCompleted,
-      needsSetup: !hasSite || !hasAdmin || !setupCompleted,
+      needsSetup: !hasSite || !hasAdmin || (!unknownHost && !setupCompleted),
       site: hasSite ? { name: siteName, domain: siteDomain, locale: siteLocale, timezone: siteTimezone } : null,
     }
-    if (!result.needsSetup) _statusCache.set(cacheHost, result)
+    // Never cache an unknown host: a site can be created for it at any moment, and its
+    // setup link must work straight away on every isolate.
+    if (!result.needsSetup && !unknownHost) _statusCache.set(cacheHost, result)
     return result
   } catch {
     // DB schema not yet migrated — report as needing setup.
