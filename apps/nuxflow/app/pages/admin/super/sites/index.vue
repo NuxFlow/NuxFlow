@@ -4,7 +4,10 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 type SiteRow = { id: string; name: string; domain: string; status: string; locale?: string; createdAt: string }
 const { data, refresh } = await useFetch<{ sites: SiteRow[] }>('/api/v1/admin/sites')
 
-const currentDomain = import.meta.client ? window.location.hostname : ''
+// useRequestURL() is the same on the server and in the browser. Reading window.location
+// only in the browser left it blank in the server render, so the current site's delete
+// button was rendered enabled and hydration never corrected it (the API still refuses).
+const currentDomain = useRequestURL().hostname
 const isCurrentSite = (site: SiteRow) => site.domain === currentDomain
 const items = computed(() => data.value?.sites ?? [])
 
@@ -114,16 +117,18 @@ async function deleteSite() {
         <template #actions-cell="{ row }">
           <div class="flex items-center gap-1.5">
             <UButton variant="ghost" size="xs" icon="i-lucide-pencil" :aria-label="`Edit ${row.original.name}`" @click="openEdit(row.original)" />
-            <UTooltip :text="isCurrentSite(row.original) ? 'Cannot delete the current site' : 'Delete site'">
-              <UButton
-                variant="ghost"
-                color="error"
-                size="xs"
-                icon="i-lucide-trash"
-                :disabled="isCurrentSite(row.original)"
-                @click="openDelete(row.original)"
-              />
-            </UTooltip>
+            <!-- A plain title, not <UTooltip>: Nuxt UI's tooltip needs a <UApp> provider this
+                 app doesn't use, and without one it rendered nothing — taking the button with it. -->
+            <UButton
+              variant="ghost"
+              color="error"
+              size="xs"
+              icon="i-lucide-trash-2"
+              :title="isCurrentSite(row.original) ? 'The site you are signed in to cannot be deleted' : `Delete ${row.original.name}`"
+              :aria-label="`Delete ${row.original.name}`"
+              :disabled="isCurrentSite(row.original)"
+              @click="openDelete(row.original)"
+            />
           </div>
         </template>
       </UTable>
