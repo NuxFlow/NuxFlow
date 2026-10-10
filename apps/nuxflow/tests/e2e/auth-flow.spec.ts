@@ -76,10 +76,25 @@ test.describe('Forgot-password page', () => {
 })
 
 test.describe('Reset-password page', () => {
-  test('shows an invalid link message when no token is in the URL', async ({ page }) => {
+  test('shows an incomplete-link message when no token is in the URL', async ({ page }) => {
     await page.goto('/reset-password')
     await page.waitForSelector('body')
-    await expect(page.locator('body')).toContainText(/invalid.*link|missing.*token|reset link/i)
+    await expect(page.locator('body')).toContainText(/incomplete link/i)
+    await expect(page.getByRole('link', { name: /request new link/i })).toBeVisible()
+  })
+
+  // Better Auth redirects an expired or used token back with ?error=INVALID_TOKEN and no
+  // token — that must read as "expired", not "missing a token".
+  test('says an expired reset link has expired and offers a new one', async ({ page }) => {
+    await page.goto('/reset-password?error=INVALID_TOKEN')
+    await expect(page.locator('body')).toContainText(/this reset link has expired/i)
+    await expect(page.getByRole('link', { name: /send me a new link/i })).toHaveAttribute('href', /\/forgot-password/)
+  })
+
+  test('says an expired invitation link has expired', async ({ page }) => {
+    await page.goto('/reset-password?error=INVALID_TOKEN&purpose=invite')
+    await expect(page.locator('body')).toContainText(/this invitation link has expired/i)
+    await expect(page.getByRole('link', { name: /send me a new link/i })).toBeVisible()
   })
 
   test('shows the password form when a token is present in the URL', async ({ page }) => {
