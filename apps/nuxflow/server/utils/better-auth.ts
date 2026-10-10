@@ -164,7 +164,12 @@ async function buildBetterAuthInstance(event: H3Event) {
         console.warn(`[auth] ${opts.name}: no site to send as`)
         return
       }
-      const siteEvent = eventForSite(event, site.id)
+      // The live request (set by 04.auth-override.ts), not the closure's `event`: this
+      // instance is cached, so `event` is whichever request built it, and its bindings
+      // aren't guaranteed to be there any more — a reset from the accounts origin failed
+      // with "send_email binding not available" that way. In-process calls (invites)
+      // have no live auth request and fall back to `event`.
+      const siteEvent = eventForSite(currentAuthEvent() ?? event, site.id)
       const emailConfig = await loadEmailConfig(siteEvent)
       const accent = await resolveSetting(siteEvent, 'theme.primary_color')
       const { html, text } = renderEmailTemplate({
