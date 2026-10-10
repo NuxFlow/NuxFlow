@@ -204,6 +204,11 @@ async function buildBetterAuthInstance(event: H3Event) {
     }),
     emailAndPassword: {
       enabled: true,
+      // signUpEmail is only ever called in-process (invites, restores — the public sign-up
+      // endpoint is blocked in 04.auth-override.ts), on behalf of someone else. Auto sign-in
+      // would leave a session for an invitee who never signed in, which made them look
+      // active ("pending" is partly inferred from sessions) and hid "Resend invite".
+      autoSignIn: false,
       password: nuxflowPasswordHasher,
       sendResetPassword: async ({ user, url: resetUrl }) => {
         if (linkPurpose(resetUrl) === 'invite') {

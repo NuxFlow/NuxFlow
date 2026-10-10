@@ -35,7 +35,10 @@ vi.mock('../../server/utils/better-auth', () => ({
   getOrCreateBetterAuth: async () => ({
     api: {
       signUpEmail: async ({ body }: { body: { name: string; email: string } }) => {
-        await getCurrentTestDb().insert(users).values({ id: ulid(), name: body.name, email: body.email, emailVerified: false })
+        // Like Better Auth with auto sign-in on: creates the account *and* a session.
+        const id = ulid()
+        await getCurrentTestDb().insert(users).values({ id, name: body.name, email: body.email, emailVerified: false })
+        await getCurrentTestDb().insert(sessions).values({ id: ulid(), token: ulid(), userId: id, expiresAt: new Date(Date.now() + 86_400_000).toISOString() })
       },
       requestPasswordReset: mockRequestPasswordReset,
     },
@@ -203,6 +206,14 @@ describe('POST /api/v1/users — inviting an address that already has an account
     const created = await getCurrentTestDb().query.users.findFirst({ where: eq(users.email, 'brand-new@invite.test') })
     expect(created).toBeTruthy()
     expect(mockRequestPasswordReset).toHaveBeenCalledWith({ body: expect.objectContaining({ email: 'brand-new@invite.test' }) })
+  })
+
+  it('leaves no session behind for the new invitee, so they show as invited until they accept', async () => {
+    await invite('no-session@invite.test')
+    const db = getCurrentTestDb()
+    const u = await db.query.users.findFirst({ where: eq(users.email, 'no-session@invite.test') })
+    const left = await db.query.sessions.findMany({ where: eq(sessions.userId, u!.id) })
+    expect(left).toHaveLength(0)
   })
 })
 

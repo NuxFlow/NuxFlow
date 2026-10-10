@@ -3,6 +3,8 @@ import { ulid } from 'ulid'
 import { useDb } from './db'
 import type { Db } from './db'
 import { getOrCreateBetterAuth } from './better-auth'
+import { sessions } from '@nuxflow/db/schema'
+import { eq } from 'drizzle-orm'
 
 /**
  * - `new`       — no account existed; one was just created with an unusable random password.
@@ -82,6 +84,9 @@ export async function findOrCreateUserAccount(
     columns: { id: true },
   })
   if (!created) throw createError({ statusCode: 500, message: 'Failed to create user account' })
+  // Belt and braces for autoSignIn: false (better-auth.ts): nobody has signed in to an
+  // account created on their behalf, so no session may exist for it.
+  await db.delete(sessions).where(eq(sessions.userId, created.id))
   return { userId: created.id, status: 'new' }
 }
 
