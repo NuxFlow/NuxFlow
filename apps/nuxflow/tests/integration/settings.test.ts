@@ -195,7 +195,8 @@ describe('batchSaveSettings', () => {
 describe('PATCH /api/v1/settings (end-to-end multi-section save)', () => {
   it('saves site columns, generic settings, and structured ai/media/auth fields together', async () => {
     const routeSiteId = `${siteId}-route`
-    await seedSite(getCurrentTestDb(), { id: routeSiteId, domain: `route-${Date.now()}.localhost` })
+    // Primary: social-login credentials are only stored for the primary site.
+    await seedSite(getCurrentTestDb(), { id: routeSiteId, domain: `route-${Date.now()}.localhost`, isPrimary: true })
     const adminId = await seedUser(getCurrentTestDb(), { email: `admin-${Date.now()}@settings-route.test` })
     await seedRole(getCurrentTestDb(), adminId, routeSiteId, 'admin')
 
@@ -228,6 +229,25 @@ describe('PATCH /api/v1/settings (end-to-end multi-section save)', () => {
 
     const site = await getCurrentTestDb().query.sites.findFirst({ where: (t, { eq: eqOp }) => eqOp(t.id, routeSiteId) })
     expect(site?.name).toBe('Renamed Site')
+  })
+
+  it("ignores social-login credentials on a tenant site's save", async () => {
+    const tenantId = `${siteId}-tenant`
+    await seedSite(getCurrentTestDb(), { id: tenantId, domain: `tenant-${Date.now()}.localhost` })
+    const adminId = await seedUser(getCurrentTestDb(), { email: `admin-${Date.now()}@settings-tenant.test` })
+    await seedRole(getCurrentTestDb(), adminId, tenantId, 'admin')
+
+    const event = createMockEvent({
+      siteId: tenantId,
+      session: { user: { id: adminId, name: 'Admin', email: 'admin@settings-tenant.test' } },
+      body: { settings: { 'site.tagline': 'Tenant tagline' }, auth: { googleClientId: 'platform-id-copied-by-the-form' } },
+    }) as unknown as H3Event
+    await (patchHandler as (e: H3Event) => Promise<unknown>)(event)
+
+    const rows = await getCurrentTestDb().query.siteSettings.findMany({ where: (t, { and: andOp, eq: eqOp }) => andOp(eqOp(t.siteId, tenantId), eqOp(t.key, 'auth.google_client_id')) })
+    expect(rows).toHaveLength(0)
+    // The rest of the save still goes through.
+    expect(await resolveSetting(mkEvent(tenantId), 'site.tagline')).toBe('Tenant tagline')
   })
 
   it('rejects a viewer-role caller', async () => {

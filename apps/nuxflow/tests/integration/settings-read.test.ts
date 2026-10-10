@@ -14,6 +14,8 @@ import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedSetting } from '../helpers/seed'
 import { SENSITIVE_SETTING_KEYS, SECRET_MASK, saveSetting } from '../../server/utils/settings'
+import { sites } from '@nuxflow/db/schema'
+import { eq } from 'drizzle-orm'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -109,8 +111,20 @@ describe('GET /api/v1/settings', () => {
     // Sensitive keys already set in the DB above stay masked; an env-only one is masked too.
     expect(res.settings['payments.stripe_webhook_secret']).toBe(SECRET_MASK)
     expect(res.settings['media.s3_bucket']).toBe('env-bucket')
-    expect(res.settings['auth.google_client_id']).toBe('env-google-id')
     expect(JSON.stringify(res)).not.toContain('whsec_env_only')
+    // Social login is configured on the primary site only, so a tenant isn't shown the
+    // platform's client ID (its next save used to copy it into the tenant's settings).
+    expect(res.settings).not.toHaveProperty('auth.google_client_id')
+
+    const db = getCurrentTestDb()
+    await db.update(sites).set({ isPrimary: true }).where(eq(sites.id, SITE))
+    try {
+      const primary = await (getSettingsHandler as Handler)(ev(adminId)) as { settings: Record<string, unknown> }
+      expect(primary.settings['auth.google_client_id']).toBe('env-google-id')
+    }
+    finally {
+      await db.update(sites).set({ isPrimary: false }).where(eq(sites.id, SITE))
+    }
   })
 })
 

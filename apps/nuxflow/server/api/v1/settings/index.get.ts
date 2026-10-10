@@ -86,11 +86,16 @@ export default defineEventHandler(async (event) => {
     if (!settings[key] && envVal) settings[key] = envVal
   }
 
-  // Same for the non-sensitive Google/GitHub OAuth client IDs
-  const googleClientId = rc.googleClientId as string | undefined
-  if (!settings['auth.google_client_id'] && googleClientId) settings['auth.google_client_id'] = googleClientId
-  const githubClientId = rc.githubClientId as string | undefined
-  if (!settings['auth.github_client_id'] && githubClientId) settings['auth.github_client_id'] = githubClientId
+  // Same for the non-sensitive Google/GitHub OAuth client IDs — on the primary site only.
+  // Social login is one OAuth app for the whole deployment, configured on the primary
+  // site; showing the env value on a tenant's Settings page meant its next save copied
+  // the platform's client ID into that tenant's own settings (and its backups).
+  if (site.isPrimary) {
+    const googleClientId = rc.googleClientId as string | undefined
+    if (!settings['auth.google_client_id'] && googleClientId) settings['auth.google_client_id'] = googleClientId
+    const githubClientId = rc.githubClientId as string | undefined
+    if (!settings['auth.github_client_id'] && githubClientId) settings['auth.github_client_id'] = githubClientId
+  }
 
   return { site, settings }
 })
