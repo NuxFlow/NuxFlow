@@ -7,6 +7,16 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    # Majors we deliberately hold (lifted by hand when the reason goes away):
+    # - typescript: vue-tsc / Nuxt's typecheck has to support the new major first
+    #   (TypeScript 6 failed `pnpm typecheck` in Oct 2026).
+    # - @types/node: must match the minimum supported Node version (engines: >=22), or
+    #   code could use APIs Node 22 doesn't have. Raise together with that floor.
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       # Security-sensitive dependencies get their own ungrouped PRs so they're never
       # buried inside a big batched update and easy to review/merge on their own —
