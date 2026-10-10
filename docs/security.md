@@ -163,9 +163,20 @@ Both block matching requests at Cloudflare's edge, before they reach the Worker 
 
 #### Why not Bot Fight Mode?
 
-Cloudflare's free **Bot Fight Mode** is not recommended for NuxFlow. Cloudflare describes it as aggressive by design with expected false positives, and on the free plan it can't be given exceptions: WAF Skip rules and Page Rules have no effect on it. On NuxFlow it intermittently answers real visitors with an empty `403` (Chrome shows "Access to … was denied"). That's most noticeable on multi-site installs, where signing in hops between a site, the accounts domain and back. These requests never reach the Worker, so nothing appears in NuxFlow's logs. If you see unexplained empty 403s, check **Security → Settings → Bot traffic** first.
+Cloudflare's free **Bot Fight Mode** is not recommended for NuxFlow, because it can't be given exceptions. It challenges anything that looks automated, and Cloudflare notes that this includes API traffic. On the free plan, WAF Skip rules and Page Rules have no effect on it, so there's no way to let legitimate automated requests through. A NuxFlow install depends on several:
 
-On a paid plan (Pro and above), **Super Bot Fight Mode** is a reasonable alternative, because it supports Skip rules: exclude your accounts domain and the `/_nuxflow/auth/` paths from it.
+- payment provider webhooks (`/api/v1/memberships/webhooks/…`)
+- `nuxflow` CLI deploys and other API-key clients
+- MCP clients
+- feed readers and uptime monitors
+
+A blocked webhook means a paid subscription never activates. Requests it blocks never reach the Worker, so nothing appears in NuxFlow's logs. They are listed under **Security → Analytics → Events** with the service **Bot Fight Mode**.
+
+If you turn it on anyway, check those events after enabling it. Also re-test payments and CLI deploys.
+
+> Empty, unlogged `403` pages ("Access to … was denied") when switching between sites on one domain are a different problem: per-hostname Custom Domain certificates. See [Pointing a domain at the Worker](multi-site.md#pointing-a-domain-at-the-worker).
+
+On a paid plan (Pro and above), **Super Bot Fight Mode** is a reasonable alternative, because it supports Skip rules: add a Skip rule for `/api/v1/memberships/webhooks/` and for the API paths your own tools use (for example `/api/v1/` requests that carry an `Authorization` header). NuxFlow still checks the API key and rate limits on every one of those requests.
 
 ---
 
