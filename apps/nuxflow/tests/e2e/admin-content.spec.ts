@@ -158,3 +158,29 @@ test.describe('Admin settings pages', () => {
     await expect(page.locator('body')).not.toContainText('404')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Super admin → Sites
+// ---------------------------------------------------------------------------
+
+test.describe('Super admin sites list', () => {
+  // The delete button used to sit inside <UTooltip>, which renders nothing without a
+  // <UApp> provider — so the button was missing entirely. The e2e admin is the first
+  // install's super admin and its only site is the current one, so the button shows
+  // but is disabled.
+  test('shows a delete button for each site (disabled for the current one)', async ({ page }) => {
+    await page.goto('/admin/super/sites')
+    const del = page.getByRole('button', { name: /^delete /i }).first()
+    await expect(del).toBeVisible({ timeout: 10_000 })
+    await expect(del).toBeDisabled()
+  })
+})
+
+test.describe('Settings side menu', () => {
+  test('links to API keys and the audit log', async ({ page }) => {
+    await page.goto('/admin/settings')
+    await page.getByRole('link', { name: /api keys/i }).click()
+    await expect(page).toHaveURL(/\/admin\/settings\/api-keys/)
+    await expect(page.getByRole('heading', { name: /api keys/i })).toBeVisible()
+  })
+})
