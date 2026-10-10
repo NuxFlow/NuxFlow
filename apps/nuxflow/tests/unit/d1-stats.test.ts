@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeAll } from 'vitest'
 import type { H3Event } from 'h3'
 
 interface FakeSite { id: string; name: string; domain: string }
@@ -36,6 +36,13 @@ function mkEvent() {
 }
 
 describe('getD1SizeStats()', () => {
+  // The first import of d1-stats pulls in its whole dependency graph (media providers,
+  // settings, …). That cold transform took ~3 s and timed the first test out under a
+  // full parallel `turbo test`; warming it here keeps each test's own import fast.
+  beforeAll(async () => {
+    await import('../../server/utils/d1-stats')
+  }, 30_000)
+
   it('sums every site\'s approximate bytes into the whole-database figure', async () => {
     vi.resetModules()
     vi.doMock('../../server/utils/db', () => ({
