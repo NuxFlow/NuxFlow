@@ -36,6 +36,10 @@ const tabs = [
   { label: 'Security', icon: 'i-lucide-shield-check' },
   { label: 'Danger zone', icon: 'i-lucide-triangle-alert' },
 ]
+const pageLinks = [
+  { label: 'API keys', icon: 'i-lucide-key-round', to: '/admin/settings/api-keys' },
+  { label: 'Audit log', icon: 'i-lucide-scroll-text', to: '/admin/settings/audit-log' },
+]
 const route = useRoute()
 const active = ref(
   tabs.some(t => t.label === route.query.tab)
@@ -344,6 +348,18 @@ async function save() {
           <UIcon :name="tab.icon" class="w-4 h-4" />
           {{ tab.label }}
         </button>
+        <!-- Settings that are pages of their own rather than tabs; nothing else links to them. -->
+        <div class="pt-2 mt-2 border-t border-gray-200 dark:border-gray-800 space-y-0.5">
+          <NuxtLink
+            v-for="link in pageLinks"
+            :key="link.to"
+            :to="link.to"
+            class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+          >
+            <UIcon :name="link.icon" class="w-4 h-4" />
+            {{ link.label }}
+          </NuxtLink>
+        </div>
       </nav>
 
       <!-- Tab content -->
