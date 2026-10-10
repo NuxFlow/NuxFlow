@@ -13,6 +13,7 @@ import { waitUntil } from '../../../utils/cf-env'
 import { clearSeoSettingsCache, getSeoSettings } from '../../../utils/seo'
 import { normalizeSeoSettings } from '../../../utils/seo-settings-schema'
 import { generateIndexNowKey } from '../../../utils/indexnow'
+import { isPrimarySite } from '../../../utils/site-info'
 
 const bodySchema = z.object({
   // Site columns
@@ -191,7 +192,11 @@ export default defineEventHandler(async (event) => {
     if (m.enableImageTransformations !== undefined) settingEntries.push(['media.enable_image_transformations', m.enableImageTransformations])
   }
 
-  if (body.auth) {
+  // Social-login credentials belong to the primary site only (one OAuth app for the
+  // deployment — see better-auth.ts). Every Settings save sends them, so a tenant's save
+  // is ignored here rather than rejected.
+  const socialAllowed = body.auth ? await isPrimarySite(event, siteId) : false
+  if (body.auth && socialAllowed) {
     const a = body.auth
     if (a.googleClientId !== undefined) settingEntries.push(['auth.google_client_id', a.googleClientId])
     if (a.googleClientSecret !== undefined) settingEntries.push(['auth.google_client_secret', a.googleClientSecret])
@@ -202,7 +207,7 @@ export default defineEventHandler(async (event) => {
   await batchSaveSettings(event, settingEntries)
   if (settingEntries.some(([k]) => k.startsWith('seo.'))) clearSeoSettingsCache(siteId)
 
-  if (body.auth) {
+  if (body.auth && socialAllowed) {
     // The Better Auth instance caches socialProviders per host for 5 minutes —
     // bust it so a credential change is live immediately, not after a wait.
     clearBetterAuthCache()
