@@ -238,11 +238,17 @@ describe('site sessions', () => {
     await expect(auth.requireAccountSession(event)).rejects.toMatchObject({ statusCode: 403 })
   })
 
-  it('sign-out ends this site\'s session only', async () => {
+  it("sign-out ends this site's session and the accounts session, so the next visit can't sign straight back in", async () => {
     const { cookie } = await signInToSiteA(memberId)
     const event = onSite(SITE_A, 'a.example.test', { cookies: { '__Host-nuxflow_site': cookie }, method: 'POST' })
     await (signOutHandler as Handler)(event as unknown as H3Event)
     expect(await getSiteSession(onSite(SITE_A, 'a.example.test', { cookies: { '__Host-nuxflow_site': cookie } }) as unknown as H3Event)).toBeNull()
+    const db = getCurrentTestDb()
+    expect(await db.query.sessions.findFirst({ where: eq(sessions.id, parentSessionId) })).toBeUndefined()
+    expect(await db.query.siteSessions.findMany({ where: eq(siteSessions.parentSessionId, parentSessionId) })).toHaveLength(0)
+
+    // Later tests sign in under the same accounts session — put it back.
+    await db.insert(sessions).values({ id: parentSessionId, token: ulid(), userId: memberId, expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString() })
   })
 
   it('all end when the accounts-origin session ends (sign-out there, password reset, account deletion)', async () => {

@@ -18,6 +18,7 @@ const schema = z.object({
 })
 
 const route = useRoute()
+const { signOut: signOutCurrent } = useUserSession()
 const form = reactive({ password: '', confirmPassword: '' })
 const loading = ref(false)
 const error = ref('')
@@ -48,6 +49,11 @@ async function submit() {
       body: { newPassword: form.password, token: token.value },
     })
     success.value = true
+    // Whoever is already signed in on this browser may be a different account (an admin
+    // opening an invite they just sent, a shared computer). Signing out first means the
+    // next step asks for the account whose password was just set, instead of carrying on
+    // as the old one.
+    await signOutCurrent().catch(() => {})
     // Back to signing in — and on into the site the link was for (an invitation or a reset
     // started from a site), if there was one.
     setTimeout(() => navigateTo(siteId.value

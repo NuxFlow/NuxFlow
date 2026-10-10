@@ -142,7 +142,7 @@ Any pages, blog posts, forms, media assets, or settings you create while logged 
 ### 2. Signing in
 Visiting `https://xyz.com/admin` directly won't work until setup is completed on that domain — a newly created site record redirects any request to `/setup` and rejects it without the one-time token from Step 3 above. Complete setup via the copied setup link first.
 
-After that, **Sign in** on `xyz.com` goes to the sign-in domain, shows xyz.com's name and logo, and comes straight back to `xyz.com/admin` signed in. Someone already signed in there (to any site) just passes through. The login they get on `xyz.com` works on `xyz.com` only; signing out on the sign-in domain signs them out of every site.
+After that, **Sign in** on `xyz.com` goes to the sign-in domain, shows xyz.com's name and logo, and comes straight back to `xyz.com/admin` signed in. Someone already signed in there (to any site) just passes through. The login they get on `xyz.com` works on `xyz.com` only; signing out, from any site or from the sign-in domain, signs them out of every site.
 
 - **The platform operator (super admin)** can open any site's admin with read-only access, and runs platform actions (Super Admin → Sites, database export, suspending sites) from the main site.
 - **Site teams:** once setup is complete, the site's admin invites editors and authors from **Admin → Users**. Their roles apply to that site only.

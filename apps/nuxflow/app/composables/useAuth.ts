@@ -33,8 +33,8 @@ export function useUserSession() {
   const { onSiteDomain } = useAccounts()
 
   async function signOut() {
-    // On a site's own domain (central sign-in) this ends the login for this site only;
-    // signing out of every site happens on the accounts origin.
+    // On a site's own domain (central sign-in) this ends the accounts sign-in as well, so
+    // every site is signed out (see server/api/v1/auth/sign-out.post.ts).
     if (onSiteDomain) await $fetch('/api/v1/auth/sign-out', { method: 'POST' })
     else await useAuthClient().signOut()
     user.value = null
