@@ -1,7 +1,7 @@
 /**
  * Coverage for:
- *  - GET /api/v1/users' `pending` flag (never established a session — there's no
- *    separate invitations table, so this is inferred from sessions).
+ *  - GET /api/v1/users' `pending` flag (no session and an unverified email — accepting an
+ *    invite verifies the email, and signing out deletes the session).
  *  - POST /api/v1/users/:id/resend-invite (re-sends the set-password email).
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
@@ -34,6 +34,7 @@ const SITE = 'site-pending-resend-01'
 let adminId: string
 let activeUserId: string // has signed in at least once
 let pendingUserId: string // never signed in
+let signedOutUserId: string // accepted, then signed out
 
 type HandlerFn = (e: H3Event) => Promise<unknown>
 
@@ -62,8 +63,12 @@ beforeAll(async () => {
     userId: activeUserId,
   })
 
-  pendingUserId = await seedUser(db, { email: 'pending@pending-resend.test' })
+  pendingUserId = await seedUser(db, { email: 'pending@pending-resend.test', emailVerified: false })
   await seedRole(db, pendingUserId, SITE, 'editor')
+
+  // Accepted their invite (verified email), then signed out — no session row left.
+  signedOutUserId = await seedUser(db, { email: 'signed-out@pending-resend.test', emailVerified: true })
+  await seedRole(db, signedOutUserId, SITE, 'author')
 })
 
 afterAll(teardownTestDb)
@@ -79,6 +84,11 @@ describe('GET /api/v1/users — pending flag', () => {
     expect(active?.pending).toBe(false)
     expect(pending?.pending).toBe(true)
   })
+
+  it('does not mark a member who accepted and then signed out as pending', async () => {
+    const result = await (listHandler as HandlerFn)(mkEvent(adminId)) as { users: { id: string; pending: boolean }[] }
+    expect(result.users.find(u => u.id === signedOutUserId)?.pending).toBe(false)
+  })
 })
 
 describe('POST /api/v1/users/:id/resend-invite', () => {
@@ -92,6 +102,12 @@ describe('POST /api/v1/users/:id/resend-invite', () => {
     await expect(
       (resendHandler as HandlerFn)(mkEvent(adminId, 'nonexistent-user-id')),
     ).rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  it('refuses to resend to a member who already accepted, even with no live session', async () => {
+    await expect(
+      (resendHandler as HandlerFn)(mkEvent(adminId, signedOutUserId)),
+    ).rejects.toMatchObject({ statusCode: 409 })
   })
 
   it('re-triggers the set-password email for a pending user', async () => {

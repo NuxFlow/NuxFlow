@@ -30,13 +30,15 @@ export default defineEventHandler(async (event) => {
   ])
   if (!membership && !invitation) throw notFound('User not found in this site')
 
+  const target = await db.query.users.findFirst({ where: eq(users.id, targetId), columns: { email: true, emailVerified: true } })
+  if (!target) throw notFound('User not found')
+
+  // Same test as the "pending" flag in GET /api/v1/users: a session, or a verified email
+  // (accepting an invite verifies it — and a signed-out member has no session left).
   if (membership) {
     const everSignedIn = await db.query.sessions.findFirst({ where: eq(sessions.userId, targetId), columns: { id: true } })
-    if (everSignedIn) throw conflict('This user has already signed in — they can use "Forgot password" if they need to.')
+    if (everSignedIn || target.emailVerified) throw conflict('This user has already accepted — they can use "Forgot password" if they need to.')
   }
-
-  const target = await db.query.users.findFirst({ where: eq(users.id, targetId), columns: { email: true } })
-  if (!target) throw notFound('User not found')
 
   // A resend also restarts a pending invitation's expiry clock.
   if (invitation) {

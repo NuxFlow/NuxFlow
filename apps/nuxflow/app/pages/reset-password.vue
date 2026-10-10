@@ -25,6 +25,15 @@ const success = ref(false)
 
 const token = computed(() => route.query.token as string | undefined)
 const isInvite = computed(() => route.query.purpose === 'invite')
+// Better Auth sends an expired or already-used link back here with ?error=INVALID_TOKEN
+// and no token — that's "expired", not "missing a token".
+const expired = computed(() => route.query.error === 'INVALID_TOKEN')
+// An invitee can get a fresh link themselves: completing any password reset accepts their
+// pending invitations (onPasswordReset), so they needn't wait for the inviter to resend.
+const expiredHelp = computed(() => isInvite.value
+  ? "Enter your email on the next page and we'll send you a fresh link to accept the invitation. You can also ask whoever invited you to resend it."
+  : 'Request a new one and use it within the hour.')
+const newLinkUrl = computed(() => siteId.value ? `/forgot-password?${new URLSearchParams({ site: siteId.value })}` : '/forgot-password')
 
 async function submit() {
   error.value = ''
@@ -61,11 +70,21 @@ async function submit() {
       :subheading="isInvite ? 'Choose a password to accept the invitation' : 'Choose a new password for your account'"
     />
 
-    <div v-if="!token" class="glass rounded-2xl p-6 text-center space-y-3">
+    <div v-if="!token && expired" class="glass rounded-2xl p-6 text-center space-y-3">
+      <UIcon name="i-lucide-clock-alert" class="w-10 h-10 text-amber-400 mx-auto" />
+      <p class="font-semibold text-gray-900 dark:text-white">{{ isInvite ? 'This invitation link has expired' : 'This reset link has expired' }}</p>
+      <p class="text-sm text-gray-500">
+        Links work for one hour and only once.
+        {{ expiredHelp }}
+      </p>
+      <UButton :to="newLinkUrl" block>Send me a new link</UButton>
+    </div>
+
+    <div v-else-if="!token" class="glass rounded-2xl p-6 text-center space-y-3">
       <UIcon name="i-lucide-circle-x" class="w-10 h-10 text-red-400 mx-auto" />
-      <p class="font-semibold text-gray-900 dark:text-white">Invalid reset link</p>
-      <p class="text-sm text-gray-500">This link is missing a token. Please request a new reset link.</p>
-      <NuxtLink to="/forgot-password" class="text-primary-500 hover:underline text-sm">Request new link</NuxtLink>
+      <p class="font-semibold text-gray-900 dark:text-white">Incomplete link</p>
+      <p class="text-sm text-gray-500">This link is missing part of its address. Try copying the whole link from the email, or request a new one.</p>
+      <NuxtLink :to="newLinkUrl" class="text-primary-500 hover:underline text-sm">Request new link</NuxtLink>
     </div>
 
     <div v-else-if="success" class="glass rounded-2xl p-6 text-center space-y-3">

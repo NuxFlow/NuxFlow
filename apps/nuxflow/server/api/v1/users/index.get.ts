@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
 
   const roles = await db.query.userSiteRoles.findMany({
     where: eq(userSiteRoles.siteId, siteId),
-    with: { user: { columns: { id: true, name: true, email: true, image: true, createdAt: true } } },
+    with: { user: { columns: { id: true, name: true, email: true, image: true, createdAt: true, emailVerified: true } } },
     limit: 1000,
   })
 
@@ -24,8 +24,10 @@ export default defineEventHandler(async (event) => {
     limit: 1000,
   })
 
-  // "Pending" == invited but never completed a sign-in: either a pending invitation above,
-  // or a member who has never established a real session.
+  // "Pending" == invited but never accepted: either a pending invitation above, or a member
+  // who has neither a session nor a verified email. Sessions alone weren't enough — signing
+  // out deletes the session row, so a member who had signed out showed as "Pending" again.
+  // Accepting an invite (setting a password from the emailed link) verifies the email.
   const everLoggedIn = userRows.length > 0
     ? new Set(
         (await db.query.sessions.findMany({
@@ -38,11 +40,10 @@ export default defineEventHandler(async (event) => {
   type UserRow = { id: string; name: string; email: string; image: string | null; createdAt: string }
   return {
     users: [
-      ...userRows.map(r => ({
-        ...(r.user as UserRow),
-        role: r.role,
-        pending: !everLoggedIn.has(r.user!.id),
-      })),
+      ...userRows.map((r) => {
+        const { emailVerified, ...user } = r.user!
+        return { ...(user as UserRow), role: r.role, pending: !everLoggedIn.has(user.id) && !emailVerified }
+      }),
       ...invitations.filter(i => i.user).map(i => ({
         ...(i.user as UserRow),
         role: i.role,
