@@ -19,6 +19,6 @@
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.11",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   }
 }
