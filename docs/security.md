@@ -49,7 +49,7 @@ A site's own domain gets a **site session** through a one-time-code handoff, the
 - The site's callback checks `state` against its cookie (so a code can't be pushed into someone else's browser), consumes the code server-side, and sets a `__Host-` prefixed, `HttpOnly` cookie valid on that site only.
 - A site that isn't one of the person's own gets an explicit "Continue to …" click first, so no site can learn who a visitor is by silently redirecting them through the sign-in domain.
 
-Site sessions are children of the sign-in session: signing out there, a password reset, or deleting the account ends every site session at once. A stolen site-session cookie reaches that one site only, and never the account itself. The sign-in domain sends `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` and `noindex`, and even on a single-site install custom site code is never injected into the sign-in, reset or account pages.
+Site sessions are children of the sign-in session: signing out (on any site or on the sign-in domain), a password reset, or deleting the account ends every site session at once. A stolen site-session cookie reaches that one site only, and never the account itself. The sign-in domain sends `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` and `noindex`, and even on a single-site install custom site code is never injected into the sign-in, reset or account pages.
 
 ---
 

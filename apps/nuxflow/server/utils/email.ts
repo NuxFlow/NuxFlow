@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { ulid } from 'ulid'
-import { eq } from 'drizzle-orm'
+import { and, desc, eq, gte, sql } from 'drizzle-orm'
 import { emailLog, sites } from '@nuxflow/db/schema'
 import { resolveSetting } from './settings'
 import { getEmailBinding } from './cf-env'
@@ -225,6 +225,41 @@ async function dispatch(config: EmailConfig, msg: EmailMessage, event: H3Event):
  * Best-effort email_log write. Never throws — a logging failure must not turn a delivered
  * email into a reported failure, or mask the real error of a failed one.
  */
+export type EmailDeliveryOutcome = { sent: true } | { sent: false; reason: string }
+
+/** `datetime('now')`-shaped timestamp (what email_log.created_at holds), `skewSeconds` in the past. */
+export function emailLogTimestamp(skewSeconds = 2): string {
+  return new Date(Date.now() - skewSeconds * 1000).toISOString().replace('T', ' ').slice(0, 19)
+}
+
+/**
+ * Whether the most recent email logged for `to` on `siteId` since `since` actually went out.
+ * Some sends (the invite / set-password email goes through Better Auth) swallow their own
+ * errors, so callers can't see a failure directly; email_log is the one place every send
+ * records its outcome. Used to tell an admin "the user was added, but the email didn't go"
+ * instead of reporting success for an invite nobody will receive.
+ */
+export async function lastEmailOutcome(event: H3Event, siteId: string, to: string, since: string): Promise<EmailDeliveryOutcome> {
+  const row = await useDb(event).query.emailLog.findFirst({
+    where: and(eq(emailLog.siteId, siteId), sql`lower(${emailLog.toAddress}) = ${to.toLowerCase()}`, gte(emailLog.createdAt, since)),
+    orderBy: [desc(emailLog.createdAt), desc(emailLog.id)],
+    columns: { status: true, error: true, provider: true },
+  })
+  if (!row) return { sent: false, reason: "The email wasn't sent. Check the Worker logs for details." }
+  if (row.status === 'failed') return { sent: false, reason: explainEmailError(row.error ?? '') }
+  if (row.provider === 'console') {
+    return { sent: false, reason: 'No email provider is set up, so the email was only written to the server log. Choose one in Settings → Email.' }
+  }
+  return { sent: true }
+}
+
+function explainEmailError(error: string): string {
+  if (/not a verified address/i.test(error)) {
+    return "Cloudflare can only deliver to addresses verified in your Cloudflare account until this site's sending domain is onboarded for Email Sending. Onboard it (Cloudflare dashboard → Email Service → Email Sending), then resend the invite."
+  }
+  return error || 'The email provider rejected the message.'
+}
+
 async function logEmail(event: H3Event, config: EmailConfig, msg: EmailMessage, outcome: { messageId?: string; error?: string }): Promise<void> {
   if (!config.siteId) return
   try {

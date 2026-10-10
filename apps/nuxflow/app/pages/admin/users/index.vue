@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
-type UserRow = { id: string; name: string; email: string; role: string; createdAt: string; pending: boolean }
+type UserRow = { id: string; name: string; email: string; role: string; createdAt: string; pending: boolean; invitationExpiresAt?: string }
 const { data, refresh } = await useFetch<{ users: UserRow[] }>('/api/v1/users')
 const users = computed(() => data.value?.users ?? [])
 
@@ -18,6 +18,15 @@ const removingId = ref<string | null>(null)
 const resendingId = ref<string | null>(null)
 const superAdminActionId = ref<string | null>(null)
 const actionError = ref('')
+// Set when an invite/resend succeeded but its email didn't go out (e.g. the sending domain
+// isn't onboarded yet) — the user is still added, so this is a warning, not an error.
+const emailWarning = ref('')
+type EmailDelivery = { sent: true } | { sent: false; reason: string }
+const toast = useToast()
+function noteEmailDelivery(email: string, delivery: EmailDelivery | undefined) {
+  emailWarning.value = delivery && !delivery.sent ? `The invitation email to ${email} wasn't sent. ${delivery.reason}` : ''
+  if (delivery?.sent) toast.add({ title: 'Invitation sent', description: `A fresh link is on its way to ${email}. It works for one hour.`, color: 'success', icon: 'i-lucide-mail-check' })
+}
 const { confirm } = useConfirm()
 
 async function removeUser(userId: string) {
@@ -43,7 +52,8 @@ async function resendInvite(userId: string) {
   resendingId.value = userId
   actionError.value = ''
   try {
-    await $fetch(`/api/v1/users/${userId}/resend-invite`, { method: 'POST' })
+    const res = await $fetch<{ emailDelivery?: EmailDelivery }>(`/api/v1/users/${userId}/resend-invite`, { method: 'POST' })
+    noteEmailDelivery(users.value.find(u => u.id === userId)?.email ?? 'this user', res.emailDelivery)
   } catch (e: unknown) {
     actionError.value = getErrorMessage(e, 'Failed to resend invite')
   } finally {
@@ -101,7 +111,8 @@ async function invite() {
   inviteError.value = ''
   inviting.value = true
   try {
-    await $fetch('/api/v1/users', { method: 'POST', body: inviteForm })
+    const res = await $fetch<{ emailDelivery?: EmailDelivery }>('/api/v1/users', { method: 'POST', body: inviteForm })
+    noteEmailDelivery(inviteForm.email, res.emailDelivery)
     showInvite.value = false
     inviteForm.name = ''
     inviteForm.email = ''
@@ -123,7 +134,8 @@ const columns = [
   { accessorKey: 'name', header: 'Name' },
   { accessorKey: 'email', header: 'Email' },
   { accessorKey: 'role', header: 'Role' },
-  { accessorKey: 'createdAt', header: 'Joined' },
+  { id: 'status', header: 'Status' },
+  { accessorKey: 'createdAt', header: 'Added' },
   { id: 'actions', header: '' },
 ]
 </script>
@@ -141,7 +153,6 @@ const columns = [
           <div class="flex items-center gap-3">
             <UAvatar :alt="row.original.name" size="sm" />
             <span class="font-medium text-gray-900 dark:text-white">{{ row.original.name }}</span>
-            <UBadge v-if="row.original.pending" color="warning" variant="subtle" size="xs">Pending</UBadge>
           </div>
         </template>
 
@@ -161,6 +172,18 @@ const columns = [
           />
         </template>
 
+        <template #status-cell="{ row }">
+          <div v-if="row.original.pending" class="flex flex-col gap-0.5">
+            <UBadge color="warning" variant="subtle" size="sm" icon="i-lucide-mail" class="w-fit">Invited</UBadge>
+            <span class="text-xs text-gray-400">
+              {{ row.original.invitationExpiresAt
+                ? `Invitation open until ${new Date(row.original.invitationExpiresAt).toLocaleDateString()}`
+                : "Hasn't accepted yet" }}
+            </span>
+          </div>
+          <UBadge v-else color="success" variant="subtle" size="sm" icon="i-lucide-check" class="w-fit">Active</UBadge>
+        </template>
+
         <template #createdAt-cell="{ row }">
           <span class="text-sm text-gray-400">{{ new Date(row.original.createdAt).toLocaleDateString() }}</span>
         </template>
@@ -169,13 +192,15 @@ const columns = [
           <div class="flex justify-end items-center gap-1">
             <UButton
               v-if="row.original.pending"
-              icon="i-lucide-mail"
-              variant="ghost"
+              icon="i-lucide-send"
+              variant="soft"
               size="xs"
-              title="Resend invite email"
+              title="Email them a fresh invitation link (links expire after one hour)"
               :loading="resendingId === row.original.id"
               @click="resendInvite(row.original.id)"
-            />
+            >
+              Resend invite
+            </UButton>
 
             <template v-if="isSuperAdmin && row.original.id !== currentUser?.id">
               <UButton
@@ -215,6 +240,16 @@ const columns = [
     </UCard>
 
     <UAlert v-if="actionError" icon="i-lucide-circle-x" color="error" variant="soft" :description="actionError" />
+    <UAlert
+      v-if="emailWarning"
+      icon="i-lucide-mail-warning"
+      color="warning"
+      variant="soft"
+      title="User added, but no email was sent"
+      :description="emailWarning"
+      close
+      @update:open="emailWarning = ''"
+    />
 
     <UModal v-model:open="showInvite" title="Invite user">
       <template #body>

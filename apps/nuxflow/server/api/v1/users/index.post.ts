@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { sendTemplatedEmail } from '../../../utils/email-template'
-import { waitUntil } from '../../../utils/cf-env'
+import { emailLogTimestamp, lastEmailOutcome } from '../../../utils/email'
 import { rateLimit } from '../../../utils/rate-limit'
 import { created } from '../../../utils/response'
 import { findOrCreateUserAccount, sendSetPasswordEmail } from '../../../utils/user-provisioning'
@@ -53,8 +53,10 @@ export default defineEventHandler(async (event) => {
   // address must never lock them out of it.
   if (status === 'unclaimed') {
     await batchWithAudit(db, [pendingInvitationInsert(db, { siteId, userId: newUserId, role: body.role, invitedBy: userId })], auditInsert)
+    const since = emailLogTimestamp()
     await sendSetPasswordEmail(event, body.email.toLowerCase(), siteId)
-    return created(event, { id: newUserId, name: body.name, email: body.email, role: body.role, pending: true })
+    const emailDelivery = await lastEmailOutcome(event, siteId, body.email, since)
+    return created(event, { id: newUserId, name: body.name, email: body.email, role: body.role, pending: true, emailDelivery })
   }
 
   // onConflictDoNothing: the alreadyMember check above closes the common case, but two
@@ -72,6 +74,9 @@ export default defineEventHandler(async (event) => {
   await batchWithAudit(db, [roleInsert], auditInsert)
   clearCachedRole(newUserId, siteId)
 
+  // The role is granted either way; the response also says whether the email went out, so
+  // the admin isn't told "invited" for an invite nobody receives (see lastEmailOutcome).
+  const since = emailLogTimestamp()
   if (status === 'new') {
     // A brand-new invitee has no password they can actually use (findOrCreateUserAccount
     // gives it an unusable random one) — sending them a "sign in" email would be a dead
@@ -84,7 +89,7 @@ export default defineEventHandler(async (event) => {
     // added to this site just needs a pointer to sign in.
     const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { name: true, domain: true } })
     const siteName = site?.name ?? 'NuxFlow'
-    waitUntil(event, sendTemplatedEmail(event, {
+    await sendTemplatedEmail(event, {
       to: body.email,
       subject: `You've been added to ${siteName}`,
       category: 'invite',
@@ -93,8 +98,9 @@ export default defineEventHandler(async (event) => {
         paragraphs: [`Hi ${body.name},`, `You now have ${body.role} access to ${siteName}. Sign in with your existing account to get started.`],
         action: { label: 'Sign in', url: `https://${site?.domain ?? 'nuxflow.app'}/admin` },
       },
-    }).catch(err => console.error('[invite] Email delivery failed:', err)))
+    }).catch(err => console.error('[invite] Email delivery failed:', err))
   }
 
-  return created(event, { id: newUserId, name: body.name, email: body.email, role: body.role })
+  const emailDelivery = await lastEmailOutcome(event, siteId, body.email, since)
+  return created(event, { id: newUserId, name: body.name, email: body.email, role: body.role, emailDelivery })
 })

@@ -225,3 +225,19 @@ export async function destroySiteSession(event: H3Event): Promise<void> {
   if (!token) return
   await useDb(event).delete(siteSessions).where(eq(siteSessions.tokenHash, await sha256Hex(token)))
 }
+
+/**
+ * Signs out everywhere from a site's domain: ends the accounts-origin session this site
+ * session hangs off, which cascades to every site session it issued. Ending only the site
+ * session looked broken — the next visit to /admin went through the handoff, found the
+ * accounts origin still signed in, and signed straight back in.
+ */
+export async function destroySiteAndParentSession(event: H3Event): Promise<void> {
+  const token = getCookie(event, siteSessionCookieName())
+  if (token) {
+    const db = useDb(event)
+    const row = await db.query.siteSessions.findFirst({ where: eq(siteSessions.tokenHash, await sha256Hex(token)), columns: { parentSessionId: true } })
+    if (row) await db.delete(sessions).where(eq(sessions.id, row.parentSessionId))
+  }
+  await destroySiteSession(event)
+}

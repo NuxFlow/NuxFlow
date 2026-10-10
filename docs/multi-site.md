@@ -118,6 +118,10 @@ Fine when a site's domain is the **only** hostname this Worker serves in that Cl
 
 If that customer later also wants `www.theircafe.co.uk`, switch that domain to Routes (Option A) instead of adding a second Custom Domain in the same zone, for the same reason as above. Domains on DNS outside Cloudflare need [Cloudflare for SaaS](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/) (custom hostnames), which also uses routes.
 
+### Email for each site
+
+A new site can't email anyone outside your own Cloudflare account until its domain is onboarded for Cloudflare Email Sending, and that includes subdomains: `site-a.yourplatform.com` is onboarded separately from `yourplatform.com` (Cloudflare dashboard → **Email Service** → **Email Sending** → **Onboard Domain**, or `wrangler email sending enable site-a.yourplatform.com`). Until then, its invite and password-reset emails only reach addresses verified in your Cloudflare account, and the Users page warns that an invite email wasn't sent. See [Email Providers](installation.md#email-providers) for the details and the per-zone limit.
+
 ### Keep `wrangler.toml` and the dashboard in step
 
 Wrangler treats the `[[routes]]` in `wrangler.toml` as the full list for this Worker: a route or Custom Domain added only in the dashboard is reported as drift on the next deploy, and Wrangler offers to remove it. Declare every route and Custom Domain in `wrangler.toml` (a Custom Domain is `pattern = "theircafe.co.uk"` plus `custom_domain = true`). With the wildcard route from Option A, subdomain sites never need an entry.
@@ -138,7 +142,7 @@ Any pages, blog posts, forms, media assets, or settings you create while logged 
 ### 2. Signing in
 Visiting `https://xyz.com/admin` directly won't work until setup is completed on that domain — a newly created site record redirects any request to `/setup` and rejects it without the one-time token from Step 3 above. Complete setup via the copied setup link first.
 
-After that, **Sign in** on `xyz.com` goes to the sign-in domain, shows xyz.com's name and logo, and comes straight back to `xyz.com/admin` signed in. Someone already signed in there (to any site) just passes through. The login they get on `xyz.com` works on `xyz.com` only; signing out on the sign-in domain signs them out of every site.
+After that, **Sign in** on `xyz.com` goes to the sign-in domain, shows xyz.com's name and logo, and comes straight back to `xyz.com/admin` signed in. Someone already signed in there (to any site) just passes through. The login they get on `xyz.com` works on `xyz.com` only; signing out, from any site or from the sign-in domain, signs them out of every site.
 
 - **The platform operator (super admin)** can open any site's admin with read-only access, and runs platform actions (Super Admin → Sites, database export, suspending sites) from the main site.
 - **Site teams:** once setup is complete, the site's admin invites editors and authors from **Admin → Users**. Their roles apply to that site only.
