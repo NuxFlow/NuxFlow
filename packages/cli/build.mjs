@@ -4,7 +4,9 @@
 // esbuild is already a dependency (used by buildPlugin), so we reuse it here.
 
 import { build } from 'esbuild'
-import { chmod } from 'node:fs/promises'
+import { chmod, readFile } from 'node:fs/promises'
+
+const { version } = JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8'))
 
 await build({
   entryPoints: ['src/index.ts'],
@@ -21,6 +23,9 @@ await build({
   banner: { js: '#!/usr/bin/env node' },
   // esbuild must NOT be bundled — it ships native binaries (.node files).
   external: ['esbuild'],
+  // The CLI reports this in --help/--version; changesets bumps package.json before the
+  // publish-time `prepare` build, so the published bundle always matches.
+  define: { __NUXFLOW_CLI_VERSION__: JSON.stringify(version) },
 })
 
 // Make executable on Unix-like systems — no-op on Windows.

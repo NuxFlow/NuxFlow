@@ -6845,7 +6845,7 @@ var themeCommand = defineCommand({
 var main = defineCommand({
   meta: {
     name: "nuxflow",
-    version: "0.1.0",
+    version: true ? "1.0.0-beta.0" : "dev",
     description: "NuxFlow CLI \u2014 scaffold plugins, themes, and more"
   },
   subCommands: {
