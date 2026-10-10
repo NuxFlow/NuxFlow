@@ -52,6 +52,7 @@ const columns = [
 
 <template>
   <div class="space-y-4">
+    <UButton to="/admin/settings" icon="i-lucide-arrow-left" variant="link" color="neutral" size="sm" class="px-0">Settings</UButton>
     <h1 class="text-xl font-bold text-gray-900 dark:text-white">Audit log</h1>
 
     <UCard>
