@@ -9,6 +9,7 @@ import { getEmailBinding } from './cf-env'
 import { getSeoSettings, type SeoSettings } from './seo'
 import { loadEmailConfig } from './email'
 import { getAccountsOrigin } from './accounts-origin'
+import { isPrimarySite } from './site-info'
 
 /**
  * The admin dashboard's "Finish setting up your site" card (GET /api/v1/site-checklist,
@@ -58,6 +59,8 @@ export interface ChecklistInputs {
   siteCount: number
   /** The central sign-in origin (NUXT_PUBLIC_ACCOUNTS_URL), or null on a same-origin install. */
   accountsOrigin: string | null
+  /** Whether this is the operator's own (primary) site — the one that can act on the Cloudflare account. */
+  isPrimarySite: boolean
   now?: Date
 }
 
@@ -255,6 +258,18 @@ export function buildSetupChecklist(i: ChecklistInputs): ChecklistItem[] {
         fixUrl: '/admin/seo?tab=indexing', fixLabel: 'Indexing settings',
       })
 
+  // A Cloudflare dashboard rule — nothing a Worker can see, so this one can't tick itself
+  // off: it stays open until skipped. Only on the operator's own site, since a tenant's
+  // admins have no access to the Cloudflare account the rule lives in.
+  if (i.isPrimarySite) {
+    items.push({
+      id: 'ratelimit', tier: 'recommended', status: 'todo',
+      title: 'Limit how fast one visitor can load pages',
+      detail: `Add a rate-limiting rule in the Cloudflare dashboard so a script can't get around the page cache with made-up query strings, which makes the site build every page from scratch at your expense. It works on the Free plan. NuxFlow can't see Cloudflare dashboard settings, so select Skip once the rule is in place.`,
+      docsAnchor: 'rate-limiting-cloudflare-waf',
+    })
+  }
+
   return items
 }
 
@@ -284,6 +299,7 @@ export async function gatherSetupChecklistInputs(event: H3Event, userId: string)
     }),
     db.select({ n: count() }).from(sites),
   ])
+  const primary = await isPrimarySite(event, siteId)
 
   return {
     storageProvider: provider.name,
@@ -303,6 +319,7 @@ export async function gatherSetupChecklistInputs(event: H3Event, userId: string)
     lastBackupAt: lastBackup?.createdAt ?? null,
     siteCount: siteCountRow[0]?.n ?? 1,
     accountsOrigin: getAccountsOrigin(),
+    isPrimarySite: primary,
   }
 }
 

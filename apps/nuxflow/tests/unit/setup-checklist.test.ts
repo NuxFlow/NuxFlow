@@ -19,6 +19,7 @@ const healthy: ChecklistInputs = {
   lastBackupAt: '2026-09-20 10:00:00',
   siteCount: 1,
   accountsOrigin: null,
+  isPrimarySite: false,
   now: new Date('2026-09-28T00:00:00Z'),
 }
 
@@ -96,5 +97,14 @@ describe('buildSetupChecklist', () => {
     expect(status(items, 'ai')).toMatchObject({ status: 'todo', tier: 'recommended' })
     expect(status(items, 'passkey').status).toBe('todo')
     expect(status(items, 'indexnow').status).toBe('todo')
+  })
+
+  // A Cloudflare dashboard rule the Worker can't detect: always open (until skipped), and
+  // only shown to the operator, whose site is the one tied to the Cloudflare account.
+  it('suggests a rate-limiting rule on the primary site only', () => {
+    expect(buildSetupChecklist(healthy).find(i => i.id === 'ratelimit')).toBeUndefined()
+    expect(status(buildSetupChecklist({ ...healthy, isPrimarySite: true }), 'ratelimit')).toMatchObject({
+      tier: 'recommended', status: 'todo', docsAnchor: 'rate-limiting-cloudflare-waf',
+    })
   })
 })
