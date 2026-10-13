@@ -17,20 +17,7 @@ import { badRequest, conflict, notFound, validationError } from './response'
 /** Taxonomy/term slug rule, shared by every route that accepts one. */
 export const TAXONOMY_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
-/**
- * URL-safe slug from a display name. Accented Latin letters are folded to their base
- * letter (Café → cafe) so common names don't collapse to an empty slug; a name with no
- * Latin letters or digits at all still returns '' and the caller must ask for a slug.
- */
-export function slugify(input: string): string {
-  return input
-    .normalize('NFKD')
-    .replace(/\p{M}+/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 100)
-}
+export { slugify } from '../../shared/lib/slug'
 
 // First path segments the app itself owns. A taxonomy's slug is the first segment of its
 // archive URLs (/{taxonomy}/{term}) and of its overview page (/{taxonomy}), so any of

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseWxr, wpDateToIso } from '../../server/utils/wxr-parser'
+import { parseWxr, replaceKnownUrls, wpDateToIso } from '../../shared/lib/wxr-parser'
 
 const SAMPLE_WXR = `<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0" xmlns:wp="http://wordpress.org/export/1.2/">
@@ -151,5 +151,32 @@ describe('parseWxr — terms referenced only on items', () => {
     expect(tags.get('%e6%97%a5%e6%9c%ac')).toBe('日本')
     expect(items[0]!.categories).toEqual(['recipes'])
     expect(items[0]!.tags).toEqual(['%e6%97%a5%e6%9c%ac'])
+  })
+})
+
+describe('replaceKnownUrls', () => {
+  const urlMap = new Map([
+    ['https://old.example/wp-content/uploads/a.jpg', '/_nuxflow/media/site/a.jpg'],
+    ['https://old.example/wp-content/uploads/b.png', '/_nuxflow/media/site/b.png'],
+  ])
+
+  it('replaces every mapped URL in one pass — src, srcset and plain links', () => {
+    const html = '<img src="https://old.example/wp-content/uploads/a.jpg" srcset="https://old.example/wp-content/uploads/a.jpg 1x, https://old.example/wp-content/uploads/b.png 2x"><a href=\'https://old.example/wp-content/uploads/b.png\'>b</a>'
+    expect(replaceKnownUrls(html, urlMap)).toBe('<img src="/_nuxflow/media/site/a.jpg" srcset="/_nuxflow/media/site/a.jpg 1x, /_nuxflow/media/site/b.png 2x"><a href=\'/_nuxflow/media/site/b.png\'>b</a>')
+  })
+
+  it('keeps punctuation that follows a URL in running text', () => {
+    expect(replaceKnownUrls('See https://old.example/wp-content/uploads/a.jpg. Or (https://old.example/wp-content/uploads/b.png).', urlMap))
+      .toBe('See /_nuxflow/media/site/a.jpg. Or (/_nuxflow/media/site/b.png).')
+  })
+
+  it('leaves unmapped URLs alone', () => {
+    const html = '<a href="https://elsewhere.example/page">x</a> <img src="https://old.example/wp-content/uploads/c.jpg">'
+    expect(replaceKnownUrls(html, urlMap)).toBe(html)
+  })
+
+  it('points a resized variant with a query string at the imported file', () => {
+    expect(replaceKnownUrls('<img src="https://old.example/wp-content/uploads/a.jpg?w=300&h=200">', urlMap))
+      .toBe('<img src="/_nuxflow/media/site/a.jpg?w=300&h=200">')
   })
 })

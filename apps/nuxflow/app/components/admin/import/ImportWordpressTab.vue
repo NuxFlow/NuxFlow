@@ -1,18 +1,21 @@
 <script setup lang="ts">
-type WpImportEvent =
-  | { type: 'parsed'; items: number; images: number }
-  | { type: 'media'; done: number; total: number; failed: number }
-  | { type: 'content_start'; total: number }
-  | { type: 'content'; done: number; total: number }
-  | { type: 'done'; imported: number; skipped: number; categories: number; tags: number; mediaUploaded: number; mediaFailed: number }
-  | { type: 'error'; message: string }
+import { parseWxr, replaceKnownUrls } from '#shared/lib/wxr-parser'
+import { batchItems, buildTermSlugMap, categoryParentLinks, chunk, collectImageUrls } from '#shared/lib/wordpress-import'
+import { slugify } from '#shared/lib/slug'
+
+// The export is parsed here in the browser and sent to the server in small batches — terms,
+// then media, then posts (server/api/v1/import/wordpress/*). One request per batch keeps
+// every request well inside Cloudflare's limits however big the site is; the import used
+// to be a single request, and a large export ran out of memory or database queries.
+
+type Phase = 'reading' | 'terms' | 'media' | 'content' | 'finishing'
 
 const wpFile = ref<File | null>(null)
 const wpImporting = ref(false)
 const wpResult = ref<{ imported: number; skipped: number; categories: number; tags: number; mediaUploaded: number; mediaFailed: number } | null>(null)
 const wpError = ref('')
 const wpProgress = ref<{
-  phase: 'media' | 'content'
+  phase: Phase
   mediaDone: number
   mediaTotal: number
   mediaFailed: number
@@ -28,36 +31,34 @@ function onWpFile(e: Event) {
   wpProgress.value = null
 }
 
-function handleWpEvent(evt: WpImportEvent) {
-  if (evt.type === 'parsed') {
-    wpProgress.value = {
-      phase: 'media',
-      mediaDone: 0,
-      mediaTotal: evt.images,
-      mediaFailed: 0,
-      contentDone: 0,
-      contentTotal: evt.items,
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+// POSTs one step. A network error or a 5xx is retried (every step is safe to repeat); a
+// 4xx is a real answer and stops the import with its message.
+async function step<T>(url: string, body: Record<string, unknown>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await $fetch<T>(url, { method: 'POST', body }) as T
+    }
+    catch (err: unknown) {
+      const e = err as { statusCode?: number; data?: { message?: string }; message?: string }
+      const status = e.statusCode ?? 0
+      if ((status >= 400 && status < 500) || attempt >= 3) {
+        throw new Error(e.data?.message || e.message || 'Import failed', { cause: err })
+      }
+      await sleep(attempt * 2000)
     }
   }
-  else if (evt.type === 'media' && wpProgress.value) {
-    wpProgress.value.mediaDone = evt.done
-    wpProgress.value.mediaFailed = evt.failed
+}
+
+async function importTerms(importId: string, taxonomy: 'category' | 'tag', terms: { slug: string; name: string }[]): Promise<Map<string, string>> {
+  const ids = new Map<string, string>()
+  // Called even with no terms, so both taxonomies exist afterwards.
+  for (const part of terms.length ? chunk(terms, 200) : [[]]) {
+    const res = await step<{ ids: Record<string, string> }>('/api/v1/import/wordpress/terms', { importId, taxonomy, terms: part })
+    for (const [slug, id] of Object.entries(res.ids)) ids.set(slug, id)
   }
-  else if (evt.type === 'content_start' && wpProgress.value) {
-    wpProgress.value.phase = 'content'
-    wpProgress.value.contentTotal = evt.total
-  }
-  else if (evt.type === 'content' && wpProgress.value) {
-    wpProgress.value.contentDone = evt.done
-  }
-  else if (evt.type === 'done') {
-    wpProgress.value = null
-    wpResult.value = evt
-  }
-  else if (evt.type === 'error') {
-    wpError.value = evt.message
-    wpProgress.value = null
-  }
+  return ids
 }
 
 async function runWpImport() {
@@ -65,41 +66,89 @@ async function runWpImport() {
   wpImporting.value = true
   wpError.value = ''
   wpResult.value = null
-  wpProgress.value = null
+  wpProgress.value = { phase: 'reading', mediaDone: 0, mediaTotal: 0, mediaFailed: 0, contentDone: 0, contentTotal: 0 }
+  const progress = wpProgress.value
 
   try {
-    const formData = new FormData()
-    formData.append('file', wpFile.value)
+    const parsed = parseWxr(await wpFile.value.text())
+    if (parsed.items.length === 0 && parsed.categories.size === 0 && parsed.tags.size === 0) {
+      throw new Error('No posts, pages, categories or tags were found. Check this is a WordPress export file (Tools → Export).')
+    }
+    const importId = crypto.randomUUID()
+    const imageUrls = collectImageUrls(parsed)
+    progress.mediaTotal = imageUrls.length
+    progress.contentTotal = parsed.items.length
 
-    const res = await fetch('/api/v1/import/wordpress', { method: 'POST', body: formData })
-    if (!res.ok) {
-      const data = await res.json() as { message?: string }
-      throw new Error(data.message ?? 'Import failed')
+    // 1. Categories and tags, then category parents (a parent can be in a later batch).
+    progress.phase = 'terms'
+    const catSlugs = buildTermSlugMap([...parsed.categories].map(([nicename, cat]) => [nicename, cat.name]))
+    const tagSlugs = buildTermSlugMap([...parsed.tags])
+    const catIds = await importTerms(importId, 'category', [...parsed.categories].map(([nicename, cat]) => ({ slug: catSlugs.get(nicename)!, name: cat.name.slice(0, 200) })))
+    const tagIds = await importTerms(importId, 'tag', [...parsed.tags].map(([nicename, name]) => ({ slug: tagSlugs.get(nicename)!, name: name.slice(0, 200) })))
+    for (const links of chunk(categoryParentLinks(parsed.categories, catSlugs), 200)) {
+      await step('/api/v1/import/wordpress/term-parents', { importId, links })
     }
 
-    const reader = res.body!.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const chunks = buffer.split('\n\n')
-      buffer = chunks.pop() ?? ''
-      for (const chunk of chunks) {
-        if (!chunk.startsWith('data: ')) continue
-        try {
-          handleWpEvent(JSON.parse(chunk.slice(6)) as WpImportEvent)
-        }
-        catch { /* ignore malformed SSE lines */ }
+    // 2. Media, a few files per request.
+    progress.phase = 'media'
+    const urlMap = new Map<string, string>()
+    for (const urls of chunk(imageUrls, 5)) {
+      const res = await step<{ results: ({ url: string; localUrl: string } | { url: string; error: string })[] }>('/api/v1/import/wordpress/media', { importId, urls })
+      for (const r of res.results) {
+        if ('localUrl' in r) urlMap.set(r.url, r.localUrl)
+        else progress.mediaFailed++
       }
+      progress.mediaDone += urls.length
     }
+
+    // 3. Posts and pages, with links rewritten to the imported media.
+    progress.phase = 'content'
+    const attachmentUrlByPostId = new Map<string, string>()
+    for (const att of parsed.attachments) {
+      if (att.postId) attachmentUrlByPostId.set(att.postId, urlMap.get(att.url) ?? att.url)
+    }
+    const items = parsed.items.map((item, i) => ({
+      // A draft that was never given a URL has an empty wp:post_name.
+      slug: (item.slug || slugify(item.title) || `wp-item-${i + 1}`).slice(0, 500),
+      title: item.title.slice(0, 500),
+      status: item.status === 'published' ? 'published' as const : 'draft' as const,
+      postType: item.postType === 'page' ? 'page' as const : 'post' as const,
+      content: replaceKnownUrls(item.content, urlMap),
+      excerpt: item.excerpt.slice(0, 20_000),
+      publishedAt: item.publishedAt,
+      ogImage: item.featuredImageId ? (attachmentUrlByPostId.get(item.featuredImageId) ?? null) : null,
+      termIds: [...new Set([
+        ...item.categories.map(n => catIds.get(catSlugs.get(n) ?? '')),
+        ...item.tags.map(n => tagIds.get(tagSlugs.get(n) ?? '')),
+      ].filter((id): id is string => Boolean(id)))],
+    }))
+    let imported = 0
+    let skipped = 0
+    for (const batch of batchItems(items, 20, 1_500_000)) {
+      const res = await step<{ imported: number; skipped: number }>('/api/v1/import/wordpress/items', { importId, items: batch })
+      imported += res.imported
+      skipped += res.skipped
+      progress.contentDone += batch.length
+    }
+
+    progress.phase = 'finishing'
+    await step('/api/v1/import/wordpress/finish', { importId })
+
+    wpResult.value = {
+      imported,
+      skipped,
+      categories: parsed.categories.size,
+      tags: parsed.tags.size,
+      mediaUploaded: imageUrls.length - progress.mediaFailed,
+      mediaFailed: progress.mediaFailed,
+    }
+    wpProgress.value = null
   }
   catch (e: unknown) {
-    if (!wpError.value) {
-      wpError.value = e instanceof Error ? e.message : 'Import failed. Check the file format and try again.'
-    }
+    const message = e instanceof Error ? e.message : 'Import failed. Check the file format and try again.'
+    // Everything imported so far stays — running the import again carries on, skipping
+    // what's already there.
+    wpError.value = `${message} Anything already imported has been kept; running the import again will skip it and carry on.`
     wpProgress.value = null
   }
   finally {
@@ -155,6 +204,10 @@ async function runWpImport() {
 
       <!-- Live progress -->
       <div v-if="wpProgress" class="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+        <p v-if="wpProgress.phase === 'reading' || wpProgress.phase === 'terms' || wpProgress.phase === 'finishing'" class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-1.5">
+          <UIcon name="i-lucide-loader-circle" class="w-3.5 h-3.5 animate-spin" />
+          {{ wpProgress.phase === 'reading' ? 'Reading the export file…' : wpProgress.phase === 'terms' ? 'Creating categories and tags…' : 'Finishing up…' }}
+        </p>
         <!-- Media phase -->
         <div v-if="wpProgress.mediaTotal > 0">
           <div class="flex items-center justify-between text-sm mb-1.5">
@@ -182,7 +235,7 @@ async function runWpImport() {
               <UIcon name="i-lucide-file-text" class="w-3.5 h-3.5" />
               Importing content
             </span>
-            <span v-if="wpProgress.phase === 'content'" class="text-gray-500 tabular-nums">
+            <span v-if="wpProgress.phase === 'content' || wpProgress.phase === 'finishing'" class="text-gray-500 tabular-nums">
               {{ wpProgress.contentDone }} / {{ wpProgress.contentTotal }}
             </span>
             <span v-else class="text-gray-400 text-xs">waiting…</span>
@@ -190,7 +243,7 @@ async function runWpImport() {
           <div class="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5">
             <div
               class="bg-primary-500 h-1.5 rounded-full transition-all duration-300"
-              :style="{ width: wpProgress.phase === 'content' && wpProgress.contentTotal > 0 ? `${Math.round((wpProgress.contentDone / wpProgress.contentTotal) * 100)}%` : '0%' }"
+              :style="{ width: (wpProgress.phase === 'content' || wpProgress.phase === 'finishing') && wpProgress.contentTotal > 0 ? `${Math.round((wpProgress.contentDone / wpProgress.contentTotal) * 100)}%` : '0%' }"
             />
           </div>
         </div>

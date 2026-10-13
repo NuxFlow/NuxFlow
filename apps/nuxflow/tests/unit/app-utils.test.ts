@@ -63,7 +63,7 @@ describe('admin-nav', () => {
     '/admin/memberships': 'server/api/v1/memberships/index.get.ts',
     '/admin/themes': 'server/api/v1/themes/index.get.ts',
     '/admin/plugins': 'server/api/v1/dynamic-plugins/index.get.ts',
-    '/admin/import': 'server/api/v1/import/wordpress.post.ts',
+    '/admin/import': 'server/api/v1/import/wordpress/items.post.ts',
     '/admin/settings': 'server/api/v1/settings/index.get.ts',
     '/admin/super/sites': 'server/api/v1/admin/sites/index.get.ts',
     '/admin/super/database': 'server/api/v1/admin/db-stats.get.ts',

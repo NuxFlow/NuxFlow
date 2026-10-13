@@ -1,8 +1,11 @@
-// Parses a WordPress WXR (eXtended RSS) export into the shapes the WordPress import
-// route needs. Pure/dependency-free (no Nitro auto-imports) so it's directly unit
-// testable — see tests/unit/wordpress-import.test.ts.
+// Parses a WordPress WXR (eXtended RSS) export into the shapes the WordPress import needs.
+// Runs in the browser: the admin import page parses the file client-side and sends it to
+// the server in small batches (see server/api/v1/import/wordpress/), so no request ever
+// holds a whole export — a big one used to exceed the Worker's memory and D1's
+// per-request query limit. Pure/dependency-free, so it's also directly unit testable —
+// see tests/unit/wordpress-import.test.ts.
 import { ulid } from 'ulid'
-import { decodeHtmlEntities, stripHtmlToPlainText } from './html-to-tiptap'
+import { decodeHtmlEntities, stripHtmlToPlainText } from './html-text'
 
 export interface WpItem {
   title: string
@@ -153,4 +156,31 @@ export function parseWxr(xml: string): ParsedWxr {
   }
 
   return { items, attachments, categories, tags }
+}
+
+// Swaps every URL in `html` that has an entry in `urlMap`, in one pass. Looping over the map
+// with replaceAll() scanned each post once per imported image — posts × images full scans,
+// tens of seconds of CPU for a few hundred posts with a large media library.
+const URL_TOKEN_RE = /https?:\/\/[^\s"'<>]+/g
+const TRAILING_PUNCTUATION_RE = /[.,;:!?)]+$/
+export function replaceKnownUrls(html: string, urlMap: Map<string, string>): string {
+  if (urlMap.size === 0) return html
+  const lookup = (url: string): string | undefined => {
+    const direct = urlMap.get(url)
+    if (direct !== undefined) return direct
+    // A resized variant (`a.jpg?w=300`, as Jetpack writes them) points at the same file —
+    // the old replaceAll() loop rewrote these too, since it matched the URL as a prefix.
+    const q = url.indexOf('?')
+    const base = q === -1 ? undefined : urlMap.get(url.slice(0, q))
+    return base === undefined ? undefined : base + url.slice(q)
+  }
+  return html.replace(URL_TOKEN_RE, (token) => {
+    const found = lookup(token)
+    if (found !== undefined) return found
+    // A URL at the end of a sentence or inside parentheses picks up the punctuation.
+    const trailing = TRAILING_PUNCTUATION_RE.exec(token)?.[0]
+    if (!trailing) return token
+    const trimmed = lookup(token.slice(0, -trailing.length))
+    return trimmed === undefined ? token : trimmed + trailing
+  })
 }
