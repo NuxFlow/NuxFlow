@@ -37,6 +37,7 @@ export default defineEventHandler(async (event) => {
   await batchWithAudit(db, [itemDelete], auditInsert)
 
   await purgeContentCache(event, {
+    published: existing.status === 'published',
     slugs: [existing.slug],
     extraPaths: livePaths,
     taxonomyTerms: termRefs,

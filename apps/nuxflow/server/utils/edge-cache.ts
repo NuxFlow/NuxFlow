@@ -4,6 +4,8 @@ import { contentItems, sites } from '@nuxflow/db/schema'
 import { publicPathForItem } from './seo'
 import { useDb } from './db'
 import { getExecutionContext } from './cf-env'
+import { isPageCachePath, pageCacheKeysForUrl } from './page-cache'
+import { bumpCacheVersion, currentCacheVersion, versionedCacheUrl } from './cache-version'
 
 // `dom` and `webworker` (both in this project's tsconfig lib list) each declare their own
 // standard CacheStorage — neither has `.default`, which is a Cloudflare-specific extension
@@ -76,7 +78,9 @@ export async function withEdgeCacheKey<T>(
   const cf = event.context.cloudflare
   if (!cf?.request) return compute()
 
-  const cacheKey = new Request(cacheUrl, { method: 'GET' })
+  // The site's cache version (cache-version.ts) is part of the key, read once before
+  // compute() so a result computed before an edit is never stored under the new version.
+  const cacheKey = new Request(versionedCacheUrl(cacheUrl, await currentCacheVersion(event)), { method: 'GET' })
   const cache = (caches as unknown as EdgeCacheStorage).default
 
   try {
@@ -110,28 +114,49 @@ export async function withEdgeCacheKey<T>(
 }
 
 /**
- * Purge-on-write: deletes cached entries for one or more site-relative paths
- * (e.g. `/api/public/pages/about`) immediately, instead of waiting out their
- * TTL. Mutation routes call this after a successful write so visitors see the
+ * Purge-on-write, called by mutation routes after a successful write so visitors see the
  * change on their next request rather than up to an hour later — the TTL in
  * `withEdgeCache` is a ceiling on staleness, not the only way it clears.
  *
- * `event.context.cloudflare.request` gates this the same way `withEdgeCache`
- * does — a no-op wherever the Cloudflare runtime context isn't present (unit/
- * integration tests, or any non-Workers environment). Each deletion is
- * independent and failures are logged, never thrown — a cache purge failing
+ * Starts a new cache version for the site (cache-version.ts): every cached page, JSON
+ * response and feed of the site becomes unreachable in every location within about a
+ * minute. The named `paths` (site-relative, e.g. `/api/public/pages/about`) are also
+ * deleted right away in this location, under the version just replaced, so an editor who
+ * opens the page they just saved sees the change immediately. Without a KV binding there's
+ * no version to bump and those local deletes are the whole purge (the old behaviour).
+ *
+ * `event.context.cloudflare.request` gates this the same way `withEdgeCache` does — a
+ * no-op wherever the Cloudflare runtime context isn't present (unit/integration tests, or
+ * any non-Workers environment). Failures are logged, never thrown — a cache purge failing
  * must not fail the mutation that triggered it.
  */
 export async function purgeEdgeCache(event: H3Event, paths: string[]): Promise<void> {
   const cf = event.context.cloudflare
-  if (!cf?.request || paths.length === 0) return
+  if (!cf?.request) return
 
+  const replaced = await currentCacheVersion(event)
+  const siteId = event.context.siteId as string | undefined
+  if (siteId) await bumpCacheVersion(event, siteId)
+  await deleteLocally(event, paths, replaced)
+}
+
+// Deletes `paths` from this location's cache under `version`. Bounded by the Cache API's
+// 1,000 calls per request — fine for the handful of paths one edit touches, which is why
+// clearing a whole site goes through the version bump instead.
+async function deleteLocally(event: H3Event, paths: string[], version: string): Promise<void> {
+  if (paths.length === 0) return
   const cache = (caches as unknown as EdgeCacheStorage).default
   const origin = getRequestURL(event).origin
 
   await Promise.all(paths.map(async (path) => {
     try {
-      await cache.delete(new Request(`${origin}${path}`, { method: 'GET' }))
+      const url = `${origin}${path}`
+      // A rendered page is cached once per variant (page-cache.ts) — never under its plain
+      // URL — so it's those keys that need deleting.
+      const keys = isPageCachePath(new URL(url).pathname)
+        ? pageCacheKeysForUrl(url, version)
+        : [new Request(versionedCacheUrl(url, version), { method: 'GET' })]
+      await Promise.all(keys.map(key => cache.delete(key)))
     } catch (err) {
       console.error('[edge-cache] purge failed for', path, err)
     }
@@ -184,12 +209,20 @@ function pagePathForSlug(slug: string): string {
 export async function purgeContentCache(
   event: H3Event,
   opts: {
+    /**
+     * Whether the item is, or was before this change, published. A draft that never went
+     * live isn't in any public page, feed or listing, so there's nothing to clear — and
+     * skipping it matters: the editor autosaves every 10 seconds, and each purge resets
+     * the whole site's cache. Defaults to true.
+     */
+    published?: boolean
     slugs: string[]
     taxonomyTerms?: { taxonomySlug: string; termSlug: string }[]
     /** Additional public page paths (e.g. a translation's `/es/about`) to purge. */
     extraPaths?: string[]
   },
 ): Promise<void> {
+  if (opts.published === false) return
   const uniqueSlugs = [...new Set(opts.slugs.filter(Boolean)).values()]
   const jsonPaths = uniqueSlugs.map(slug => `/api/public/pages/${slug}`)
   const pagePaths = [...uniqueSlugs.map(pagePathForSlug), ...(opts.extraPaths ?? [])]
@@ -224,11 +257,15 @@ export async function purgeContentCache(
  * purgeContentCache does for a single content item's own change; every currently-cached
  * page needs invalidating, since every one of them has that same stale chrome baked in.
  *
- * Cloudflare's Cache API has no bulk/prefix purge — only purge-by-exact-URL — so this
- * enumerates every published, public content item's slug and purges each individually.
- * Call sites should route this through `waitUntil` rather than awaiting it inline: it's
- * only triggered by relatively rare admin actions (saving appearance settings, editing a
- * header/footer menu), and there's no reason to make the admin's save wait on it.
+ * Done by starting a new cache version for the site (cache-version.ts) — one KV write that
+ * makes every cached entry of the site unreachable in every location within about a
+ * minute. Cloudflare's Cache API has no bulk/prefix purge, and deleting one URL at a time
+ * only reached this location and stopped partway past ~250 pages (1,000 Cache API calls
+ * per request); that enumeration below is now only the fallback for a deployment without
+ * a KV binding. Call sites should route this through `waitUntil` rather than awaiting it
+ * inline: it's only triggered by relatively rare admin actions (saving appearance
+ * settings, editing a header/footer menu), and there's no reason to make the admin's save
+ * wait on it.
  *
  * Must purge BOTH cache layers per slug, same as purgeContentCache() above — the
  * page-cache.ts HTML cache this function was originally written for is what a visitor's
@@ -244,6 +281,9 @@ export async function purgeContentCache(
 export async function purgeAllPublicPages(event: H3Event, siteId: string): Promise<void> {
   const cf = event.context.cloudflare
   if (!cf?.request) return
+
+  const replaced = await currentCacheVersion(event)
+  if (await bumpCacheVersion(event, siteId)) return
 
   const db = useDb(event)
   const rows = await db.query.contentItems.findMany({
@@ -269,8 +309,8 @@ export async function purgeAllPublicPages(event: H3Event, siteId: string): Promi
     ...translated.map(p => `/api/public/pages${p}`),
   ]
   const markdownPaths = ['/', ...pagePaths].map(markdownCachePath)
-  await purgeEdgeCache(event, [...new Set([
+  await deleteLocally(event, [...new Set([
     '/', '/blog', ...pagePaths, ...jsonPaths, ...markdownPaths,
     ...GLOBAL_CONTENT_CACHE_PATHS, ...SETTINGS_CACHE_PATHS,
-  ])])
+  ])], replaced)
 }

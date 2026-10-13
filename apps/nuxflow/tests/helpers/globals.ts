@@ -46,6 +46,12 @@ globalThis.setHeader = (event: Record<string, unknown>, name: string, value: str
 // mirrored here so route code can use either name.
 globalThis.setResponseHeader = globalThis.setHeader
 
+globalThis.getResponseHeader = (event: Record<string, unknown>, name: string): string | undefined => {
+  const headers = (event as { _responseHeaders?: Record<string, string> })._responseHeaders ?? {}
+  const key = Object.keys(headers).find(k => k.toLowerCase() === name.toLowerCase())
+  return key === undefined ? undefined : headers[key]
+}
+
 globalThis.appendResponseHeader = (event: Record<string, unknown>, name: string, value: string): void => {
   const e = event as { _responseHeaders?: Record<string, string[]> }
   if (!e._responseHeaders) e._responseHeaders = {}
@@ -104,7 +110,7 @@ globalThis.readRawBody = async (event: Record<string, unknown>): Promise<string 
   (event as { _rawBody?: string })._rawBody
 
 // h3's readMultipartFormData()/readFormData() — used by restore.post.ts, backup zip
-// uploads, wordpress.post.ts, themes/index.post.ts (multipart), and media/upload.post.ts
+// uploads, themes/index.post.ts (multipart), and media/upload.post.ts
 // (native Web FormData). Mirrors the `_body`/`_query` pattern above: tests populate
 // `_multipartFormData` / `_formData` on the mock event via createMockEvent()'s
 // `multipartFormData` / `formData` options, and these stubs just read them back.

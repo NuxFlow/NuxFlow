@@ -181,6 +181,7 @@ export default defineEventHandler(async (event) => {
   // those archives can list this item differently after this edit.
   const termRefs = await getTermRefsWithAncestors(db, [...new Set([...previousTermIds, ...nextTermIds])])
   await purgeContentCache(event, {
+    published: existing.status === 'published' || (updateFields.status ?? existing.status) === 'published',
     slugs: [existing.slug, updateFields.slug].filter((s): s is string => Boolean(s)),
     taxonomyTerms: termRefs,
     extraPaths: [oldPath, newPath, ...moves.flatMap(m => [m.from, m.to])],

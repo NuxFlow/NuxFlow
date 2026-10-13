@@ -15,6 +15,7 @@ vi.mock('../../server/utils/db', () => ({
 }))
 
 const { withEdgeCache, purgeContentCache, purgeAllPublicPages } = await import('../../server/utils/edge-cache')
+const { resetCacheVersionState } = await import('../../server/utils/cache-version')
 
 // getRequestURL is a Nitro/H3 auto-import in real server code (see e.g.
 // theme-resolver.ts, which calls it with no explicit import) — not a Node/Vitest global,
@@ -188,6 +189,22 @@ describe('purgeContentCache', () => {
     expect(purged).toContain('/about')
   })
 
+  // Rendered pages live under one key per region variant (page-cache.ts), never under the
+  // plain URL — purging the plain URL would leave every cached copy in place.
+  it('purges a rendered page under each variant key, and a JSON path under its plain URL', async () => {
+    const del = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('caches', { default: { delete: del } })
+
+    await purgeContentCache(mkEvent(), { slugs: ['about'] })
+
+    const urls = del.mock.calls.map(([req]: [Request]) => req.url)
+    expect(urls).toContain('https://example.com/about?__nfv=u&__nfc=0')
+    expect(urls).toContain('https://example.com/about?__nfv=r&__nfc=0')
+    expect(urls).not.toContain('https://example.com/about')
+    expect(urls).toContain('https://example.com/api/public/pages/about?__nfc=0')
+    expect(urls).toContain('https://example.com/feed.xml?__nfc=0')
+  })
+
   // The homepage content item's slug is literally 'home', but app/pages/index.vue
   // hardcodes fetching it at the site root — the rendered page (and therefore its
   // page-cache entry) lives at '/', not '/home'. Purging the wrong path would leave
@@ -271,5 +288,79 @@ describe('purgeAllPublicPages', () => {
     vi.stubGlobal('caches', { default: { delete: vi.fn().mockRejectedValue(new Error('boom')) } })
 
     await expect(purgeAllPublicPages(mkEvent(), 'site-1')).resolves.toBeUndefined()
+  })
+})
+
+// With a KV binding, a purge starts a new site cache version (cache-version.ts) instead of
+// relying on deletes, which only reach this location and stop at 1,000 calls per request.
+describe('purging with a KV cache version', () => {
+  function kvEvent(requestUrl = 'https://example.com/admin') {
+    const store = new Map<string, string>([['cache-version:site-1', 'old']])
+    const kv = {
+      store,
+      get: vi.fn(async (key: string) => store.get(key) ?? null),
+      put: vi.fn(async (key: string, value: string) => { store.set(key, value) }),
+    }
+    const event = {
+      context: {
+        siteId: 'site-1',
+        cloudflare: { request: new Request(requestUrl), env: { PLUGIN_KV: kv }, context: { waitUntil: vi.fn() } },
+      },
+    } as unknown as H3Event
+    return { event, kv }
+  }
+
+  beforeEach(() => {
+    vi.unstubAllGlobals()
+    findManyMock.mockReset()
+    resetCacheVersionState()
+  })
+
+  it('bumps the version, and deletes the edited paths here under the version it replaced', async () => {
+    const del = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('caches', { default: { delete: del } })
+    const { event, kv } = kvEvent()
+
+    await purgeContentCache(event, { slugs: ['about'] })
+
+    expect(kv.store.get('cache-version:site-1')).not.toBe('old')
+    const urls = del.mock.calls.map(([req]: [Request]) => req.url)
+    expect(urls).toContain('https://example.com/about?__nfv=u&__nfc=old')
+    expect(urls).toContain('https://example.com/api/public/pages/about?__nfc=old')
+  })
+
+  it('does nothing for a draft that was never published', async () => {
+    const del = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('caches', { default: { delete: del } })
+    const { event, kv } = kvEvent()
+
+    await purgeContentCache(event, { published: false, slugs: ['draft'] })
+
+    expect(kv.put).not.toHaveBeenCalled()
+    expect(del).not.toHaveBeenCalled()
+  })
+
+  // The whole point for big sites: one KV write, no per-page enumeration or deletes.
+  it('clears a whole site with one version bump — no page list, no deletes', async () => {
+    const del = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('caches', { default: { delete: del } })
+    const { event, kv } = kvEvent()
+
+    await purgeAllPublicPages(event, 'site-1')
+
+    expect(kv.put).toHaveBeenCalledTimes(1)
+    expect(findManyMock).not.toHaveBeenCalled()
+    expect(del).not.toHaveBeenCalled()
+  })
+
+  it('caches JSON under the current version, so a bump makes the old entry unreachable', async () => {
+    const match = vi.fn().mockResolvedValue(undefined)
+    const put = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('caches', { default: { match, put } })
+    const { event } = kvEvent('https://example.com/api/public/site')
+
+    await withEdgeCache(event, 60, async () => ({ ok: true }))
+
+    expect((match.mock.calls[0]![0] as Request).url).toBe('https://example.com/api/public/site?__nfc=old')
   })
 })

@@ -2,6 +2,7 @@ import { useDb } from '../utils/db'
 import { contentItems, sites } from '@nuxflow/db/schema'
 import { and, eq, lte, notInArray, sql } from 'drizzle-orm'
 import { indexablePathsForItems, submitToIndexNow } from '../utils/indexnow'
+import { bumpCacheVersionInKv } from '../utils/cache-version'
 
 export const publishScheduled = async () => {
   const db = useDb()
@@ -26,6 +27,15 @@ export const publishScheduled = async () => {
       // parameters). An item that became due in between is published too, just without
       // an IndexNow ping; the sitemap still covers it.
       .where(where)
+
+    // Newly published items belong in their site's blog index, feeds, sitemaps and term
+    // archives — start a new cache version per affected site so those show them within
+    // about a minute, not after the cache's hour-long lifetime. Tasks run without a
+    // request, so the KV binding comes from the env Nitro sets on globalThis.
+    const kv = (globalThis as { __env__?: { PLUGIN_KV?: KVNamespace } }).__env__?.PLUGIN_KV ?? null
+    for (const siteId of new Set(due.map(item => item.siteId))) {
+      await bumpCacheVersionInKv(kv, siteId)
+    }
 
     // IndexNow for sites that opted in — grouped per site since each has its own key and
     // host. Best-effort: a failed ping never fails the publish.

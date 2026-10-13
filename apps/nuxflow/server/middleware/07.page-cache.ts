@@ -1,5 +1,6 @@
 import type { EdgeCacheStorage } from '../utils/edge-cache'
 import { isPageCacheEligible, pageCacheRequest } from '../utils/page-cache'
+import { currentCacheVersion } from '../utils/cache-version'
 
 // Ordering matters here and Nitro loads server/middleware/** in filename order, which is
 // why this is numbered rather than left to sort alphabetically after 04.auth-override.ts —
@@ -26,7 +27,12 @@ export default defineEventHandler(async (event) => {
   const cache = (caches as unknown as EdgeCacheStorage).default
 
   try {
-    const cached = await cache.match(pageCacheRequest(event))
+    // Read once, here, and reused by the write side (plugins/page-cache.ts): a page that
+    // started rendering before an edit bumped the version must be saved under the old
+    // version, never the new one.
+    const version = await currentCacheVersion(event)
+    event.context.pageCacheVersion = version
+    const cached = await cache.match(pageCacheRequest(event, version))
     if (!cached) return
 
     const body = await cached.text()

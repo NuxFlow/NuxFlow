@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import type { H3Event } from 'h3'
-import { isPageCacheEligible, pageCacheRequest } from '../../server/utils/page-cache'
+import { isPageCacheEligible, normalizePageCachePath, pageCacheKeysForUrl, pageCacheRequest, pageCacheVariant } from '../../server/utils/page-cache'
 
 // getRequestURL and parseCookies are Nitro/H3 auto-imports in real server code — not
 // Node/Vitest globals — so they're stubbed here against a minimal mock event shape this
@@ -36,14 +36,33 @@ describe('isPageCacheEligible', () => {
     expect(isPageCacheEligible(mkEvent({ method: 'POST' }))).toBe(false)
   })
 
-  // Fail-safe by design: ANY cookie at all disqualifies the request, no allowlist — a
+  // Fail-safe by design: any cookie not on the ignore list disqualifies the request — a
   // future plugin or feature adding a new cookie means "stop caching that request", never
-  // "risk serving one visitor's personalized/private response to someone else". This used
-  // to allowlist the (now-removed) @nuxtjs/i18n module's own `i18n_redirected` cookie
-  // specifically; that module is gone, so there's nothing left to special-case — a request
-  // carrying that exact cookie name today is just an unrecognized cookie like any other.
-  it('rejects a request carrying any single cookie', () => {
+  // "risk serving one visitor's personalized/private response to someone else".
+  it('rejects a request carrying a session cookie', () => {
     expect(isPageCacheEligible(mkEvent({ cookies: { 'better-auth.session_token': 'abc123' } }))).toBe(false)
+  })
+
+  it('rejects an unrecognized cookie', () => {
+    expect(isPageCacheEligible(mkEvent({ cookies: { i18n_redirected: 'en' } }))).toBe(false)
+  })
+
+  // Cookies nothing on the server reads — analytics scripts in custom head HTML, consent
+  // banners, Cloudflare's bot management — must not turn the cache off for every
+  // returning visitor.
+  it('allows cookies that never change the rendered page', () => {
+    expect(isPageCacheEligible(mkEvent({
+      cookies: {
+        _ga: 'GA1.1.1', _ga_ABC123: 'GS1.1', _gid: 'x', _fbp: 'fb.1', __cf_bm: 'x', _cfuvid: 'x',
+        nuxflow_consent: '%7B%7D', nuxflow_push_dismissed: '1', CookieConsent: 'x', _pk_id_1_abcd: 'x',
+      },
+    }))).toBe(true)
+  })
+
+  it('still rejects a session cookie alongside ignorable ones', () => {
+    expect(isPageCacheEligible(mkEvent({
+      cookies: { _ga: 'GA1.1.1', '__Host-nuxflow_site': 'tok' },
+    }))).toBe(false)
   })
 
   it('rejects a request carrying multiple cookies', () => {
@@ -69,15 +88,98 @@ describe('isPageCacheEligible', () => {
   })
 })
 
-describe('pageCacheRequest', () => {
-  beforeEach(() => {
-    // no-op: each test builds its own event
+describe('normalizePageCachePath', () => {
+  it('returns null when there is no query string', () => {
+    expect(normalizePageCachePath('/about')).toBeNull()
   })
 
-  it('builds a GET Request keyed by the event\'s own resolved URL', () => {
-    const event = mkEvent({ url: 'https://example.com/about?utm_source=x' })
-    const req = pageCacheRequest(event)
+  it('returns null when no parameter is a tracking one', () => {
+    expect(normalizePageCachePath('/blog?page=2')).toBeNull()
+  })
+
+  it('drops every tracking parameter and the query string with them', () => {
+    expect(normalizePageCachePath('/about?utm_source=x&utm_medium=social&fbclid=abc')).toBe('/about')
+    expect(normalizePageCachePath('/?gclid=1&srsltid=2&msclkid=3')).toBe('/')
+  })
+
+  it('keeps real parameters in their original order and encoding', () => {
+    expect(normalizePageCachePath('/search?q=caf%C3%A9+au+lait&utm_campaign=x&page=2'))
+      .toBe('/search?q=caf%C3%A9+au+lait&page=2')
+  })
+
+  it('matches tracking parameter names case-insensitively and when percent-encoded', () => {
+    expect(normalizePageCachePath('/a?UTM_Source=x&%66bclid=y')).toBe('/a')
+  })
+
+  it('drops the internal cache-variant parameter so it cannot be smuggled into a key', () => {
+    expect(normalizePageCachePath('/a?__nfv=r')).toBe('/a')
+  })
+
+  it('keeps a fragment after the query', () => {
+    expect(normalizePageCachePath('/a?fbclid=x#top')).toBe('/a#top')
+  })
+
+  it('does not throw on a malformed escape', () => {
+    expect(normalizePageCachePath('/a?%E0%A4%A=1&fbclid=x')).toBe('/a?%E0%A4%A=1')
+  })
+})
+
+describe('pageCacheVariant', () => {
+  it('is "r" for a visitor in a consent-required region', () => {
+    expect(pageCacheVariant(mkEvent({ headers: { 'cf-ipcountry': 'DE' } }))).toBe('r')
+    expect(pageCacheVariant(mkEvent({ headers: { 'cf-ipcountry': 'gb' } }))).toBe('r')
+  })
+
+  it('is "u" elsewhere, or when the country is unknown', () => {
+    expect(pageCacheVariant(mkEvent({ headers: { 'cf-ipcountry': 'US' } }))).toBe('u')
+    expect(pageCacheVariant(mkEvent())).toBe('u')
+  })
+})
+
+describe('pageCacheRequest', () => {
+  it('builds a GET Request keyed by the event URL plus its region variant', () => {
+    const req = pageCacheRequest(mkEvent({ url: 'https://example.com/about' }), '0')
     expect(req.method).toBe('GET')
-    expect(req.url).toBe('https://example.com/about?utm_source=x')
+    expect(req.url).toBe('https://example.com/about?__nfv=u&__nfc=0')
+  })
+
+  it('ignores click-tracking parameters', () => {
+    const req = pageCacheRequest(mkEvent({ url: 'https://example.com/blog?fbclid=x&page=2&utm_source=y' }), '0')
+    expect(req.url).toBe('https://example.com/blog?page=2&__nfv=u&__nfc=0')
+  })
+
+  it('appends the variant after an existing query string', () => {
+    const req = pageCacheRequest(mkEvent({ url: 'https://example.com/blog?page=2', headers: { 'cf-ipcountry': 'FR' } }), '0')
+    expect(req.url).toBe('https://example.com/blog?page=2&__nfv=r&__nfc=0')
+  })
+
+  // A page rendered for one region must never be served to the other — the EU render holds
+  // tracking code back until consent, the other injects it directly.
+  it('gives the two regions different keys for the same URL', () => {
+    const eu = pageCacheRequest(mkEvent({ headers: { 'cf-ipcountry': 'FR' } }), '0')
+    const us = pageCacheRequest(mkEvent({ headers: { 'cf-ipcountry': 'US' } }), '0')
+    expect(eu.url).not.toBe(us.url)
+  })
+})
+
+describe('cache version in the key', () => {
+  // A new site cache version (cache-version.ts) must make every old entry unreachable.
+  it('gives each cache version its own key', () => {
+    const before = pageCacheRequest(mkEvent(), 'v1').url
+    const after = pageCacheRequest(mkEvent(), 'v2').url
+    expect(before).toMatch(/__nfc=v1$/)
+    expect(before).not.toBe(after)
+  })
+
+  it('drops a cache-version parameter from the incoming URL so it cannot pick a key', () => {
+    expect(normalizePageCachePath('/a?__nfc=old')).toBe('/a')
+  })
+})
+
+describe('pageCacheKeysForUrl', () => {
+  it('returns one key per variant, matching what pageCacheRequest builds', () => {
+    const keys = pageCacheKeysForUrl('https://example.com/about', '0').map(r => r.url)
+    expect(keys).toEqual(['https://example.com/about?__nfv=u&__nfc=0', 'https://example.com/about?__nfv=r&__nfc=0'])
+    expect(keys).toContain(pageCacheRequest(mkEvent({ headers: { 'cf-ipcountry': 'IE' } }), '0').url)
   })
 })
