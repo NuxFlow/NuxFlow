@@ -52,28 +52,31 @@ export default defineEventHandler(async (event) => {
   }
 
   let backup: NuxFlowBackup
-  // zipFiles stays empty for a raw .json upload — every backup.media entry then has no
-  // matching zip entry below, so the media re-upload loop naturally skips all of them
-  // (content-only: images keep referencing their original site's URLs).
-  let zipFiles: Record<string, Uint8Array> = {}
+  // Decompresses one zip entry on demand. The archive is never unzipped as a whole: the
+  // upload (up to 100 MB) plus every decompressed file at once didn't fit in a Worker's
+  // 128 MB of memory. Stays a no-op for a raw .json upload — every backup.media entry then
+  // has no matching zip entry below, so the media re-upload loop naturally skips all of
+  // them (content-only: images keep referencing their original site's URLs).
+  let readZipEntry: (path: string) => Uint8Array | undefined = () => undefined
 
   if (looksLikeZip(file.data)) {
     // Robustly validate the ZIP archive for Zip Slip (path traversal) and Zip Bomb (uncompressed size)
     validateZipArchive(file.data, MAX_UPLOAD_BYTES)
 
-    let rawZipFiles: Record<string, Uint8Array>
+    const zipData = file.data
+    // Entry paths are matched with forward slashes to support Windows-packaged ZIP archives.
+    readZipEntry = (path) => {
+      const out = unzipSync(zipData, { filter: entry => entry.name.replace(/\\/g, '/') === path })
+      return Object.values(out)[0]
+    }
+
+    let backupFile: Uint8Array | undefined
     try {
-      rawZipFiles = unzipSync(file.data)
+      backupFile = readZipEntry('backup.json')
     } catch (e: unknown) {
       if (isHttpError(e)) throw e
       throw badRequest('Invalid zip file — upload a NuxFlow .zip or .json backup')
     }
-    // Normalize zip entry paths to forward-slashes to support Windows-packaged ZIP archives
-    zipFiles = Object.fromEntries(
-      Object.entries(rawZipFiles).map(([path, data]) => [path.replace(/\\/g, '/'), data])
-    )
-
-    const backupFile = zipFiles['backup.json']
     if (!backupFile) throw badRequest('backup.json not found in zip')
 
     backup = parseBackupJson(new TextDecoder().decode(backupFile))
@@ -161,16 +164,19 @@ export default defineEventHandler(async (event) => {
       if (zipPath && (zipPath.includes('..') || zipPath.startsWith('/') || zipPath.startsWith('\\'))) {
         throw badRequest(`Invalid zipPath in backup metadata: ${zipPath}. Directory traversal is forbidden.`)
       }
-      const rawData = zipPath ? zipFiles[zipPath] : undefined
-      if (!zipPath || !rawData) {
+      if (!zipPath) {
         mediaResult.skipped++
         continue
       }
       try {
-        const imageData = new Uint8Array(rawData)
+        const imageData = readZipEntry(zipPath)
+        if (!imageData) {
+          mediaResult.skipped++
+          continue
+        }
         const ext = item.originalName.split('.').pop() ?? 'bin'
         const storageKey = `${siteId}/${ulid()}.${ext}`
-        const imageFile = new File([imageData], item.originalName, { type: item.mimeType })
+        const imageFile = new File([imageData as Uint8Array<ArrayBuffer>], item.originalName, { type: item.mimeType })
         const { url } = await provider.upload(imageFile, storageKey, siteId)
 
         urlMap.set(item.url, url)

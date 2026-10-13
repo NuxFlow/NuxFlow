@@ -33,13 +33,18 @@ vi.mock('../../server/utils/pw', () => ({
 const mockRequestPasswordReset = vi.fn().mockResolvedValue(undefined)
 vi.mock('../../server/utils/better-auth', () => ({
   getOrCreateBetterAuth: async () => ({
-    api: {
-      signUpEmail: async ({ body }: { body: { name: string; email: string } }) => {
-        // Like Better Auth with auto sign-in on: creates the account *and* a session.
-        const id = ulid()
-        await getCurrentTestDb().insert(users).values({ id, name: body.name, email: body.email, emailVerified: false })
-        await getCurrentTestDb().insert(sessions).values({ id: ulid(), token: ulid(), userId: id, expiresAt: new Date(Date.now() + 86_400_000).toISOString() })
+    // findOrCreateUserAccount() creates the user row through Better Auth's internal
+    // adapter — no password, no session.
+    $context: Promise.resolve({
+      internalAdapter: {
+        createUser: async (data: { name: string; email: string; emailVerified: boolean }, _source: { method: string }) => {
+          const id = ulid()
+          await getCurrentTestDb().insert(users).values({ id, ...data })
+          return { id, ...data }
+        },
       },
+    }),
+    api: {
       requestPasswordReset: mockRequestPasswordReset,
     },
   }),
@@ -214,6 +219,15 @@ describe('POST /api/v1/users — inviting an address that already has an account
     const u = await db.query.users.findFirst({ where: eq(users.email, 'no-session@invite.test') })
     const left = await db.query.sessions.findMany({ where: eq(sessions.userId, u!.id) })
     expect(left).toHaveLength(0)
+  })
+
+  // No throwaway password is hashed (Argon2 is ~170 ms of CPU each); Better Auth's
+  // reset-password creates the credential account when the invitee sets a real one.
+  it('creates the new invitee with no password', async () => {
+    await invite('no-password@invite.test')
+    const db = getCurrentTestDb()
+    const u = await db.query.users.findFirst({ where: eq(users.email, 'no-password@invite.test') })
+    expect(await db.query.accounts.findMany({ where: eq(accounts.userId, u!.id) })).toHaveLength(0)
   })
 })
 

@@ -42,8 +42,8 @@ export default defineEventHandler(async (event) => {
   // Better Auth's own sign-up endpoint is global and ignores the per-site
   // `auth.allow_public_registration` setting. Nothing in the app calls it: public
   // registration goes through api/public/auth/register.post.ts (which enforces that
-  // setting), and invites/restores create accounts in-process via auth.api.signUpEmail()
-  // (user-provisioning.ts), which never passes through this middleware. Leaving it open
+  // setting), and invites/restores create accounts in-process through Better Auth's
+  // internal adapter (user-provisioning.ts), which never passes through this middleware. Leaving it open
   // let anyone pre-register an email address before its real owner was invited — the
   // invite would then attach its role to the attacker-controlled account.
   if (pathname === '/api/auth/sign-up/email') {
