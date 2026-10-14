@@ -16,9 +16,20 @@ const schema = z.object({
 const state = reactive({ email: '' })
 const loading = ref(false)
 const sent = ref(false)
+const captchaError = ref('')
+
+const {
+  siteKey: captchaSiteKey,
+  token: captchaToken,
+  widget: captchaWidget,
+  ready: captchaReady,
+  fetchOptions: captchaFetchOptions,
+  reset: resetCaptcha,
+} = await useSignInCaptcha()
 
 async function submit() {
   loading.value = true
+  captchaError.value = ''
   try {
     // Uses the typed auth client method (rather than a hardcoded fetch path) so a
     // future Better Auth endpoint rename fails typecheck instead of silently 404ing —
@@ -27,13 +38,20 @@ async function submit() {
     // `site` (when resetting on the way into a particular site) brands the email and the
     // reset page, and brings them back to that site afterwards.
     const redirectTo = siteId.value ? `/reset-password?${new URLSearchParams({ site: siteId.value })}` : '/reset-password'
-    await useAuthClient().requestPasswordReset({ email: state.email, redirectTo })
+    const res = await useAuthClient().requestPasswordReset({ email: state.email, redirectTo, fetchOptions: captchaFetchOptions() })
+    // A failed bot check says nothing about the email address, so it's the one error worth
+    // showing; every other outcome looks like success (see the catch below).
+    if (captchaSiteKey.value && /captcha/i.test(res.error?.message ?? '')) {
+      captchaError.value = 'The security check didn\'t go through. Please try again.'
+      return
+    }
     sent.value = true
   } catch {
     // Always show success to prevent email enumeration
     sent.value = true
   } finally {
     loading.value = false
+    if (captchaSiteKey.value) resetCaptcha()
   }
 }
 </script>
@@ -61,7 +79,10 @@ async function submit() {
         <UInput v-model="state.email" type="email" placeholder="you@example.com" autocomplete="email" class="w-full" autofocus />
       </UFormField>
 
-      <UButton type="submit" block :loading="loading">
+      <NuxtTurnstile v-if="captchaSiteKey" ref="captchaWidget" v-model="captchaToken" :site-key="captchaSiteKey" />
+      <UAlert v-if="captchaError" color="error" variant="soft" :description="captchaError" />
+
+      <UButton type="submit" block :loading="loading" :disabled="!captchaReady">
         Send reset link
       </UButton>
 

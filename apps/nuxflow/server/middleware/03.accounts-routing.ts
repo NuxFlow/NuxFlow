@@ -17,6 +17,7 @@ const ACCOUNTS_API_PREFIXES = [
   '/api/auth/',
   '/api/accounts/',
   '/api/v1/auth/session',
+  '/api/v1/auth/captcha',
   '/api/v1/account/data-export',
   '/api/_nuxt_icon/',
   '/api/health',

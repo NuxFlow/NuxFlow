@@ -517,6 +517,19 @@ Set **both** keys or neither:
 - With only the site key, visitors see the Turnstile widget, but submissions are never actually verified.
 - With only the secret, the widget isn't shown, so every contact-form and form submission is rejected.
 
+#### Turnstile on sign-in (optional)
+
+Every password sign-in attempt makes your Worker run a deliberately slow password check, even when the email doesn't exist. NuxFlow limits attempts from each IP address. Bots that spread their attempts across many addresses still get through, and each attempt uses CPU time you pay for. Turnstile on the sign-in form stops those bots before the password check runs.
+
+It's off by default. To turn it on:
+
+1. In the Cloudflare dashboard, open your Turnstile widget and add the hostname people sign in on. That's your accounts domain (for example `accounts.example.com`) if you host several sites, otherwise your site's own domain.
+2. On your main site, go to **Admin → Settings → Integrations → Cloudflare Turnstile**. Turn on **Also check sign-in and password-reset requests**, then save.
+
+It applies to every site on your installation. Passkey and Google/GitHub sign-in are not affected.
+
+> **Do step 1 first.** If the sign-in hostname isn't on the widget's list, nobody can sign in with a password. To recover, sign in with a passkey and turn the switch off. Without a passkey, remove the secret with `wrangler secret delete CLOUDFLARE_TURNSTILE_SECRET_KEY`, which turns the check off straight away.
+
 ### Rate Limiting (Cloudflare WAF)
 
 A rate-limiting rule stops one visitor from loading pages faster than any person could. You set it up once in the Cloudflare dashboard. NuxFlow has no setting for it.

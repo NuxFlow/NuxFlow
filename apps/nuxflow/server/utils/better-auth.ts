@@ -3,6 +3,7 @@ import type { H3Event } from 'h3'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { passkey } from '@better-auth/passkey'
+import { captcha } from 'better-auth/plugins'
 import { eq } from 'drizzle-orm'
 import * as schema from '@nuxflow/db/schema'
 import { nuxflowPasswordHasher } from './pw'
@@ -16,6 +17,7 @@ import { getAccountsOrigin } from './accounts-origin'
 import { activatePendingInvitations } from './invitations'
 import { clearCachedRole } from './role-cache'
 import { getPrimarySite, eventForSite } from './site-info'
+import { getSignInCaptcha, SIGN_IN_CAPTCHA_ENDPOINTS } from './sign-in-captcha'
 
 // Auth instance cache with 5-minute TTL so newly-registered custom domains and
 // social-login credential changes start working without a redeployment. Under central
@@ -45,6 +47,8 @@ async function buildBetterAuthInstance(event: H3Event) {
     resolveSetting(settingsEvent, 'auth.github_client_id', 'githubClientId'),
     resolveSetting(settingsEvent, 'auth.github_client_secret', 'githubClientSecret'),
   ])
+
+  const signInCaptcha = await getSignInCaptcha(event)
 
   const accountsOrigin = getAccountsOrigin()
 
@@ -373,6 +377,15 @@ async function buildBetterAuthInstance(event: H3Event) {
         ...(passkeyRpID && { rpID: passkeyRpID }),
         ...(passkeyOrigin && { origin: passkeyOrigin }),
       }),
+      // Opt-in Turnstile on password sign-in and reset requests — checked before the
+      // handler, so a bot never gets as far as the Argon2 hash (see sign-in-captcha.ts).
+      ...(signInCaptcha
+        ? [captcha({
+            provider: 'cloudflare-turnstile',
+            secretKey: signInCaptcha.secretKey,
+            endpoints: SIGN_IN_CAPTCHA_ENDPOINTS,
+          })]
+        : []),
     ],
   })
 }

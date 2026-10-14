@@ -66,6 +66,8 @@ const bodySchema = z.object({
     googleClientSecret: z.string().optional(),
     githubClientId: z.string().optional(),
     githubClientSecret: z.string().optional(),
+    // Require Turnstile on password sign-in/reset for the whole deployment (sign-in-captcha.ts).
+    turnstileSignIn: z.boolean().optional(),
   }).optional(),
 })
 
@@ -202,14 +204,15 @@ export default defineEventHandler(async (event) => {
     if (a.googleClientSecret !== undefined) settingEntries.push(['auth.google_client_secret', a.googleClientSecret])
     if (a.githubClientId !== undefined) settingEntries.push(['auth.github_client_id', a.githubClientId])
     if (a.githubClientSecret !== undefined) settingEntries.push(['auth.github_client_secret', a.githubClientSecret])
+    if (a.turnstileSignIn !== undefined) settingEntries.push(['auth.turnstile_sign_in', a.turnstileSignIn ? 'true' : 'false'])
   }
 
   await batchSaveSettings(event, settingEntries)
   if (settingEntries.some(([k]) => k.startsWith('seo.'))) clearSeoSettingsCache(siteId)
 
   if (body.auth && socialAllowed) {
-    // The Better Auth instance caches socialProviders per host for 5 minutes —
-    // bust it so a credential change is live immediately, not after a wait.
+    // The Better Auth instance caches socialProviders (and the sign-in Turnstile check)
+    // for 5 minutes — bust it so a change is live immediately, not after a wait.
     clearBetterAuthCache()
   }
 
