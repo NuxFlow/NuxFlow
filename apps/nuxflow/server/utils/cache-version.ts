@@ -29,8 +29,11 @@ export const FALLBACK_CACHE_VERSION = '0'
 // How long KV keeps a read value in the reading location (Cloudflare's minimum is 30 s).
 const VERSION_CACHE_TTL_SECONDS = 30
 // On top of that, each isolate remembers the version briefly, since a single page render
-// reads it several times (the page itself, then each JSON route its SSR fetches).
-const ISOLATE_TTL_MS = 5_000
+// reads it several times (the page itself, then each JSON route its SSR fetches), and a
+// busy isolate would otherwise pay a billed KV read for it every few seconds per site.
+// KV itself takes up to about a minute to show a new value everywhere, so 15 s here barely
+// moves the worst case; the isolate that made the edit sees the new version at once.
+const ISOLATE_TTL_MS = 15_000
 // KV accepts at most one write per second to the same key.
 const MIN_WRITE_INTERVAL_MS = 1_100
 

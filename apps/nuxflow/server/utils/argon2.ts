@@ -85,9 +85,47 @@ function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
   return diff === 0
 }
 
+// ── Concurrency limit ────────────────────────────────────────────────────────
+//
+// Each hash allocates its whole memory cost up front (~19 MiB at M_COST), and Cloudflare
+// sends many concurrent requests to the same isolate, which has a 128 MB memory limit
+// shared with everything else it's running. A burst of sign-in attempts (credential
+// stuffing, or just a busy moment) could otherwise run enough hashes side by side to push
+// the isolate over that limit — which kills every request in flight on it, not just the
+// sign-ins. Extra hashes wait their turn instead; each still takes the same time once it
+// runs, so the parameters (and therefore the security) are unchanged.
+export const MAX_CONCURRENT_HASHES = 2
+
+let running = 0
+const waiting: Array<() => void> = []
+
+export async function withHashSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (running >= MAX_CONCURRENT_HASHES) {
+    await new Promise<void>(resolve => waiting.push(resolve))
+  } else {
+    running++
+  }
+  try {
+    return await fn()
+  } finally {
+    // Hand the slot straight to the next waiter (running stays the same), or free it.
+    const next = waiting.shift()
+    if (next) next()
+    else running--
+  }
+}
+
 // ── Hash / verify ─────────────────────────────────────────────────────────────
 
-export async function argon2Hash(password: string): Promise<string> {
+export function argon2Hash(password: string): Promise<string> {
+  return withHashSlot(() => hashUnlimited(password))
+}
+
+export function argon2Verify(storedHash: string, password: string): Promise<boolean> {
+  return withHashSlot(() => verifyUnlimited(storedHash, password))
+}
+
+async function hashUnlimited(password: string): Promise<string> {
   const pwdBytes = new TextEncoder().encode(password.normalize('NFKC'))
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN))
 
@@ -102,7 +140,7 @@ export async function argon2Hash(password: string): Promise<string> {
   return encodePhc(salt, hash)
 }
 
-export async function argon2Verify(storedHash: string, password: string): Promise<boolean> {
+async function verifyUnlimited(storedHash: string, password: string): Promise<boolean> {
   const parsed = parsePhc(storedHash)
   if (!parsed) return false
 
