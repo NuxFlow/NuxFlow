@@ -226,6 +226,8 @@ custom_domain = true
 
 Then sign in to the admin **on the new domain**. With a single site, NuxFlow notices the new address and updates the site's stored domain, so links in emails, feeds, and sitemaps use it.
 
+Finally, in the Cloudflare dashboard for the domain, open **Caching → Configuration** and set **Browser Cache TTL** to **Respect Existing Headers**. NuxFlow already tells browsers how long to keep each file: scripts and styles for a year, and pages not at all, so an edit shows on a visitor's next page load. The default setting (4 hours) can make Cloudflare tell browsers to keep pages longer, so returning visitors may keep seeing an old version of a page for up to 4 hours after you change it.
+
 ### Step 9: Verify Cron Triggers
 
 NuxFlow runs scheduled jobs for timed publishing, nightly cleanup, and stuck-video checks. The triggers are defined in `wrangler.toml`:

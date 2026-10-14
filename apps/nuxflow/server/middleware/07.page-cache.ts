@@ -1,5 +1,5 @@
 import type { EdgeCacheStorage } from '../utils/edge-cache'
-import { isPageCacheEligible, pageCacheRequest } from '../utils/page-cache'
+import { isPageCacheEligible, PAGE_BROWSER_CACHE_CONTROL, pageCacheRequest } from '../utils/page-cache'
 import { currentCacheVersion } from '../utils/cache-version'
 
 // Ordering matters here and Nitro loads server/middleware/** in filename order, which is
@@ -37,7 +37,8 @@ export default defineEventHandler(async (event) => {
 
     const body = await cached.text()
     setHeader(event, 'Content-Type', cached.headers.get('content-type') ?? 'text/html; charset=utf-8')
-    setHeader(event, 'Cache-Control', cached.headers.get('cache-control') ?? 'public, max-age=3600')
+    // The stored copy's own max-age is for Cloudflare's cache, not the visitor's browser.
+    setHeader(event, 'Cache-Control', PAGE_BROWSER_CACHE_CONTROL)
     setHeader(event, 'X-NuxFlow-Page-Cache', 'HIT')
     setResponseStatus(event, 200)
     return body

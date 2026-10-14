@@ -89,6 +89,8 @@ describe('07.page-cache middleware (read side)', () => {
     expect(event._status).toBe(200)
     expect(event._responseHeaders['Content-Type']).toBe('text/html; charset=utf-8')
     expect(event._responseHeaders['X-NuxFlow-Page-Cache']).toBe('HIT')
+    // Browsers must not keep their own copy — an edit has to show on the next visit.
+    expect(event._responseHeaders['Cache-Control']).toBe('no-cache')
   })
 
   // A click from an ad or social post carries a unique click id. The cache key ignores it,
@@ -165,12 +167,14 @@ describe('page-cache plugin (write side)', () => {
     vi.stubGlobal('caches', { default: { put } })
 
     const response: RenderResponse = { body: new Response('<html>streamed</html>').body, statusCode: 200 }
-    await renderResponse!(response, { event: htmlEvent() })
+    const event = htmlEvent()
+    await renderResponse!(response, { event })
 
     expect(put).toHaveBeenCalledTimes(1)
     expect((put.mock.calls[0]![0] as Request).url).toMatch(/\/about\?__nfv=u&__nfc=0$/)
     expect(await cachedBody(put)).toBe('<html>streamed</html>')
     expect(await new Response(response.body as ReadableStream).text()).toBe('<html>streamed</html>')
+    expect((event as unknown as { _responseHeaders: Record<string, string> })._responseHeaders['Cache-Control']).toBe('no-cache')
   })
 
   it('caches a string body (older Nuxt shape)', async () => {

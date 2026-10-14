@@ -44,7 +44,7 @@ describe('isPageCacheEligible', () => {
   })
 
   it('rejects an unrecognized cookie', () => {
-    expect(isPageCacheEligible(mkEvent({ cookies: { i18n_redirected: 'en' } }))).toBe(false)
+    expect(isPageCacheEligible(mkEvent({ cookies: { some_new_cookie: 'x' } }))).toBe(false)
   })
 
   // Cookies nothing on the server reads — analytics scripts in custom head HTML, consent
@@ -54,7 +54,9 @@ describe('isPageCacheEligible', () => {
     expect(isPageCacheEligible(mkEvent({
       cookies: {
         _ga: 'GA1.1.1', _ga_ABC123: 'GS1.1', _gid: 'x', _fbp: 'fb.1', __cf_bm: 'x', _cfuvid: 'x',
-        nuxflow_consent: '%7B%7D', nuxflow_push_dismissed: '1', CookieConsent: 'x', _pk_id_1_abcd: 'x',
+        nuxflow_consent: '%7B%7D', nuxflow_push_dismissed: '1', CookieConsent: 'x', _pk_id_1_abcd: 'x', cf_clearance: 'x',
+        // Leftovers from older versions, still in returning visitors' browsers.
+        i18n_redirected: 'en', nuxflow_cookie_consent: 'all',
       },
     }))).toBe(true)
   })

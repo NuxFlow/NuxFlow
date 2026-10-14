@@ -64,6 +64,14 @@ const EXCLUDED_EXACT_PATHS = new Set([
 
 export const PAGE_CACHE_TTL_SECONDS = 3600
 
+/**
+ * What a cache-eligible page tells the *browser*. The fast copy lives in Cloudflare's
+ * cache (above), so the browser shouldn't keep its own: with a max-age, a returning
+ * visitor's browser kept showing a page for up to that long after it was edited — and a
+ * zone's Browser Cache TTL setting (4 hours by default) stretched that further.
+ */
+export const PAGE_BROWSER_CACHE_CONTROL = 'no-cache'
+
 // Cookies no server code reads, so they can't change what a page renders. Analytics
 // cookies are matched by prefix because most carry a property id (`_ga_ABC123`,
 // `_pk_id.1.a2b3`, `mp_<token>_mixpanel`).
@@ -72,6 +80,11 @@ const IGNORED_COOKIE_RES: RegExp[] = [
   // dismissal, which only matters to a signed-in visitor — who has a session cookie anyway.
   /^nuxflow_consent$/,
   /^nuxflow_push_dismissed$/,
+  // Left in returning visitors' browsers by older versions; nothing reads them any more.
+  // `i18n_redirected` came from the removed @nuxtjs/i18n module (set on every first visit),
+  // `nuxflow_cookie_consent` is the consent cookie's old name. Each turned caching off for
+  // everyone who still has it.
+  /^(?:i18n_redirected|nuxflow_cookie_consent)$/,
   // Cloudflare bot management / challenges.
   /^(?:__cf_bm|_cfuvid|cf_clearance)$/,
   // Google Analytics / Ads, Meta, Microsoft, TikTok, Pinterest, Reddit, Snap, LinkedIn,
