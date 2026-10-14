@@ -230,7 +230,7 @@ Finally, in the Cloudflare dashboard for the domain, open **Caching → Configur
 
 ### Step 9: Verify Cron Triggers
 
-NuxFlow runs scheduled jobs for timed publishing, nightly cleanup, and stuck-video checks. The triggers are defined in `wrangler.toml`:
+NuxFlow runs scheduled jobs for timed publishing, nightly cleanup and usage totals, and stuck-video checks. The triggers are defined in `wrangler.toml`:
 
 ```toml
 [triggers]
@@ -238,7 +238,7 @@ crons = ["* * * * *", "0 3 * * *", "0 * * * *"]
 ```
 
 - Every minute: publish scheduled content.
-- Nightly at 3 AM UTC: prune old logs and revisions, and flag stale content.
+- Nightly at 3 AM UTC: prune old logs and revisions, flag stale content, and record each site's usage totals (see [Usage](multi-site.md#usage)).
 - Hourly: mark failed video uploads.
 
 After deploying, confirm all three are active in **Workers & Pages → nuxflow → Settings → Triggers → Cron Triggers**.
