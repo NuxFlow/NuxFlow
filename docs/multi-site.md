@@ -144,11 +144,39 @@ Visiting `https://xyz.com/admin` directly won't work until setup is completed on
 
 After that, **Sign in** on `xyz.com` goes to the sign-in domain, shows xyz.com's name and logo, and comes straight back to `xyz.com/admin` signed in. Someone already signed in there (to any site) just passes through. The login they get on `xyz.com` works on `xyz.com` only; signing out, from any site or from the sign-in domain, signs them out of every site.
 
-- **The platform operator (super admin)** can open any site's admin with read-only access, and runs platform actions (Super Admin → Sites, database export, suspending sites) from the main site.
+- **The platform operator (super admin)** can open any site's admin with read-only access, and runs platform actions (Super Admin → Sites, Usage, database export, suspending sites) from the main site.
 - **Site teams:** once setup is complete, the site's admin invites editors and authors from **Admin → Users**. Their roles apply to that site only.
 - **Account settings** — password, passkeys, connected Google/GitHub accounts, downloading your data, deleting your account — are on the sign-in domain's account page (`https://accounts.yourplatform.com/account`), not in any site's admin.
 
 Each site's data is scoped by its internal site ID, so content, media, forms, and settings created here will never appear on other sites.
+
+---
+
+## Usage
+
+**Super Admin → Usage** shows what each site uses, one calendar month (UTC) at a time. Pick a month at the top, select a column heading to sort, and select a site's name to see its last 30 days as small daily charts.
+
+| Column | What it counts | When it updates |
+|---|---|---|
+| **Views** | Public page requests, including pages served from the cache | About once a minute |
+| **Renders** | Pages the server had to build (cache misses, admin pages). Rendering is most of a Worker's CPU time, which a Worker can't measure itself, so this is the closest stand-in. | About once a minute |
+| **API** | Requests to the site's `/api` routes | About once a minute |
+| **AI calls** | Every call to an AI model: writing tools, page generation, images, dictation, "Listen to this article", spam checks | About once a minute |
+| **Emails** | Recipients an email provider accepted (failures and console-only sends aren't counted) | About once a minute |
+| **Storage** | Total size of the media library | Nightly, 3 AM UTC |
+| **Pages** | Pages, posts and other content, in any status | Nightly |
+| **Team** | People with an author role or above | Nightly |
+| **Members** | People with a member or viewer role | Nightly |
+| **Plugins** | Installed plugins | Nightly |
+
+A **—** means no nightly total has been taken for that site yet.
+
+Good to know:
+
+- **The numbers are approximate, on the low side.** Counts are added up in memory and saved about once a minute, so a busy site costs one small database write a minute, not one per visit. Counts not yet saved when Cloudflare recycles a Worker instance are lost. Nothing is ever counted twice.
+- **No visitor data is stored.** Usage is a number per site, per day, per measure: no IP addresses, cookies or page addresses.
+- **History is kept for 400 days**, so you can compare a month with the same month last year.
+- Usage is only shown in Super Admin. Site owners and their teams don't see it.
 
 ---
 

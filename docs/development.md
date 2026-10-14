@@ -110,7 +110,7 @@ The database schema lives in `packages/db/src/schema/`. Each file groups related
 | `media.ts` | Media library, folders |
 | `forms.ts` | Forms, submissions |
 | `payments.ts` | Membership tiers, subscriptions |
-| `system.ts` | Plugins, themes, audit logs, webhooks |
+| `system.ts` | Plugins, themes, audit logs, notifications, crawler activity, per-site usage counters |
 
 All schema files are re-exported from `packages/db/src/schema/index.ts`.
 
@@ -178,9 +178,32 @@ To run in watch mode during development:
 pnpm --filter @nuxflow/app test:watch
 ```
 
+### Integration tests
+
+Integration tests live in `apps/nuxflow/tests/integration/`. They call real route handlers and server utilities against a real SQLite database (created fresh for each test file from the same migrations D1 runs), with network calls to payment, email and AI providers mocked.
+
+```bash
+pnpm --filter @nuxflow/app test:integration
+```
+
+#### The tenant query guard
+
+Every site on a multi-site install shares one database, so a query that forgets to filter by `site_id` could show or change another site's data. While the integration tests run, NuxFlow checks every SQL statement the server code sends. If a statement reads, updates or deletes a table that has a `site_id` column without a `site_id` condition, that test file fails and names the file and line:
+
+```
+Tenant query guard: 1 statement(s) touch a site-scoped table without filtering by site_id.
+  • server/api/v1/example.patch.ts:21 — no site_id filter on media
+```
+
+Fix it by adding the condition, even on an update by an id you already checked. The shared helper `scopedById()` in `server/utils/db-helpers.ts` does exactly that.
+
+A few queries are cross-site on purpose, such as scheduled jobs that run for every site and a person's own data export. Those are listed in `ALLOWLIST` in `apps/nuxflow/tests/helpers/tenant-query-guard.ts`, each with a one-line reason. A new cross-site query needs an entry there. If the reason is hard to write, the query probably needs a `site_id` filter instead.
+
+Inserts aren't checked, because they set `site_id` rather than filter on it. Tables that belong to a site only through a parent row (revisions, taxonomy terms, term assignments) have no `site_id` column and aren't checked either.
+
 ### End-to-end tests
 
-End-to-end tests use [Playwright](https://playwright.dev) and live in `apps/nuxflow/tests/`.
+End-to-end tests use [Playwright](https://playwright.dev) and live in `apps/nuxflow/tests/e2e/`.
 
 ```bash
 pnpm --filter @nuxflow/app test:e2e

@@ -143,6 +143,7 @@ NuxFlow supports two authentication methods for server API access:
 NuxFlow runs on Cloudflare Workers, which provides several security properties at the infrastructure level that would require significant effort to replicate on a traditional server:
 
 - **V8 isolates per request** — each Worker invocation runs in a fresh V8 isolate. There is no shared process memory between concurrent requests or between different tenants on a multi-site installation.
+- **Tenant separation in the shared database** — every site's rows live in one D1 database, tagged with a `site_id`. Every query is scoped to the current site, and the integration test suite enforces it: a server query that reads or changes a site's table without a `site_id` condition fails the tests, unless it's a reviewed, deliberately cross-site query (see [The tenant query guard](development.md#the-tenant-query-guard)).
 - **No filesystem access** — Workers have no access to a filesystem; there is no path for file-based attacks.
 - **Automatic TLS** — all traffic is TLS-terminated at Cloudflare's edge; there is no plaintext HTTP path in production.
 - **DDoS mitigation** — Cloudflare's network-layer DDoS protection is active by default on all Workers routes at no additional cost.
