@@ -6,6 +6,7 @@ import { requireRole } from '../../../../utils/permissions'
 import { useDb } from '../../../../utils/db'
 import { writeAuditLog } from '../../../../utils/audit'
 import { getActiveProvider } from '../../../../utils/media-providers/index'
+import { checkPlanLimit, planLimitMessage } from '../../../../utils/hosting-plans'
 import { isSafeUrl, safeFetch } from '../../../../utils/ssrf'
 import { sanitizeSvg } from '../../../../utils/sanitize-css-svg'
 import { bufferToHex } from '../../../../utils/buffer'
@@ -57,6 +58,8 @@ export default defineEventHandler(async (event) => {
         ? new File([sanitizeSvg(await res.text())], rawName, { type: contentType })
         : new File([await res.arrayBuffer()], rawName, { type: contentType })
 
+      const room = await checkPlanLimit(db, siteId, 'storage', file.size)
+      if (!room.allowed) return { url: remoteUrl, error: planLimitMessage('storage', room.max ?? 0) }
       const { url: localUrl } = await provider.upload(file, storageKey, siteId)
       await db.insert(media).values({
         id: ulid(),

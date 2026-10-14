@@ -12,6 +12,8 @@ import { and, eq } from 'drizzle-orm'
 import { userSiteRoles } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import type { Db } from '../db'
+import { checkPlanLimit, limitForRole } from '../hosting-plans'
+import { noteLimit } from './plan-limits'
 import { findOrCreateUserAccount, sendSetPasswordEmail } from '../user-provisioning'
 import { RESTORABLE_ROLES } from '../backup-types'
 import type { NuxFlowBackup, RestoreOptions, RestoreResult } from '../backup-types'
@@ -51,6 +53,13 @@ export async function restoreUsers(
     }
 
     const email = backupUser.email.toLowerCase()
+    // Someone not on the site yet takes a place in the plan's team or member limit —
+    // checked before an account is created or an email sent.
+    if (!roleByEmail.has(email) && !(await checkPlanLimit(db, siteId, limitForRole(backupUser.role))).allowed) {
+      noteLimit(result, limitForRole(backupUser.role))
+      result.users.skipped++
+      continue
+    }
     const { userId: targetUserId, status } = await findOrCreateUserAccount(event, {
       name: backupUser.name,
       email,

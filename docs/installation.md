@@ -239,7 +239,7 @@ crons = ["* * * * *", "0 3 * * *", "0 * * * *"]
 
 - Every minute: publish scheduled content.
 - Nightly at 3 AM UTC: prune old logs and revisions, flag stale content, and record each site's usage totals (see [Usage](multi-site.md#usage)).
-- Hourly: mark failed video uploads.
+- Hourly: mark failed video uploads, and check sites on a hosting plan against their monthly limits (see [Hosting plans](multi-site.md#hosting-plans)).
 
 After deploying, confirm all three are active in **Workers & Pages → nuxflow → Settings → Triggers → Cron Triggers**.
 

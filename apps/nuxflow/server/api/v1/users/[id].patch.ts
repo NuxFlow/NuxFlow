@@ -6,6 +6,7 @@ import { requireRole, getUserSiteRole, assertNotSelfTarget, assertTargetNotSuper
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { clearCachedRole } from '../../../utils/role-cache'
 import { alertRoleChanged } from '../../../utils/security-alerts'
+import { assertWithinPlan, limitForRole } from '../../../utils/hosting-plans'
 
 const bodySchema = z.object({
   role: z.enum(['admin', 'editor', 'author', 'viewer', 'member']).optional(),
@@ -33,6 +34,7 @@ export default defineEventHandler(async (event) => {
         columns: { role: true },
       })
       if (!invitation) throw notFound('User not found in this site')
+      if (limitForRole(invitation.role) !== limitForRole(body.role)) await assertWithinPlan(event, limitForRole(body.role))
       await batchWithAudit(db, [
         db.update(siteInvitations).set({ role: body.role })
           .where(and(eq(siteInvitations.userId, targetId), eq(siteInvitations.siteId, siteId))),
@@ -47,6 +49,8 @@ export default defineEventHandler(async (event) => {
     }
 
     assertTargetNotSuperAdmin(existing.role, 'Cannot modify a super admin\'s role')
+    // Moving someone between member and team uses up a place in the other limit.
+    if (limitForRole(existing.role) !== limitForRole(body.role)) await assertWithinPlan(event, limitForRole(body.role))
 
     const roleUpdate = db
       .update(userSiteRoles)

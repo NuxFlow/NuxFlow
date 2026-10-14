@@ -12,6 +12,7 @@ import { rateLimit } from '../../../utils/rate-limit'
 import { created } from '../../../utils/response'
 import { findOrCreateUserAccount, sendSetPasswordEmail } from '../../../utils/user-provisioning'
 import { clearCachedRole } from '../../../utils/role-cache'
+import { assertWithinPlan, limitForRole } from '../../../utils/hosting-plans'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -25,6 +26,8 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId!
 
   const body = await parseBody(event, bodySchema)
+  // Before any account is created or email sent.
+  await assertWithinPlan(event, limitForRole(body.role))
 
   const db = useDb(event)
 

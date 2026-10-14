@@ -4,6 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
+import { assertWithinPlan } from '../../../utils/hosting-plans'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -83,6 +84,8 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   await rateLimit(event, { limit: 5, windowMs: 60_000, keyPrefix: 'ai-translate' })
 
+  // A translation is a new content item — checked before spending an AI call on it.
+  await assertWithinPlan(event, 'content')
   const model = await requireAiSdkModel(event, 'smart', { userId })
 
   const { contentItemId, targetLocale, targetSlugSuffix } = await parseBody(event, bodySchema)

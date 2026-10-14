@@ -80,6 +80,8 @@ const statCards = computed(() => [
          its own storage-only AdminMediaFallbackWarning). -->
     <AdminSetupChecklist />
 
+    <AdminPlanUsageCard />
+
     <!-- Stat cards -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
       <NuxtLink

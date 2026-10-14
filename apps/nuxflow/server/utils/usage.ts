@@ -37,9 +37,9 @@ export const USAGE_SNAPSHOT_METRICS = [
   'storage_bytes',
   /** Pages, posts and every other content item, any status. */
   'content_items',
-  /** People with a staff role (author and above). */
+  /** People with any role except member (viewer and above), not counting the operator's super admin. */
   'team_members',
-  /** People with a member or viewer role. */
+  /** People with the member role. */
   'site_members',
   /** Installed dynamic plugins. */
   'plugins',

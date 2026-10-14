@@ -8,6 +8,7 @@ import { isAccountsHost } from '../../utils/accounts-origin'
 import { issueSiteAuthCode, siteCallbackUrl } from '../../utils/site-auth'
 import { rateLimit } from '../../utils/rate-limit'
 import { clearCachedRole } from '../../utils/role-cache'
+import { assertWithinPlan } from '../../utils/hosting-plans'
 
 const bodySchema = z.object({
   site: z.string().min(1).max(64),
@@ -44,6 +45,7 @@ export default defineEventHandler(async (event) => {
   const userId = session.user.id
   if (body.join && !(await getUserSiteRole(db, userId, site.id)) && !(await hasSuperAdminRole(db, userId))) {
     if (!site.allowRegistration) throw forbidden('This site isn\'t accepting new members')
+    await assertWithinPlan(event, 'members', 1, site.id)
     await db.insert(userSiteRoles).values({ id: ulid(), userId, siteId: site.id, role: 'member' }).onConflictDoNothing()
     clearCachedRole(userId, site.id)
   }

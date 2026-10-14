@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { and, asc, eq, desc, inArray, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import type { Db } from './db'
+import { checkPlanLimit, planLimitMessage } from './hosting-plans'
 import { contentItems, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { roleAtLeast, hasApiKeyScope, canEditContentItem, AUTHOR_SETTABLE_STATUSES, type Role, type ApiKeyScope } from './permissions'
 import { getContentItem, getContentTypeBySlug } from './content-queries'
@@ -333,6 +334,9 @@ async function createContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   if (existing) {
     return textResult(`Error: Slug "${slugVal}" is already in use.`)
   }
+
+  const room = await checkPlanLimit(ctx.db, ctx.siteId, 'content')
+  if (!room.allowed) return textResult(`Error: ${planLimitMessage('content', room.max ?? 0)}`)
 
   const newId = ulid()
   await ctx.db.insert(contentItems).values({

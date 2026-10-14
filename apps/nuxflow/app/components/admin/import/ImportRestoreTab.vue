@@ -17,6 +17,7 @@ const restoreResult = ref<{
     users: { created: number; updated: number; skipped: number }
     membershipTiers: { created: number; updated: number; skipped: number }
     redirects?: { created: number; updated: number; skipped: number }
+    planLimits?: string[]
   }
   media: { uploaded: number; skipped: number }
 } | null>(null)
@@ -172,6 +173,9 @@ async function runRestore() {
             </li>
             <li v-if="restoreResult.result.redirects && (restoreResult.result.redirects.created || restoreResult.result.redirects.updated || restoreResult.result.redirects.skipped)">
               Redirects: {{ restoreResult.result.redirects.created }} created<span v-if="restoreResult.result.redirects.updated">, {{ restoreResult.result.redirects.updated }} updated</span><span v-if="restoreResult.result.redirects.skipped">, {{ restoreResult.result.redirects.skipped }} skipped</span>
+            </li>
+            <li v-if="restoreResult.result.planLimits?.length" class="text-orange-500">
+              Some items were skipped because this site's plan is full: {{ restoreResult.result.planLimits.join(', ') }}.
             </li>
             <li v-if="restoreResult.media.uploaded">Media: {{ restoreResult.media.uploaded }} images uploaded<span v-if="restoreResult.media.skipped">, {{ restoreResult.media.skipped }} skipped</span></li>
           </ul>

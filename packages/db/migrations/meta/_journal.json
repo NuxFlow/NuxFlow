@@ -29,6 +29,13 @@
       "when": 1791986250141,
       "tag": "0003_site_usage_daily",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791992277668,
+      "tag": "0004_hosting_plans",
+      "breakpoints": true
     }
   ]
 }

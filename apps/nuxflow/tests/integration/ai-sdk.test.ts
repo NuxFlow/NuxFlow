@@ -24,6 +24,14 @@ vi.mock('../../server/utils/cf-env', () => ({
   getCfBindings: () => ({ kv: null, loader: null, r2: { get: mockR2Get } }),
 }))
 
+// Hosting-plan allowances have their own tests (hosting-plans.test.ts); this file is
+// about provider selection, and has no database for the plan lookup.
+vi.mock('../../server/utils/hosting-plans', () => ({
+  assertWithinPlan: async () => {},
+  checkPlanLimit: async () => ({ key: 'ai', allowed: true, used: 0, max: null }),
+  PlanLimitError: class extends Error {},
+}))
+
 const mockCreateWorkersAI = vi.fn()
 vi.mock('workers-ai-provider', () => ({
   createWorkersAI: (...args: unknown[]) => mockCreateWorkersAI(...args),

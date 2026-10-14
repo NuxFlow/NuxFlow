@@ -70,6 +70,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
 export const SUPER_ADMIN_NAV: AdminNavItem[] = [
   { label: 'Sites', to: '/admin/super/sites', icon: 'i-lucide-globe', superAdminOnly: true },
   { label: 'Usage', to: '/admin/super/usage', icon: 'i-lucide-chart-column', superAdminOnly: true },
+  { label: 'Plans', to: '/admin/super/plans', icon: 'i-lucide-layers', superAdminOnly: true },
   { label: 'Database', to: '/admin/super/database', icon: 'i-lucide-database', superAdminOnly: true },
   { label: 'Email', to: '/admin/super/email', icon: 'i-lucide-send', superAdminOnly: true },
 ]

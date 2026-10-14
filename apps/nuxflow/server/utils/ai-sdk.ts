@@ -4,6 +4,8 @@ import { resolveSetting } from './settings'
 import { getCfBindings, getWorkersAiBinding } from './cf-env'
 import { WORKER_MEDIA_PREFIX, workerMediaKey } from './media-url'
 import { countUsage } from './usage'
+import { assertWithinPlan, checkPlanLimit, PlanLimitError } from './hosting-plans'
+import { useDb } from './db'
 
 /**
  * 'vision' is for routes that send image bytes to the model (alt-text.post.ts,
@@ -80,7 +82,13 @@ export async function getAiSdkModel(event: H3Event, quality: AiQuality = 'fast',
   return model ? withUsageCounting(event, model) : null
 }
 
-/** Counts each generate/stream call the model makes — retries included, since each is a real call. */
+/**
+ * Counts each generate/stream call the model makes — retries included, since each is a
+ * real call — and refuses the call once the site's monthly AI allowance (hosting plan) is
+ * used up. This is the gate for background AI too (spam checks, inbox triage), which uses
+ * getAiSdkModel() and treats a thrown error as "skip"; interactive routes are stopped
+ * earlier, with a clear 403, by requireAiSdkModel().
+ */
 export function withUsageCounting(event: H3Event, model: LanguageModel): LanguageModel {
   // A gateway model id string, or anything that isn't a provider model object, can't be wrapped.
   if (typeof model !== 'object' || !('specificationVersion' in model)) return model
@@ -88,16 +96,25 @@ export function withUsageCounting(event: H3Event, model: LanguageModel): Languag
     model,
     middleware: {
       specificationVersion: 'v4',
-      wrapGenerate: ({ doGenerate }) => {
+      wrapGenerate: async ({ doGenerate }) => {
+        await assertAiAllowance(event)
         countUsage(event, 'ai_calls')
         return doGenerate()
       },
-      wrapStream: ({ doStream }) => {
+      wrapStream: async ({ doStream }) => {
+        await assertAiAllowance(event)
         countUsage(event, 'ai_calls')
         return doStream()
       },
     },
   })
+}
+
+async function assertAiAllowance(event: H3Event): Promise<void> {
+  const siteId = event.context?.siteId as string | undefined
+  if (!siteId) return
+  const check = await checkPlanLimit(useDb(event), siteId, 'ai')
+  if (!check.allowed) throw new PlanLimitError(check)
 }
 
 async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAiSdkModelOptions): Promise<LanguageModel | null> {
@@ -231,6 +248,7 @@ async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAi
 
 /** Same as getAiSdkModel, but throws the standard 503 instead of returning null. */
 export async function requireAiSdkModel(event: H3Event, quality: AiQuality = 'fast', opts: GetAiSdkModelOptions = {}): Promise<LanguageModel> {
+  await assertWithinPlan(event, 'ai')
   const model = await getAiSdkModel(event, quality, opts)
   if (!model) {
     throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })

@@ -14,6 +14,8 @@ import { and, eq } from 'drizzle-orm'
 import { dynamicPlugins, dynamicPluginTrust } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import type { Db } from '../db'
+import { checkPlanLimit } from '../hosting-plans'
+import { noteLimit } from './plan-limits'
 import { putPluginServerCode, putPluginClientBundle } from '../cf-plugin-kv'
 import { verifyPluginSignature, computeSha256 } from '../plugin-signing'
 import type { BackupDynamicPlugin, NuxFlowBackup, RestoreOptions, RestoreResult } from '../backup-types'
@@ -38,6 +40,11 @@ export async function restoreOnePlugin(
     return
   }
   if (!backupPlugin.serverCode && !backupPlugin.clientBundle) {
+    result.plugins.skipped++
+    return
+  }
+  if (!existing && !(await checkPlanLimit(db, siteId, 'plugins')).allowed) {
+    noteLimit(result, 'plugins')
     result.plugins.skipped++
     return
   }

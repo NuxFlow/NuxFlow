@@ -6,6 +6,7 @@ import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { aiGenerationJobs, contentItems, type AiGenerationPlanPage } from '@nuxflow/db/schema'
 import type { Db } from './db'
 import { requireAiSdkModel, callAiOrThrow, aiErrorMessage } from './ai-sdk'
+import { assertWithinPlan } from './hosting-plans'
 import { generateCanvasPage, loadGenerationContext, type GenerationContext } from './canvas-generation'
 import { getContentTypeBySlugOrThrow, uniqueContentSlug } from './content-queries'
 import { assertContentSlugNotTaxonomy } from './taxonomy'
@@ -105,6 +106,9 @@ function pageInput(job: AiGenerationJob, page: AiGenerationPlanPage) {
 async function generatePlanPage(event: H3Event, db: Db, job: AiGenerationJob, index: number, ctx: GenerationContext): Promise<AiGenerationPlanPage> {
   const page = job.plan![index]!
   try {
+    // Checked before generating, so a full plan doesn't spend an AI call on a page it
+    // can't keep. The message lands on the page's plan entry like any other failure.
+    await assertWithinPlan(event, 'content', 1, job.siteId)
     const model = await requireAiSdkModel(event, 'smart', { userId: job.userId })
     const generated = await generateCanvasPage(model, ctx, pageInput(job, page))
     // A site job's title/slug come from the plan the editor reviewed; a single-page job

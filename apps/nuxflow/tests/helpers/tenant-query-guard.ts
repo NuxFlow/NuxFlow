@@ -117,6 +117,11 @@ export const ALLOWLIST: AllowlistEntry[] = [
     reason: "Nightly usage totals: one grouped count per table for every site's row at once.",
   },
   {
+    file: 'server/scheduled/plan-usage-alerts.ts',
+    tables: ['site_usage_daily'],
+    reason: "Hourly hosting-plan check: this month's totals for every site at once, compared with each site's plan.",
+  },
+  {
     file: 'server/scheduled/demo-reset.ts',
     tables: ['*'],
     reason: 'Wipes and reseeds the whole database — only ever runs on the public demo deployment (isDemoInstance()).',

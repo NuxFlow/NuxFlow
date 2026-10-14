@@ -34,6 +34,10 @@ export const sites = sqliteTable('sites', {
   // every other site configures its own, so tenants never charge customers into the
   // operator's Stripe account or send mail through the operator's provider account.
   isPrimary: integer('is_primary', { mode: 'boolean' }).notNull().default(false),
+  // The site's hosting plan (hosting.ts). Null = the built-in unlimited plan. A plain
+  // column with no DB-level FK on purpose: adding a FK here would need a rebuild of this
+  // table (see the comment above). Deleting a plan moves its sites back to null in code.
+  hostingPlanId: text('hosting_plan_id'),
   settings: text('settings', { mode: 'json' }).$type<Record<string, unknown>>(),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),

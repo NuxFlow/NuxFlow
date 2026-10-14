@@ -165,8 +165,8 @@ Each site's data is scoped by its internal site ID, so content, media, forms, an
 | **Emails** | Recipients an email provider accepted (failures and console-only sends aren't counted) | About once a minute |
 | **Storage** | Total size of the media library | Nightly, 3 AM UTC |
 | **Pages** | Pages, posts and other content, in any status | Nightly |
-| **Team** | People with an author role or above | Nightly |
-| **Members** | People with a member or viewer role | Nightly |
+| **Team** | People with any role except member (viewer and above), not counting super admins | Nightly |
+| **Members** | People with the member role | Nightly |
 | **Plugins** | Installed plugins | Nightly |
 
 A **—** means no nightly total has been taken for that site yet.
@@ -176,7 +176,38 @@ Good to know:
 - **The numbers are approximate, on the low side.** Counts are added up in memory and saved about once a minute, so a busy site costs one small database write a minute, not one per visit. Counts not yet saved when Cloudflare recycles a Worker instance are lost. Nothing is ever counted twice.
 - **No visitor data is stored.** Usage is a number per site, per day, per measure: no IP addresses, cookies or page addresses.
 - **History is kept for 400 days**, so you can compare a month with the same month last year.
-- Usage is only shown in Super Admin. Site owners and their teams don't see it.
+- Usage is only shown in Super Admin. A site's admins see their own usage only when their site is on a plan with limits (see below).
+
+---
+
+## Hosting plans
+
+**Super Admin → Plans** is where you set what each site may use. A plan has a name, a price (shown only; payment is separate), a description, and a box for each limit. **Leave a box empty for unlimited.** A site with no plan is on the built-in **Unlimited** plan, so nothing changes for anyone until you create a plan and choose it for a site in **Super Admin → Sites** (edit the site, then pick a **Hosting plan**). Changes take effect within a minute.
+
+| Limit | Kind | What happens at the limit |
+|---|---|---|
+| **Storage** | Hard | Uploads are refused: "Your plan's storage is full". This covers the media library, AI images, imported and restored media, theme images and emailed-in images. |
+| **Pages and posts** | Hard | New pages and posts are refused: from the editor, AI generation, translation, WordPress import, restore, post-by-email and the MCP tools. |
+| **Team members** | Hard | Inviting someone, or changing a member into a team role, is refused. Pending invitations count. |
+| **Site members** | Hard | Sign-ups and "join this site" are refused: "This site isn't accepting new members". |
+| **Plugins** | Hard | Installing is refused. Set it to 0 for a plan without plugins. |
+| **AI calls a month** | Hard | AI features are refused until the 1st. Background checks (comment spam, inbox sorting) quietly stop until then. |
+| **Emails a month** | Hard | Ordinary emails (form notifications, notices, inbox replies) are held back until the 1st. **Sign-in, password, invitation and security emails always go out.** |
+| **Page views a month** | Soft | Nothing is blocked. |
+| **Server renders a month** | Soft | Nothing is blocked. |
+
+Monthly limits reset on the 1st of the month (UTC).
+
+**Notifications for you.** Once an hour NuxFlow checks every site on a plan. When a site reaches **80%** or **100%** of a monthly limit (AI calls, emails, page views or server renders), you get a notification and an email on your main site, once per limit per month. For page views and server renders that's all that happens: you decide whether to talk to the customer, move them to a bigger plan, or put the site into maintenance mode.
+
+**What the site owner sees.** On a plan with limits, a site's admins get a **Your plan** card on their dashboard showing each limit and how much they've used. On the Unlimited plan they see nothing.
+
+**Good to know:**
+
+- Nothing is ever deleted to fit a plan. A site that's already over a limit when you choose a smaller plan keeps everything; it just can't add more.
+- Deleting a plan moves its sites back to Unlimited.
+- A visitor never sees a broken page because of a plan. Public pages are never blocked; traffic limits are soft only.
+- Monthly counts are saved about once a minute, so a site using AI or email very fast can go slightly over its allowance before it's refused.
 
 ---
 

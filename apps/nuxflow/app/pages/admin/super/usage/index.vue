@@ -34,8 +34,8 @@ const METRICS: { key: MetricKey; label: string; hint: string; bytes?: boolean }[
   { key: 'emails', label: 'Emails', hint: 'Recipients a provider accepted' },
   { key: 'storage_bytes', label: 'Storage', hint: 'Media library size (nightly)', bytes: true },
   { key: 'content_items', label: 'Pages', hint: 'Pages, posts and other content (nightly)' },
-  { key: 'team_members', label: 'Team', hint: 'Author role and above (nightly)' },
-  { key: 'site_members', label: 'Members', hint: 'Member and viewer roles (nightly)' },
+  { key: 'team_members', label: 'Team', hint: 'Viewer role and above, not counting super admins (nightly)' },
+  { key: 'site_members', label: 'Members', hint: 'Member role (nightly)' },
   { key: 'plugins', label: 'Plugins', hint: 'Installed plugins (nightly)' },
 ]
 const EVENT_METRICS = METRICS.slice(0, 5)

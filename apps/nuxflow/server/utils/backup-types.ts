@@ -474,4 +474,6 @@ export interface RestoreResult {
   users: { created: number; updated: number; skipped: number }
   membershipTiers: { created: number; updated: number; skipped: number }
   redirects: { created: number; updated: number; skipped: number }
+  /** Hosting-plan limits that stopped part of the restore (their items count as skipped). */
+  planLimits?: string[]
 }

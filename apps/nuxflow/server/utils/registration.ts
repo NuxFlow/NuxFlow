@@ -7,6 +7,7 @@ import { nuxflowPasswordHasher } from './pw'
 import { resolveSetting } from './settings'
 import { eventForSite } from './site-info'
 import { getOrCreateBetterAuth } from './better-auth'
+import { assertWithinPlan } from './hosting-plans'
 
 /** A site's own "Allow public registration" setting (Settings → General). */
 export async function isPublicRegistrationOpen(event: H3Event, siteId: string): Promise<boolean> {
@@ -32,6 +33,8 @@ export async function registerAccountForSite(
   if (!(await isPublicRegistrationOpen(event, siteId))) {
     throw forbidden('Public registration is not enabled for this site')
   }
+  // Checked before looking the email up, so a full site answers everyone the same way.
+  await assertWithinPlan(event, 'members', 1, siteId)
 
   const db = useDb(event)
   const email = input.email.toLowerCase()
