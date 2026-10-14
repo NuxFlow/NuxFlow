@@ -38,6 +38,25 @@ test.describe('Login flow', () => {
     expect(page.url()).toContain('/admin')
   })
 
+  // Signing out leaves /admin for a public page, which must be a full page load: the
+  // public theme and dark-mode script are only added when the server renders the HTML,
+  // so a client-side route change showed the page unstyled until a refresh.
+  test('signing out loads the next page fresh from the server', async ({ page }) => {
+    await page.goto('/login')
+    await page.waitForSelector('input[type="email"]')
+    await page.fill('input[type="email"]', ADMIN_EMAIL)
+    await page.fill('input[type="password"]', ADMIN_PASSWORD)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await page.waitForURL(/\/admin/, { timeout: 20_000 })
+
+    await page.evaluate(() => { (window as unknown as { __beforeSignOut?: boolean }).__beforeSignOut = true })
+    await page.getByRole('button', { name: 'Sign out' }).first().click()
+    await page.waitForURL(url => !url.pathname.startsWith('/admin'), { timeout: 20_000 })
+    await page.waitForLoadState('load')
+
+    expect(await page.evaluate(() => (window as unknown as { __beforeSignOut?: boolean }).__beforeSignOut)).toBeUndefined()
+  })
+
   test('invalid credentials show an error message', async ({ page }) => {
     await page.goto('/login')
     await page.waitForSelector('input[type="email"]')
