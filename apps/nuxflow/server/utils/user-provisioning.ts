@@ -1,13 +1,10 @@
 import type { H3Event } from 'h3'
-import { ulid } from 'ulid'
 import { useDb } from './db'
 import type { Db } from './db'
 import { getOrCreateBetterAuth } from './better-auth'
-import { sessions } from '@nuxflow/db/schema'
-import { eq } from 'drizzle-orm'
 
 /**
- * - `new`       — no account existed; one was just created with an unusable random password.
+ * - `new`       — no account existed; one was just created, with no password yet.
  * - `existing`  — an account the invitee has demonstrably claimed already; safe to grant a
  *                 role to as-is.
  * - `unclaimed` — an account exists for this email, but nothing proves the person who
@@ -45,8 +42,7 @@ export async function isUnclaimedAccount(db: Db, userId: string, emailVerified: 
   return !staffRole
 }
 
-// Creates a user account with an unusable random temp password if one doesn't already
-// exist for this email, without ever sending that password anywhere — callers are
+// Creates a user account if one doesn't already exist for this email. Callers are
 // expected to follow up with auth.api.requestPasswordReset() to give the person a real,
 // working way in (see server/api/v1/users/index.post.ts's own comment on why that's the
 // *only* email a brand-new account should get, not a separate dead-end "you've been
@@ -54,6 +50,13 @@ export async function isUnclaimedAccount(db: Db, userId: string, emailVerified: 
 // (server/utils/backup.ts), which both need "find this email, or create a fresh account
 // for it" — restoring a backup onto a brand-new deployment means none of the original
 // site's users exist there yet, so restore has the exact same provisioning need invite does.
+//
+// The account is created through Better Auth's internal adapter with no password at all,
+// rather than through signUpEmail() with a random throwaway one: hashing that throwaway
+// password cost ~170 ms of Argon2 CPU per account (a restore can create up to 500), for a
+// password nobody ever learns. Nothing is lost — with no credential account, email/password
+// sign-in simply fails, and Better Auth's reset-password creates the credential account
+// when the person sets their real password. No session is created either.
 //
 // Never mutates an existing account.
 export async function findOrCreateUserAccount(
@@ -76,17 +79,9 @@ export async function findOrCreateUserAccount(
   }
 
   const auth = await getOrCreateBetterAuth(event)
-  const tempPassword = `${ulid()}${ulid()}`
-  await auth.api.signUpEmail({ body: { name, email: normalizedEmail, password: tempPassword } })
-
-  const created = await db.query.users.findFirst({
-    where: (u, { eq }) => eq(u.email, normalizedEmail),
-    columns: { id: true },
-  })
+  const { internalAdapter } = await auth.$context
+  const created = await internalAdapter.createUser({ name, email: normalizedEmail, emailVerified: false }, { method: 'email-password' })
   if (!created) throw createError({ statusCode: 500, message: 'Failed to create user account' })
-  // Belt and braces for autoSignIn: false (better-auth.ts): nobody has signed in to an
-  // account created on their behalf, so no session may exist for it.
-  await db.delete(sessions).where(eq(sessions.userId, created.id))
   return { userId: created.id, status: 'new' }
 }
 

@@ -7,6 +7,23 @@
 export const WORKER_MEDIA_PREFIX = '/_nuxflow/media/'
 
 /**
+ * The R2 key behind a Worker-served media URL (`/_nuxflow/media/<key>`), or `null` when
+ * `url` isn't one or names an object outside `siteId`'s own `<siteId>/` prefix — the bucket
+ * holds every tenant's files, so a stored URL is never trusted to pick another site's.
+ */
+export function workerMediaKey(url: string, siteId: string): string | null {
+  if (!url.startsWith(WORKER_MEDIA_PREFIX)) return null
+  let key: string
+  try {
+    key = url.slice(WORKER_MEDIA_PREFIX.length).split('/').map(decodeURIComponent).join('/')
+  } catch {
+    return null
+  }
+  if (!key.startsWith(`${siteId}/`) || key.split('/').some(seg => seg === '' || seg === '.' || seg === '..')) return null
+  return key
+}
+
+/**
  * Worker-served media URLs are stored site-relative (`/_nuxflow/media/<key>`) so they
  * keep working through a domain change and on every domain of a multi-site install.
  * Anything that leaves the site — RSS/Atom, sitemaps, og:image, JSON-LD — needs an

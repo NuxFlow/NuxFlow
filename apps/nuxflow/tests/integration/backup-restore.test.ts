@@ -48,17 +48,22 @@ vi.mock('../../server/utils/plugin-signing', () => ({
   verifyPluginSignature: async (_key: string, _payload: unknown, signature: string) => signature === 'valid-signature',
 }))
 
-// findOrCreateUserAccount() (used by the 'users' restore section) calls
-// auth.api.signUpEmail() for an email with no existing account — simulate that by
-// actually inserting the user row it expects to find afterward, same as a real
-// Better Auth sign-up would leave behind.
+// findOrCreateUserAccount() (used by the 'users' restore section) creates a user with no
+// existing account through Better Auth's internal adapter — simulate that by inserting
+// the user row, same as the real adapter would.
 const mockRequestPasswordReset = vi.fn().mockResolvedValue(undefined)
 vi.mock('../../server/utils/better-auth', () => ({
   getOrCreateBetterAuth: async () => ({
-    api: {
-      signUpEmail: async ({ body }: { body: { name: string; email: string } }) => {
-        await getCurrentTestDb().insert(users).values({ id: ulid(), name: body.name, email: body.email, emailVerified: false })
+    $context: Promise.resolve({
+      internalAdapter: {
+        createUser: async (data: { name: string; email: string; emailVerified: boolean }, _source: { method: string }) => {
+          const id = ulid()
+          await getCurrentTestDb().insert(users).values({ id, ...data })
+          return { id, ...data }
+        },
       },
+    }),
+    api: {
       requestPasswordReset: mockRequestPasswordReset,
     },
   }),

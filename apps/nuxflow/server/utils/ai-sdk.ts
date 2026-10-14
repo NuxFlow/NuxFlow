@@ -2,7 +2,7 @@ import type { LanguageModel } from 'ai'
 import { isError, type H3Event } from 'h3'
 import { resolveSetting } from './settings'
 import { getCfBindings, getWorkersAiBinding } from './cf-env'
-import { WORKER_MEDIA_PREFIX } from './media-url'
+import { WORKER_MEDIA_PREFIX, workerMediaKey } from './media-url'
 
 /**
  * 'vision' is for routes that send image bytes to the model (alt-text.post.ts,
@@ -245,10 +245,8 @@ export async function loadImageBytesForAi(event: H3Event, url: string, fallbackM
 
   if (url.startsWith(WORKER_MEDIA_PREFIX)) {
     const siteId = event.context.siteId as string | undefined
-    const key = url.slice(WORKER_MEDIA_PREFIX.length).split('/').map(decodeURIComponent).join('/')
-    if (!siteId || !key.startsWith(`${siteId}/`) || key.split('/').some(seg => seg === '' || seg === '.' || seg === '..')) {
-      throw new Error('Image is not stored under this site')
-    }
+    const key = siteId ? workerMediaKey(url, siteId) : null
+    if (!key) throw new Error('Image is not stored under this site')
     const { r2 } = getCfBindings(event)
     if (!r2) throw new Error('Media bucket binding (MEDIA_BUCKET) is not available')
     const object = await r2.get(key)

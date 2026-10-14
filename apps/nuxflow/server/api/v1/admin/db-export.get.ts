@@ -34,9 +34,8 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'Content-Type', 'application/sql; charset=utf-8')
   setHeader(event, 'Content-Disposition', `attachment; filename="${filename}"`)
 
-  // Same TransformStream + sendStream() pattern already used by
-  // server/api/v1/import/wordpress.post.ts's import-progress stream — bytes reach the
-  // client as they're produced instead of accumulating here.
+  // Same TransformStream + sendStream() pattern server/api/v1/backup.get.ts uses for its
+  // zip — bytes reach the client as they're produced instead of accumulating here.
   const { readable, writable } = new TransformStream()
   const writer = writable.getWriter()
   const enc = new TextEncoder()

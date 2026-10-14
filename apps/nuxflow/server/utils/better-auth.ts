@@ -209,10 +209,11 @@ async function buildBetterAuthInstance(event: H3Event) {
     }),
     emailAndPassword: {
       enabled: true,
-      // signUpEmail is only ever called in-process (invites, restores — the public sign-up
-      // endpoint is blocked in 04.auth-override.ts), on behalf of someone else. Auto sign-in
-      // would leave a session for an invitee who never signed in, which made them look
-      // active ("pending" is partly inferred from sessions) and hid "Resend invite".
+      // Nothing in this app signs up through Better Auth's email sign-up any more (the public
+      // endpoint is blocked in 04.auth-override.ts; invites and restores create accounts
+      // with no password via findOrCreateUserAccount). Kept off regardless: auto sign-in on
+      // an account created on someone else's behalf would leave a session for a person who
+      // never signed in, making them look active ("pending" is partly inferred from sessions).
       autoSignIn: false,
       password: nuxflowPasswordHasher,
       sendResetPassword: async ({ user, url: resetUrl }) => {
@@ -284,11 +285,10 @@ async function buildBetterAuthInstance(event: H3Event) {
     // in every existing NuxFlow deployment has emailVerified=false (there was never a
     // way to set it true before this), so flipping on a hard login block would lock out
     // every current user, including site admins, the moment this ships. sendOnSignUp is
-    // deliberately omitted too: it would fire through auth.api.signUpEmail(), which is
-    // also what server/api/v1/users/index.post.ts uses to create a brand-new invitee's
-    // account — that route already sends its own "set your password" email right after,
-    // and a second "verify your email" email pointing at a login they can't use yet
-    // would recreate the exact dead-end that invite flow's own comments call out.
+    // deliberately omitted too: a brand-new invitee (server/api/v1/users/index.post.ts)
+    // already gets its own "set your password" email, and a second "verify your email"
+    // email pointing at a login they can't use yet would recreate the exact dead-end that
+    // invite flow's own comments call out.
     emailVerification: {
       sendVerificationEmail: async ({ user, url: verifyUrl }) => {
         await sendAuthEmail(verifyUrl, {
@@ -306,8 +306,8 @@ async function buildBetterAuthInstance(event: H3Event) {
       autoSignInAfterVerification: true,
     },
     // New-device sign-in alerts. Runs in the background on the live request (see
-    // auth-request-context.ts); sessions created outside an /api/auth request (the invite
-    // flow's in-process signUpEmail) have no request context and are skipped.
+    // auth-request-context.ts); a session created outside an /api/auth request has no
+    // request context and is skipped.
     databaseHooks: {
       session: {
         create: {

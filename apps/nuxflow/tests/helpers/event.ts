@@ -41,7 +41,7 @@ export interface MockEventOptions {
   cookies?: Record<string, string>
   method?: string
   // Backs the readMultipartFormData() stub — routes using multipart/form-data
-  // uploads (restore.post.ts, wordpress.post.ts, themes/index.post.ts).
+  // uploads (restore.post.ts, themes/index.post.ts).
   multipartFormData?: MockMultipartEntry[]
   // Backs the readFormData() stub — routes using the native Web FormData API
   // (media/upload.post.ts). Pass a real FormData instance.

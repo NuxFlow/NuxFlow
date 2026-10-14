@@ -10,6 +10,12 @@
 // WordPress-core HTML and pass through untouched as literal text — there's no generic
 // way to know what a third-party shortcode should become.
 
+import { decodeHtmlEntities } from '../../shared/lib/html-text'
+
+// Entity decoding and plain-text stripping live in shared/ — the WordPress import parses
+// its export file in the browser too. Re-exported for existing server-side importers.
+export { decodeHtmlEntities, stripHtmlToPlainText } from '../../shared/lib/html-text'
+
 export interface TTNode {
   type: string
   attrs?: Record<string, unknown>
@@ -26,37 +32,6 @@ type Token =
   | { kind: 'text'; text: string }
 
 const VOID_TAGS = new Set(['br', 'hr', 'img', 'input', 'meta', 'link', 'area', 'base', 'col', 'embed', 'source', 'track', 'wbr'])
-
-// Covers the entities that actually show up in WordPress-authored content (curly quotes,
-// dashes, ellipsis, nbsp, and the universal XML five) plus numeric/hex refs — not the
-// full HTML5 named-entity table, which WP content essentially never uses beyond these.
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&', lt: '<', gt: '>', quot: '"', apos: '\'',
-  nbsp: ' ', hellip: '…', mdash: '—', ndash: '–',
-  lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”',
-  copy: '©', reg: '®', trade: '™', deg: '°',
-  laquo: '«', raquo: '»',
-}
-
-export function decodeHtmlEntities(str: string): string {
-  return str.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-zA-Z][a-zA-Z0-9]*);/g, (whole, ent: string) => {
-    if (ent[0] === '#') {
-      const isHex = ent[1] === 'x' || ent[1] === 'X'
-      const code = Number.parseInt(isHex ? ent.slice(2) : ent.slice(1), isHex ? 16 : 10)
-      if (Number.isNaN(code)) return whole
-      try {
-        return String.fromCodePoint(code)
-      } catch {
-        return whole
-      }
-    }
-    return NAMED_ENTITIES[ent] ?? whole
-  })
-}
-
-export function stripHtmlToPlainText(html: string): string {
-  return decodeHtmlEntities(html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
-}
 
 // Unquoted attribute values explicitly exclude quote characters (rather than just
 // whitespace/">") so that alternative never overlaps with the quoted-value branches —

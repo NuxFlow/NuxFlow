@@ -103,7 +103,7 @@ export default defineEventHandler(async (event) => {
 
   // A brand-new slug can't already be cached, but the site-wide views (blog index,
   // sitemaps, feeds) and the archives of its terms that could now list it might be.
-  await purgeContentCache(event, { slugs: [body.slug], taxonomyTerms: await getTermRefsWithAncestors(db, termIds) })
+  await purgeContentCache(event, { published: body.status === 'published', slugs: [body.slug], taxonomyTerms: await getTermRefsWithAncestors(db, termIds) })
 
   waitUntil(event, upsertContentEmbedding(event, {
     contentItemId: id,

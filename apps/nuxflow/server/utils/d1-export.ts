@@ -55,8 +55,8 @@ import { getD1 } from './db'
 // below fixes this by writing each generated chunk out via a caller-supplied `write()`
 // callback immediately, never holding more than one page's worth of rows/SQL text at a
 // time — `server/api/v1/admin/db-export.get.ts` wires that callback straight to the HTTP
-// response body (the same TransformStream + sendStream() pattern already used by
-// wordpress.post.ts's import progress stream) so bytes reach the client as they're
+// response body (the same TransformStream + sendStream() pattern backup.get.ts uses for
+// its zip) so bytes reach the client as they're
 // produced instead of accumulating here. `generateD1SqlDump()` further below is a
 // buffering convenience wrapper around the same two functions, kept for tests and any
 // caller that actually wants the whole dump as one string — it reintroduces the exact

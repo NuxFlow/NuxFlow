@@ -287,6 +287,7 @@ async function syncAfterContentWrite(
     (termIds ? Promise.resolve(termIds) : getContentTermIds(ctx.db, itemId)).then(ids => getTermRefsWithAncestors(ctx.db, ids)),
   ])
   await purgeContentCache(ctx.event, {
+    published: rows.some(r => r.status === 'published'),
     slugs: [...new Set(rows.map(r => r.slug))],
     taxonomyTerms: termRefs,
     extraPaths: paths,
@@ -521,6 +522,7 @@ async function setContentTerms(args: unknown, ctx: McpToolContext): Promise<McpT
     after: { termIds },
   })
   await purgeContentCache(ctx.event, {
+    published: existing.status === 'published',
     slugs: [existing.slug],
     taxonomyTerms: await getTermRefsWithAncestors(ctx.db, [...new Set([...previous, ...termIds])]),
   })

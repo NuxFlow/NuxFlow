@@ -1,10 +1,16 @@
 <script setup lang="ts">
 const downloading = ref(false)
+const toast = useToast()
 async function downloadBackup() {
   downloading.value = true
   try {
     const res = await fetch('/api/v1/backup')
-    if (!res.ok) throw new Error('Failed')
+    if (!res.ok) {
+      const body = await res.json().catch(() => null) as { message?: string } | null
+      throw new Error(body?.message || 'The backup could not be created.')
+    }
+    // The zip is streamed; a failure partway through rejects here rather than saving a
+    // truncated file.
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -12,6 +18,12 @@ async function downloadBackup() {
     a.download = `nuxflow-backup-${new Date().toISOString().slice(0, 10)}.zip`
     a.click()
     URL.revokeObjectURL(url)
+  } catch (err) {
+    toast.add({
+      title: 'Backup failed',
+      description: err instanceof Error && err.message !== 'Failed to fetch' ? err.message : 'The download was interrupted. Please try again.',
+      color: 'error',
+    })
   } finally {
     downloading.value = false
   }

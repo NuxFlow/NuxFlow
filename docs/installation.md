@@ -226,6 +226,8 @@ custom_domain = true
 
 Then sign in to the admin **on the new domain**. With a single site, NuxFlow notices the new address and updates the site's stored domain, so links in emails, feeds, and sitemaps use it.
 
+Finally, in the Cloudflare dashboard for the domain, open **Caching → Configuration** and set **Browser Cache TTL** to **Respect Existing Headers**. NuxFlow already tells browsers how long to keep each file: scripts and styles for a year, and pages not at all, so an edit shows on a visitor's next page load. The default setting (4 hours) can make Cloudflare tell browsers to keep pages longer, so returning visitors may keep seeing an old version of a page for up to 4 hours after you change it.
+
 ### Step 9: Verify Cron Triggers
 
 NuxFlow runs scheduled jobs for timed publishing, nightly cleanup, and stuck-video checks. The triggers are defined in `wrangler.toml`:
@@ -515,6 +517,58 @@ Set **both** keys or neither:
 - With only the site key, visitors see the Turnstile widget, but submissions are never actually verified.
 - With only the secret, the widget isn't shown, so every contact-form and form submission is rejected.
 
+### Rate Limiting (Cloudflare WAF)
+
+A rate-limiting rule stops one visitor from loading pages faster than any person could. You set it up once in the Cloudflare dashboard. NuxFlow has no setting for it.
+
+**What it protects against.** NuxFlow keeps a cached copy of each public page, so most visits cost almost nothing. A script can get around that cache by adding a different made-up query string to every request (`/about?x=1`, `/about?x=2`, …), which makes your Worker build the page from scratch each time. That uses CPU time you pay for and can slow the site down. Cloudflare checks rate-limiting rules *before* a request reaches your Worker, so a blocked request costs you nothing: no Worker request and no CPU time.
+
+**What it doesn't cover:**
+- **Attacks spread over thousands of IP addresses.** Cloudflare's automatic DDoS protection handles those, and you can switch on **Under Attack Mode** in an emergency.
+- **Other Cloudflare accounts.** A rule only applies to the zone (domain) you create it in. If you host several sites, create it on your platform domain. A customer whose domain is on their own Cloudflare account needs to add their own rule.
+
+**What your plan allows.** Every plan includes rate-limiting rules. The Free plan allows one rule, counts by IP address over 10 seconds, and blocks for 10 seconds. Pro allows two rules, longer time windows, and rules that look at the query string.
+
+#### Create the rule
+
+1. In the [Cloudflare dashboard](https://dash.cloudflare.com/), select your zone (your site's domain).
+2. Go to **Security → Security rules**, then select **Create rule → Rate limiting rules**. (On older dashboards this is **Security → WAF → Rate limiting rules**.)
+3. Enter a name, for example `Limit page loads per visitor`.
+4. Under **If incoming requests match**, select **Edit expression** and paste:
+
+   ```txt
+   (not starts_with(http.request.uri.path, "/api/") and not starts_with(http.request.uri.path, "/_") and not starts_with(http.request.uri.path, "/admin") and not cf.client.bot)
+   ```
+
+   This counts only public page loads. It leaves out the admin area, the requests the app makes for data, scripts and media, and verified search-engine crawlers such as Googlebot and Bingbot, so your search ranking isn't affected. If the editor rejects part of the expression on your plan, remove that part. The rule still works; it is just less precise.
+5. Under **With the same characteristics**, keep **IP**.
+6. Under **When rate exceeds**, enter **30** requests per **10 seconds**. A real person loads only a few pages in 10 seconds, so this catches scripts and leaves people alone, including offices and schools where many people share one IP address.
+7. Under **Then take action**, choose **Block**, for **10 seconds** (fixed on the Free plan).
+8. Select **Deploy**.
+
+#### Optional: a stricter rule for query strings (Pro plan and above)
+
+The second rule on the Pro plan can target the cache-busting trick directly by counting only page requests that have a query string:
+
+```txt
+(http.request.uri.query ne "" and not starts_with(http.request.uri.path, "/api/") and not starts_with(http.request.uri.path, "/_") and not cf.client.bot)
+```
+
+Use **20** requests per **1 minute**, counted by **IP**, and **Block** for **10 minutes**. Legitimate query strings, such as `?page=2` on the blog or a search, are rarely requested 20 times a minute by one person.
+
+#### Check it works
+
+Run this from your own computer, replacing the domain with yours:
+
+```bash
+for i in $(seq 40); do curl -s -o /dev/null -w "%{http_code} " "https://example.com/?test=$i"; done
+```
+
+The first responses are `200`. After about 30 they change to `429` (Too Many Requests), which means the rule blocked them. Your own IP address is unblocked again after 10 seconds. Blocked requests also appear under **Security → Events**, where you can filter by the rule's name.
+
+> [!NOTE]
+> If real visitors or a tool you rely on (an uptime monitor, for example) ever get blocked, raise the limit, or add `and not ip.src eq 203.0.113.10` with that tool's IP address to the expression.
+
 ### Dynamic Plugins (KV + Worker Loaders)
 
 Dynamic plugins run as isolated Cloudflare Workers and are stored in a KV namespace. This allows plugins to be installed or updated without redeploying the site.
@@ -714,4 +768,12 @@ This applies if your site has a contact form or other forms.
 #### ☐ 10. Turn on IndexNow
 
 - **Do this:** switch on **Admin → SEO → Indexing → IndexNow**, then click **Submit all URLs now** once. After that, Bing and other participating search engines hear about new and changed pages within minutes instead of days. There's no account to create.
+
+#### ☐ 11. Limit how fast one visitor can load pages (Cloudflare rate limiting)
+
+This is done once, in the Cloudflare dashboard, by whoever runs the installation.
+
+- **If you skip it:** a script can request your pages over and over with a different made-up query string each time, which gets around NuxFlow's page cache. Every one of those requests makes your Worker build the page from scratch, using CPU time you pay for and slowing the site down.
+- **Do this:** create one rate-limiting rule for your domain: 30 page loads per 10 seconds per IP address, with the admin area, app data and search-engine crawlers left out. It works on the Free plan. See [Rate Limiting (Cloudflare WAF)](#rate-limiting-cloudflare-waf) for the exact rule to paste.
+- **Check:** the test loop in that section starts returning `429` after about 30 requests. NuxFlow can't see Cloudflare dashboard settings, so the dashboard card can't tick this one off for you: select **Skip** on it once the rule is in place.
 

@@ -14,7 +14,7 @@ import { errorMessage } from '../utils/errors'
 // build does). The dedicated './consent' subpath in packages/canvas/package.json's
 // `exports` map points straight at the plain-TS consent utility, never touching a .vue
 // file, so it's safe to import from both server and client code.
-import { hasOptionalConsent, isGdprCountry, parseConsentFromHeader } from '@nuxflow/canvas/consent'
+import { pageCacheVariant } from '../utils/page-cache'
 
 // A visitor's browser runs this once the document is available: if the shared
 // nuxflow_consent cookie (see @nuxflow/canvas's consent utility) already grants
@@ -22,10 +22,9 @@ import { hasOptionalConsent, isGdprCountry, parseConsentFromHeader } from '@nuxf
 // dispatch on save, it promotes the inert <template data-nuxflow-consent-html> the
 // server wrote instead of the real tags (see the injection logic below) into live
 // <head>/<body> content. Cloning a <script> node does not execute it, so scripts are
-// specifically re-created via createElement rather than cloneNode. This only ever runs
-// when the server decided NOT to inject the code directly — see hasOptionalConsent's
-// call site below — so a consented visitor's very next request skips this path
-// entirely and gets the code injected directly again, same as before this change.
+// specifically re-created via createElement rather than cloneNode. This is the only way
+// the code ever runs for a visitor in the GDPR/UK/CH zone, consented or not — see the
+// injection logic below for why the server never decides that from the cookie itself.
 const CONSENT_ACTIVATION_SCRIPT = `<script>(function(){
 function activateScope(scope,target){
 document.querySelectorAll('template[data-nuxflow-consent-html="'+scope+'"]').forEach(function(tpl){
@@ -190,20 +189,21 @@ export default defineNitroPlugin((nitro) => {
       // @nuxflow/canvas's consent utility) instead of always running. Requests from
       // outside the GDPR/UK/CH zone (or where Cloudflare's cf-ipcountry header is
       // absent, e.g. local dev without a real Cloudflare edge in front) are treated as
-      // not requiring prior consent and get the code directly, matching this
-      // deployment's pre-existing behaviour for that traffic; a request with the
-      // header present and inside that zone must have an explicit analytics/marketing
-      // consent before either field ever reaches the page.
+      // not requiring prior consent and get the code directly. Inside that zone the
+      // code is always held back here and CONSENT_ACTIVATION_SCRIPT promotes it in the
+      // browser once the cookie grants analytics/marketing consent (immediately on load
+      // for a visitor who already consented). The cookie is deliberately not read here:
+      // the HTML then depends only on the region, which the full-page cache keys on
+      // (pageCacheVariant() in utils/page-cache.ts) — reading the cookie would let one
+      // consented visitor's render be served to a visitor who never consented.
       // Never on the sign-in and account pages, even on a single-site install that signs in
       // on its own domain: script there could read a password as it's typed or a reset
       // token from the URL. (Under central sign-in those pages don't exist on a site's
       // domain at all — see utils/accounts-origin.ts.)
       if (!isAdmin && !isAuthPath(path) && (customHeadHtml || customBodyHtml)) {
-        const consent = parseConsentFromHeader(getRequestHeader(event, 'cookie'))
-        const regulatedVisitor = isGdprCountry(getRequestHeader(event, 'cf-ipcountry'))
-        const allowed = hasOptionalConsent(consent) || !regulatedVisitor
+        const regulatedVisitor = pageCacheVariant(event) === 'r'
 
-        if (allowed) {
+        if (!regulatedVisitor) {
           if (customHeadHtml) html.head.push(customHeadHtml)
           if (customBodyHtml) html.bodyAppend.push(customBodyHtml)
         }

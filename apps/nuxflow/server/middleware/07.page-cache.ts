@@ -1,5 +1,6 @@
 import type { EdgeCacheStorage } from '../utils/edge-cache'
-import { isPageCacheEligible, pageCacheRequest } from '../utils/page-cache'
+import { isPageCacheEligible, PAGE_BROWSER_CACHE_CONTROL, pageCacheRequest } from '../utils/page-cache'
+import { currentCacheVersion } from '../utils/cache-version'
 
 // Ordering matters here and Nitro loads server/middleware/** in filename order, which is
 // why this is numbered rather than left to sort alphabetically after 04.auth-override.ts —
@@ -26,12 +27,18 @@ export default defineEventHandler(async (event) => {
   const cache = (caches as unknown as EdgeCacheStorage).default
 
   try {
-    const cached = await cache.match(pageCacheRequest(event))
+    // Read once, here, and reused by the write side (plugins/page-cache.ts): a page that
+    // started rendering before an edit bumped the version must be saved under the old
+    // version, never the new one.
+    const version = await currentCacheVersion(event)
+    event.context.pageCacheVersion = version
+    const cached = await cache.match(pageCacheRequest(event, version))
     if (!cached) return
 
     const body = await cached.text()
     setHeader(event, 'Content-Type', cached.headers.get('content-type') ?? 'text/html; charset=utf-8')
-    setHeader(event, 'Cache-Control', cached.headers.get('cache-control') ?? 'public, max-age=3600')
+    // The stored copy's own max-age is for Cloudflare's cache, not the visitor's browser.
+    setHeader(event, 'Cache-Control', PAGE_BROWSER_CACHE_CONTROL)
     setHeader(event, 'X-NuxFlow-Page-Cache', 'HIT')
     setResponseStatus(event, 200)
     return body

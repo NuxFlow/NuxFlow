@@ -20,7 +20,7 @@ import type { H3Event } from 'h3'
 import { zipSync, unzipSync } from 'fflate'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
-import { seedSite, seedUser, seedRole, seedContentType, seedContentItem } from '../helpers/seed'
+import { seedSite, seedUser, seedRole, seedContentType, seedContentItem, seedMedia } from '../helpers/seed'
 import { contentItems, media, menus, users } from '@nuxflow/db/schema'
 import { eq, and } from 'drizzle-orm'
 import backupGetHandler from '../../server/api/v1/backup.get'
@@ -39,7 +39,20 @@ vi.mock('../../server/utils/db', () => ({
   getD1: () => null,
 }))
 
+// The backup route streams its zip; hand the stream back so tests can read it.
+vi.mock('h3', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  sendStream: (_event: unknown, stream: ReadableStream) => stream,
+}))
+
+async function readZip(result: unknown): Promise<Uint8Array> {
+  return new Uint8Array(await new Response(result as ReadableStream).arrayBuffer())
+}
+
 const BACKUP_SITE = 'site-http-backup-01'
+const R2_BACKUP_SITE = 'site-http-backup-r2-01'
+const RESTORE_MEDIA_SITE = 'site-http-restore-media-01'
+const BIG_BACKUP_SITE = 'site-http-backup-big-01'
 const RESTORE_ZIP_SITE = 'site-http-restore-zip-01'
 const RESTORE_JSON_SITE = 'site-http-restore-json-01'
 const VALIDATION_SITE = 'site-http-restore-validate-01'
@@ -61,10 +74,13 @@ beforeAll(async () => {
   await seedSite(db, { id: RESTORE_ZIP_SITE, domain: 'http-restore-zip.localhost' })
   await seedSite(db, { id: RESTORE_JSON_SITE, domain: 'http-restore-json.localhost' })
   await seedSite(db, { id: VALIDATION_SITE, domain: 'http-restore-validate.localhost' })
+  await seedSite(db, { id: R2_BACKUP_SITE, domain: 'http-backup-r2.localhost' })
+  await seedSite(db, { id: RESTORE_MEDIA_SITE, domain: 'http-restore-media.localhost' })
+  await seedSite(db, { id: BIG_BACKUP_SITE, domain: 'http-backup-big.localhost' })
 
   adminId = await seedUser(db, { email: 'admin@http-backup.test' })
   viewerId = await seedUser(db, { email: 'viewer@http-backup.test' })
-  for (const site of [BACKUP_SITE, RESTORE_ZIP_SITE, RESTORE_JSON_SITE, VALIDATION_SITE]) {
+  for (const site of [BACKUP_SITE, RESTORE_ZIP_SITE, RESTORE_JSON_SITE, VALIDATION_SITE, R2_BACKUP_SITE, BIG_BACKUP_SITE, RESTORE_MEDIA_SITE]) {
     await seedRole(db, adminId, site, 'admin')
   }
   await seedRole(db, viewerId, BACKUP_SITE, 'viewer')
@@ -136,7 +152,7 @@ describe('GET /api/v1/backup (real HTTP handler)', () => {
       session: admin(adminId),
     }) as unknown as H3Event
 
-    const zipBytes = await (backupGetHandler as HandlerFn)(event) as Uint8Array
+    const zipBytes = await readZip(await (backupGetHandler as HandlerFn)(event))
     expect(zipBytes[0]).toBe(0x50)
     expect(zipBytes[1]).toBe(0x4B)
 
@@ -147,6 +163,36 @@ describe('GET /api/v1/backup (real HTTP handler)', () => {
 
     expect((event as unknown as { _responseHeaders: Record<string, string> })._responseHeaders['Content-Type']).toBe('application/zip')
     expect((event as unknown as { _responseHeaders: Record<string, string> })._responseHeaders['Content-Disposition']).toMatch(/attachment/)
+  })
+
+  // Binding-only R2 stores site-relative /_nuxflow/media/<key> URLs. These used to fail the
+  // absolute-URL safety check and be silently left out, so backups had no images at all.
+  it('bundles Worker-served R2 media read from the bucket, and never an object of another site', async () => {
+    const db = getCurrentTestDb()
+    const ownId = await seedMedia(db, R2_BACKUP_SITE, { originalName: 'own.jpg', size: 4, url: `/_nuxflow/media/${R2_BACKUP_SITE}/own.jpg`, storageProvider: 'r2' })
+    const foreignId = await seedMedia(db, R2_BACKUP_SITE, { originalName: 'foreign.jpg', size: 4, url: `/_nuxflow/media/${BACKUP_SITE}/secret.jpg`, storageProvider: 'r2' })
+    const objects: Record<string, string> = {
+      [`${R2_BACKUP_SITE}/own.jpg`]: 'OWN!',
+      [`${BACKUP_SITE}/secret.jpg`]: 'NOPE',
+    }
+    const bucket = { get: vi.fn(async (key: string) => objects[key] === undefined ? null : { body: new Response(objects[key]).body }) }
+
+    const event = createMockEvent({ siteId: R2_BACKUP_SITE, session: admin(adminId) }) as unknown as H3Event & { context: Record<string, unknown> }
+    event.context.cloudflare = { env: { MEDIA_BUCKET: bucket } }
+
+    const files = unzipSync(await readZip(await (backupGetHandler as HandlerFn)(event)))
+    const backup = JSON.parse(new TextDecoder().decode(files['backup.json'])) as NuxFlowBackup
+    const own = backup.media.find(m => m.id === ownId)!
+    expect(own.zipPath).toBe(`images/${ownId}.jpg`)
+    expect(new TextDecoder().decode(files[own.zipPath!])).toBe('OWN!')
+    expect(backup.media.find(m => m.id === foreignId)!.zipPath).toBeNull()
+    expect(bucket.get).not.toHaveBeenCalledWith(`${BACKUP_SITE}/secret.jpg`)
+  })
+
+  it('refuses with 413 before streaming when the media adds up to more than 100 MB', async () => {
+    await seedMedia(getCurrentTestDb(), BIG_BACKUP_SITE, { size: 101 * 1024 * 1024 })
+    const event = createMockEvent({ siteId: BIG_BACKUP_SITE, session: admin(adminId) }) as unknown as H3Event
+    await expect((backupGetHandler as HandlerFn)(event)).rejects.toMatchObject({ statusCode: 413 })
   })
 
   it('rejects a non-admin (viewer) with 403', async () => {
@@ -188,6 +234,40 @@ describe('POST /api/v1/restore (real HTTP handler)', () => {
       where: and(eq(menus.siteId, RESTORE_ZIP_SITE), eq(menus.name, 'Main Menu')),
     })
     expect(menu).toBeTruthy()
+  })
+
+  // The restore decompresses one entry at a time (never the whole archive) — this checks a
+  // bundled file still comes back, including from a zip packaged on Windows (backslashes).
+  it('(a.2) re-uploads a media file bundled in the zip', async () => {
+    const pixel = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 1, 2, 3, 4])
+    const backup = minimalBackup({
+      media: [{
+        id: 'm1', originalName: 'pixel.png', mimeType: 'image/png', size: pixel.byteLength,
+        width: null, height: null, altText: 'A pixel', caption: null,
+        url: 'https://old.example/pixel.png', zipPath: 'images/m1.png',
+      }],
+    })
+    const event = mkRestoreEvent(RESTORE_MEDIA_SITE, zipOf(backup, { 'images\\m1.png': pixel })) as unknown as H3Event & { context: Record<string, unknown> }
+    // A bucket of its own: cf-env remembers the last MEDIA_BUCKET it saw, so without this the
+    // active provider would be whatever stub an earlier test in this file left behind.
+    const stored = new Map<string, Uint8Array>()
+    const bucket = {
+      put: vi.fn(async (key: string, data: ArrayBuffer | Uint8Array | Blob) => {
+        stored.set(key, new Uint8Array(data instanceof Blob ? await data.arrayBuffer() : data))
+      }),
+      head: vi.fn(async (key: string) => stored.has(key) ? {} : null),
+      get: vi.fn(async () => null),
+      delete: vi.fn(async () => {}),
+    }
+    event.context.cloudflare = { env: { MEDIA_BUCKET: bucket } }
+
+    const result = await (restorePostHandler as HandlerFn)(event) as { media: { uploaded: number; skipped: number } }
+
+    expect(result.media).toEqual({ uploaded: 1, skipped: 0 })
+    expect([...stored.values()][0]).toEqual(pixel)
+    const row = await getCurrentTestDb().query.media.findFirst({ where: eq(media.siteId, RESTORE_MEDIA_SITE) })
+    expect(row?.altText).toBe('A pixel')
+    expect(row?.size).toBe(pixel.byteLength)
   })
 
   it('(b) rejects a zip containing a Zip-Slip path-traversal entry before ever unzipping it', async () => {

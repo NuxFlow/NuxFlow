@@ -36,6 +36,7 @@ export default defineEventHandler(async (event) => {
   // Both the newly added and the removed terms' archives (and their parents', which roll
   // sub-term content up) list this item differently now.
   await purgeContentCache(event, {
+    published: item.status === 'published',
     slugs: [item.slug],
     taxonomyTerms: await getTermRefsWithAncestors(db, [...new Set([...previousTermIds, ...termIds])]),
   })

@@ -162,11 +162,20 @@ describe('site-settings-resolver', () => {
       expect(html.bodyAppend.join('')).toContain('nuxflow:consent-updated')
     })
 
-    it('injects directly for a GDPR visitor who granted analytics consent', async () => {
+    // The page cache keys on region only (pageCacheVariant), so the HTML must not depend on
+    // the consent cookie: a consented GDPR visitor gets the same held-back markup, and the
+    // activation script (which checks the cookie on load) runs the code in their browser.
+    it('holds the code back for a GDPR visitor even with consent — activated client-side', async () => {
       const cookie = `nuxflow_consent=${encodeURIComponent(JSON.stringify({ necessary: true, analytics: true, marketing: false }))}`
-      const html = blank()
-      await renderSettings(html, { event: ev({ headers: { 'cf-ipcountry': 'FR', cookie } }) })
-      expect(html.head).toContain(TAG)
+      const consented = blank()
+      await renderSettings(consented, { event: ev({ headers: { 'cf-ipcountry': 'FR', cookie } }) })
+      const anonymous = blank()
+      await renderSettings(anonymous, { event: ev({ headers: { 'cf-ipcountry': 'FR' } }) })
+
+      expect(consented.head).not.toContain(TAG)
+      expect(consented.head).toContain(`<template data-nuxflow-consent-html="head">${TAG}</template>`)
+      expect(consented.bodyAppend.join('')).toContain('if(hasConsent()){activate();}')
+      expect(consented).toEqual(anonymous)
     })
 
     it('never injects custom code into the admin', async () => {
