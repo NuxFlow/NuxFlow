@@ -193,7 +193,7 @@ describe('nightly snapshot', () => {
 
     expect(await usageRow(A, 'content_items')).toBe(2)
     expect(await usageRow(A, 'storage_bytes')).toBe(1500)
-    expect(await usageRow(A, 'team_members')).toBe(1) // the super admin
+    expect(await usageRow(A, 'team_members')).toBe(0) // the operator's super admin doesn't count
     expect(await usageRow(A, 'site_members')).toBe(1)
     expect(await usageRow(A, 'plugins')).toBe(1)
     expect(await usageRow(B, 'content_items')).toBe(0)

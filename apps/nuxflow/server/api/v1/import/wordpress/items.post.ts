@@ -4,6 +4,7 @@ import { ulid } from 'ulid'
 import { contentItems, contentTaxonomyTerms, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { requireRole } from '../../../../utils/permissions'
 import { useDb } from '../../../../utils/db'
+import { assertWithinPlan } from '../../../../utils/hosting-plans'
 import { writeAuditLog } from '../../../../utils/audit'
 import { htmlToTipTap } from '../../../../utils/html-to-tiptap'
 import { chunked, getImportContentTypes, IN_LIST_CHUNK } from '../../../../utils/wordpress-import'
@@ -58,6 +59,8 @@ export default defineEventHandler(async (event) => {
       skipped++
       continue
     }
+    // Items already imported in this batch stay; the import page shows the message and stops.
+    await assertWithinPlan(event, 'content')
     const itemId = ulid()
     await db.insert(contentItems).values({
       id: itemId,

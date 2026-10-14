@@ -16,6 +16,7 @@ import { getUserSiteRole, roleAtLeast, type Role } from './permissions'
 import { uniqueContentSlug } from './content-queries'
 import { htmlToTipTap, stripHtmlToPlainText, type TTNode } from './html-to-tiptap'
 import { getActiveProvider } from './media-providers/index'
+import { assertWithinPlan, checkPlanLimit, planLimitMessage } from './hosting-plans'
 import { buildAuditLogInsert, batchWithAudit } from './audit'
 import { bufferToHex } from './buffer'
 
@@ -555,6 +556,8 @@ async function handlePostByEmail(input: InboundInput): Promise<void> {
   if ((recent?.n ?? 0) >= POST_BY_EMAIL_HOURLY_LIMIT) {
     return rejectPost(input, `more than ${POST_BY_EMAIL_HOURLY_LIMIT} emails in the last hour`, ownerId)
   }
+  const room = await checkPlanLimit(db, siteId, 'content')
+  if (!room.allowed) return rejectPost(input, planLimitMessage('content', room.max ?? 0), ownerId)
 
   // Images: raster attachments go to the media library under the owner's name; inline
   // ones (cid:) are swapped into the HTML in place, the rest appended after the text.
@@ -572,6 +575,7 @@ async function handlePostByEmail(input: InboundInput): Promise<void> {
     const storageKey = `${siteId}/${fileId}.${ext}`
     const name = (att.filename || `image.${ext}`).slice(0, 200)
     try {
+      await assertWithinPlan(event, 'storage', bytes.byteLength, siteId)
       const { url } = await provider.upload(new File([bytes], name, { type: mimeType }), storageKey, siteId)
       await db.insert(media).values({
         id: fileId,
@@ -591,7 +595,8 @@ async function handlePostByEmail(input: InboundInput): Promise<void> {
       else trailingImages.push(url)
     }
     catch (err) {
-      // The database fallback provider refuses files over 512 KB — skip the image, keep the post.
+      // The database fallback provider refuses files over 512 KB, and a full plan refuses
+      // any — skip the image, keep the post.
       console.error('[inbound-email] Draft image upload failed:', err)
     }
   }

@@ -111,6 +111,7 @@ The database schema lives in `packages/db/src/schema/`. Each file groups related
 | `forms.ts` | Forms, submissions |
 | `payments.ts` | Membership tiers, subscriptions |
 | `system.ts` | Plugins, themes, audit logs, notifications, crawler activity, per-site usage counters |
+| `hosting.ts` | Hosting plans (the limits a site can be put on) |
 
 All schema files are re-exported from `packages/db/src/schema/index.ts`.
 

@@ -8,6 +8,7 @@ import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
 import { unzipSync } from 'fflate'
 import { getActiveProvider } from '../../../utils/media-providers/index'
+import { assertWithinPlan } from '../../../utils/hosting-plans'
 import type { NuxFlowBackup } from '../../../utils/backup'
 import { validateZipArchive } from '../../../utils/zip-validate'
 import { isHttpError } from '../../../utils/errors'
@@ -117,6 +118,7 @@ export default defineEventHandler(async (event) => {
 
           try {
             const imageFile = new File([new Uint8Array(imageData)], filename, { type: mimeType })
+            await assertWithinPlan(event, 'storage', imageFile.size)
             const { url } = await provider.upload(imageFile, storageKey, siteId)
 
             // Rewrite all occurrences of the relative path in demo.json

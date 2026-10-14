@@ -5,6 +5,8 @@ import { applyBackup, parseBackupJson, rewriteImageUrls } from '../../utils/back
 import type { NuxFlowBackup, RestoreOptions } from '../../utils/backup'
 import { unzipSync } from 'fflate'
 import { getActiveProvider } from '../../utils/media-providers/index'
+import { checkPlanLimit } from '../../utils/hosting-plans'
+import { noteLimit } from '../../utils/backup-restore/plan-limits'
 import { media } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { useDb } from '../../utils/db'
@@ -85,6 +87,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const mediaResult = { uploaded: 0, skipped: 0 }
+  let storageFull = false
 
   // Re-upload bundled images to the active media provider
   if (backup.media?.length && what.includes('content')) {
@@ -148,6 +151,11 @@ export default defineEventHandler(async (event) => {
           if (existing) {
             await db.update(media).set(values).where(eq(media.id, existing.id))
           } else {
+            if (!(await checkPlanLimit(db, siteId, 'storage', item.size)).allowed) {
+              storageFull = true
+              mediaResult.skipped++
+              continue
+            }
             await db.insert(media).values({ id: rowId, ...values })
           }
           mediaResult.uploaded++
@@ -177,6 +185,11 @@ export default defineEventHandler(async (event) => {
         const ext = item.originalName.split('.').pop() ?? 'bin'
         const storageKey = `${siteId}/${ulid()}.${ext}`
         const imageFile = new File([imageData as Uint8Array<ArrayBuffer>], item.originalName, { type: item.mimeType })
+        if (!(await checkPlanLimit(db, siteId, 'storage', imageFile.size)).allowed) {
+          storageFull = true
+          mediaResult.skipped++
+          continue
+        }
         const { url } = await provider.upload(imageFile, storageKey, siteId)
 
         urlMap.set(item.url, url)
@@ -231,5 +244,6 @@ export default defineEventHandler(async (event) => {
     after: { what, conflictMode: query.conflictMode, result, media: mediaResult },
   })
 
+  if (storageFull) noteLimit(result, 'storage')
   return { success: true, result, media: mediaResult }
 })

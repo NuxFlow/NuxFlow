@@ -4,6 +4,7 @@ import { requireRole, roleAtLeast, AUTHOR_SETTABLE_STATUSES } from '../../../uti
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getContentTypeBySlugOrThrow, getContentItemOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
 import { created, conflict } from '../../../utils/response'
+import { assertWithinPlan } from '../../../utils/hosting-plans'
 import { purgeContentCache } from '../../../utils/edge-cache'
 import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexnow'
 import { waitUntil } from '../../../utils/cf-env'
@@ -70,6 +71,7 @@ export default defineEventHandler(async (event) => {
   })
   const siteLocale = site?.locale || 'en'
 
+  await assertWithinPlan(event, 'content')
   const id = ulid()
   const itemInsert = db.insert(contentItems).values({
     id,

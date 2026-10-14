@@ -3,6 +3,8 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { contentTypes, contentItems, contentTaxonomyTerms } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import type { Db } from '../db'
+import { checkPlanLimit } from '../hosting-plans'
+import { noteLimit } from './plan-limits'
 import type { NuxFlowBackup, RestoreOptions, RestoreResult } from '../backup-types'
 import { archiveSuffix } from './shared'
 
@@ -141,6 +143,11 @@ export async function restoreContent(
       }
     }
 
+    if (!(await checkPlanLimit(db, siteId, 'content')).allowed) {
+      noteLimit(result, 'content')
+      result.content.skipped++
+      continue
+    }
     const id = ulid()
     idBySlug.set(backupItem.slug, id)
     await db.insert(contentItems).values({

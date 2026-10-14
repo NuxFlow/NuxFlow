@@ -1,6 +1,7 @@
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { getActiveProvider } from '../../../utils/media-providers/index'
+import { assertWithinPlan } from '../../../utils/hosting-plans'
 import { extractExif } from '../../../utils/exif'
 import { extractImageDimensions } from '../../../utils/image-dimensions'
 import { sanitizeSvg } from '../../../utils/sanitize-css-svg'
@@ -68,6 +69,7 @@ export default defineEventHandler(async (event) => {
     ? new File([sanitizeSvg(await file.text())], file.name, { type: mimeType })
     : new File([file], file.name, { type: mimeType })
 
+  await assertWithinPlan(event, 'storage', uploadFile.size)
   const provider = await getActiveProvider(event)
   let url: string
   try {

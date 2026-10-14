@@ -1,8 +1,17 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
-type SiteRow = { id: string; name: string; domain: string; status: string; locale?: string; createdAt: string }
+type SiteRow = { id: string; name: string; domain: string; status: string; locale?: string; hostingPlanId: string | null; createdAt: string }
 const { data, refresh } = await useFetch<{ sites: SiteRow[] }>('/api/v1/admin/sites')
+const { data: planData } = await useFetch<{ plans: { id: string; name: string }[] }>('/api/v1/admin/plans')
+
+// The select can't hold null, so the built-in unlimited plan is this sentinel in the form.
+const UNLIMITED = 'unlimited'
+const planItems = computed(() => [
+  { label: 'Unlimited (built-in)', value: UNLIMITED },
+  ...(planData.value?.plans ?? []).map(p => ({ label: p.name, value: p.id })),
+])
+const planName = (id: string | null) => (id && planData.value?.plans.find(p => p.id === id)?.name) || 'Unlimited'
 
 // useRequestURL() is the same on the server and in the browser. Reading window.location
 // only in the browser left it blank in the server render, so the current site's delete
@@ -18,6 +27,7 @@ const columns = [
   { accessorKey: 'name', header: 'Name' },
   { accessorKey: 'domain', header: 'Domain' },
   { accessorKey: 'status', header: 'Status' },
+  { accessorKey: 'hostingPlanId', header: 'Plan' },
   { accessorKey: 'createdAt', header: 'Created' },
   { id: 'actions', header: '' },
 ]
@@ -31,6 +41,7 @@ const editForm = reactive({
   domain: '',
   status: 'active' as 'active' | 'maintenance' | 'suspended',
   locale: 'en',
+  hostingPlanId: UNLIMITED,
 })
 
 const isDeleteOpen = ref(false)
@@ -47,6 +58,7 @@ function openEdit(site: SiteRow) {
   editForm.domain = site.domain
   editForm.status = site.status as 'active' | 'maintenance' | 'suspended'
   editForm.locale = site.locale || 'en'
+  editForm.hostingPlanId = site.hostingPlanId ?? UNLIMITED
   saveError.value = ''
   isEditOpen.value = true
 }
@@ -68,6 +80,7 @@ async function saveSite() {
         domain: editForm.domain,
         status: editForm.status,
         locale: editForm.locale,
+        hostingPlanId: editForm.hostingPlanId === UNLIMITED ? null : editForm.hostingPlanId,
       },
     })
     isEditOpen.value = false
@@ -110,6 +123,9 @@ async function deleteSite() {
         </template>
         <template #status-cell="{ row }">
           <UBadge :color="statusColor[row.original.status] ?? 'neutral'" variant="soft" size="xs" class="capitalize">{{ row.original.status }}</UBadge>
+        </template>
+        <template #hostingPlanId-cell="{ row }">
+          <span class="text-sm" :class="row.original.hostingPlanId ? 'text-gray-900 dark:text-white' : 'text-gray-400'">{{ planName(row.original.hostingPlanId) }}</span>
         </template>
         <template #createdAt-cell="{ row }">
           <span class="text-sm text-gray-400">{{ new Date(row.original.createdAt).toLocaleDateString() }}</span>
@@ -156,6 +172,9 @@ async function deleteSite() {
                 { label: 'Suspended', value: 'suspended' }
               ]"
             />
+          </UFormField>
+          <UFormField label="Hosting plan" help="Limits apply within a minute. Manage plans in Super Admin → Plans.">
+            <USelect v-model="editForm.hostingPlanId" :items="planItems" class="w-full" />
           </UFormField>
           <UAlert v-if="saveError" color="error" variant="soft" :description="saveError" />
         </div>

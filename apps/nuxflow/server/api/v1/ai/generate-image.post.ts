@@ -3,6 +3,7 @@ import { requireRole } from '../../../utils/permissions'
 import { getImageProvider } from '../../../utils/image-providers/index'
 import { callAiOrThrow } from '../../../utils/ai-sdk'
 import { countUsage } from '../../../utils/usage'
+import { assertWithinPlan } from '../../../utils/hosting-plans'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
@@ -28,6 +29,10 @@ export default defineEventHandler(async (event) => {
   const { prompt, shape, quality, saveToLibrary } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string
 
+  await assertWithinPlan(event, 'ai')
+  // Saving needs room in the library; checked before generating so a full library
+  // doesn't spend an AI call on an image that then can't be kept.
+  if (saveToLibrary) await assertWithinPlan(event, 'storage')
   countUsage(event, 'ai_calls')
   const imageUrl = await callAiOrThrow(() => imageProvider.generate(prompt, { shape, quality }))
 

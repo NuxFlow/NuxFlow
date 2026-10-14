@@ -9,6 +9,7 @@ import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { notifySiteRole } from '../../../utils/notify'
 import { waitUntil } from '../../../utils/cf-env'
+import { assertWithinPlan } from '../../../utils/hosting-plans'
 
 // Shape/type validation only — this does not (and cannot) validate cryptographic
 // correctness. Checksum matching and Ed25519 signature verification still happen
@@ -67,6 +68,7 @@ export default defineEventHandler(async (event) => {
     where: and(eq(dynamicPlugins.id, body.id), eq(dynamicPlugins.siteId, siteId)),
   })
   if (existing) throw conflict('Plugin already installed')
+  await assertWithinPlan(event, 'plugins')
 
   // ── Decode bundles ──────────────────────────────────────────────────────────
   const serverCode = body.serverModule ? decodeBase64(body.serverModule) : null

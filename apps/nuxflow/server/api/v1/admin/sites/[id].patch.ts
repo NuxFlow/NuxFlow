@@ -3,17 +3,20 @@ import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
 import { clearSiteCache } from '../../../../middleware/02.multi-site'
 import { normalizeDomain } from '../../../../utils/domain'
-import { sites, auditLogs } from '@nuxflow/db/schema'
+import { sites, auditLogs, hostingPlans } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { notifySiteRole } from '../../../../utils/notify'
 import { waitUntil } from '../../../../utils/cf-env'
+import { clearHostingPlanCache } from '../../../../utils/hosting-plans'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100).optional(),
   domain: z.string().optional(),
   status: z.enum(['active', 'maintenance', 'suspended']).optional(),
   locale: z.string().optional(),
+  /** null = the built-in unlimited plan. */
+  hostingPlanId: z.string().nullable().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -24,7 +27,7 @@ export default defineEventHandler(async (event) => {
 
   const existing = await db.query.sites.findFirst({
     where: eq(sites.id, id),
-    columns: { domain: true, status: true, name: true, locale: true },
+    columns: { domain: true, status: true, name: true, locale: true, hostingPlanId: true },
   })
   if (!existing) throw notFound('Site not found')
 
@@ -37,7 +40,13 @@ export default defineEventHandler(async (event) => {
     body.domain = domain
   }
 
+  if (body.hostingPlanId) {
+    const plan = await db.query.hostingPlans.findFirst({ where: eq(hostingPlans.id, body.hostingPlanId), columns: { id: true } })
+    if (!plan) throw validationError('That hosting plan no longer exists')
+  }
+
   await db.update(sites).set({ ...body, updatedAt: sql`(datetime('now'))` }).where(eq(sites.id, id))
+  if (body.hostingPlanId !== undefined) clearHostingPlanCache()
 
   // writeAuditLog() always scopes the row to event.context.siteId (the acting
   // super admin's CURRENT site from the Host header), which would be the wrong

@@ -68,6 +68,7 @@ describe('admin-nav', () => {
     '/admin/super/sites': 'server/api/v1/admin/sites/index.get.ts',
     '/admin/super/database': 'server/api/v1/admin/db-stats.get.ts',
     '/admin/super/usage': 'server/api/v1/admin/usage/index.get.ts',
+    '/admin/super/plans': 'server/api/v1/admin/plans/index.get.ts',
   }
 
   function serverMinimum(file: string): { role: Role } | { superAdmin: true } {

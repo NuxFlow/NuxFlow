@@ -3,9 +3,10 @@ import { contentItems, dynamicPlugins, media, sites, userSiteRoles } from '@nuxf
 import { count, sql } from 'drizzle-orm'
 import { usageDay, writeUsageSnapshot, type UsageCount, type UsageSnapshotMetric } from '../utils/usage'
 
-// Roles that sign up or are added as audience, not staff — mirrors SELF_SERVE_ROLES in
-// user-provisioning.ts.
-const MEMBER_ROLES = ['member', 'viewer']
+// Same split as hosting-plans.ts's team/member limits: `member` is audience, every other
+// role is team — except super_admin, the platform operator's own grant.
+const MEMBER_ROLE = 'member'
+const OPERATOR_ROLE = 'super_admin'
 
 /**
  * Nightly totals per site (server/utils/usage.ts's snapshot metrics): storage, content
@@ -24,8 +25,8 @@ export const snapshotUsage = async (now = new Date()) => {
     db.select({ siteId: contentItems.siteId, value: count() }).from(contentItems).groupBy(contentItems.siteId),
     db.select({
       siteId: userSiteRoles.siteId,
-      members: sql<number>`sum(case when ${userSiteRoles.role} in ${MEMBER_ROLES} then 1 else 0 end)`,
-      team: sql<number>`sum(case when ${userSiteRoles.role} in ${MEMBER_ROLES} then 0 else 1 end)`,
+      members: sql<number>`sum(case when ${userSiteRoles.role} = ${MEMBER_ROLE} then 1 else 0 end)`,
+      team: sql<number>`sum(case when ${userSiteRoles.role} in (${MEMBER_ROLE}, ${OPERATOR_ROLE}) then 0 else 1 end)`,
     }).from(userSiteRoles).groupBy(userSiteRoles.siteId),
     db.select({ siteId: dynamicPlugins.siteId, value: count() }).from(dynamicPlugins).groupBy(dynamicPlugins.siteId),
   ])

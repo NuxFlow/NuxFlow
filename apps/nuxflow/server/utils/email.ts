@@ -7,6 +7,7 @@ import { getEmailBinding } from './cf-env'
 import { useDb } from './db'
 import { getSiteInfo, isPrimarySite } from './site-info'
 import { countUsage } from './usage'
+import { checkPlanLimit, PlanLimitError } from './hosting-plans'
 
 const HTML_ESCAPE_MAP: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
 
@@ -285,7 +286,19 @@ async function logEmail(event: H3Event, config: EmailConfig, msg: EmailMessage, 
   }
 }
 
+// Never held back by a hosting plan's email allowance: signing in, setting a password,
+// accepting an invitation, and security alerts must always reach people.
+export const ALWAYS_SENT_EMAIL_CATEGORIES: ReadonlySet<string> = new Set(['auth', 'invite', 'security'])
+
 export async function sendEmailWithConfig(config: EmailConfig, msg: EmailMessage, event: H3Event): Promise<SendResult> {
+  if (config.siteId && !ALWAYS_SENT_EMAIL_CATEGORIES.has(msg.category ?? 'general')) {
+    const check = await checkPlanLimit(useDb(event), config.siteId, 'emails', toList(msg.to).length)
+    if (!check.allowed) {
+      const error = new PlanLimitError(check)
+      await logEmail(event, config, msg, { error: error.message })
+      throw error
+    }
+  }
   try {
     const result = await dispatch(config, msg, event)
     await logEmail(event, config, msg, { messageId: result.messageId })
