@@ -41,6 +41,8 @@ export interface SocialState {
   googleClientSecret: string
   githubClientId: string
   githubClientSecret: string
+  /** Require Turnstile on password sign-in and reset (primary site, deployment-wide). */
+  turnstileSignIn: boolean
 }
 
 export interface PaymentsState {

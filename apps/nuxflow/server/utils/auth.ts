@@ -26,8 +26,22 @@ export async function requireSession(event: H3Event) {
 // already been bitten by once.
 export async function getAuthSession(event: H3Event) {
   if (isTenantHostInCentralMode(event)) return getSiteSession(event)
+  // No session cookie, no session — Better Auth would answer the same. Checked first
+  // because getting there means building (or rebuilding, every 5 minutes per isolate) the
+  // whole Better Auth instance: several D1 reads plus its setup, which every anonymous
+  // server render paid through app/middleware/01.session.global.ts's session check.
+  if (!hasBetterAuthSessionCookie(event)) return null
   const auth = await getOrCreateBetterAuth(event)
   return auth.api.getSession({ headers: event.headers })
+}
+
+// Better Auth's session cookie: `better-auth.session_token`, with a `__Secure-` prefix on
+// https (its default cookiePrefix — better-auth.ts doesn't change it). Better Auth also
+// reads the `better-auth-session_token` spelling, so this accepts both.
+const SESSION_COOKIE_RE = /better-auth[.-]session_token$/
+
+export function hasBetterAuthSessionCookie(event: H3Event): boolean {
+  return Object.keys(parseCookies(event)).some(name => SESSION_COOKIE_RE.test(name))
 }
 
 /**

@@ -100,6 +100,12 @@ export const contentItems = sqliteTable('content_items', {
   // Covers the admin content list hot path (content/index.get.ts): WHERE site_id = ? AND
   // type_id = ? [AND status = ?] ORDER BY updated_at DESC.
   index('idx_content_items_site_type_status_updated').on(t.siteId, t.typeId, t.status, t.updatedAt),
+  // The every-minute publish-scheduled cron (server/scheduled/publish-scheduled.ts) looks
+  // across every site: WHERE status = 'scheduled' AND scheduled_at <= now. Every index
+  // above leads with site_id, so without this one that query read every row in the table
+  // once a minute. Partial, so it only ever holds the handful of scheduled items. A plain
+  // CREATE INDEX — no table rebuild (see the landmine note on this table).
+  index('idx_content_items_scheduled').on(t.scheduledAt).where(sql`${t.status} = 'scheduled'`),
 ])
 
 export const contentRevisions = sqliteTable('content_revisions', {

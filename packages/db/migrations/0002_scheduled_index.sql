@@ -1,0 +1,1 @@
+CREATE INDEX `idx_content_items_scheduled` ON `content_items` (`scheduled_at`) WHERE "content_items"."status" = 'scheduled';

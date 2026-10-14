@@ -14,6 +14,8 @@ const props = defineProps<{
 // OAuth callbacks land on the accounts origin under central sign-in; otherwise on this site.
 const { accountsOrigin } = useAccounts()
 const callbackOrigin = computed(() => accountsOrigin ?? `https://${props.domain || 'yourdomain.com'}`)
+// Where the sign-in form (and so the Turnstile widget) is shown.
+const signInHost = computed(() => new URL(callbackOrigin.value).hostname)
 </script>
 
 <template>
@@ -26,6 +28,20 @@ const callbackOrigin = computed(() => accountsOrigin ?? `https://${props.domain 
       <p class="text-xs text-gray-400">
         Secret key must be set via <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">CLOUDFLARE_TURNSTILE_SECRET_KEY</code> environment variable.
       </p>
+      <div v-if="isPrimary" class="space-y-2 border-t border-gray-100 dark:border-gray-800 pt-4">
+        <USwitch
+          v-model="social.turnstileSignIn"
+          label="Also check sign-in and password-reset requests"
+          description="Stops bots before they reach the password check, for every site on this installation. Passkey and Google/GitHub sign-in are not affected."
+        />
+        <UAlert
+          v-if="social.turnstileSignIn"
+          color="warning"
+          variant="soft"
+          icon="i-lucide-triangle-alert"
+          :description="`Before saving, add ${signInHost} to this widget's hostnames in the Cloudflare dashboard (Turnstile → your widget → Hostname management). If it's missing, nobody can sign in with a password. Passkeys still work, and removing the secret key turns the check off.`"
+        />
+      </div>
     </div>
     <template #footer>
       <div class="flex justify-end">

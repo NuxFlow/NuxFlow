@@ -208,7 +208,7 @@ describe('PATCH /api/v1/settings (end-to-end multi-section save)', () => {
         settings: { 'site.tagline': 'A route-level tagline' },
         ai: { provider: 'anthropic', anthropicApiKey: 'sk-ant-route', gatewayId: 'my-gateway', gatewayToken: 'cf-token-route' },
         media: { r2PublicUrl: 'https://media.example.com' },
-        auth: { googleClientId: 'google-client-id-route' },
+        auth: { googleClientId: 'google-client-id-route', turnstileSignIn: true },
       },
     }) as unknown as H3Event
 
@@ -226,6 +226,7 @@ describe('PATCH /api/v1/settings (end-to-end multi-section save)', () => {
     expect(await resolveSetting(resolveEvent, 'ai.gateway_token')).toBe('cf-token-route')
     expect(await resolveSetting(resolveEvent, 'media.r2_public_url')).toBe('https://media.example.com')
     expect(await resolveSetting(resolveEvent, 'auth.google_client_id')).toBe('google-client-id-route')
+    expect(await resolveSetting(resolveEvent, 'auth.turnstile_sign_in')).toBe('true')
 
     const site = await getCurrentTestDb().query.sites.findFirst({ where: (t, { eq: eqOp }) => eqOp(t.id, routeSiteId) })
     expect(site?.name).toBe('Renamed Site')
@@ -240,11 +241,11 @@ describe('PATCH /api/v1/settings (end-to-end multi-section save)', () => {
     const event = createMockEvent({
       siteId: tenantId,
       session: { user: { id: adminId, name: 'Admin', email: 'admin@settings-tenant.test' } },
-      body: { settings: { 'site.tagline': 'Tenant tagline' }, auth: { googleClientId: 'platform-id-copied-by-the-form' } },
+      body: { settings: { 'site.tagline': 'Tenant tagline' }, auth: { googleClientId: 'platform-id-copied-by-the-form', turnstileSignIn: true } },
     }) as unknown as H3Event
     await (patchHandler as (e: H3Event) => Promise<unknown>)(event)
 
-    const rows = await getCurrentTestDb().query.siteSettings.findMany({ where: (t, { and: andOp, eq: eqOp }) => andOp(eqOp(t.siteId, tenantId), eqOp(t.key, 'auth.google_client_id')) })
+    const rows = await getCurrentTestDb().query.siteSettings.findMany({ where: (t, { and: andOp, eq: eqOp, inArray: inArrayOp }) => andOp(eqOp(t.siteId, tenantId), inArrayOp(t.key, ['auth.google_client_id', 'auth.turnstile_sign_in'])) })
     expect(rows).toHaveLength(0)
     // The rest of the save still goes through.
     expect(await resolveSetting(mkEvent(tenantId), 'site.tagline')).toBe('Tenant tagline')

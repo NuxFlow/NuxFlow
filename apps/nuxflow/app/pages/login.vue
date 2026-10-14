@@ -37,6 +37,15 @@ const schema = z.object({
   password: z.string().min(1, 'Password is required'),
 })
 
+const {
+  siteKey: captchaSiteKey,
+  token: captchaToken,
+  widget: captchaWidget,
+  ready: captchaReady,
+  fetchOptions: captchaFetchOptions,
+  reset: resetCaptcha,
+} = await useSignInCaptcha()
+
 const form = reactive({ email: '', password: '', rememberMe: true })
 const loading = ref(false)
 const error = ref('')
@@ -74,6 +83,7 @@ async function submit() {
       email: form.email,
       password: form.password,
       rememberMe: form.rememberMe,
+      fetchOptions: captchaFetchOptions(),
     })
     if (signInEmail.error.value) {
       error.value = signInEmail.error.value.message ?? 'Invalid email or password'
@@ -84,6 +94,8 @@ async function submit() {
     error.value = 'Invalid email or password'
   } finally {
     loading.value = false
+    // The token is single-use, whether or not the attempt succeeded.
+    if (captchaSiteKey.value) resetCaptcha()
   }
 }
 
@@ -134,8 +146,10 @@ async function signInSocial(provider: 'google' | 'github') {
       <UAlert v-if="verified" color="success" variant="soft" description="Email verified — you can sign in now." />
       <UAlert v-if="error" color="error" variant="soft" :description="error" />
 
+      <NuxtTurnstile v-if="captchaSiteKey" ref="captchaWidget" v-model="captchaToken" :site-key="captchaSiteKey" />
+
       <div class="flex flex-col gap-2">
-        <UButton type="submit" block :loading="loading">Sign in</UButton>
+        <UButton type="submit" block :loading="loading" :disabled="!captchaReady">Sign in</UButton>
         <UButton
           type="button"
           block

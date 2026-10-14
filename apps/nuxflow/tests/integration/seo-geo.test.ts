@@ -45,6 +45,7 @@ const { default: crawlersHandler } = await import('../../server/api/v1/seo/crawl
 const { clearSeoSettingsCache } = await import('../../server/utils/seo')
 const { clearRedirectCache } = await import('../../server/utils/redirect-cache')
 const { submitToIndexNow } = await import('../../server/utils/indexnow')
+const { resetCrawlerHitBuffer } = await import('../../server/utils/crawler-tracking')
 
 type Handler = (e: H3Event) => Promise<unknown>
 type MockEv = ReturnType<typeof createMockEvent> & { method?: string }
@@ -341,25 +342,38 @@ describe('SEO response headers (05.seo-headers)', () => {
   })
 
   it('records a known crawler\'s visit in crawler_hits and the activity route reports it', async () => {
+    resetCrawlerHitBuffer()
+    const gptBotRow = () => getCurrentTestDb().query.crawlerHits.findFirst({
+      where: and(eq(crawlerHits.siteId, SITE), eq(crawlerHits.bot, 'GPTBot')),
+    })
+
+    // The first hit in an isolate is written straight away.
     const e = ev({ path: '/about', headers: { 'user-agent': 'Mozilla/5.0 (compatible; GPTBot/1.1; +https://openai.com/gptbot)' } })
     await (seoHeaders as Handler)(e)
-    const row = await waitFor(async () => (await getCurrentTestDb().query.crawlerHits.findFirst({
-      where: and(eq(crawlerHits.siteId, SITE), eq(crawlerHits.bot, 'GPTBot')),
-    })) ?? undefined)
+    const row = await waitFor(async () => (await gptBotRow()) ?? undefined)
     expect(row.hits).toBe(1)
     expect(row.category).toBe('ai-training')
     expect(row.lastPath).toBe('/about')
 
-    // A second hit increments the same daily row.
+    // Hits within the next minute are added up in memory, not written one by one…
     await (seoHeaders as Handler)(ev({ path: '/', headers: { 'user-agent': 'GPTBot/1.1' } }))
-    await waitFor(async () => {
-      const r = await getCurrentTestDb().query.crawlerHits.findFirst({ where: and(eq(crawlerHits.siteId, SITE), eq(crawlerHits.bot, 'GPTBot')) })
-      return r && r.hits === 2 ? r : undefined
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect((await gptBotRow())?.hits).toBe(1)
+
+    // …and written together once the interval has passed, onto the same daily row.
+    const realNow = Date.now()
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(realNow + 61_000)
+    await (seoHeaders as Handler)(ev({ path: '/blog', headers: { 'user-agent': 'GPTBot/1.1' } }))
+    clock.mockRestore()
+    const flushed = await waitFor(async () => {
+      const r = await gptBotRow()
+      return r && r.hits === 3 ? r : undefined
     })
+    expect(flushed.lastPath).toBe('/blog')
 
     await setSeo(SITE, 'seo.ai_crawlers', 'block-training')
     const activity = await (crawlersHandler as Handler)(editorEv({ query: { days: '7' } })) as { bots: { bot: string; hits: number; blocked: boolean }[] }
-    expect(activity.bots).toEqual([expect.objectContaining({ bot: 'GPTBot', hits: 2, blocked: true })])
+    expect(activity.bots).toEqual([expect.objectContaining({ bot: 'GPTBot', hits: 3, blocked: true })])
     await clearSeo(SITE, 'seo.ai_crawlers')
   })
 })

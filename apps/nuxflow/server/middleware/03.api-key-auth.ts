@@ -4,6 +4,8 @@ import { waitUntil } from '../utils/cf-env'
 import { apiKeys, userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
+const LAST_USED_RESOLUTION_MS = 60 * 60_000
+
 export default defineEventHandler(async (event) => {
   const authHeader = getHeader(event, 'authorization')
   if (!authHeader?.startsWith('Bearer ')) return
@@ -35,9 +37,13 @@ export default defineEventHandler(async (event) => {
   // builders are lazy thenables that only execute once awaited/then()'d, so the previous
   // bare `void db.update(...)` never actually ran; Promise.resolve() adopts the thenable,
   // which is what triggers execution, and waitUntil keeps the Worker alive until it lands.
-  waitUntil(event, Promise.resolve(
-    db.update(apiKeys).set({ lastUsedAt: new Date().toISOString() }).where(eq(apiKeys.id, apiKey.id)),
-  ).catch(err => console.error('[api-key-auth] Failed to record lastUsedAt:', err)))
+  // At most once per LAST_USED_RESOLUTION_MS: it's shown as "last used" in the admin, not
+  // an audit trail, and a busy headless/MCP client otherwise paid a D1 write per call.
+  if (!apiKey.lastUsedAt || Date.now() - new Date(apiKey.lastUsedAt).getTime() > LAST_USED_RESOLUTION_MS) {
+    waitUntil(event, Promise.resolve(
+      db.update(apiKeys).set({ lastUsedAt: new Date().toISOString() }).where(eq(apiKeys.id, apiKey.id)),
+    ).catch(err => console.error('[api-key-auth] Failed to record lastUsedAt:', err)))
+  }
 
   // Resolve role for this site. Deleting a user's userSiteRoles row (removing them
   // from the site) does not cascade-delete their API keys — those live on until

@@ -99,6 +99,17 @@ export default defineEventHandler(async (event) => {
     ? deriveVisibilityFromSettings(updateFields.settings)
     : undefined
 
+  // A save that changes nothing (the editor sends the whole form on every autosave) ends
+  // here: no write, no version bump, and above all no cache purge — on a published item
+  // purgeContentCache() starts a new cache version for the whole site, so every page of it
+  // would be rendered from scratch again for nothing.
+  const changedFields = new Set((Object.keys(updateFields) as (keyof typeof updateFields)[])
+    .filter(key => updateFields[key] !== undefined && !sameStoredValue(updateFields[key], existing[key])))
+  const visibilityChanged = visibility !== undefined && visibility !== existing.visibility
+  if (changedFields.size === 0 && !termsChanged && !visibilityChanged) {
+    return { id, version: existing.version }
+  }
+
   // Snapshot a revision only when this edit actually changes title/content — the editor
   // autosaves every 10s of idle time regardless of whether anything changed, and every
   // other field (SEO, settings, scheduling, etc.) already has its own history via the
@@ -204,8 +215,12 @@ export default defineEventHandler(async (event) => {
 
   // Re-embed with the fully-merged state (fields not touched by this PATCH keep their
   // existing value) — not just updateFields, which would otherwise treat every untouched
-  // field as blank and silently regress a previously-good embedding.
-  waitUntil(event, upsertContentEmbedding(event, {
+  // field as blank and silently regress a previously-good embedding. Only when something
+  // the embedding depends on changed: each one is a Workers AI call plus a Vectorize write,
+  // and most autosaves only touch the body.
+  const embeddingInputChanged = visibilityChanged
+    || ['title', 'excerpt', 'seoDescription', 'status'].some(key => changedFields.has(key as keyof typeof updateFields))
+  if (embeddingInputChanged) waitUntil(event, upsertContentEmbedding(event, {
     contentItemId: id,
     siteId,
     title: updateFields.title ?? existing.title,
@@ -230,3 +245,11 @@ export default defineEventHandler(async (event) => {
 
   return { id, version: nextVersion }
 })
+
+// Compares a submitted field with its stored value: null and undefined are the same
+// "unset", and JSON columns (content, settings) compare by their serialized form.
+function sameStoredValue(next: unknown, stored: unknown): boolean {
+  if (next == null || stored == null) return next == null && stored == null
+  if (typeof next === 'object' || typeof stored === 'object') return JSON.stringify(next) === JSON.stringify(stored)
+  return next === stored
+}

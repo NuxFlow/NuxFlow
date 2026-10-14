@@ -10,6 +10,7 @@ import { seedSite, seedUser, seedRole } from '../helpers/seed'
 import { bufferToHex } from '../../server/utils/buffer'
 import { apiKeys } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
+import { eq } from 'drizzle-orm'
 import apiKeyMiddleware from '../../server/middleware/03.api-key-auth'
 
 vi.mock('../../server/utils/db', () => ({
@@ -77,6 +78,28 @@ describe('03.api-key-auth middleware', () => {
 
     const row = await getCurrentTestDb().query.apiKeys.findFirst({ where: (k, { eq }) => eq(k.keyHash, keyHash) })
     expect(row!.lastUsedAt).toBeTruthy()
+  })
+
+  it('writes lastUsedAt at most once an hour, not on every request', async () => {
+    const run = async () => {
+      const pending: Promise<unknown>[] = []
+      const event = mkApiKeyEvent({ authorization: `Bearer ${RAW_KEY}` }) as unknown as { context: Record<string, unknown> }
+      event.context.cloudflare = { context: { waitUntil: (p: Promise<unknown>) => pending.push(p) } }
+      await (apiKeyMiddleware as MiddlewareFn)(event as unknown as H3Event)
+      await Promise.all(pending)
+      return pending.length
+    }
+    const db = getCurrentTestDb()
+
+    // Used a minute ago (the previous test): no write.
+    expect(await run()).toBe(0)
+
+    // Last used two hours ago: written again.
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60_000).toISOString()
+    await db.update(apiKeys).set({ lastUsedAt: twoHoursAgo }).where(eq(apiKeys.keyHash, keyHash))
+    expect(await run()).toBe(1)
+    const row = await db.query.apiKeys.findFirst({ where: (k, { eq }) => eq(k.keyHash, keyHash) })
+    expect(row!.lastUsedAt! > twoHoursAgo).toBe(true)
   })
 
   it('skips when there is no Authorization header', async () => {

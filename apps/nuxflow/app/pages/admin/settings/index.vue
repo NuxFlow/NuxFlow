@@ -92,6 +92,7 @@ const social = reactive<SocialState>({
   googleClientSecret: '',
   githubClientId: '',
   githubClientSecret: '',
+  turnstileSignIn: false,
 })
 
 const payments = reactive<PaymentsState>({
@@ -185,6 +186,7 @@ watch(data, (d) => {
   social.googleClientSecret = (s['auth.google_client_secret'] as string) ?? ''
   social.githubClientId = (s['auth.github_client_id'] as string) ?? ''
   social.githubClientSecret = (s['auth.github_client_secret'] as string) ?? ''
+  social.turnstileSignIn = s['auth.turnstile_sign_in'] === 'true'
   appearance.showHeader = (s['frontend.show_header'] as boolean | undefined) !== false
   appearance.showSearch = (s['frontend.show_search'] as boolean | undefined) !== false
   appearance.showStickyHeader = (s['frontend.show_sticky_header'] as boolean | undefined) !== false
@@ -321,6 +323,7 @@ async function save() {
           googleClientSecret: social.googleClientSecret,
           githubClientId: social.githubClientId,
           githubClientSecret: social.githubClientSecret,
+          turnstileSignIn: social.turnstileSignIn,
         },
       },
     })

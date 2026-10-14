@@ -183,6 +183,48 @@ describe('POST /api/v1/content', () => {
 // PATCH /api/v1/content/[id]
 // ---------------------------------------------------------------------------
 
+describe('PATCH /api/v1/content/[id] — a save that changes nothing', () => {
+  it('writes nothing: no version bump, no revision, no re-embedding', async () => {
+    const db = getCurrentTestDb()
+    const content = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Same' }] }] }
+    const id = await seedContentItem(db, SITE, typeId, {
+      slug: 'no-op-save',
+      title: 'Unchanged',
+      status: 'published',
+      visibility: 'public',
+      content,
+      excerpt: null,
+    })
+    const before = await db.query.contentItems.findFirst({ where: eq(contentItems.id, id) })
+    mockUpsertContentEmbedding.mockClear()
+
+    // The editor sends the whole form on every autosave — same values, nulls for blanks.
+    const result = await (patchHandler as HandlerFn)(mkPatchEvent({
+      title: 'Unchanged',
+      slug: 'no-op-save',
+      status: 'published',
+      content: JSON.parse(JSON.stringify(content)),
+      excerpt: null,
+      ogImage: null,
+    }, id, 'editor')) as { version: number }
+
+    expect(result.version).toBe(before!.version)
+    const after = await db.query.contentItems.findFirst({ where: eq(contentItems.id, id) })
+    expect(after!.version).toBe(before!.version)
+    expect(after!.updatedAt).toBe(before!.updatedAt)
+    const revisions = await db.query.contentRevisions.findMany({ where: eq(contentRevisions.itemId, id) })
+    expect(revisions).toHaveLength(0)
+    expect(mockUpsertContentEmbedding).not.toHaveBeenCalled()
+  })
+
+  it('still saves when one field differs', async () => {
+    const db = getCurrentTestDb()
+    const id = await seedContentItem(db, SITE, typeId, { slug: 'one-field-differs', title: 'Same title', status: 'draft' })
+    const result = await (patchHandler as HandlerFn)(mkPatchEvent({ title: 'Same title', seoTitle: 'New SEO title' }, id, 'editor')) as { version: number }
+    expect(result.version).toBe(2)
+  })
+})
+
 describe('PATCH /api/v1/content/[id] — basic updates', () => {
   it('updates the title and bumps the version number', async () => {
     const result = await (patchHandler as HandlerFn)(
@@ -468,6 +510,16 @@ describe('content routes — embedding sync wiring', () => {
         status: 'draft',
       }),
     )
+  })
+
+  it('PATCH does not re-embed when only the body changed', async () => {
+    const db = getCurrentTestDb()
+    const id = await seedContentItem(db, SITE, typeId, { slug: 'body-only-embedding', title: 'Body only', status: 'published', visibility: 'public' })
+    mockUpsertContentEmbedding.mockClear()
+
+    await (patchHandler as HandlerFn)(mkPatchEvent({ content: { type: 'doc', content: [{ type: 'paragraph' }] } }, id, 'editor'))
+
+    expect(mockUpsertContentEmbedding).not.toHaveBeenCalled()
   })
 
   it('DELETE calls deleteContentEmbedding with the deleted item\'s id', async () => {
