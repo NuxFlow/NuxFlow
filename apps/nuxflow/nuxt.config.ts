@@ -66,8 +66,9 @@ export default defineNuxtConfig({
       // wrangler.demo.toml and is NOT available as process.env during the build step.
       '* * * * *': ['publish-scheduled', 'demo-reset'],
       // Nightly at 3 AM UTC — prune old data; demo instances also wipe and reseed; flag
-      // long-untouched published content for its author to review.
-      '0 3 * * *': ['prune-old-data', 'demo-nightly-reset', 'stale-content-scan'],
+      // long-untouched published content for its author to review; record each site's
+      // usage totals (Super Admin → Usage).
+      '0 3 * * *': ['prune-old-data', 'demo-nightly-reset', 'stale-content-scan', 'usage-snapshot'],
       // Hourly — sweep video_assets rows stuck at status:'processing' (a failed/never-
       // completed Cloudflare Stream upload) past a 2-hour TTL and mark them 'failed'.
       '0 * * * *': ['reconcile-stuck-videos'],

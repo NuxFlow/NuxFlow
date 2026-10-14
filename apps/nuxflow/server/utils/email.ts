@@ -6,6 +6,7 @@ import { resolveSetting } from './settings'
 import { getEmailBinding } from './cf-env'
 import { useDb } from './db'
 import { getSiteInfo, isPrimarySite } from './site-info'
+import { countUsage } from './usage'
 
 const HTML_ESCAPE_MAP: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
 
@@ -262,6 +263,10 @@ function explainEmailError(error: string): string {
 
 async function logEmail(event: H3Event, config: EmailConfig, msg: EmailMessage, outcome: { messageId?: string; error?: string }): Promise<void> {
   if (!config.siteId) return
+  // Usage counts what a provider actually accepted — not failures, and not console "sends".
+  if (!outcome.error && (config.emailProvider || 'console') !== 'console') {
+    countUsage(event, 'emails', toList(msg.to).length, config.siteId)
+  }
   try {
     await useDb(event).insert(emailLog).values({
       id: ulid(),

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { requireRole } from '../../../utils/permissions'
 import { getImageProvider } from '../../../utils/image-providers/index'
 import { callAiOrThrow } from '../../../utils/ai-sdk'
+import { countUsage } from '../../../utils/usage'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
@@ -27,6 +28,7 @@ export default defineEventHandler(async (event) => {
   const { prompt, shape, quality, saveToLibrary } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string
 
+  countUsage(event, 'ai_calls')
   const imageUrl = await callAiOrThrow(() => imageProvider.generate(prompt, { shape, quality }))
 
   if (!saveToLibrary) {

@@ -84,6 +84,12 @@ export const ALLOWLIST: AllowlistEntry[] = [
     reason: 'Inbound mail to the shared platform domain finds its site by the unique inbound handle.',
   },
 
+  {
+    file: 'server/api/v1/admin/usage/index.get.ts',
+    tables: ['site_usage_daily'],
+    reason: 'Super Admin → Usage: one month of usage for every site (requireSuperAdmin).',
+  },
+
   // ── Scheduled jobs that run once for the whole installation ──────────────────────
   {
     file: 'server/scheduled/publish-scheduled.ts',
@@ -92,7 +98,7 @@ export const ALLOWLIST: AllowlistEntry[] = [
   },
   {
     file: 'server/scheduled/prune-old-data.ts',
-    tables: ['ai_generation_jobs', 'audit_logs', 'crawler_hits', 'email_log', 'email_messages', 'notifications', 'site_auth_codes', 'site_invitations', 'site_sessions'],
+    tables: ['ai_generation_jobs', 'audit_logs', 'crawler_hits', 'email_log', 'email_messages', 'notifications', 'site_auth_codes', 'site_invitations', 'site_sessions', 'site_usage_daily'],
     reason: 'Nightly retention clean-up for every site.',
   },
   {
@@ -104,6 +110,11 @@ export const ALLOWLIST: AllowlistEntry[] = [
     file: 'server/scheduled/stale-content-scan.ts',
     tables: ['content_items', 'notifications'],
     reason: 'Nightly scan for stale published content on every site.',
+  },
+  {
+    file: 'server/scheduled/usage-snapshot.ts',
+    tables: ['content_items', 'dynamic_plugins', 'media', 'user_site_roles'],
+    reason: "Nightly usage totals: one grouped count per table for every site's row at once.",
   },
   {
     file: 'server/scheduled/demo-reset.ts',

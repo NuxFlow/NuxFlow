@@ -4,6 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 import { getWorkersAiBinding } from '../../../utils/cf-env'
+import { countUsage } from '../../../utils/usage'
 
 const MAX_AUDIO_SIZE = 20 * 1024 * 1024
 
@@ -51,6 +52,7 @@ export default defineEventHandler(async (event) => {
   // No mediaType param exists on this AI SDK version's transcribe() — DataContent is just
   // string | Uint8Array | ArrayBuffer | Buffer, with no side channel for the source MIME
   // type. The SDK detects it internally from the audio bytes' own magic-byte signature.
+  countUsage(event, 'ai_calls')
   const { text } = await callAiOrThrow(() =>
     transcribe({
       model: workersai.transcription('@cf/openai/whisper-large-v3-turbo'),

@@ -22,6 +22,13 @@
       "when": 1791978205168,
       "tag": "0002_scheduled_index",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791986250141,
+      "tag": "0003_site_usage_daily",
+      "breakpoints": true
     }
   ]
 }
