@@ -261,7 +261,7 @@ async function getContent(args: unknown, ctx: McpToolContext): Promise<McpToolRe
   })
 
   if (!item) return textResult('Error: Content item not found.')
-  const terms = (await getPublicItemTerms(ctx.db, item.id)).map(t => `${t.taxonomySlug}/${t.termSlug}`)
+  const terms = (await getPublicItemTerms(ctx.db, ctx.siteId, item.id)).map(t => `${t.taxonomySlug}/${t.termSlug}`)
   return textResult(JSON.stringify({ ...item, terms }, null, 2))
 }
 
@@ -284,7 +284,7 @@ async function syncAfterContentWrite(
   const itemId = rows[0]!.id
   const [paths, termRefs] = await Promise.all([
     Promise.all(rows.map(r => itemPublicPath(ctx.db, ctx.siteId, r))),
-    (termIds ? Promise.resolve(termIds) : getContentTermIds(ctx.db, itemId)).then(ids => getTermRefsWithAncestors(ctx.db, ids)),
+    (termIds ? Promise.resolve(termIds) : getContentTermIds(ctx.db, itemId)).then(ids => getTermRefsWithAncestors(ctx.db, ctx.siteId, ids)),
   ])
   await purgeContentCache(ctx.event, {
     published: rows.some(r => r.status === 'published'),
@@ -467,7 +467,7 @@ async function listTaxonomies(args: unknown, ctx: McpToolContext): Promise<McpTo
         .where(inArray(taxonomyTerms.taxonomyId, taxRows.map(t => t.id)))
         .orderBy(asc(taxonomyTerms.sortOrder), asc(taxonomyTerms.name))
     : []
-  const typeSlugs = await getTaxonomyContentTypeSlugs(ctx.db, taxRows.map(t => t.id))
+  const typeSlugs = await getTaxonomyContentTypeSlugs(ctx.db, ctx.siteId, taxRows.map(t => t.id))
   const slugById = new Map(termRows.map(t => [t.id, t.slug]))
   const out = taxRows.map(tax => ({
     slug: tax.slug,
@@ -524,7 +524,7 @@ async function setContentTerms(args: unknown, ctx: McpToolContext): Promise<McpT
   await purgeContentCache(ctx.event, {
     published: existing.status === 'published',
     slugs: [existing.slug],
-    taxonomyTerms: await getTermRefsWithAncestors(ctx.db, [...new Set([...previous, ...termIds])]),
+    taxonomyTerms: await getTermRefsWithAncestors(ctx.db, ctx.siteId, [...new Set([...previous, ...termIds])]),
   })
 
   return textResult(`Success: Content item ${id} now has ${termIds.length} term(s).`)

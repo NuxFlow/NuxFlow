@@ -134,7 +134,7 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
   const backupTaxonomies: BackupTaxonomy[] = []
   const termSlugById = new Map<string, string>() // termId -> "{taxSlug}/{termSlug}"
 
-  const typeSlugsByTaxonomy = await getTaxonomyContentTypeSlugs(db, taxRows.map(t => t.id))
+  const typeSlugsByTaxonomy = await getTaxonomyContentTypeSlugs(db, siteId, taxRows.map(t => t.id))
   for (const tax of taxRows) {
     const terms = await db.query.taxonomyTerms.findMany({
       where: eq(taxonomyTerms.taxonomyId, tax.id),

@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
     // so this is a genuine immediate cancellation.
     await db.update(subscriptions)
       .set({ status: 'cancelled', cancelledAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
-      .where(eq(subscriptions.id, sub.id))
+      .where(and(eq(subscriptions.id, sub.id), eq(subscriptions.siteId, siteId)))
   } else {
     // Cancel with the payment provider before updating our DB. Each provider needs
     // different settings to construct, but once built they're interchangeable here —
@@ -59,7 +59,7 @@ export default defineEventHandler(async (event) => {
     // what finally flips status to 'cancelled', via cancelSubscriptionFromWebhook.
     await db.update(subscriptions)
       .set({ cancelAtPeriodEnd: true, cancelledAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
-      .where(eq(subscriptions.id, sub.id))
+      .where(and(eq(subscriptions.id, sub.id), eq(subscriptions.siteId, siteId)))
   }
 
   await writeAuditLog(event, userId, {

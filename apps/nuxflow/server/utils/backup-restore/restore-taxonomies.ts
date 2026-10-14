@@ -113,7 +113,7 @@ export async function restoreTaxonomies(
           ...(backupTax.description !== undefined ? { description: backupTax.description } : {}),
           ...(backupTax.noindex !== undefined ? { noindex: backupTax.noindex } : {}),
         })
-        .where(eq(taxonomies.id, taxId))
+        .where(and(eq(taxonomies.id, taxId), eq(taxonomies.siteId, siteId)))
     }
 
     // Insert terms (two-pass for parent references)

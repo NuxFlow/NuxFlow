@@ -19,11 +19,11 @@ export default defineEventHandler(async (event) => {
 
   // Resolved before the delete (assignments cascade away with the term): the term's own
   // archive plus its ancestors' (which rolled its items up), and the pages that showed it.
-  const refs = await getTermRefsWithAncestors(db, [termId])
+  const refs = await getTermRefsWithAncestors(db, siteId, [termId])
   const taggedItems = await db.selectDistinct({ slug: contentItems.slug })
     .from(contentTaxonomyTerms)
     .innerJoin(contentItems, eq(contentItems.id, contentTaxonomyTerms.contentItemId))
-    .where(and(eq(contentTaxonomyTerms.termId, termId), eq(contentItems.status, 'published')))
+    .where(and(eq(contentTaxonomyTerms.termId, termId), eq(contentItems.siteId, siteId), eq(contentItems.status, 'published')))
     .limit(500)
 
   // Move any child terms up to the deleted term's own parent rather than leaving them

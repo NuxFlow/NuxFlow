@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
 
   const tier = sub.tierId
     ? await db.query.membershipTiers.findFirst({
-        where: eq(membershipTiers.id, sub.tierId),
+        where: and(eq(membershipTiers.id, sub.tierId), eq(membershipTiers.siteId, siteId)),
         columns: { id: true, name: true, price: true, currency: true, interval: true, features: true },
       })
     : null

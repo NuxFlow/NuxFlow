@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
   await purgeContentCache(event, {
     published: item.status === 'published',
     slugs: [item.slug],
-    taxonomyTerms: await getTermRefsWithAncestors(db, [...new Set([...previousTermIds, ...termIds])]),
+    taxonomyTerms: await getTermRefsWithAncestors(db, siteId, [...new Set([...previousTermIds, ...termIds])]),
   })
 
   return { success: true, termIds }

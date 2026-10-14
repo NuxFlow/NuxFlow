@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
 
   await getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true })
 
-  const rows = await getContentItemTerms(db, itemId)
+  const rows = await getContentItemTerms(db, siteId, itemId)
 
   return { terms: rows }
 })

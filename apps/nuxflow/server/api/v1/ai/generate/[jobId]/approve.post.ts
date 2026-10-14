@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
   const plan = dedupePlanSlugs(pages ?? job.plan)
   const [updated] = await db.update(aiGenerationJobs)
     .set({ plan, totalCount: plan.length, generatedCount: 0, status: 'generating', updatedAt: sql`(datetime('now'))` })
-    .where(and(eq(aiGenerationJobs.id, jobId), eq(aiGenerationJobs.status, 'planning')))
+    .where(and(eq(aiGenerationJobs.id, jobId), eq(aiGenerationJobs.siteId, siteId), eq(aiGenerationJobs.status, 'planning')))
     .returning()
   if (!updated) throw notFound('Generation job not found, or not awaiting approval')
 

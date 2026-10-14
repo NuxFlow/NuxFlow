@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
   // an audit trail, and a busy headless/MCP client otherwise paid a D1 write per call.
   if (!apiKey.lastUsedAt || Date.now() - new Date(apiKey.lastUsedAt).getTime() > LAST_USED_RESOLUTION_MS) {
     waitUntil(event, Promise.resolve(
-      db.update(apiKeys).set({ lastUsedAt: new Date().toISOString() }).where(eq(apiKeys.id, apiKey.id)),
+      db.update(apiKeys).set({ lastUsedAt: new Date().toISOString() }).where(and(eq(apiKeys.id, apiKey.id), eq(apiKeys.siteId, siteId))),
     ).catch(err => console.error('[api-key-auth] Failed to record lastUsedAt:', err)))
   }
 

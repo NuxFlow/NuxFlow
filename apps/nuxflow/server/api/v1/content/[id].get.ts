@@ -2,7 +2,7 @@ import { useDb } from '../../../utils/db'
 import { requireAuth, canEditContentItem } from '../../../utils/permissions'
 import { getContentItemOrThrow } from '../../../utils/content-queries'
 import { contentTypes } from '@nuxflow/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { getContentTermIds } from '../../../utils/taxonomy'
 
 export default defineEventHandler(async (event) => {
@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
 
   const [type, termIds] = await Promise.all([
     db.query.contentTypes.findFirst({
-      where: eq(contentTypes.id, item.typeId),
+      where: and(eq(contentTypes.id, item.typeId), eq(contentTypes.siteId, siteId)),
       columns: { hasComments: true, slug: true },
     }),
     getContentTermIds(db, id),

@@ -55,14 +55,14 @@ export async function claimJob(db: Db, siteId: string, jobId: string): Promise<A
   return job ?? null
 }
 
-async function saveJob(db: Db, jobId: string, values: Partial<AiGenerationJob>): Promise<void> {
+async function saveJob(db: Db, job: Pick<AiGenerationJob, 'id' | 'siteId'>, values: Partial<AiGenerationJob>): Promise<void> {
   await db.update(aiGenerationJobs)
     .set({ ...values, updatedAt: sql`(datetime('now'))` })
-    .where(eq(aiGenerationJobs.id, jobId))
+    .where(and(eq(aiGenerationJobs.id, job.id), eq(aiGenerationJobs.siteId, job.siteId)))
 }
 
-export function releaseJob(db: Db, jobId: string): Promise<void> {
-  return saveJob(db, jobId, { lockedUntil: null })
+export function releaseJob(db: Db, siteId: string, jobId: string): Promise<void> {
+  return saveJob(db, { id: jobId, siteId }, { lockedUntil: null })
 }
 
 function isDone(page: AiGenerationPlanPage): boolean {
@@ -87,11 +87,11 @@ async function generatePlan(event: H3Event, db: Db, job: AiGenerationJob): Promi
     const { object } = await callAiOrThrow(() =>
       generateObject({ model, schema: planSchema, system: PLAN_SYSTEM, prompt: `Plan a site for: """${job.prompt}"""` }),
     )
-    await saveJob(db, job.id, { plan: object.pages, totalCount: object.pages.length })
+    await saveJob(db, job, { plan: object.pages, totalCount: object.pages.length })
   }
   catch (err) {
     console.error(`[site-generation] Job ${job.id}: planning failed:`, err)
-    await saveJob(db, job.id, { status: 'failed', error: aiErrorMessage(err) })
+    await saveJob(db, job, { status: 'failed', error: aiErrorMessage(err) })
   }
 }
 
@@ -153,7 +153,7 @@ export async function advanceJob(event: H3Event, db: Db, job: AiGenerationJob): 
   const plan = job.plan ?? []
   const index = plan.findIndex(p => !isDone(p))
   if (index === -1) {
-    await saveJob(db, job.id, { status: 'complete', generatedCount: plan.length })
+    await saveJob(db, job, { status: 'complete', generatedCount: plan.length })
     return
   }
 
@@ -161,7 +161,7 @@ export async function advanceJob(event: H3Event, db: Db, job: AiGenerationJob): 
   const nextPlan = [...plan]
   nextPlan[index] = await generatePlanPage(event, db, job, index, ctx)
   const generatedCount = nextPlan.filter(isDone).length
-  await saveJob(db, job.id, {
+  await saveJob(db, job, {
     plan: nextPlan,
     generatedCount,
     contentItemIds: nextPlan.flatMap(p => (p.contentItemId ? [p.contentItemId] : [])),
@@ -216,7 +216,7 @@ export async function regeneratePlanPage(event: H3Event, db: Db, job: AiGenerati
 
   const nextPlan = [...plan]
   nextPlan[index] = updated
-  await saveJob(db, job.id, {
+  await saveJob(db, job, {
     plan: nextPlan,
     contentItemIds: nextPlan.flatMap(p => (p.contentItemId ? [p.contentItemId] : [])),
   })

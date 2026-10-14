@@ -1,5 +1,5 @@
 import { ulid } from 'ulid'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { mailboxes } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   const localPart = generatePostLocalPart()
 
   if (existing) {
-    await db.update(mailboxes).set({ localPart, enabled: true }).where(eq(mailboxes.id, existing.id))
+    await db.update(mailboxes).set({ localPart, enabled: true }).where(and(eq(mailboxes.id, existing.id), eq(mailboxes.siteId, siteId)))
   }
   else {
     await db.insert(mailboxes).values({

@@ -107,7 +107,7 @@ export async function restoreContent(
           slug: `${backupItem.slug}-backup-${timestamp}`,
           title: `${existing.title} (Backup — ${timestamp})`,
           status: 'draft',
-        }).where(eq(contentItems.id, existing.id))
+        }).where(and(eq(contentItems.id, existing.id), eq(contentItems.siteId, siteId)))
         // Proceed to insert the new page cleanly!
       } else if (opts.conflictMode === 'overwrite') {
         await db.update(contentItems).set({
@@ -128,7 +128,7 @@ export async function restoreContent(
           settings: backupItem.settings ?? undefined,
           locale: backupItem.locale || 'en',
           ...extraItemFields(backupItem),
-        }).where(eq(contentItems.id, existing.id))
+        }).where(and(eq(contentItems.id, existing.id), eq(contentItems.siteId, siteId)))
         // Reapply the backup's term assignments too — without this, overwriting an
         // existing item would update its fields but silently keep whatever
         // categories/tags it already had (or lacked), ignoring backupItem.termSlugs.
@@ -175,7 +175,7 @@ export async function restoreContent(
       if (childId && parentId) {
         await db.update(contentItems)
           .set({ sourceItemId: parentId })
-          .where(eq(contentItems.id, childId))
+          .where(and(eq(contentItems.id, childId), eq(contentItems.siteId, siteId)))
       }
     }
   }

@@ -165,7 +165,7 @@ export async function getTermAncestors(db: Db, taxonomyId: string, termId: strin
  * its sub-terms' content too, so tagging/untagging with a child changes the parent's
  * archive and it must be purged along with it.
  */
-export async function getTermRefsWithAncestors(db: Db, termIds: string[]): Promise<TermRef[]> {
+export async function getTermRefsWithAncestors(db: Db, siteId: string, termIds: string[]): Promise<TermRef[]> {
   if (termIds.length === 0) return []
   const direct = await db.select({ taxonomyId: taxonomyTerms.taxonomyId })
     .from(taxonomyTerms)
@@ -177,7 +177,7 @@ export async function getTermRefsWithAncestors(db: Db, termIds: string[]): Promi
   })
     .from(taxonomyTerms)
     .innerJoin(taxonomies, eq(taxonomies.id, taxonomyTerms.taxonomyId))
-    .where(inArray(taxonomyTerms.taxonomyId, taxonomyIds))
+    .where(and(inArray(taxonomyTerms.taxonomyId, taxonomyIds), eq(taxonomies.siteId, siteId)))
   const byId = new Map(rows.map(r => [r.id, r]))
   const refs = new Map<string, TermRef>()
   for (const id of termIds) {
@@ -230,13 +230,13 @@ export function replaceContentTermsStatements(db: Db, itemId: string, termIds: s
 }
 
 /** Taxonomies that apply to a content type: explicitly linked ones plus unscoped ones. */
-export async function getTaxonomyContentTypeSlugs(db: Db, taxonomyIds: string[]): Promise<Map<string, string[]>> {
+export async function getTaxonomyContentTypeSlugs(db: Db, siteId: string, taxonomyIds: string[]): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>(taxonomyIds.map(id => [id, []]))
   if (taxonomyIds.length === 0) return out
   const rows = await db.select({ taxonomyId: taxonomyContentTypes.taxonomyId, slug: contentTypes.slug })
     .from(taxonomyContentTypes)
     .innerJoin(contentTypes, eq(contentTypes.id, taxonomyContentTypes.contentTypeId))
-    .where(inArray(taxonomyContentTypes.taxonomyId, taxonomyIds))
+    .where(and(inArray(taxonomyContentTypes.taxonomyId, taxonomyIds), eq(contentTypes.siteId, siteId)))
   for (const r of rows) out.get(r.taxonomyId)?.push(r.slug)
   return out
 }
@@ -407,7 +407,7 @@ export async function getPublicTermCounts(db: Db, siteId: string, taxonomyId: st
 }
 
 /** Public terms of one item, grouped for display (categories vs tags). */
-export async function getPublicItemTerms(db: Db, itemId: string) {
+export async function getPublicItemTerms(db: Db, siteId: string, itemId: string) {
   return db.select({
     taxonomySlug: taxonomies.slug,
     taxonomyName: taxonomies.name,
@@ -418,7 +418,7 @@ export async function getPublicItemTerms(db: Db, itemId: string) {
     .from(contentTaxonomyTerms)
     .innerJoin(taxonomyTerms, eq(taxonomyTerms.id, contentTaxonomyTerms.termId))
     .innerJoin(taxonomies, eq(taxonomies.id, taxonomyTerms.taxonomyId))
-    .where(eq(contentTaxonomyTerms.contentItemId, itemId))
+    .where(and(eq(contentTaxonomyTerms.contentItemId, itemId), eq(taxonomies.siteId, siteId)))
     .orderBy(asc(taxonomies.slug), asc(taxonomyTerms.sortOrder), asc(taxonomyTerms.name))
 }
 

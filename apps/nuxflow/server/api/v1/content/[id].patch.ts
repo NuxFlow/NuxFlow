@@ -190,7 +190,7 @@ export default defineEventHandler(async (event) => {
 
   // Old and new terms (plus their parents, whose archives roll sub-terms up) — any of
   // those archives can list this item differently after this edit.
-  const termRefs = await getTermRefsWithAncestors(db, [...new Set([...previousTermIds, ...nextTermIds])])
+  const termRefs = await getTermRefsWithAncestors(db, siteId, [...new Set([...previousTermIds, ...nextTermIds])])
   await purgeContentCache(event, {
     published: existing.status === 'published' || (updateFields.status ?? existing.status) === 'published',
     slugs: [existing.slug, updateFields.slug].filter((s): s is string => Boolean(s)),

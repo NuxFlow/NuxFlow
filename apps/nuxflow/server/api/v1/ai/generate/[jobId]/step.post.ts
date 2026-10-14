@@ -34,9 +34,9 @@ export default defineEventHandler(async (event) => {
     await advanceJob(event, db, claimed)
   }
   finally {
-    await releaseJob(db, jobId)
+    await releaseJob(db, siteId, jobId)
   }
 
-  const job = await db.query.aiGenerationJobs.findFirst({ where: eq(aiGenerationJobs.id, jobId) })
+  const job = await db.query.aiGenerationJobs.findFirst({ where: and(eq(aiGenerationJobs.id, jobId), eq(aiGenerationJobs.siteId, siteId)) })
   return jobResponse(db, job!)
 })

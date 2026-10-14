@@ -8,7 +8,7 @@ import { TONES } from '../../../../utils/canvas-generation'
 import { jobResponse } from '../../../../utils/site-generation'
 import { aiGenerationJobs } from '@nuxflow/db/schema'
 import { created } from '../../../../utils/response'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 const bodySchema = z.object({
   prompt: z.string().trim().min(10).max(2000),
@@ -45,6 +45,6 @@ export default defineEventHandler(async (event) => {
       : { status: 'generating' as const, plan: [{ title: '', slug: '', description: prompt }], totalCount: 1 }),
   })
 
-  const job = await db.query.aiGenerationJobs.findFirst({ where: eq(aiGenerationJobs.id, id) })
+  const job = await db.query.aiGenerationJobs.findFirst({ where: and(eq(aiGenerationJobs.id, id), eq(aiGenerationJobs.siteId, siteId)) })
   return created(event, { jobId: id, job: await jobResponse(db, job!) })
 })

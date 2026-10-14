@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import { useDb } from '../../../utils/db'
+import { scopedById } from '../../../utils/db-helpers'
 import { requireRole } from '../../../utils/permissions'
 import { parseBody } from '../../../utils/validate'
 import { getEmailMessageOrThrow } from '../../../utils/inbox'
 import { writeAuditLog } from '../../../utils/audit'
 import { emailMessages } from '@nuxflow/db/schema'
-import { eq } from 'drizzle-orm'
 
 const bodySchema = z.object({
   status: z.enum(['new', 'read', 'archived', 'spam']),
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   const body = await parseBody(event, bodySchema)
 
   const message = await getEmailMessageOrThrow(db, siteId, id)
-  await db.update(emailMessages).set({ status: body.status }).where(eq(emailMessages.id, id))
+  await db.update(emailMessages).set({ status: body.status }).where(scopedById(emailMessages.id, id, emailMessages.siteId, siteId))
   await writeAuditLog(event, userId, {
     action: 'update',
     resource: 'email_message',

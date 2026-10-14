@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
 
   const allTaxonomies = await db.query.taxonomies.findMany({ where: eq(taxonomies.siteId, siteId) })
-  const typesByTaxonomy = await getTaxonomyContentTypeSlugs(db, allTaxonomies.map(t => t.id))
+  const typesByTaxonomy = await getTaxonomyContentTypeSlugs(db, siteId, allTaxonomies.map(t => t.id))
   const siteTaxonomies = contentType
     ? allTaxonomies.filter((t) => {
         const types = typesByTaxonomy.get(t.id) ?? []

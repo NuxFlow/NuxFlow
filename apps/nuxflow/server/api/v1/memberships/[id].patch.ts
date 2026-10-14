@@ -117,7 +117,7 @@ export default defineEventHandler(async (event) => {
   await batchWithAudit(db, [update], auditInsert)
 
   const updated = await db.query.membershipTiers.findFirst({
-    where: (t, { eq: eq_ }) => eq_(t.id, id),
+    where: (t, { and: and_, eq: eq_ }) => and_(eq_(t.id, id), eq_(t.siteId, siteId)),
   })
   return updated
 })

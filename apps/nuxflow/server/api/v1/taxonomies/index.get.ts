@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
     .orderBy(asc(taxonomies.name))
 
   // Empty contentTypes = the taxonomy applies to every content type.
-  const typesByTaxonomy = await getTaxonomyContentTypeSlugs(db, rows.map(r => r.id))
+  const typesByTaxonomy = await getTaxonomyContentTypeSlugs(db, siteId, rows.map(r => r.id))
 
   return {
     taxonomies: rows.map(r => ({ ...r, termCount: Number(r.termCount), contentTypes: typesByTaxonomy.get(r.id) ?? [] })),

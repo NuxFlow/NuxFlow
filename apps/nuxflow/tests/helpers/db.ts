@@ -14,15 +14,31 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
+import { recordStatement, serverCaller } from './tenant-query-guard'
 
 export type TestDb = ReturnType<typeof drizzle<typeof schema>>
 
 let _currentDb: TestDb | null = null
 let _currentDbPath: string | null = null
+let _currentClient: ReturnType<typeof createClient> | null = null
+// One watched instance per server call site, over the same client as _currentDb.
+const _watchedDbs = new Map<string, TestDb>()
 
+/**
+ * The current test database. When server code asks for it (through the mocked
+ * `useDb()`), it gets an instance whose every statement goes through the tenant query
+ * guard (tests/helpers/tenant-query-guard.ts); test code itself gets the plain one.
+ */
 export function getCurrentTestDb(): TestDb {
-  if (!_currentDb) throw new Error('Test DB not initialized — call initTestDb() in beforeAll()')
-  return _currentDb
+  if (!_currentDb || !_currentClient) throw new Error('Test DB not initialized — call initTestDb() in beforeAll()')
+  const caller = serverCaller()
+  if (!caller) return _currentDb
+  let watched = _watchedDbs.get(caller)
+  if (!watched) {
+    watched = drizzle(_currentClient, { schema, logger: { logQuery: q => recordStatement(q, caller) } })
+    _watchedDbs.set(caller, watched)
+  }
+  return watched
 }
 
 /**
@@ -48,11 +64,15 @@ export async function initTestDb(): Promise<TestDb> {
 
   _currentDb = db
   _currentDbPath = dbPath
+  _currentClient = client
+  _watchedDbs.clear()
   return db
 }
 
 export async function teardownTestDb(): Promise<void> {
   _currentDb = null
+  _currentClient = null
+  _watchedDbs.clear()
   if (_currentDbPath) {
     await unlink(_currentDbPath).catch(() => {})
     _currentDbPath = null
