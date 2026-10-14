@@ -112,7 +112,7 @@ export async function indexablePathsForItems(db: Db, siteId: string, items: Item
   const [site, sources, types] = await Promise.all([
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true } }),
     Promise.all(chunks(sourceIds).map(ids => db.query.contentItems.findMany({ where: and(eq(contentItems.siteId, siteId), inArray(contentItems.id, ids)), columns: { id: true, slug: true } }))).then(r => r.flat()),
-    Promise.all(chunks(typeIds).map(ids => db.query.contentTypes.findMany({ where: inArray(contentTypes.id, ids), columns: { id: true, slug: true } }))).then(r => r.flat()),
+    Promise.all(chunks(typeIds).map(ids => db.query.contentTypes.findMany({ where: and(eq(contentTypes.siteId, siteId), inArray(contentTypes.id, ids)), columns: { id: true, slug: true } }))).then(r => r.flat()),
   ])
   const sourceSlug = new Map(sources.map(s => [s.id, s.slug]))
   const typeSlug = new Map(types.map(t => [t.id, t.slug]))

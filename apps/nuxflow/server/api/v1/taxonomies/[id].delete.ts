@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
     ? await db.selectDistinct({ slug: contentItems.slug })
         .from(contentTaxonomyTerms)
         .innerJoin(contentItems, eq(contentItems.id, contentTaxonomyTerms.contentItemId))
-        .where(and(inArray(contentTaxonomyTerms.termId, terms.map(t => t.id)), eq(contentItems.status, 'published')))
+        .where(and(inArray(contentTaxonomyTerms.termId, terms.map(t => t.id)), eq(contentItems.siteId, siteId), eq(contentItems.status, 'published')))
         .limit(500)
     : []
 

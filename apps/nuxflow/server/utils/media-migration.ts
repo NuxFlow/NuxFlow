@@ -321,9 +321,9 @@ export async function rewriteReferences(
       sql`instr(${menus.items}, ${needle}) > 0`,
     )).orderBy(asc(menus.id)).limit(ID_PAGE_SIZE)).map(r => r.id),
     async (id) => {
-      const [row] = await db.select({ items: sql<string>`CAST(${menus.items} AS TEXT)` }).from(menus).where(eq(menus.id, id))
+      const [row] = await db.select({ items: sql<string>`CAST(${menus.items} AS TEXT)` }).from(menus).where(and(eq(menus.id, id), eq(menus.siteId, siteId)))
       const next = row ? swap(row.items) : null
-      if (row && next !== row.items) await db.update(menus).set({ items: sql`${next}` }).where(eq(menus.id, id))
+      if (row && next !== row.items) await db.update(menus).set({ items: sql`${next}` }).where(and(eq(menus.id, id), eq(menus.siteId, siteId)))
     },
   )
   if (!menusDone) return done(false)

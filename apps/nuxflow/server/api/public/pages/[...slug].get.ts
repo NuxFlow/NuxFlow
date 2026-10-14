@@ -83,7 +83,7 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
   const [type, authorUser, sourcePageResolved, site, seo, ownTerms] = await Promise.all([
     page.typeId
       ? db.query.contentTypes.findFirst({
-          where: eq(contentTypes.id, page.typeId),
+          where: and(eq(contentTypes.id, page.typeId), eq(contentTypes.siteId, siteId)),
           columns: { hasComments: true, slug: true, name: true, singularName: true },
         })
       : Promise.resolve(null),
@@ -107,14 +107,14 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
       : Promise.resolve(null),
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true } }),
     getSeoSettings(db, siteId),
-    getPublicItemTerms(db, page.id),
+    getPublicItemTerms(db, siteId, page.id),
   ])
   const defaultLocale = site?.locale || 'en'
 
   // A translation that hasn't been tagged itself shows its original's terms — the
   // archives it links to are shared across languages.
   const termRows = ownTerms.length === 0 && page.sourceItemId && sourcePageResolved
-    ? await getPublicItemTerms(db, page.sourceItemId)
+    ? await getPublicItemTerms(db, siteId, page.sourceItemId)
     : ownTerms
   const terms = termRows.map(t => ({ ...t, path: termArchivePath(t.taxonomySlug, t.termSlug) }))
 

@@ -465,7 +465,7 @@ async function triageMessage(event: H3Event, id: string, msg: { subject: string;
     const spam = object.category === 'spam'
     await useDb(event).update(emailMessages)
       .set({ category: object.category, aiSummary: object.summary, ...(spam ? { status: 'spam' as const } : {}) })
-      .where(eq(emailMessages.id, id))
+      .where(and(eq(emailMessages.id, id), eq(emailMessages.siteId, event.context.siteId as string)))
     return spam
   }
   catch (err) {
@@ -551,7 +551,7 @@ async function handlePostByEmail(input: InboundInput): Promise<void> {
 
   const hourAgo = new Date(Date.now() - 3_600_000).toISOString().replace('T', ' ').slice(0, 19)
   const [recent] = await db.select({ n: sql<number>`count(*)` }).from(emailMessages)
-    .where(and(eq(emailMessages.mailboxId, mailbox.id), gt(emailMessages.createdAt, hourAgo)))
+    .where(and(eq(emailMessages.siteId, siteId), eq(emailMessages.mailboxId, mailbox.id), gt(emailMessages.createdAt, hourAgo)))
   if ((recent?.n ?? 0) >= POST_BY_EMAIL_HOURLY_LIMIT) {
     return rejectPost(input, `more than ${POST_BY_EMAIL_HOURLY_LIMIT} emails in the last hour`, ownerId)
   }

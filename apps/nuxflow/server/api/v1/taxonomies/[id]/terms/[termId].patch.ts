@@ -63,7 +63,7 @@ export default defineEventHandler(async (event) => {
   // Archive refs before the change: the old slug's archive and the old parent chain both
   // need purging, alongside the new ones.
   const affectedIds = await getTermWithDescendantIds(db, taxonomyId, termId)
-  const beforeRefs = await getTermRefsWithAncestors(db, [termId])
+  const beforeRefs = await getTermRefsWithAncestors(db, siteId, [termId])
 
   const termUpdate = db.update(taxonomyTerms).set(update).where(and(eq(taxonomyTerms.id, termId), eq(taxonomyTerms.taxonomyId, taxonomyId)))
 
@@ -81,7 +81,7 @@ export default defineEventHandler(async (event) => {
     await redirectMovedPaths(db, siteId, [{ from: termArchivePath(taxonomy.slug, term.slug), to: termArchivePath(taxonomy.slug, body.slug!) }])
   }
 
-  const afterRefs = await getTermRefsWithAncestors(db, [termId])
+  const afterRefs = await getTermRefsWithAncestors(db, siteId, [termId])
   await purgeTaxonomyCache(event, db, {
     taxonomySlugs: [taxonomy.slug],
     terms: [...beforeRefs, ...afterRefs],

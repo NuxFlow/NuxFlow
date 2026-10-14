@@ -3,6 +3,7 @@ import { ulid } from 'ulid'
 import { eq } from 'drizzle-orm'
 import { emailMessages, mailboxes, sites } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
+import { scopedById } from '../../../../utils/db-helpers'
 import { requireRole } from '../../../../utils/permissions'
 import { parseBody } from '../../../../utils/validate'
 import { getEmailMessageOrThrow } from '../../../../utils/inbox'
@@ -53,7 +54,7 @@ export default defineEventHandler(async (event) => {
   if (original.direction !== 'inbound' || original.contentItemId) badRequest('Only received messages can be replied to')
 
   const [mailbox, site] = await Promise.all([
-    original.mailboxId ? db.query.mailboxes.findFirst({ where: eq(mailboxes.id, original.mailboxId) }) : Promise.resolve(undefined),
+    original.mailboxId ? db.query.mailboxes.findFirst({ where: scopedById(mailboxes.id, original.mailboxId, mailboxes.siteId, siteId) }) : Promise.resolve(undefined),
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } }),
   ])
   const config = await loadEmailConfig(event)
@@ -126,7 +127,7 @@ export default defineEventHandler(async (event) => {
     sentByUserId: userId,
   })
   if (original.status === 'new') {
-    await db.update(emailMessages).set({ status: 'read' }).where(eq(emailMessages.id, id))
+    await db.update(emailMessages).set({ status: 'read' }).where(scopedById(emailMessages.id, id, emailMessages.siteId, siteId))
   }
 
   await writeAuditLog(event, userId, {

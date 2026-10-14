@@ -185,6 +185,23 @@ export const aiGenerationJobs = sqliteTable('ai_generation_jobs', {
   index('idx_ai_gen_jobs_user_site').on(t.userId, t.siteId),
 ])
 
+// Per-site usage, one row per site + UTC day + metric (apps/nuxflow/server/utils/usage.ts).
+// Two kinds of metric share it: events (page views, server renders, API requests, AI calls,
+// emails) are added to through the day, buffered per isolate and upserted at most once a
+// minute; snapshots (storage bytes, content items, team/site members, plugins) are
+// overwritten by the nightly usage-snapshot task. Backs Super Admin → Usage, and later the
+// hosting-plan limits. Pruned after 400 days by prune-old-data.
+export const siteUsageDaily = sqliteTable('site_usage_daily', {
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  day: text('day').notNull(), // YYYY-MM-DD (UTC)
+  metric: text('metric').notNull(),
+  value: integer('value').notNull().default(0),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  primaryKey({ columns: [t.siteId, t.day, t.metric] }),
+  index('idx_site_usage_daily_day').on(t.day),
+])
+
 // Daily per-site hit counts for known search-engine and AI crawlers (see
 // apps/nuxflow/server/utils/seo.ts's KNOWN_CRAWLERS and crawler-tracking.ts). One row per
 // site+UTC day+bot, incremented with an upsert — a counter table rather than a row per hit,

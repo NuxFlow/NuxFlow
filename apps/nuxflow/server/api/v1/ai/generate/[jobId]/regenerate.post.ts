@@ -5,7 +5,7 @@ import { rateLimit } from '../../../../../utils/rate-limit'
 import { useDb } from '../../../../../utils/db'
 import { claimJob, jobResponse, regeneratePlanPage, releaseJob } from '../../../../../utils/site-generation'
 import { aiGenerationJobs } from '@nuxflow/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 const bodySchema = z.object({ index: z.number().int().min(0) })
 
@@ -22,8 +22,8 @@ export default defineEventHandler(async (event) => {
 
   const job = await claimJob(db, siteId, jobId)
   if (!job) {
-    const exists = await db.query.aiGenerationJobs.findFirst({ where: eq(aiGenerationJobs.id, jobId), columns: { siteId: true } })
-    if (!exists || exists.siteId !== siteId) throw notFound('Generation job not found')
+    const exists = await db.query.aiGenerationJobs.findFirst({ where: and(eq(aiGenerationJobs.id, jobId), eq(aiGenerationJobs.siteId, siteId)), columns: { id: true } })
+    if (!exists) throw notFound('Generation job not found')
     throw conflict('This generation is busy — wait for the current step to finish')
   }
 
@@ -32,9 +32,9 @@ export default defineEventHandler(async (event) => {
     await regeneratePlanPage(event, db, job, index)
   }
   finally {
-    await releaseJob(db, jobId)
+    await releaseJob(db, siteId, jobId)
   }
 
-  const updated = await db.query.aiGenerationJobs.findFirst({ where: eq(aiGenerationJobs.id, jobId) })
+  const updated = await db.query.aiGenerationJobs.findFirst({ where: and(eq(aiGenerationJobs.id, jobId), eq(aiGenerationJobs.siteId, siteId)) })
   return jobResponse(db, updated!)
 })

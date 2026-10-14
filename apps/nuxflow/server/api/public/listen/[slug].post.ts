@@ -2,6 +2,7 @@ import { createWorkersAI } from 'workers-ai-provider'
 import { generateSpeech } from 'ai'
 import { useReplicaDb } from '../../../utils/db'
 import { getWorkersAiBinding } from '../../../utils/cf-env'
+import { countUsage } from '../../../utils/usage'
 import { extractPlainText } from '../../../utils/tiptap-text'
 import { rateLimit } from '../../../utils/rate-limit'
 import { contentItems } from '@nuxflow/db/schema'
@@ -51,6 +52,7 @@ export default defineEventHandler(async (event) => {
   if (!text) throw createError({ statusCode: 422, message: 'This page has no readable article text.' })
 
   const workersai = createWorkersAI({ binding: ai })
+  countUsage(event, 'ai_calls')
   const { audio } = await generateSpeech({
     model: workersai.speech('@cf/deepgram/aura-2-en'),
     text,

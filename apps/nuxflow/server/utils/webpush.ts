@@ -215,7 +215,7 @@ export async function sendPushToUser(event: H3Event, userId: string, payload: Pu
     dispatchPush(sub.endpoint, sub.p256dh, sub.auth, payload, vapid.pub, vapid.priv)
       .catch(async (err) => {
         if (err instanceof SubscriptionExpiredError) {
-          await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id))
+          await db.delete(pushSubscriptions).where(and(eq(pushSubscriptions.id, sub.id), eq(pushSubscriptions.siteId, siteId)))
         } else {
           console.error('[webpush] Push dispatch failed:', err)
         }
@@ -236,7 +236,7 @@ export async function broadcastPushToSite(event: H3Event, payload: PushPayload):
     dispatchPush(sub.endpoint, sub.p256dh, sub.auth, payload, vapid.pub, vapid.priv)
       .catch(async (err) => {
         if (err instanceof SubscriptionExpiredError) {
-          await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id))
+          await db.delete(pushSubscriptions).where(and(eq(pushSubscriptions.id, sub.id), eq(pushSubscriptions.siteId, siteId)))
         } else {
           console.error('[webpush] Push dispatch failed:', err)
         }

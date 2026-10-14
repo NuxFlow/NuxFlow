@@ -1,4 +1,5 @@
 import { useDb } from '../../../utils/db'
+import { scopedById } from '../../../utils/db-helpers'
 import { requireRole } from '../../../utils/permissions'
 import { getEmailMessageOrThrow } from '../../../utils/inbox'
 import { emailMessages, users } from '@nuxflow/db/schema'
@@ -21,7 +22,7 @@ export default defineEventHandler(async (event) => {
   if (message.contentItemId) notFound('Message not found')
 
   if (message.status === 'new') {
-    await db.update(emailMessages).set({ status: 'read' }).where(eq(emailMessages.id, id))
+    await db.update(emailMessages).set({ status: 'read' }).where(scopedById(emailMessages.id, id, emailMessages.siteId, siteId))
     message.status = 'read'
   }
 

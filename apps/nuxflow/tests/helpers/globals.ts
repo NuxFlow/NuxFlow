@@ -6,7 +6,8 @@
  * test file gets these globals without explicit imports.
  */
 
-import { vi } from 'vitest'
+import { afterAll, vi } from 'vitest'
+import { formatViolations, takeViolations } from './tenant-query-guard'
 
 // ---------------------------------------------------------------------------
 // H3 auto-imports
@@ -244,3 +245,13 @@ globalThis.clearBetterAuthCache = () => {}
 
 // useDb is NOT mocked globally — each integration test file provides its own
 // vi.mock for '../../server/utils/db' to inject the real in-memory test DB.
+
+// ---------------------------------------------------------------------------
+// Tenant query guard — fails a test file whose server code read or changed a
+// site-scoped table without a site_id filter. See tests/helpers/tenant-query-guard.ts.
+// ---------------------------------------------------------------------------
+
+afterAll(() => {
+  const violations = takeViolations()
+  if (violations.length) throw new Error(formatViolations(violations))
+})

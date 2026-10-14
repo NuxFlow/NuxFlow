@@ -1,6 +1,6 @@
 import { useReplicaDb } from '../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
-import { inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { rateLimit } from '../../utils/rate-limit'
 
 export interface SearchExcerptSegment {
@@ -70,7 +70,7 @@ export default defineEventHandler(async (event) => {
     const items = await db
       .select({ id: contentItems.id, slug: contentItems.slug })
       .from(contentItems)
-      .where(inArray(contentItems.id, ids))
+      .where(and(eq(contentItems.siteId, siteId), inArray(contentItems.id, ids)))
     for (const item of items) slugMap.set(item.id, item.slug)
   }
 

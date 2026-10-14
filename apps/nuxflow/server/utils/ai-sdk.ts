@@ -1,8 +1,9 @@
-import type { LanguageModel } from 'ai'
+import { wrapLanguageModel, type LanguageModel } from 'ai'
 import { isError, type H3Event } from 'h3'
 import { resolveSetting } from './settings'
 import { getCfBindings, getWorkersAiBinding } from './cf-env'
 import { WORKER_MEDIA_PREFIX, workerMediaKey } from './media-url'
+import { countUsage } from './usage'
 
 /**
  * 'vision' is for routes that send image bytes to the model (alt-text.post.ts,
@@ -70,8 +71,36 @@ export function gatewayBaseUrl(accountId: string, gatewayId: string, path: strin
  * Returns null when the provider key is missing — callers throw 503 on null.
  * Each provider SDK is imported dynamically so a site configured for one
  * provider doesn't bundle the other five into the Worker.
+ *
+ * Every call made with the returned model counts towards the site's `ai_calls` usage
+ * (server/utils/usage.ts) — counted here, once, rather than at each of the ~20 call sites.
  */
 export async function getAiSdkModel(event: H3Event, quality: AiQuality = 'fast', opts: GetAiSdkModelOptions = {}): Promise<LanguageModel | null> {
+  const model = await resolveAiSdkModel(event, quality, opts)
+  return model ? withUsageCounting(event, model) : null
+}
+
+/** Counts each generate/stream call the model makes — retries included, since each is a real call. */
+export function withUsageCounting(event: H3Event, model: LanguageModel): LanguageModel {
+  // A gateway model id string, or anything that isn't a provider model object, can't be wrapped.
+  if (typeof model !== 'object' || !('specificationVersion' in model)) return model
+  return wrapLanguageModel({
+    model,
+    middleware: {
+      specificationVersion: 'v4',
+      wrapGenerate: ({ doGenerate }) => {
+        countUsage(event, 'ai_calls')
+        return doGenerate()
+      },
+      wrapStream: ({ doStream }) => {
+        countUsage(event, 'ai_calls')
+        return doStream()
+      },
+    },
+  })
+}
+
+async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAiSdkModelOptions): Promise<LanguageModel | null> {
   // No `ai.provider` setting saved yet (fresh install, or an existing deployment that never
   // configured a BYOK key) falls back to Workers AI rather than a hard 503 — it needs zero
   // account setup beyond the `[ai]` wrangler.toml binding (commented out by default —

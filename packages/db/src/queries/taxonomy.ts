@@ -1,9 +1,9 @@
 import { contentTaxonomyTerms, taxonomyTerms, taxonomies } from '../schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { Db } from './types'
 
 /** All taxonomy terms (with their parent taxonomy) assigned to one content item. */
-export async function getContentItemTerms(db: Db, itemId: string) {
+export async function getContentItemTerms(db: Db, siteId: string, itemId: string) {
   return db
     .select({
       termId: contentTaxonomyTerms.termId,
@@ -16,5 +16,5 @@ export async function getContentItemTerms(db: Db, itemId: string) {
     .from(contentTaxonomyTerms)
     .innerJoin(taxonomyTerms, eq(contentTaxonomyTerms.termId, taxonomyTerms.id))
     .innerJoin(taxonomies, eq(taxonomyTerms.taxonomyId, taxonomies.id))
-    .where(eq(contentTaxonomyTerms.contentItemId, itemId))
+    .where(and(eq(contentTaxonomyTerms.contentItemId, itemId), eq(taxonomies.siteId, siteId)))
 }

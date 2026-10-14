@@ -50,7 +50,7 @@ export default defineEventHandler(async (event) => {
 
   if (writes.length === 0) return { id }
 
-  const beforeTypes = (await getTaxonomyContentTypeSlugs(db, [id])).get(id) ?? []
+  const beforeTypes = (await getTaxonomyContentTypeSlugs(db, siteId, [id])).get(id) ?? []
   const auditInsert = buildAuditLogInsert(event, userId, {
     action: 'update',
     resource: 'taxonomy',

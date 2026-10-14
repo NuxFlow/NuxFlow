@@ -66,7 +66,7 @@ export default defineEventHandler(async (event) => {
   // Per-item override takes precedence; null means "inherit from content type" (same
   // rule as api/public/pages/[...slug].get.ts).
   const commentsEnabled = item.allowComments ?? (await db.query.contentTypes.findFirst({
-    where: eq(contentTypes.id, item.typeId),
+    where: and(eq(contentTypes.id, item.typeId), eq(contentTypes.siteId, siteId)),
     columns: { hasComments: true },
   }))?.hasComments ?? false
   if (item.status !== 'published' || !commentsEnabled) {

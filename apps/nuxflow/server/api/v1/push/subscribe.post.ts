@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
   if (existing) {
     await db.update(pushSubscriptions)
       .set({ p256dh: body.p256dh, auth: body.auth })
-      .where(eq(pushSubscriptions.id, existing.id))
+      .where(and(eq(pushSubscriptions.id, existing.id), eq(pushSubscriptions.siteId, siteId)))
   } else {
     await db.insert(pushSubscriptions).values({
       id: ulid(),

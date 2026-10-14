@@ -42,7 +42,7 @@ export async function restoreMembershipTiers(
           lsVariantId: backupTier.lsVariantId,
           paddleProductId: backupTier.paddleProductId,
           isActive: backupTier.isActive,
-        }).where(eq(membershipTiers.id, existing.id))
+        }).where(and(eq(membershipTiers.id, existing.id), eq(membershipTiers.siteId, siteId)))
         result.membershipTiers.updated++
       } else {
         result.membershipTiers.skipped++

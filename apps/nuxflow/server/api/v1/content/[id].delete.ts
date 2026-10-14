@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   const existing = await getContentItemOrThrow(db, siteId, id, 'Not found', {
     id: true, title: true, slug: true, status: true, visibility: true, locale: true, sourceItemId: true, typeId: true, metaRobots: true,
   })
-  const termRefs = await getTermRefsWithAncestors(db, await getContentTermIds(db, id))
+  const termRefs = await getTermRefsWithAncestors(db, siteId, await getContentTermIds(db, id))
   // Resolved before the delete — a translation's public path needs its source row.
   const wasLive = existing.status === 'published' && existing.visibility === 'public'
   const livePaths = wasLive ? await indexablePathsForItems(db, siteId, [existing]) : []

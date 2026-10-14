@@ -1,5 +1,5 @@
 import { useDb } from '../utils/db'
-import { aiGenerationJobs, auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits, siteInvitations, siteAuthCodes, siteSessions } from '@nuxflow/db/schema'
+import { aiGenerationJobs, auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits, siteUsageDaily, siteInvitations, siteAuthCodes, siteSessions } from '@nuxflow/db/schema'
 import { and, count, eq, inArray, lt, ne, notInArray, sql, isNotNull, or } from 'drizzle-orm'
 
 // Bounds how many overflowing content items get their excess revisions pruned in a
@@ -160,6 +160,15 @@ export const pruneOldData = async () => {
     await db.delete(crawlerHits).where(lt(crawlerHits.day, crawlerCutoff))
   }
 
+  // --- Usage counters --- kept a little over a year, so a month can be compared with the
+  // same month last year.
+  const usageCutoff = new Date(Date.now() - 400 * 86_400_000).toISOString().slice(0, 10)
+  const [usageRow] = await db.select({ value: count() }).from(siteUsageDaily).where(lt(siteUsageDaily.day, usageCutoff))
+  const prunedUsageRows = usageRow?.value ?? 0
+  if (prunedUsageRows > 0) {
+    await db.delete(siteUsageDaily).where(lt(siteUsageDaily.day, usageCutoff))
+  }
+
   // --- Expired sign-in state --- invitations nobody accepted, one-time sign-in codes that
   // were never exchanged (they live ~60s), and site sessions past their expiry. All are
   // already ignored once expired; this just stops them accumulating.
@@ -194,6 +203,7 @@ export const pruneOldData = async () => {
     prunedEmailLog,
     prunedSpamEmail: spam.length,
     prunedCrawlerHits,
+    prunedUsageRows,
     abandonedAiJobs: abandoned.length,
     prunedAiJobs: expiredJobs.length,
     prunedInvitations: expiredInvites[0]?.value ?? 0,
