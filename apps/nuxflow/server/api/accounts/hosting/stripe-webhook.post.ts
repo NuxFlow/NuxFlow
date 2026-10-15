@@ -36,6 +36,8 @@ export default defineEventHandler(async (event) => {
     }
     case 'customer.subscription.created':
     case 'customer.subscription.updated':
+    case 'customer.subscription.paused':
+    case 'customer.subscription.resumed':
     case 'customer.subscription.deleted': {
       const sub = stripeEvent.data.object
       if (isHostingStripeObject(sub)) subscriptionId = sub.id
