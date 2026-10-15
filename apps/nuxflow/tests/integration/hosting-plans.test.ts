@@ -1,7 +1,8 @@
 /**
  * Hosting plans (server/utils/hosting-plans.ts): the built-in unlimited default, how each
  * limit is counted, enforcement at the real entry points, the Super Admin plan and site
- * routes, the site owner's summary, and the operator's 80%/100% notices.
+ * routes, the site owner's summary, the operator's 80%/100% notices, and the Super Admin
+ * hosting-platform switch they all sit behind.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import type { H3Event } from 'h3'
@@ -9,7 +10,7 @@ import { and, eq } from 'drizzle-orm'
 import { generateText } from 'ai'
 import { MockLanguageModelV4 } from 'ai/test'
 import { ulid } from 'ulid'
-import { dynamicPlugins, emailLog, hostingPlans, notifications, siteInvitations, sites, siteUsageDaily, users } from '@nuxflow/db/schema'
+import { dynamicPlugins, emailLog, hostingPlans, notifications, siteInvitations, siteSettings, sites, siteUsageDaily, users } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedContentType, seedContentItem, seedMedia, seedSetting } from '../helpers/seed'
@@ -52,6 +53,12 @@ const { default: patchPlan } = await import('../../server/api/v1/admin/plans/[id
 const { default: deletePlan } = await import('../../server/api/v1/admin/plans/[id].delete')
 const { default: patchSite } = await import('../../server/api/v1/admin/sites/[id].patch')
 const { default: sitePlan } = await import('../../server/api/v1/site-plan/index.get')
+const { clearHostingPlatformCache, isHostingPlatform } = await import('../../server/utils/hosting-platform')
+const { default: getPlatform } = await import('../../server/api/v1/admin/platform/index.get')
+const { default: putPlatform } = await import('../../server/api/v1/admin/platform/index.put')
+const { default: listUsage } = await import('../../server/api/v1/admin/usage/index.get')
+const { default: me } = await import('../../server/api/v1/users/me.get')
+const { default: patchSettings } = await import('../../server/api/v1/settings/index.patch')
 
 type Handler = (e: H3Event) => Promise<unknown>
 
@@ -91,6 +98,8 @@ beforeAll(async () => {
   await seedRole(db, operatorId, PRIMARY, 'super_admin')
   await seedRole(db, tenantAdminId, TENANT, 'admin')
   typeId = await seedContentType(db, TENANT, { slug: 'post', name: 'Posts', singularName: 'Post' })
+  // Everything but the last block runs with the hosting-platform switch on.
+  await seedSetting(db, PRIMARY, 'platform.hosting_enabled', 'true')
 })
 
 afterAll(teardownTestDb)
@@ -102,6 +111,7 @@ beforeEach(async () => {
   await db.delete(siteUsageDaily)
   resetUsageBuffer()
   clearHostingPlanCache()
+  clearHostingPlatformCache()
 })
 
 describe('the built-in unlimited plan', () => {
@@ -290,5 +300,57 @@ describe("the operator's 80% / 100% notices", () => {
     await sendPlanUsageAlerts()
     const [notice] = await planNotices()
     expect(notice!.body).toContain('New requests are refused until the 1st.')
+  })
+})
+
+describe('the hosting-platform switch', () => {
+  async function setSwitch(enabled: boolean) {
+    return (putPlatform as Handler)(ev({ siteId: PRIMARY, session: operator(), body: { hostingEnabled: enabled } }))
+  }
+  afterAll(() => setSwitch(true))
+
+  it('is only for a super admin', async () => {
+    await expect((getPlatform as Handler)(ev({ session: tenantAdmin() }))).rejects.toMatchObject({ statusCode: 403 })
+    await expect((putPlatform as Handler)(ev({ session: tenantAdmin(), body: { hostingEnabled: false } }))).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('off: every site is unlimited, Plans and Usage are gone, and no alerts go out — plan choices are kept', async () => {
+    const db = getCurrentTestDb()
+    const planId = await useLimits({ maxContentItems: 0, maxViewsPerMonth: 10 })
+    await setMonthUsage('views', 50)
+    await db.delete(notifications)
+    expect((await checkPlanLimit(db, TENANT, 'content', 1)).allowed).toBe(false)
+
+    expect(await setSwitch(false)).toEqual({ hostingEnabled: false })
+    expect(await isHostingPlatform(db)).toBe(false)
+    expect(await (getPlatform as Handler)(ev({ siteId: PRIMARY, session: operator() }))).toMatchObject({ hostingEnabled: false, primarySite: { id: PRIMARY } })
+
+    expect((await checkPlanLimit(db, TENANT, 'content', 1)).allowed).toBe(true)
+    expect(await (sitePlan as Handler)(ev({ session: tenantAdmin() }))).toEqual({ plan: null, limits: [] })
+    expect(await sendPlanUsageAlerts()).toMatchObject({ notified: 0 })
+    await expect((listPlans as Handler)(ev({ siteId: PRIMARY, session: operator() }))).rejects.toMatchObject({ statusCode: 404 })
+    await expect((listUsage as Handler)(ev({ siteId: PRIMARY, session: operator() }))).rejects.toMatchObject({ statusCode: 404 })
+    expect(await (me as Handler)(ev({ siteId: PRIMARY, session: operator() }))).toMatchObject({ isSuperAdmin: true, hostingPlatform: false })
+    expect((await db.query.sites.findFirst({ where: eq(sites.id, TENANT) }))?.hostingPlanId).toBe(planId)
+
+    // On again: the same plan applies straight away.
+    await setSwitch(true)
+    expect((await checkPlanLimit(db, TENANT, 'content', 1)).allowed).toBe(false)
+    expect(await (me as Handler)(ev({ siteId: PRIMARY, session: operator() }))).toMatchObject({ hostingPlatform: true })
+  })
+
+  it('is stored on the primary site whichever site it is changed from, and is off when never set', async () => {
+    const db = getCurrentTestDb()
+    await setSwitch(false)
+    expect(await db.select().from(siteSettings).where(eq(siteSettings.key, 'platform.hosting_enabled'))).toHaveLength(0)
+    await setSwitch(true)
+    const rows = await db.select().from(siteSettings).where(eq(siteSettings.key, 'platform.hosting_enabled'))
+    expect(rows).toMatchObject([{ siteId: PRIMARY, value: true }])
+  })
+
+  it("can't be set through the site settings, even by the primary site's admin", async () => {
+    await seedRole(getCurrentTestDb(), tenantAdminId, PRIMARY, 'admin')
+    await expect((patchSettings as Handler)(ev({ siteId: PRIMARY, session: tenantAdmin(), body: { settings: { 'platform.hosting_enabled': false } } })))
+      .rejects.toMatchObject({ statusCode: 400 })
   })
 })

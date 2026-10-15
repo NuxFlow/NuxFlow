@@ -3,6 +3,8 @@ import type { Role } from '~/utils/admin-nav'
 export interface AdminAccess {
   role: Role | null
   isSuperAdmin: boolean
+  /** Super Admin → Platform's "run as a hosting platform" switch. */
+  hostingPlatform?: boolean
 }
 
 // Same useState null-sentinel pattern as 01.session.global.ts's auth:user — fetched once

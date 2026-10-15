@@ -1,14 +1,16 @@
 import { useDb } from '../../../utils/db'
 import { getUserSiteRole, hasSuperAdminRole } from '../../../utils/permissions'
+import { isHostingPlatform } from '../../../utils/hosting-platform'
 
 export default defineEventHandler(async (event) => {
   const session = await requireSession(event)
   const db = useDb(event)
   const siteId = event.context.siteId as string | null
 
-  const [siteRole, hasAnySuperAdminGrant] = await Promise.all([
+  const [siteRole, hasAnySuperAdminGrant, hostingPlatform] = await Promise.all([
     siteId ? getUserSiteRole(db, session.user.id, siteId) : Promise.resolve(null),
     hasSuperAdminRole(db, session.user.id),
+    isHostingPlatform(db),
   ])
   // Matches requireSuperAdmin(): platform actions are only accepted on a site where the
   // caller holds super_admin, so the super-admin UI is only shown there too.
@@ -22,5 +24,7 @@ export default defineEventHandler(async (event) => {
   return {
     role: siteRole?.role ?? (hasAnySuperAdminGrant ? 'viewer' : null),
     isSuperAdmin,
+    /** The Super Admin hosting-platform switch (hosting-platform.ts) — shows Plans/Usage. */
+    hostingPlatform,
   }
 })

@@ -4,6 +4,7 @@ import { useDb } from '../utils/db'
 import { createSystemEvent } from '../utils/system-event'
 import { notifySiteRole } from '../utils/notify'
 import { planMax, type HostingPlan } from '../utils/hosting-plans'
+import { isHostingPlatform } from '../utils/hosting-platform'
 import { usageDay } from '../utils/usage'
 import { PLAN_LIMITS } from '../../shared/lib/hosting-plan-limits'
 
@@ -20,6 +21,7 @@ const METRIC: Record<string, string> = { ai: 'ai_calls', emails: 'emails', views
  */
 export const sendPlanUsageAlerts = async (now = new Date()) => {
   const db = useDb()
+  if (!(await isHostingPlatform(db))) return { checked: 0, notified: 0 }
   const month = usageDay(now).slice(0, 7)
   const monthStart = `${month}-01`
 

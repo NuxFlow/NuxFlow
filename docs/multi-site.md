@@ -152,6 +152,17 @@ Each site's data is scoped by its internal site ID, so content, media, forms, an
 
 ---
 
+## Running a hosting platform
+
+Usage and hosting plans (the next two sections) are for selling sites to other people. They're hidden until you turn them on: **Super Admin → Platform → Run this install as a hosting platform**.
+
+- **Off (the default):** every site is unlimited, plan limits and plan alerts don't run, and Super Admin has no Plans or Usage pages. Usage is still counted quietly in the background, so the numbers are there if you turn it on later.
+- **On:** Super Admin gets **Plans** and **Usage**, and each site's plan limits apply.
+- Turning it off again doesn't forget anything: each site keeps its plan, and the limits come back when you turn it on.
+- Only a super admin can change it. It isn't part of a site backup, so restoring a site elsewhere never turns it on.
+
+---
+
 ## Usage
 
 **Super Admin → Usage** shows what each site uses, one calendar month (UTC) at a time. Pick a month at the top, select a column heading to sort, and select a site's name to see its last 30 days as small daily charts.
