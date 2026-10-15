@@ -11,6 +11,7 @@ interface PlatformState {
   webhookSecretSet: boolean
   webhookUrl: string | null
   signUpUrl: string | null
+  customDomains: { zoneId: string | null; tokenSet: boolean; target: string | null }
 }
 
 // Every event the hosting webhook acts on — the operator ticks these in Stripe.
@@ -51,6 +52,18 @@ function onToggle(enabled: boolean) {
   // nothing until a site is given a plan.
   if (enabled) void setHosting(true)
   else confirmOpen.value = true
+}
+
+// Customers' own domains (Cloudflare for SaaS).
+const cf = reactive({ zoneId: '', token: '', target: '' })
+watch(() => data.value?.customDomains, (d) => {
+  cf.zoneId = d?.zoneId ?? ''
+  cf.target = d?.target ?? ''
+}, { immediate: true })
+async function saveCustomDomains() {
+  const body: Record<string, string> = { cfZoneId: cf.zoneId.trim(), customDomainTarget: cf.target.trim() }
+  if (cf.token.trim()) body.cfApiToken = cf.token.trim()
+  if (await save(body, 'Custom domain settings saved')) cf.token = ''
 }
 
 async function saveWebhookSecret() {
@@ -181,7 +194,43 @@ async function copy(text: string) {
           </p>
         </div>
       </UCard>
+      <UCard v-if="data.hostingEnabled && data.sitesDomain">
+        <template #header>
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="font-semibold text-gray-900 dark:text-white">Customers' own domains</h2>
+            <UBadge :color="data.customDomains.zoneId && data.customDomains.tokenSet ? 'success' : 'neutral'" variant="subtle">
+              {{ data.customDomains.zoneId && data.customDomains.tokenSet ? 'Ready' : 'Off' }}
+            </UBadge>
+          </div>
+        </template>
+        <div class="space-y-4 text-sm">
+          <p class="text-gray-500">
+            Lets customers connect a domain they own (like <code>www.cafe.co.uk</code>) from My hosting. Uses Cloudflare for SaaS on
+            <strong>{{ data.sitesDomain }}</strong>: the first 100 domains are free, then $0.10 a month each. Set it up once:
+          </p>
+          <ol class="list-decimal pl-5 space-y-2 text-gray-600 dark:text-gray-300">
+            <li>Cloudflare → <strong>{{ data.sitesDomain }}</strong> → DNS: add a proxied <code>AAAA</code> record named <code>{{ (cf.target || data.customDomains.target || '').replace(`.${data.sitesDomain}`, '') || 'customers' }}</code> with address <code>100::</code>.</li>
+            <li>Same zone → <strong>SSL/TLS → Custom Hostnames</strong>: enable Cloudflare for SaaS, and set that record (<code>{{ cf.target || data.customDomains.target }}</code>) as the <strong>fallback origin</strong>.</li>
+            <li>Make sure the Worker's route for this zone is <code>*/*</code> (in <code>wrangler.toml</code>), so customers' domains reach NuxFlow.</li>
+            <li>Create an API token (My Profile → API Tokens) with <strong>Zone → SSL and Certificates → Edit</strong> for this zone only, and paste it below with the zone ID (zone Overview page).</li>
+          </ol>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <UFormField label="Zone ID">
+              <UInput v-model="cf.zoneId" placeholder="32 letters and numbers" class="w-full" autocomplete="off" />
+            </UFormField>
+            <UFormField label="API token">
+              <UInput v-model="cf.token" type="password" :placeholder="data.customDomains.tokenSet ? 'Saved — paste a new one to replace it' : 'Paste the token'" class="w-full" autocomplete="off" />
+            </UFormField>
+            <UFormField label="CNAME target" help="What customers point their domain at.">
+              <UInput v-model="cf.target" :placeholder="`customers.${data.sitesDomain}`" class="w-full" />
+            </UFormField>
+          </div>
+          <UButton :loading="saving" @click="saveCustomDomains">Save</UButton>
+        </div>
+      </UCard>
+
     </template>
+
 
     <UModal v-model:open="confirmOpen" title="Turn off the hosting platform?">
       <template #body>

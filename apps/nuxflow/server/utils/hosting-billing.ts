@@ -215,6 +215,7 @@ export async function listPublicPlans(db: Db) {
         maxAiCallsPerMonth: p.maxAiCallsPerMonth,
         maxEmailsPerMonth: p.maxEmailsPerMonth,
         maxPlugins: p.maxPlugins,
+        maxCustomDomains: p.maxCustomDomains,
       },
     }))
 }

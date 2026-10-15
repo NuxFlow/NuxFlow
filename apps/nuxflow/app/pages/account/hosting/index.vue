@@ -143,6 +143,9 @@ async function openBilling(id: string) {
             <UButton variant="outline" color="neutral" icon="i-lucide-credit-card" :loading="opening === s.id" @click="openBilling(s.id)">Billing</UButton>
           </div>
         </div>
+        <div v-if="s.site && !s.paused" class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+          <AccountsHostingDomains :subscription-id="s.id" />
+        </div>
       </UCard>
 
       <p class="text-xs text-gray-500 text-center">

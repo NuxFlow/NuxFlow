@@ -3,6 +3,8 @@ import { requireSuperAdmin } from '../../../../utils/permissions'
 import { clearHostingPlatformCache, HOSTING_PLATFORM_SETTING_KEY } from '../../../../utils/hosting-platform'
 import { clearHostingPlanCache } from '../../../../utils/hosting-plans'
 import { HOSTING_WEBHOOK_SECRET_KEY } from '../../../../utils/hosting-billing'
+import { SAAS_TARGET_KEY, SAAS_TOKEN_KEY, SAAS_ZONE_KEY } from '../../../../utils/hosting-domains'
+import { normalizeDomain } from '../../../../utils/domain'
 import { eventForSite, getPrimarySite } from '../../../../utils/site-info'
 import { saveSetting } from '../../../../utils/settings'
 import { writeAuditLog } from '../../../../utils/audit'
@@ -11,6 +13,10 @@ const bodySchema = z.object({
   hostingEnabled: z.boolean().optional(),
   /** Stripe's signing secret for the hosting webhook (whsec_…); '' removes it. */
   stripeWebhookSecret: z.string().trim().max(200).optional(),
+  /** Cloudflare for SaaS on the sites domain's zone: its zone id, an API token, the CNAME target. '' removes. */
+  cfZoneId: z.string().trim().regex(/^(?:[a-f0-9]{32})?$/i, 'A zone ID is 32 letters and numbers (Cloudflare → your sites domain → Overview).').optional(),
+  cfApiToken: z.string().trim().max(200).optional(),
+  customDomainTarget: z.string().trim().max(253).optional(),
 })
 
 /**
@@ -36,11 +42,24 @@ export default defineEventHandler(async (event) => {
     }
     await saveSetting(primaryEvent, HOSTING_WEBHOOK_SECRET_KEY, body.stripeWebhookSecret || null)
   }
+  if (body.cfZoneId !== undefined) await saveSetting(primaryEvent, SAAS_ZONE_KEY, body.cfZoneId.toLowerCase() || null)
+  if (body.cfApiToken !== undefined) await saveSetting(primaryEvent, SAAS_TOKEN_KEY, body.cfApiToken || null)
+  if (body.customDomainTarget !== undefined) {
+    const target = body.customDomainTarget ? normalizeDomain(body.customDomainTarget) : ''
+    if (target === null) throw validationError('Enter the CNAME target as a hostname, e.g. customers.nuxflow.site.')
+    await saveSetting(primaryEvent, SAAS_TARGET_KEY, target || null)
+  }
   await writeAuditLog(event, userId, {
     action: 'update',
     resource: 'platform',
     resourceId: primary.id,
-    after: { hostingEnabled: body.hostingEnabled, stripeWebhookSecret: body.stripeWebhookSecret === undefined ? undefined : (body.stripeWebhookSecret ? 'set' : 'removed') },
+    after: {
+      hostingEnabled: body.hostingEnabled,
+      stripeWebhookSecret: body.stripeWebhookSecret === undefined ? undefined : (body.stripeWebhookSecret ? 'set' : 'removed'),
+      cfZoneId: body.cfZoneId,
+      cfApiToken: body.cfApiToken === undefined ? undefined : (body.cfApiToken ? 'set' : 'removed'),
+      customDomainTarget: body.customDomainTarget,
+    },
   })
   return { hostingEnabled: body.hostingEnabled }
 })

@@ -1,5 +1,5 @@
 import { useDb } from '../utils/db'
-import { sites } from '@nuxflow/db/schema'
+import { siteDomains, sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { createIsolateCache } from '../utils/isolate-cache'
 import { clearSiteInfoCache } from '../utils/site-info'
@@ -13,7 +13,10 @@ import { getUserSiteRole, hasSuperAdminRole, roleAtLeast, type Role } from '../u
 // bypasses that mock and calls the real getOrCreateBetterAuth(), which has no Cloudflare
 // bindings available outside a real Worker/Wrangler context.
 
-type SiteLookup = { id: string; status: string; setupCompleted: boolean; domain?: string }
+// `redirectTo` is set when the host is one of the site's extra addresses (site_domains —
+// a customer's own domain, or the original subdomain after the site moved to its own
+// domain): requests there redirect to the main address.
+type SiteLookup = { id: string; status: string; setupCompleted: boolean; domain?: string; redirectTo?: string }
 
 // Per-isolate cache: domain -> site rarely changes (only admin site
 // create/update/delete, or the self-healing domain migration below), but
@@ -80,6 +83,16 @@ export default defineEventHandler(async (event) => {
         where: eq(sites.domain, host),
         columns: { id: true, status: true, setupCompleted: true, domain: true },
       })
+
+      // One of a site's extra addresses: resolve to that site, then redirect below.
+      if (!site) {
+        const [alias] = await db.select({ id: sites.id, status: sites.status, setupCompleted: sites.setupCompleted, domain: sites.domain })
+          .from(siteDomains)
+          .innerJoin(sites, eq(sites.id, siteDomains.siteId))
+          .where(eq(siteDomains.hostname, host))
+          .limit(1)
+        if (alias) site = { ...alias, redirectTo: alias.domain }
+      }
 
       // Resilient Fallback: If no site matches the request domain but there is
       // exactly one site in D1, use that site. This prevents locking the user
@@ -155,6 +168,14 @@ export default defineEventHandler(async (event) => {
   // reached through the single-site / *.workers.dev fallback above — 05.seo-headers.ts
   // uses this to keep those duplicate hostnames out of search indexes.
   event.context.siteDomain = site?.domain ?? null
+
+  // An extra address: send visitors (and search engines) to the main one, keeping the
+  // path. 308 for non-GET so a form post isn't turned into a GET. Certificate checks
+  // under /.well-known/ are left alone.
+  if (site?.redirectTo && site.redirectTo !== host && !path.startsWith('/.well-known/')) {
+    const method = event.method.toUpperCase()
+    return sendRedirect(event, `https://${site.redirectTo}${path}`, method === 'GET' || method === 'HEAD' ? 301 : 308)
+  }
 
   if (unknownHost) {
     setResponseStatus(event, 404)

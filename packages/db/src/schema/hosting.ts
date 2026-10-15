@@ -1,4 +1,5 @@
-import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { sites } from './sites'
 import { sql } from 'drizzle-orm'
 
 // Hosting plans — what the platform operator sells to a site owner ("Starter: 1 GB
@@ -25,6 +26,8 @@ export const hostingPlans = sqliteTable('hosting_plans', {
   // Soft limits: counted only; the operator is notified at 80% and 100%.
   maxViewsPerMonth: integer('max_views_per_month'),
   maxRendersPerMonth: integer('max_renders_per_month'),
+  // Hard limit: customers' own domains on a site (0 = not included in this plan).
+  maxCustomDomains: integer('max_custom_domains'),
   // Selling the plan (the hosting-platform sign-up, apps/nuxflow/server/utils/hosting-billing.ts).
   // Prices are in major units (5 = £5); null = not offered at that interval. NuxFlow
   // creates the Stripe product/prices from these and keeps their ids here — a changed
@@ -78,4 +81,35 @@ export const hostingSubscriptions = sqliteTable('hosting_subscriptions', {
   index('idx_hosting_subscriptions_owner').on(t.ownerUserId),
   index('idx_hosting_subscriptions_site').on(t.hostedSiteId),
   index('idx_hosting_subscriptions_subdomain').on(t.requestedSubdomain),
+])
+
+// Extra addresses a site answers on, besides its main one (`sites.domain`). A request on
+// any of them redirects to the main address (02.multi-site.ts). Two kinds:
+//   - `custom`: a customer's own domain, registered with Cloudflare for SaaS
+//     (apps/nuxflow/server/utils/hosting-domains.ts); `cf_custom_hostname_id` is its id
+//     there, and the row stays even while it is the main address, so it can be removed
+//     from Cloudflare later.
+//   - `platform`: the site's original <name>.<sites domain> address after a custom domain
+//     was made the main one — no Cloudflare object, it's covered by the wildcard route.
+// A brand-new table, so the cascade from `sites` needs no rebuild of anything existing.
+export const siteDomains = sqliteTable('site_domains', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  hostname: text('hostname').notNull(),
+  kind: text('kind', { enum: ['custom', 'platform'] }).notNull(),
+  cfCustomHostnameId: text('cf_custom_hostname_id'),
+  /** Cloudflare's hostname status (pending, active, moved, …); 'active' for platform rows. */
+  status: text('status').notNull().default('pending'),
+  /** Cloudflare's certificate status (pending_validation, active, …). */
+  sslStatus: text('ssl_status'),
+  /** The latest problems Cloudflare reported, as a JSON array of strings. */
+  verificationErrors: text('verification_errors', { mode: 'json' }).$type<string[]>(),
+  lastCheckedAt: text('last_checked_at'),
+  /** Set once the owner has been told the domain works, so they're told only once. */
+  liveNotifiedAt: text('live_notified_at'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, t => [
+  uniqueIndex('idx_site_domains_hostname').on(t.hostname),
+  index('idx_site_domains_site').on(t.siteId),
 ])

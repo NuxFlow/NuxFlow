@@ -43,6 +43,13 @@
       "when": 1792051771024,
       "tag": "0005_hosting_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792083793034,
+      "tag": "0006_site_domains",
+      "breakpoints": true
     }
   ]
 }
