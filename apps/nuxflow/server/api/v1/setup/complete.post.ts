@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { H3Event } from 'h3'
 import { bufferToHex } from '../../../utils/buffer'
 import { useDb } from '../../../utils/db'
-import { sites, users, accounts, userSiteRoles, contentTypes, contentItems, taxonomies, taxonomyContentTypes, siteSettings, auditLogs } from '@nuxflow/db/schema'
+import { sites, users, accounts, userSiteRoles, contentTypes, contentItems, taxonomies, siteSettings, auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { count, eq, and, ne } from 'drizzle-orm'
 import { nuxflowPasswordHasher } from '../../../utils/pw'
@@ -11,7 +11,7 @@ import { rateLimit } from '../../../utils/rate-limit'
 import { isHttpError } from '../../../utils/errors'
 import { clearSiteCache } from '../../../middleware/02.multi-site'
 import { clearSetupStatusCache } from './status.get'
-import { getTemplateBlocks, getHelloWorldPostContent, getPrivacyPageContent } from '../../../utils/setup-templates'
+import { seedNewSite } from '../../../utils/site-seeding'
 
 const bodySchema = z.object({
   site: z.object({
@@ -268,116 +268,7 @@ async function _handleSetup(event: H3Event) {
     })
   }
 
-  // Seed built-in content types so the editor works out of the box
-  const pageTypeId = ulid()
-  const postTypeId = ulid()
-  await db.insert(contentTypes).values([
-    {
-      id: pageTypeId,
-      siteId,
-      slug: 'page',
-      name: 'Pages',
-      singularName: 'Page',
-      icon: 'i-lucide-file-text',
-      isBuiltIn: true,
-      hasRevisions: true,
-      hasComments: false,
-    },
-    {
-      id: postTypeId,
-      siteId,
-      slug: 'post',
-      name: 'Posts',
-      singularName: 'Post',
-      icon: 'i-lucide-pencil',
-      isBuiltIn: true,
-      hasRevisions: true,
-      hasComments: true,
-    },
-    {
-      id: ulid(),
-      siteId,
-      slug: 'event',
-      name: 'Events',
-      singularName: 'Event',
-      icon: 'i-lucide-calendar',
-      isBuiltIn: true,
-      hasRevisions: true,
-      hasComments: true,
-    },
-  ])
-
-  const blocks = getTemplateBlocks(body.template, body.site.name)
-
-  // Insert the homepage row synchronously with populated Canvas content blocks
-  const homepageId = ulid()
-  const siteName = body.site.name
-  await db.insert(contentItems).values({
-    id: homepageId,
-    siteId,
-    typeId: pageTypeId,
-    authorId: adminUser.id,
-    slug: 'home',
-    title: siteName,
-    status: 'published',
-    visibility: 'public',
-    content: {
-      type: 'canvas',
-      blocks,
-    },
-    seoTitle: siteName,
-    seoDescription: `Welcome to ${siteName}`,
-    publishedAt: new Date().toISOString(),
-  })
-
-  // If the user selected the Blog template, seed a welcome post as well
-  if (body.template === 'blog') {
-    await db.insert(contentItems).values({
-      id: ulid(),
-      siteId,
-      typeId: postTypeId,
-      authorId: adminUser.id,
-      slug: 'hello-world',
-      title: 'Hello World!',
-      status: 'published',
-      visibility: 'public',
-      content: getHelloWorldPostContent(),
-      seoTitle: 'Hello World! - Welcome to NuxFlow',
-      seoDescription: 'This is the first seeded post on your new edge-native blog.',
-      publishedAt: new Date().toISOString(),
-    })
-  }
-
-  // Seeded unconditionally regardless of template — see getPrivacyPageContent()'s doc
-  // comment in setup-templates.ts for why this page needs to exist on every fresh site.
-  await db.insert(contentItems).values({
-    id: ulid(),
-    siteId,
-    typeId: pageTypeId,
-    authorId: adminUser.id,
-    slug: 'privacy',
-    title: 'Privacy Policy',
-    status: 'published',
-    visibility: 'public',
-    content: getPrivacyPageContent(),
-    seoTitle: `Privacy Policy - ${siteName}`,
-    seoDescription: `How ${siteName} collects, uses, and protects your personal data.`,
-    publishedAt: new Date().toISOString(),
-  })
-
-  // Seed default taxonomies
-  // Categories and Tags apply to posts only (taxonomy_content_types); pages opt in
-  // from Admin → Taxonomies if a site wants them there too.
-  const categoryTaxId = ulid()
-  const tagTaxId = ulid()
-  await db.insert(taxonomies).values([
-    { id: categoryTaxId, siteId, slug: 'category', name: 'Categories', isHierarchical: true },
-    { id: tagTaxId, siteId, slug: 'tag', name: 'Tags', isHierarchical: false },
-  ])
-  await db.insert(taxonomyContentTypes).values([
-    { taxonomyId: categoryTaxId, contentTypeId: postTypeId },
-    { taxonomyId: tagTaxId, contentTypeId: postTypeId },
-  ])
+  await seedNewSite(db, { siteId, siteName: body.site.name, authorId: adminUser.id, template: body.template })
 
   // The very first install's owner is the platform operator and gets super_admin.
   // A secondary site is a tenant: its owner gets 'admin' — full control of THIS site

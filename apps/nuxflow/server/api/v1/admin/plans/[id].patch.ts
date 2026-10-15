@@ -7,6 +7,7 @@ import { writeAuditLog } from '../../../../utils/audit'
 import { notFound } from '../../../../utils/response'
 import { planBodySchema } from '../../../../utils/hosting-plan-schema'
 import { clearHostingPlanCache } from '../../../../utils/hosting-plans'
+import { syncPlanToStripe } from '../../../../utils/hosting-billing'
 
 /** Changes take effect within a minute on every isolate (the plan cache's lifetime). */
 export default defineEventHandler(async (event) => {
@@ -19,8 +20,9 @@ export default defineEventHandler(async (event) => {
   const existing = await db.query.hostingPlans.findFirst({ where: eq(hostingPlans.id, id) })
   if (!existing) throw notFound('Plan not found')
 
+  const stripeIds = await syncPlanToStripe(event, existing, { ...existing, ...body })
   const [plan] = await db.update(hostingPlans)
-    .set({ ...body, updatedAt: sql`(datetime('now'))` })
+    .set({ ...body, ...stripeIds, updatedAt: sql`(datetime('now'))` })
     .where(eq(hostingPlans.id, id))
     .returning()
   clearHostingPlanCache()

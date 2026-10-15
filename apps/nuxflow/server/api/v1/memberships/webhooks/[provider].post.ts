@@ -34,8 +34,9 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         metadata: Record<string, string>
         payment_status: string
       }
-      // Only handle subscription checkouts
-      if (!session.subscription) break
+      // Only handle subscription checkouts — and not the hosting platform's own sign-ups,
+      // which have their own webhook (api/accounts/hosting/stripe-webhook.post.ts).
+      if (!session.subscription || session.metadata?.nuxflowHosting === '1') break
       const userId = session.metadata?.userId
       if (!userId) {
         console.warn('[stripe-webhook] checkout.session.completed missing userId in metadata')
@@ -79,6 +80,7 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
     case 'customer.subscription.created':
     case 'customer.subscription.updated': {
       const eventSub = stripeEvent.data.object as unknown as { id: string; metadata: Record<string, string> }
+      if (eventSub.metadata?.nuxflowHosting === '1') break
       const userId = eventSub.metadata?.userId
       if (!userId) {
         console.warn('[stripe-webhook] subscription event missing userId in metadata')
@@ -121,6 +123,7 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
     }
     case 'customer.subscription.deleted': {
       const sub = stripeEvent.data.object as { id: string; metadata?: Record<string, string> }
+      if (sub.metadata?.nuxflowHosting === '1') break
       assertWebhookSiteMatch(event, sub.metadata?.siteId)
       await cancelSubscriptionFromWebhook(event, { provider: 'stripe', providerSubscriptionId: sub.id })
       break

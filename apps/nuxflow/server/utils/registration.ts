@@ -36,10 +36,27 @@ export async function registerAccountForSite(
   // Checked before looking the email up, so a full site answers everyone the same way.
   await assertWithinPlan(event, 'members', 1, siteId)
 
+  const userId = await createPasswordAccount(event, input, `/login?${new URLSearchParams({ verified: '1', site: siteId })}`)
+  if (!userId) return
+  await useDb(event).insert(userSiteRoles)
+    .values({ id: ulid(), userId, siteId, role: 'member' })
+    .onConflictDoNothing()
+}
+
+/**
+ * Creates a global account with a password and sends the verification email; returns the
+ * new user id, or null when the email already has an account (callers answer the same
+ * either way, so addresses can't be enumerated). Joins no site — callers add that.
+ */
+export async function createPasswordAccount(
+  event: H3Event,
+  input: { name: string; email: string; password: string },
+  verifiedCallbackUrl: string,
+): Promise<string | null> {
   const db = useDb(event)
   const email = input.email.toLowerCase()
   const existing = await db.query.users.findFirst({ where: eq(users.email, email), columns: { id: true } })
-  if (existing) return
+  if (existing) return null
 
   // Created directly rather than through Better Auth's own /api/auth/sign-up/email: a
   // Worker can't await a subrequest to itself (it times out with a 522), and that endpoint
@@ -57,17 +74,15 @@ export async function registerAccountForSite(
     userId,
     password: passwordHash,
   })
-  await db.insert(userSiteRoles)
-    .values({ id: ulid(), userId, siteId, role: 'member' })
-    .onConflictDoNothing()
 
   // Self-registration proves nothing about the mailbox, so a verification email follows.
-  // Best-effort and not enforced for login (see emailVerification in better-auth.ts). The
-  // `site` parameter brands the email and the page it lands on.
+  // Best-effort and not enforced for login (see emailVerification in better-auth.ts). A
+  // `site` parameter on the callback brands the email and the page it lands on.
   try {
     const auth = await getOrCreateBetterAuth(event)
-    await auth.api.sendVerificationEmail({ body: { email, callbackURL: `/login?${new URLSearchParams({ verified: '1', site: siteId })}` } })
+    await auth.api.sendVerificationEmail({ body: { email, callbackURL: verifiedCallbackUrl } })
   } catch (err) {
     console.error('[register] Failed to send verification email:', err)
   }
+  return userId
 }

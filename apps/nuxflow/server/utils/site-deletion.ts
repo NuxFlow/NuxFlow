@@ -9,6 +9,7 @@ import { errorMessage } from './errors'
 import { conflict } from './response'
 import { deleteSiteEmailObjects } from './inbox'
 import { deleteContentEmbeddings } from './embeddings'
+import { cancelHostingForDeletedSite } from './hosting-billing'
 import {
   sites, users, userSiteRoles, media, contentItems,
   accounts, sessions, passkeys, themes, dynamicPlugins,
@@ -59,6 +60,8 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
   const db = useDb(event)
 
   await assertPrimarySiteDeletable(event, siteId)
+  // A site a customer pays for: stop the billing first (refuses if Stripe can't be reached).
+  await cancelHostingForDeletedSite(event, siteId)
 
   console.warn(JSON.stringify({
     event: 'site.delete', siteId, actorUserId, at: new Date().toISOString(),
