@@ -49,7 +49,7 @@ Go to **Admin → Settings → Payments** and fill in the credentials for at lea
 
 #### Set up the Stripe webhook
 
-1. In the Stripe Dashboard go to **Developers → Webhooks → Add endpoint**.
+1. In the Stripe Dashboard open **Workbench** (under Developers) → **Webhooks** tab → **Create an event destination**. Choose events from **Your account** and the **Snapshot** payload style (not Thin: NuxFlow reads the full event), and **Webhook endpoint** as the destination type.
 2. Set the endpoint URL to:
    ```
    https://yourdomain.com/api/v1/memberships/webhooks/stripe

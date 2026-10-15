@@ -157,7 +157,7 @@ async function copy(text: string) {
             This is how Stripe tells NuxFlow that someone paid, changed plan, or stopped paying. Set it up once:
           </p>
           <ol class="list-decimal pl-5 space-y-2 text-gray-600 dark:text-gray-300">
-            <li>In Stripe, go to <strong>Developers → Webhooks → Add destination</strong>.</li>
+            <li>In Stripe, open <strong>Workbench</strong> (under Developers) → <strong>Webhooks</strong> → <strong>Create an event destination</strong>. Choose events from <strong>Your account</strong>, the <strong>Snapshot</strong> payload style (not Thin), and <strong>Webhook endpoint</strong> as the type.</li>
             <li>
               Endpoint URL:
               <span class="inline-flex items-center gap-1">
