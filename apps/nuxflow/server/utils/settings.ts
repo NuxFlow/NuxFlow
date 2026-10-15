@@ -68,6 +68,8 @@ export const SENSITIVE_SETTING_KEYS = new Set([
   // sensitive (they're visible in the browser's OAuth redirect URL regardless)
   // and are intentionally excluded from this set.
   'auth.google_client_secret',
+  // Signing secret of the hosting platform's Stripe webhook (hosting-billing.ts).
+  'hosting.stripe_webhook_secret',
   'auth.github_client_secret',
 ])
 
@@ -110,6 +112,7 @@ export const SERVER_MANAGED_SETTING_KEYS: ReadonlySet<string> = new Set([
   'email.inbound_handle',
   // The hosting-platform switch (hosting-platform.ts) — super admin only, never restored.
   'platform.hosting_enabled',
+  'hosting.stripe_webhook_secret',
 ])
 
 /**

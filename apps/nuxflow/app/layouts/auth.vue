@@ -1,3 +1,10 @@
+<script setup lang="ts">
+// Pages that need more room than a sign-in form (the hosting sign-up's plan cards) set
+// `definePageMeta({ authWide: true })`.
+const route = useRoute()
+const wide = computed(() => route.meta.authWide === true)
+</script>
+
 <template>
   <div class="mesh-bg relative min-h-screen flex items-center justify-center overflow-hidden">
     <!-- Decorative colour blobs that give the glass something to blur -->
@@ -15,7 +22,7 @@
     />
 
     <!-- Content -->
-    <div class="relative z-10 w-full max-w-md px-4 py-12">
+    <div class="relative z-10 w-full px-4 py-12" :class="wide ? 'max-w-4xl' : 'max-w-md'">
       <slot />
     </div>
   </div>

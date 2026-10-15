@@ -185,6 +185,18 @@ async function sendViaCloudflareEmail(msg: EmailMessage, config: EmailConfig, ev
 }
 
 /**
+ * A customer site on a hosting platform lives at `<name>.<NUXT_HOSTING_SITES_DOMAIN>`.
+ * Cloudflare Email Sending is enabled one (sub)domain at a time, at most 30 per zone, so
+ * those sites can't each send as their own subdomain; they share the sites domain itself
+ * (`noreply@nuxflow.site`, under the site's own name). Returns that domain for such a
+ * site, else null.
+ */
+export function hostingSenderDomain(siteDomain: string): string | null {
+  const base = String(useRuntimeConfig().hostingSitesDomain ?? '').trim().toLowerCase()
+  return base && siteDomain.toLowerCase().endsWith(`.${base}`) ? base : null
+}
+
+/**
  * The `EMAIL` binding sends through the operator's Cloudflare account, where every
  * tenant's domain (and the operator's own) may be enabled for sending — so without a check
  * any site could send as any other. A non-primary site may only send from its own domain
@@ -199,6 +211,8 @@ export async function assertSharedSenderAllowed(event: H3Event, siteId: string |
   const base = site.domain.replace(/^www\./, '').toLowerCase()
   const platform = String(useRuntimeConfig().inboundEmailDomain ?? '').trim().toLowerCase()
   if (senderDomain === base || senderDomain.endsWith(`.${base}`) || (platform && senderDomain === platform)) return
+  const hostingSender = hostingSenderDomain(site.domain)
+  if (hostingSender && senderDomain === hostingSender) return
   throw new Error(`Sending from ${address} isn't allowed for this site — the from address must be on ${base}.`)
 }
 
@@ -337,9 +351,13 @@ export async function loadEmailConfig(event: H3Event): Promise<EmailConfig> {
   const emailProvider = storedProvider
     || (siteId && getEmailBinding(event) && !(await isPrimarySite(event, siteId)) ? 'cloudflare' : 'console')
 
+  // A hosting customer's site sends from the shared sites domain unless it set its own
+  // address (see hostingSenderDomain).
+  const hostingSender = !fromAddress && emailProvider === 'cloudflare' ? hostingSenderDomain(host) : null
+
   return {
     emailProvider,
-    fromAddress,
+    fromAddress: hostingSender ? `noreply@${hostingSender}` : fromAddress,
     // An explicit From name wins; otherwise mail goes out under the site's own name
     // ("Acme Bakery <noreply@…>") rather than a bare address, which is both friendlier
     // and better for deliverability.

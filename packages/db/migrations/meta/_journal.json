@@ -36,6 +36,13 @@
       "when": 1791992277668,
       "tag": "0004_hosting_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1792051771024,
+      "tag": "0005_hosting_billing",
+      "breakpoints": true
     }
   ]
 }

@@ -11,6 +11,13 @@ type Plan = {
   priceText: string
   sortOrder: number
   siteCount: number
+  isPublic: boolean
+  priceMonthly: number | null
+  priceYearly: number | null
+  currency: string
+  trialDays: number
+  stripePriceMonthlyId: string | null
+  stripePriceYearlyId: string | null
 } & Record<PlanLimitColumn, number | null>
 
 const { data, pending, error, refresh } = await useFetch<{ plans: Plan[] }>('/api/v1/admin/plans')
@@ -28,6 +35,14 @@ function formatLimit(limit: typeof PLAN_LIMITS[number], value: number | null): s
   return value.toLocaleString()
 }
 
+function money(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('en-GB', { style: 'currency', currency: currency.toUpperCase() }).format(amount)
+  } catch {
+    return `${amount} ${currency.toUpperCase()}`
+  }
+}
+
 function setLimits(plan: Plan) {
   return PLAN_LIMITS.filter(l => plan[l.column] !== null)
 }
@@ -42,6 +57,11 @@ const form = reactive({
   description: '',
   priceText: '',
   sortOrder: 0,
+  isPublic: false,
+  priceMonthly: '',
+  priceYearly: '',
+  currency: 'gbp',
+  trialDays: '0',
   // Every limit as text, so an empty box can mean "unlimited".
   limits: {} as Record<PlanLimitColumn, string>,
   storageUnit: 'GB' as 'MB' | 'GB',
@@ -53,6 +73,11 @@ function openEditor(plan?: Plan) {
   form.description = plan?.description ?? ''
   form.priceText = plan?.priceText ?? ''
   form.sortOrder = plan?.sortOrder ?? plans.value.length
+  form.isPublic = plan?.isPublic ?? false
+  form.priceMonthly = plan?.priceMonthly != null ? String(plan.priceMonthly) : ''
+  form.priceYearly = plan?.priceYearly != null ? String(plan.priceYearly) : ''
+  form.currency = plan?.currency ?? 'gbp'
+  form.trialDays = String(plan?.trialDays ?? 0)
   const storage = plan?.maxStorageBytes ?? null
   form.storageUnit = storage !== null && storage < GB ? 'MB' : 'GB'
   for (const l of PLAN_LIMITS) {
@@ -83,16 +108,53 @@ function parsedLimits(): Record<PlanLimitColumn, number | null> | string {
   return out
 }
 
+/** Blank → null (not offered); otherwise a price with at most two decimals. */
+function parsedPrice(raw: string, label: string): number | null | string {
+  const v = raw.trim()
+  if (v === '') return null
+  const n = Number(v)
+  if (!Number.isFinite(n) || n < 0.5) return `${label} must be at least 0.50, or blank.`
+  return Math.round(n * 100) / 100
+}
+
 async function savePlan() {
   const limits = parsedLimits()
   if (typeof limits === 'string') {
     saveError.value = limits
     return
   }
+  const priceMonthly = parsedPrice(form.priceMonthly, 'Monthly price')
+  const priceYearly = parsedPrice(form.priceYearly, 'Yearly price')
+  const trialDays = Number(form.trialDays || 0)
+  for (const v of [priceMonthly, priceYearly]) {
+    if (typeof v === 'string') {
+      saveError.value = v
+      return
+    }
+  }
+  if (!Number.isInteger(trialDays) || trialDays < 0 || trialDays > 90) {
+    saveError.value = 'Free trial must be a whole number of days, 0 to 90.'
+    return
+  }
+  if (form.isPublic && priceMonthly === null && priceYearly === null) {
+    saveError.value = 'Give the plan a monthly or yearly price before offering it on the sign-up page.'
+    return
+  }
   saving.value = true
   saveError.value = ''
   try {
-    const body = { name: form.name, description: form.description, priceText: form.priceText, sortOrder: form.sortOrder, ...limits }
+    const body = {
+      name: form.name,
+      description: form.description,
+      priceText: form.priceText,
+      sortOrder: form.sortOrder,
+      isPublic: form.isPublic,
+      priceMonthly,
+      priceYearly,
+      currency: form.currency,
+      trialDays,
+      ...limits,
+    }
     const url: string = editingId.value ? `/api/v1/admin/plans/${editingId.value}` : '/api/v1/admin/plans'
     await $fetch(url, { method: editingId.value ? 'PATCH' : 'POST', body })
     isEditOpen.value = false
@@ -154,6 +216,12 @@ async function deletePlan() {
             <div class="min-w-0">
               <p class="font-semibold text-gray-900 dark:text-white">{{ plan.name }}</p>
               <p v-if="plan.priceText" class="text-sm text-gray-500">{{ plan.priceText }}</p>
+              <div class="flex flex-wrap gap-1.5 mt-1.5">
+                <UBadge v-if="plan.isPublic" size="sm" variant="subtle" color="success" icon="i-lucide-store">On sign-up page</UBadge>
+                <UBadge v-if="plan.priceMonthly != null" size="sm" variant="outline" color="neutral">{{ money(plan.priceMonthly, plan.currency) }} / month</UBadge>
+                <UBadge v-if="plan.priceYearly != null" size="sm" variant="outline" color="neutral">{{ money(plan.priceYearly, plan.currency) }} / year</UBadge>
+                <UBadge v-if="plan.trialDays" size="sm" variant="outline" color="neutral">{{ plan.trialDays }}-day trial</UBadge>
+              </div>
             </div>
             <UBadge variant="subtle" :color="plan.siteCount ? 'primary' : 'neutral'">
               {{ plan.siteCount }} {{ plan.siteCount === 1 ? 'site' : 'sites' }}
@@ -182,13 +250,38 @@ async function deletePlan() {
             <UFormField label="Name" required>
               <UInput v-model="form.name" placeholder="Starter" class="w-full" />
             </UFormField>
-            <UFormField label="Price" help="Shown only. Payment is separate.">
-              <UInput v-model="form.priceText" placeholder="£5 a month" class="w-full" />
+            <UFormField label="Price label" help="Optional text shown with the plan, e.g. &quot;Most popular&quot;.">
+              <UInput v-model="form.priceText" placeholder="Most popular" class="w-full" />
             </UFormField>
           </div>
           <UFormField label="Description">
             <UTextarea v-model="form.description" :rows="2" class="w-full" />
           </UFormField>
+
+          <div class="space-y-3 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+            <div>
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">Selling this plan</p>
+              <p class="text-xs text-gray-500">
+                NuxFlow creates the product and prices in your Stripe account (the main site's Settings → Payments keys).
+                Leave a price blank to not offer that option. Changing a price only affects new sign-ups; existing customers keep their price.
+              </p>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-4">
+              <UFormField label="Monthly price">
+                <UInput v-model="form.priceMonthly" inputmode="decimal" placeholder="e.g. 5" class="w-full" />
+              </UFormField>
+              <UFormField label="Yearly price">
+                <UInput v-model="form.priceYearly" inputmode="decimal" placeholder="e.g. 50" class="w-full" />
+              </UFormField>
+              <UFormField label="Currency">
+                <USelect v-model="form.currency" :items="[{ label: 'GBP £', value: 'gbp' }, { label: 'EUR €', value: 'eur' }, { label: 'USD $', value: 'usd' }]" class="w-full" />
+              </UFormField>
+              <UFormField label="Free trial (days)" help="Card taken at sign-up.">
+                <UInput v-model="form.trialDays" inputmode="numeric" placeholder="0" class="w-full" />
+              </UFormField>
+            </div>
+            <UCheckbox v-model="form.isPublic" label="Offer on the sign-up page" description="Customers can choose this plan themselves. Untick to keep it for sites you set up by hand." />
+          </div>
 
           <div class="space-y-3">
             <div>

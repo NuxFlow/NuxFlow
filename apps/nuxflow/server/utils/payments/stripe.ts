@@ -71,6 +71,8 @@ export class StripeProvider implements PaymentProvider {
     successUrl: string
     cancelUrl: string
     metadata?: Record<string, string>
+    /** Free days before the first charge; the card is still taken at checkout. */
+    trialDays?: number
   }) {
     return this.client.checkout.sessions.create({
       customer: opts.customerId,
@@ -81,6 +83,7 @@ export class StripeProvider implements PaymentProvider {
       metadata: opts.metadata,
       subscription_data: {
         metadata: opts.metadata,
+        ...(opts.trialDays ? { trial_period_days: opts.trialDays } : {}),
       },
     })
   }
@@ -100,6 +103,15 @@ export class StripeProvider implements PaymentProvider {
   // handles the same way as it always has.
   async cancelSubscription(subscriptionId: string) {
     return this.client.subscriptions.update(subscriptionId, { cancel_at_period_end: true })
+  }
+
+  /** Ends a subscription now, with no further charges — for when what it paid for is gone. */
+  async cancelSubscriptionNow(subscriptionId: string) {
+    return this.client.subscriptions.cancel(subscriptionId)
+  }
+
+  async archivePrice(priceId: string) {
+    return this.client.prices.update(priceId, { active: false })
   }
 
   async getSubscription(subscriptionId: string) {

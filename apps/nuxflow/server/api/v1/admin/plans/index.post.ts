@@ -6,6 +6,7 @@ import { requireHostingPlatform } from '../../../../utils/hosting-platform'
 import { writeAuditLog } from '../../../../utils/audit'
 import { created } from '../../../../utils/response'
 import { planBodySchema } from '../../../../utils/hosting-plan-schema'
+import { syncPlanToStripe } from '../../../../utils/hosting-billing'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSuperAdmin(event)
@@ -13,7 +14,18 @@ export default defineEventHandler(async (event) => {
   const body = await parseBody(event, planBodySchema)
   const db = useDb(event)
   const id = ulid()
-  const [plan] = await db.insert(hostingPlans).values({ id, ...body }).returning()
+  // Stripe first: a plan with a price that couldn't be created there isn't saved at all.
+  const stripeIds = await syncPlanToStripe(event, null, {
+    name: body.name,
+    description: body.description ?? '',
+    priceMonthly: body.priceMonthly ?? null,
+    priceYearly: body.priceYearly ?? null,
+    currency: body.currency ?? 'gbp',
+    stripeProductId: null,
+    stripePriceMonthlyId: null,
+    stripePriceYearlyId: null,
+  })
+  const [plan] = await db.insert(hostingPlans).values({ id, ...body, ...stripeIds }).returning()
   await writeAuditLog(event, userId, { action: 'create', resource: 'hosting_plan', resourceId: id, after: body })
   return created(event, plan)
 })

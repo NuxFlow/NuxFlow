@@ -39,6 +39,7 @@ export const NOTIFICATION_TYPES: Record<string, NotificationTypeDef> = {
   'system.plugin_installed': { label: 'Plugin installed', description: 'A dynamic plugin was installed or updated on this site.', email: true, push: false, minRole: 'admin' },
   'system.db_export': { label: 'Database exported', description: 'A full database export was downloaded.', email: true, push: false, minRole: 'admin' },
   'system.site_status': { label: 'Site status changed', description: 'This site was put into maintenance, suspended, or reactivated.', email: true, push: true, minRole: 'admin' },
+  'system.hosting': { label: 'Hosting customers', description: 'Sign-ups, failed payments, paused and reopened sites on this hosting platform.', email: true, push: true, minRole: 'super_admin' },
   'system.plan_usage': { label: 'Hosting plan usage', description: 'A site reached 80% or 100% of a monthly limit on its hosting plan.', email: true, push: false, minRole: 'super_admin' },
   'form_submission': { label: 'Form confirmations', description: 'Confirmation when you submit a form on this site.', email: false, push: true },
   'payment_confirmation': { label: 'Payment confirmations', description: 'Your membership payment went through.', email: false, push: true },

@@ -11,6 +11,11 @@ const { data } = await useFetch<{ sites: UserSite[] }>('/api/accounts/sites', {
   default: () => ({ sites: [] }),
 })
 
+// On a hosting platform: the way to "My hosting" (sites, plans, billing).
+const { data: hosting } = await useFetch<{ enabled: boolean }>('/api/accounts/hosting', {
+  default: () => ({ enabled: false }),
+})
+
 function siteLink(site: UserSite): string {
   const staff = !['member', 'viewer'].includes(site.role)
   // Through the site's own sign-in handoff, so it lands signed in.
@@ -41,6 +46,16 @@ function siteLink(site: UserSite): string {
         </li>
       </ul>
       <p v-else class="text-sm text-gray-500">You're not a member of any site yet.</p>
+    </UCard>
+
+    <UCard v-if="hosting.enabled">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-sm font-semibold text-gray-900 dark:text-white">My hosting</p>
+          <p class="text-xs text-gray-500">Your plans, billing, and starting a new site.</p>
+        </div>
+        <UButton to="/account/hosting" size="xs" variant="soft" trailing-icon="i-lucide-arrow-right">Open</UButton>
+      </div>
     </UCard>
 
     <AccountSecurityPanel />

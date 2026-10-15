@@ -161,6 +161,41 @@ Usage and hosting plans (the next two sections) are for selling sites to other p
 - Turning it off again doesn't forget anything: each site keeps its plan, and the limits come back when you turn it on.
 - Only a super admin can change it. It isn't part of a site backup, so restoring a site elsewhere never turns it on.
 
+### Selling sites: sign-up and billing
+
+With the switch on, people can sign up, pay and get a site without you doing anything. It uses your Stripe account and Stripe's own pages for payment and billing.
+
+**What the customer sees**
+
+1. Your sign-up page, on the sign-in domain: `https://accounts.example.com/account/hosting/new`. Link to it from your pricing page.
+2. They pick a plan (monthly or yearly), name the site, choose an address such as `cornercafe.example-sites.com` and a starting layout, and create an account if they don't have one.
+3. Stripe Checkout takes the payment (or the card, for a free trial).
+4. A few seconds later their site exists: on the chosen plan, with them as its admin, and a "your site is ready" email.
+5. **My hosting** (`/account/hosting` on the sign-in domain) lists their sites. **Billing** opens Stripe's Customer Portal: card, invoices, change plan, cancel.
+
+**What happens when a payment fails ("grace, then pause")**
+
+- While Stripe retries the card, the site stays online. The customer and you are told once.
+- If Stripe gives up, or the subscription ends, the site goes into **maintenance mode**: visitors see a "back soon" page, but the customer can still sign in, download a backup and pay. You're notified.
+- When it's paid again, the site reopens by itself (unless you've changed its status yourself).
+- **Nothing is ever deleted automatically.** You decide in Super Admin → Sites.
+- Deleting a site that has a subscription cancels the subscription in Stripe first, so nobody is charged for a site that's gone.
+
+**Setting it up**
+
+1. In `wrangler.toml`, set the domain customer sites go under, and route it to the Worker with a wildcard route (see "Pointing a domain at the Worker"):
+   ```toml
+   NUXT_HOSTING_SITES_DOMAIN = "example-sites.com"
+   ```
+   Use a separate domain from your own site's, so one customer's misbehaving site can't get your main domain flagged.
+2. Onboard that domain for Cloudflare Email Sending. Customer sites send from `noreply@example-sites.com` under their own site name (Cloudflare can only send from a limited number of subdomains per domain, so they share one).
+3. On your main site, add your Stripe secret key in **Settings → Payments**.
+4. **Super Admin → Platform** shows the webhook address and the four events to select. Create the webhook in Stripe (Developers → Webhooks) and paste its signing secret back on the Platform page.
+5. In Stripe, set up the **Customer portal** (allow card updates, cancelling and switching between your plans) and, under failed payments, choose **mark the subscription as unpaid** after all retries.
+6. In **Super Admin → Plans**, give a plan a monthly and/or yearly price, an optional free trial, and tick **Offer on the sign-up page**. NuxFlow creates the product and prices in Stripe. Changing a price later only affects new sign-ups.
+
+Plans without a price still work as before: give them to sites by hand in Super Admin → Sites.
+
 ---
 
 ## Usage

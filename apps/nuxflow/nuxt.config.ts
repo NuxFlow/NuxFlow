@@ -171,6 +171,10 @@ export default defineNuxtConfig({
     // NUXT_INBOUND_EMAIL_DOMAIN — optional shared receiving domain for sites whose own
     // domain isn't a zone in this Cloudflare account (server/utils/inbound-email.ts).
     inboundEmailDomain: '',
+    // NUXT_HOSTING_SITES_DOMAIN — on a hosting platform (Super Admin → Platform), the domain
+    // customer sites are created under, e.g. nuxflow.site → cafe.nuxflow.site
+    // (server/utils/hosting-billing.ts). Their email goes out from this domain too.
+    hostingSitesDomain: '',
     public: {
       siteUrl: '',
       // NUXT_PUBLIC_ACCOUNTS_URL — the dedicated sign-in origin (e.g.
