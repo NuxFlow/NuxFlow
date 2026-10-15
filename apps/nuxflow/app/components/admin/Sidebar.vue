@@ -5,14 +5,18 @@ const emit = defineEmits<{ toggleCollapse: [] }>()
 const auth = useAuthStore()
 const route = useRoute()
 
-const access = await fetchAdminAccess()
-const isSuperAdmin = computed(() => access?.isSuperAdmin ?? false)
+await fetchAdminAccess()
+// Read through the shared state, not the fetched value, so the menu follows changes made
+// on another admin page (e.g. Super Admin → Platform showing or hiding Plans/Usage).
+const accessState = useAdminAccessState()
+const access = computed(() => accessState.value ?? null)
+const isSuperAdmin = computed(() => access.value?.isSuperAdmin ?? false)
 
 // Filtered against the same rule table 02.admin-role-guard.global.ts enforces server-side
 // navigation against — see app/utils/admin-nav.ts. A user only ever sees links to
 // sections their role can actually use.
-const coreNav = computed(() => ADMIN_NAV.filter(item => !item.hidden && canAccessNavItem(item, access)))
-const superAdminNav = computed(() => SUPER_ADMIN_NAV.filter(item => !item.hidden && canAccessNavItem(item, access)))
+const coreNav = computed(() => ADMIN_NAV.filter(item => !item.hidden && canAccessNavItem(item, access.value)))
+const superAdminNav = computed(() => SUPER_ADMIN_NAV.filter(item => !item.hidden && canAccessNavItem(item, access.value)))
 
 function isActive(to: string) {
   return route.path === to || (to !== '/admin' && route.path.startsWith(to))

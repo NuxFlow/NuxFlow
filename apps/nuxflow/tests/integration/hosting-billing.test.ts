@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { and, eq } from 'drizzle-orm'
-import { contentItems, hostingPlans, hostingSubscriptions, notifications, sites, userSiteRoles } from '@nuxflow/db/schema'
+import { accounts, contentItems, hostingPlans, hostingSubscriptions, notifications, sites, userSiteRoles, users } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedSetting } from '../helpers/seed'
@@ -89,6 +89,7 @@ const { default: subdomain } = await import('../../server/api/accounts/hosting/s
 const { default: mySubs } = await import('../../server/api/accounts/hosting/subscriptions.get')
 const { default: portal } = await import('../../server/api/accounts/hosting/billing-portal.post')
 const { default: webhook } = await import('../../server/api/accounts/hosting/stripe-webhook.post')
+const { default: register } = await import('../../server/api/accounts/hosting/register.post')
 const { deleteSiteCompletely } = await import('../../server/utils/site-deletion')
 const { assertSharedSenderAllowed, hostingSenderDomain } = await import('../../server/utils/email')
 
@@ -247,6 +248,31 @@ describe('sign-up', () => {
     await (patchPlan as Handler)(onPrimary({ session: operator(), params: { id: plan.id }, body: { isPublic: true } }))
     await expect((checkout as Handler)(onAccounts({ method: 'POST', session: customer(), body: { planId: plan.id, interval: 'month', subdomain: 'admin', siteName: 'X' } })))
       .rejects.toMatchObject({ statusCode: 422 })
+  })
+})
+
+describe('creating an account to sign up', () => {
+  const body = { name: 'New Person', email: 'New.Person@hb.test', password: 'a-long-password' }
+
+  it('creates a global account with a password, joining no site', async () => {
+    const db = getCurrentTestDb()
+    expect(await (register as Handler)(onAccounts({ method: 'POST', body }))).toEqual({ success: true })
+    const user = await db.query.users.findFirst({ where: eq(users.email, 'new.person@hb.test') })
+    expect(user).toMatchObject({ name: 'New Person', emailVerified: false })
+    expect(await db.query.accounts.findFirst({ where: eq(accounts.userId, user!.id) })).toMatchObject({ providerId: 'credential' })
+    expect(await db.select().from(userSiteRoles).where(eq(userSiteRoles.userId, user!.id))).toHaveLength(0)
+  })
+
+  it('answers the same for an email that already has an account, and changes nothing', async () => {
+    const db = getCurrentTestDb()
+    const before = await db.query.users.findFirst({ where: eq(users.email, 'cara@hb.test') })
+    expect(await (register as Handler)(onAccounts({ method: 'POST', body: { ...body, email: 'cara@hb.test', name: 'Someone Else' } }))).toEqual({ success: true })
+    expect(await db.query.users.findFirst({ where: eq(users.email, 'cara@hb.test') })).toEqual(before)
+  })
+
+  it('only exists on the accounts origin of a hosting platform, and checks its input', async () => {
+    await expect((register as Handler)(onPrimary({ method: 'POST', body: { ...body, email: 'x@hb.test' } }))).rejects.toMatchObject({ statusCode: 404 })
+    await expect((register as Handler)(onAccounts({ method: 'POST', body: { ...body, email: 'y@hb.test', password: 'short' } }))).rejects.toMatchObject({ statusCode: 422 })
   })
 })
 
