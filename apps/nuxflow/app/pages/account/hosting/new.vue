@@ -21,6 +21,7 @@ interface PublicPlan {
     maxAiCallsPerMonth: number | null
     maxEmailsPerMonth: number | null
     maxPlugins: number | null
+    maxCustomDomains: number | null
   }
 }
 
@@ -68,6 +69,7 @@ function features(plan: PublicPlan): string[] {
   out.push(l.maxTeamMembers == null ? 'Unlimited team members' : `${l.maxTeamMembers} team ${l.maxTeamMembers === 1 ? 'member' : 'members'}`)
   if (l.maxAiCallsPerMonth !== 0) out.push(l.maxAiCallsPerMonth == null ? 'AI writing help' : `AI writing help (${l.maxAiCallsPerMonth.toLocaleString()} a month)`)
   if (l.maxPlugins !== 0) out.push('Plugins')
+  if (l.maxCustomDomains !== 0) out.push(l.maxCustomDomains === 1 ? 'Connect your own domain' : 'Connect your own domains')
   out.push('Free SSL, backups you can take with you')
   return out
 }

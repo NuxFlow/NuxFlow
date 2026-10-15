@@ -6,7 +6,7 @@ import { clearSiteCache } from '../../../../middleware/02.multi-site'
 import { normalizeDomain } from '../../../../utils/domain'
 import { isCentralAuth } from '../../../../utils/accounts-origin'
 import { created } from '../../../../utils/response'
-import { sites, auditLogs } from '@nuxflow/db/schema'
+import { sites, siteDomains, auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { eq } from 'drizzle-orm'
 
@@ -32,6 +32,9 @@ export default defineEventHandler(async (event) => {
   if (!domain) throw validationError('Enter a valid domain, e.g. example.com')
   if (await db.query.sites.findFirst({ where: eq(sites.domain, domain), columns: { id: true } })) {
     throw conflict('Another site already uses that domain')
+  }
+  if (await db.query.siteDomains.findFirst({ where: eq(siteDomains.hostname, domain), columns: { id: true } })) {
+    throw conflict('That domain is already connected to a site as an extra address')
   }
   body.domain = domain
 

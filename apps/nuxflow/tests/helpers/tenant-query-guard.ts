@@ -46,6 +46,18 @@ interface AllowlistEntry {
  * filter instead.
  */
 export const ALLOWLIST: AllowlistEntry[] = [
+  // ── Customers' own domains (hosting-domains.ts): a hostname belongs to one site at most ──
+  {
+    match: /from "site_domains" "siteDomains" where "siteDomains"\."hostname" = \?/,
+    tables: ['site_domains'],
+    reason: 'A domain can be connected to only one site: adding one, or giving a site a new main domain, checks it against every site.',
+  },
+  {
+    file: 'server/utils/hosting-domains.ts',
+    match: /from "site_domains" where \("site_domains"\."kind" = \? and "site_domains"\."cf_custom_hostname_id" is not null and "site_domains"\."live_notified_at" is null\)/,
+    tables: ['site_domains'],
+    reason: "checkPendingCustomDomains(): the hourly check of every site's domains that aren't live yet.",
+  },
   // ── Accounts are global; these ask about a person across every site ──────────────
   {
     match: /from "user_site_roles" "userSiteRoles" where \("userSiteRoles"\."user_id" = \? and "userSiteRoles"\."role" = \?\)/,

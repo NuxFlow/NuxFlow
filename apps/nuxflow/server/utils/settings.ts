@@ -70,6 +70,8 @@ export const SENSITIVE_SETTING_KEYS = new Set([
   'auth.google_client_secret',
   // Signing secret of the hosting platform's Stripe webhook (hosting-billing.ts).
   'hosting.stripe_webhook_secret',
+  // Cloudflare API token for customers' own domains (hosting-domains.ts).
+  'hosting.cf_api_token',
   'auth.github_client_secret',
 ])
 
@@ -113,6 +115,10 @@ export const SERVER_MANAGED_SETTING_KEYS: ReadonlySet<string> = new Set([
   // The hosting-platform switch (hosting-platform.ts) — super admin only, never restored.
   'platform.hosting_enabled',
   'hosting.stripe_webhook_secret',
+  // Customers' own domains (hosting-domains.ts): the sites zone, its API token, the CNAME target.
+  'hosting.cf_zone_id',
+  'hosting.cf_api_token',
+  'hosting.custom_domain_target',
 ])
 
 /**

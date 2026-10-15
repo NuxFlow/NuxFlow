@@ -196,6 +196,27 @@ With the switch on, people can sign up, pay and get a site without you doing any
 
 Plans without a price still work as before: give them to sites by hand in Super Admin → Sites.
 
+### Customers' own domains
+
+Every customer starts on a subdomain of your sites domain (`cafe.example-sites.com`), which works the moment they've paid. They can then connect a domain they own (`www.cafe.co.uk`) from **My hosting → Addresses**:
+
+1. They type the domain and click **Connect your own domain**. NuxFlow registers it with **Cloudflare for SaaS** on your sites domain (the first 100 domains are free, then $0.10 a month each).
+2. They add the one CNAME record shown (pointing at your CNAME target, e.g. `customers.example-sites.com`) at whoever runs their domain's DNS.
+3. NuxFlow checks every hour (or when they click **Check now**). Once Cloudflare has validated the domain and issued its certificate, they're emailed and it shows as **Working**.
+4. **Make main address** makes it the site's address. Every other address of the site, including the original subdomain, then redirects to it, so old links and search results keep working.
+
+Good to know:
+- A domain without `www` only works if the customer's DNS provider allows a CNAME at the root (Cloudflare DNS and many others call this CNAME flattening or ALIAS). Otherwise they connect `www.` and redirect the bare domain at their provider.
+- Each plan's **Own domains** allowance sets how many a site may connect (0 = not included, empty = any number, up to 10).
+- Removing a site removes its domains from Cloudflare too.
+- Customer sites keep sending email from the shared sites domain, even on their own domain.
+
+**One-time setup** (in the Cloudflare dashboard, on your sites domain's zone):
+1. DNS: add a proxied `AAAA` record named `customers` with address `100::`.
+2. **SSL/TLS → Custom Hostnames**: enable Cloudflare for SaaS and set `customers.example-sites.com` as the **fallback origin**.
+3. In `wrangler.toml`, route the whole zone to the Worker with the pattern `*/*` (instead of `*.example-sites.com/*`), so customers' domains reach NuxFlow.
+4. Create an API token with **Zone → SSL and Certificates → Edit** for that zone only, and enter it with the zone ID on **Super Admin → Platform → Customers' own domains**.
+
 ---
 
 ## Usage

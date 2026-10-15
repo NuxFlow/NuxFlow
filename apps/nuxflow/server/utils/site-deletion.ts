@@ -10,6 +10,7 @@ import { conflict } from './response'
 import { deleteSiteEmailObjects } from './inbox'
 import { deleteContentEmbeddings } from './embeddings'
 import { cancelHostingForDeletedSite } from './hosting-billing'
+import { removeDomainsForDeletedSite } from './hosting-domains'
 import {
   sites, users, userSiteRoles, media, contentItems,
   accounts, sessions, passkeys, themes, dynamicPlugins,
@@ -62,6 +63,9 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
   await assertPrimarySiteDeletable(event, siteId)
   // A site a customer pays for: stop the billing first (refuses if Stripe can't be reached).
   await cancelHostingForDeletedSite(event, siteId)
+  // Its own domains are removed from Cloudflare too (best effort: a leftover costs pennies
+  // and is logged, so it never blocks the deletion).
+  await removeDomainsForDeletedSite(event, siteId)
 
   console.warn(JSON.stringify({
     event: 'site.delete', siteId, actorUserId, at: new Date().toISOString(),

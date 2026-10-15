@@ -3,7 +3,7 @@ import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
 import { clearSiteCache } from '../../../../middleware/02.multi-site'
 import { normalizeDomain } from '../../../../utils/domain'
-import { sites, auditLogs, hostingPlans } from '@nuxflow/db/schema'
+import { sites, siteDomains, auditLogs, hostingPlans } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { notifySiteRole } from '../../../../utils/notify'
@@ -37,6 +37,8 @@ export default defineEventHandler(async (event) => {
     if (!domain) throw validationError('Enter a valid domain, e.g. example.com')
     const taken = await db.query.sites.findFirst({ where: eq(sites.domain, domain), columns: { id: true } })
     if (taken && taken.id !== id) throw conflict('Another site already uses that domain')
+    const alias = await db.query.siteDomains.findFirst({ where: eq(siteDomains.hostname, domain), columns: { siteId: true } })
+    if (alias && alias.siteId !== id) throw conflict('That domain is already connected to another site')
     body.domain = domain
   }
 

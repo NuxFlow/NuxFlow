@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { and, count, eq, gt, gte, ne, notInArray, sql } from 'drizzle-orm'
-import { contentItems, dynamicPlugins, hostingPlans, media, siteInvitations, sites, siteUsageDaily, userSiteRoles } from '@nuxflow/db/schema'
+import { contentItems, dynamicPlugins, hostingPlans, media, siteDomains, siteInvitations, sites, siteUsageDaily, userSiteRoles } from '@nuxflow/db/schema'
 import { PLAN_LIMITS, planLimit, type PlanLimitKey } from '../../shared/lib/hosting-plan-limits'
 import { useDb, type Db } from './db'
 import { createIsolateCache } from './isolate-cache'
@@ -85,6 +85,10 @@ export async function planUsage(db: Db, siteId: string, key: PlanLimitKey, now =
       ])
       return (roles?.n ?? 0) + (invites?.n ?? 0)
     }
+    case 'domains': {
+      const [r] = await db.select({ n: count() }).from(siteDomains).where(and(eq(siteDomains.siteId, siteId), eq(siteDomains.kind, 'custom')))
+      return r?.n ?? 0
+    }
     case 'plugins': {
       const [r] = await db.select({ n: count() }).from(dynamicPlugins).where(eq(dynamicPlugins.siteId, siteId))
       return r?.n ?? 0
@@ -132,6 +136,7 @@ export function planLimitMessage(key: PlanLimitKey, max: number): string {
     case 'content': return `Your plan allows ${max.toLocaleString('en')} pages and posts.`
     case 'team': return `Your plan allows ${max.toLocaleString('en')} team members.`
     case 'members': return "This site isn't accepting new members."
+    case 'domains': return max === 0 ? "Your plan doesn't include your own domain. Ask about a bigger plan." : `Your plan allows ${max.toLocaleString('en')} of your own domains.`
     case 'plugins': return max === 0 ? "Your plan doesn't include plugins." : `Your plan allows ${max.toLocaleString('en')} plugins.`
     case 'ai': return "This month's AI allowance is used up. It resets on the 1st."
     case 'emails': return "This month's email allowance is used up. It resets on the 1st. Sign-in and security emails still go out."

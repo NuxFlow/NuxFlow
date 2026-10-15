@@ -1,7 +1,7 @@
 import type { H3Event } from 'h3'
 import { ulid } from 'ulid'
 import { and, desc, eq, gte, sql } from 'drizzle-orm'
-import { emailLog, sites } from '@nuxflow/db/schema'
+import { emailLog, siteDomains, sites } from '@nuxflow/db/schema'
 import { resolveSetting } from './settings'
 import { getEmailBinding } from './cf-env'
 import { useDb } from './db'
@@ -197,6 +197,20 @@ export function hostingSenderDomain(siteDomain: string): string | null {
 }
 
 /**
+ * hostingSenderDomain() for a site that may have moved to the customer's own domain:
+ * its original <name>.<sites domain> address is then kept in `site_domains`, and the site
+ * still sends from the shared sites domain (the customer's domain isn't set up for sending).
+ */
+export async function hostingSenderDomainForSite(event: H3Event, siteId: string, siteDomain: string): Promise<string | null> {
+  const direct = hostingSenderDomain(siteDomain)
+  if (direct) return direct
+  const base = String(useRuntimeConfig().hostingSitesDomain ?? '').trim().toLowerCase()
+  if (!base) return null
+  const rows = await useDb(event).select({ hostname: siteDomains.hostname }).from(siteDomains).where(eq(siteDomains.siteId, siteId))
+  return rows.some(r => r.hostname.endsWith(`.${base}`)) ? base : null
+}
+
+/**
  * The `EMAIL` binding sends through the operator's Cloudflare account, where every
  * tenant's domain (and the operator's own) may be enabled for sending — so without a check
  * any site could send as any other. A non-primary site may only send from its own domain
@@ -211,7 +225,7 @@ export async function assertSharedSenderAllowed(event: H3Event, siteId: string |
   const base = site.domain.replace(/^www\./, '').toLowerCase()
   const platform = String(useRuntimeConfig().inboundEmailDomain ?? '').trim().toLowerCase()
   if (senderDomain === base || senderDomain.endsWith(`.${base}`) || (platform && senderDomain === platform)) return
-  const hostingSender = hostingSenderDomain(site.domain)
+  const hostingSender = await hostingSenderDomainForSite(event, siteId, site.domain)
   if (hostingSender && senderDomain === hostingSender) return
   throw new Error(`Sending from ${address} isn't allowed for this site — the from address must be on ${base}.`)
 }
@@ -353,7 +367,9 @@ export async function loadEmailConfig(event: H3Event): Promise<EmailConfig> {
 
   // A hosting customer's site sends from the shared sites domain unless it set its own
   // address (see hostingSenderDomain).
-  const hostingSender = !fromAddress && emailProvider === 'cloudflare' ? hostingSenderDomain(host) : null
+  const hostingSender = !fromAddress && emailProvider === 'cloudflare' && siteId
+    ? await hostingSenderDomainForSite(event, siteId, (await getSiteInfo(event, siteId))?.domain ?? host)
+    : null
 
   return {
     emailProvider,
