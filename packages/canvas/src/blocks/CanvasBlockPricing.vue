@@ -9,6 +9,10 @@ const props = withDefaults(defineProps<{
   title?: string
   description?: string
   numPlans?: '2' | '3'
+  /** Shown before every price, e.g. £ or €. */
+  currency?: string
+  /** Text on the highlighted plan's badge. */
+  popularLabel?: string
   // Plan 1
   plan1Name?: string
   plan1Price?: string
@@ -41,6 +45,8 @@ const props = withDefaults(defineProps<{
   title: 'Simple, transparent pricing',
   description: 'Choose the plan that is right for you.',
   numPlans: '3',
+  currency: '$',
+  popularLabel: 'Popular',
   // Plan 1
   plan1Name: 'Hobby',
   plan1Price: '0',
@@ -153,13 +159,13 @@ const containerStyle = computed(() => {
             v-if="plan.popular"
             class="absolute top-0 right-1/2 translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-500 px-4 py-1 text-xs font-bold text-gray-950 uppercase tracking-wider"
           >
-            Popular
+            {{ popularLabel }}
           </div>
 
           <div>
             <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">{{ plan.name }}</h3>
             <div class="flex items-baseline gap-1 my-4">
-              <span class="text-4xl font-extrabold text-gray-900 dark:text-white font-sans">${{ plan.price }}</span>
+              <span class="text-4xl font-extrabold text-gray-900 dark:text-white font-sans">{{ currency }}{{ plan.price }}</span>
               <span class="text-sm opacity-60 font-semibold">{{ plan.period }}</span>
             </div>
             
