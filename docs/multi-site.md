@@ -190,7 +190,7 @@ With the switch on, people can sign up, pay and get a site without you doing any
    Use a separate domain from your own site's, so one customer's misbehaving site can't get your main domain flagged.
 2. Onboard that domain for Cloudflare Email Sending. Customer sites send from `noreply@example-sites.com` under their own site name (Cloudflare can only send from a limited number of subdomains per domain, so they share one).
 3. On your main site, add your Stripe secret key in **Settings → Payments**.
-4. **Super Admin → Platform** shows the webhook address and the four events to select. Create the webhook in Stripe (Developers → Webhooks) and paste its signing secret back on the Platform page.
+4. **Super Admin → Platform** shows the webhook address and the four events to select. Create the webhook in Stripe (**Workbench → Webhooks → Create an event destination**: events from your account, **Snapshot** payload style, destination type Webhook endpoint) and paste its signing secret back on the Platform page.
 5. In Stripe, set up the **Customer portal** (allow card updates, cancelling and switching between your plans) and, under failed payments, choose **mark the subscription as unpaid** after all retries.
 6. In **Super Admin → Plans**, give a plan a monthly and/or yearly price, an optional free trial, and tick **Offer on the sign-up page**. NuxFlow creates the product and prices in Stripe. Changing a price later only affects new sign-ups.
 
