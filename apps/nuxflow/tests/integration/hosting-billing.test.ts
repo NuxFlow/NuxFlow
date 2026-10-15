@@ -39,7 +39,7 @@ const stripe = {
   prices: [] as { id: string; amount: number; interval: string; active: boolean }[],
   subs: new Map<string, FakeSub>(),
   cancelledNow: [] as string[],
-  lastCheckout: null as null | { priceId: string; trialDays?: number; metadata?: Record<string, string> },
+  lastCheckout: null as null | { priceId: string; trialDays?: number; flexibleBilling?: boolean; metadata?: Record<string, string> },
   nextEvent: null as unknown,
 }
 const fakeProvider = {
@@ -55,7 +55,7 @@ const fakeProvider = {
   }),
   findCustomerForSite: vi.fn(async () => null),
   createCustomer: vi.fn(async () => ({ id: 'cus_1' })),
-  createCheckoutSession: vi.fn(async (opts: { priceId: string; trialDays?: number; metadata?: Record<string, string> }) => {
+  createCheckoutSession: vi.fn(async (opts: { priceId: string; trialDays?: number; flexibleBilling?: boolean; metadata?: Record<string, string> }) => {
     stripe.lastCheckout = opts
     return { id: `cs_${Date.now()}_${Math.random()}`, url: 'https://checkout.stripe.test/pay' }
   }),
@@ -304,6 +304,21 @@ describe('the webhook', () => {
     await stripeSays(subFor(id, plan.stripePriceMonthlyId!, 'active'))
     expect(await siteStatus()).toBe('active')
     expect((await db.query.hostingSubscriptions.findFirst({ where: eq(hostingSubscriptions.id, id) }))).toMatchObject({ pausedForNonPayment: false, pastDueSince: null })
+  })
+
+  it("pauses the site when Stripe pauses the subscription after failed payments, and reopens it on resume", async () => {
+    const db = getCurrentTestDb()
+    const plan = await makePlan()
+    const { id } = await signUp()
+    expect(stripe.lastCheckout).toMatchObject({ flexibleBilling: true })
+    await stripeSays(subFor(id, plan.stripePriceMonthlyId!, 'active'))
+    const siteId = (await db.query.hostingSubscriptions.findFirst({ where: eq(hostingSubscriptions.id, id) }))!.hostedSiteId!
+    const siteStatus = async () => (await db.query.sites.findFirst({ where: eq(sites.id, siteId) }))!.status
+
+    await stripeSays(subFor(id, plan.stripePriceMonthlyId!, 'paused'), 'customer.subscription.paused')
+    expect(await siteStatus()).toBe('maintenance')
+    await stripeSays(subFor(id, plan.stripePriceMonthlyId!, 'active'), 'customer.subscription.resumed')
+    expect(await siteStatus()).toBe('active')
   })
 
   it("never reopens a site the operator suspended, and pauses when the subscription ends", async () => {

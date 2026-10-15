@@ -14,7 +14,7 @@ interface PlatformState {
 }
 
 // Every event the hosting webhook acts on — the operator ticks these in Stripe.
-const WEBHOOK_EVENTS = ['checkout.session.completed', 'customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted']
+const WEBHOOK_EVENTS = ['checkout.session.completed', 'customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.paused', 'customer.subscription.resumed', 'customer.subscription.deleted']
 
 const { data, error, refresh } = await useFetch<PlatformState>('/api/v1/admin/platform')
 const access = useAdminAccessState()
@@ -177,7 +177,7 @@ async function copy(text: string) {
           </div>
           <p class="text-xs text-gray-400">
             Also in Stripe: <strong>Settings → Billing → Customer portal</strong> — allow customers to update payment methods, cancel, and switch between your plans' products.
-            And <strong>Settings → Billing → Subscriptions and emails → Manage failed payments</strong>: after all retries fail, choose "mark the subscription as unpaid".
+            And <strong>Billing → Revenue recovery → Retries</strong>: if all retries fail, <strong>Pause the subscription</strong>, and when the invoice that caused the pause is paid, <strong>Resume the subscription</strong>. (Cancelling also works, but then a customer who pays late has to sign up again.)
           </p>
         </div>
       </UCard>

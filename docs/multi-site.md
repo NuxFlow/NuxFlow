@@ -176,7 +176,7 @@ With the switch on, people can sign up, pay and get a site without you doing any
 **What happens when a payment fails ("grace, then pause")**
 
 - While Stripe retries the card, the site stays online. The customer and you are told once.
-- If Stripe gives up, or the subscription ends, the site goes into **maintenance mode**: visitors see a "back soon" page, but the customer can still sign in, download a backup and pay. You're notified.
+- If Stripe gives up (it pauses the subscription), or the subscription ends, the site goes into **maintenance mode**: visitors see a "back soon" page, but the customer can still sign in, download a backup and pay. You're notified.
 - When it's paid again, the site reopens by itself (unless you've changed its status yourself).
 - **Nothing is ever deleted automatically.** You decide in Super Admin → Sites.
 - Deleting a site that has a subscription cancels the subscription in Stripe first, so nobody is charged for a site that's gone.
@@ -190,8 +190,8 @@ With the switch on, people can sign up, pay and get a site without you doing any
    Use a separate domain from your own site's, so one customer's misbehaving site can't get your main domain flagged.
 2. Onboard that domain for Cloudflare Email Sending. Customer sites send from `noreply@example-sites.com` under their own site name (Cloudflare can only send from a limited number of subdomains per domain, so they share one).
 3. On your main site, add your Stripe secret key in **Settings → Payments**.
-4. **Super Admin → Platform** shows the webhook address and the four events to select. Create the webhook in Stripe (**Workbench → Webhooks → Create an event destination**: events from your account, **Snapshot** payload style, destination type Webhook endpoint) and paste its signing secret back on the Platform page.
-5. In Stripe, set up the **Customer portal** (allow card updates, cancelling and switching between your plans) and, under failed payments, choose **mark the subscription as unpaid** after all retries.
+4. **Super Admin → Platform** shows the webhook address and the six events to select. Create the webhook in Stripe (**Workbench → Webhooks → Create an event destination**: events from your account, **Snapshot** payload style, destination type Webhook endpoint) and paste its signing secret back on the Platform page.
+5. In Stripe, set up the **Customer portal** (allow card updates, cancelling and switching between your plans). Then in **Billing → Revenue recovery → Retries**: if all retries fail, **Pause the subscription**, and when the invoice that caused the pause is paid, **Resume the subscription**. The site then reopens by itself once the customer pays. (Cancelling also works, but a customer who pays late then has to sign up again.)
 6. In **Super Admin → Plans**, give a plan a monthly and/or yearly price, an optional free trial, and tick **Offer on the sign-up page**. NuxFlow creates the product and prices in Stripe. Changing a price later only affects new sign-ups.
 
 Plans without a price still work as before: give them to sites by hand in Super Admin → Sites.

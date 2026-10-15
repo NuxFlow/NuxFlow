@@ -73,6 +73,8 @@ export class StripeProvider implements PaymentProvider {
     metadata?: Record<string, string>
     /** Free days before the first charge; the card is still taken at checkout. */
     trialDays?: number
+    /** Flexible billing mode, which Stripe needs to pause a subscription after failed payments. */
+    flexibleBilling?: boolean
   }) {
     return this.client.checkout.sessions.create({
       customer: opts.customerId,
@@ -84,6 +86,7 @@ export class StripeProvider implements PaymentProvider {
       subscription_data: {
         metadata: opts.metadata,
         ...(opts.trialDays ? { trial_period_days: opts.trialDays } : {}),
+        ...(opts.flexibleBilling ? { billing_mode: { type: 'flexible' as const } } : {}),
       },
     })
   }

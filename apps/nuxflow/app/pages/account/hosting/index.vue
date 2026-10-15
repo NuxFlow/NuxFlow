@@ -57,7 +57,9 @@ function formatDate(value: string | null): string {
 type BadgeColor = 'success' | 'warning' | 'error' | 'neutral' | 'info'
 function statusOf(s: HostedSite): { label: string; color: BadgeColor; note: string } {
   if (s.paused || s.site?.status === 'maintenance') {
-    return { label: 'Paused', color: 'error', note: 'Visitors see a "back soon" page. Restart your plan under Billing to reopen it. Nothing has been deleted.' }
+    return { label: 'Paused', color: 'error', note: s.status === 'canceled'
+      ? 'Your plan has ended, so visitors see a "back soon" page. Nothing has been deleted. Contact us to restart it.'
+      : 'Visitors see a "back soon" page. Pay the outstanding invoice under Billing and it reopens by itself. Nothing has been deleted.' }
   }
   if (s.site?.status === 'suspended') return { label: 'Suspended', color: 'error', note: 'Please contact us about this site.' }
   if (s.status === 'past_due') return { label: 'Payment failing', color: 'warning', note: 'Your last payment didn\'t go through. Please check your card under Billing.' }

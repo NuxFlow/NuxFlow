@@ -24,8 +24,9 @@ import { clearSiteCache } from '../middleware/02.multi-site'
  * reacts to what the webhook says.
  *
  * Failed payments ("grace, then pause"): while Stripe retries a card (`past_due`) the site
- * stays up and the operator and customer are told once. When Stripe gives up (`unpaid`) or
- * the subscription ends (`canceled`), the site is put into maintenance mode — visitors see
+ * stays up and the operator and customer are told once. When Stripe gives up (`paused`,
+ * the recommended setting with flexible billing: paying the open invoice resumes it; or
+ * `unpaid`) or the subscription ends (`canceled`), the site is put into maintenance mode — visitors see
  * a "back soon" page, the customer can still sign in, export a backup and pay — and the
  * operator decides what happens next. Nothing is ever deleted automatically. A paused
  * site reopens by itself once the subscription is active again.
@@ -36,7 +37,7 @@ export const HOSTING_WEBHOOK_SECRET_KEY = 'hosting.stripe_webhook_secret'
 /** Stripe statuses where the site should be open. */
 const LIVE_STATUSES = new Set(['active', 'trialing'])
 /** Stripe statuses where NuxFlow pauses the site. */
-const ENDED_STATUSES = new Set(['unpaid', 'canceled', 'incomplete_expired'])
+const ENDED_STATUSES = new Set(['paused', 'unpaid', 'canceled', 'incomplete_expired'])
 /** A sign-up that hasn't paid yet holds its subdomain this long. */
 const RESERVATION_MS = 24 * 60 * 60 * 1000
 
@@ -267,6 +268,9 @@ export async function startHostingCheckout(ctx: HostingContext, req: CheckoutReq
     // `siteId` is the primary site, the account these payments belong to.
     metadata: { nuxflowHosting: '1', hostingSubscriptionId: id, siteId: primary.id, ownerUserId: req.user.id },
     trialDays: plan.trialDays > 0 ? plan.trialDays : undefined,
+    // Flexible billing is what lets Stripe pause (rather than cancel) a subscription
+    // whose payments failed, and resume it once the customer pays.
+    flexibleBilling: true,
   }))
   await db.update(hostingSubscriptions).set({ stripeCheckoutSessionId: session.id }).where(eq(hostingSubscriptions.id, id))
   if (!session.url) throw createError({ statusCode: 502, message: 'Stripe did not return a checkout page.' })
@@ -447,7 +451,9 @@ async function pauseSite(ctx: HostingContext, row: HostingSubscription) {
         ended
           ? `The subscription for ${site.name} (${site.domain}) has ended, so the site is paused: visitors see a "back soon" page.`
           : `We tried several times but couldn't take payment for ${site.name} (${site.domain}), so the site is paused: visitors see a "back soon" page.`,
-        'Nothing has been deleted. You can still sign in, download a backup, and restart your plan from My hosting.',
+        ended
+          ? 'Nothing has been deleted. You can still sign in and download a backup from My hosting.'
+          : 'Nothing has been deleted. Pay the outstanding invoice under Billing in My hosting and the site reopens by itself. You can still sign in and download a backup.',
       ],
       action: { label: 'Go to My hosting', url: accountsUrl('/account/hosting') },
     })
