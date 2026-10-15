@@ -32,6 +32,17 @@ describe('admin-nav', () => {
     expect(canAccessNavItem(sites, null)).toBe(false)
   })
 
+  it('hides Plans and Usage unless the hosting-platform switch is on', () => {
+    const plans = findNavRule('/admin/super/plans')!
+    const usage = findNavRule('/admin/super/usage/site-1')!
+    for (const item of [plans, usage]) {
+      expect(canAccessNavItem(item, { role: 'super_admin', isSuperAdmin: true })).toBe(false)
+      expect(canAccessNavItem(item, { role: 'super_admin', isSuperAdmin: true, hostingPlatform: true })).toBe(true)
+      expect(canAccessNavItem(item, { role: 'admin', isSuperAdmin: false, hostingPlatform: true })).toBe(false)
+    }
+    expect(canAccessNavItem(findNavRule('/admin/super/platform')!, { role: 'super_admin', isSuperAdmin: true })).toBe(true)
+  })
+
   it('shows a user with no role on the site nothing', () => {
     for (const item of ADMIN_NAV) expect(canAccessNavItem(item, { role: null, isSuperAdmin: false })).toBe(false)
   })

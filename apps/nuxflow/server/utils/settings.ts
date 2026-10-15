@@ -108,6 +108,8 @@ export const PLATFORM_ONLY_ENV_KEYS: ReadonlySet<string> = new Set([
 
 export const SERVER_MANAGED_SETTING_KEYS: ReadonlySet<string> = new Set([
   'email.inbound_handle',
+  // The hosting-platform switch (hosting-platform.ts) — super admin only, never restored.
+  'platform.hosting_enabled',
 ])
 
 /**

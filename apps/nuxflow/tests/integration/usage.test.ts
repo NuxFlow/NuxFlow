@@ -11,7 +11,7 @@ import { MockLanguageModelV4 } from 'ai/test'
 import { dynamicPlugins, siteUsageDaily } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
-import { seedSite, seedUser, seedRole, seedContentType, seedContentItem, seedMedia } from '../helpers/seed'
+import { seedSite, seedUser, seedRole, seedContentType, seedContentItem, seedMedia, seedSetting } from '../helpers/seed'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -58,6 +58,8 @@ beforeAll(async () => {
   adminId = await seedUser(db, { email: 'admin@usage.test' })
   await seedRole(db, operatorId, A, 'super_admin')
   await seedRole(db, adminId, B, 'admin')
+  // Super Admin → Usage only exists on a hosting platform (hosting-platform.ts).
+  await seedSetting(db, A, 'platform.hosting_enabled', 'true')
 })
 
 afterAll(async () => {

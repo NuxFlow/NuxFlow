@@ -2,10 +2,12 @@ import { asc, count, isNotNull } from 'drizzle-orm'
 import { hostingPlans, sites } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
+import { requireHostingPlatform } from '../../../../utils/hosting-platform'
 
 /** Every hosting plan, with how many sites are on each. */
 export default defineEventHandler(async (event) => {
   await requireSuperAdmin(event)
+  await requireHostingPlatform(event)
   const db = useDb(event)
   const [plans, counts] = await Promise.all([
     db.select().from(hostingPlans).orderBy(asc(hostingPlans.sortOrder), asc(hostingPlans.name)),

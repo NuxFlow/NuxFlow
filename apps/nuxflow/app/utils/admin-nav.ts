@@ -38,6 +38,8 @@ export interface AdminNavItem {
   minRole?: Role
   /** Requires requireSuperAdmin() cross-site status, not a per-site role. */
   superAdminOnly?: boolean
+  /** Only exists while Super Admin → Platform's hosting-platform switch is on. */
+  hostingOnly?: boolean
   /** Route-guard rule only — not listed in the sidebar (a sub-page reached from its parent). */
   hidden?: boolean
 }
@@ -69,13 +71,15 @@ export const ADMIN_NAV: AdminNavItem[] = [
 
 export const SUPER_ADMIN_NAV: AdminNavItem[] = [
   { label: 'Sites', to: '/admin/super/sites', icon: 'i-lucide-globe', superAdminOnly: true },
-  { label: 'Usage', to: '/admin/super/usage', icon: 'i-lucide-chart-column', superAdminOnly: true },
-  { label: 'Plans', to: '/admin/super/plans', icon: 'i-lucide-layers', superAdminOnly: true },
+  { label: 'Usage', to: '/admin/super/usage', icon: 'i-lucide-chart-column', superAdminOnly: true, hostingOnly: true },
+  { label: 'Plans', to: '/admin/super/plans', icon: 'i-lucide-layers', superAdminOnly: true, hostingOnly: true },
   { label: 'Database', to: '/admin/super/database', icon: 'i-lucide-database', superAdminOnly: true },
   { label: 'Email', to: '/admin/super/email', icon: 'i-lucide-send', superAdminOnly: true },
+  { label: 'Platform', to: '/admin/super/platform', icon: 'i-lucide-server', superAdminOnly: true },
 ]
 
-export function canAccessNavItem(item: AdminNavItem, access: { role: Role | null; isSuperAdmin: boolean } | null | undefined): boolean {
+export function canAccessNavItem(item: AdminNavItem, access: { role: Role | null; isSuperAdmin: boolean; hostingPlatform?: boolean } | null | undefined): boolean {
+  if (item.hostingOnly && !access?.hostingPlatform) return false
   if (item.superAdminOnly) return access?.isSuperAdmin ?? false
   return roleAtLeast(access?.role, item.minRole ?? 'viewer')
 }

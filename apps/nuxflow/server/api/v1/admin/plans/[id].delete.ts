@@ -2,6 +2,7 @@ import { eq, sql } from 'drizzle-orm'
 import { hostingPlans, sites } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
+import { requireHostingPlatform } from '../../../../utils/hosting-platform'
 import { writeAuditLog } from '../../../../utils/audit'
 import { noContent, notFound } from '../../../../utils/response'
 import { clearHostingPlanCache } from '../../../../utils/hosting-plans'
@@ -12,6 +13,7 @@ import { clearHostingPlanCache } from '../../../../utils/hosting-plans'
  */
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSuperAdmin(event)
+  await requireHostingPlatform(event)
   const id = getRouterParam(event, 'id')!
   const db = useDb(event)
 

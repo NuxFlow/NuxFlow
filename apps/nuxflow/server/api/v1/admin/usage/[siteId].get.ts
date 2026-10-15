@@ -3,6 +3,7 @@ import { and, asc, eq, gte } from 'drizzle-orm'
 import { siteUsageDaily, sites } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
+import { requireHostingPlatform } from '../../../../utils/hosting-platform'
 import { parseQuery } from '../../../../utils/validate'
 import { notFound } from '../../../../utils/response'
 import { USAGE_EVENT_METRICS, USAGE_SNAPSHOT_METRICS, usageDay } from '../../../../utils/usage'
@@ -17,6 +18,7 @@ const querySchema = z.object({
  */
 export default defineEventHandler(async (event) => {
   await requireSuperAdmin(event)
+  await requireHostingPlatform(event)
   const siteId = getRouterParam(event, 'siteId')!
   const { days } = parseQuery(event, querySchema)
   const db = useDb(event)

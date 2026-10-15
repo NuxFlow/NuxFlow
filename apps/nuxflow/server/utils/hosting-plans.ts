@@ -5,11 +5,13 @@ import { PLAN_LIMITS, planLimit, type PlanLimitKey } from '../../shared/lib/host
 import { useDb, type Db } from './db'
 import { createIsolateCache } from './isolate-cache'
 import { pendingUsage, usageDay, type UsageEventMetric } from './usage'
+import { isHostingPlatform } from './hosting-platform'
 
 /**
  * Hosting plans: what the operator sells a site, and the limits that come with it
  * (shared/lib/hosting-plan-limits.ts lists them). A site with no plan is on the built-in
- * unlimited plan, so single-site installs never meet any of this.
+ * unlimited plan, and so is every site while the hosting-platform switch is off
+ * (hosting-platform.ts), so single-site installs never meet any of this.
  *
  * `assertWithinPlan()` is called right before an action that adds to a hard limit and
  * throws a 403 with `data.code = 'plan_limit'` when the action would go over. Counts that
@@ -28,8 +30,9 @@ export function clearHostingPlanCache(): void {
   planCache.clear()
 }
 
-/** The site's plan, or null for the built-in unlimited plan. */
+/** The site's plan, or null for the built-in unlimited plan (always, while the hosting-platform switch is off). */
 export async function getSitePlan(db: Db, siteId: string): Promise<HostingPlan | null> {
+  if (!(await isHostingPlatform(db))) return null
   const cached = planCache.get(siteId)
   if (cached !== undefined) return cached
   const [row] = await db.select({ plan: hostingPlans })

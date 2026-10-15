@@ -3,7 +3,9 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 type SiteRow = { id: string; name: string; domain: string; status: string; locale?: string; hostingPlanId: string | null; createdAt: string }
 const { data, refresh } = await useFetch<{ sites: SiteRow[] }>('/api/v1/admin/sites')
-const { data: planData } = await useFetch<{ plans: { id: string; name: string }[] }>('/api/v1/admin/plans')
+// Plans only exist while Super Admin → Platform's hosting switch is on (the API 404s otherwise).
+const hostingPlatform = (await fetchAdminAccess())?.hostingPlatform ?? false
+const { data: planData } = await useFetch<{ plans: { id: string; name: string }[] }>('/api/v1/admin/plans', { immediate: hostingPlatform })
 
 // The select can't hold null, so the built-in unlimited plan is this sentinel in the form.
 const UNLIMITED = 'unlimited'
@@ -27,7 +29,7 @@ const columns = [
   { accessorKey: 'name', header: 'Name' },
   { accessorKey: 'domain', header: 'Domain' },
   { accessorKey: 'status', header: 'Status' },
-  { accessorKey: 'hostingPlanId', header: 'Plan' },
+  ...(hostingPlatform ? [{ accessorKey: 'hostingPlanId', header: 'Plan' }] : []),
   { accessorKey: 'createdAt', header: 'Created' },
   { id: 'actions', header: '' },
 ]
@@ -80,7 +82,8 @@ async function saveSite() {
         domain: editForm.domain,
         status: editForm.status,
         locale: editForm.locale,
-        hostingPlanId: editForm.hostingPlanId === UNLIMITED ? null : editForm.hostingPlanId,
+        // Left out while the switch is off, so a site keeps its plan for when it's back on.
+        ...(hostingPlatform ? { hostingPlanId: editForm.hostingPlanId === UNLIMITED ? null : editForm.hostingPlanId } : {}),
       },
     })
     isEditOpen.value = false
@@ -173,7 +176,7 @@ async function deleteSite() {
               ]"
             />
           </UFormField>
-          <UFormField label="Hosting plan" help="Limits apply within a minute. Manage plans in Super Admin → Plans.">
+          <UFormField v-if="hostingPlatform" label="Hosting plan" help="Limits apply within a minute. Manage plans in Super Admin → Plans.">
             <USelect v-model="editForm.hostingPlanId" :items="planItems" class="w-full" />
           </UFormField>
           <UAlert v-if="saveError" color="error" variant="soft" :description="saveError" />

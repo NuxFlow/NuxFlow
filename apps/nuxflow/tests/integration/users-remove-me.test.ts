@@ -123,18 +123,18 @@ describe('GET /api/v1/users/me', () => {
   })
 
   it('returns the real per-site role', async () => {
-    expect(await (meHandler as Handler)(ev(editorId))).toEqual({ role: 'editor', isSuperAdmin: false })
+    expect(await (meHandler as Handler)(ev(editorId))).toEqual({ role: 'editor', isSuperAdmin: false, hostingPlatform: false })
   })
 
   it('reports isSuperAdmin only on the site holding the grant', async () => {
-    expect(await (meHandler as Handler)(ev(superId))).toEqual({ role: 'super_admin', isSuperAdmin: true })
+    expect(await (meHandler as Handler)(ev(superId))).toEqual({ role: 'super_admin', isSuperAdmin: true, hostingPlatform: false })
     // Cross-site: viewer fallback, but no super-admin UI.
-    expect(await (meHandler as Handler)(ev(superId, { siteId: OTHER }))).toEqual({ role: 'viewer', isSuperAdmin: false })
+    expect(await (meHandler as Handler)(ev(superId, { siteId: OTHER }))).toEqual({ role: 'viewer', isSuperAdmin: false, hostingPlatform: false })
   })
 
   it('returns role: null for a stranger rather than a fabricated viewer', async () => {
     const db = getCurrentTestDb()
     const stranger = await seedUser(db, { email: 'stranger@rm.test' })
-    expect(await (meHandler as Handler)(ev(stranger))).toEqual({ role: null, isSuperAdmin: false })
+    expect(await (meHandler as Handler)(ev(stranger))).toEqual({ role: null, isSuperAdmin: false, hostingPlatform: false })
   })
 })

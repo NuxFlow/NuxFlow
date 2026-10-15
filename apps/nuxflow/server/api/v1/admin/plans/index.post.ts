@@ -2,12 +2,14 @@ import { ulid } from 'ulid'
 import { hostingPlans } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
+import { requireHostingPlatform } from '../../../../utils/hosting-platform'
 import { writeAuditLog } from '../../../../utils/audit'
 import { created } from '../../../../utils/response'
 import { planBodySchema } from '../../../../utils/hosting-plan-schema'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSuperAdmin(event)
+  await requireHostingPlatform(event)
   const body = await parseBody(event, planBodySchema)
   const db = useDb(event)
   const id = ulid()
