@@ -284,6 +284,12 @@ describe('canvas-pricing block definition', () => {
     expect(field.condition!({ numPlans: '3' })).toBe(true)
   })
 
+  it('has a currency symbol (an identifier, never translated) and a badge label, defaulting to the old $ and "Popular"', () => {
+    expect(pricing.fields.find(f => f.key === 'currency')).toMatchObject({ type: 'text', translatable: false })
+    expect(pricing.fields.find(f => f.key === 'popularLabel')).toMatchObject({ type: 'text' })
+    expect(pricing.defaultProps).toMatchObject({ currency: '$', popularLabel: 'Popular' })
+  })
+
   it('default features parse into a plain string[] for every plan', () => {
     for (const key of ['plan1Features', 'plan2Features', 'plan3Features']) {
       const parsed = JSON.parse(pricing.defaultProps[key] as string) as unknown[]

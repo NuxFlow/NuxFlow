@@ -648,6 +648,8 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
           { label: '3 plans', value: '3' },
         ],
       },
+      { key: 'currency', translatable: false, label: 'Currency symbol', type: 'text', placeholder: '$' },
+      { key: 'popularLabel', label: 'Highlighted plan badge', type: 'text', placeholder: 'Popular' },
       // Plan 1
       { key: 'plan1Name', label: 'Plan 1 — Name', type: 'text', placeholder: 'Hobby' },
       { key: 'plan1Price', translatable: false, label: 'Plan 1 — Price', type: 'text', placeholder: '0' },
@@ -681,6 +683,8 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       title: 'Simple, transparent pricing',
       description: 'Choose the plan that is right for you.',
       numPlans: '3',
+      currency: '$',
+      popularLabel: 'Popular',
       plan1Name: 'Hobby',
       plan1Price: '0',
       plan1Period: '/mo',
