@@ -206,6 +206,7 @@ Every customer starts on a subdomain of your sites domain (`cafe.example-sites.c
 4. **Make main address** makes it the site's address. Every other address of the site, including the original subdomain, then redirects to it, so old links and search results keep working.
 
 Good to know:
+- If the customer's domain uses Cloudflare, the record should be **DNS only** (grey cloud). Proxied works too (Cloudflare's "Orange-to-Orange"), but then the customer's own Cloudflare settings, such as caching and redirect rules, run before yours.
 - A domain without `www` only works if the customer's DNS provider allows a CNAME at the root (Cloudflare DNS and many others call this CNAME flattening or ALIAS). Otherwise they connect `www.` and redirect the bare domain at their provider.
 - Each plan's **Own domains** allowance sets how many a site may connect (0 = not included, empty = any number, up to 10).
 - Removing a site removes its domains from Cloudflare too.
