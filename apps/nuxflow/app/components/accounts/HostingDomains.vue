@@ -108,6 +108,7 @@ function stateOf(d: DomainRow): { label: string; color: 'success' | 'warning' | 
             <span class="text-gray-400">Target</span><span class="break-all">{{ data.target }}</span>
           </div>
           <p>Some providers want only the first part as the Name (for example <code>www</code>). It can take from a few minutes to a few hours to start working. We'll email you when it does.</p>
+          <p>If your domain uses Cloudflare, set the record's proxy status to <strong>DNS only</strong> (grey cloud). Proxied also works, but your own Cloudflare settings, such as caching, would then apply to your site too.</p>
           <ul v-if="d.errors.length" class="list-disc pl-4 text-amber-700 dark:text-amber-400">
             <li v-for="e in d.errors" :key="e">{{ e }}</li>
           </ul>
