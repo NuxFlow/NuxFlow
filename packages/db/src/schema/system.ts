@@ -118,8 +118,39 @@ export const dynamicPlugins = sqliteTable('dynamic_plugins', {
   publisherPublicKey: text('publisher_public_key').notNull().default(''),
   signature: text('signature').notNull().default(''),
   installedAt: text('installed_at').notNull().default(sql`(datetime('now'))`),
+  // What the plugin asks to be allowed to do (permissions) and the settings form it wants
+  // the admin to fill in — the raw JSON text exactly as signed (`nuxflow-plugin-v2`, see
+  // plugin-signing.ts), so a restore can re-verify it byte for byte. Null = a plugin that
+  // asks for nothing (signed under the older `nuxflow-plugin-v1` input).
+  capabilities: text('capabilities'),
+  capabilitiesChecksum: text('capabilities_checksum'),
+  // The permissions an admin approved when enabling the plugin. The runtime only ever
+  // hands a plugin what is in here (see server/utils/plugin-runtime.ts); an update that
+  // asks for more switches the plugin off until an admin approves again.
+  grantedPermissions: text('granted_permissions', { mode: 'json' }).$type<string[]>(),
+  // Values for the plugin's declared settings. Secret fields are AES-GCM encrypted
+  // (encryptText) and never returned to the browser.
+  settingsValues: text('settings_values', { mode: 'json' }).$type<Record<string, unknown>>(),
+  updatedAt: text('updated_at'),
 }, (t) => [
   primaryKey({ columns: [t.siteId, t.id] }),
+])
+
+// A plugin's own key-value storage (the `storage` permission). Keyed by (site, plugin,
+// key): a plugin only ever reaches rows under its own site and id — both come from the
+// host-side props of the call, never from plugin code (see server/utils/plugin-api.ts).
+// Deleted with the plugin; size and key-count caps are enforced in plugin-api.ts.
+export const pluginStorage = sqliteTable('plugin_storage', {
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  pluginId: text('plugin_id').notNull(),
+  key: text('key').notNull(),
+  value: text('value').notNull(),
+  size: integer('size').notNull(),
+  expiresAt: text('expires_at'),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  primaryKey({ columns: [t.siteId, t.pluginId, t.key] }),
+  index('idx_plugin_storage_expires').on(t.expiresAt),
 ])
 
 // Pins a plugin id's publisher key per site, independent of the `dynamic_plugins` row

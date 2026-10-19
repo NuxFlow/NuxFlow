@@ -18,13 +18,23 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
-import { seedSite } from '../helpers/seed'
+import { seedSite, seedUser, seedRole } from '../helpers/seed'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { computeSha256 } from '../../server/utils/plugin-signing'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
   getD1: () => null,
+}))
+
+// Signed-in visitor stand-in for the user:read identity tests: a request carrying the
+// test-only `x-test-user` header is treated as that user's session.
+vi.mock('../../server/utils/auth', async (importOriginal) => ({
+  ...await importOriginal<Record<string, unknown>>(),
+  getAuthSession: vi.fn(async (e: { _headers?: Record<string, string> }) => {
+    const id = e._headers?.['x-test-user']
+    return id ? { user: { id }, session: {} } : null
+  }),
 }))
 
 // h3's send() isn't among the global stubs — it just returns the body in tests.
@@ -38,6 +48,7 @@ const cfPluginKv = await import('../../server/utils/cf-plugin-kv')
 type Handler = (e: H3Event) => Promise<unknown>
 
 const SITE = 'site-plugin-serve-01'
+let editorId: string
 const OTHER = 'site-plugin-serve-02'
 const SERVER_CODE = 'export default { fetch() { return new Response("hi") } }'
 const CLIENT_CODE = 'export function renderBlock() { return null }'
@@ -48,6 +59,10 @@ const kv = {
   get: vi.fn(async (k: string) => kvStore.get(k) ?? null),
   put: vi.fn(async (k: string, v: string) => { kvStore.set(k, v) }),
   delete: vi.fn(async (k: string) => { kvStore.delete(k) }),
+  list: vi.fn(async ({ prefix }: { prefix: string }) => ({
+    keys: [...kvStore.keys()].filter(k => k.startsWith(prefix)).map(name => ({ name })),
+    list_complete: true,
+  })),
 }
 
 let lastWorkerCode: Record<string, unknown> | null = null
@@ -83,9 +98,16 @@ beforeAll(async () => {
     { id: 'com.nochecksum', siteId: SITE, name: 'NC', version: '1.0.0', isActive: true, hasServer: true, hasClient: true },
     { id: 'com.tampered', siteId: SITE, name: 'T', version: '1.0.0', isActive: true, hasServer: true, hasClient: true, serverChecksum, clientChecksum },
     { id: 'com.foreign', siteId: OTHER, name: 'F', version: '1.0.0', isActive: true, hasServer: true, hasClient: true, serverChecksum, clientChecksum },
+    { id: 'com.late', siteId: SITE, name: 'Late', version: '1.0.0', isActive: true, hasServer: true, hasClient: false, serverChecksum },
+    {
+      id: 'com.caps', siteId: SITE, name: 'Caps', version: '1.0.0', isActive: true, hasServer: true, hasClient: false, serverChecksum,
+      grantedPermissions: ['user:read', 'storage', 'network:api.example.com'],
+    },
   ])
+  editorId = await seedUser(db, { email: 'editor@plugins.test' })
+  await seedRole(db, editorId, SITE, 'editor')
 
-  for (const id of ['com.ok', 'com.nochecksum', 'com.inactive']) {
+  for (const id of ['com.ok', 'com.nochecksum', 'com.inactive', 'com.caps']) {
     kvStore.set(`plugin:${SITE}:${id}:server`, SERVER_CODE)
     kvStore.set(`plugin:${SITE}:${id}:client`, CLIENT_CODE)
   }
@@ -119,16 +141,29 @@ function ev(opts: {
 }
 
 describe('cf-plugin-kv', () => {
-  it('reads and writes plugin code under site-scoped keys, and deletes both artifacts', async () => {
+  it('reads and writes plugin code under site-scoped, checksum-versioned keys, and deletes every version', async () => {
     const e = ev()
+    const srvSum = await computeSha256('srv')
+    const cliSum = await computeSha256('cli')
     await cfPluginKv.putPluginServerCode(e, 's1', 'p1', 'srv')
     await cfPluginKv.putPluginClientBundle(e, 's1', 'p1', 'cli')
-    expect(kvStore.get('plugin:s1:p1:server')).toBe('srv')
-    expect(await cfPluginKv.getPluginClientBundle(e, 's1', 'p1')).toBe('cli')
-    expect(await cfPluginKv.getPluginServerCode(e, 's2', 'p1')).toBeNull()
+    expect(kvStore.get(`plugin:s1:p1:server:${srvSum}`)).toBe('srv')
+    expect(await cfPluginKv.getPluginClientBundle(e, 's1', 'p1', cliSum)).toBe('cli')
+    expect(await cfPluginKv.getPluginServerCode(e, 's2', 'p1', srvSum)).toBeNull()
+    // A plugin installed before keys were versioned is still found under its old key.
+    kvStore.set('plugin:s1:p1:server', 'legacy')
+    expect(await cfPluginKv.getPluginServerCode(e, 's1', 'p1', 'unknown-sum')).toBe('legacy')
     await cfPluginKv.deletePluginAssets(e, 's1', 'p1')
-    expect(kvStore.has('plugin:s1:p1:server')).toBe(false)
-    expect(kvStore.has('plugin:s1:p1:client')).toBe(false)
+    expect([...kvStore.keys()].some(k => k.startsWith('plugin:s1:p1:'))).toBe(false)
+  })
+
+  it('keeps the current version when cleaning up after an update', async () => {
+    const e = ev()
+    await cfPluginKv.putPluginServerCode(e, 's3', 'p1', 'v1')
+    await cfPluginKv.putPluginServerCode(e, 's3', 'p1', 'v2')
+    const v2 = await computeSha256('v2')
+    await cfPluginKv.deletePluginAssets(e, 's3', 'p1', [v2])
+    expect([...kvStore.keys()].filter(k => k.startsWith('plugin:s3:p1:'))).toEqual([`plugin:s3:p1:server:${v2}`])
   })
 
   it('spawns workers with no outbound network, no env, and bounded limits', async () => {
@@ -166,7 +201,8 @@ describe('/_nuxflow/ext/:pluginId/*', () => {
     expect(lastForwarded?.headers.get('cookie')).toBeNull()
     expect(lastForwarded?.headers.get('authorization')).toBeNull()
     expect(lastForwarded?.headers.get('accept')).toBe('application/json')
-    expect(loader.get.mock.calls[0][0]).toBe(`${SITE}:com.ok:${await computeSha256(SERVER_CODE)}`)
+    // Site + code checksum + a hash of the bindings (granted permissions) — never shared across sites.
+    expect(loader.get.mock.calls[0][0]).toMatch(new RegExp(`^${SITE}:com[.]ok:${await computeSha256(SERVER_CODE)}:[0-9a-f]{16}$`))
   })
 
   it('forwards the body for non-GET methods', async () => {
@@ -195,6 +231,74 @@ describe('/_nuxflow/ext/:pluginId/*', () => {
   it('fails closed without a recorded checksum or when KV content was tampered with', async () => {
     await expect((extHandler as Handler)(extEv('com.nochecksum'))).rejects.toMatchObject({ statusCode: 500 })
     await expect((extHandler as Handler)(extEv('com.tampered'))).rejects.toMatchObject({ statusCode: 500, message: expect.stringContaining('integrity') })
+  })
+
+  it('never hands the loader an id whose code is missing, so a KV miss is not cached', async () => {
+    // Right after an install, KV can briefly miss in another location. The loader
+    // remembers a failed load under its id, so the code must be checked first.
+    await expect((extHandler as Handler)(extEv('com.late'))).rejects.toMatchObject({ statusCode: 503 })
+    expect(loader.get).not.toHaveBeenCalled()
+    kvStore.set(`plugin:${SITE}:com.late:server`, SERVER_CODE)
+    const res = await (extHandler as Handler)(extEv('com.late')) as Response
+    expect(await res.text()).toBe('ok')
+  })
+
+  it('refuses the reserved hook path, so visitors cannot forge hook deliveries', async () => {
+    for (const path of ['/__nuxflow', '/__nuxflow/hooks/content.published']) {
+      await expect((extHandler as Handler)(extEv('com.ok', { method: 'POST', path: `/_nuxflow/ext/com.ok${path}` }))).rejects.toMatchObject({ statusCode: 404 })
+    }
+    expect(loader.get).not.toHaveBeenCalled()
+  })
+
+  // ctx.exports as Cloudflare provides it: one factory per exported WorkerEntrypoint.
+  const withExports = (e: H3Event) => {
+    ;(e as unknown as { context: { cloudflare: Record<string, unknown> } }).context.cloudflare.context = {
+      waitUntil: () => {},
+      exports: {
+        NuxflowPluginHost: (o: { props: unknown }) => ({ binding: 'host', ...o }),
+        NuxflowPluginEgress: (o: { props: unknown }) => ({ binding: 'egress', ...o }),
+      },
+    }
+    return e
+  }
+
+  it('hands the plugin only its granted capabilities, scoped to its site', async () => {
+    await (extHandler as Handler)(withExports(extEv('com.caps')))
+    expect(lastWorkerCode?.env).toEqual({
+      NUXFLOW: { binding: 'host', props: { siteId: SITE, pluginId: 'com.caps', permissions: ['network:api.example.com', 'storage', 'user:read'], host: 'plugins.localhost' } },
+    })
+    expect(lastWorkerCode?.globalOutbound).toEqual({
+      binding: 'egress',
+      props: { siteId: SITE, pluginId: 'com.caps', allowedHosts: ['api.example.com'], blockedHosts: ['plugins.localhost'] },
+    })
+  })
+
+  it('keeps the network closed for a plugin without network permissions', async () => {
+    await (extHandler as Handler)(withExports(extEv('com.ok')))
+    expect(lastWorkerCode?.globalOutbound).toBeNull()
+    expect((lastWorkerCode?.env as { NUXFLOW: { props: { permissions: string[] } } }).NUXFLOW.props.permissions).toEqual([])
+  })
+
+  it('refuses to run a plugin that needs capabilities when ctx.exports is missing', async () => {
+    await expect((extHandler as Handler)(extEv('com.caps'))).rejects.toMatchObject({ statusCode: 503 })
+  })
+
+  it('tells a user:read plugin who is signed in — and never trusts the header from the caller', async () => {
+    const res = await (extHandler as Handler)(withExports(extEv('com.caps', { headers: { 'x-test-user': editorId, 'x-nuxflow-user-id': 'forged' } }))) as Response
+    expect(lastForwarded?.headers.get('x-nuxflow-user-id')).toBe(editorId)
+    expect(lastForwarded?.headers.get('x-nuxflow-user-role')).toBe('editor')
+    expect(res.headers.get('cache-control')).toBe('private, no-store')
+
+    await (extHandler as Handler)(withExports(extEv('com.caps', { headers: { 'x-nuxflow-user-id': 'forged' } })))
+    expect(lastForwarded?.headers.get('x-nuxflow-user-id')).toBeNull()
+
+    await (extHandler as Handler)(withExports(extEv('com.ok', { headers: { 'x-test-user': editorId } })))
+    expect(lastForwarded?.headers.get('x-nuxflow-user-id')).toBeNull()
+  })
+
+  it('withholds identity from a cross-site POST', async () => {
+    await (extHandler as Handler)(withExports(extEv('com.caps', { method: 'POST', rawBody: '{}', headers: { 'x-test-user': editorId, 'sec-fetch-site': 'cross-site', cookie: 'better-auth.session_token=x' } })))
+    expect(lastForwarded?.headers.get('x-nuxflow-user-id')).toBeNull()
   })
 
   it('503s when the LOADER binding is unavailable', async () => {

@@ -110,7 +110,7 @@ export const ALLOWLIST: AllowlistEntry[] = [
   },
   {
     file: 'server/scheduled/prune-old-data.ts',
-    tables: ['ai_generation_jobs', 'audit_logs', 'crawler_hits', 'email_log', 'email_messages', 'notifications', 'site_auth_codes', 'site_invitations', 'site_sessions', 'site_usage_daily'],
+    tables: ['ai_generation_jobs', 'audit_logs', 'crawler_hits', 'email_log', 'email_messages', 'notifications', 'plugin_storage', 'site_auth_codes', 'site_invitations', 'site_sessions', 'site_usage_daily'],
     reason: 'Nightly retention clean-up for every site.',
   },
   {

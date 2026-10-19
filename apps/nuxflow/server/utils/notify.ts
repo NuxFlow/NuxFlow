@@ -37,6 +37,7 @@ export const NOTIFICATION_TYPES: Record<string, NotificationTypeDef> = {
   'inbox.message': { label: 'New inbox email', description: 'An email arrived at one of this site\'s inbox addresses.', email: true, push: true, minRole: 'editor' },
   'content.post_by_email': { label: 'Draft from email', description: 'An email you sent to your posting address became a draft.', email: true, push: false, minRole: 'author' },
   'system.plugin_installed': { label: 'Plugin installed', description: 'A dynamic plugin was installed or updated on this site.', email: true, push: false, minRole: 'admin' },
+  'system.plugin_message': { label: 'Plugin messages', description: 'Notifications sent by plugins you approved to notify admins.', email: false, push: false, minRole: 'admin' },
   'system.db_export': { label: 'Database exported', description: 'A full database export was downloaded.', email: true, push: false, minRole: 'admin' },
   'system.site_status': { label: 'Site status changed', description: 'This site was put into maintenance, suspended, or reactivated.', email: true, push: true, minRole: 'admin' },
   'system.hosting': { label: 'Hosting customers', description: 'Sign-ups, failed payments, paused and reopened sites on this hosting platform.', email: true, push: true, minRole: 'super_admin' },

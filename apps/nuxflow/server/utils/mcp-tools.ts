@@ -13,6 +13,7 @@ import { semanticSearch, upsertContentEmbedding, deleteContentEmbedding } from '
 import { purgeContentCache } from './edge-cache'
 import { waitUntil } from './cf-env'
 import { itemPublicPath } from './public-page'
+import { queueContentHook } from './plugin-hooks'
 import { getContentTermIds, getPublicItemTerms, getTaxonomyContentTypeSlugs, getTermRefsWithAncestors, replaceContentTermsStatements } from './taxonomy'
 
 // Tool implementations for the MCP server (server/api/v1/mcp.ts). Extracted out of that
@@ -304,6 +305,8 @@ async function syncAfterContentWrite(
         visibility: after.visibility,
       })
     : deleteContentEmbedding(ctx.event, itemId))
+  const item = after ?? before!
+  queueContentHook(ctx.event, ctx.siteId, before, after, item)
 }
 
 async function createContent(args: unknown, ctx: McpToolContext): Promise<McpToolResult> {

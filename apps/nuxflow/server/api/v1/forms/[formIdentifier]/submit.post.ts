@@ -12,6 +12,7 @@ import { getFormBySlugOrThrow } from '../../../../utils/resource-queries'
 import { created } from '../../../../utils/response'
 import { waitUntil } from '../../../../utils/cf-env'
 import { moderateText } from '../../../../utils/moderation'
+import { dispatchPluginHook } from '../../../../utils/plugin-hooks'
 
 interface FormNotificationsConfig {
   enabled?: boolean
@@ -97,8 +98,13 @@ export default defineEventHandler(async (event) => {
     const result = await moderateText(event, text)
     if (result?.flagged) {
       await db.update(formSubmissions).set({ status: 'spam' }).where(and(eq(formSubmissions.id, id), eq(formSubmissions.siteId, siteId)))
+      return
     }
-  })())
+    // After the spam check, so plugins (`hook:form.submitted`) never act on spam.
+    await dispatchPluginHook(event, siteId, 'form.submitted', {
+      submissionId: id, formId: form.id, formSlug: form.slug, formName: form.name, data: body.data,
+    })
+  })().catch(err => console.error('[forms] Post-submission processing failed:', err)))
 
   // Best-effort admin notification email — mirrors the contact form's own
   // notification logic (server/api/v1/contact/submit.post.ts). The form's

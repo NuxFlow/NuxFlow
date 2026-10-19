@@ -3,20 +3,116 @@ import { join } from 'node:path'
 
 export async function scaffoldPlugin(dir: string, id: string, name: string, description: string) {
   const files: Record<string, string> = {
-    'nuxflow.plugin.json': JSON.stringify({ id, name, version: '0.1.0', description }, null, 2) + '\n',
+    'nuxflow.plugin.json': JSON.stringify({
+      id,
+      name,
+      version: '0.1.0',
+      description,
+      // What this plugin asks to be allowed to do. An admin sees these in plain words and
+      // approves them when enabling the plugin; ask only for what you use.
+      permissions: ['storage'],
+      // A settings form NuxFlow shows the admin. Read the values with env.NUXFLOW.getSettings().
+      settings: [
+        { key: 'greeting', label: 'Greeting', type: 'text', default: 'Hello', description: 'Shown by the example block.' },
+      ],
+    }, null, 2) + '\n',
+
+    'src/nuxflow.ts': `\
+// Types for what NuxFlow gives this plugin's server module. There is no SDK package to
+// install — this file is yours; keep the parts you use. Full reference: docs/plugins.md.
+//
+// \`env.NUXFLOW\` is the only way to reach the site. Each method works only if its
+// permission is in nuxflow.plugin.json and an admin approved it — otherwise the call
+// throws with a message saying which permission is missing.
+
+export interface NuxflowContentSummary {
+  id: string
+  type: string
+  title: string
+  slug: string
+  path: string
+  locale: string
+  excerpt: string | null
+  seoTitle: string | null
+  seoDescription: string | null
+  ogImage: string | null
+  publishedAt: string | null
+  updatedAt: string
+}
+
+export interface NuxflowHost {
+  /** Values of the settings declared in nuxflow.plugin.json (no permission needed). */
+  getSettings(): Promise<Record<string, unknown>>
+
+  // permission: storage — this plugin's own data, up to 10 MB / 10,000 keys
+  storageGet(key: string): Promise<unknown>
+  storagePut(key: string, value: unknown, options?: { ttlSeconds?: number }): Promise<void>
+  storageDelete(key: string): Promise<void>
+  storageList(options?: { prefix?: string, cursor?: string, limit?: number }): Promise<{ keys: { key: string, size: number, expiresAt: string | null }[], cursor: string | null }>
+
+  // permission: content:read — published, public content only
+  listContent(options?: { type?: string, locale?: string, limit?: number, offset?: number }): Promise<{ items: NuxflowContentSummary[] }>
+  getContent(options: { id?: string, slug?: string }): Promise<(NuxflowContentSummary & { content: unknown, markdown: string }) | null>
+
+  // permission: content:write — creates drafts; publishing stays with the site's editors
+  createDraft(input: { title: string, html?: string, type?: string, slug?: string, excerpt?: string, seoTitle?: string, seoDescription?: string }): Promise<{ id: string, slug: string }>
+
+  // permission: ai — the site's AI provider, counted towards its AI usage
+  generateText(input: { prompt: string, system?: string, maxOutputTokens?: number }): Promise<{ text: string }>
+
+  // permission: notify — in-app notification to the site's admins
+  notifyAdmins(input: { title: string, body: string, url?: string }): Promise<{ sent: number }>
+}
+
+export interface Env {
+  NUXFLOW: NuxflowHost
+}
+
+/** Body of an event hook delivery (permission: hook:<event>), POSTed to /__nuxflow/hooks/<event>. */
+export interface NuxflowHookDelivery<T = Record<string, unknown>> {
+  event: string
+  occurredAt: string
+  data: T
+}
+
+/**
+ * With the user:read permission, requests from a signed-in person carry these headers
+ * (set by NuxFlow — a visitor can't fake them). Absent for anonymous requests.
+ */
+export function nuxflowUser(request: Request): { id: string, role: string | null } | null {
+  const id = request.headers.get('x-nuxflow-user-id')
+  return id ? { id, role: request.headers.get('x-nuxflow-user-role') } : null
+}
+`,
 
     'src/server.ts': `\
 // Server-side Cloudflare Worker for the "${name}" plugin.
 // NuxFlow routes /_nuxflow/ext/${id}/* to this handler (prefix already stripped).
 //
-// Docs: https://developers.cloudflare.com/workers/runtime-apis/request/
+// It runs in its own sandbox: no database, no cookies, and no network access unless
+// nuxflow.plugin.json asks for "network:<host>" permissions. Everything it can do on the
+// site goes through env.NUXFLOW — see src/nuxflow.ts.
+
+import type { Env, NuxflowHookDelivery } from './nuxflow'
 
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
 
+    // Event hooks arrive here, sent by NuxFlow itself (visitors can't reach this path).
+    // Add e.g. "hook:content.published" to permissions to receive one.
+    if (request.method === 'POST' && url.pathname.startsWith('/__nuxflow/hooks/')) {
+      const delivery = await request.json() as NuxflowHookDelivery
+      console.log('Hook received:', delivery.event)
+      return new Response(null, { status: 204 })
+    }
+
     if (request.method === 'GET' && url.pathname === '/hello') {
-      return Response.json({ plugin: '${id}', message: 'Hello from ${name}!' })
+      const settings = await env.NUXFLOW.getSettings()
+      // A visit counter kept in the plugin's own storage (permission: storage).
+      const visits = Number(await env.NUXFLOW.storageGet('visits') ?? 0) + 1
+      await env.NUXFLOW.storagePut('visits', visits)
+      return Response.json({ message: \`\${settings.greeting ?? 'Hello'} from ${name}!\`, visits })
     }
 
     return new Response('Not found', { status: 404 })
@@ -178,12 +274,33 @@ nuxflow plugin build && nuxflow plugin update
 
 | File | Runtime | Purpose |
 |---|---|---|
-| \`src/server.ts\` | Cloudflare Worker | Handles \`/_nuxflow/ext/${id}/*\` requests |
+| \`nuxflow.plugin.json\` | Read by the CLI and the site | Id, version, **permissions** and **settings** form |
+| \`src/server.ts\` | Cloudflare Worker (sandboxed) | Handles \`/_nuxflow/ext/${id}/*\` requests and event hooks |
+| \`src/nuxflow.ts\` | — | Types for \`env.NUXFLOW\`, what the site lets the plugin do |
 | \`src/blocks.json\` | Read directly by the trusted app | Block metadata — name, icon, fields, defaultProps |
 | \`src/client.ts\` | Sandboxed iframe (no cookie/session access) | Renders the actual Vue component for each block |
 
 After \`nuxflow plugin build\`, both files are compiled to \`dist/\` and base64-encoded
 into \`dist/plugin.json\`, which is what the deploy command uploads.
+
+## Permissions
+
+The plugin runs in a sandbox with no database and no network of its own. Anything it does
+on the site goes through \`env.NUXFLOW\`, and only for permissions listed in
+\`nuxflow.plugin.json\` that an admin approved when enabling it:
+
+| Permission | Lets the plugin |
+|---|---|
+| \`storage\` | Keep its own data (\`storageGet/Put/Delete/List\`) |
+| \`content:read\` | Read published, public content |
+| \`content:write\` | Create drafts |
+| \`ai\` | Generate text with the site's AI provider |
+| \`notify\` | Send admins an in-app notification |
+| \`user:read\` | Know the signed-in user's id and role on its own routes |
+| \`network:api.example.com\` | Call that host over HTTPS (\`*.example.com\` for subdomains) |
+| \`hook:content.published\` | Be told about events (also \`content.updated\`, \`content.unpublished\`, \`form.submitted\`, \`comment.created\`) |
+
+An update that asks for a new permission is switched off until an admin approves it again.
 
 ## Blocks registered
 

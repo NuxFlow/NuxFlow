@@ -10,12 +10,20 @@ async function readJson(res: Response): Promise<Record<string, unknown>> {
   return await res.json().catch(() => ({ error: res.statusText })) as Record<string, unknown>
 }
 
-function apiError(res: Response, data: Record<string, unknown>): Error {
+/** An error from the site's API, carrying the HTTP status so callers can branch on it. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+function apiError(res: Response, data: Record<string, unknown>): ApiError {
   const msg = (data.message ?? data.error ?? res.statusText) as string
   if (res.status === 401 || res.status === 403) {
-    return new Error(`API error (${res.status}): ${msg} — check the API key is for this site, has the right permission, and belongs to an admin`)
+    return new ApiError(`API error (${res.status}): ${msg} — check the API key is for this site, has the right permission, and belongs to an admin`, res.status)
   }
-  return new Error(`API error (${res.status}): ${msg}`)
+  return new ApiError(`API error (${res.status}): ${msg}`, res.status)
 }
 
 async function request(method: string, site: string, path: string, apiKey: string, body?: unknown): Promise<unknown> {
@@ -38,6 +46,7 @@ async function request(method: string, site: string, path: string, apiKey: strin
 
 export const apiPost   = (site: string, path: string, apiKey: string, body: unknown) => request('POST',   site, path, apiKey, body)
 export const apiPatch  = (site: string, path: string, apiKey: string, body: unknown) => request('PATCH',  site, path, apiKey, body)
+export const apiPut    = (site: string, path: string, apiKey: string, body: unknown) => request('PUT',    site, path, apiKey, body)
 export const apiDelete = (site: string, path: string, apiKey: string)                => request('DELETE', site, path, apiKey)
 
 export async function apiPostZip(site: string, path: string, apiKey: string, filename: string, data: Uint8Array): Promise<unknown> {

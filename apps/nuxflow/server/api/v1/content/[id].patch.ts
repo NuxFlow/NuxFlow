@@ -16,6 +16,7 @@ import { upsertContentEmbedding } from '../../../utils/embeddings'
 import { itemPublicPath } from '../../../utils/public-page'
 import { redirectMovedPaths } from '../../../utils/redirects'
 import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexnow'
+import { queueContentHook } from '../../../utils/plugin-hooks'
 import type { BatchItem } from 'drizzle-orm/batch'
 
 const bodySchema = z.object({
@@ -229,6 +230,17 @@ export default defineEventHandler(async (event) => {
     status: updateFields.status ?? existing.status,
     visibility: visibility !== undefined ? visibility : existing.visibility,
   }))
+
+  // Plugins granted content hooks hear about public items going live, changing, or leaving.
+  queueContentHook(event, siteId, existing, { status: nextStatus, visibility: nextVisibility }, {
+    id,
+    typeId: existing.typeId,
+    title: updateFields.title ?? existing.title,
+    slug: nextItem.slug,
+    locale: nextItem.locale,
+    sourceItemId: nextItem.sourceItemId,
+    publishedAt: existing.publishedAt ?? (nextStatus === 'published' ? new Date().toISOString() : null),
+  })
 
   // Push broadcast when content is first published
   const isFirstPublish = updateFields.status === 'published' && existing.status !== 'published'

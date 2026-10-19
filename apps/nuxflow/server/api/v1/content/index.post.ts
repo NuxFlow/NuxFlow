@@ -10,6 +10,7 @@ import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexno
 import { waitUntil } from '../../../utils/cf-env'
 import { upsertContentEmbedding } from '../../../utils/embeddings'
 import { assertContentSlugNotTaxonomy, getTermRefsWithAncestors, replaceContentTermsStatements, validateSiteTermIds } from '../../../utils/taxonomy'
+import { queueContentHook } from '../../../utils/plugin-hooks'
 import { contentItems, sites } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -127,6 +128,11 @@ export default defineEventHandler(async (event) => {
       await submitToIndexNow(db, siteId, paths)
     })().catch(err => console.error('[indexnow] Content create notification failed:', err)))
   }
+
+  queueContentHook(event, siteId, null, { status: body.status, visibility: deriveVisibilityFromSettings(body.settings) }, {
+    id, typeId: type.id, title: body.title, slug: body.slug, locale: body.locale || siteLocale, sourceItemId: body.sourceItemId || null,
+    publishedAt: body.status === 'published' ? new Date().toISOString() : null,
+  })
 
   return created(event, { id })
 })

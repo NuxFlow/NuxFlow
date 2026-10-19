@@ -156,6 +156,16 @@ export interface BackupDynamicPlugin {
   signature: string
   serverCode: string | null
   clientBundle: string | null
+  // Optional so older backups still restore. `capabilities` is the raw signed JSON text
+  // (re-verified against its checksum and the signature on restore). Settings carry only
+  // non-secret values — secrets are encrypted under this deployment's key and are left for
+  // an admin to enter again. Storage is the plugin's own key-value data (unexpired rows).
+  // Permissions are never restored as granted: a restored plugin is inactive, and an admin
+  // approves its permissions when enabling it.
+  capabilities?: string | null
+  capabilitiesChecksum?: string | null
+  settings?: Record<string, unknown> | null
+  storage?: { key: string; value: string; expiresAt: string | null }[]
 }
 
 // Email is the restore-matching key (accounts are global, not per-site — see
@@ -356,6 +366,10 @@ const backupDynamicPluginSchema = z.object({
   signature: z.string(),
   serverCode: z.string().nullable(),
   clientBundle: z.string().nullable(),
+  capabilities: z.string().max(100_000).nullish(),
+  capabilitiesChecksum: z.string().nullish(),
+  settings: z.record(z.string(), z.unknown()).nullish(),
+  storage: z.array(z.object({ key: z.string().max(512), value: z.string(), expiresAt: z.string().nullable() })).max(10_000).optional(),
 }).superRefine((data, ctx) => {
   // Mirrors the superRefine in server/api/v1/dynamic-plugins/index.post.ts's install-body
   // schema — without this, a backup.json (user-editable before upload) could carry a
@@ -374,6 +388,9 @@ const backupDynamicPluginSchema = z.object({
   }
   if (data.blockDefinitions && !data.definitionsChecksum) {
     ctx.addIssue({ code: 'custom', message: 'definitionsChecksum is required when blockDefinitions is present', path: ['definitionsChecksum'] })
+  }
+  if (data.capabilities && !data.capabilitiesChecksum) {
+    ctx.addIssue({ code: 'custom', message: 'capabilitiesChecksum is required when capabilities is present', path: ['capabilitiesChecksum'] })
   }
 })
 

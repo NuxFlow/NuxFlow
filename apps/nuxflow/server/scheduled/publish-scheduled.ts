@@ -3,8 +3,16 @@ import { contentItems, sites } from '@nuxflow/db/schema'
 import { and, eq, lte, notInArray, sql } from 'drizzle-orm'
 import { indexablePathsForItems, submitToIndexNow } from '../utils/indexnow'
 import { bumpCacheVersionInKv } from '../utils/cache-version'
+import { createSystemEvent } from '../utils/system-event'
+import { dispatchContentHook } from '../utils/plugin-hooks'
 
-export const publishScheduled = async () => {
+/** What Nitro hands a Cloudflare cron task (`context.cloudflare`). */
+export interface ScheduledCloudflareContext {
+  env: unknown
+  context: { waitUntil(promise: Promise<unknown>): void }
+}
+
+export const publishScheduled = async (cloudflare?: ScheduledCloudflareContext) => {
   const db = useDb()
 
   const where = and(
@@ -17,7 +25,7 @@ export const publishScheduled = async () => {
 
   const due = await db.query.contentItems.findMany({
     where,
-    columns: { id: true, siteId: true, slug: true, locale: true, sourceItemId: true, typeId: true, metaRobots: true, visibility: true },
+    columns: { id: true, siteId: true, slug: true, title: true, locale: true, sourceItemId: true, typeId: true, metaRobots: true, visibility: true },
   })
 
   if (due.length > 0) {
@@ -49,6 +57,17 @@ export const publishScheduled = async () => {
         await submitToIndexNow(db, siteId, await indexablePathsForItems(db, siteId, items))
       } catch (err) {
         console.error(`[publish-scheduled] IndexNow notification failed for site ${siteId}:`, err)
+      }
+      // Plugins granted `hook:content.published`. Needs the Worker's env and context (the
+      // plugin is spawned through LOADER and handed ctx.exports stubs), which only the
+      // Cloudflare cron path provides.
+      if (cloudflare) {
+        const event = createSystemEvent({ env: cloudflare.env, ctx: cloudflare.context, siteId })
+        const publishedAt = new Date().toISOString()
+        for (const item of items) {
+          await dispatchContentHook(event, siteId, { status: 'scheduled', visibility: item.visibility }, { status: 'published', visibility: item.visibility }, { ...item, publishedAt })
+            .catch(err => console.error(`[publish-scheduled] Plugin hook failed for ${item.id}:`, err))
+        }
       }
     }
   }

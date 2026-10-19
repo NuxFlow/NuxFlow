@@ -1,8 +1,10 @@
 import type { H3Event } from 'h3'
 import { useDb } from '../../../../utils/db'
-import { spawnPluginWorker, getPluginServerCode, PLUGIN_WORKER_LIMITS } from '../../../../utils/cf-plugin-kv'
-import { assertCodeIntegrity } from '../../../../utils/plugin-signing'
+import { invokePlugin, RESERVED_PLUGIN_PATH_PREFIX } from '../../../../utils/plugin-runtime'
 import { PLUGIN_EXT_CORS_HEADERS, confinePluginResponseHeaders } from '../../../../utils/plugin-response'
+import { getAuthSession } from '../../../../utils/auth'
+import { getUserSiteRole } from '../../../../utils/permissions'
+import { isCrossOriginUnsafeRequest } from '../../../../utils/csrf'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -11,14 +13,14 @@ import { and, eq } from 'drizzle-orm'
 // needs a self-signed Ed25519 key to be installed (proves authorship consistency, not that
 // the code is benign) — forwarding those would hand every installed plugin the caller's
 // live session/API-key credentials. Worker Loader instances are cached and reused across
-// requests (see cacheId below), so a plugin can also stash a captured header in
-// module-level state on one request and echo it back on a later one, making this an
-// exfiltration path even with `globalOutbound: null` blocking direct network egress.
+// requests, so a plugin could also stash a captured header in module-level state on one
+// request and echo it back on a later one. The `x-nuxflow-*` identity headers below are
+// never in this list, so a caller can't set them — only this route can.
 const FORWARDABLE_HEADERS = new Set([
   'content-type', 'accept', 'accept-language', 'user-agent', 'x-requested-with',
 ])
 
-function pickForwardableHeaders(event: H3Event): HeadersInit {
+function pickForwardableHeaders(event: H3Event): Record<string, string> {
   const out: Record<string, string> = {}
   for (const [key, value] of Object.entries(getHeaders(event))) {
     if (value !== undefined && FORWARDABLE_HEADERS.has(key.toLowerCase())) out[key] = value
@@ -26,19 +28,24 @@ function pickForwardableHeaders(event: H3Event): HeadersInit {
   return out
 }
 
+// With the `user:read` permission, a plugin learns who is calling — the user id and their
+// role on this site, never the session or its cookie. Left out for a cross-origin unsafe
+// request (the same test the /api CSRF middleware applies), so another site can't make a
+// signed-in visitor's browser act on a plugin route with their identity attached.
+async function identityHeaders(event: H3Event, siteId: string): Promise<Record<string, string>> {
+  if (isCrossOriginUnsafeRequest(event)) return {}
+  const session = await getAuthSession(event).catch(() => null)
+  if (!session?.user?.id) return {}
+  const role = await getUserSiteRole(useDb(event), session.user.id, siteId)
+  return {
+    'x-nuxflow-user-id': session.user.id,
+    ...(role ? { 'x-nuxflow-user-role': role.role } : {}),
+  }
+}
+
 // Proxy all methods under /_nuxflow/ext/{pluginId}/... to the plugin's Dynamic Worker.
-// The worker is cached by `{siteId}:{pluginId}:{serverChecksum}` — the checksum, not the
-// free-text `version` field, is what's guaranteed to change whenever the stored code
-// actually changes. `nuxflow plugin update` doesn't require (or enforce) a version bump, so
-// keying on version let a code-only fix silently keep serving the pre-update code from any
-// isolate that already had that cacheId warm. Keying on the checksum that's already computed
-// and stored at install time makes any code change — version-bumped or not — always bust the
-// loader cache. `siteId` is included so two unrelated tenants who happen to install
-// byte-identical plugin code (the normal case for any shared/marketplace plugin) never
-// resolve to the same Worker Loader instance — the D1 lookup below is already site-scoped,
-// but the loader's own instance identity must be too, or that per-site authorization check
-// can be satisfied while still handing the request to an isolate warmed by another site's
-// traffic (and whatever module-level state that traffic left behind).
+// The worker is spawned with only the capabilities an admin approved — see
+// server/utils/plugin-runtime.ts for how it's cached and bound.
 export default defineEventHandler(async (event) => {
   if (event.method === 'OPTIONS') {
     for (const [key, value] of Object.entries(PLUGIN_EXT_CORS_HEADERS)) setHeader(event, key, value)
@@ -59,40 +66,28 @@ export default defineEventHandler(async (event) => {
   if (!plugin.isActive) throw forbidden('Plugin is not active')
   if (!plugin.hasServer) throw notFound('Plugin has no server module')
 
-  // Fails closed: a plugin marked hasServer must have a recorded checksum to run at all —
-  // checked eagerly here (not just inside the cache-miss callback below) so a plugin missing
-  // one fails on every request, not only the first spawn that populates the loader cache.
-  if (!plugin.serverChecksum) {
-    throw createError({ statusCode: 500, message: 'Plugin server module has no recorded checksum — refusing to execute unverified code.' })
-  }
-
-  const cacheId = `${siteId}:${pluginId}:${plugin.serverChecksum}`
-  const worker = spawnPluginWorker(event, cacheId, async (): Promise<string> => {
-    const code = await getPluginServerCode(event, siteId, pluginId)
-    if (!code) throw createError({ statusCode: 500, message: 'Plugin server code not found in KV' })
-
-    // Verify KV content against the checksum stored in D1 at install time.
-    // A mismatch means the KV entry was modified after the signed install — hard stop.
-    await assertCodeIntegrity(code, plugin.serverChecksum!, 'server module')
-
-    return code
-  })
-
   // Rebuild the request URL so the plugin worker receives the path after /ext/{pluginId}
   const url = getRequestURL(event)
   const pluginPath = url.pathname.replace(/^\/_nuxflow\/ext\/[^/]+/, '') || '/'
+  // Reserved for NuxFlow's own calls (event hooks) — a visitor can't forge a hook delivery.
+  if (pluginPath === RESERVED_PLUGIN_PATH_PREFIX || pluginPath.startsWith(`${RESERVED_PLUGIN_PATH_PREFIX}/`)) {
+    throw notFound('Not found')
+  }
   const forwardUrl = new URL(pluginPath + (url.search || ''), 'https://plugin.internal')
+
+  const headers = pickForwardableHeaders(event)
+  const identity = plugin.grantedPermissions?.includes('user:read') ? await identityHeaders(event, siteId) : {}
+  Object.assign(headers, identity)
 
   const forwardReq = new Request(forwardUrl.toString(), {
     method: event.method,
-    headers: pickForwardableHeaders(event),
+    headers,
     body: ['GET', 'HEAD'].includes(event.method) ? undefined : (await readRawBody(event) ?? undefined),
   })
 
-  // Also enforced on the spawned WorkerLoaderWorkerCode itself (cf-env.ts) — set here too
-  // since Cloudflare's docs say the lower of the two wins, so either call site alone
-  // changing later can't silently drop the bound on third-party plugin code.
-  const res = await worker.getEntrypoint(undefined, { limits: PLUGIN_WORKER_LIMITS }).fetch(forwardReq)
-  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: confinePluginResponseHeaders(res.headers) })
+  const res = await invokePlugin(event, plugin, forwardReq)
+  const responseHeaders = confinePluginResponseHeaders(res.headers)
+  // An answer built for one signed-in person must never be stored and handed to another.
+  if (Object.keys(identity).length > 0) responseHeaders.set('Cache-Control', 'private, no-store')
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: responseHeaders })
 })
-

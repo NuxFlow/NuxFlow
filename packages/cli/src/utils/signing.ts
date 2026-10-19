@@ -8,6 +8,9 @@ export interface SigningPayload {
   serverChecksum: string  // SHA-256 hex of raw server code, or 'none'
   clientChecksum: string  // SHA-256 hex of raw client bundle, or 'none'
   definitionsChecksum: string  // SHA-256 hex of serialized blockDefinitions JSON, or 'none'
+  // SHA-256 hex of the raw capabilities JSON (permissions + settings). Only set when the
+  // manifest declares capabilities — that switches the signed input to v2.
+  capabilitiesChecksum?: string
 }
 
 export interface KeyPair {
@@ -43,15 +46,16 @@ function toHex(buffer: ArrayBuffer): string {
 // Covers plugin identity and exact code hashes — any code change invalidates the signature.
 
 function canonicalInput(payload: SigningPayload): ArrayBuffer {
-  const text = [
-    'nuxflow-plugin-v1',
+  const lines = [
+    payload.capabilitiesChecksum ? 'nuxflow-plugin-v2' : 'nuxflow-plugin-v1',
     payload.id,
     payload.version,
     payload.serverChecksum,
     payload.clientChecksum,
     payload.definitionsChecksum,
-  ].join('\n')
-  return new TextEncoder().encode(text).buffer as ArrayBuffer
+  ]
+  if (payload.capabilitiesChecksum) lines.push(payload.capabilitiesChecksum)
+  return new TextEncoder().encode(lines.join('\n')).buffer as ArrayBuffer
 }
 
 // ── SHA-256 ───────────────────────────────────────────────────────────────────
