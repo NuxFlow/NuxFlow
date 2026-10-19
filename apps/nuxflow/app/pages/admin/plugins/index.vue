@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { describePermission } from '#shared/lib/plugin-permissions'
+
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const toast = useToast()
@@ -13,6 +15,10 @@ interface DynamicPlugin {
   hasServer: boolean
   hasClient: boolean
   installedAt: string
+  permissions: string[]
+  grantedPermissions: string[]
+  hasSettings: boolean
+  needsApproval: boolean
 }
 
 const { data: dynData, refresh: refreshDyn } = await useFetch<{ plugins: DynamicPlugin[] }>('/api/v1/dynamic-plugins')
@@ -30,6 +36,8 @@ const installForm = reactive({
   clientChecksum: '',
   blockDefinitions: '',
   definitionsChecksum: '',
+  capabilities: '',
+  capabilitiesChecksum: '',
   publisherPublicKey: '',
   signature: '',
 })
@@ -54,6 +62,8 @@ function handlePasteJson() {
     installForm.clientChecksum = parsed.clientChecksum || ''
     installForm.blockDefinitions = parsed.blockDefinitions || ''
     installForm.definitionsChecksum = parsed.definitionsChecksum || ''
+    installForm.capabilities = parsed.capabilities || ''
+    installForm.capabilitiesChecksum = parsed.capabilitiesChecksum || ''
     installForm.publisherPublicKey = parsed.publisherPublicKey || ''
     installForm.signature = parsed.signature || ''
     toast.add({ title: 'Plugin payload parsed successfully!', color: 'success' })
@@ -82,6 +92,8 @@ async function dynInstall() {
         clientChecksum: installForm.clientChecksum || undefined,
         blockDefinitions: installForm.blockDefinitions || undefined,
         definitionsChecksum: installForm.definitionsChecksum || undefined,
+        capabilities: installForm.capabilities || undefined,
+        capabilitiesChecksum: installForm.capabilitiesChecksum || undefined,
         publisherPublicKey: installForm.publisherPublicKey || undefined,
         signature: installForm.signature || undefined,
       },
@@ -99,6 +111,8 @@ async function dynInstall() {
       clientChecksum: '',
       blockDefinitions: '',
       definitionsChecksum: '',
+      capabilities: '',
+      capabilitiesChecksum: '',
       publisherPublicKey: '',
       signature: '',
     })
@@ -112,22 +126,59 @@ async function dynInstall() {
   }
 }
 
-async function dynToggle(id: string, isActive: boolean) {
-  const action = isActive ? 'disable' : 'enable'
+// Enabling a plugin that asks for permissions goes through the review modal first; the
+// approved list is sent with the request (the server refuses a list that doesn't match).
+const reviewPlugin = ref<DynamicPlugin | null>(null)
+const reviewOpen = ref(false)
+const enabling = ref(false)
+
+async function enablePlugin(plugin: DynamicPlugin, approvedPermissions: string[]) {
+  enabling.value = true
   try {
-    await $fetch(`/api/v1/dynamic-plugins/${id}/${action}`, { method: 'POST' })
+    const url: string = `/api/v1/dynamic-plugins/${plugin.id}/enable`
+    await $fetch(url, { method: 'POST', body: { approvedPermissions } })
     await refreshDyn()
-    toast.add({ title: isActive ? 'Plugin disabled' : 'Plugin enabled', color: 'success' })
+    reviewOpen.value = false
+    toast.add({ title: `${plugin.name} enabled`, color: 'success' })
+  } catch (e: unknown) {
+    toast.add({ title: getErrorMessage(e, 'Could not enable plugin'), color: 'error' })
+  } finally {
+    enabling.value = false
+  }
+}
+
+async function dynToggle(plugin: DynamicPlugin) {
+  if (!plugin.isActive) {
+    if (plugin.permissions.length > 0) {
+      reviewPlugin.value = plugin
+      reviewOpen.value = true
+      return
+    }
+    await enablePlugin(plugin, [])
+    return
+  }
+  try {
+    const url: string = `/api/v1/dynamic-plugins/${plugin.id}/disable`
+    await $fetch(url, { method: 'POST' })
+    await refreshDyn()
+    toast.add({ title: 'Plugin disabled', color: 'success' })
   } catch (e: unknown) {
     const msg = getErrorMessage(e, 'Action failed')
     toast.add({ title: msg, color: 'error' })
   }
 }
 
+const settingsPlugin = ref<DynamicPlugin | null>(null)
+const settingsOpen = ref(false)
+function openSettings(plugin: DynamicPlugin) {
+  settingsPlugin.value = plugin
+  settingsOpen.value = true
+}
+
 async function dynUninstall(id: string, name: string) {
   const ok = await useConfirm().confirm({
     title: `Uninstall "${name}"?`,
-    description: 'This will remove all stored plugin code.',
+    description: 'This removes the plugin’s code, its settings and all data it has stored.',
     confirmLabel: 'Uninstall',
   })
   if (!ok) return
@@ -164,6 +215,7 @@ async function dynUninstall(id: string, name: string) {
                   {{ plugin.isActive ? 'Active' : 'Inactive' }}
                 </UBadge>
                 <UBadge color="info" variant="soft" size="xs">Dynamic</UBadge>
+                <UBadge v-if="!plugin.isActive && plugin.needsApproval && plugin.grantedPermissions.length > 0" color="warning" variant="soft" size="xs">Needs approval</UBadge>
               </div>
               <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ plugin.id }} @ {{ plugin.version }}</p>
               <p v-if="plugin.description" class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ plugin.description }}</p>
@@ -175,15 +227,39 @@ async function dynUninstall(id: string, name: string) {
                   <UIcon name="i-lucide-monitor" class="w-3 h-3" /> Client
                 </span>
               </div>
+              <div v-if="plugin.permissions.length" class="flex flex-wrap gap-1 mt-2">
+                <!-- A plain title, not <UTooltip>: Nuxt UI's tooltip needs a <UApp> provider
+                     this app doesn't use (it 500s the page during SSR). -->
+                <UBadge
+                  v-for="perm in plugin.permissions"
+                  :key="perm"
+                  :title="perm"
+                  :color="plugin.isActive && plugin.grantedPermissions.includes(perm) ? 'primary' : 'neutral'"
+                  variant="outline"
+                  size="xs"
+                >
+                  {{ describePermission(perm).title }}
+                </UBadge>
+              </div>
+              <p v-else-if="plugin.hasServer" class="text-xs text-gray-400 dark:text-gray-500 mt-2">No permissions — runs fully sandboxed.</p>
             </div>
 
             <div class="flex items-center gap-2 shrink-0">
+              <UButton
+                v-if="plugin.hasSettings"
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide-settings"
+                :aria-label="`${plugin.name} settings`"
+                @click="openSettings(plugin)"
+              />
               <UButton
                 size="xs"
                 :color="plugin.isActive ? 'neutral' : 'primary'"
                 :icon="plugin.isActive ? 'i-lucide-pause' : 'i-lucide-play'"
                 :variant="plugin.isActive ? 'outline' : 'solid'"
-                @click="dynToggle(plugin.id, plugin.isActive)"
+                @click="dynToggle(plugin)"
               >
                 {{ plugin.isActive ? 'Disable' : 'Enable' }}
               </UButton>
@@ -228,6 +304,7 @@ async function dynUninstall(id: string, name: string) {
               <p class="text-sm font-medium text-gray-900 dark:text-white">Dynamic plugins run as isolated Cloudflare Workers</p>
               <p class="text-sm text-gray-500 dark:text-gray-400">
                 Upload a pre-built plugin bundle to add new blocks and server-side functionality without redeploying your site.
+                Each plugin runs in its own sandbox with no access to your database, accounts or the internet. It can only do what it asks for and you approve when enabling it, such as storing its own data, reading published content or connecting to a named service.
               </p>
             </div>
           </div>
@@ -239,6 +316,22 @@ async function dynUninstall(id: string, name: string) {
         </div>
       </UCard>
     </div>
+
+    <AdminPluginsPermissionReview
+      v-if="reviewPlugin"
+      v-model:open="reviewOpen"
+      :plugin-name="reviewPlugin.name"
+      :permissions="reviewPlugin.permissions"
+      :loading="enabling"
+      @approve="enablePlugin(reviewPlugin!, $event)"
+    />
+
+    <AdminPluginsSettingsModal
+      v-if="settingsPlugin"
+      v-model:open="settingsOpen"
+      :plugin-id="settingsPlugin.id"
+      :plugin-name="settingsPlugin.name"
+    />
 
     <!-- Dynamic plugin install modal -->
     <UModal v-model:open="installModal" title="Upload dynamic plugin">

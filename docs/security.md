@@ -66,7 +66,7 @@ API keys, email provider keys, payment provider secrets, and other sensitive set
 
 ## Plugin Security
 
-Third-party dynamic plugins have both a server component (`src/server.ts`) and a client component (`src/client.ts`, rendering Canvas blocks). The security model has three layers — signing proves the code wasn't tampered with in transit; the other two constrain what it can do once it runs, on the server and in the browser respectively.
+Third-party dynamic plugins have both a server component (`src/server.ts`) and a client component (`src/client.ts`, rendering Canvas blocks). The security model has four layers. Signing proves the code wasn't tampered with in transit. Isolation constrains what it can do once it runs, on the server and in the browser. Approved capabilities are the only doors out of the server sandbox.
 
 ### Code Signing (Ed25519)
 
@@ -74,13 +74,21 @@ Every plugin bundle must be signed with the author's Ed25519 private key before 
 - **On install** — the server rejects the bundle if the signature does not match the author's registered public key or if any SHA-256 checksum is wrong
 - **On every request** — the signature and checksums are re-verified each time the plugin Worker is spawned from KV, preventing silent tampering after installation
 
-The signature covers all three of a plugin's artifacts — server code, client code, and block-definition metadata (`blocks.json`) — so nothing in a deployment is unsigned, even the parts that are just data. Authors generate their keypair with `nuxflow plugin keygen`. The private key never leaves the author's machine. Only the public key is embedded in `nuxflow.plugin.json` and registered on the site at install time.
+The signature covers every part of a plugin — server code, client code, block-definition metadata (`blocks.json`) and its requested permissions and settings form — so nothing in a deployment is unsigned, even the parts that are just data, and no one can add a permission to a signed plugin. Authors generate their keypair with `nuxflow plugin keygen`. The private key never leaves the author's machine. Only the public key is embedded in `nuxflow.plugin.json` and registered on the site at install time.
 
 Signing proves authorship and integrity, not intent — it doesn't stop a legitimately-signed author (or a compromised copy of their tooling) from shipping code that does something malicious. That's what the two isolation layers below are for.
 
 ### Server Isolation
 
-Each plugin's server module runs inside its own Cloudflare Worker isolate, spawned via the Dynamic Workers API (`WorkerLoader`). Isolates share no memory with the main NuxFlow Worker or with each other. A misbehaving plugin cannot read the main app's memory, environment variables, or database connection — no `env` bindings are passed to it at all, and `globalOutbound: null` additionally blocks any outbound network request the plugin's own code might attempt.
+Each plugin's server module runs inside its own Cloudflare Worker isolate, spawned via the Dynamic Workers API (`WorkerLoader`). Isolates share no memory with the main NuxFlow Worker or with each other. A misbehaving plugin cannot read the main app's memory, environment variables, or database connection — none of the Worker's bindings (D1, KV, R2, AI) or secrets are ever passed to it.
+
+### Capabilities (what a plugin can do, and only after approval)
+
+Instead of raw access, a plugin gets one object, `env.NUXFLOW`: a Workers RPC stub of a NuxFlow-owned entrypoint (`ctx.exports.NuxflowPluginHost`), created with props naming the site, the plugin and the permissions an admin approved. Only NuxFlow can read or set those props, so every call is checked against the approved permissions and scoped to that site and plugin on NuxFlow's side; plugin code can't widen it. The available capabilities are narrow, host-implemented operations: the plugin's own key-value storage (size-capped), read-only access to published public content, creating drafts (never publishing), text generation counted against the site's AI limits, rate-limited admin notifications, and event hooks. Errors from NuxFlow come back to the plugin as plain messages with no internal detail attached.
+
+Network access stays off unless the plugin has `network:<host>` permissions. Then `globalOutbound` is a NuxFlow gateway (`NuxflowPluginEgress`) that only lets through `https://` requests on port 443 to the approved hosts. It refuses private and loopback addresses and the site's own and sign-in addresses, and hands redirects back to the plugin rather than following them.
+
+Permissions are declared in the signed manifest, shown to an admin in plain words, and granted only when a signed-in admin enables the plugin with exactly that list. API keys can install and update plugins but never enable them. An update that asks for anything new switches the plugin off until an admin approves again, and a restore from backup always comes back disabled with nothing granted. Identity (`user:read`) is a user id and role header set by NuxFlow, never the session or cookies, and is withheld from cross-site unsafe requests.
 
 ### Client Isolation (iframe sandbox)
 

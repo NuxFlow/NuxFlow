@@ -45,6 +45,9 @@ export default defineNuxtConfig({
     // unlike the old NODE_ENV-conditional split that existed when `nuxt dev` was also
     // a supported dev path.
     preset: 'cloudflare-module',
+    // Wraps the preset's own entry to add named WorkerEntrypoint exports — the capability
+    // host and network gateway dynamic plugins are given (see server/cloudflare-entry.ts).
+    entry: resolve(_dirname, 'server/cloudflare-entry.ts'),
     experimental: {
       tasks: true,
     },

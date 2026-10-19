@@ -4,10 +4,10 @@ import { consola } from 'consola'
 import { readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { apiPost, apiDelete, authenticateOrExit, AUTH_ARGS } from '../utils/api'
+import { apiPost, apiPut, ApiError, authenticateOrExit, AUTH_ARGS } from '../utils/api'
 import { buildPlugin } from '../utils/build'
 import { scaffoldPlugin } from '../utils/scaffold-plugin'
-import { generateKeyPair, signPayload, type SigningPayload } from '../utils/signing'
+import { computeSha256, generateKeyPair, signPayload, type SigningPayload } from '../utils/signing'
 import { readManifest as readManifestFile, orExit } from '../utils/manifest'
 
 function readManifest(dir: string): Promise<PluginManifest> {
@@ -20,6 +20,33 @@ interface PluginManifest {
   version: string
   description?: string
   publisherPublicKey?: string  // base64url SPKI — present after `nuxflow plugin keygen`
+  // What the plugin asks to be allowed to do — an admin approves these when enabling it.
+  // See docs/plugins.md ("Permissions") for the full list.
+  permissions?: string[]
+  // The settings form NuxFlow shows the admin (Admin → Plugins → Settings).
+  settings?: Record<string, unknown>[]
+}
+
+const SIMPLE_PERMISSIONS = new Set(['storage', 'content:read', 'content:write', 'ai', 'notify', 'user:read'])
+
+// The capabilities text that's signed and uploaded, or undefined when the plugin asks for
+// nothing. The site validates it fully; this catches the common mistakes before a deploy.
+function capabilitiesText(manifest: PluginManifest): string | undefined {
+  const { permissions, settings } = manifest
+  if (permissions === undefined && settings === undefined) return undefined
+  if (permissions !== undefined && (!Array.isArray(permissions) || permissions.some(p => typeof p !== 'string'))) {
+    throw new Error('"permissions" in nuxflow.plugin.json must be an array of strings')
+  }
+  if (settings !== undefined && !Array.isArray(settings)) {
+    throw new Error('"settings" in nuxflow.plugin.json must be an array')
+  }
+  for (const p of permissions ?? []) {
+    if (!SIMPLE_PERMISSIONS.has(p) && !p.startsWith('network:') && !p.startsWith('hook:')) {
+      throw new Error(`Unknown permission "${p}" in nuxflow.plugin.json`)
+    }
+  }
+  if ((permissions?.length ?? 0) === 0 && (settings?.length ?? 0) === 0) return undefined
+  return JSON.stringify({ permissions: permissions ?? [], settings: settings ?? [] })
 }
 
 function toKebab(s: string) {
@@ -48,6 +75,7 @@ async function buildSigningPayload(
     serverChecksum: (dist.serverChecksum as string | undefined) ?? 'none',
     clientChecksum: (dist.clientChecksum as string | undefined) ?? 'none',
     definitionsChecksum: (dist.definitionsChecksum as string | undefined) ?? 'none',
+    ...(typeof dist.capabilitiesChecksum === 'string' ? { capabilitiesChecksum: dist.capabilitiesChecksum } : {}),
   }
 }
 
@@ -173,6 +201,12 @@ export const pluginCommand = defineCommand({
             process.exit(1)
           }
 
+          const capabilities = capabilitiesText(manifest)
+          if (capabilities && JSON.parse(capabilities).permissions.length > 0 && !serverModule) {
+            throw new Error('Permissions need a server module — add src/server.ts or remove "permissions" from nuxflow.plugin.json')
+          }
+          const capabilitiesChecksum = capabilities ? await computeSha256(capabilities) : undefined
+
           const payload = {
             id: manifest.id,
             name: manifest.name,
@@ -181,11 +215,12 @@ export const pluginCommand = defineCommand({
             ...(serverModule ? { serverModule, serverChecksum } : {}),
             ...(clientBundle ? { clientBundle, clientChecksum } : {}),
             ...(blockDefinitions ? { blockDefinitions, definitionsChecksum } : {}),
+            ...(capabilities ? { capabilities, capabilitiesChecksum } : {}),
           }
 
           await writeFile(join(dir, 'dist/plugin.json'), JSON.stringify(payload, null, 2) + '\n')
 
-          const parts = [serverModule && 'server', clientBundle && 'client', blockDefinitions && 'block definitions'].filter(Boolean)
+          const parts = [serverModule && 'server', clientBundle && 'client', blockDefinitions && 'block definitions', capabilities && 'permissions/settings'].filter(Boolean)
           s.stop(`Built: ${parts.join(' + ')} → dist/  (checksums included)`)
         } catch (e: unknown) {
           s.stop('Build failed.')
@@ -242,13 +277,13 @@ export const pluginCommand = defineCommand({
           process.exit(1)
         }
 
-        outro(`Plugin installed. Enable it in the NuxFlow admin → Plugins.`)
+        outro(`Plugin installed. An admin reviews its permissions and enables it in Admin → Plugins.`)
       },
     }),
 
     // ── nuxflow plugin update ───────────────────────────────────────────────
     update: defineCommand({
-      meta: { description: 'Update an already-installed plugin (removes then reinstalls)' },
+      meta: { description: 'Update an installed plugin in place (keeps its settings and data)' },
       args: { ...AUTH_ARGS },
       async run({ args }) {
         intro('NuxFlow — Update Plugin')
@@ -276,17 +311,17 @@ export const pluginCommand = defineCommand({
 
         const { site, apiKey } = authenticateOrExit(s, args)
 
-        s.message('Removing old version…')
-        // Ignore 404 — plugin may not be installed yet
-        await apiDelete(site, `/api/v1/dynamic-plugins/${manifest.id}`, apiKey).catch(() => {})
-
-        s.message(`Deploying ${manifest.name} v${manifest.version}…`)
+        s.message(`Updating ${manifest.name} to v${manifest.version}…`)
+        const payload = { ...dist, publisherPublicKey: manifest.publisherPublicKey, signature }
+        let result: { needsApproval?: boolean } = {}
         try {
-          await apiPost(site, '/api/v1/dynamic-plugins', apiKey, {
-            ...dist,
-            publisherPublicKey: manifest.publisherPublicKey,
-            signature,
-          })
+          try {
+            result = await apiPut(site, `/api/v1/dynamic-plugins/${encodeURIComponent(manifest.id)}`, apiKey, payload) as typeof result
+          } catch (e: unknown) {
+            // Not installed yet on this site — install it instead.
+            if (!(e instanceof ApiError) || e.status !== 404) throw e
+            await apiPost(site, '/api/v1/dynamic-plugins', apiKey, payload)
+          }
           s.stop('Updated!')
         } catch (e: unknown) {
           s.stop('Update failed.')
@@ -294,7 +329,9 @@ export const pluginCommand = defineCommand({
           process.exit(1)
         }
 
-        outro('Plugin updated. Re-enable it in the NuxFlow admin if it was disabled.')
+        outro(result.needsApproval
+          ? 'Plugin updated. It asks for new permissions, so it was switched off until an admin reviews and re-enables it in Admin → Plugins.'
+          : 'Plugin updated. Its settings, stored data and approval were kept.')
       },
     }),
 

@@ -31,6 +31,8 @@ async function tryBuild(entryPoint: string, outfile: string, platform: 'neutral'
     // never needs to import 'vue' as a bare specifier.
     minify: platform === 'browser',
     treeShaking: true,
+    // The Workers runtime provides these (e.g. `import { RpcTarget } from 'cloudflare:workers'`).
+    external: platform === 'neutral' ? ['cloudflare:*'] : [],
   })
 
   const code = await readFile(outfile, 'utf-8')

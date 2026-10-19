@@ -10,6 +10,7 @@ import { sendTemplatedEmail } from '../../../utils/email-template'
 import { resolveSetting } from '../../../utils/settings'
 import { created } from '../../../utils/response'
 import { sendNotification } from '../../../utils/notify'
+import { dispatchPluginHook } from '../../../utils/plugin-hooks'
 import { waitUntil } from '../../../utils/cf-env'
 import { moderateText } from '../../../utils/moderation'
 
@@ -84,8 +85,12 @@ export default defineEventHandler(async (event) => {
     const result = await moderateText(event, `${body.subject ?? ''}\n${body.message}`)
     if (result?.flagged) {
       await db.update(formSubmissions).set({ status: 'spam' }).where(and(eq(formSubmissions.id, submissionId), eq(formSubmissions.siteId, siteId)))
+      return
     }
-  })())
+    await dispatchPluginHook(event, siteId, 'form.submitted', {
+      submissionId, formId, formSlug: 'contact', formName: 'Contact', data: { name: body.name, email: body.email, subject: body.subject ?? '', message: body.message },
+    })
+  })().catch(err => console.error('[contact] Post-submission processing failed:', err)))
 
   // Best-effort email notification
   try {

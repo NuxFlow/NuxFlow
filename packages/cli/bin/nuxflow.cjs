@@ -5215,12 +5215,20 @@ var import_node_path5 = require("node:path");
 async function readJson(res) {
   return await res.json().catch(() => ({ error: res.statusText }));
 }
+var ApiError = class extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
+    this.name = "ApiError";
+  }
+  status;
+};
 function apiError(res, data) {
   const msg = data.message ?? data.error ?? res.statusText;
   if (res.status === 401 || res.status === 403) {
-    return new Error(`API error (${res.status}): ${msg} \u2014 check the API key is for this site, has the right permission, and belongs to an admin`);
+    return new ApiError(`API error (${res.status}): ${msg} \u2014 check the API key is for this site, has the right permission, and belongs to an admin`, res.status);
   }
-  return new Error(`API error (${res.status}): ${msg}`);
+  return new ApiError(`API error (${res.status}): ${msg}`, res.status);
 }
 async function request(method, site, path, apiKey, body) {
   const res = await fetch(`${site}${path}`, {
@@ -5238,7 +5246,7 @@ async function request(method, site, path, apiKey, body) {
 }
 var apiPost = (site, path, apiKey, body) => request("POST", site, path, apiKey, body);
 var apiPatch = (site, path, apiKey, body) => request("PATCH", site, path, apiKey, body);
-var apiDelete = (site, path, apiKey) => request("DELETE", site, path, apiKey);
+var apiPut = (site, path, apiKey, body) => request("PUT", site, path, apiKey, body);
 async function apiPostZip(site, path, apiKey, filename, data) {
   const form = new FormData();
   form.append("file", new Blob([data]), filename);
@@ -5307,15 +5315,16 @@ function toHex(buffer) {
   return Array.from(new Uint8Array(buffer)).map((b4) => b4.toString(16).padStart(2, "0")).join("");
 }
 function canonicalInput(payload) {
-  const text = [
-    "nuxflow-plugin-v1",
+  const lines = [
+    payload.capabilitiesChecksum ? "nuxflow-plugin-v2" : "nuxflow-plugin-v1",
     payload.id,
     payload.version,
     payload.serverChecksum,
     payload.clientChecksum,
     payload.definitionsChecksum
-  ].join("\n");
-  return new TextEncoder().encode(text).buffer;
+  ];
+  if (payload.capabilitiesChecksum) lines.push(payload.capabilitiesChecksum);
+  return new TextEncoder().encode(lines.join("\n")).buffer;
 }
 async function computeSha256(data) {
   const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(data));
@@ -5366,7 +5375,9 @@ async function tryBuild(entryPoint, outfile, platform2, target) {
     // The client module receives Vue via the register() argument, so it
     // never needs to import 'vue' as a bare specifier.
     minify: platform2 === "browser",
-    treeShaking: true
+    treeShaking: true,
+    // The Workers runtime provides these (e.g. `import { RpcTarget } from 'cloudflare:workers'`).
+    external: platform2 === "neutral" ? ["cloudflare:*"] : []
   });
   const code = await (0, import_promises.readFile)(outfile, "utf-8");
   const [b64, checksum] = await Promise.all([
@@ -5422,18 +5433,112 @@ var import_fs_extra = __toESM(require_lib(), 1);
 var import_node_path3 = require("node:path");
 async function scaffoldPlugin(dir, id, name, description) {
   const files = {
-    "nuxflow.plugin.json": JSON.stringify({ id, name, version: "0.1.0", description }, null, 2) + "\n",
+    "nuxflow.plugin.json": JSON.stringify({
+      id,
+      name,
+      version: "0.1.0",
+      description,
+      // What this plugin asks to be allowed to do. An admin sees these in plain words and
+      // approves them when enabling the plugin; ask only for what you use.
+      permissions: ["storage"],
+      // A settings form NuxFlow shows the admin. Read the values with env.NUXFLOW.getSettings().
+      settings: [
+        { key: "greeting", label: "Greeting", type: "text", default: "Hello", description: "Shown by the example block." }
+      ]
+    }, null, 2) + "\n",
+    "src/nuxflow.ts": `// Types for what NuxFlow gives this plugin's server module. There is no SDK package to
+// install \u2014 this file is yours; keep the parts you use. Full reference: docs/plugins.md.
+//
+// \`env.NUXFLOW\` is the only way to reach the site. Each method works only if its
+// permission is in nuxflow.plugin.json and an admin approved it \u2014 otherwise the call
+// throws with a message saying which permission is missing.
+
+export interface NuxflowContentSummary {
+  id: string
+  type: string
+  title: string
+  slug: string
+  path: string
+  locale: string
+  excerpt: string | null
+  seoTitle: string | null
+  seoDescription: string | null
+  ogImage: string | null
+  publishedAt: string | null
+  updatedAt: string
+}
+
+export interface NuxflowHost {
+  /** Values of the settings declared in nuxflow.plugin.json (no permission needed). */
+  getSettings(): Promise<Record<string, unknown>>
+
+  // permission: storage \u2014 this plugin's own data, up to 10 MB / 10,000 keys
+  storageGet(key: string): Promise<unknown>
+  storagePut(key: string, value: unknown, options?: { ttlSeconds?: number }): Promise<void>
+  storageDelete(key: string): Promise<void>
+  storageList(options?: { prefix?: string, cursor?: string, limit?: number }): Promise<{ keys: { key: string, size: number, expiresAt: string | null }[], cursor: string | null }>
+
+  // permission: content:read \u2014 published, public content only
+  listContent(options?: { type?: string, locale?: string, limit?: number, offset?: number }): Promise<{ items: NuxflowContentSummary[] }>
+  getContent(options: { id?: string, slug?: string }): Promise<(NuxflowContentSummary & { content: unknown, markdown: string }) | null>
+
+  // permission: content:write \u2014 creates drafts; publishing stays with the site's editors
+  createDraft(input: { title: string, html?: string, type?: string, slug?: string, excerpt?: string, seoTitle?: string, seoDescription?: string }): Promise<{ id: string, slug: string }>
+
+  // permission: ai \u2014 the site's AI provider, counted towards its AI usage
+  generateText(input: { prompt: string, system?: string, maxOutputTokens?: number }): Promise<{ text: string }>
+
+  // permission: notify \u2014 in-app notification to the site's admins
+  notifyAdmins(input: { title: string, body: string, url?: string }): Promise<{ sent: number }>
+}
+
+export interface Env {
+  NUXFLOW: NuxflowHost
+}
+
+/** Body of an event hook delivery (permission: hook:<event>), POSTed to /__nuxflow/hooks/<event>. */
+export interface NuxflowHookDelivery<T = Record<string, unknown>> {
+  event: string
+  occurredAt: string
+  data: T
+}
+
+/**
+ * With the user:read permission, requests from a signed-in person carry these headers
+ * (set by NuxFlow \u2014 a visitor can't fake them). Absent for anonymous requests.
+ */
+export function nuxflowUser(request: Request): { id: string, role: string | null } | null {
+  const id = request.headers.get('x-nuxflow-user-id')
+  return id ? { id, role: request.headers.get('x-nuxflow-user-role') } : null
+}
+`,
     "src/server.ts": `// Server-side Cloudflare Worker for the "${name}" plugin.
 // NuxFlow routes /_nuxflow/ext/${id}/* to this handler (prefix already stripped).
 //
-// Docs: https://developers.cloudflare.com/workers/runtime-apis/request/
+// It runs in its own sandbox: no database, no cookies, and no network access unless
+// nuxflow.plugin.json asks for "network:<host>" permissions. Everything it can do on the
+// site goes through env.NUXFLOW \u2014 see src/nuxflow.ts.
+
+import type { Env, NuxflowHookDelivery } from './nuxflow'
 
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
 
+    // Event hooks arrive here, sent by NuxFlow itself (visitors can't reach this path).
+    // Add e.g. "hook:content.published" to permissions to receive one.
+    if (request.method === 'POST' && url.pathname.startsWith('/__nuxflow/hooks/')) {
+      const delivery = await request.json() as NuxflowHookDelivery
+      console.log('Hook received:', delivery.event)
+      return new Response(null, { status: 204 })
+    }
+
     if (request.method === 'GET' && url.pathname === '/hello') {
-      return Response.json({ plugin: '${id}', message: 'Hello from ${name}!' })
+      const settings = await env.NUXFLOW.getSettings()
+      // A visit counter kept in the plugin's own storage (permission: storage).
+      const visits = Number(await env.NUXFLOW.storageGet('visits') ?? 0) + 1
+      await env.NUXFLOW.storagePut('visits', visits)
+      return Response.json({ message: \`\${settings.greeting ?? 'Hello'} from ${name}!\`, visits })
     }
 
     return new Response('Not found', { status: 404 })
@@ -5589,12 +5694,33 @@ nuxflow plugin build && nuxflow plugin update
 
 | File | Runtime | Purpose |
 |---|---|---|
-| \`src/server.ts\` | Cloudflare Worker | Handles \`/_nuxflow/ext/${id}/*\` requests |
+| \`nuxflow.plugin.json\` | Read by the CLI and the site | Id, version, **permissions** and **settings** form |
+| \`src/server.ts\` | Cloudflare Worker (sandboxed) | Handles \`/_nuxflow/ext/${id}/*\` requests and event hooks |
+| \`src/nuxflow.ts\` | \u2014 | Types for \`env.NUXFLOW\`, what the site lets the plugin do |
 | \`src/blocks.json\` | Read directly by the trusted app | Block metadata \u2014 name, icon, fields, defaultProps |
 | \`src/client.ts\` | Sandboxed iframe (no cookie/session access) | Renders the actual Vue component for each block |
 
 After \`nuxflow plugin build\`, both files are compiled to \`dist/\` and base64-encoded
 into \`dist/plugin.json\`, which is what the deploy command uploads.
+
+## Permissions
+
+The plugin runs in a sandbox with no database and no network of its own. Anything it does
+on the site goes through \`env.NUXFLOW\`, and only for permissions listed in
+\`nuxflow.plugin.json\` that an admin approved when enabling it:
+
+| Permission | Lets the plugin |
+|---|---|
+| \`storage\` | Keep its own data (\`storageGet/Put/Delete/List\`) |
+| \`content:read\` | Read published, public content |
+| \`content:write\` | Create drafts |
+| \`ai\` | Generate text with the site's AI provider |
+| \`notify\` | Send admins an in-app notification |
+| \`user:read\` | Know the signed-in user's id and role on its own routes |
+| \`network:api.example.com\` | Call that host over HTTPS (\`*.example.com\` for subdomains) |
+| \`hook:content.published\` | Be told about events (also \`content.updated\`, \`content.unpublished\`, \`form.submitted\`, \`comment.created\`) |
+
+An update that asks for a new permission is switched off until an admin approves it again.
 
 ## Blocks registered
 
@@ -5629,6 +5755,24 @@ function orExit(promise) {
 function readManifest2(dir) {
   return readManifest(dir, "nuxflow.plugin.json", "plugin");
 }
+var SIMPLE_PERMISSIONS = /* @__PURE__ */ new Set(["storage", "content:read", "content:write", "ai", "notify", "user:read"]);
+function capabilitiesText(manifest) {
+  const { permissions, settings } = manifest;
+  if (permissions === void 0 && settings === void 0) return void 0;
+  if (permissions !== void 0 && (!Array.isArray(permissions) || permissions.some((p2) => typeof p2 !== "string"))) {
+    throw new Error('"permissions" in nuxflow.plugin.json must be an array of strings');
+  }
+  if (settings !== void 0 && !Array.isArray(settings)) {
+    throw new Error('"settings" in nuxflow.plugin.json must be an array');
+  }
+  for (const p2 of permissions ?? []) {
+    if (!SIMPLE_PERMISSIONS.has(p2) && !p2.startsWith("network:") && !p2.startsWith("hook:")) {
+      throw new Error(`Unknown permission "${p2}" in nuxflow.plugin.json`);
+    }
+  }
+  if ((permissions?.length ?? 0) === 0 && (settings?.length ?? 0) === 0) return void 0;
+  return JSON.stringify({ permissions: permissions ?? [], settings: settings ?? [] });
+}
 function toKebab(s2) {
   return s2.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
@@ -5648,7 +5792,8 @@ async function buildSigningPayload(manifest, dist) {
     version: manifest.version,
     serverChecksum: dist.serverChecksum ?? "none",
     clientChecksum: dist.clientChecksum ?? "none",
-    definitionsChecksum: dist.definitionsChecksum ?? "none"
+    definitionsChecksum: dist.definitionsChecksum ?? "none",
+    ...typeof dist.capabilitiesChecksum === "string" ? { capabilitiesChecksum: dist.capabilitiesChecksum } : {}
   };
 }
 var pluginCommand = defineCommand({
@@ -5759,6 +5904,11 @@ var pluginCommand = defineCommand({
             s2.stop("Nothing built \u2014 add src/server.ts and/or src/client.ts");
             process.exit(1);
           }
+          const capabilities = capabilitiesText(manifest);
+          if (capabilities && JSON.parse(capabilities).permissions.length > 0 && !serverModule) {
+            throw new Error('Permissions need a server module \u2014 add src/server.ts or remove "permissions" from nuxflow.plugin.json');
+          }
+          const capabilitiesChecksum = capabilities ? await computeSha256(capabilities) : void 0;
           const payload = {
             id: manifest.id,
             name: manifest.name,
@@ -5766,10 +5916,11 @@ var pluginCommand = defineCommand({
             description: manifest.description ?? "",
             ...serverModule ? { serverModule, serverChecksum } : {},
             ...clientBundle ? { clientBundle, clientChecksum } : {},
-            ...blockDefinitions ? { blockDefinitions, definitionsChecksum } : {}
+            ...blockDefinitions ? { blockDefinitions, definitionsChecksum } : {},
+            ...capabilities ? { capabilities, capabilitiesChecksum } : {}
           };
           await (0, import_promises3.writeFile)((0, import_node_path5.join)(dir, "dist/plugin.json"), JSON.stringify(payload, null, 2) + "\n");
-          const parts = [serverModule && "server", clientBundle && "client", blockDefinitions && "block definitions"].filter(Boolean);
+          const parts = [serverModule && "server", clientBundle && "client", blockDefinitions && "block definitions", capabilities && "permissions/settings"].filter(Boolean);
           s2.stop(`Built: ${parts.join(" + ")} \u2192 dist/  (checksums included)`);
         } catch (e3) {
           s2.stop("Build failed.");
@@ -5814,12 +5965,12 @@ var pluginCommand = defineCommand({
           consola.error(e3.message);
           process.exit(1);
         }
-        Se(`Plugin installed. Enable it in the NuxFlow admin \u2192 Plugins.`);
+        Se(`Plugin installed. An admin reviews its permissions and enables it in Admin \u2192 Plugins.`);
       }
     }),
     // ── nuxflow plugin update ───────────────────────────────────────────────
     update: defineCommand({
-      meta: { description: "Update an already-installed plugin (removes then reinstalls)" },
+      meta: { description: "Update an installed plugin in place (keeps its settings and data)" },
       args: { ...AUTH_ARGS },
       async run({ args }) {
         Ie("NuxFlow \u2014 Update Plugin");
@@ -5839,23 +5990,23 @@ var pluginCommand = defineCommand({
         const signature = await signPayload(privateKey, signingPayload);
         s2.message("Authenticating\u2026");
         const { site, apiKey } = authenticateOrExit(s2, args);
-        s2.message("Removing old version\u2026");
-        await apiDelete(site, `/api/v1/dynamic-plugins/${manifest.id}`, apiKey).catch(() => {
-        });
-        s2.message(`Deploying ${manifest.name} v${manifest.version}\u2026`);
+        s2.message(`Updating ${manifest.name} to v${manifest.version}\u2026`);
+        const payload = { ...dist, publisherPublicKey: manifest.publisherPublicKey, signature };
+        let result = {};
         try {
-          await apiPost(site, "/api/v1/dynamic-plugins", apiKey, {
-            ...dist,
-            publisherPublicKey: manifest.publisherPublicKey,
-            signature
-          });
+          try {
+            result = await apiPut(site, `/api/v1/dynamic-plugins/${encodeURIComponent(manifest.id)}`, apiKey, payload);
+          } catch (e3) {
+            if (!(e3 instanceof ApiError) || e3.status !== 404) throw e3;
+            await apiPost(site, "/api/v1/dynamic-plugins", apiKey, payload);
+          }
           s2.stop("Updated!");
         } catch (e3) {
           s2.stop("Update failed.");
           consola.error(e3.message);
           process.exit(1);
         }
-        Se("Plugin updated. Re-enable it in the NuxFlow admin if it was disabled.");
+        Se(result.needsApproval ? "Plugin updated. It asks for new permissions, so it was switched off until an admin reviews and re-enables it in Admin \u2192 Plugins." : "Plugin updated. Its settings, stored data and approval were kept.");
       }
     })
   }

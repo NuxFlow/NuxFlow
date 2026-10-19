@@ -10,6 +10,7 @@ import { getUserSiteRole, roleAtLeast, type Role } from '../../../../utils/permi
 import { checkContentAccess } from '../../../../utils/content-access'
 import { waitUntil } from '../../../../utils/cf-env'
 import { moderateText } from '../../../../utils/moderation'
+import { dispatchPluginHook } from '../../../../utils/plugin-hooks'
 import { comments, contentTypes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
@@ -109,16 +110,30 @@ export default defineEventHandler(async (event) => {
 
   await batchWithAudit(db, [commentInsert], auditInsert)
 
-  // Only bother AI-checking comments that already need human review — an approved staff
-  // comment skips this entirely (trusted account, no reason to spend a model call on it).
-  if (status === 'pending') {
-    waitUntil(event, (async () => {
+  waitUntil(event, (async () => {
+    // Only bother AI-checking comments that already need human review — an approved staff
+    // comment skips this entirely (trusted account, no reason to spend a model call on it).
+    if (status === 'pending') {
       const result = await moderateText(event, parsed.body)
       if (result?.flagged) {
         await db.update(comments).set({ status: 'spam' }).where(and(eq(comments.id, id), eq(comments.siteId, siteId)))
+        return
       }
-    })())
-  }
+    }
+    // Plugins (`hook:comment.created`) hear about non-spam comments on public pages only —
+    // a members-only page's discussion is as gated as the page.
+    if (item.visibility === 'public') {
+      await dispatchPluginHook(event, siteId, 'comment.created', {
+        commentId: id,
+        itemId,
+        parentId: parsed.parentId ?? null,
+        status,
+        body: parsed.body,
+        authorName: session?.user?.name ?? parsed.guestName ?? null,
+        isGuest: !session,
+      })
+    }
+  })().catch(err => console.error('[comments] Post-comment processing failed:', err)))
 
   return created(event, { id, status })
 })

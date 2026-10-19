@@ -1,5 +1,5 @@
 import { useDb } from '../utils/db'
-import { aiGenerationJobs, auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits, siteUsageDaily, siteInvitations, siteAuthCodes, siteSessions } from '@nuxflow/db/schema'
+import { aiGenerationJobs, auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits, siteUsageDaily, siteInvitations, siteAuthCodes, siteSessions, pluginStorage } from '@nuxflow/db/schema'
 import { and, count, eq, inArray, lt, ne, notInArray, sql, isNotNull, or } from 'drizzle-orm'
 
 // Bounds how many overflowing content items get their excess revisions pruned in a
@@ -182,6 +182,12 @@ export const pruneOldData = async () => {
   if (expiredCodes[0]?.value) await db.delete(siteAuthCodes).where(lt(siteAuthCodes.expiresAt, nowIso))
   if (expiredSiteSessions[0]?.value) await db.delete(siteSessions).where(lt(siteSessions.expiresAt, nowIso))
 
+  // --- Expired plugin storage --- already invisible to plugins once past expiresAt
+  // (plugin-api.ts filters them out); this frees the rows.
+  const expiredPluginData = await db.delete(pluginStorage)
+    .where(and(isNotNull(pluginStorage.expiresAt), lt(pluginStorage.expiresAt, sql`datetime('now')`)))
+    .returning({ key: pluginStorage.key })
+
   // --- AI generation jobs --- a job is driven one step at a time by the admin page (see
   // utils/site-generation.ts), so one whose tab was closed for good just stops. After a
   // week it's marked failed so the history doesn't show it as still running; finished
@@ -209,5 +215,6 @@ export const pruneOldData = async () => {
     prunedInvitations: expiredInvites[0]?.value ?? 0,
     prunedSignInCodes: expiredCodes[0]?.value ?? 0,
     prunedSiteSessions: expiredSiteSessions[0]?.value ?? 0,
+    prunedPluginStorage: expiredPluginData.length,
   }
 }

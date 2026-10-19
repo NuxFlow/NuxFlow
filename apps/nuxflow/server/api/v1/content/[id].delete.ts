@@ -9,6 +9,7 @@ import { getContentTermIds, getTermRefsWithAncestors } from '../../../utils/taxo
 import { waitUntil } from '../../../utils/cf-env'
 import { deleteContentEmbedding } from '../../../utils/embeddings'
 import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexnow'
+import { queueContentHook } from '../../../utils/plugin-hooks'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
@@ -48,6 +49,7 @@ export default defineEventHandler(async (event) => {
   if (livePaths.length) {
     waitUntil(event, submitToIndexNow(db, siteId, livePaths).catch(err => console.error('[indexnow] Content delete notification failed:', err)))
   }
+  queueContentHook(event, siteId, existing, null, existing)
 
   return noContent(event)
 })

@@ -10,19 +10,37 @@ import {
   contentTypes, contentItems,
   taxonomies, taxonomyTerms, contentTaxonomyTerms,
   menus, forms, media,
-  themes, dynamicPlugins,
+  themes, dynamicPlugins, pluginStorage,
   userSiteRoles, membershipTiers, redirects,
 } from '@nuxflow/db/schema'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
 import { SENSITIVE_SETTING_KEYS, SERVER_MANAGED_SETTING_KEYS } from './settings'
 import { getTaxonomyContentTypeSlugs } from './taxonomy'
 import { decryptText } from './encryption'
 import { getThemeCSS, getThemeDemo } from './cf-theme-kv'
 import { getPluginServerCode, getPluginClientBundle } from './cf-plugin-kv'
+import { parseCapabilitiesText } from './plugin-package'
 import type {
   NuxFlowBackup, BackupTheme, BackupDynamicPlugin, BackupUserRole, BackupMembershipTier,
   BackupTaxonomy, BackupTerm, BackupContentItem,
 } from './backup-types'
+
+// A plugin's settings minus its secret fields — those are encrypted under this deployment's
+// key, so they couldn't be decrypted elsewhere anyway, and a backup is a plain file.
+function nonSecretPluginSettings(capabilities: string | null, stored: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!stored) return null
+  let fields
+  try {
+    fields = parseCapabilitiesText(capabilities).settings
+  } catch {
+    return null
+  }
+  const out: Record<string, unknown> = {}
+  for (const f of fields) {
+    if (f.type !== 'secret' && stored[f.key] !== undefined) out[f.key] = stored[f.key]
+  }
+  return Object.keys(out).length ? out : null
+}
 
 export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFlowBackup> {
   const db = useDb(event)
@@ -101,8 +119,14 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
       definitionsChecksum: p.definitionsChecksum,
       publisherPublicKey: p.publisherPublicKey,
       signature: p.signature,
-      serverCode: p.hasServer ? await getPluginServerCode(event, siteId, p.id) : null,
-      clientBundle: p.hasClient ? await getPluginClientBundle(event, siteId, p.id) : null,
+      serverCode: p.hasServer ? await getPluginServerCode(event, siteId, p.id, p.serverChecksum) : null,
+      clientBundle: p.hasClient ? await getPluginClientBundle(event, siteId, p.id, p.clientChecksum) : null,
+      capabilities: p.capabilities,
+      capabilitiesChecksum: p.capabilitiesChecksum,
+      settings: nonSecretPluginSettings(p.capabilities, p.settingsValues ?? null),
+      storage: await db.select({ key: pluginStorage.key, value: pluginStorage.value, expiresAt: pluginStorage.expiresAt })
+        .from(pluginStorage)
+        .where(and(eq(pluginStorage.siteId, siteId), eq(pluginStorage.pluginId, p.id), or(isNull(pluginStorage.expiresAt), gt(pluginStorage.expiresAt, sql`datetime('now')`)))),
     })
   }
 

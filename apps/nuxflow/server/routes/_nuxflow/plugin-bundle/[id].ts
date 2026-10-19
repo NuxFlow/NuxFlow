@@ -28,7 +28,7 @@ async function loadAndVerifyBundle(event: H3Event, pluginId: string): Promise<st
     throw notFound('Plugin bundle not found')
   }
 
-  const bundle = await getPluginClientBundle(event, site.id, pluginId)
+  const bundle = await getPluginClientBundle(event, site.id, pluginId, plugin.clientChecksum)
   if (!bundle) throw notFound('Plugin bundle not found in KV')
 
   // Fails closed: a plugin marked hasClient must have a recorded checksum to be served at

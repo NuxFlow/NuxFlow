@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { computeSha256, verifyPluginSignature, assertCodeIntegrity } from '../../server/utils/plugin-signing'
 import type { SigningPayload } from '../../server/utils/plugin-signing'
+import * as cliSigning from '../../../../packages/cli/src/utils/signing'
 
 // Set createError global so assertCodeIntegrity can throw it
 ;(globalThis as Record<string, unknown>).createError = ({ statusCode, message }: { statusCode?: number; message?: string }) => {
@@ -122,5 +123,37 @@ describe('verifyPluginSignature', () => {
   it('returns false for a garbled signature', async () => {
     const result = await verifyPluginSignature(publicKeyB64Url, payload, 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA')
     expect(result).toBe(false)
+  })
+})
+
+describe('capabilities signing (nuxflow-plugin-v2)', () => {
+  const base: SigningPayload = {
+    id: 'cap-plugin',
+    version: '1.0.0',
+    serverChecksum: 'aaa',
+    clientChecksum: 'none',
+    definitionsChecksum: 'none',
+  }
+
+  it('verifies a package signed by the CLI with capabilities, end to end', async () => {
+    const { privateKey, publicKey } = await cliSigning.generateKeyPair()
+    const payload = { ...base, capabilitiesChecksum: await cliSigning.computeSha256('{"permissions":["storage"],"settings":[]}') }
+    const sig = await cliSigning.signPayload(privateKey, payload)
+    expect(await verifyPluginSignature(publicKey, payload, sig)).toBe(true)
+  })
+
+  it('refuses changed capabilities, and capabilities stripped from a v2 signature', async () => {
+    const { privateKey, publicKey } = await cliSigning.generateKeyPair()
+    const payload = { ...base, capabilitiesChecksum: 'c1' }
+    const sig = await cliSigning.signPayload(privateKey, payload)
+    expect(await verifyPluginSignature(publicKey, { ...payload, capabilitiesChecksum: 'c2' }, sig)).toBe(false)
+    expect(await verifyPluginSignature(publicKey, base, sig)).toBe(false)
+  })
+
+  it('does not accept a v1 signature as covering capabilities', async () => {
+    const { privateKey, publicKey } = await cliSigning.generateKeyPair()
+    const v1sig = await cliSigning.signPayload(privateKey, base)
+    expect(await verifyPluginSignature(publicKey, base, v1sig)).toBe(true)
+    expect(await verifyPluginSignature(publicKey, { ...base, capabilitiesChecksum: 'c1' }, v1sig)).toBe(false)
   })
 })
