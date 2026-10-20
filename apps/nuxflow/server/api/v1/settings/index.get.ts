@@ -2,7 +2,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { sites, siteSettings } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { SENSITIVE_SETTING_KEYS, SECRET_MASK, isEnvFallbackWithheld } from '../../../utils/settings'
+import { SENSITIVE_SETTING_KEYS, SECRET_MASK, isEnvFallbackWithheld, isOllamaAvailable } from '../../../utils/settings'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
@@ -65,10 +65,11 @@ export default defineEventHandler(async (event) => {
   }
 
   // Expose non-sensitive cloudflare env vars so the UI can show them as placeholders
+  // (withheld from customer sites on a hosting platform, like the tokens above).
   const cfAccountId = rc.cloudflareAccountId as string | undefined
-  if (!settings['cloudflare.account_id'] && cfAccountId) settings['cloudflare.account_id'] = cfAccountId
+  if (!settings['cloudflare.account_id'] && cfAccountId && !(await isEnvFallbackWithheld(db, 'cloudflare.account_id', site.isPrimary))) settings['cloudflare.account_id'] = cfAccountId
   const cfDeliveryUrl = rc.cloudflareImagesDeliveryUrl as string | undefined
-  if (!settings['cloudflare.images_delivery_url'] && cfDeliveryUrl) settings['cloudflare.images_delivery_url'] = cfDeliveryUrl
+  if (!settings['cloudflare.images_delivery_url'] && cfDeliveryUrl && !(await isEnvFallbackWithheld(db, 'cloudflare.images_delivery_url', site.isPrimary))) settings['cloudflare.images_delivery_url'] = cfDeliveryUrl
 
   // Same for the non-sensitive S3/Bunny env vars. media.s3_access_key is deliberately NOT
   // here — it's sensitive (see SENSITIVE_SETTING_KEYS) and its env-var fallback is already
@@ -98,5 +99,5 @@ export default defineEventHandler(async (event) => {
     if (!settings['auth.github_client_id'] && githubClientId) settings['auth.github_client_id'] = githubClientId
   }
 
-  return { site, settings }
+  return { site, settings, ollamaAvailable: await isOllamaAvailable(event) }
 })

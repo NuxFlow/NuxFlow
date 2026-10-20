@@ -1,6 +1,6 @@
 import { wrapLanguageModel, type LanguageModel } from 'ai'
 import { isError, type H3Event } from 'h3'
-import { resolveSetting } from './settings'
+import { isOllamaAvailable, resolveSetting } from './settings'
 import { getCfBindings, getWorkersAiBinding } from './cf-env'
 import { WORKER_MEDIA_PREFIX, workerMediaKey } from './media-url'
 import { AiAllowanceError, assertAiAllowance, checkAiAllowance, recordAiCall, textCredits, type AiPayer } from './ai-allowance'
@@ -284,6 +284,7 @@ async function resolveProviderModel(event: H3Event, quality: AiQuality, opts: Ge
       // never routed through AI Gateway — it's a local-network target the Cloudflare edge
       // can't reach, unlike every other case above.
       if (quality === 'vision') return null
+      if (!(await isOllamaAvailable(event))) return null
       const [{ value: url, payer }, model] = await Promise.all([
         resolveAiKey(event, 'ai.ollama_base_url', 'ollamaUrl'),
         resolveSetting(event, 'ai.ollama_model', 'ollamaModel') as Promise<string>,

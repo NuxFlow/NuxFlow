@@ -410,7 +410,14 @@ describe('the platform-wide daily AI cap', () => {
 describe("the operator's own AI keys", () => {
   const original = globalThis.useRuntimeConfig
   beforeAll(() => {
-    globalThis.useRuntimeConfig = (() => ({ ...original(), openaiApiKey: 'sk-operator', aiProvider: 'openai' })) as typeof globalThis.useRuntimeConfig
+    globalThis.useRuntimeConfig = (() => ({
+      ...original(),
+      openaiApiKey: 'sk-operator',
+      aiProvider: 'openai',
+      cloudflareAccountId: 'operator-account',
+      cloudflareStreamToken: 'operator-stream',
+      cloudflareImagesToken: 'operator-images',
+    })) as typeof globalThis.useRuntimeConfig
   })
   afterAll(() => { globalThis.useRuntimeConfig = original })
 
@@ -421,6 +428,36 @@ describe("the operator's own AI keys", () => {
     // So a customer site falls back to Workers AI, which is counted.
     await useLimits({ maxAiCallsPerMonth: 0 })
     await expect(requireAiSdkModel(aiEv())).rejects.toMatchObject({ statusCode: 403, data: { code: 'plan_limit' } })
+  })
+
+  it('and so are its Cloudflare Stream and Images credentials', async () => {
+    for (const [key, envKey] of [['cloudflare.account_id', 'cloudflareAccountId'], ['cloudflare.stream_token', 'cloudflareStreamToken'], ['cloudflare.images_token', 'cloudflareImagesToken']]) {
+      expect(await resolveSetting(ev(), key!, envKey)).toBe('')
+      expect(await resolveSetting(ev({ siteId: PRIMARY }), key!, envKey)).not.toBe('')
+    }
+  })
+})
+
+describe('Ollama on a hosting platform', () => {
+  it("isn't offered to a customer site: not saved, not used", async () => {
+    await expect((patchSettings as Handler)(ev({ session: tenantAdmin(), body: { ai: { provider: 'ollama' } } })))
+      .rejects.toMatchObject({ statusCode: 400 })
+    await expect((patchSettings as Handler)(ev({ session: tenantAdmin(), body: { settings: { 'ai.ollama_base_url': 'https://10.0.0.1' } } })))
+      .rejects.toMatchObject({ statusCode: 400 })
+
+    // A provider stored before hosting was turned on is ignored rather than used.
+    await seedSetting(getCurrentTestDb(), TENANT, 'ai.provider', 'ollama')
+    try {
+      await expect(requireAiSdkModel(aiEv())).rejects.toMatchObject({ statusCode: 503 })
+    } finally {
+      await saveSetting(ev(), 'ai.provider', null)
+    }
+  })
+
+  it('is still offered to the main site', async () => {
+    await (patchSettings as Handler)(ev({ siteId: PRIMARY, session: operator(), body: { ai: { provider: 'ollama' } } }))
+    await expect(requireAiSdkModel(ev({ siteId: PRIMARY }))).resolves.toBeDefined()
+    await saveSetting(ev({ siteId: PRIMARY }), 'ai.provider', null)
   })
 })
 

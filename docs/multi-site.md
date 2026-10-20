@@ -285,7 +285,12 @@ A customer site's AI runs in one of two ways:
 - **On Workers AI, paid by you.** That's the default for any site that hasn't added its own key. It's billed to your Cloudflare account, so it's counted as **AI credits** and limited by the plan's **AI credits a month**.
 - **On the site's own key.** A site that adds an OpenAI, Anthropic, Gemini or DeepSeek key in **Settings → AI** pays that provider directly. Its AI is never counted against its plan or the daily cap, and never refused by them.
 
-**Your own AI keys stay yours.** While hosting is on, AI keys set as env vars in `wrangler.toml` (and the AI Gateway settings) are used only by your main site. Customer sites never fall back to them.
+**Your own keys stay yours.** While hosting is on, these env vars in `wrangler.toml` are used only by your main site, and customer sites never fall back to them:
+
+- AI keys, the AI provider choice and the AI Gateway settings.
+- Cloudflare Stream and Cloudflare Images (account ID and tokens). Both are billed per video minute or per image to your account, with no plan limit of their own. A customer site's images go to the shared R2 bucket instead, which the plan's storage limit counts. Video needs the customer's own Stream details in Settings → Media.
+
+**No Ollama for customer sites.** Ollama is hidden from customer sites' Settings → AI and refused if set some other way. A Worker can't reach anyone's own computer, and allowing it would let a customer make your Worker send requests to any address they type in. Your main site can still use it.
 
 **How credits are counted.** Credits follow what the AI costs, not how many times someone clicks:
 
