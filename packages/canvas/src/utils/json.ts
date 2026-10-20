@@ -25,6 +25,9 @@ export interface ImageListItem {
    * image-rendering code reserve real layout space instead of causing layout shift. */
   width?: number
   height?: number
+  /** Optional visible caption (Gallery shows it under the photo and in the lightbox).
+   * Seeded from the media library's own caption when picked from there. */
+  caption?: string
 }
 
 /**

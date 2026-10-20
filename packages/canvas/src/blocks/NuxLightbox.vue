@@ -6,6 +6,7 @@ import NuxImage from './NuxImage.vue'
 interface LightboxImage {
   url: string
   alt?: string
+  caption?: string
 }
 
 // Full-viewport display (max-w-[90vw] max-h-[90vh]) — capping the transform request
@@ -61,6 +62,28 @@ function trapTab(e: KeyboardEvent) {
   }
 }
 
+// ── Swipe (phones) ─────────────────────────────────────────────────────────
+// A mostly-horizontal swipe of at least SWIPE_MIN_PX changes image; anything else
+// (a vertical scroll attempt, a tap) is ignored.
+const SWIPE_MIN_PX = 40
+let touchStart: { x: number; y: number } | null = null
+
+function onTouchStart(e: TouchEvent) {
+  const t = e.touches[0]
+  touchStart = e.touches.length === 1 && t ? { x: t.clientX, y: t.clientY } : null
+}
+
+function onTouchEnd(e: TouchEvent) {
+  const t = e.changedTouches[0]
+  if (!touchStart || !t || props.images.length < 2) return
+  const dx = t.clientX - touchStart.x
+  const dy = t.clientY - touchStart.y
+  touchStart = null
+  if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 1.5) return
+  if (dx < 0) next()
+  else prev()
+}
+
 function handleKey(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
   if (e.key === 'ArrowLeft') prev()
@@ -90,6 +113,8 @@ onUnmounted(() => {
     aria-label="Image lightbox"
     class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/92"
     @click.self="$emit('close')"
+    @touchstart.passive="onTouchStart"
+    @touchend="onTouchEnd"
   >
     <!-- Close -->
     <button
@@ -120,7 +145,8 @@ onUnmounted(() => {
       :alt="images[current]?.alt || ''"
       :width="LIGHTBOX_MAX_WIDTH"
       loading="eager"
-      class="max-w-[90vw] max-h-[90vh] object-contain select-none drop-shadow-2xl"
+      class="max-w-[90vw] object-contain select-none drop-shadow-2xl"
+      :class="images[current]?.caption ? 'max-h-[80vh] -translate-y-4' : 'max-h-[90vh]'"
     />
 
     <!-- Next -->
@@ -133,6 +159,14 @@ onUnmounted(() => {
     >
       <UIcon name="i-lucide-chevron-right" mode="svg" class="w-8 h-8 block" />
     </button>
+
+    <!-- Caption -->
+    <p
+      v-if="images[current]?.caption"
+      class="nux-lightbox-caption absolute bottom-11 inset-x-0 mx-auto max-w-2xl px-6 text-center text-sm text-white/85 select-none"
+    >
+      {{ images[current]?.caption }}
+    </p>
 
     <!-- Counter -->
     <div v-if="images.length > 1" class="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/50 text-sm select-none tabular-nums">

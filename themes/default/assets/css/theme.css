@@ -109,6 +109,12 @@
                                                responsive grid-cols-* classes)
        .canvas-features-card                    each feature card
      .canvas-image         Image block — the <figure> inside holds the image
+     .canvas-gallery[data-layout="grid|masonry|justified"]  Gallery block
+       .canvas-gallery-item                     each photo (<figure>)
+       .canvas-gallery-caption                  its caption, when shown
+     .canvas-carousel      Image carousel / slider
+       .canvas-carousel-caption                 a slide's caption
+     .nux-lightbox-caption Caption in the full-screen lightbox
      .canvas-text          Rich text / prose block
      .canvas-columns       Multi-column layout block
      .canvas-testimonial   Testimonial / quote card block

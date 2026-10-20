@@ -82,7 +82,7 @@ function handleClick() {
 
     <NuxLightbox
       v-if="lightboxOpen && image.url"
-      :images="[{ url: image.url, alt }]"
+      :images="[{ url: image.url, alt, caption: caption || undefined }]"
       :initial-index="0"
       @close="lightboxOpen = false"
     />

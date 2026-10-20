@@ -718,10 +718,23 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     icon: 'i-lucide-images',
     category: 'media',
     component: 'CanvasBlockGallery',
-    ai: { requires: ['media'], hint: 'Grid of images from the MEDIA LIBRARY list.' },
+    ai: {
+      requires: ['media'],
+      hint: 'Images from the MEDIA LIBRARY list. layout "masonry" or "justified" shows whole photos uncropped (best for portfolios); "grid" crops them to one shape.',
+    },
     thumbnailColor: '#f8f9fa',
     fields: [
       { key: 'images', label: 'Images', type: 'images' },
+      {
+        key: 'layout',
+        label: 'Layout',
+        type: 'select',
+        options: [
+          { label: 'Masonry — whole photos, staggered columns', value: 'masonry' },
+          { label: 'Rows — whole photos, even row height', value: 'justified' },
+          { label: 'Grid — photos cropped to one shape', value: 'grid' },
+        ],
+      },
       {
         key: 'columns',
         label: 'Columns',
@@ -731,16 +744,38 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
           { label: '3 columns', value: '3' },
           { label: '4 columns', value: '4' },
         ],
+        condition: p => p.layout !== 'justified',
       },
+      {
+        key: 'aspectRatio',
+        label: 'Crop shape',
+        type: 'select',
+        options: [
+          { label: 'Square (1:1)', value: '1:1' },
+          { label: 'Landscape (3:2)', value: '3:2' },
+          { label: 'Landscape (4:3)', value: '4:3' },
+          { label: 'Portrait (2:3)', value: '2:3' },
+          { label: 'Portrait (3:4)', value: '3:4' },
+        ],
+        condition: p => (p.layout ?? 'grid') === 'grid',
+      },
+      { key: 'rowHeight', label: 'Row height (px)', type: 'number', min: 120, max: 600, step: 10, condition: p => p.layout === 'justified' },
       { key: 'gap', label: 'Gap (px)', type: 'number', min: 0, max: 48, step: 2 },
+      { key: 'showCaptions', label: 'Show captions', type: 'toggle' },
       { key: 'rounded', label: 'Rounded corners', type: 'toggle' },
       { key: 'lightbox', label: 'Open lightbox on click', type: 'toggle' },
       { key: 'padding', label: 'Padding', type: 'spacing' },
     ],
+    // New galleries default to masonry (whole photos); galleries saved before `layout`
+    // existed have no value and keep rendering as the cropped grid they always were.
     defaultProps: {
       images: '[]',
+      layout: 'masonry',
       columns: '3',
+      aspectRatio: '1:1',
+      rowHeight: 280,
       gap: 6,
+      showCaptions: false,
       rounded: false,
       lightbox: true,
       padding: { top: 16, right: 24, bottom: 16, left: 24, unit: 'px' },

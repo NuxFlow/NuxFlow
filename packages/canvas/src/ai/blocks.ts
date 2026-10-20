@@ -161,7 +161,7 @@ function normalizeField(f: FieldSchema, value: unknown, media: AiMediaItem[]): u
       const resolved = items.flatMap((item) => {
         const ref = typeof item === 'object' && item !== null ? (item as { url?: unknown }).url : item
         const m = resolveMedia(ref, media)
-        return m ? [{ url: m.url, alt: m.alt ?? '' }] : []
+        return m ? [{ url: m.url, alt: m.alt ?? '', ...(m.width ? { width: m.width } : {}), ...(m.height ? { height: m.height } : {}) }] : []
       })
       return JSON.stringify(resolved)
     }

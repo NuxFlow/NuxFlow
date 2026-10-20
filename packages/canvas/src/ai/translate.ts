@@ -62,8 +62,10 @@ export function collectCanvasStrings(blocks: CanvasBlockData[], lookup: DefLooku
       if (!items) continue
       items.forEach((item, i) => {
         if (f.type === 'images') {
-          const alt = (item as { alt?: unknown } | null)?.alt
-          if (typeof alt === 'string' && alt.trim()) out.set(`${block.id}.${f.key}.${i}.alt`, alt)
+          for (const sub of ['alt', 'caption'] as const) {
+            const v = (item as Record<string, unknown> | null)?.[sub]
+            if (typeof v === 'string' && v.trim()) out.set(`${block.id}.${f.key}.${i}.${sub}`, v)
+          }
         }
         else if (f.fields?.length) {
           for (const s of f.fields) {

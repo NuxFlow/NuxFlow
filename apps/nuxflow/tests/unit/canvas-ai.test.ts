@@ -90,7 +90,7 @@ describe('normalizeAiBlocks', () => {
     expect(image!.props.src).toEqual({ url: 'https://cdn.example.com/a.jpg', width: 800, height: 600 })
     expect(JSON.parse(gallery!.props.images as string)).toEqual([
       { url: 'https://cdn.example.com/b.jpg', alt: 'Shop front' },
-      { url: 'https://cdn.example.com/a.jpg', alt: 'Latte art' },
+      { url: 'https://cdn.example.com/a.jpg', alt: 'Latte art', width: 800, height: 600 },
     ])
   })
 
@@ -141,5 +141,20 @@ describe('collectCanvasStrings / applyCanvasTranslations', () => {
     expect(JSON.parse(out[0]!.props.plan1Features as string)).toEqual(['Fast', 'Barato'])
     expect(JSON.parse(out[1]!.props.col1Links as string)).toEqual([{ label: 'Inicio', url: '/' }])
     expect(out[0]!.props.plan1Price).toBe('29')
+  })
+
+  it('translates gallery alt text and captions, never image URLs or dimensions', () => {
+    const gallery: CanvasBlockData[] = [{
+      id: 'g',
+      type: 'canvas-gallery',
+      props: { images: JSON.stringify([{ url: '/a.jpg', alt: 'Bride', caption: 'First dance', width: 900, height: 600 }, { url: '/b.jpg', alt: '' }]) },
+    }]
+    const strings = collectCanvasStrings(gallery)
+    expect([...strings.keys()].sort()).toEqual(['g.images.0.alt', 'g.images.0.caption'])
+    const out = applyCanvasTranslations(gallery, { 'g.images.0.caption': 'Primer baile' })
+    expect(JSON.parse(out[0]!.props.images as string)).toEqual([
+      { url: '/a.jpg', alt: 'Bride', caption: 'Primer baile', width: 900, height: 600 },
+      { url: '/b.jpg', alt: '' },
+    ])
   })
 })

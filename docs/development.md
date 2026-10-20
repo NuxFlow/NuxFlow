@@ -363,7 +363,8 @@ Pages using the Canvas page builder render **full-width** with no outer containe
 | `.canvas-hero` | Hero / banner section |
 | `.canvas-features` | Feature grid. Inside it, `.canvas-features-grid` carries `data-count` (1–4 cards) and each card is `.canvas-features-card`. Target those rather than the grid's Tailwind `grid-cols-*` classes, which change with screen size: phones show one card per row, tablets two, and desktops three or four. |
 | `.canvas-image` | Image block — `<figure>` inside holds the image |
-| `.canvas-carousel` | Image carousel / slider |
+| `.canvas-gallery` | Gallery. `data-layout` is `grid`, `masonry` or `justified`; each photo is a `.canvas-gallery-item` `<figure>` and its caption (when shown) `.canvas-gallery-caption`. The full-screen lightbox's caption is `.nux-lightbox-caption`. |
+| `.canvas-carousel` | Image carousel / slider. A slide's caption is `.canvas-carousel-caption`. |
 | `.canvas-text` | Rich text / prose block |
 | `.canvas-columns` | Multi-column layout |
 | `.canvas-testimonial` | Testimonial / quote card |

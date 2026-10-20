@@ -1,12 +1,12 @@
 # Photography & Portfolio Guide
 
-NuxFlow includes everything you need to build a professional photography website or portfolio — a responsive image gallery with a full-screen lightbox, EXIF metadata display, a live focal-point crop editor, a blog index that switches between list and grid views, and a dedicated image sitemap for Google Images indexing. This guide walks through each feature and explains how they fit together.
+NuxFlow includes everything you need to build a professional photography website or portfolio — an image gallery with uncropped masonry and row layouts and a full-screen lightbox, EXIF metadata display, a live focal-point crop editor, a blog index that switches between list and grid views, and a dedicated image sitemap for Google Images indexing. This guide walks through each feature and explains how they fit together.
 
 ---
 
 ## Gallery Canvas Block
 
-The **Gallery** block is the core building block for photography pages. It renders a responsive CSS grid of photos, and supports a full-screen lightbox so visitors can view images at full resolution.
+The **Gallery** block is the core building block for photography pages. It shows your photos in one of three layouts and opens them in a full-screen lightbox, so visitors can see each one large.
 
 ### Adding a gallery to a page
 
@@ -17,37 +17,57 @@ The **Gallery** block is the core building block for photography pages. It rende
 
 ### Adding images
 
-In the **Images** field, paste an image URL into the input and click **Add**. Each image you add appears as a thumbnail row with an optional **alt text** field beside it. Fill in the alt text for every image — it improves accessibility, and Google Images uses it to understand what each photo shows.
+Click **Add from library** under the **Images** field. The picker lets you add a whole shoot at once:
 
-To remove an image, click the trash icon on its row.
+- **Folder** — show only one Media Library folder (for example *Smith wedding*).
+- **Sort** — *File name (A–Z)* keeps camera order (`DSC_0001`, `DSC_0002`…); *Newest first* shows recent uploads first.
+- Click photos to select them. Each selected photo shows a number: that is the order it will be added in.
+- **Select all shown** selects every photo in the folder you're looking at. **Load more** loads the next 200 when a folder is bigger than that.
+- Click **Add N images**.
 
-> **Tip:** Copy image URLs from the **Media Library** by opening a file's detail panel and clicking **Copy URL**.
+You can also paste a single image URL, but photos added from the library carry their real width and height, which the uncropped layouts need to lay them out exactly.
+
+Each photo in the list has:
+
+- **Alt text** — describes the photo for screen readers and Google Images. Filled in from the Media Library if you've written it there.
+- **Caption** — optional text visitors see. Filled in from the Media Library caption if there is one.
+- A **drag handle** and **up/down arrows** to change the order, and a **remove** button. **Remove all** clears the block (the files stay in the Media Library).
 
 ### Gallery settings
 
 | Setting | Description |
 |---|---|
-| **Columns** | Number of columns in the grid: 2, 3, or 4. On small screens the grid automatically collapses to 2 columns. |
+| **Layout** | **Masonry** shows whole photos in staggered columns (the default for new galleries). **Rows** shows whole photos in rows of equal height, like a contact sheet. **Grid** crops every photo to the same shape. |
+| **Columns** | Masonry and Grid: 2, 3, or 4 columns. Phones show fewer. |
+| **Crop shape** | Grid only: square, landscape (3:2, 4:3) or portrait (2:3, 3:4). |
+| **Row height** | Rows only: the target height of each row in pixels. Phones use shorter rows. |
 | **Gap** | Spacing between images in pixels (0–48). |
-| **Rounded corners** | Applies a rounded border-radius to each image cell. |
+| **Show captions** | Shows each photo's caption under it (over it, in the Rows layout). Captions always show in the lightbox. |
+| **Rounded corners** | Rounds the corners of each photo. |
 | **Open lightbox on click** | When enabled, clicking any image opens it full-screen in the lightbox. Enabled by default. |
 | **Padding** | Controls the space around the gallery within the page layout. |
+
+> **Tip:** Galleries made before the Layout setting existed keep showing as a square Grid until you change it.
 
 ---
 
 ## Lightbox
 
-The lightbox is a built-in full-screen image viewer. It is available on both the Gallery block and the single Image block.
+The lightbox is a built-in full-screen image viewer. It is available on the Gallery block and the single Image block.
 
 When the lightbox is open:
 
 - Click the background or press **Escape** to close it.
-- Press **← →** arrow keys or click the on-screen arrows to navigate between images (gallery only).
-- A counter in the bottom centre shows the current position (e.g. "3 / 12").
+- Press **← →**, click the on-screen arrows, or **swipe** on a phone to move between images (gallery only).
+- The photo's caption shows under it, and a counter shows the current position (e.g. "3 / 12").
 
 ### Enabling lightbox on the single Image block
 
 The **Image** block has a toggle called **Open lightbox on click**. It is off by default. Enable it in the block settings panel to make a standalone image clickable — useful for detail shots, before-and-after images, or any photo where you want the visitor to be able to view it full-screen.
+
+### Fast loading for large photos
+
+Turn on **Image Transformations** in **Settings → Media** (after the one-time Cloudflare dashboard step it describes). Galleries then load resized, modern-format copies, and the lightbox loads a screen-sized copy, instead of the full-size original from your camera. Without it, a visitor's browser downloads every original file.
 
 ---
 
@@ -150,7 +170,7 @@ EXIF data (if present) is filled in automatically.
 
 ### 3. Build your portfolio pages with the Gallery block
 
-Create a new canvas page for each series or project. Add a **Gallery** block, paste your image URLs, and configure the grid. Leave **Open lightbox on click** enabled so visitors can view the full-resolution images.
+Create a new canvas page for each series or project. Add a **Gallery** block, click **Add from library**, pick the shoot's folder, sort by file name, and **Select all shown**. Choose **Masonry** or **Rows** so photos aren't cropped, and leave **Open lightbox on click** enabled so visitors can view each photo large.
 
 ### 4. Use the Image block for hero shots
 

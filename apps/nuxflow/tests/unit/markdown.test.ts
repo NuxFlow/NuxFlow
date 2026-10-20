@@ -168,6 +168,14 @@ describe('canvasToMarkdown', () => {
     expect(md).toContain('Plugin block text')
   })
 
+  it('lists gallery photos with their captions', () => {
+    const md = canvasToMarkdown({
+      type: 'canvas',
+      blocks: [{ id: 'g', type: 'canvas-gallery', props: { images: JSON.stringify([{ url: '/a.jpg', alt: 'Bride', caption: 'First dance' }, { url: '/b.jpg', alt: 'Cake' }]) } }],
+    })
+    expect(md).toBe('![Bride](/a.jpg)\n\nFirst dance\n\n![Cake](/b.jpg)')
+  })
+
   it('contentToMarkdown dispatches by document kind', () => {
     expect(contentToMarkdown({ type: 'canvas', blocks: [{ id: '1', type: 'canvas-text', props: { content: '<p>C</p>' } }] })).toBe('C')
     expect(contentToMarkdown({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'T' }] }] })).toBe('T')

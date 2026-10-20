@@ -110,6 +110,15 @@ describe('GET /api/v1/media', () => {
     expect(loose.files.map(f => f.originalName)).not.toContain('in-folder.jpg')
   })
 
+  it('sorts by file name for sort=name (camera order when adding a shoot to a gallery)', async () => {
+    const db = getCurrentTestDb()
+    const shoot = await seedMediaFolder(db, SITE, { name: 'Wedding' })
+    for (const name of ['DSC_0003.jpg', 'DSC_0001.jpg', 'DSC_0002.jpg']) await seedMedia(db, SITE, { folderId: shoot, originalName: name })
+
+    const byName = await (listHandler as Handler)(ev(viewerId, { query: { folderId: shoot, sort: 'name' } })) as { files: { originalName: string }[] }
+    expect(byName.files.map(f => f.originalName)).toEqual(['DSC_0001.jpg', 'DSC_0002.jpg', 'DSC_0003.jpg'])
+  })
+
   it('paginates', async () => {
     const res = await (listHandler as Handler)(ev(viewerId, { query: { limit: '1', page: '2' } })) as { files: unknown[]; page: number; limit: number; total: number }
     expect(res.files).toHaveLength(1)
