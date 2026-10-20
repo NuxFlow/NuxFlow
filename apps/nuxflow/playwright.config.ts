@@ -29,9 +29,14 @@ export default defineConfig({
   // this requires a wrangler.toml with a [[d1_databases]] block to exist in the CI
   // checkout; it's gitignored, so a CI job using this must generate one first).
   // Locally, assume the server is already running.
+  //
+  // The secret is passed with --var: `wrangler dev` does not hand the process environment
+  // to the Worker, so `env` below alone left runtimeConfig.betterAuthSecret empty. Better
+  // Auth hid that (it falls back to a dev secret), but anything else signing with it — the
+  // password-page unlock cookie — failed in CI only.
   webServer: process.env.CI
     ? {
-        command: 'pnpm dev',
+        command: 'pnpm dev --var NUXT_BETTER_AUTH_SECRET:e2e-test-secret-exactly-32-chars!',
         url: E2E_BASE_URL,
         reuseExistingServer: false,
         timeout: 120_000,
