@@ -79,7 +79,10 @@ export function unlockCookieName(item: { id: string; sourceItemId?: string | nul
 }
 
 function secret(): string {
-  return useRuntimeConfig().betterAuthSecret as string
+  const value = useRuntimeConfig().betterAuthSecret as string | undefined
+  // Fail with a clear message rather than Web Crypto's "HMAC key length (0)".
+  if (!value) throw createError({ statusCode: 500, message: 'NUXT_BETTER_AUTH_SECRET is not set' })
+  return value
 }
 
 async function unlockSignature(siteId: string, item: { id: string; sourceItemId?: string | null }, expires: number, hash: string) {
