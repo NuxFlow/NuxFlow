@@ -4,6 +4,6 @@ defineEmits<{ 'update:modelValue': [v: string] }>()
 </script>
 <template>
   <UFormField :label="field.label" :required="field.required" :hint="field.helpText">
-    <UInput type="email" :placeholder="field.placeholder ?? 'you@example.com'" :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)" />
+    <UInput class="w-full" type="email" :placeholder="field.placeholder ?? 'you@example.com'" :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)" />
   </UFormField>
 </template>

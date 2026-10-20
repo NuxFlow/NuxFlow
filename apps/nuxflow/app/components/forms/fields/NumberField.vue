@@ -4,6 +4,6 @@ defineEmits<{ 'update:modelValue': [v: number] }>()
 </script>
 <template>
   <UFormField :label="field.label" :required="field.required" :hint="field.helpText">
-    <UInput type="number" :placeholder="field.placeholder" :model-value="modelValue" @update:model-value="$emit('update:modelValue', Number($event))" />
+    <UInput class="w-full" type="number" :placeholder="field.placeholder" :model-value="modelValue" @update:model-value="$emit('update:modelValue', Number($event))" />
   </UFormField>
 </template>

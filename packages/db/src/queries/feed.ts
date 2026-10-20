@@ -1,10 +1,12 @@
-import { contentItems, contentTaxonomyTerms, sites, users } from '../schema'
+import { contentItems, contentTaxonomyTerms, contentTypes, sites, users } from '../schema'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import type { Db } from './types'
 
 /**
  * Shared by feed.xml.ts and atom.xml.ts — both list the same published/public posts.
- * `termIds` narrows the feed to items tagged with any of them (a per-term feed).
+ * The site-wide feed is `post` items only (it used to include every page — About,
+ * Contact, Privacy…). `termIds` narrows the feed to items tagged with any of them (a
+ * per-term feed), of any type, matching that term's archive page.
  */
 export async function getPublishedPostsForFeed(db: Db, siteId: string, limit = 20, termIds?: string[]) {
   return db
@@ -29,7 +31,8 @@ export async function getPublishedPostsForFeed(db: Db, siteId: string, limit = 2
         ? inArray(contentItems.id, db.selectDistinct({ id: contentTaxonomyTerms.contentItemId })
             .from(contentTaxonomyTerms)
             .where(inArray(contentTaxonomyTerms.termId, termIds.length ? termIds : [''])))
-        : undefined,
+        : inArray(contentItems.typeId, db.select({ id: contentTypes.id }).from(contentTypes)
+            .where(and(eq(contentTypes.siteId, siteId), eq(contentTypes.slug, 'post')))),
     ))
     .orderBy(desc(contentItems.publishedAt))
     .limit(limit)

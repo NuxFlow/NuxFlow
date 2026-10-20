@@ -39,7 +39,8 @@ interface PostsResponse {
 }
 
 const { data, error } = await useFetch<PostsResponse>('/api/public/posts', {
-  query: computed(() => ({ page: page.value, limit: 10 })),
+  // Posts only — without `type` the endpoint lists every public item, pages included.
+  query: computed(() => ({ type: 'post', page: page.value, limit: 10 })),
   headers: useRequestHeaders(['host']),
 })
 

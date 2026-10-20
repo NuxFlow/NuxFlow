@@ -274,6 +274,15 @@ describe('GET /feed.xml', () => {
     expect(result).toContain('<a href="">Click</a>')
     expect(result).toContain('<img src="" alt="evil">')
   })
+
+  it('lists posts only, not the pages of the site', async () => {
+    const db = getCurrentTestDb()
+    const pageType = await seedContentType(db, SITE, { slug: 'page', name: 'Page', singularName: 'Page' })
+    await seedContentItem(db, SITE, pageType, { slug: 'about-us', title: 'About Us Page', status: 'published', visibility: 'public' })
+    const result = await (feedHandler as HandlerFn)(mkEvent()) as string
+    expect(result).toContain('Hello World')
+    expect(result).not.toContain('About Us Page')
+  })
 })
 
 // ---------------------------------------------------------------------------
