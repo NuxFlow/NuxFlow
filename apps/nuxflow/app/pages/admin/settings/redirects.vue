@@ -44,7 +44,7 @@ const columns = [
   { accessorKey: 'from', header: 'From' },
   { accessorKey: 'to', header: 'To' },
   { accessorKey: 'statusCode', header: 'Type' },
-  { id: 'actions', header: '' },
+  { id: 'actions', header: actionsHeader },
 ]
 </script>
 

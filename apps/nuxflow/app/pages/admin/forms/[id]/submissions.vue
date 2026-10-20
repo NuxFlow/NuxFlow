@@ -1,88 +1,261 @@
 <script setup lang="ts">
+import {
+  displayValue,
+  replyAddress,
+  submissionColumns,
+  submissionPreview,
+  submissionsToCsv,
+  type InboxField,
+  type InboxSubmission,
+  type SubmissionStatus,
+} from '~/utils/form-submissions'
+
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
+// The inbox for one form's submissions — every form, including the built-in contact
+// form (which used to have its own Admin → Contact Forms page).
+
 const route = useRoute()
+const toast = useToast()
 const id = route.params.id as string
 
-interface FormDetails {
-  id: string
-  name: string
+type Filter = 'inbox' | 'new' | 'archived' | 'spam' | 'all'
+interface Payload {
+  form: { id: string; name: string; slug: string; fields: InboxField[] | null }
+  submissions: InboxSubmission[]
+  total: number
+  counts: Record<SubmissionStatus, number>
 }
 
-interface Submission {
-  id: string
-  createdAt: string
-  data: Record<string, unknown>
-}
+const PAGE_SIZE = 100
+// A plain `string` URL — see CLAUDE.md: Nitro's typed-route matching trips on this route's
+// flat file beside a same-named folder.
+const listUrl: string = `/api/v1/forms/${id}/submissions`
 
-interface FormSubmissionsPayload {
-  form?: FormDetails
-  submissions?: Submission[]
-}
+const filter = ref<Filter>('inbox')
+// `deep: true` — Nuxt 4's useFetch data is shallow by default, and opening a message
+// updates its status (and the tab counts) in place.
+const { data, refresh, error } = await useFetch<Payload>(listUrl, {
+  query: computed(() => ({ status: filter.value, limit: PAGE_SIZE })),
+  deep: true,
+})
 
-const { data } = await useFetch<FormSubmissionsPayload>(`/api/v1/forms/${id}/submissions`)
 const form = computed(() => data.value?.form)
-const submissions = computed(() => data.value?.submissions ?? [])
+const extra = ref<InboxSubmission[]>([])
+const submissions = computed(() => [...(data.value?.submissions ?? []), ...extra.value])
+const counts = computed(() => data.value?.counts ?? { new: 0, read: 0, archived: 0, spam: 0 })
+const columns = computed(() => submissionColumns(form.value?.fields, submissions.value))
+const isBuiltInContact = computed(() => form.value?.slug === 'contact')
 
-// Neutralizes CSV/formula injection (OWASP): a submitted value starting with =, +, -, @,
-// tab, or CR can be interpreted as a formula by Excel/Sheets when the export is opened —
-// prefixing with a literal quote forces it to be read as text instead.
-function sanitizeCsvCell(value: unknown): string {
-  const raw = typeof value === 'string' ? value : JSON.stringify(value ?? '')
-  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
-  return JSON.stringify(safe)
+watch(filter, () => {
+  extra.value = []
+  selectedId.value = null
+})
+
+const filters = computed<Array<{ value: Filter; label: string; count?: number }>>(() => [
+  { value: 'inbox', label: 'Inbox', count: counts.value.new + counts.value.read },
+  { value: 'new', label: 'Unread', count: counts.value.new },
+  { value: 'archived', label: 'Archived', count: counts.value.archived },
+  { value: 'spam', label: 'Spam', count: counts.value.spam },
+  { value: 'all', label: 'All' },
+])
+
+const loadingMore = ref(false)
+async function loadMore() {
+  loadingMore.value = true
+  try {
+    const page = Math.floor(submissions.value.length / PAGE_SIZE) + 1
+    const res = await $fetch<Payload>(listUrl, { query: { status: filter.value, limit: PAGE_SIZE, page } })
+    extra.value = [...extra.value, ...res.submissions]
+  }
+  catch (e) {
+    toast.add({ title: getErrorMessage(e, 'Could not load more submissions'), color: 'error' })
+  }
+  finally {
+    loadingMore.value = false
+  }
 }
 
-function downloadCsv() {
-  if (!submissions.value.length) return
-  const fields = Object.keys(submissions.value[0]?.data ?? {})
-  const header = ['ID', 'Submitted at', ...fields].join(',')
-  const rows = submissions.value.map((s: { id: string; createdAt: string; data: Record<string, unknown> }) =>
-    [s.id, s.createdAt, ...fields.map(f => sanitizeCsvCell(s.data[f]))].join(','),
-  )
-  const csv = [header, ...rows].join('\n')
-  const blob = new Blob([csv], { type: 'text/csv' })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = `${form.value?.name ?? 'submissions'}.csv`
-  a.click()
+// ── Selection + status ──────────────────────────────────────────────────────
+const selectedId = ref<string | null>(null)
+const selected = computed(() => submissions.value.find(s => s.id === selectedId.value) ?? null)
+const selectedReply = computed(() => (selected.value ? replyAddress(form.value?.fields, selected.value) : null))
+
+const statusColor: Record<SubmissionStatus, 'warning' | 'success' | 'error' | 'neutral'> = {
+  new: 'warning',
+  read: 'success',
+  spam: 'error',
+  archived: 'neutral',
+}
+const statusLabel: Record<SubmissionStatus, string> = { new: 'Unread', read: 'Read', spam: 'Spam', archived: 'Archived' }
+
+const statusDone: Record<SubmissionStatus, string> = { new: 'Marked as unread', read: 'Moved to inbox', archived: 'Archived', spam: 'Marked as spam' }
+
+async function setStatus(sub: InboxSubmission, status: SubmissionStatus, opts: { quiet?: boolean } = {}): Promise<boolean> {
+  const url: string = `/api/v1/forms/${id}/submissions/${sub.id}`
+  try {
+    await $fetch<{ success: boolean }>(url, { method: 'PATCH', body: { status } })
+    sub.status = status
+    if (!opts.quiet) {
+      toast.add({ title: statusDone[status], color: 'success' })
+      // The row may no longer belong to this filter; reload the list and the counts.
+      extra.value = []
+      await refresh()
+    }
+    return true
+  }
+  catch (e) {
+    toast.add({ title: getErrorMessage(e, 'Could not update the submission'), color: 'error' })
+    return false
+  }
+}
+
+// Opening an unread submission marks it read, like an email inbox (it stays in view).
+async function open(sub: InboxSubmission) {
+  selectedId.value = sub.id
+  if (sub.status !== 'new') return
+  if (await setStatus(sub, 'read', { quiet: true }) && data.value) {
+    data.value.counts = { ...data.value.counts, new: Math.max(0, data.value.counts.new - 1), read: data.value.counts.read + 1 }
+  }
+}
+
+// ── CSV export (every submission in the current filter, not just the loaded page) ──
+const exporting = ref(false)
+async function downloadCsv() {
+  exporting.value = true
+  try {
+    const all: InboxSubmission[] = []
+    for (let page = 1; page < 1000; page++) {
+      const res = await $fetch<Payload>(listUrl, { query: { status: filter.value, limit: 500, page } })
+      all.push(...res.submissions)
+      if (all.length >= res.total || !res.submissions.length) break
+    }
+    if (!all.length) return
+    const csv = submissionsToCsv(submissionColumns(form.value?.fields, all), all)
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = `${form.value?.name ?? 'submissions'}.csv`
+    a.click()
+  }
+  catch (e) {
+    toast.add({ title: getErrorMessage(e, 'Export failed'), color: 'error' })
+  }
+  finally {
+    exporting.value = false
+  }
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 </script>
 
 <template>
   <div class="space-y-4">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <UButton :to="`/admin/forms/${id}/edit`" variant="ghost" icon="i-lucide-arrow-left" size="sm" />
-        <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ form?.name }} — Submissions</h1>
-        <UBadge variant="soft" size="sm">{{ submissions.length }}</UBadge>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <UButton to="/admin/forms" variant="ghost" icon="i-lucide-arrow-left" size="sm" aria-label="Back to forms" />
+        <h1 class="text-xl font-bold text-gray-900 dark:text-white truncate">{{ form?.name ?? 'Form' }} — Submissions</h1>
       </div>
-      <UButton variant="outline" icon="i-lucide-download" @click="downloadCsv">Export CSV</UButton>
+      <div class="flex gap-2">
+        <UButton v-if="form && !isBuiltInContact" :to="`/admin/forms/${id}/edit`" variant="ghost" icon="i-lucide-pencil" size="sm">Edit form</UButton>
+        <UButton variant="outline" icon="i-lucide-download" size="sm" :loading="exporting" :disabled="!submissions.length" @click="downloadCsv">Export CSV</UButton>
+      </div>
     </div>
 
-    <UCard v-if="submissions.length">
-      <div class="divide-y divide-gray-100 dark:divide-gray-800">
-        <div
+    <UAlert
+      v-if="isBuiltInContact"
+      color="neutral"
+      variant="subtle"
+      icon="i-lucide-info"
+      title="Built-in contact form"
+      description="Messages from the Contact Form block on your pages land here. Its fields (name, email, subject, message) are fixed. To ask different questions, build a form under Forms and add it to a page with the Form block."
+    />
+
+    <p v-if="error" class="text-sm text-red-500">{{ getErrorMessage(error, 'Could not load submissions') }}</p>
+
+    <div class="flex flex-wrap gap-1" role="tablist" aria-label="Filter submissions">
+      <UButton
+        v-for="f in filters"
+        :key="f.value"
+        role="tab"
+        :aria-selected="filter === f.value"
+        size="sm"
+        :variant="filter === f.value ? 'soft' : 'ghost'"
+        :color="filter === f.value ? 'primary' : 'neutral'"
+        @click="filter = f.value"
+      >
+        {{ f.label }}
+        <UBadge v-if="f.count" size="xs" variant="soft" :color="f.value === 'new' ? 'warning' : 'neutral'">{{ f.count }}</UBadge>
+      </UButton>
+    </div>
+
+    <div v-if="!submissions.length" class="text-center py-16 text-gray-400">
+      <UIcon name="i-lucide-inbox" class="w-10 h-10 mx-auto mb-2 opacity-50" />
+      <p>{{ filter === 'inbox' ? 'No submissions yet' : 'Nothing here' }}</p>
+    </div>
+
+    <div v-else class="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
+      <!-- List -->
+      <div class="lg:col-span-2 space-y-2">
+        <button
           v-for="sub in submissions"
           :key="sub.id"
-          class="py-3 flex items-start gap-4"
+          type="button"
+          class="w-full text-left rounded-lg border bg-white dark:bg-gray-900 p-3 transition-colors hover:border-primary-300"
+          :class="selectedId === sub.id ? 'border-primary-500 ring-1 ring-primary-500' : 'border-gray-200 dark:border-gray-800'"
+          @click="open(sub)"
         >
-          <div class="text-xs text-gray-400 w-36 shrink-0 pt-0.5">
-            {{ new Date(sub.createdAt).toLocaleString() }}
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="text-sm truncate text-gray-900 dark:text-white" :class="sub.status === 'new' ? 'font-semibold' : 'font-medium'">
+                {{ submissionPreview(columns, sub).title }}
+              </p>
+              <p class="text-xs text-gray-500 truncate mt-0.5">{{ submissionPreview(columns, sub).detail }}</p>
+            </div>
+            <div class="flex flex-col items-end gap-1 shrink-0">
+              <UBadge :color="statusColor[sub.status]" variant="soft" size="xs">{{ statusLabel[sub.status] }}</UBadge>
+              <span class="text-xs text-gray-400">{{ formatDate(sub.createdAt) }}</span>
+            </div>
           </div>
-          <div class="flex-1 grid grid-cols-2 gap-x-6 gap-y-1">
-            <template v-for="(val, key) in sub.data" :key="key">
-              <span class="text-xs font-medium text-gray-500">{{ key }}</span>
-              <span class="text-sm text-gray-800 dark:text-gray-200 truncate">{{ val }}</span>
-            </template>
+        </button>
+        <UButton
+          v-if="submissions.length < (data?.total ?? 0)"
+          block
+          variant="ghost"
+          size="sm"
+          :loading="loadingMore"
+          @click="loadMore"
+        >
+          Load more ({{ submissions.length }} of {{ data?.total }})
+        </UButton>
+      </div>
+
+      <!-- Detail -->
+      <UCard v-if="selected" class="lg:col-span-3 lg:sticky lg:top-4">
+        <div class="space-y-4">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-sm text-gray-500">Received {{ formatDate(selected.createdAt) }}</span>
+            <UBadge :color="statusColor[selected.status]" variant="soft" size="sm">{{ statusLabel[selected.status] }}</UBadge>
+          </div>
+          <dl class="space-y-3">
+            <div v-for="col in columns" :key="col.key">
+              <dt class="text-xs font-medium text-gray-500">{{ col.label }}</dt>
+              <dd class="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">{{ displayValue(selected.data[col.key]) || '—' }}</dd>
+            </div>
+          </dl>
+          <div class="flex flex-wrap gap-2 pt-3 border-t border-gray-100 dark:border-gray-800">
+            <UButton v-if="selectedReply" size="xs" icon="i-lucide-reply" :href="`mailto:${selectedReply}`">Reply</UButton>
+            <UButton v-if="selected.status === 'read'" size="xs" variant="outline" color="neutral" icon="i-lucide-mail" @click="setStatus(selected, 'new')">Mark unread</UButton>
+            <UButton v-if="selected.status !== 'archived'" size="xs" variant="outline" color="neutral" icon="i-lucide-archive" @click="setStatus(selected, 'archived')">Archive</UButton>
+            <UButton v-if="selected.status === 'archived' || selected.status === 'spam'" size="xs" variant="outline" color="neutral" icon="i-lucide-inbox" @click="setStatus(selected, 'read')">Move to inbox</UButton>
+            <UButton v-if="selected.status !== 'spam'" size="xs" variant="outline" color="error" icon="i-lucide-shield-off" @click="setStatus(selected, 'spam')">Mark spam</UButton>
           </div>
         </div>
+      </UCard>
+      <div v-else class="hidden lg:flex lg:col-span-3 items-center justify-center text-gray-400 text-sm py-16">
+        Select a submission to read it
       </div>
-    </UCard>
-
-    <div v-else class="text-center py-16 text-gray-400">
-      <UIcon name="i-lucide-inbox" class="w-10 h-10 mx-auto mb-2 opacity-50" />
-      <p>No submissions yet</p>
     </div>
   </div>
 </template>

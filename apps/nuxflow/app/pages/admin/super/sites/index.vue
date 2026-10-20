@@ -31,7 +31,7 @@ const columns = [
   { accessorKey: 'status', header: 'Status' },
   ...(hostingPlatform ? [{ accessorKey: 'hostingPlanId', header: 'Plan' }] : []),
   { accessorKey: 'createdAt', header: 'Created' },
-  { id: 'actions', header: '' },
+  { id: 'actions', header: actionsHeader },
 ]
 
 // Modal & Form States

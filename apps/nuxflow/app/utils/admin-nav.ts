@@ -57,7 +57,6 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Media', to: '/admin/media', icon: 'i-lucide-image' },
   { label: 'Videos', to: '/admin/media/videos', icon: 'i-lucide-video' },
   { label: 'Forms', to: '/admin/forms', icon: 'i-lucide-list-checks', minRole: 'editor' },
-  { label: 'Contact Forms', to: '/admin/contact-forms', icon: 'i-lucide-mail', minRole: 'editor' },
   { label: 'Users', to: '/admin/users', icon: 'i-lucide-users', minRole: 'admin' },
   { label: 'Memberships', to: '/admin/memberships', icon: 'i-lucide-credit-card', minRole: 'admin' },
   { label: 'Themes', to: '/admin/themes', icon: 'i-lucide-palette', minRole: 'admin' },

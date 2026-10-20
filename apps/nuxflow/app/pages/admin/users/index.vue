@@ -136,7 +136,7 @@ const columns = [
   { accessorKey: 'role', header: 'Role' },
   { id: 'status', header: 'Status' },
   { accessorKey: 'createdAt', header: 'Added' },
-  { id: 'actions', header: '' },
+  { id: 'actions', header: actionsHeader },
 ]
 </script>
 

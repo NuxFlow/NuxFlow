@@ -115,7 +115,7 @@ Every feature in the admin is fully functional. The demo resets automatically at
 - **Form builder** with field types: Short text, Long text, Email, Number, Select, Radio, Checkbox, Date, File upload, Signature, Hidden, and Computed
 - **Computed fields** — real-time expression evaluation (e.g. `{{quantity}} * {{price}}`)
 - **Spam protection** via Cloudflare Turnstile plus a background AI moderation pass
-- Submissions stored in the database; viewable and **exportable as CSV**
+- **Submissions inbox** for every form (including the built-in contact form): unread/read/archived/spam, reply by email, **CSV export**
 - Optional email notification on submission
 
 ### Theme System & Visual Customizer

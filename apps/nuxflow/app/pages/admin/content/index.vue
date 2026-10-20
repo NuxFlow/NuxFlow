@@ -109,7 +109,7 @@ const columns = [
   { accessorKey: 'title', header: 'Title' },
   { accessorKey: 'status', header: 'Status' },
   { accessorKey: 'updatedAt', header: 'Updated' },
-  { id: 'actions', header: '' },
+  { id: 'actions', header: actionsHeader },
 ]
 
 const toast = useToast()

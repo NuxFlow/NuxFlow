@@ -69,7 +69,6 @@ describe('admin-nav', () => {
     '/admin/media': 'server/api/v1/media/index.get.ts',
     '/admin/media/videos': 'server/api/v1/media/video/index.get.ts',
     '/admin/forms': 'server/api/v1/forms/index.get.ts',
-    '/admin/contact-forms': 'server/api/v1/contact/submissions.get.ts',
     '/admin/users': 'server/api/v1/users/index.get.ts',
     '/admin/memberships': 'server/api/v1/memberships/index.get.ts',
     '/admin/themes': 'server/api/v1/themes/index.get.ts',
