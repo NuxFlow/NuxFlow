@@ -35,6 +35,7 @@ const { default: getHandler } = await import('../../server/api/v1/forms/[formIde
 const { default: patchHandler } = await import('../../server/api/v1/forms/[formIdentifier]/index.patch')
 const { default: submissionsHandler } = await import('../../server/api/v1/forms/[formIdentifier]/submissions.get')
 const { default: submitHandler } = await import('../../server/api/v1/forms/[formIdentifier]/submit.post')
+const { default: submissionPatchHandler } = await import('../../server/api/v1/forms/[formIdentifier]/submissions/[id].patch')
 
 const SITE = 'site-forms-01'
 const OTHER_SITE = 'site-forms-02'
@@ -283,5 +284,84 @@ describe('GET /api/v1/forms/:formIdentifier/submissions', () => {
     await expect(
       (submissionsHandler as Handler)(authorEvent({ params: { formIdentifier: id } })),
     ).rejects.toMatchObject({ statusCode: 403 })
+  })
+})
+
+async function seedSubmissions(formId: string, statuses: Array<'new' | 'read' | 'spam' | 'archived'>, siteId = SITE) {
+  const db = getCurrentTestDb()
+  const ids: string[] = []
+  for (const status of statuses) {
+    const id = ulid()
+    ids.push(id)
+    await db.insert(formSubmissions).values({ id, formId, siteId, data: { fullName: `Person ${id}`, email: 'p@example.com' }, status })
+  }
+  return ids
+}
+
+describe('submissions inbox', () => {
+  it('filters by status and returns per-status counts', async () => {
+    const { id } = await seedForm()
+    await seedSubmissions(id, ['new', 'new', 'read', 'spam', 'archived'])
+
+    type Res = { submissions: Array<{ status: string }>; total: number; counts: Record<string, number> }
+    const all = await (submissionsHandler as Handler)(editorEvent({ params: { formIdentifier: id } })) as Res
+    expect(all.total).toBe(5)
+    expect(all.counts).toEqual({ new: 2, read: 1, archived: 1, spam: 1 })
+
+    const inbox = await (submissionsHandler as Handler)(editorEvent({ params: { formIdentifier: id }, query: { status: 'inbox' } })) as Res
+    expect(inbox.total).toBe(3)
+    expect(inbox.submissions.every(s => s.status === 'new' || s.status === 'read')).toBe(true)
+
+    const spam = await (submissionsHandler as Handler)(editorEvent({ params: { formIdentifier: id }, query: { status: 'spam' } })) as Res
+    expect(spam.submissions.map(s => s.status)).toEqual(['spam'])
+  })
+
+  it('rejects an unknown status filter', async () => {
+    const { id } = await seedForm()
+    await expect((submissionsHandler as Handler)(editorEvent({ params: { formIdentifier: id }, query: { status: 'deleted' } })))
+      .rejects.toMatchObject({ statusCode: 422 })
+  })
+
+  it('lists submission and unread counts per form, leaving spam out', async () => {
+    const { id } = await seedForm({ name: 'Counted' })
+    await seedSubmissions(id, ['new', 'read', 'spam'])
+    const result = await (listHandler as Handler)(editorEvent()) as { forms: Array<{ id: string; submissionCount: number; newCount: number }> }
+    expect(result.forms.find(f => f.id === id)).toMatchObject({ submissionCount: 2, newCount: 1 })
+  })
+
+  it('updates the status of a submission and audits it', async () => {
+    const db = getCurrentTestDb()
+    const { id } = await seedForm()
+    const [subId] = await seedSubmissions(id, ['new'])
+
+    await (submissionPatchHandler as Handler)(editorEvent({ params: { formIdentifier: id, id: subId! }, body: { status: 'archived' } }))
+
+    const row = await db.query.formSubmissions.findFirst({ where: eq(formSubmissions.id, subId!) })
+    expect(row?.status).toBe('archived')
+    const audit = await db.query.auditLogs.findFirst({ where: and(eq(auditLogs.resource, 'form_submission'), eq(auditLogs.resourceId, subId!)) })
+    expect(audit?.action).toBe('update')
+  })
+
+  it('refuses a submission that belongs to a different form or site', async () => {
+    const { id: formA } = await seedForm()
+    const { id: formB } = await seedForm()
+    const [subOfB] = await seedSubmissions(formB, ['new'])
+    await expect((submissionPatchHandler as Handler)(editorEvent({ params: { formIdentifier: formA, id: subOfB! }, body: { status: 'spam' } })))
+      .rejects.toMatchObject({ statusCode: 404 })
+
+    const otherForm = ulid()
+    await getCurrentTestDb().insert(forms).values({ id: otherForm, siteId: OTHER_SITE, name: 'Other', slug: `other-${otherForm.toLowerCase()}`, fields: SAMPLE_FIELDS, status: 'active' })
+    const [foreign] = await seedSubmissions(otherForm, ['new'], OTHER_SITE)
+    await expect((submissionPatchHandler as Handler)(editorEvent({ params: { formIdentifier: otherForm, id: foreign! }, body: { status: 'spam' } })))
+      .rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  it('requires editor and a valid status', async () => {
+    const { id } = await seedForm()
+    const [subId] = await seedSubmissions(id, ['new'])
+    await expect((submissionPatchHandler as Handler)(authorEvent({ params: { formIdentifier: id, id: subId! }, body: { status: 'read' } })))
+      .rejects.toMatchObject({ statusCode: 403 })
+    await expect((submissionPatchHandler as Handler)(editorEvent({ params: { formIdentifier: id, id: subId! }, body: { status: 'deleted' } })))
+      .rejects.toMatchObject({ statusCode: 422 })
   })
 })

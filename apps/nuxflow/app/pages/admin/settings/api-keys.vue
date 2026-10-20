@@ -40,7 +40,7 @@ const columns = [
   { accessorKey: 'name', header: 'Name' },
   { accessorKey: 'scopes', header: 'Scopes' },
   { accessorKey: 'lastUsedAt', header: 'Last used' },
-  { id: 'actions', header: '' },
+  { id: 'actions', header: actionsHeader },
 ]
 </script>
 

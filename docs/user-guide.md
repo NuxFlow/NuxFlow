@@ -503,15 +503,26 @@ The chosen layout is saved to the visitor's browser and persists across page loa
 
 ---
 
-## Contact Forms
+## Forms and the contact form
 
-Contact Forms are built into NuxFlow. The **Contact Form** block can be placed on any Canvas page, and all submissions are collected in the inbox at **Admin → Contact Forms**.
+All forms live under **Admin → Forms**, and every form's messages are collected in its own **Submissions** inbox. There are two ways to put a form on a page:
 
-When the block is placed on a page, visitors can submit their name, email, subject, and message. Submissions are protected by Cloudflare Turnstile spam detection (when configured) and rate-limited automatically.
+- **Contact Form block** — a ready-made form asking for name, email, subject and message. Its messages go to the **Contact Form** entry in Admin → Forms, marked **Built-in**. Its fields are fixed; it's created automatically the first time someone uses it.
+- **Form block** — any form you build in Admin → Forms with **New form**: dates, choices, file uploads, signatures and more. Use it when you need to ask different questions, such as a booking enquiry.
 
-From the inbox you can view each submission, mark it as read, archive it, mark it as spam, or reply directly via email.
+Submissions are protected by Cloudflare Turnstile spam detection (when configured), rate-limited, and checked by AI moderation when an AI provider is set up — anything it flags is moved to **Spam** automatically.
 
-To receive email notifications when a new message arrives, set a **Notification email** in **Admin → Settings**.
+### The submissions inbox
+
+Open a form's inbox from the **Submissions** count in the Forms list (the badge shows unread messages).
+
+- **Inbox** shows unread and read messages; **Unread**, **Archived** and **Spam** narrow it down, and **All** shows everything.
+- Click a message to read it — this marks it as read. From there you can **Reply** by email, **Mark unread**, **Archive**, **Mark spam**, or **Move to inbox** again.
+- **Export CSV** downloads every message in the current view, with the form's field labels as column headings.
+
+To receive email notifications when a message arrives, set a **Notification email** in **Admin → Settings** (the contact form), or in the form's own settings (forms you build).
+
+The old **Admin → Contact Forms** page has been merged into Forms; links to it open the contact form's inbox.
 
 ---
 
