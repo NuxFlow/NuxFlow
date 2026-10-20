@@ -17,6 +17,8 @@ const LIGHTBOX_MAX_WIDTH = 1920
 const props = defineProps<{
   images: LightboxImage[]
   initialIndex?: number
+  /** When set (a gallery with downloads on), shows a Download button for the current image. */
+  downloadUrl?: (index: number) => string
 }>()
 
 const emit = defineEmits<{ close: [] }>()
@@ -43,10 +45,10 @@ let previouslyFocused: HTMLElement | null = null
 
 function getFocusable(): HTMLElement[] {
   if (!containerRef.value) return []
-  return Array.from(containerRef.value.querySelectorAll<HTMLElement>('button'))
+  return Array.from(containerRef.value.querySelectorAll<HTMLElement>('button, a[href]'))
 }
 
-/** Cycles Tab/Shift+Tab between this dialog's own controls (close/prev/next)
+/** Cycles Tab/Shift+Tab between this dialog's own controls (close/download/prev/next)
  * instead of letting focus escape into the page behind it. */
 function trapTab(e: KeyboardEvent) {
   const focusable = getFocusable()
@@ -126,6 +128,18 @@ onUnmounted(() => {
     >
       <UIcon name="i-lucide-x" mode="svg" class="w-7 h-7 block" />
     </button>
+
+    <!-- Download -->
+    <a
+      v-if="downloadUrl"
+      :href="downloadUrl(current)"
+      download
+      class="nux-lightbox-download absolute top-4 right-16 p-2 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+      aria-label="Download this photo"
+      title="Download this photo"
+    >
+      <UIcon name="i-lucide-download" mode="svg" class="w-6 h-6 block" />
+    </a>
 
     <!-- Prev -->
     <button

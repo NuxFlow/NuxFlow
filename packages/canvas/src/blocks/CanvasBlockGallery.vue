@@ -6,7 +6,7 @@
 //  - justified — whole photos in rows of equal height (each item's flex-grow is its
 //                width/height ratio, so a row's items all end up the same height)
 // Theme hooks: .canvas-gallery[data-layout], .canvas-gallery-item, .canvas-gallery-caption.
-import { computed, ref } from 'vue'
+import { computed, inject, ref } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import NuxLightbox from './NuxLightbox.vue'
@@ -14,6 +14,10 @@ import NuxImage from './NuxImage.vue'
 import { spacingToCss } from '../utils/spacing'
 import { parseImageList, type ImageListItem } from '../utils/json'
 import { aspectRatioValue, imageRatio, type GalleryLayout } from '../utils/gallery'
+import { blockIdKey } from '../utils/block-context'
+
+// Ambient — a Nuxt auto-import supplied by the host app (same pattern as NuxImage.vue).
+declare const useRequestURL: () => URL
 
 // Transform request widths (Cloudflare Image Transformations, when enabled) — well above
 // what a tile is displayed at on most screens, far below a full-resolution original.
@@ -30,6 +34,7 @@ const props = withDefaults(defineProps<{
   showCaptions?: boolean
   rounded?: boolean
   lightbox?: boolean
+  allowDownload?: boolean
   padding?: SpacingValue
 }>(), {
   images: '[]',
@@ -41,6 +46,7 @@ const props = withDefaults(defineProps<{
   showCaptions: false,
   rounded: false,
   lightbox: true,
+  allowDownload: false,
 })
 
 const parsedImages = computed<ImageListItem[]>(() => parseImageList(props.images))
@@ -78,6 +84,24 @@ function justifiedStyle(img: ImageListItem) {
   }
 }
 
+// ── Downloads (client galleries) ────────────────────────────────────────────
+// Served by /api/public/gallery-download, which finds this block on this page and applies
+// the page's own access rules. Off in the editor (no block id is provided there).
+const blockId = inject(blockIdKey, '')
+const downloadBase = computed(() => {
+  if (!props.allowDownload || !blockId) return ''
+  let pathname = ''
+  try {
+    pathname = useRequestURL().pathname
+  }
+  catch {
+    pathname = typeof window !== 'undefined' ? window.location.pathname : ''
+  }
+  const path = pathname.replace(/^\/+|\/+$/g, '')
+  return `/api/public/gallery-download?path=${encodeURIComponent(path)}&block=${encodeURIComponent(blockId)}`
+})
+const photoDownloadUrl = (i: number) => `${downloadBase.value}&index=${i}`
+
 const lightboxOpen = ref(false)
 const lightboxIndex = ref(0)
 
@@ -90,6 +114,16 @@ function openLightbox(i: number) {
 
 <template>
   <div class="canvas-gallery" :data-layout="layout" :style="containerStyle">
+    <div v-if="downloadBase && parsedImages.length" class="canvas-gallery-actions flex justify-end mb-3">
+      <a
+        :href="downloadBase"
+        download
+        class="canvas-gallery-download inline-flex items-center gap-2 rounded-md border border-current/20 px-3 py-1.5 text-sm font-medium opacity-90 hover:opacity-100 transition-opacity"
+      >
+        <UIcon name="i-lucide-download" mode="svg" class="w-4 h-4" />
+        Download all ({{ parsedImages.length }})
+      </a>
+    </div>
     <template v-if="parsedImages.length">
       <!-- Masonry -->
       <div v-if="layout === 'masonry'" :class="masonryCols" :style="{ columnGap: gapPx }">
@@ -198,6 +232,7 @@ function openLightbox(i: number) {
       v-if="lightboxOpen"
       :images="parsedImages"
       :initial-index="lightboxIndex"
+      :download-url="downloadBase ? photoDownloadUrl : undefined"
       @close="lightboxOpen = false"
     />
   </div>
