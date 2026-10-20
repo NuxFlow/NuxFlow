@@ -59,7 +59,7 @@ defineExpose({
       <span class="text-xs opacity-60">{{ unfolderedCount }}</span>
     </button>
 
-    <UDivider class="my-2" />
+    <USeparator class="my-2" />
 
     <div
       v-for="folder in folders"

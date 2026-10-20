@@ -219,7 +219,7 @@ function playVideo(video: VideoAsset) {
 
     <!-- Main Grid -->
     <div v-if="videos && videos.length" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      <VideoCard
+      <AdminMediaVideoCard
         v-for="video in videos"
         :key="video.id"
         :video="video"
@@ -269,7 +269,7 @@ function playVideo(video: VideoAsset) {
       </div>
     </div>
 
-    <VideoDetailModal
+    <AdminMediaVideoDetailModal
       v-model:open="showDetailModal"
       v-model:edit-title="editTitle"
       :video="selectedVideo"
@@ -279,7 +279,7 @@ function playVideo(video: VideoAsset) {
       @delete="deleteVideo"
     />
 
-    <VideoPlayerModal
+    <AdminMediaVideoPlayerModal
       v-model:open="showPlayerModal"
       :video="playerVideo"
     />

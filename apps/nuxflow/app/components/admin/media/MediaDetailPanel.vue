@@ -195,6 +195,7 @@ watch(() => props.file?.id, () => { copied.value = false })
         <UFormField label="Caption">
           <UInput
             :model-value="form.caption"
+            class="w-full"
             placeholder="Optional caption shown below the image…"
             @update:model-value="(v) => (form = { ...form, caption: String(v) })"
           />

@@ -98,7 +98,7 @@ async function sendTestEmail() {
         <p class="text-sm text-gray-400">Emails are logged to the server console. Use for local development only.</p>
       </template>
 
-      <UDivider />
+      <USeparator />
 
       <div class="space-y-3">
         <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Send a test email</p>

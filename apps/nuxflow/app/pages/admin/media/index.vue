@@ -349,7 +349,7 @@ function copyUrl(url: string) {
     </div>
 
     <div class="flex gap-4 items-start">
-      <MediaFolderSidebar
+      <AdminMediaFolderSidebar
         ref="folderSidebar"
         :folders="folders"
         :unfoldered-count="unfolderedCount"
@@ -425,7 +425,7 @@ function copyUrl(url: string) {
       </div>
     </div>
 
-    <MediaDetailPanel
+    <AdminMediaDetailPanel
       v-model:open="showDetail"
       v-model:form="detailForm"
       :file="detail"

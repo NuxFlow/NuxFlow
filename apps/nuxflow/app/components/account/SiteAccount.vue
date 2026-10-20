@@ -183,7 +183,7 @@ function formatDate(dateStr: string | null) {
           </ul>
         </div>
 
-        <UDivider />
+        <USeparator />
 
         <UAlert
           v-if="subscription.cancelAtPeriodEnd"

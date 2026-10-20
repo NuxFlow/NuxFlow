@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
-import Link from '@tiptap/extension-link'
 import { useAiImprove, AI_IMPROVE_ACTIONS } from './useAiImprove'
 
 const props = defineProps<{ modelValue: string }>()
@@ -10,8 +9,8 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 const editor = useEditor({
   extensions: [
-    StarterKit,
-    Link.configure({ openOnClick: false, autolink: true, defaultProtocol: 'https' }),
+    // StarterKit v3 bundles Link (and Underline) — configured here, not added again.
+    StarterKit.configure({ link: { openOnClick: false, autolink: true, defaultProtocol: 'https' } }),
   ],
   content: props.modelValue ?? '',
   editorProps: { attributes: { class: 'nuxflow-richtext-input-prose' } },
