@@ -12,6 +12,7 @@ interface PlatformState {
   webhookUrl: string | null
   signUpUrl: string | null
   customDomains: { zoneId: string | null; tokenSet: boolean; target: string | null }
+  ai: { dailyCap: number | null; creditsToday: number }
 }
 
 // Every event the hosting webhook acts on — the operator ticks these in Stripe.
@@ -64,6 +65,17 @@ async function saveCustomDomains() {
   const body: Record<string, string> = { cfZoneId: cf.zoneId.trim(), customDomainTarget: cf.target.trim() }
   if (cf.token.trim()) body.cfApiToken = cf.token.trim()
   if (await save(body, 'Custom domain settings saved')) cf.token = ''
+}
+
+// Platform-wide daily AI brake. Blank = no cap.
+const aiCap = ref('')
+watch(() => data.value?.ai.dailyCap, (cap) => {
+  aiCap.value = cap == null ? '' : String(cap)
+}, { immediate: true })
+const aiCapInvalid = computed(() => aiCap.value.trim() !== '' && !/^\d+$/.test(aiCap.value.trim()))
+async function saveAiCap() {
+  const v = aiCap.value.trim()
+  await save({ aiDailyCreditCap: v === '' ? null : Number(v) }, v === '' ? 'Daily AI cap removed' : 'Daily AI cap saved')
 }
 
 async function saveWebhookSecret() {
@@ -228,7 +240,38 @@ async function copy(text: string) {
           <UButton :loading="saving" @click="saveCustomDomains">Save</UButton>
         </div>
       </UCard>
-
+      <UCard v-if="data.hostingEnabled">
+        <template #header>
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="font-semibold text-gray-900 dark:text-white">AI you pay for</h2>
+            <UBadge :color="data.ai.dailyCap == null ? 'warning' : 'success'" variant="subtle">
+              {{ data.ai.dailyCap == null ? 'No daily cap' : 'Capped' }}
+            </UBadge>
+          </div>
+        </template>
+        <div class="space-y-4 text-sm">
+          <p class="text-gray-500">
+            Customer sites without their own AI key use Workers AI on <strong>your</strong> Cloudflare account. That use is counted as
+            <strong>AI credits</strong> and limited by each plan's "AI credits a month" (Super Admin → Plans). A site that adds its own key
+            in Settings → AI pays its provider directly, and none of that is counted or limited. Your own AI keys in <code>wrangler.toml</code>
+            are only used by {{ data.primarySite?.name ?? 'your main site' }} while hosting is on.
+          </p>
+          <p class="text-gray-500">
+            The daily cap is a safety brake on top of the plans: once all customer sites together have used this many credits in a day (UTC),
+            AI on Workers AI pauses for them until midnight. Your main site is never paused. 1 credit is roughly 1,000 tokens on the fast model.
+          </p>
+          <p class="text-gray-600 dark:text-gray-300">
+            Used today: <strong>{{ data.ai.creditsToday.toLocaleString() }}</strong>
+            <template v-if="data.ai.dailyCap != null"> of {{ data.ai.dailyCap.toLocaleString() }}</template> credits
+          </p>
+          <div class="flex items-start gap-2">
+            <UFormField label="Daily cap (credits)" help="Leave blank for no cap." :error="aiCapInvalid ? 'Enter a whole number, or leave it blank.' : undefined" class="flex-1">
+              <UInput v-model="aiCap" inputmode="numeric" placeholder="No cap" class="w-full" />
+            </UFormField>
+            <UButton class="mt-6" :loading="saving" :disabled="aiCapInvalid" @click="saveAiCap">Save</UButton>
+          </div>
+        </div>
+      </UCard>
     </template>
 
 

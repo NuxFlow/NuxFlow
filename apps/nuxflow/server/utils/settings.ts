@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
-import { useDb } from './db'
+import { useDb, type Db } from './db'
+import { isHostingPlatform } from './hosting-platform'
 import { siteSettings } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -110,10 +111,59 @@ export const PLATFORM_ONLY_ENV_KEYS: ReadonlySet<string> = new Set([
   'email.zepto_api_key',
 ])
 
+/**
+ * Env fallbacks that every site shares on an ordinary install but only the primary site
+ * gets while the hosting-platform switch is on (hosting-platform.ts). Sharing the
+ * operator's AI keys is fine across sites the operator runs; across paying customers it
+ * would put every customer's AI use on the operator's provider bill, uncounted. With
+ * these withheld a hosted site falls back to Workers AI (counted as AI credits against its
+ * plan, ai-allowance.ts) or uses its own key. The gateway settings go too, so a
+ * customer's own-key requests aren't logged in the operator's AI Gateway. The same goes
+ * for Cloudflare Stream and Images, billed per minute and per image to the operator's
+ * account with no plan limit of their own: a hosted site's images fall through to the
+ * shared R2 bucket (counted by the plan's storage limit), and video needs the site's own
+ * Stream credentials.
+ */
+export const HOSTING_PLATFORM_ONLY_ENV_KEYS: ReadonlySet<string> = new Set([
+  'ai.provider',
+  'ai.openai_api_key',
+  'ai.anthropic_api_key',
+  'ai.gemini_api_key',
+  'ai.deepseek_api_key',
+  'ai.ollama_base_url',
+  'ai.ollama_model',
+  'ai.gateway_id',
+  'ai.gateway_token',
+  'cloudflare.account_id',
+  'cloudflare.stream_token',
+  'cloudflare.images_token',
+  'cloudflare.images_delivery_url',
+])
+
+/** Is the env-var fallback for `key` withheld from a site (see the two key sets above)? */
+export async function isEnvFallbackWithheld(db: Db, key: string, isPrimary: boolean): Promise<boolean> {
+  if (isPrimary) return false
+  if (PLATFORM_ONLY_ENV_KEYS.has(key)) return true
+  return HOSTING_PLATFORM_ONLY_ENV_KEYS.has(key) && await isHostingPlatform(db)
+}
+
+/**
+ * Ollama is only offered where the operator runs the site: on a hosting platform a
+ * customer's Ollama URL would have this Worker send requests to any address they type in,
+ * and a Worker can't reach anyone's own machine anyway. Off the hosting platform, or on
+ * the primary site, it's available as before.
+ */
+export async function isOllamaAvailable(event: H3Event): Promise<boolean> {
+  if (!(await isHostingPlatform(useDb(event)))) return true
+  return isPrimarySite(event, event.context.siteId as string | undefined)
+}
+
 export const SERVER_MANAGED_SETTING_KEYS: ReadonlySet<string> = new Set([
   'email.inbound_handle',
   // The hosting-platform switch (hosting-platform.ts) — super admin only, never restored.
   'platform.hosting_enabled',
+  // Platform-wide daily AI credit cap (ai-allowance.ts) — super admin only.
+  'platform.ai_daily_credit_cap',
   'hosting.stripe_webhook_secret',
   // Customers' own domains (hosting-domains.ts): the sites zone, its API token, the CNAME target.
   'hosting.cf_zone_id',
@@ -179,7 +229,8 @@ export async function resolveSetting(event: H3Event, key: string, envKey?: strin
 
   // Fall back to runtimeConfig env variables
   if (envKey) {
-    if (PLATFORM_ONLY_ENV_KEYS.has(key) && !(await isPrimarySite(event, siteId))) return ''
+    if ((PLATFORM_ONLY_ENV_KEYS.has(key) || HOSTING_PLATFORM_ONLY_ENV_KEYS.has(key))
+      && await isEnvFallbackWithheld(useDb(event), key, await isPrimarySite(event, siteId))) return ''
     return rc[envKey] || ''
   }
 

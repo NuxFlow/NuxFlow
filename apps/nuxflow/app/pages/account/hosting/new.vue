@@ -67,7 +67,10 @@ function features(plan: PublicPlan): string[] {
   out.push(l.maxStorageBytes == null ? 'Unlimited storage' : `${gb(l.maxStorageBytes)} storage`)
   out.push(l.maxContentItems == null ? 'Unlimited pages and posts' : `${l.maxContentItems.toLocaleString()} pages and posts`)
   out.push(l.maxTeamMembers == null ? 'Unlimited team members' : `${l.maxTeamMembers} team ${l.maxTeamMembers === 1 ? 'member' : 'members'}`)
-  if (l.maxAiCallsPerMonth !== 0) out.push(l.maxAiCallsPerMonth == null ? 'AI writing help' : `AI writing help (${l.maxAiCallsPerMonth.toLocaleString()} a month)`)
+  // maxAiCallsPerMonth holds AI credits (ai-allowance.ts). Own-key AI is always available.
+  out.push(l.maxAiCallsPerMonth === 0
+    ? 'AI tools with your own AI key'
+    : l.maxAiCallsPerMonth == null ? 'Built-in AI tools' : `Built-in AI tools (${l.maxAiCallsPerMonth.toLocaleString()} credits a month)`)
   if (l.maxPlugins !== 0) out.push('Plugins')
   if (l.maxCustomDomains !== 0) out.push(l.maxCustomDomains === 1 ? 'Connect your own domain' : 'Connect your own domains')
   out.push('Free SSL, backups you can take with you')

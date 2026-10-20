@@ -157,10 +157,11 @@ describe('AI and email counting', () => {
         warnings: [],
       }),
     })
-    const counted = withUsageCounting(ev({ siteId: A }), model)
+    const counted = withUsageCounting(ev({ siteId: A }), { model, payer: 'platform', heavy: false })
     await generateText({ model: counted, prompt: 'one' })
     await generateText({ model: counted, prompt: 'two' })
     expect(pendingFor('ai_calls')).toBe(2)
+    expect(pendingFor('ai_credits')).toBe(2)
   })
 
   it('counts emails a provider accepted, per recipient — not console sends or failures', async () => {

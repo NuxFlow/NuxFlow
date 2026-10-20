@@ -3,7 +3,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole, isSuperAdminOnSite } from '../../../utils/permissions'
 import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
-import { resolveSetting, batchSaveSettings, SERVER_MANAGED_SETTING_KEYS } from '../../../utils/settings'
+import { resolveSetting, batchSaveSettings, isOllamaAvailable, SERVER_MANAGED_SETTING_KEYS } from '../../../utils/settings'
 import { normalizeDomain } from '../../../utils/domain'
 import { clearSiteCache } from '../../../middleware/02.multi-site'
 import { clearAppearanceCache } from '../../../utils/appearance-cache'
@@ -149,6 +149,13 @@ export default defineEventHandler(async (event) => {
     if (ai.ollamaModel !== undefined) settingEntries.push(['ai.ollama_model', ai.ollamaModel])
     if (ai.gatewayId !== undefined) settingEntries.push(['ai.gateway_id', ai.gatewayId])
     if (ai.gatewayToken !== undefined) settingEntries.push(['ai.gateway_token', ai.gatewayToken])
+  }
+
+  // Ollama isn't offered to customer sites on a hosting platform (isOllamaAvailable).
+  // Checked on the collected entries, so the generic `settings` map can't get round it.
+  const setsOllama = settingEntries.some(([k, v]) => (k === 'ai.provider' && v === 'ollama') || ((k === 'ai.ollama_base_url' || k === 'ai.ollama_model') && v))
+  if (setsOllama && !(await isOllamaAvailable(event))) {
+    throw badRequest('Ollama isn\'t available on this site. Use Cloudflare Workers AI, or add your own key for another provider.')
   }
 
   if (body.cloudflare) {

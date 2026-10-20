@@ -129,6 +129,16 @@ export const ALLOWLIST: AllowlistEntry[] = [
     reason: "Nightly usage totals: one grouped count per table for every site's row at once.",
   },
   {
+    file: 'server/utils/ai-allowance.ts',
+    tables: ['site_usage_daily'],
+    reason: "Platform-wide daily AI cap: today's AI credits summed across every customer site.",
+  },
+  {
+    file: 'server/api/v1/admin/platform/index.get.ts',
+    tables: ['site_usage_daily'],
+    reason: "Super Admin → Platform shows today's AI credits across every customer site (requireSuperAdmin).",
+  },
+  {
     file: 'server/scheduled/plan-usage-alerts.ts',
     tables: ['site_usage_daily'],
     reason: "Hourly hosting-plan check: this month's totals for every site at once, compared with each site's plan.",

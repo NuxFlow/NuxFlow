@@ -20,6 +20,7 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 interface SiteData {
   site: { id: string; name: string; domain: string; locale: string; timezone: string; status: string; isPrimary?: boolean }
   settings: Record<string, unknown>
+  ollamaAvailable?: boolean
 }
 
 const { data, refresh } = await useFetch<SiteData>('/api/v1/settings')
@@ -373,7 +374,7 @@ async function save() {
         <AdminSettingsPaymentsTab v-if="active === 'Payments'" v-model:payments="payments" :domain="general.domain" :saving="saving" :on-save="save" />
         <AdminSettingsMediaTab v-if="active === 'Media'" v-model:cloudflare="cloudflare" v-model:r2="r2" v-model:s3="s3" v-model:bunny="bunny" :saving="saving" :on-save="save" />
         <AdminSettingsIntegrationsTab v-if="active === 'Integrations'" v-model:integrations="integrations" v-model:social="social" :domain="general.domain" :is-primary="isPrimarySite" :saving="saving" :on-save="save" />
-        <AdminSettingsAiTab v-if="active === 'AI Settings'" v-model:ai="ai" :saving="saving" :on-save="save" />
+        <AdminSettingsAiTab v-if="active === 'AI Settings'" v-model:ai="ai" :saving="saving" :on-save="save" :ollama-available="data?.ollamaAvailable !== false" />
         <AdminSettingsPushTab v-if="active === 'Push'" v-model:push="push" :saving="saving" :on-save="save" />
         <AdminSettingsSecurityTab v-if="active === 'Security'" v-model:security="security" />
         <AdminSettingsDangerZoneTab

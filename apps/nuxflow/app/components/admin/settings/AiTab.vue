@@ -2,18 +2,21 @@
 import type { AiState } from '~/types/admin-settings'
 
 const ai = defineModel<AiState>('ai', { required: true })
-defineProps<{
+const props = withDefaults(defineProps<{
   saving: boolean
   onSave: () => Promise<void>
-}>()
+  /** False for a customer site on a hosting platform, which isn't offered Ollama. */
+  ollamaAvailable?: boolean
+}>(), { ollamaAvailable: true })
 
-const aiProviderOptions = [
+const allProviderOptions = [
   { label: 'OpenAI', value: 'openai' },
   { label: 'Anthropic', value: 'anthropic' },
   { label: 'Google Gemini', value: 'gemini' },
   { label: 'DeepSeek', value: 'deepseek' },
   { label: 'Local (Ollama)', value: 'ollama' },
 ]
+const aiProviderOptions = computed(() => props.ollamaAvailable ? allProviderOptions : allProviderOptions.filter(o => o.value !== 'ollama'))
 </script>
 
 <template>

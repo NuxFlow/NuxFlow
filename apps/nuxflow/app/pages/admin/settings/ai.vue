@@ -35,9 +35,12 @@ const testResult = ref<'ok' | 'error' | null>(null)
 interface SiteData {
   site: { id: string; name: string; domain: string; locale: string; timezone: string; status: string }
   settings: Record<string, unknown>
+  ollamaAvailable?: boolean
 }
 
 const { data, refresh } = await useFetch<SiteData>('/api/v1/settings')
+// Customer sites on a hosting platform don't get Ollama (settings.ts, isOllamaAvailable).
+const availableProviders = computed(() => data.value?.ollamaAvailable === false ? providers.filter(p => p.value !== 'ollama') : providers)
 
 watch(data, (d) => {
   if (!d) return
@@ -115,7 +118,7 @@ const isLocalOllamaUrl = computed(() => {
         <UFormField label="Active provider">
           <USelect
             v-model="form.provider"
-            :items="providers.map(p => ({ label: p.label, value: p.value }))"
+            :items="availableProviders.map(p => ({ label: p.label, value: p.value }))"
           />
         </UFormField>
 
