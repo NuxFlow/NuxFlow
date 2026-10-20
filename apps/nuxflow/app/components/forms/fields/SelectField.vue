@@ -7,6 +7,6 @@ defineEmits<{ 'update:modelValue': [v: string] }>()
 </script>
 <template>
   <UFormField :label="field.label" :required="field.required" :hint="field.helpText">
-    <USelect :items="field.options ?? []" :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event as string)" />
+    <USelect class="w-full" :items="field.options ?? []" :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event as string)" />
   </UFormField>
 </template>
