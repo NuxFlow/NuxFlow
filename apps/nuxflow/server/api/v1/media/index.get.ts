@@ -3,7 +3,7 @@ import { requireAuth } from '../../../utils/permissions'
 import { parsePagination } from '../../../utils/pagination'
 import { paginate, countRows } from '@nuxflow/db/queries'
 import { media } from '@nuxflow/db/schema'
-import { and, eq, isNull, desc } from 'drizzle-orm'
+import { and, asc, eq, isNull, desc } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
@@ -27,7 +27,11 @@ export default defineEventHandler(async (event) => {
     countRows(db, media, where),
     () => db.query.media.findMany({
       where,
-      orderBy: [desc(media.createdAt)],
+      // `sort=name` gives camera order (DSC_0001, DSC_0002…) for adding a shoot to a
+      // gallery; the id tiebreak keeps paging stable when names repeat.
+      orderBy: query.sort === 'name'
+        ? [asc(media.originalName), asc(media.id)]
+        : [desc(media.createdAt)],
       limit,
       offset,
       // Explicit projection — the admin media grid (app/pages/admin/media/index.vue)

@@ -9,9 +9,18 @@
 // own isolated tests/dev, which don't boot the full Nuxt app.
 import { nextTick, onMounted, onUnmounted, ref, resolveComponent } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
+import type { PickedMedia } from '../utils/gallery'
+
+// `multiple` puts the picker in multi-select mode (Gallery/Carousel image lists) and
+// emits `selectMany` once with every chosen file; otherwise `select` with one file.
+const props = withDefaults(defineProps<{ multiple?: boolean; label?: string }>(), {
+  multiple: false,
+  label: 'Choose from library',
+})
 
 const emit = defineEmits<{
-  select: [{ url: string; width?: number; height?: number; altText?: string }]
+  select: [PickedMedia]
+  selectMany: [PickedMedia[]]
 }>()
 
 const open = ref(false)
@@ -41,13 +50,25 @@ function closePicker() {
   previouslyFocused?.focus()
 }
 
-function onSelect(file: { url: string; width?: number | null; height?: number | null; altText?: string }) {
-  emit('select', {
+interface RawPicked { url: string; width?: number | null; height?: number | null; altText?: string | null; caption?: string | null }
+
+function toPicked(file: RawPicked): PickedMedia {
+  return {
     url: file.url,
     width: file.width ?? undefined,
     height: file.height ?? undefined,
-    altText: file.altText,
-  })
+    altText: file.altText ?? undefined,
+    caption: file.caption ?? undefined,
+  }
+}
+
+function onSelect(file: RawPicked) {
+  emit('select', toPicked(file))
+  closePicker()
+}
+
+function onSelectMany(files: RawPicked[]) {
+  emit('selectMany', files.map(toPicked))
   closePicker()
 }
 
@@ -62,7 +83,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
     @click="openPicker"
   >
     <UIcon name="i-lucide-image-plus" mode="svg" class="w-3.5 h-3.5" />
-    Choose from library
+    {{ props.label }}
   </button>
 
   <Teleport v-if="open" to="body">
@@ -75,9 +96,9 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
       tabindex="-1"
       @click.self="closePicker"
     >
-      <div class="w-full max-w-2xl rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl p-4 space-y-3">
+      <div class="w-full max-w-3xl rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl p-4 space-y-3">
         <div class="flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Choose from library</h3>
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ props.multiple ? 'Add images from library' : 'Choose from library' }}</h3>
           <button
             type="button"
             class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
@@ -87,7 +108,13 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
             <UIcon name="i-lucide-x" mode="svg" class="w-4 h-4 block" />
           </button>
         </div>
-        <component :is="pickerComponent" v-if="pickerComponent" @select="onSelect" />
+        <component
+          :is="pickerComponent"
+          v-if="pickerComponent"
+          :multiple="props.multiple"
+          @select="onSelect"
+          @select-many="onSelectMany"
+        />
         <p v-else class="text-sm text-gray-400">Media library unavailable.</p>
       </div>
     </div>

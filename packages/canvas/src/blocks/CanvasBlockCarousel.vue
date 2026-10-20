@@ -130,7 +130,7 @@ const containerStyle = computed(() => (props.padding ? { padding: spacingToCss(p
         <div
           v-for="(img, i) in parsedImages"
           :key="i"
-          class="h-full w-full shrink-0"
+          class="relative h-full w-full shrink-0"
           :aria-hidden="i !== current"
         >
           <NuxImage
@@ -140,6 +140,12 @@ const containerStyle = computed(() => (props.padding ? { padding: spacingToCss(p
             class="h-full w-full object-cover"
             :loading="i === 0 ? 'eager' : 'lazy'"
           />
+          <p
+            v-if="img.caption"
+            class="canvas-carousel-caption absolute inset-x-0 bottom-0 px-4 pt-8 pb-8 text-sm text-white text-center bg-gradient-to-t from-black/60 to-transparent"
+          >
+            {{ img.caption }}
+          </p>
         </div>
       </div>
 

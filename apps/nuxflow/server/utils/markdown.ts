@@ -376,9 +376,10 @@ function canvasBlockToMarkdown(block: CanvasBlock): string {
     }
     case 'canvas-gallery':
     case 'canvas-carousel':
-      for (const img of parseJsonList<{ url?: string; alt?: string }>(p.images)) {
+      for (const img of parseJsonList<{ url?: string; alt?: string; caption?: string }>(p.images)) {
         const url = safeUrl(imageUrl(img))
         if (url) push(`![${escapeMarkdown(s(img.alt))}](${url})`)
+        if (url) push(para(s(img.caption)))
       }
       break
     case 'canvas-video':
