@@ -43,8 +43,9 @@ export async function getContentTypeBySlugOrThrow(db: Db, siteId: string, slug: 
  * `settings.access` (see SeoPanel.vue). This derives the column that must stay in sync with
  * that setting so gated content is actually enforced instead of silently defaulting to public.
  */
-export function deriveVisibilityFromSettings(settings: Record<string, unknown> | null | undefined): 'public' | 'members' {
+export function deriveVisibilityFromSettings(settings: Record<string, unknown> | null | undefined): 'public' | 'members' | 'password' {
   const access = (settings as { access?: string } | null)?.access
+  if (access === 'password') return 'password'
   return access && access !== 'public' ? 'members' : 'public'
 }
 

@@ -53,7 +53,7 @@ export default defineEventHandler(async (event) => {
   //   bare session nor just any role here is a reason to skip moderation. Reuses the
   //   `session` already fetched above instead of a second Better Auth lookup.
   const [item, , roleRow] = await Promise.all([
-    getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true, status: true, allowComments: true, typeId: true, visibility: true, settings: true }),
+    getContentItemOrThrow(db, siteId, itemId, 'Content item not found', { id: true, status: true, allowComments: true, typeId: true, visibility: true, settings: true, sourceItemId: true }),
     parsed.parentId
       ? getCommentByIdOrThrow(db, siteId, parsed.parentId, 'Parent comment not found', itemId)
       : Promise.resolve(null),
@@ -76,7 +76,7 @@ export default defineEventHandler(async (event) => {
   // Only people who can read the page may join its discussion — same members/tier gate as
   // the page itself (and the comments list, content/[id]/comments.get.ts).
   const isStaff = Boolean(roleRow && roleAtLeast(roleRow.role as Role, 'author'))
-  if (!isStaff && await checkContentAccess(event, { visibility: item.visibility, settings: item.settings as Record<string, unknown> | null }, siteId)) {
+  if (!isStaff && await checkContentAccess(event, { id: item.id, sourceItemId: item.sourceItemId, visibility: item.visibility, settings: item.settings as Record<string, unknown> | null }, siteId)) {
     throw forbidden('Comments are not open on this item')
   }
 

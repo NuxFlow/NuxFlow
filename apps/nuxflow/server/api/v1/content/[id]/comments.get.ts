@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   const canModerate = await requireRole(event, 'editor').then(() => true, () => false)
 
   const item = await getContentItemOrThrow(db, siteId, itemId, 'Content item not found', {
-    status: true, visibility: true, settings: true,
+    status: true, visibility: true, settings: true, sourceItemId: true,
   })
 
   // Everyone else sees a page's discussion only where they could see the page itself:
@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
   // an item id was enough to read the comments on a draft, private or members-only page.
   if (!canModerate) {
     const gate = item.status === 'published'
-      ? await checkContentAccess(event, { visibility: item.visibility, settings: item.settings as Record<string, unknown> | null }, siteId)
+      ? await checkContentAccess(event, { id: itemId, sourceItemId: item.sourceItemId, visibility: item.visibility, settings: item.settings as Record<string, unknown> | null }, siteId)
       : { blocked: true }
     if (gate) throw notFound('Content item not found')
   }

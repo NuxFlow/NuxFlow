@@ -71,6 +71,21 @@ Turn on **Image Transformations** in **Settings → Media** (after the one-time 
 
 ---
 
+## Client Galleries
+
+A client gallery is a page only your client can open — for example the photos from their wedding.
+
+1. Upload the photos into their own folder in the **Media Library** (e.g. *Smith wedding*).
+2. Create a Canvas page (e.g. `/smith-wedding`) and add a **Gallery** block with the whole folder (see *Adding images* above).
+3. In the editor's **SEO & Access** panel, set **Content access** to **Password protected** and choose a **Page password**.
+4. Publish, and send your client the page link and the password.
+
+Your client sees a password form; after entering it, their browser remembers it for 30 days. You (signed in) always see the page. Changing the password asks everyone for the new one. Password-protected galleries are never listed in search, sitemaps or Google Images.
+
+> **Good to know:** the password protects the page. Each photo is stored at a long, unguessable address, but someone who is sent a photo's direct link can still open it.
+
+---
+
 ## Focal Point Editor
 
 The focal point tells NuxFlow which part of an image is most important. When an image is cropped to fit a container — for example, a banner or a portrait-format image in a landscape slot — the focal point is kept in view.

@@ -49,6 +49,10 @@ const form = reactive({
   excerpt: '',
   ogImage: '',
   access: 'public' as string,
+  // Password-protected pages: a new password to send once (write-only), and whether the
+  // page already has one (the server never returns the password or its hash).
+  pagePassword: '',
+  hasPassword: false,
   allowComments: null as boolean | null,
   eventStartAt: '',
   eventEndAt: '',
@@ -83,6 +87,8 @@ watch(item, (val) => {
   form.excerpt = val.excerpt ?? ''
   form.ogImage = val.ogImage ?? ''
   form.access = (val.settings as Record<string, unknown> | null)?.access as string ?? 'public'
+  form.hasPassword = Boolean((val.settings as Record<string, unknown> | null)?.hasPassword)
+  form.pagePassword = ''
   form.allowComments = val.allowComments ?? null
   form.eventStartAt = val.eventStartAt ? val.eventStartAt.substring(0, 16) : ''
   form.eventEndAt = val.eventEndAt ? val.eventEndAt.substring(0, 16) : ''
@@ -175,6 +181,11 @@ async function save(overrideStatus?: string) {
     canvasEditorRef.value?.flushPendingProps?.()
     await nextTick()
   }
+  if (form.access === 'password' && !form.hasPassword && !form.pagePassword) {
+    saveError.value = 'Enter a password for this page (under Content access) before saving.'
+    return
+  }
+  const newPassword = form.access === 'password' && form.pagePassword ? form.pagePassword : undefined
   saving.value = true
   saveError.value = ''
   try {
@@ -199,6 +210,7 @@ async function save(overrideStatus?: string) {
       eventUrl: form.eventUrl || null,
       eventAllDay: form.eventAllDay,
       termIds: form.termIds,
+      pagePassword: newPassword,
     }
     if (isNew.value) {
       const result = await $fetch<{ id: string }>('/api/v1/content', {
@@ -219,6 +231,11 @@ async function save(overrideStatus?: string) {
       const contentUrl: string = `/api/v1/content/${id.value}`
       await $fetch(contentUrl, { method: 'PATCH', body })
       lastSaved.value = new Date()
+    }
+    if (newPassword) {
+      form.hasPassword = true
+      // Cleared only if nobody typed a different one while the save was in flight.
+      if (form.pagePassword === newPassword) form.pagePassword = ''
     }
   } catch (e: unknown) {
     saveError.value = getErrorMessage(e, 'Failed to save. Please try again.')
@@ -375,6 +392,8 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
             seoTitle: form.seoTitle,
             seoDescription: form.seoDescription,
             access: form.access,
+            pagePassword: form.pagePassword,
+            hasPassword: form.hasPassword,
             canonicalUrl: form.canonicalUrl,
             focusKeyword: form.focusKeyword,
             metaRobots: form.metaRobots,
@@ -387,6 +406,7 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
             form.seoTitle = v.seoTitle ?? ''
             form.seoDescription = v.seoDescription ?? ''
             form.access = v.access ?? 'public'
+            form.pagePassword = v.pagePassword ?? ''
             form.canonicalUrl = v.canonicalUrl ?? ''
             form.focusKeyword = v.focusKeyword ?? ''
             form.metaRobots = v.metaRobots ?? ''

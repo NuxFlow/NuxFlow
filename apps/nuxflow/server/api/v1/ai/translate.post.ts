@@ -195,6 +195,10 @@ export default defineEventHandler(async (event) => {
     title: translatedTitle,
     status: 'draft',
     visibility: source.visibility,
+    // Same access as the original: its membership tier or page password (a translation
+    // of a client gallery opens with the same password). Copying only `visibility` used
+    // to turn a tier-only page's translation into any-member access.
+    settings: source.settings,
     content: translatedContent,
     seoTitle: translations['__seoTitle__'] ?? null,
     seoDescription: translations['__seoDescription__'] ?? null,

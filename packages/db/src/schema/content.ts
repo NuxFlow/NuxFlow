@@ -48,7 +48,8 @@ export const contentItems = sqliteTable('content_items', {
   // dead branch silently required a paid subscription instead of a password if it had ever
   // been reachable. No DB migration needed — SQLite has no native enum type, so Drizzle's
   // `enum` option here is TypeScript-only, not a DB-level CHECK constraint.
-  visibility: text('visibility', { enum: ['public', 'private', 'members'] }).notNull().default('public'),
+  // 'password': settings.access = 'password' + settings.passwordHash (apps/nuxflow/server/utils/page-password.ts).
+  visibility: text('visibility', { enum: ['public', 'private', 'members', 'password'] }).notNull().default('public'),
   content: text('content', { mode: 'json' }).$type<unknown>(),
   excerpt: text('excerpt'),
   seoTitle: text('seo_title'),

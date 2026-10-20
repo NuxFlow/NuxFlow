@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { membershipTiers, subscriptions } from '@nuxflow/db/schema'
 import { useDb } from './db'
+import { hasValidUnlock, isSiteStaff } from './page-password'
 
 /**
  * The public access gate for one content item's `visibility` (+ `settings.access` for
@@ -10,12 +11,24 @@ import { useDb } from './db'
  * paywall) and by anything else that exposes an item's content or discussion publicly,
  * such as its comments — so a members-only page's comments are gated exactly like the page.
  */
-export async function checkContentAccess(event: H3Event, page: { visibility: string; settings: Record<string, unknown> | null | undefined }, siteId: string) {
+export async function checkContentAccess(
+  event: H3Event,
+  page: { id?: string; sourceItemId?: string | null; visibility: string; settings: Record<string, unknown> | null | undefined },
+  siteId: string,
+) {
   const visibility = page.visibility ?? 'public'
   if (visibility === 'public') return null
 
   // private pages are never accessible via public API
   if (visibility === 'private') return { blocked: true, reason: 'private' as const, requiredTier: null, tiers: [] }
+
+  // password-protected (client galleries): the visitor's unlock cookie, or signed-in staff.
+  // Fails closed when the caller didn't pass the item's id.
+  if (visibility === 'password') {
+    if (page.id && await hasValidUnlock(event, siteId, { id: page.id, sourceItemId: page.sourceItemId, settings: page.settings })) return null
+    if (await isSiteStaff(event, siteId)) return null
+    return { blocked: true, reason: 'password' as const, requiredTier: null, tiers: [] }
+  }
 
   // members-only: check active subscription
   if (visibility === 'members') {

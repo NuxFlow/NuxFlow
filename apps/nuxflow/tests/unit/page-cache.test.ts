@@ -39,6 +39,13 @@ describe('isPageCacheEligible', () => {
   // Fail-safe by design: any cookie not on the ignore list disqualifies the request — a
   // future plugin or feature adding a new cookie means "stop caching that request", never
   // "risk serving one visitor's personalized/private response to someone else".
+  // A password-protected page's unlock cookie (server/utils/page-password.ts): the HTML it
+  // gets is that page's real content, so it must never be stored or served from the cache.
+  // Never add `nf_unlock_` to the ignored-cookie list.
+  it('rejects a request carrying a page-unlock cookie', () => {
+    expect(isPageCacheEligible(mkEvent({ cookies: { nf_unlock_01JABCDEFGHJKMNPQRSTVWXYZ0: '1893456000.abc' } }))).toBe(false)
+  })
+
   it('rejects a request carrying a session cookie', () => {
     expect(isPageCacheEligible(mkEvent({ cookies: { 'better-auth.session_token': 'abc123' } }))).toBe(false)
   })
