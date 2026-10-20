@@ -209,8 +209,6 @@ export default defineNuxtConfig({
         '@tiptap/vue-3',
         '@tiptap/starter-kit',
         '@tiptap/extension-placeholder',
-        '@tiptap/extension-link',
-        '@tiptap/extension-underline',
         '@tiptap/extension-highlight',
         '@tiptap/extension-table',
       ],

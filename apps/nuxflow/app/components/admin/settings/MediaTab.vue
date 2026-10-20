@@ -118,7 +118,7 @@ defineProps<{
     </template>
   </UAlert>
 
-  <UDivider />
+  <USeparator />
 
   <UAlert
     icon="i-lucide-arrow-down-up"

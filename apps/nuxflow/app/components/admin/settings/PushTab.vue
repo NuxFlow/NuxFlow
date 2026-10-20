@@ -118,7 +118,7 @@ onMounted(() => fetchPushSubscriberCount())
         </div>
         <USwitch v-model="push.eventsContentPublished" :disabled="!push.vapidPublicKey" />
       </div>
-      <UDivider />
+      <USeparator />
       <div class="flex items-start justify-between gap-4">
         <div>
           <p class="text-sm font-medium text-gray-900 dark:text-white">Payment confirmation</p>
@@ -126,7 +126,7 @@ onMounted(() => fetchPushSubscriberCount())
         </div>
         <USwitch v-model="push.eventsPaymentConfirmation" :disabled="!push.vapidPublicKey" />
       </div>
-      <UDivider />
+      <USeparator />
       <div class="flex items-start justify-between gap-4">
         <div>
           <p class="text-sm font-medium text-gray-900 dark:text-white">Form submission confirmation</p>
@@ -165,7 +165,7 @@ onMounted(() => fetchPushSubscriberCount())
         </UButton>
       </div>
 
-      <UDivider />
+      <USeparator />
 
       <p class="text-sm font-medium text-gray-900 dark:text-white">Broadcast to all subscribers</p>
       <UFormField label="Title">

@@ -3,8 +3,6 @@ import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Image from '@tiptap/extension-image'
-import Link from '@tiptap/extension-link'
-import Underline from '@tiptap/extension-underline'
 import Highlight from '@tiptap/extension-highlight'
 import { TableKit } from '@tiptap/extension-table'
 
@@ -33,18 +31,20 @@ const isMediaModalOpen = ref(false)
 
 const editor = useEditor({
   extensions: [
-    StarterKit,
+    // StarterKit v3 already bundles Link and Underline — configure them here rather
+    // than adding the separate extensions too (a duplicate is what TipTap warns about).
+    StarterKit.configure({
+      link: {
+        openOnClick: false,
+        autolink: true,
+        defaultProtocol: 'https',
+      },
+    }),
     Image.configure({
       inline: true,
       allowBase64: true,
     }),
     Placeholder.configure({ placeholder: 'Start writing your content here…' }),
-    Link.configure({
-      openOnClick: false,
-      autolink: true,
-      defaultProtocol: 'https',
-    }),
-    Underline,
     Highlight,
     TableKit.configure({
       table: {

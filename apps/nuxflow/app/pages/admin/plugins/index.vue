@@ -228,8 +228,7 @@ async function dynUninstall(id: string, name: string) {
                 </span>
               </div>
               <div v-if="plugin.permissions.length" class="flex flex-wrap gap-1 mt-2">
-                <!-- A plain title, not <UTooltip>: Nuxt UI's tooltip needs a <UApp> provider
-                     this app doesn't use (it 500s the page during SSR). -->
+                <!-- A plain title attribute rather than <UTooltip> (which needs the <UApp> root in app.vue). -->
                 <UBadge
                   v-for="perm in plugin.permissions"
                   :key="perm"

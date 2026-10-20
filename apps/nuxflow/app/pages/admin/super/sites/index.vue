@@ -136,8 +136,7 @@ async function deleteSite() {
         <template #actions-cell="{ row }">
           <div class="flex items-center gap-1.5">
             <UButton variant="ghost" size="xs" icon="i-lucide-pencil" :aria-label="`Edit ${row.original.name}`" @click="openEdit(row.original)" />
-            <!-- A plain title, not <UTooltip>: Nuxt UI's tooltip needs a <UApp> provider this
-                 app doesn't use, and without one it rendered nothing — taking the button with it. -->
+            <!-- A plain title attribute rather than <UTooltip> (which needs the <UApp> root in app.vue). -->
             <UButton
               variant="ghost"
               color="error"
