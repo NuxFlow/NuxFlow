@@ -8,6 +8,7 @@ import { normalizeDomain } from '../../../../utils/domain'
 import { eventForSite, getPrimarySite } from '../../../../utils/site-info'
 import { saveSetting } from '../../../../utils/settings'
 import { writeAuditLog } from '../../../../utils/audit'
+import { AI_DAILY_CAP_SETTING_KEY, clearAiDailyCapCache } from '../../../../utils/ai-allowance'
 
 const bodySchema = z.object({
   hostingEnabled: z.boolean().optional(),
@@ -17,6 +18,8 @@ const bodySchema = z.object({
   cfZoneId: z.string().trim().regex(/^(?:[a-f0-9]{32})?$/i, 'A zone ID is 32 letters and numbers (Cloudflare → your sites domain → Overview).').optional(),
   cfApiToken: z.string().trim().max(200).optional(),
   customDomainTarget: z.string().trim().max(253).optional(),
+  /** Most AI credits all customer sites together may use per UTC day; null removes the cap. */
+  aiDailyCreditCap: z.number().int().min(0).max(100_000_000).nullable().optional(),
 })
 
 /**
@@ -49,6 +52,10 @@ export default defineEventHandler(async (event) => {
     if (target === null) throw validationError('Enter the CNAME target as a hostname, e.g. customers.nuxflow.site.')
     await saveSetting(primaryEvent, SAAS_TARGET_KEY, target || null)
   }
+  if (body.aiDailyCreditCap !== undefined) {
+    await saveSetting(primaryEvent, AI_DAILY_CAP_SETTING_KEY, body.aiDailyCreditCap)
+    clearAiDailyCapCache()
+  }
   await writeAuditLog(event, userId, {
     action: 'update',
     resource: 'platform',
@@ -59,6 +66,7 @@ export default defineEventHandler(async (event) => {
       cfZoneId: body.cfZoneId,
       cfApiToken: body.cfApiToken === undefined ? undefined : (body.cfApiToken ? 'set' : 'removed'),
       customDomainTarget: body.customDomainTarget,
+      aiDailyCreditCap: body.aiDailyCreditCap,
     },
   })
   return { hostingEnabled: body.hostingEnabled }

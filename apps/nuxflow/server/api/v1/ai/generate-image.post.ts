@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { requireRole } from '../../../utils/permissions'
 import { getImageProvider } from '../../../utils/image-providers/index'
 import { callAiOrThrow } from '../../../utils/ai-sdk'
-import { countUsage } from '../../../utils/usage'
+import { AI_CREDITS, assertAiAllowance, recordAiCall } from '../../../utils/ai-allowance'
 import { assertWithinPlan } from '../../../utils/hosting-plans'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { rateLimit } from '../../../utils/rate-limit'
@@ -29,11 +29,12 @@ export default defineEventHandler(async (event) => {
   const { prompt, shape, quality, saveToLibrary } = await parseBody(event, bodySchema)
   const siteId = event.context.siteId as string
 
-  await assertWithinPlan(event, 'ai')
+  // Only images the platform pays for are limited; the site's own key is never refused.
+  if (imageProvider.payer === 'platform') await assertAiAllowance(event, AI_CREDITS.image)
   // Saving needs room in the library; checked before generating so a full library
   // doesn't spend an AI call on an image that then can't be kept.
   if (saveToLibrary) await assertWithinPlan(event, 'storage')
-  countUsage(event, 'ai_calls')
+  recordAiCall(event, imageProvider.payer, AI_CREDITS.image)
   const imageUrl = await callAiOrThrow(() => imageProvider.generate(prompt, { shape, quality }))
 
   if (!saveToLibrary) {

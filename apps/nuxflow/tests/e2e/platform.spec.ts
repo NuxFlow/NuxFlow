@@ -42,6 +42,19 @@ test.describe('Super Admin → Platform', () => {
     // The setup checklist appears once hosting is on.
     await expect(page.getByText('Customer sign-up')).toBeVisible()
 
+    // The daily cap on AI the platform pays for: set it, see it, remove it.
+    const capField = page.getByLabel('Daily cap (credits)')
+    // The innermost element holding both the heading and the field is the card itself.
+    const aiCard = page.locator('div').filter({ has: page.getByRole('heading', { name: 'AI you pay for' }) }).filter({ has: capField }).last()
+    await expect(aiCard.getByText('No daily cap')).toBeVisible()
+    await capField.fill('5000')
+    await aiCard.getByRole('button', { name: 'Save' }).click()
+    await expect(aiCard.getByText('Capped')).toBeVisible()
+    await expect(aiCard.getByText(/of 5,000\s+credits/)).toBeVisible()
+    await capField.fill('')
+    await aiCard.getByRole('button', { name: 'Save' }).click()
+    await expect(aiCard.getByText('No daily cap')).toBeVisible()
+
     await page.goto('/admin/super/plans')
     await expect(page.getByRole('heading', { name: 'Plans', exact: true })).toBeVisible()
 

@@ -6,19 +6,23 @@ import { accountsUrl, isCentralAuth } from '../../../../utils/accounts-origin'
 import { HOSTING_WEBHOOK_SECRET_KEY, hostingSitesDomain } from '../../../../utils/hosting-billing'
 import { resolveSetting } from '../../../../utils/settings'
 import { customDomainTarget, SAAS_TOKEN_KEY, SAAS_ZONE_KEY } from '../../../../utils/hosting-domains'
+import { getAiDailyCap, platformAiCreditsToday } from '../../../../utils/ai-allowance'
 
 /** Super Admin → Platform: the hosting switch, and what selling sites still needs. */
 export default defineEventHandler(async (event) => {
   await requireSuperAdmin(event)
   const primary = await getPrimarySite(event)
   const primaryEvent = primary ? eventForSite(event, primary.id) : null
-  const [hostingEnabled, stripeKey, webhookSecret, cfZoneId, cfToken, target] = await Promise.all([
-    isHostingPlatform(useDb(event)),
+  const db = useDb(event)
+  const [hostingEnabled, stripeKey, webhookSecret, cfZoneId, cfToken, target, aiDailyCap, aiCreditsToday] = await Promise.all([
+    isHostingPlatform(db),
     primaryEvent ? resolveSetting(primaryEvent, 'payments.stripe_secret_key', 'stripeSecretKey') : '',
     primaryEvent ? resolveSetting(primaryEvent, HOSTING_WEBHOOK_SECRET_KEY) : '',
     primaryEvent ? resolveSetting(primaryEvent, SAAS_ZONE_KEY) : '',
     primaryEvent ? resolveSetting(primaryEvent, SAAS_TOKEN_KEY) : '',
     primaryEvent ? customDomainTarget(primaryEvent) : '',
+    getAiDailyCap(db),
+    platformAiCreditsToday(db, primary?.id ?? null),
   ])
   const central = isCentralAuth()
   return {
@@ -36,5 +40,7 @@ export default defineEventHandler(async (event) => {
       tokenSet: !!cfToken,
       target: target || null,
     },
+    // Platform-wide daily brake on AI the platform pays for (ai-allowance.ts).
+    ai: { dailyCap: aiDailyCap, creditsToday: aiCreditsToday },
   }
 })

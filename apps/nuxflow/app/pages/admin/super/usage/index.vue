@@ -2,7 +2,7 @@
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Usage' })
 
-type MetricKey = 'views' | 'renders' | 'api' | 'ai_calls' | 'emails'
+type MetricKey = 'views' | 'renders' | 'api' | 'ai_calls' | 'ai_credits' | 'emails'
   | 'storage_bytes' | 'content_items' | 'team_members' | 'site_members' | 'plugins'
 
 interface SiteUsage {
@@ -30,7 +30,8 @@ const METRICS: { key: MetricKey; label: string; hint: string; bytes?: boolean }[
   { key: 'views', label: 'Views', hint: 'Public page requests, cached or not' },
   { key: 'renders', label: 'Renders', hint: 'Pages built by the server — the best stand-in for CPU time' },
   { key: 'api', label: 'API', hint: 'Requests to the site’s /api routes' },
-  { key: 'ai_calls', label: 'AI calls', hint: 'Text, image, transcription and speech' },
+  { key: 'ai_calls', label: 'AI calls', hint: 'Every AI call: text, image, transcription and speech, whoever pays' },
+  { key: 'ai_credits', label: 'AI credits', hint: 'AI you pay for (Workers AI), weighted by cost — what plans limit. Sites’ own API keys aren’t counted' },
   { key: 'emails', label: 'Emails', hint: 'Recipients a provider accepted' },
   { key: 'storage_bytes', label: 'Storage', hint: 'Media library size (nightly)', bytes: true },
   { key: 'content_items', label: 'Pages', hint: 'Pages, posts and other content (nightly)' },
@@ -38,7 +39,7 @@ const METRICS: { key: MetricKey; label: string; hint: string; bytes?: boolean }[
   { key: 'site_members', label: 'Members', hint: 'Member role (nightly)' },
   { key: 'plugins', label: 'Plugins', hint: 'Installed plugins (nightly)' },
 ]
-const EVENT_METRICS = METRICS.slice(0, 5)
+const EVENT_METRICS = METRICS.slice(0, 6)
 
 const month = ref(new Date().toISOString().slice(0, 7))
 const { data, pending, error, refresh } = await useFetch<UsageResponse>('/api/v1/admin/usage', { query: { month } })
@@ -128,7 +129,7 @@ const hovered = ref<{ metric: MetricKey; index: number } | null>(null)
     <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-circle-alert" :description="getErrorMessage(error, 'Could not load usage')" />
 
     <template v-else-if="data">
-      <div class="grid gap-4 grid-cols-2 sm:grid-cols-5">
+      <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
         <UCard v-for="m in EVENT_METRICS" :key="m.key">
           <p class="text-xs text-gray-500">{{ m.label }}</p>
           <p class="text-2xl font-semibold text-gray-900 dark:text-white mt-1">{{ format(totals[m.key]) }}</p>

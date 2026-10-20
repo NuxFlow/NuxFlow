@@ -52,7 +52,7 @@ export function planMax(plan: HostingPlan | null, key: PlanLimitKey): number | n
 }
 
 const MONTHLY_METRIC: Record<'ai' | 'emails' | 'views' | 'renders', UsageEventMetric> = {
-  ai: 'ai_calls',
+  ai: 'ai_credits',
   emails: 'emails',
   views: 'views',
   renders: 'renders',
@@ -138,7 +138,7 @@ export function planLimitMessage(key: PlanLimitKey, max: number): string {
     case 'members': return "This site isn't accepting new members."
     case 'domains': return max === 0 ? "Your plan doesn't include your own domain. Ask about a bigger plan." : `Your plan allows ${max.toLocaleString('en')} of your own domains.`
     case 'plugins': return max === 0 ? "Your plan doesn't include plugins." : `Your plan allows ${max.toLocaleString('en')} plugins.`
-    case 'ai': return "This month's AI allowance is used up. It resets on the 1st."
+    case 'ai': return "This month's AI allowance is used up. It resets on the 1st. To keep going now, add your own AI key in Settings → AI."
     case 'emails': return "This month's email allowance is used up. It resets on the 1st. Sign-in and security emails still go out."
     default: return 'This is over your plan.'
   }

@@ -44,8 +44,10 @@ const { checkPlanLimit, assertWithinPlan, clearHostingPlanCache, limitForRole, p
 const { requireAiSdkModel, withUsageCounting } = await import('../../server/utils/ai-sdk')
 const { sendEmailWithConfig } = await import('../../server/utils/email')
 const { registerAccountForSite } = await import('../../server/utils/registration')
-const { flushUsage, resetUsageBuffer, usageDay } = await import('../../server/utils/usage')
-const { sendPlanUsageAlerts } = await import('../../server/scheduled/plan-usage-alerts')
+const { countUsage, flushUsage, pendingUsage, resetUsageBuffer, usageDay } = await import('../../server/utils/usage')
+const { checkAiAllowance, clearAiDailyCapCache } = await import('../../server/utils/ai-allowance')
+const { resolveSetting, saveSetting } = await import('../../server/utils/settings')
+const { sendPlanUsageAlerts, sendPlatformAiCapAlert } = await import('../../server/scheduled/plan-usage-alerts')
 const { default: createContent } = await import('../../server/api/v1/content/index.post')
 const { default: listPlans } = await import('../../server/api/v1/admin/plans/index.get')
 const { default: createPlan } = await import('../../server/api/v1/admin/plans/index.post')
@@ -73,6 +75,25 @@ const tenantAdmin = () => ({ user: { id: tenantAdminId, name: 'Ad', email: 'admi
 function ev(opts: Parameters<typeof createMockEvent>[0] = {}): H3Event {
   return createMockEvent({ siteId: TENANT, ...opts }) as unknown as H3Event
 }
+/** An event whose Worker has the Workers AI binding (never called — models are mocked or refused first). */
+function aiEv(opts: Parameters<typeof createMockEvent>[0] = {}): H3Event {
+  const event = ev(opts) as unknown as { context: Record<string, unknown> }
+  event.context.cloudflare = { env: { AI: {} }, context: { waitUntil: (p: Promise<unknown>) => { void p } } }
+  return event as unknown as H3Event
+}
+const usage = (inputTokens: number, outputTokens: number) => ({
+  inputTokens: { total: inputTokens, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+  outputTokens: { total: outputTokens, text: undefined, reasoning: undefined },
+})
+function mockModel(tokens: [number, number] = [100, 50]) {
+  return new MockLanguageModelV4({
+    doGenerate: async () => ({ content: [{ type: 'text', text: 'ok' }], finishReason: { unified: 'stop', raw: 'stop' }, usage: usage(...tokens), warnings: [] }),
+  })
+}
+// The first count in a fresh isolate is written straight away; count something on another
+// site first so the counts a test checks stay in the buffer.
+const primeUsageBuffer = () => countUsage(ev({ siteId: PRIMARY }), 'renders')
+const pendingFor = (metric: string, siteId = TENANT) => pendingUsage().filter(p => p.metric === metric && p.siteId === siteId).reduce((n, p) => n + p.value, 0)
 
 /** Puts the tenant on a fresh plan with only the given limits set. */
 async function useLimits(limits: Partial<typeof hostingPlans.$inferInsert>) {
@@ -159,8 +180,10 @@ describe('counting', () => {
 
   it('counts this month only for monthly limits, including counts not yet written', async () => {
     const db = getCurrentTestDb()
-    await flushUsage(db, [{ siteId: TENANT, day: '2000-01-15', metric: 'ai_calls', value: 999 }])
-    await setMonthUsage('ai_calls', 4)
+    await flushUsage(db, [{ siteId: TENANT, day: '2000-01-15', metric: 'ai_credits', value: 999 }])
+    await setMonthUsage('ai_credits', 4)
+    // Plain AI calls (which include the site's own key) don't count towards the plan.
+    await setMonthUsage('ai_calls', 50)
     expect(await planUsage(db, TENANT, 'ai')).toBe(4)
   })
 })
@@ -194,16 +217,49 @@ describe('enforcement', () => {
     await getCurrentTestDb().delete(dynamicPlugins)
   })
 
-  it('stops AI once the monthly allowance is used — up front, and at the model itself', async () => {
+  it('stops platform-paid AI once the monthly allowance is used — up front, and at the model itself', async () => {
     await useLimits({ maxAiCallsPerMonth: 3 })
-    await setMonthUsage('ai_calls', 3)
-    await expect(requireAiSdkModel(ev())).rejects.toMatchObject({ statusCode: 403, data: { code: 'plan_limit', limit: 'ai' } })
+    await setMonthUsage('ai_credits', 3)
+    await expect(requireAiSdkModel(aiEv())).rejects.toMatchObject({ statusCode: 403, data: { code: 'plan_limit', limit: 'ai' } })
 
     // Background features (spam checks, inbox triage) reach the model without
     // requireAiSdkModel — the wrapped model is the gate for them.
     const model = new MockLanguageModelV4({ doGenerate: async () => { throw new Error('should not be called') } })
-    await expect(generateText({ model: withUsageCounting(ev(), model), prompt: 'hi', maxRetries: 0 }))
+    await expect(generateText({ model: withUsageCounting(ev(), { model, payer: 'platform', heavy: false }), prompt: 'hi', maxRetries: 0 }))
       .rejects.toThrow("This month's AI allowance is used up")
+  })
+
+  it("never limits or charges AI on the site's own key, but still counts the call", async () => {
+    primeUsageBuffer()
+    await useLimits({ maxAiCallsPerMonth: 3 })
+    await setMonthUsage('ai_credits', 3)
+    const { text } = await generateText({ model: withUsageCounting(ev(), { model: mockModel(), payer: 'site', heavy: true }), prompt: 'hi', maxRetries: 0 })
+    expect(text).toBe('ok')
+    expect(pendingFor('ai_calls')).toBe(1)
+    expect(pendingFor('ai_credits')).toBe(0)
+
+    // And requireAiSdkModel lets an own-key site through even with the allowance used up.
+    await seedSetting(getCurrentTestDb(), TENANT, 'ai.provider', 'openai')
+    await seedSetting(getCurrentTestDb(), TENANT, 'ai.openai_api_key', 'sk-own-key')
+    try {
+      await expect(requireAiSdkModel(aiEv())).resolves.toBeDefined()
+    } finally {
+      // Through saveSetting, so the settings cache forgets them too.
+      await saveSetting(ev(), 'ai.provider', null)
+      await saveSetting(ev(), 'ai.openai_api_key', null)
+    }
+  })
+
+  it('charges platform-paid text by the tokens used, weighting the heavy model', async () => {
+    primeUsageBuffer()
+    await generateText({ model: withUsageCounting(ev(), { model: mockModel([1500, 500]), payer: 'platform', heavy: false }), prompt: 'hi', maxRetries: 0 })
+    expect(pendingFor('ai_credits')).toBe(2)
+    await generateText({ model: withUsageCounting(ev(), { model: mockModel([1500, 500]), payer: 'platform', heavy: true }), prompt: 'hi', maxRetries: 0 })
+    expect(pendingFor('ai_credits')).toBe(12)
+    // A tiny call is still at least one credit.
+    await generateText({ model: withUsageCounting(ev(), { model: mockModel([3, 2]), payer: 'platform', heavy: false }), prompt: 'hi', maxRetries: 0 })
+    expect(pendingFor('ai_credits')).toBe(13)
+    expect(pendingFor('ai_calls')).toBe(3)
   })
 
   it('holds back ordinary emails over the allowance but always sends sign-in and security emails', async () => {
@@ -263,7 +319,7 @@ describe("the site owner's usage card", () => {
     expect(await (sitePlan as Handler)(ev({ session: tenantAdmin() }))).toEqual({ plan: null, limits: [] })
 
     await useLimits({ maxAiCallsPerMonth: 100, maxViewsPerMonth: 5000 })
-    await setMonthUsage('ai_calls', 40)
+    await setMonthUsage('ai_credits', 40)
     const summary = await (sitePlan as Handler)(ev({ session: tenantAdmin() })) as { limits: { key: string; used: number; max: number; kind: string }[] }
     expect(summary.limits.map(l => l.key)).toEqual(['ai', 'views'])
     expect(summary.limits[0]).toMatchObject({ used: 40, max: 100, kind: 'hard' })
@@ -296,10 +352,75 @@ describe("the operator's 80% / 100% notices", () => {
   it('says a hard monthly limit is now refusing requests', async () => {
     await getCurrentTestDb().delete(notifications)
     await useLimits({ maxAiCallsPerMonth: 10 })
-    await setMonthUsage('ai_calls', 10)
+    await setMonthUsage('ai_credits', 10)
     await sendPlanUsageAlerts()
     const [notice] = await planNotices()
     expect(notice!.body).toContain('New requests are refused until the 1st.')
+  })
+})
+
+describe('the platform-wide daily AI cap', () => {
+  async function setCap(cap: number | null) {
+    await (putPlatform as Handler)(ev({ siteId: PRIMARY, session: operator(), body: { aiDailyCreditCap: cap } }))
+  }
+  afterAll(() => setCap(null))
+  beforeEach(() => clearAiDailyCapCache())
+
+  it('pauses platform-paid AI for customer sites once all of them together reach it — never the main site', async () => {
+    await setCap(100)
+    await setMonthUsage('ai_credits', 60)
+    await seedSite(getCurrentTestDb(), { id: 'site-plans-tenant-2', domain: 'tenant2.plans.test' })
+    await setMonthUsage('ai_credits', 40, 'site-plans-tenant-2')
+    await expect(requireAiSdkModel(aiEv())).rejects.toMatchObject({ statusCode: 403, data: { code: 'platform_ai_cap', used: 100, max: 100 } })
+    expect(await checkAiAllowance(ev({ siteId: PRIMARY }))).toEqual({ allowed: true })
+
+    // The main site's own use doesn't count towards it.
+    await getCurrentTestDb().delete(siteUsageDaily)
+    await setMonthUsage('ai_credits', 500, PRIMARY)
+    expect(await checkAiAllowance(ev())).toEqual({ allowed: true })
+
+    const platform = await (getPlatform as Handler)(ev({ siteId: PRIMARY, session: operator() })) as { ai: { dailyCap: number | null; creditsToday: number } }
+    expect(platform.ai).toEqual({ dailyCap: 100, creditsToday: 0 })
+  })
+
+  it('does nothing with no cap set, and is only for a super admin to set', async () => {
+    await setCap(null)
+    await setMonthUsage('ai_credits', 1_000_000)
+    expect(await checkAiAllowance(ev())).toEqual({ allowed: true })
+    await expect((putPlatform as Handler)(ev({ session: tenantAdmin(), body: { aiDailyCreditCap: 5 } }))).rejects.toMatchObject({ statusCode: 403 })
+    await expect((patchSettings as Handler)(ev({ siteId: PRIMARY, session: operator(), body: { settings: { 'platform.ai_daily_credit_cap': 5 } } })))
+      .rejects.toMatchObject({ statusCode: 400 })
+  })
+
+  it('tells the operator at 80% and 100%, once each per day', async () => {
+    const db = getCurrentTestDb()
+    await db.delete(notifications)
+    await setCap(100)
+    await setMonthUsage('ai_credits', 85)
+    expect(await sendPlatformAiCapAlert()).toBe(1)
+    expect(await sendPlatformAiCapAlert()).toBe(0)
+    await setMonthUsage('ai_credits', 20)
+    expect(await sendPlatformAiCapAlert()).toBe(1)
+    const notices = await db.select().from(notifications).where(and(eq(notifications.type, 'system.plan_usage'), eq(notifications.userId, operatorId)))
+    expect(notices.map(n => (n.data as { threshold: number }).threshold).sort()).toEqual([100, 80])
+    expect(notices.find(n => (n.data as { threshold: number }).threshold === 100)!.body).toContain('paused for them until midnight UTC')
+  })
+})
+
+describe("the operator's own AI keys", () => {
+  const original = globalThis.useRuntimeConfig
+  beforeAll(() => {
+    globalThis.useRuntimeConfig = (() => ({ ...original(), openaiApiKey: 'sk-operator', aiProvider: 'openai' })) as typeof globalThis.useRuntimeConfig
+  })
+  afterAll(() => { globalThis.useRuntimeConfig = original })
+
+  it('are only used by the main site while hosting is on', async () => {
+    expect(await resolveSetting(ev(), 'ai.openai_api_key', 'openaiApiKey')).toBe('')
+    expect(await resolveSetting(ev(), 'ai.provider', 'aiProvider')).toBe('')
+    expect(await resolveSetting(ev({ siteId: PRIMARY }), 'ai.openai_api_key', 'openaiApiKey')).toBe('sk-operator')
+    // So a customer site falls back to Workers AI, which is counted.
+    await useLimits({ maxAiCallsPerMonth: 0 })
+    await expect(requireAiSdkModel(aiEv())).rejects.toMatchObject({ statusCode: 403, data: { code: 'plan_limit' } })
   })
 })
 

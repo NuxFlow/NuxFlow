@@ -1,8 +1,8 @@
 import type { H3Event } from 'h3'
 import { generateImage, type ImageModel } from 'ai'
-import { resolveSetting } from '../settings'
 import { getWorkersAiBinding } from '../cf-env'
-import { gatewayBaseUrl, gatewayRequestHeaders, resolveGatewaySettings } from '../ai-sdk'
+import { gatewayBaseUrl, gatewayRequestHeaders, resolveAiKey, resolveGatewaySettings } from '../ai-sdk'
+import type { AiPayer } from '../ai-allowance'
 
 export type ImageShape = 'square' | 'landscape' | 'portrait'
 
@@ -13,6 +13,8 @@ export interface ImageGenerationOptions {
 
 export interface ImageProvider {
   name: 'openai' | 'google' | 'workers-ai'
+  /** Who pays for each image: the site's own key, or the platform (Workers AI / env-var key) — ai-allowance.ts. */
+  payer: AiPayer
   /** Returns the image as a `data:` URL, whichever provider made it. */
   generate(prompt: string, options?: ImageGenerationOptions): Promise<string>
   isConfigured(): boolean
@@ -53,6 +55,7 @@ export function bytesToBase64(bytes: Uint8Array): string {
 class AiSdkImageProvider implements ImageProvider {
   constructor(
     readonly name: ImageProvider['name'],
+    readonly payer: AiPayer,
     private readonly model: ImageModel,
     private readonly callOptions: (opts: ImageGenerationOptions) => Partial<Parameters<typeof generateImage>[0]>,
   ) {}
@@ -79,27 +82,27 @@ export async function getImageProvider(event: H3Event, opts: { userId?: string }
   const { gatewayId, accountId, token } = await resolveGatewaySettings(event)
   const viaGateway = Boolean(gatewayId && accountId)
 
-  const openaiKey = await resolveSetting(event, 'ai.openai_api_key', 'openaiApiKey') as string
+  const { value: openaiKey, payer: openaiPayer } = await resolveAiKey(event, 'ai.openai_api_key', 'openaiApiKey')
   if (openaiKey) {
     const { createOpenAI } = await import('@ai-sdk/openai')
     const openai = createOpenAI({
       apiKey: openaiKey,
       ...(viaGateway && { baseURL: gatewayBaseUrl(accountId, gatewayId, 'openai'), headers: gatewayRequestHeaders(token, opts.userId) }),
     })
-    return new AiSdkImageProvider('openai', openai.image(OPENAI_IMAGE_MODEL), o => ({
+    return new AiSdkImageProvider('openai', openaiPayer, openai.image(OPENAI_IMAGE_MODEL), o => ({
       size: OPENAI_SIZES[o.shape ?? 'square'],
       providerOptions: { openai: { quality: o.quality === 'hd' ? 'high' : 'medium' } },
     }))
   }
 
-  const geminiKey = await resolveSetting(event, 'ai.gemini_api_key', 'geminiApiKey') as string
+  const { value: geminiKey, payer: geminiPayer } = await resolveAiKey(event, 'ai.gemini_api_key', 'geminiApiKey')
   if (geminiKey) {
     const { createGoogleGenerativeAI } = await import('@ai-sdk/google')
     const google = createGoogleGenerativeAI({
       apiKey: geminiKey,
       ...(viaGateway && { baseURL: gatewayBaseUrl(accountId, gatewayId, 'google-ai-studio/v1beta'), headers: gatewayRequestHeaders(token, opts.userId) }),
     })
-    return new AiSdkImageProvider('google', google.image(GOOGLE_IMAGE_MODEL), o => ({
+    return new AiSdkImageProvider('google', geminiPayer, google.image(GOOGLE_IMAGE_MODEL), o => ({
       aspectRatio: ASPECT_RATIOS[o.shape ?? 'square'],
     }))
   }
@@ -111,7 +114,7 @@ export async function getImageProvider(event: H3Event, opts: { userId?: string }
       binding: ai,
       ...(gatewayId && { gateway: { id: gatewayId, ...(opts.userId && { metadata: { userId: opts.userId } }) } }),
     })
-    return new AiSdkImageProvider('workers-ai', workersai.image(WORKERS_AI_IMAGE_MODEL), o => ({
+    return new AiSdkImageProvider('workers-ai', 'platform', workersai.image(WORKERS_AI_IMAGE_MODEL), o => ({
       size: WORKERS_AI_SIZES[o.shape ?? 'square'],
     }))
   }

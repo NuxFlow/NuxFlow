@@ -9,6 +9,7 @@
  * config, and which model id was requested.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import type * as AiAllowance from '../../server/utils/ai-allowance'
 import { createError, type H3Event } from 'h3'
 
 const settingsMap = new Map<string, string>()
@@ -30,6 +31,13 @@ vi.mock('../../server/utils/hosting-plans', () => ({
   assertWithinPlan: async () => {},
   checkPlanLimit: async () => ({ key: 'ai', allowed: true, used: 0, max: null }),
   PlanLimitError: class extends Error {},
+}))
+// Allowance checks need a database; ai-allowance has its own tests (hosting-plans.test.ts).
+vi.mock('../../server/utils/ai-allowance', async importOriginal => ({
+  ...await importOriginal<typeof AiAllowance>(),
+  checkAiAllowance: async () => ({ allowed: true }),
+  assertAiAllowance: async () => {},
+  recordAiCall: () => {},
 }))
 
 const mockCreateWorkersAI = vi.fn()

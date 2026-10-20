@@ -229,7 +229,8 @@ Good to know:
 | **Views** | Public page requests, including pages served from the cache | About once a minute |
 | **Renders** | Pages the server had to build (cache misses, admin pages). Rendering is most of a Worker's CPU time, which a Worker can't measure itself, so this is the closest stand-in. | About once a minute |
 | **API** | Requests to the site's `/api` routes | About once a minute |
-| **AI calls** | Every call to an AI model: writing tools, page generation, images, dictation, "Listen to this article", spam checks | About once a minute |
+| **AI calls** | Every call to an AI model: writing tools, page generation, images, dictation, "Listen to this article", spam checks. Includes calls on a site's own API key. | About once a minute |
+| **AI credits** | AI you pay for (see [AI on a hosting platform](#ai-on-a-hosting-platform)), weighted by cost. This is what plans limit. | About once a minute |
 | **Emails** | Recipients an email provider accepted (failures and console-only sends aren't counted) | About once a minute |
 | **Storage** | Total size of the media library | Nightly, 3 AM UTC |
 | **Pages** | Pages, posts and other content, in any status | Nightly |
@@ -259,14 +260,14 @@ Good to know:
 | **Team members** | Hard | Inviting someone, or changing a member into a team role, is refused. Pending invitations count. |
 | **Site members** | Hard | Sign-ups and "join this site" are refused: "This site isn't accepting new members". |
 | **Plugins** | Hard | Installing is refused. Set it to 0 for a plan without plugins. |
-| **AI calls a month** | Hard | AI features are refused until the 1st. Background checks (comment spam, inbox sorting) quietly stop until then. |
+| **AI credits a month** | Hard | AI on Workers AI is refused until the 1st, with a message telling the site it can add its own AI key. Background checks (comment spam, inbox sorting) quietly stop until then. AI on the site's own key is never limited. Set it to 0 for a plan where customers bring their own key. |
 | **Emails a month** | Hard | Ordinary emails (form notifications, notices, inbox replies) are held back until the 1st. **Sign-in, password, invitation and security emails always go out.** |
 | **Page views a month** | Soft | Nothing is blocked. |
 | **Server renders a month** | Soft | Nothing is blocked. |
 
 Monthly limits reset on the 1st of the month (UTC).
 
-**Notifications for you.** Once an hour NuxFlow checks every site on a plan. When a site reaches **80%** or **100%** of a monthly limit (AI calls, emails, page views or server renders), you get a notification and an email on your main site, once per limit per month. For page views and server renders that's all that happens: you decide whether to talk to the customer, move them to a bigger plan, or put the site into maintenance mode.
+**Notifications for you.** Once an hour NuxFlow checks every site on a plan. When a site reaches **80%** or **100%** of a monthly limit (AI credits, emails, page views or server renders), you get a notification and an email on your main site, once per limit per month. For page views and server renders that's all that happens: you decide whether to talk to the customer, move them to a bigger plan, or put the site into maintenance mode.
 
 **What the site owner sees.** On a plan with limits, a site's admins get a **Your plan** card on their dashboard showing each limit and how much they've used. On the Unlimited plan they see nothing.
 
@@ -276,6 +277,29 @@ Monthly limits reset on the 1st of the month (UTC).
 - Deleting a plan moves its sites back to Unlimited.
 - A visitor never sees a broken page because of a plan. Public pages are never blocked; traffic limits are soft only.
 - Monthly counts are saved about once a minute, so a site using AI or email very fast can go slightly over its allowance before it's refused.
+
+### AI on a hosting platform
+
+A customer site's AI runs in one of two ways:
+
+- **On Workers AI, paid by you.** That's the default for any site that hasn't added its own key. It's billed to your Cloudflare account, so it's counted as **AI credits** and limited by the plan's **AI credits a month**.
+- **On the site's own key.** A site that adds an OpenAI, Anthropic, Gemini or DeepSeek key in **Settings → AI** pays that provider directly. Its AI is never counted against its plan or the daily cap, and never refused by them.
+
+**Your own AI keys stay yours.** While hosting is on, AI keys set as env vars in `wrangler.toml` (and the AI Gateway settings) are used only by your main site. Customer sites never fall back to them.
+
+**How credits are counted.** Credits follow what the AI costs, not how many times someone clicks:
+
+| AI use | Credits |
+|---|---|
+| Writing tools, SEO suggestions, spam checks (fast model) | 1 per 1,000 tokens (prompt plus answer), so usually 1–3 |
+| Page and site generation, image descriptions, translation (larger model) | 5 per 1,000 tokens, so a generated page is usually 20–60 |
+| Generating an image | 10 |
+| Dictation | 2 |
+| "Listen to this article" | 1 per 1,000 characters read |
+
+Every call costs at least 1 credit, including one that fails. The numbers are relative weights, not a price: compare them with the Workers AI line on your Cloudflare bill to decide what to put in each plan.
+
+**The daily cap.** On **Super Admin → Platform → AI you pay for** you can set the most credits all customer sites together may use in one day (UTC). It's a safety brake on top of the plans, for example in case a plan's AI box was left empty. Once it's reached, Workers AI pauses for every customer site until midnight UTC, and they're told they can add their own key to keep going. Your main site is never paused. You get a notification at 80% and 100%. Leave the box empty for no cap.
 
 ---
 

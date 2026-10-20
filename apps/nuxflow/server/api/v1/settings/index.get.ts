@@ -2,7 +2,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { sites, siteSettings } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { SENSITIVE_SETTING_KEYS, SECRET_MASK, PLATFORM_ONLY_ENV_KEYS } from '../../../utils/settings'
+import { SENSITIVE_SETTING_KEYS, SECRET_MASK, isEnvFallbackWithheld } from '../../../utils/settings'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
@@ -56,8 +56,9 @@ export default defineEventHandler(async (event) => {
   const rc = useRuntimeConfig()
   for (const [key, rcKey] of Object.entries(envMap)) {
     // Only shown as configured where the site really inherits it (resolveSetting()
-    // withholds PLATFORM_ONLY_ENV_KEYS from every site but the primary one).
-    if (PLATFORM_ONLY_ENV_KEYS.has(key) && !site.isPrimary) continue
+    // withholds PLATFORM_ONLY_ENV_KEYS from every site but the primary one, and
+    // HOSTING_PLATFORM_ONLY_ENV_KEYS too while the hosting platform is on).
+    if (await isEnvFallbackWithheld(db, key, site.isPrimary)) continue
     if (!settings[key] && rc[rcKey]) {
       settings[key] = SECRET_MASK
     }

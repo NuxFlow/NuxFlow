@@ -7,10 +7,11 @@ import { planMax, type HostingPlan } from '../utils/hosting-plans'
 import { isHostingPlatform } from '../utils/hosting-platform'
 import { usageDay } from '../utils/usage'
 import { PLAN_LIMITS } from '../../shared/lib/hosting-plan-limits'
+import { getAiDailyCap, platformAiCreditsToday } from '../utils/ai-allowance'
 
 const THRESHOLDS = [100, 80] as const
 const MONTHLY_LIMITS = PLAN_LIMITS.filter(l => l.monthly)
-const METRIC: Record<string, string> = { ai: 'ai_calls', emails: 'emails', views: 'views', renders: 'renders' }
+const METRIC: Record<string, string> = { ai: 'ai_credits', emails: 'emails', views: 'views', renders: 'renders' }
 
 /**
  * Hourly: tells the platform operator (super admins of the primary site) when a site
@@ -22,6 +23,7 @@ const METRIC: Record<string, string> = { ai: 'ai_calls', emails: 'emails', views
 export const sendPlanUsageAlerts = async (now = new Date()) => {
   const db = useDb()
   if (!(await isHostingPlatform(db))) return { checked: 0, notified: 0 }
+  const capNotified = await sendPlatformAiCapAlert(now)
   const month = usageDay(now).slice(0, 7)
   const monthStart = `${month}-01`
 
@@ -29,10 +31,10 @@ export const sendPlanUsageAlerts = async (now = new Date()) => {
     .from(sites)
     .innerJoin(hostingPlans, eq(hostingPlans.id, sites.hostingPlanId))
     .where(isNotNull(sites.hostingPlanId))
-  if (!limited.length) return { checked: 0, notified: 0 }
+  if (!limited.length) return { checked: 0, notified: capNotified }
 
   const primary = await db.query.sites.findFirst({ where: eq(sites.isPrimary, true), columns: { id: true, domain: true } })
-  if (!primary) return { checked: limited.length, notified: 0 }
+  if (!primary) return { checked: limited.length, notified: capNotified }
 
   const [totals, alreadySent] = await Promise.all([
     db.select({ siteId: siteUsageDaily.siteId, metric: siteUsageDaily.metric, value: sql<number>`sum(${siteUsageDaily.value})` })
@@ -50,7 +52,7 @@ export const sendPlanUsageAlerts = async (now = new Date()) => {
   }))
 
   const event = createSystemEvent({ env: (globalThis as { __env__?: unknown }).__env__, siteId: primary.id, host: primary.domain })
-  let notified = 0
+  let notified = capNotified
   for (const { site, plan } of limited) {
     for (const limit of MONTHLY_LIMITS) {
       const max = planMax(plan as HostingPlan, limit.key)
@@ -80,4 +82,44 @@ export const sendPlanUsageAlerts = async (now = new Date()) => {
     }
   }
   return { checked: limited.length, notified }
+}
+
+/**
+ * Tells the operator when customer sites together reach 80% or 100% of the platform's
+ * daily AI credit cap (ai-allowance.ts) — once per threshold per UTC day.
+ */
+export const sendPlatformAiCapAlert = async (now = new Date()): Promise<number> => {
+  const db = useDb()
+  const cap = await getAiDailyCap(db)
+  if (!cap) return 0
+  const primary = await db.query.sites.findFirst({ where: eq(sites.isPrimary, true), columns: { id: true, domain: true } })
+  if (!primary) return 0
+  const day = usageDay(now)
+  const used = await platformAiCreditsToday(db, primary.id, now)
+  const threshold = THRESHOLDS.find(t => used >= (cap * t) / 100)
+  if (!threshold) return 0
+
+  const sentToday = await db.select({ data: notifications.data })
+    .from(notifications)
+    .where(and(eq(notifications.siteId, primary.id), eq(notifications.type, 'system.plan_usage'), gte(notifications.createdAt, day)))
+  const sent = new Set(sentToday.map((n) => {
+    const d = (n.data ?? {}) as Record<string, unknown>
+    return d.limit === 'platform_ai' ? `${d.threshold}|${d.day}` : ''
+  }))
+  if (sent.has(`${threshold}|${day}`) || (threshold === 80 && sent.has(`100|${day}`))) return 0
+
+  const event = createSystemEvent({ env: (globalThis as { __env__?: unknown }).__env__, siteId: primary.id, host: primary.domain })
+  await notifySiteRole(event, {
+    siteId: primary.id,
+    minRole: 'super_admin',
+    type: 'system.plan_usage',
+    title: `Platform AI at ${Math.round((used / cap) * 100)}% of today's cap`,
+    body: `Customer sites have used ${used.toLocaleString('en')} of the ${cap.toLocaleString('en')} AI credits allowed today.`
+      + (threshold === 100 ? ' Workers AI is paused for them until midnight UTC; sites with their own AI key are unaffected.' : ''),
+    data: { limit: 'platform_ai', threshold, day },
+    pushUrl: '/admin/super/platform',
+    actionLabel: 'Open Platform',
+    sendEmailNotification: true,
+  })
+  return 1
 }

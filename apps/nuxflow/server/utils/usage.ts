@@ -26,8 +26,14 @@ export const USAGE_EVENT_METRICS = [
   'renders',
   /** Requests to this site's /api routes. */
   'api',
-  /** Calls to an AI model: text, image, transcription and speech. */
+  /** Calls to an AI model: text, image, transcription and speech — every call, whoever pays. */
   'ai_calls',
+  /**
+   * Weighted cost of the AI calls the platform pays for (Workers AI, or the deployment's
+   * own env-var keys) — what the hosting plan's AI allowance limits. Calls made with the
+   * site's own API key aren't included. See ai-allowance.ts.
+   */
+  'ai_credits',
   /** Emails handed to a real provider (console-only "sends" aren't counted). */
   'emails',
 ] as const

@@ -3,9 +3,7 @@ import { isError, type H3Event } from 'h3'
 import { resolveSetting } from './settings'
 import { getCfBindings, getWorkersAiBinding } from './cf-env'
 import { WORKER_MEDIA_PREFIX, workerMediaKey } from './media-url'
-import { countUsage } from './usage'
-import { assertWithinPlan, checkPlanLimit, PlanLimitError } from './hosting-plans'
-import { useDb } from './db'
+import { AiAllowanceError, assertAiAllowance, checkAiAllowance, recordAiCall, textCredits, type AiPayer } from './ai-allowance'
 
 /**
  * 'vision' is for routes that send image bytes to the model (alt-text.post.ts,
@@ -69,55 +67,108 @@ export function gatewayBaseUrl(accountId: string, gatewayId: string, path: strin
 }
 
 /**
+ * A model plus who pays for its calls: 'platform' for the Workers AI binding or an AI key
+ * inherited from the deployment's env vars, 'site' for the site's own key (ai-allowance.ts).
+ * `heavy` marks the larger, pricier model, whose tokens count for more credits.
+ */
+export interface ResolvedAiModel {
+  model: LanguageModel
+  payer: AiPayer
+  heavy: boolean
+}
+
+/**
+ * An AI setting's value and who pays for using it: the site's own saved value → 'site', the
+ * deployment's env-var fallback → 'platform'. (On a hosting platform a customer's site never
+ * gets the env fallback at all — settings.ts, HOSTING_PLATFORM_ONLY_ENV_KEYS.)
+ */
+export async function resolveAiKey(event: H3Event, key: string, envKey: string): Promise<{ value: string, payer: AiPayer }> {
+  const own = await resolveSetting(event, key) as string | undefined
+  if (own) return { value: own, payer: 'site' }
+  return { value: (await resolveSetting(event, key, envKey) as string | undefined) || '', payer: 'platform' }
+}
+
+/**
  * Returns an AI SDK LanguageModel for the configured provider.
  * Returns null when the provider key is missing — callers throw 503 on null.
  * Each provider SDK is imported dynamically so a site configured for one
  * provider doesn't bundle the other five into the Worker.
  *
- * Every call made with the returned model counts towards the site's `ai_calls` usage
- * (server/utils/usage.ts) — counted here, once, rather than at each of the ~20 call sites.
+ * Every call made with the returned model is counted (`ai_calls`, and `ai_credits` when the
+ * platform pays — ai-allowance.ts) here, once, rather than at each of the ~20 call sites.
  */
 export async function getAiSdkModel(event: H3Event, quality: AiQuality = 'fast', opts: GetAiSdkModelOptions = {}): Promise<LanguageModel | null> {
-  const model = await resolveAiSdkModel(event, quality, opts)
-  return model ? withUsageCounting(event, model) : null
+  const resolved = await resolveAiSdkModel(event, quality, opts)
+  return resolved ? withUsageCounting(event, resolved) : null
 }
 
 /**
  * Counts each generate/stream call the model makes — retries included, since each is a
- * real call — and refuses the call once the site's monthly AI allowance (hosting plan) is
- * used up. This is the gate for background AI too (spam checks, inbox triage), which uses
- * getAiSdkModel() and treats a thrown error as "skip"; interactive routes are stopped
- * earlier, with a clear 403, by requireAiSdkModel().
+ * real call. For a platform-paid model it also refuses the call once the site's AI
+ * allowance (hosting plan) or the platform's daily cap is used up, and charges credits from
+ * the tokens the call actually used. This is the gate for background AI too (spam checks,
+ * inbox triage), which uses getAiSdkModel() and treats a thrown error as "skip";
+ * interactive routes are stopped earlier, with a clear 403, by requireAiSdkModel(). A
+ * site-paid model (the site's own key) is counted in `ai_calls` only and never refused.
  */
-export function withUsageCounting(event: H3Event, model: LanguageModel): LanguageModel {
+export function withUsageCounting(event: H3Event, resolved: ResolvedAiModel): LanguageModel {
+  const { model, payer, heavy } = resolved
   // A gateway model id string, or anything that isn't a provider model object, can't be wrapped.
   if (typeof model !== 'object' || !('specificationVersion' in model)) return model
+  const guard = async () => {
+    if (payer !== 'platform') return
+    const check = await checkAiAllowance(event)
+    if (!check.allowed) throw new AiAllowanceError(check)
+  }
   return wrapLanguageModel({
     model,
     middleware: {
       specificationVersion: 'v4',
       wrapGenerate: async ({ doGenerate }) => {
-        await assertAiAllowance(event)
-        countUsage(event, 'ai_calls')
-        return doGenerate()
+        await guard()
+        let tokens: number | undefined
+        try {
+          const result = await doGenerate()
+          tokens = totalTokens(result.usage)
+          return result
+        } finally {
+          // A failed call still counts (at the 1-credit minimum), so retrying a failing
+          // call can't be a way round the allowance.
+          recordAiCall(event, payer, textCredits(tokens, heavy))
+        }
       },
       wrapStream: async ({ doStream }) => {
-        await assertAiAllowance(event)
-        countUsage(event, 'ai_calls')
-        return doStream()
+        await guard()
+        const result = await doStream()
+        let tokens: number | undefined
+        const stream = result.stream.pipeThrough(new TransformStream({
+          transform(part, controller) {
+            if (part.type === 'finish') tokens = totalTokens(part.usage)
+            controller.enqueue(part)
+          },
+          flush() {
+            recordAiCall(event, payer, textCredits(tokens, heavy))
+          },
+        }))
+        return { ...result, stream }
       },
     },
   })
 }
 
-async function assertAiAllowance(event: H3Event): Promise<void> {
-  const siteId = event.context?.siteId as string | undefined
-  if (!siteId) return
-  const check = await checkPlanLimit(useDb(event), siteId, 'ai')
-  if (!check.allowed) throw new PlanLimitError(check)
+function totalTokens(usage: { inputTokens?: { total?: number }, outputTokens?: { total?: number } } | undefined): number | undefined {
+  if (!usage) return undefined
+  const total = (usage.inputTokens?.total ?? 0) + (usage.outputTokens?.total ?? 0)
+  return total > 0 ? total : undefined
 }
 
-async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAiSdkModelOptions): Promise<LanguageModel | null> {
+async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAiSdkModelOptions): Promise<ResolvedAiModel | null> {
+  const resolved = await resolveProviderModel(event, quality, opts)
+  if (!resolved) return null
+  return { ...resolved, heavy: quality !== 'fast' }
+}
+
+async function resolveProviderModel(event: H3Event, quality: AiQuality, opts: GetAiSdkModelOptions): Promise<{ model: LanguageModel, payer: AiPayer } | null> {
   // No `ai.provider` setting saved yet (fresh install, or an existing deployment that never
   // configured a BYOK key) falls back to Workers AI rather than a hard 503 — it needs zero
   // account setup beyond the `[ai]` wrangler.toml binding (commented out by default —
@@ -150,11 +201,11 @@ async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAi
       // the larger, 256k-context, tool+reasoning-capable model); glm-4.7-flash is the cheap
       // default for everyday 'fast' calls (grammar, improve, SEO suggestions) and is not
       // known to be vision-capable, hence the separate 'vision' branch.
-      if (quality === 'vision' || quality === 'smart') return workersai('@cf/moonshotai/kimi-k2.7-code')
-      return workersai('@cf/zai-org/glm-4.7-flash')
+      if (quality === 'vision' || quality === 'smart') return { model: workersai('@cf/moonshotai/kimi-k2.7-code'), payer: 'platform' }
+      return { model: workersai('@cf/zai-org/glm-4.7-flash'), payer: 'platform' }
     }
     case 'openai': {
-      const apiKey = await resolveSetting(event, 'ai.openai_api_key', 'openaiApiKey') as string
+      const { value: apiKey, payer } = await resolveAiKey(event, 'ai.openai_api_key', 'openaiApiKey')
       if (!apiKey) return null
       const { createOpenAI } = await import('@ai-sdk/openai')
       const { gatewayId, accountId, token } = await resolveGatewaySettings(event)
@@ -165,10 +216,10 @@ async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAi
           headers: gatewayRequestHeaders(token, opts.userId),
         }),
       })
-      return openai(quality === 'smart' ? 'gpt-4o' : 'gpt-4o-mini')
+      return { model: openai(quality === 'smart' ? 'gpt-4o' : 'gpt-4o-mini'), payer }
     }
     case 'anthropic': {
-      const apiKey = await resolveSetting(event, 'ai.anthropic_api_key', 'anthropicApiKey') as string
+      const { value: apiKey, payer } = await resolveAiKey(event, 'ai.anthropic_api_key', 'anthropicApiKey')
       if (!apiKey) return null
       const { createAnthropic } = await import('@ai-sdk/anthropic')
       const { gatewayId, accountId, token } = await resolveGatewaySettings(event)
@@ -182,10 +233,10 @@ async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAi
           headers: gatewayRequestHeaders(token, opts.userId),
         }),
       })
-      return anthropic(quality === 'smart' ? 'claude-sonnet-5' : 'claude-haiku-4-5-20251001')
+      return { model: anthropic(quality === 'smart' ? 'claude-sonnet-5' : 'claude-haiku-4-5-20251001'), payer }
     }
     case 'gemini': {
-      const apiKey = await resolveSetting(event, 'ai.gemini_api_key', 'geminiApiKey') as string
+      const { value: apiKey, payer } = await resolveAiKey(event, 'ai.gemini_api_key', 'geminiApiKey')
       if (!apiKey) return null
       const { createGoogleGenerativeAI } = await import('@ai-sdk/google')
       const { gatewayId, accountId, token } = await resolveGatewaySettings(event)
@@ -205,7 +256,7 @@ async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAi
       // the current generation instead. Given how fast Google is deprecating Gemini model
       // IDs (three generations retired inside a year), re-check
       // https://ai.google.dev/gemini-api/docs/models before assuming these stay valid.
-      return google(quality === 'smart' ? 'gemini-3.1-pro-preview' : 'gemini-3.8-flash')
+      return { model: google(quality === 'smart' ? 'gemini-3.1-pro-preview' : 'gemini-3.8-flash'), payer }
     }
     case 'deepseek': {
       // DeepSeek's chat API has no vision support — returning null here converts what
@@ -213,7 +264,7 @@ async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAi
       // parts silently rejected/ignored) into a clean 503 callers already know how to
       // surface, instead of a fabricated-looking response.
       if (quality === 'vision') return null
-      const apiKey = await resolveSetting(event, 'ai.deepseek_api_key', 'deepseekApiKey') as string
+      const { value: apiKey, payer } = await resolveAiKey(event, 'ai.deepseek_api_key', 'deepseekApiKey')
       if (!apiKey) return null
       const { createOpenAI } = await import('@ai-sdk/openai')
       const { gatewayId, accountId, token } = await resolveGatewaySettings(event)
@@ -224,7 +275,7 @@ async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAi
             headers: gatewayRequestHeaders(token, opts.userId),
           }
         : { apiKey, baseURL: 'https://api.deepseek.com/v1' })
-      return deepseek('deepseek-chat')
+      return { model: deepseek('deepseek-chat'), payer }
     }
     case 'ollama': {
       // Same reasoning as deepseek above — whether the configured local model is
@@ -233,13 +284,13 @@ async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAi
       // never routed through AI Gateway — it's a local-network target the Cloudflare edge
       // can't reach, unlike every other case above.
       if (quality === 'vision') return null
-      const [url, model] = await Promise.all([
-        resolveSetting(event, 'ai.ollama_base_url', 'ollamaUrl') as Promise<string>,
+      const [{ value: url, payer }, model] = await Promise.all([
+        resolveAiKey(event, 'ai.ollama_base_url', 'ollamaUrl'),
         resolveSetting(event, 'ai.ollama_model', 'ollamaModel') as Promise<string>,
       ])
       const { createOpenAI } = await import('@ai-sdk/openai')
       const ollama = createOpenAI({ apiKey: 'ollama', baseURL: `${url || 'http://localhost:11434'}/v1` })
-      return ollama(model || 'llama3.2')
+      return { model: ollama(model || 'llama3.2'), payer }
     }
     default:
       return null
@@ -248,12 +299,13 @@ async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAi
 
 /** Same as getAiSdkModel, but throws the standard 503 instead of returning null. */
 export async function requireAiSdkModel(event: H3Event, quality: AiQuality = 'fast', opts: GetAiSdkModelOptions = {}): Promise<LanguageModel> {
-  await assertWithinPlan(event, 'ai')
-  const model = await getAiSdkModel(event, quality, opts)
-  if (!model) {
+  const resolved = await resolveAiSdkModel(event, quality, opts)
+  if (!resolved) {
     throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
   }
-  return model
+  // Only AI the platform pays for is limited; the site's own key is never refused.
+  if (resolved.payer === 'platform') await assertAiAllowance(event)
+  return withUsageCounting(event, resolved)
 }
 
 /** Runs an AI SDK call, throwing the standard 502 with a provider-friendly message on failure. */
