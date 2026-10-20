@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { resolveDefinition, toComponentProps } from '@nuxflow/canvas'
+import { blockIdKey, resolveDefinition, toComponentProps } from '@nuxflow/canvas'
 import type { NuxBlockData } from '~/types/blocks'
 
 const props = defineProps<{ block: NuxBlockData }>()
+
+// Lets a block refer to itself (e.g. the Gallery's download links) — see blockIdKey.
+provide(blockIdKey, props.block.id)
 
 const { resolve, getDefinition } = useBlockRegistry()
 

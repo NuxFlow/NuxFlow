@@ -764,6 +764,9 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       { key: 'showCaptions', label: 'Show captions', type: 'toggle' },
       { key: 'rounded', label: 'Rounded corners', type: 'toggle' },
       { key: 'lightbox', label: 'Open lightbox on click', type: 'toggle' },
+      // Client galleries: a "Download all" button (zip) and a download button per photo in
+      // the lightbox. Anyone who can see the page can download — see gallery-download.ts.
+      { key: 'allowDownload', label: 'Allow downloads (all photos + each photo)', type: 'toggle', ai: false },
       { key: 'padding', label: 'Padding', type: 'spacing' },
     ],
     // New galleries default to masonry (whole photos); galleries saved before `layout`
@@ -778,6 +781,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       showCaptions: false,
       rounded: false,
       lightbox: true,
+      allowDownload: false,
       padding: { top: 16, right: 24, bottom: 16, left: 24, unit: 'px' },
     },
   },

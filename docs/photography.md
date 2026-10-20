@@ -45,6 +45,7 @@ Each photo in the list has:
 | **Show captions** | Shows each photo's caption under it (over it, in the Rows layout). Captions always show in the lightbox. |
 | **Rounded corners** | Rounds the corners of each photo. |
 | **Open lightbox on click** | When enabled, clicking any image opens it full-screen in the lightbox. Enabled by default. |
+| **Allow downloads** | Shows a **Download all** button above the gallery (a zip of every photo, at full size) and a download button on each photo in the lightbox. Off by default. Anyone who can view the page can download, so on a client gallery only people with the password can. |
 | **Padding** | Controls the space around the gallery within the page layout. |
 
 > **Tip:** Galleries made before the Layout setting existed keep showing as a square Grid until you change it.
@@ -78,9 +79,12 @@ A client gallery is a page only your client can open — for example the photos 
 1. Upload the photos into their own folder in the **Media Library** (e.g. *Smith wedding*).
 2. Create a Canvas page (e.g. `/smith-wedding`) and add a **Gallery** block with the whole folder (see *Adding images* above).
 3. In the editor's **SEO & Access** panel, set **Content access** to **Password protected** and choose a **Page password**.
-4. Publish, and send your client the page link and the password.
+4. To let your client save their photos, switch on **Allow downloads** in the Gallery block's settings.
+5. Publish, and send your client the page link and the password.
 
-Your client sees a password form; after entering it, their browser remembers it for 30 days. You (signed in) always see the page. Changing the password asks everyone for the new one. Password-protected galleries are never listed in search, sitemaps or Google Images.
+Your client sees a password form; after entering it, their browser remembers it for 30 days. With downloads on, they get **Download all** (a zip named after the page, with your original file names) and a download button on each photo. You (signed in) always see the page. Changing the password asks everyone for the new one. Password-protected galleries are never listed in search, sitemaps or Google Images.
+
+> **Downloads:** only photos from your Media Library are included (an image pasted in by web address is left out). A single download can be up to 1,000 photos or 2 GB — split bigger shoots across more than one gallery.
 
 > **Good to know:** the password protects the page. Each photo is stored at a long, unguessable address, but someone who is sent a photo's direct link can still open it.
 
