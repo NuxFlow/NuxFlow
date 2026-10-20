@@ -4,6 +4,7 @@ import { getContentItemOrThrow } from '../../../utils/content-queries'
 import { contentTypes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getContentTermIds } from '../../../utils/taxonomy'
+import { settingsForEditor } from '../../../utils/page-password'
 
 export default defineEventHandler(async (event) => {
   const { userId, role } = await requireAuth(event)
@@ -25,6 +26,8 @@ export default defineEventHandler(async (event) => {
   // PATCH enforces the same rule (canEditContentItem) server-side.
   return {
     ...item,
+    // The page password's hash never leaves the server; the editor only needs to know one is set.
+    settings: settingsForEditor(item.settings as Record<string, unknown> | null),
     typeHasComments: type?.hasComments ?? false,
     typeSlug: type?.slug ?? 'page',
     termIds,

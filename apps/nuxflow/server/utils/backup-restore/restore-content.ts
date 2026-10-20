@@ -115,10 +115,9 @@ export async function restoreContent(
         await db.update(contentItems).set({
           title: backupItem.title,
           status: backupItem.status as 'draft' | 'published' | 'scheduled' | 'archived' | 'review',
-          // A pre-existing backup could in principle carry the now-removed 'password'
-          // value (it was a legal enum member, even though nothing ever actually wrote
-          // it) — fall back to 'members' rather than let an invalid literal through.
-          visibility: (backupItem.visibility === 'public' || backupItem.visibility === 'private' || backupItem.visibility === 'members')
+          // 'password' is a password-protected page (its hash travels in settings, so the
+          // same password works after restore). Anything unknown falls back to 'members'.
+          visibility: (backupItem.visibility === 'public' || backupItem.visibility === 'private' || backupItem.visibility === 'members' || backupItem.visibility === 'password')
             ? backupItem.visibility
             : 'members',
           content: backupItem.content,
@@ -155,7 +154,7 @@ export async function restoreContent(
       slug: backupItem.slug,
       title: backupItem.title,
       status: backupItem.status as 'draft' | 'published' | 'scheduled' | 'archived' | 'review',
-      visibility: (backupItem.visibility === 'public' || backupItem.visibility === 'private' || backupItem.visibility === 'members')
+      visibility: (backupItem.visibility === 'public' || backupItem.visibility === 'private' || backupItem.visibility === 'members' || backupItem.visibility === 'password')
         ? backupItem.visibility
         : 'members',
       content: backupItem.content,

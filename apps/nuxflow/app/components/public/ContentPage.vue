@@ -67,16 +67,34 @@ interface GateData {
   tiers: Tier[]
 }
 
-const gated = ref<GateData | null>(null)
-
-const { data: page, error } = await useFetch<PublicPage>(() => `/api/public/pages/${props.slugPath}`, {
+const { data: page, error, refresh } = await useFetch<PublicPage>(() => `/api/public/pages/${props.slugPath}`, {
   headers: useRequestHeaders(['host', 'cookie']),
-  onResponseError({ response }) {
-    if (response.status === 402) {
-      gated.value = response._data as unknown as GateData
-    }
-  },
 })
+
+// The gate details are the API error's `data` (Nitro's error body is { statusCode,
+// message, data }, and useFetch's error keeps that body as error.data). Derived from
+// `error` rather than set in an onResponseError hook: `error` is carried from the server
+// render to the browser in the payload, a plain ref set during SSR is not — so a
+// hook-set flag vanished on hydration and the visitor got a bare error screen.
+function gateBody(): Record<string, unknown> | null {
+  const body = (error.value as { data?: { data?: unknown } } | null)?.data
+  const inner = body?.data
+  return inner && typeof inner === 'object' ? inner as Record<string, unknown> : null
+}
+// Membership gate (402): the paywall with the site's plans.
+const gated = computed<GateData | null>(() => {
+  const d = error.value?.statusCode === 402 ? gateBody() : null
+  return d?.gated ? d as unknown as GateData : null
+})
+// Password-protected page (401 + passwordRequired): the password form.
+const locked = computed<{ title: string } | null>(() => {
+  const d = error.value?.statusCode === 401 ? gateBody() : null
+  return d?.passwordRequired ? { title: typeof d.title === 'string' ? d.title : '' } : null
+})
+
+async function onUnlocked() {
+  await refresh()
+}
 
 // This component renders its own inline error/paywall UI instead of throwing (so the
 // rest of the layout keeps rendering), which means Nuxt's own error-boundary status
@@ -87,6 +105,8 @@ if (import.meta.server) {
   if (requestEvent) {
     if (gated.value) {
       setResponseStatus(requestEvent, 402)
+    } else if (locked.value) {
+      setResponseStatus(requestEvent, 401)
     } else if (error.value && error.value.statusCode !== 402) {
       setResponseStatus(requestEvent, error.value.statusCode ?? 500)
     }
@@ -104,9 +124,6 @@ const { data: site } = await useFetch<PublicSiteInfo>('/api/public/site', { head
 const canonicalBase = computed(() => site.value?.canonicalBase ?? '')
 const siteName = computed(() => site.value?.name ?? '')
 const siteSeo = computed(() => site.value?.seo)
-
-// Clear gate state when the path changes (navigating to a different page)
-watch(() => props.slugPath, () => { gated.value = null })
 
 const isHome = computed(() => page.value?.path === '/' || page.value?.slug === 'home')
 const pageTitle = computed(() => page.value?.seoTitle || page.value?.title || '')
@@ -131,7 +148,7 @@ const isArticle = computed(() => page.value?.type?.slug === 'post')
 useSeoMeta({
   title: pageTitle,
   description: pageDesc,
-  robots: computed(() => page.value?.robots ?? undefined),
+  robots: computed(() => (locked.value ? 'noindex,nofollow' : page.value?.robots ?? undefined)),
   ogTitle: pageTitle,
   ogDescription: pageDesc,
   ogImage: shareImage,
@@ -251,6 +268,9 @@ const formattedDate = computed(() => {
     <div v-if="gated" class="max-w-4xl mx-auto px-6 py-12">
       <Paywall :tiers="gated.tiers" />
     </div>
+
+    <!-- Password-protected page: 401 response -->
+    <PublicPasswordGate v-else-if="locked" :title="locked.title" :path="slugPath" @unlocked="onUnlocked" />
 
     <!-- Normal page rendering -->
     <template v-else-if="page">

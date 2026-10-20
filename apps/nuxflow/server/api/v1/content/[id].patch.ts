@@ -17,6 +17,7 @@ import { itemPublicPath } from '../../../utils/public-page'
 import { redirectMovedPaths } from '../../../utils/redirects'
 import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexnow'
 import { queueContentHook } from '../../../utils/plugin-hooks'
+import { PAGE_PASSWORD_MAX_LENGTH, resolvePageSettings } from '../../../utils/page-password'
 import type { BatchItem } from 'drizzle-orm/batch'
 
 const bodySchema = z.object({
@@ -44,6 +45,9 @@ const bodySchema = z.object({
   // Replaces the item's whole taxonomy-term set when present (the editor sends it with
   // every save, so tagging follows the same save/autosave flow as every other field).
   termIds: z.array(z.string()).max(200).optional(),
+  // Write-only: a new password for a password-protected page (settings.access 'password').
+  // Hashed into settings.passwordHash, never stored or returned as given.
+  pagePassword: z.string().max(PAGE_PASSWORD_MAX_LENGTH).optional(),
   // Optional optimistic lock: client sends the version it last saw.
   // Server returns 409 if the item has since been updated by someone else.
   expectedVersion: z.number().int().positive().optional(),
@@ -72,7 +76,12 @@ export default defineEventHandler(async (event) => {
     await getContentItemOrThrow(db, siteId, body.sourceItemId, 'Source item not found', { id: true })
   }
 
-  const { expectedVersion, termIds: requestedTermIds, ...updateFields } = body
+  const { expectedVersion, termIds: requestedTermIds, pagePassword, ...updateFields } = body
+  // The editor sends settings without the hash (GET never returns it): keep the stored
+  // hash, hash a new password, or refuse a password page that has none.
+  if (updateFields.settings !== undefined || pagePassword) {
+    updateFields.settings = await resolvePageSettings(updateFields.settings, existing.settings as Record<string, unknown> | null, pagePassword)
+  }
   if (expectedVersion !== undefined && existing.version !== expectedVersion) {
     throw conflict('Content has been modified since you last loaded it', { currentVersion: existing.version })
   }

@@ -12,6 +12,7 @@ import { upsertContentEmbedding } from '../../../utils/embeddings'
 import { assertContentSlugNotTaxonomy, getTermRefsWithAncestors, replaceContentTermsStatements, validateSiteTermIds } from '../../../utils/taxonomy'
 import { queueContentHook } from '../../../utils/plugin-hooks'
 import { contentItems, sites } from '@nuxflow/db/schema'
+import { PAGE_PASSWORD_MAX_LENGTH, resolvePageSettings } from '../../../utils/page-password'
 import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 
@@ -33,13 +34,16 @@ const bodySchema = z.object({
   eventAllDay: z.boolean().nullish(),
   // Taxonomy terms to assign on creation (same rules as PUT /content/:id/terms).
   termIds: z.array(z.string()).max(200).optional(),
+  // Write-only password for a password-protected page — see [id].patch.ts.
+  pagePassword: z.string().max(PAGE_PASSWORD_MAX_LENGTH).optional(),
 })
 
 export default defineEventHandler(async (event) => {
   const { userId, role } = await requireRole(event, 'author')
   const db = useDb(event)
   const siteId = event.context.siteId as string
-  const body = await parseBody(event, bodySchema)
+  const { pagePassword, ...body } = await parseBody(event, bodySchema)
+  body.settings = await resolvePageSettings(body.settings, null, pagePassword)
 
   // Only editor+ may publish/schedule directly — mirrors the identical check already
   // enforced for the MCP `update_content` tool. An `author` (the floor for content-write

@@ -4,6 +4,10 @@ const props = defineProps<{
     seoTitle?: string
     seoDescription?: string
     access?: string
+    /** Write-only new password for a password-protected page. */
+    pagePassword?: string
+    /** Read-only: the page already has a password (it's never sent back). */
+    hasPassword?: boolean
     canonicalUrl?: string
     focusKeyword?: string
     metaRobots?: string
@@ -22,6 +26,7 @@ const local = reactive({
   seoTitle: props.modelValue.seoTitle ?? '',
   seoDescription: props.modelValue.seoDescription ?? '',
   access: props.modelValue.access ?? 'public',
+  pagePassword: props.modelValue.pagePassword ?? '',
   canonicalUrl: props.modelValue.canonicalUrl ?? '',
   focusKeyword: props.modelValue.focusKeyword ?? '',
   metaRobots: props.modelValue.metaRobots ?? '',
@@ -33,11 +38,13 @@ watch(() => props.modelValue, (v) => {
   if (v.seoTitle !== undefined) local.seoTitle = v.seoTitle
   if (v.seoDescription !== undefined) local.seoDescription = v.seoDescription
   if (v.access !== undefined) local.access = v.access
+  if (v.pagePassword !== undefined) local.pagePassword = v.pagePassword
   if (v.canonicalUrl !== undefined) local.canonicalUrl = v.canonicalUrl ?? ''
   if (v.focusKeyword !== undefined) local.focusKeyword = v.focusKeyword ?? ''
   if (v.metaRobots !== undefined) local.metaRobots = v.metaRobots ?? ''
 }, { deep: true })
 
+const showPassword = ref(false)
 const aiLoading = ref(false)
 const toast = useToast()
 
@@ -86,6 +93,7 @@ const { data: tiersData } = await useFetch<{ tiers: { id: string; name: string }
 const accessOptions = computed(() => [
   { value: 'public', label: 'Public' },
   { value: 'members', label: 'Members only' },
+  { value: 'password', label: 'Password protected' },
   ...(tiersData.value?.tiers ?? []).map(t => ({ value: `tier:${t.id}`, label: t.name })),
 ])
 
@@ -212,6 +220,32 @@ const readabilityColor = computed(() => {
 
       <UFormField label="Content access" hint="Who can view this content">
         <USelect v-model="local.access" :items="accessOptions" />
+      </UFormField>
+
+      <UFormField
+        v-if="local.access === 'password'"
+        label="Page password"
+        :hint="modelValue.hasPassword ? 'Set — type a new one to change it' : 'Required'"
+        :help="'Share it with whoever should see this page (for example your client). Signed-in team members can always view it. Changing it asks everyone for the new one.'"
+      >
+        <UInput
+          v-model="local.pagePassword"
+          :type="showPassword ? 'text' : 'password'"
+          autocomplete="new-password"
+          :placeholder="modelValue.hasPassword ? '••••••••' : 'Choose a password'"
+          class="w-full"
+        >
+          <template #trailing>
+            <UButton
+              variant="link"
+              color="neutral"
+              size="sm"
+              :icon="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+              :aria-label="showPassword ? 'Hide password' : 'Show password'"
+              @click="showPassword = !showPassword"
+            />
+          </template>
+        </UInput>
       </UFormField>
 
       <div v-if="bodyHtml" class="pt-2 border-t border-gray-100 dark:border-gray-800">

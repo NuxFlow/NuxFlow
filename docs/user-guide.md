@@ -111,7 +111,17 @@ Every Page and Post has an **SEO & Access** panel in the editor sidebar where yo
 - **Canonical URL** — override the canonical link for this specific page (useful for syndicated content or content that lives under multiple URLs).
 - **Robots Override** — set `noindex`, `nofollow`, or combinations per-page. This overrides the content type's default (Admin → SEO → Indexing); the site-wide "hide from search engines" switch still wins.
 - **OG / Featured Image** — used as `og:image` and as the Twitter card image.
-- **Content Access** — control whether the page is public, members-only, or tier-gated.
+- **Content Access** — control whether the page is public, members-only, tier-gated, or password protected.
+
+### Password-protected pages
+
+Choose **Password protected** under **Content Access** and set a **Page password**. Visitors see a short password form instead of the page; once they enter it, their browser remembers it for 30 days. This is meant for things like a client's private photo gallery.
+
+- Share the password with whoever should see the page. Signed-in team members (author and up) can always view it without one.
+- To change the password, type a new one and save. Everyone who used the old password is asked for the new one.
+- Password-protected pages are left out of search, sitemaps, feeds and post listings, and tell search engines not to index them.
+- Translations of the page use the same password.
+- Images on the page are stored at long, unguessable addresses, but anyone who is given an image's direct link can open that image. The password protects the page, not each file.
 
 ### Site-wide SEO (Admin → SEO)
 

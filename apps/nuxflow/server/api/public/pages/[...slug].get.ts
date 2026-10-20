@@ -52,7 +52,17 @@ export default defineEventHandler(async (event) => {
 
   if (!page) throw notFound('Not found')
 
-  const gate = await checkContentAccess(event, { visibility: page.visibility, settings: page.settings as Record<string, unknown> | null }, siteId)
+  const gate = await checkContentAccess(event, { id: page.id, sourceItemId: page.sourceItemId, visibility: page.visibility, settings: page.settings as Record<string, unknown> | null }, siteId)
+  // Password-protected page (client gallery): 401 with just enough to render the password
+  // form — never the content. Never cached or indexed.
+  if (gate?.blocked && gate.reason === 'password') {
+    setHeader(event, 'Cache-Control', 'private, no-store')
+    setHeader(event, 'X-Robots-Tag', 'noindex, nofollow')
+    throw createError({
+      statusCode: 401,
+      data: { passwordRequired: true, title: page.title },
+    })
+  }
   if (gate?.blocked) {
     throw createError({
       statusCode: 402,
@@ -66,9 +76,13 @@ export default defineEventHandler(async (event) => {
   // requester's session/subscription, not just the URL), so they must never be shared via
   // the edge cache — gating is always evaluated fresh above, on every request, before the
   // cache is ever consulted. Only genuinely public pages are eligible for the edge cache below.
-  const isGated = page.visibility === 'members'
+  const isGated = page.visibility === 'members' || page.visibility === 'password'
   if (isGated) {
     setHeader(event, 'Cache-Control', 'private, no-store')
+    if (page.visibility === 'password') {
+      setHeader(event, 'X-Robots-Tag', 'noindex, nofollow')
+      return { ...(await assemblePageResponse(db, page, siteId)), robots: 'noindex,nofollow' }
+    }
     return assemblePageResponse(db, page, siteId)
   }
 
