@@ -109,7 +109,7 @@ Every feature in the admin is fully functional. The demo resets automatically at
 - **robots.txt and AI crawlers** — allow, block AI training only, or block all AI crawlers; `Content-Signal` headers; `llms.txt` and a Markdown version of every page
 - **Redirect manager** — 301/302/307/308/410, CSV import, and automatic 301s when a published page's slug changes
 - **IndexNow** pings on publish, plus an SEO audit and a crawler activity report
-- **Analytics** — cookie-free page views via Cloudflare Analytics Engine, or paste any analytics script into the head/body code settings
+- **Analytics** — Admin → Analytics: cookie-free page views, top pages, referrers, countries and devices per site, via Cloudflare Analytics Engine (one binding and an API token to switch on — see the installation guide). Or paste any analytics script into the head/body code settings
 
 ### Forms Builder
 - **Form builder** with field types: Short text, Long text, Email, Number, Select, Radio, Checkbox, Date, File upload, Signature, Hidden, and Computed

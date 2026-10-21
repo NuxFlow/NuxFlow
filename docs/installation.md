@@ -550,6 +550,28 @@ The first responses are `200`. After about 30 they change to `429` (Too Many Req
 > [!NOTE]
 > If real visitors or a tool you rely on (an uptime monitor, for example) ever get blocked, raise the limit, or add `and not ip.src eq 203.0.113.10` with that tool's IP address to the expression.
 
+### Visitor analytics
+
+Gives every site an **Admin → Analytics** page: page views per day, top pages, where visitors came from, countries, and devices. It doesn't use cookies or store anything about individual visitors, so it needs no consent banner. It runs on **Cloudflare Analytics Engine**, which the Workers Paid plan includes (around 10 million recorded views a month; check Cloudflare's pricing page for the current allowance). It's optional and off by default. Set it up once for the whole installation; every site then sees only its own numbers. What the page shows is described in the [User Guide](./user-guide.md#analytics).
+
+1. **Start recording.** In `apps/nuxflow/wrangler.toml`, uncomment the analytics block and deploy:
+
+   ```toml
+   [[analytics_engine_datasets]]
+   binding = "AE"
+   dataset = "nuxflow_analytics"
+   ```
+
+   There's nothing to create first: Cloudflare creates the dataset when the first view is recorded. Counting starts within the hour, as pages already in the cache refresh. If you use a different dataset name, also set the `NUXT_ANALYTICS_DATASET` variable to the same name.
+2. **Create a token to read the numbers.** In the Cloudflare dashboard, go to **My Profile → API Tokens → Create Token → Custom token**. Give it a single permission, **Account → Account Analytics → Read**, for the account your Worker runs in.
+3. **Save it in NuxFlow.** On your main site, go to **Admin → Super Admin → Platform → Visitor analytics**. Paste the token and your **account ID** (Cloudflare dashboard → Account home → the **⋯** next to your account name → **Copy account ID**), then select **Save**. The account ID is the same one Settings → Media and Settings → AI use, so it may already be filled in.
+
+**Check:** visit a few pages of your site in a private window, wait a few minutes, then open **Admin → Analytics**. The dashboard's **Finish setting up your site** card also ticks this off once both steps are done.
+
+**Local development:** unlike Workers AI, this binding works under `wrangler dev` without a Cloudflare login. Wrangler simulates it, so views are accepted but not stored, and the Analytics page can only show real data from a deployed site.
+
+If the Analytics page says *"Cloudflare refused the analytics API token"*, the token is missing the Account Analytics Read permission or was made for a different account.
+
 ### Dynamic Plugins (KV + Worker Loaders)
 
 Dynamic plugins run as isolated Cloudflare Workers and are stored in a KV namespace. This allows plugins to be installed or updated without redeploying the site.
@@ -757,4 +779,12 @@ This is done once, in the Cloudflare dashboard, by whoever runs the installation
 - **If you skip it:** a script can request your pages over and over with a different made-up query string each time, which gets around NuxFlow's page cache. Every one of those requests makes your Worker build the page from scratch, using CPU time you pay for and slowing the site down.
 - **Do this:** create one rate-limiting rule for your domain: 30 page loads per 10 seconds per IP address, with the admin area, app data and search-engine crawlers left out. It works on the Free plan. See [Rate Limiting (Cloudflare WAF)](#rate-limiting-cloudflare-waf) for the exact rule to paste.
 - **Check:** the test loop in that section starts returning `429` after about 30 requests. NuxFlow can't see Cloudflare dashboard settings, so the dashboard card can't tick this one off for you: select **Skip** on it once the rule is in place.
+
+#### ☐ 12. Turn on visitor analytics
+
+This is done once, by whoever runs the installation, and gives every site an **Analytics** page.
+
+- **If you skip it:** you can't see how many people visit or which pages they read, unless you add a third-party analytics script (which usually needs a cookie banner).
+- **Do this:** uncomment the `[[analytics_engine_datasets]]` block in `wrangler.toml` and deploy, then add an API token with **Account Analytics Read** and your account ID in **Admin → Super Admin → Platform → Visitor analytics**. See [Visitor analytics](#visitor-analytics).
+- **Check:** after visiting a few pages and waiting a few minutes, **Admin → Analytics** shows them.
 

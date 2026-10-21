@@ -65,6 +65,8 @@ export const SENSITIVE_SETTING_KEYS = new Set([
   // Cloudflare API token for customers' own domains (hosting-domains.ts).
   'hosting.cf_api_token',
   'auth.github_client_secret',
+  // Reads every site's visitor analytics (analytics.ts) — operator's account token.
+  'analytics.cf_api_token',
 ])
 
 export const SECRET_MASK = '••••••••••••••••'
@@ -160,6 +162,8 @@ export const SERVER_MANAGED_SETTING_KEYS: ReadonlySet<string> = new Set([
   'hosting.cf_zone_id',
   'hosting.cf_api_token',
   'hosting.custom_domain_target',
+  // Visitor analytics API token (analytics.ts), set on Super Admin → Platform.
+  'analytics.cf_api_token',
 ])
 
 /**

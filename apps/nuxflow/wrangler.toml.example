@@ -111,9 +111,12 @@ binding = "LOADER"
 binding = "MEDIA_BUCKET"
 bucket_name = "nuxflow-media"
 
-# Cloudflare Analytics Engine (optional — included in Workers Paid plan).
-# Enables edge-native, cookie-free page view and event analytics.
-# Create a dataset in the Cloudflare dashboard, then set the binding name to "AE".
+# Cloudflare Analytics Engine (optional — included in the Workers Paid plan).
+# Visitor analytics for every site (Admin → Analytics): cookie-free page views, top pages,
+# countries, referrers. Uncomment and deploy to start recording; the dataset is created on
+# the first write. To show the numbers, add an API token with Account Analytics Read and
+# your account ID in Super Admin → Platform → Visitor analytics. If you change the dataset
+# name, set NUXT_ANALYTICS_DATASET to match.
 # [[analytics_engine_datasets]]
 # binding = "AE"
 # dataset = "nuxflow_analytics"

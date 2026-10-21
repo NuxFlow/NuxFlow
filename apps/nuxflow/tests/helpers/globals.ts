@@ -204,6 +204,7 @@ globalThis.useRuntimeConfig = () => ({
   betterAuthSecret: 'test-secret-exactly-32-chars-ok!',
   cloudflareAccountId: '',
   cloudflareStreamToken: '',
+  analyticsDataset: 'nuxflow_analytics',
   nuxtPublic: {},
   public: {
     i18n: { defaultLocale: 'en' },

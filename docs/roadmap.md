@@ -4,137 +4,14 @@ This document tracks planned features and the preparatory groundwork already in 
 
 ---
 
-## PWA & Offline Editing
+## Visitor analytics: what's next
 
-### Vision
+Admin → Analytics (page views per day, top pages, referrers, countries and devices, on Cloudflare Analytics Engine — see `server/utils/analytics.ts` and the user guide's **Analytics** section) is built. Left for later:
 
-NuxFlow admins should be able to install the admin panel as a standalone app (via the browser's "Install app" option) and continue editing content drafts even without an internet connection. Changes made offline sync automatically when connectivity returns.
-
-The public-facing site built on NuxFlow should also be installable as a PWA, with per-site configuration for app name, icon, and theme colour.
-
-### Why this is interesting
-
-- **Admin PWA**: Editors on mobile or a second screen get a native-feeling experience without a separate app build or app store submission.
-- **Public site PWA**: Sites built on NuxFlow can be published to the Android Play Store via TWA (Trusted Web Activity) with minimal extra effort on top of a solid PWA.
-- **True offline editing**: The content JSON is already self-contained in the DB — there is no reason an editor cannot queue changes locally and replay them when back online.
-
-### Groundwork already in place
-
-The following changes were made proactively to make the offline sync implementation straightforward when the time comes:
-
-#### `version` column on `content_items`
-
-(Present since `packages/db/migrations/0000_initial.sql` — earlier revisions of this doc cited migration `0004`, which is stale after a schema-history squash; check the migrations folder directly rather than trusting a specific migration number here.)
-
-Every content item now carries an integer `version` that is incremented on every `PATCH`. This enables **optimistic locking**:
-
-- The client stores `version` alongside cached content in IndexedDB.
-- On sync, the client includes `expectedVersion` in the `PATCH` request body.
-- If the item was edited online while the user was offline, the server's version will be higher and it returns **HTTP 409 Conflict** with the current server version in the response body.
-- The conflict resolution UI can then show the offline draft alongside the server version (using the existing `contentRevisions` history, which already snapshots before every save) and let the editor choose or merge.
-
-Without this column, conflict detection would have to rely on `updatedAt` timestamps, which are unreliable under clock skew or same-second concurrent edits.
-
-#### `updatedAfter` query parameter on `GET /api/v1/content`
-
-The content list endpoint now accepts `?updatedAfter=<ISO8601 timestamp>`. An offline client that reconnects after a period away can call this once per content type to fetch only what changed — rather than re-downloading the entire content list.
-
-This query hits the new `idx_content_items_site_updated` composite index on `(site_id, updated_at)`, so it remains fast even on large sites.
-
-#### ULID IDs (already in place since the beginning)
-
-All content items use ULID primary keys, which are time-sortable and can be generated client-side without a server round-trip. This means an editor creating a new post while offline can assign it a permanent ID locally — no temporary IDs that need to be swapped out on sync.
-
-### What still needs to be built
-
-When the feature is ready to implement, the remaining work is:
-
-1. **`@vite-pwa/nuxt` integration** — service worker registration, `manifest.json` generation, and install prompt UI in the admin header.
-2. **Caching strategy** — static assets (JS/CSS) served from the service worker cache; API calls use network-first with offline fallback.
-3. **IndexedDB sync layer** — a composable (e.g. `useOfflineContent`) that mirrors the content store locally and queues mutations when offline.
-4. **Conflict resolution UI** — a modal that surfaces when a 409 is returned on sync, showing the offline draft vs the server version with an option to keep either or view the diff.
-5. **Dynamic `manifest.json` route** — reads app name, short name, icon, and theme colour from site settings so each NuxFlow-powered site gets its own installable identity.
-6. **`/.well-known/assetlinks.json` route** — needed only if supporting Android TWA / Play Store publishing.
-
-### What was explicitly ruled out
-
-- **CRDTs (Yjs, Automerge)**: Appropriate for real-time collaborative editing where two users edit the same document simultaneously. For the offline case — one user, one device, reconnecting later — the version + revision approach above is simpler and sufficient.
-- **Background Sync API**: The service worker Background Sync spec is still not supported on iOS Safari. A simpler approach (retry on `online` event) is more portable for a first implementation.
-- **Electron / desktop wrappers**: NuxFlow is a cloud-hosted CMS; every meaningful operation requires a server round-trip. A native desktop wrapper adds 150 MB of Chromium for no functional benefit over an installed PWA.
-
----
-
-## Cloudflare Analytics Engine
-
-### Vision
-
-NuxFlow sites should have first-party, cookie-free, GDPR-compliant page view and event analytics built in — no third-party scripts, no consent banners required for analytics alone, and no extra cost beyond the existing Cloudflare Workers Paid plan.
-
-Editors get an Admin → Analytics dashboard showing page views, top pages, traffic by country, and referrer breakdown, all sourced directly from Cloudflare's edge network.
-
-### Why this is valuable
-
-- **Already included**: Analytics Engine is bundled with the Cloudflare Workers Paid plan ($5/month). There is no extra billing.
-- **Cookie-free**: Analytics Engine stores aggregated data points, not individual user sessions. No cookies, no personal data, no GDPR consent requirement for page view tracking.
-- **Edge-native and zero-latency**: `writeDataPoint()` is a fire-and-forget call on the same Worker request that serves the page. There is no separate tracking pixel, no DNS lookup, and no performance impact.
-- **SQL queryable**: Cloudflare exposes Analytics Engine data via a SQL API, so custom queries (e.g. top 10 pages this week, views by country for a specific slug) are straightforward.
-
-### Groundwork already in place
-
-**`AnalyticsEngineDataset` binding type (added now)**
-
-The `AnalyticsEngineDataset` interface has been added to `cloudflare-bindings.d.ts` and the `AE` binding is declared on `NuxFlowCloudflareEnv`. This means TypeScript is fully aware of the binding anywhere in the server codebase.
-
-**`getAnalyticsEngine(event)` in `cf-env.ts` (added now)**
-
-Follows the same pattern as `getCfBindings` — returns the `AE` binding when running on Cloudflare, `null` in local dev. All callers gracefully no-op when `null`.
-
-**`trackPageView()` in `server/utils/analytics.ts` (added now)**
-
-A fire-and-forget utility called at the end of every successful `GET /api/public/pages/:slug` response. It writes:
-
-| Field        | Value                                             |
-| ------------ | ------------------------------------------------- |
-| `blobs[0]`   | Page slug                                         |
-| `blobs[1]`   | Visitor country (from `cf-ipcountry` header)      |
-| `blobs[2]`   | Referrer URL (truncated to 256 chars)             |
-| `doubles[0]` | `1` (page view count — SUM this in queries)       |
-| `indexes[0]` | Site ID (partition key for fast per-site queries) |
-
-Data collection starts the moment the `AE` binding is added to `wrangler.toml` — no code changes needed at that point.
-
-**`wrangler.toml.example` binding (added now)**
-
-The `[[analytics_engine_datasets]]` block is documented (commented out) in `wrangler.toml.example` so deployers know exactly what to add when they want analytics.
-
-### What still needs to be built
-
-1. **Activate the `AE` binding** — add `[[analytics_engine_datasets]]` to the live `wrangler.toml` (currently only in `.example`) and create the dataset in the Cloudflare dashboard.
-2. **Analytics query server route** — `GET /api/v1/analytics/summary` calls the Cloudflare Analytics Engine SQL API via `fetch` (authenticated with a CF API token stored as a site setting), returning aggregated page view totals.
-3. **Admin → Analytics dashboard** — charts (page views over time, top pages, country map, referrer list) built on top of the query route.
-4. **Additional event types** — beyond page views: form submissions, paywall encounters, membership conversions. Each is one extra `trackPageView`-style utility call at the relevant server route.
-
-### Enabling it
-
-Once you have a Cloudflare Workers Paid plan, add to `wrangler.toml`:
-
-```toml
-[[analytics_engine_datasets]]
-binding = "AE"
-dataset = "nuxflow_analytics"
-```
-
-Then deploy. Page views start recording immediately. No code changes, no migrations.
-
----
-
-## Cloudflare Workflows for long-running jobs
-
-**What**: Move genuinely long-running, multi-step operations — WordPress WXR import, bulk AI alt-text generation, D1 whole-database export — off the single-request model and onto Workflows, which supports durable state, automatic per-step retries, and multi-hour execution.
-
-**Why valuable**: The WordPress import route (see `MYSTUFF/Decide.txt`) already works around single-request limits with SSE streaming, but a very large WXR file still risks hitting Worker CPU/memory limits during its synchronous initial parse — the same class of problem the D1 export feature hit five separate times against real Cloudflare limits before landing on its current streaming design (see CLAUDE.md's "Backup, restore, and database export" section for the full account). Workflows sidesteps the whole category of "will this fit in one request" question.
-
-**What still needs to be built**: picking one candidate (WordPress import is the best first target — it's already isolated behind a single route) and rewriting it as a Workflow with explicit steps (parse → upload media → create content), rather than one big streamed async IIFE.
+- **History beyond 3 months.** Analytics Engine keeps 90 days. A nightly task could copy each site's daily totals into D1, the way `site_usage_daily` works, for year-on-year charts.
+- **An estimate of visitors**, not just page views. Without cookies this has to be a daily-rotating hash of IP + user agent (the Plausible/Fathom method), which is approximate and needs a short privacy note.
+- **Events beyond page views**: form submissions, paywall encounters, and memberships bought — each is one more `writeDataPoint()` with its own first blob, and shows which pages earn money rather than only which get visits.
+- **Leaving out the site's own team**, whose visits are counted today.
 
 ---
 
@@ -144,7 +21,7 @@ Then deploy. Page views start recording immediately. No code changes, no migrati
 
 **Why valuable**: Every public page already has `seoTitle`/`ogImage` fields, but most content never gets a manually-designed share image. A generated card (title + site branding rendered over a template) is a meaningful default-quality improvement with no editor effort.
 
-**What still needs to be built**: a `BROWSER` binding declaration, a render route that takes a content item's title/excerpt and produces a templated screenshot, a cache layer (these shouldn't regenerate on every request — publish-time generation, same trigger point as `trackPageView`), and a fallback to the existing manual `ogImage` field when set.
+**What still needs to be built**: a `BROWSER` binding declaration, a render route that takes a content item's title/excerpt and produces a templated screenshot, a cache layer (these shouldn't regenerate on every request — generated when an item is published, alongside the IndexNow ping and plugin hooks), and a fallback to the existing manual `ogImage` field when set.
 
 ---
 
@@ -171,7 +48,7 @@ Practical effect: Cloudflare Workers runtime types (`apps/nuxflow/worker-configu
 
 ### Why not fixed now
 
-Nuxt's own docs confirm the unified pattern is legacy and will be replaced by TypeScript project references (`references: [...]` in the root tsconfig) — that's the correct target architecture, not a workaround. But turning it on today (Nuxt 4.4.x) hits multiple open upstream bugs:
+Nuxt's own docs confirm the unified pattern is legacy and will be replaced by TypeScript project references (`references: [...]` in the root tsconfig) — that's the correct target architecture, not a workaround. But turning it on (last checked on Nuxt 4.4.x; the project is now on 4.6 and hasn't been re-tested) hits multiple open upstream bugs:
 
 - [nuxt/cli#1224](https://github.com/nuxt/cli/issues/1224) — `-b` build mode fails to resolve `declare global` auto-imports
 - [nuxt/nuxt#34212](https://github.com/nuxt/nuxt/issues/34212) — typecheck errors on auto-imported Vue/Nuxt utils
@@ -201,6 +78,16 @@ The mailing list (Admin → Mailing list) collects email addresses through the s
 - **Mailchimp sync**, alongside the existing Brevo sync.
 - **Subscribers in the per-site backup.** Today the signup settings are backed up but the list itself isn't; moving a site means exporting the CSV.
 - **Several popups** (different offers per section of the site) and A/B testing of headings.
+
+---
+
+## Push notifications: what's next
+
+Browser push works end to end (Settings → Push, My account, `server/utils/webpush.ts`). Left open after the October 2026 audit:
+
+- **Large broadcasts.** A broadcast sends to every subscriber inside one Worker invocation, which is fine for hundreds of subscribers but will hit Cloudflare's per-invocation limits in the thousands. The fix is to put each batch on a Cloudflare Queue.
+- **Readers who aren't signed in.** Subscribing needs a site login today, so "New content published" only reaches members and the team. Letting anonymous visitors subscribe needs a subscription row without a user, its own unsubscribe path, and the same abuse limits subscribing has now.
+- **iPhone/iPad.** iOS only allows push for a site added to the home screen, which needs a web app manifest (name, icons, theme colour — a per-site `manifest.webmanifest` route would do). No offline mode or install prompt needed for this.
 
 ---
 
@@ -323,7 +210,7 @@ A new "SMS" tab in `app/pages/admin/settings/index.vue`, matching the layout of 
 
 #### 5. User profile — phone number field
 
-The account settings page (Admin → My Account) needs a phone number input field:
+The account page (**My account**, `/account`) needs a phone number input field:
 
 - Validates E.164 format client-side before saving
 - Saves via `PATCH /api/v1/users/me` (extend that route to accept `phone`)
@@ -331,9 +218,7 @@ The account settings page (Admin → My Account) needs a phone number input fiel
 
 #### 6. SMS opt-in preference per user
 
-A boolean user preference (stored as a site setting scoped to the user, or as a JSON column on `user_site_roles`) that controls whether `sendNotification(..., { sendSms: true })` actually sends. The flag in `sendNotification` should be treated as intent — the actual send should also check the user's preference and skip if they have not opted in.
-
-The simplest implementation stores this as a `notifications_sms` boolean in a `user_preferences` JSON blob on `user_site_roles.preferences` (already a JSON column if added). Alternatively a `user_notification_prefs` table keyed by `(userId, siteId)` is cleaner if other per-user preferences accumulate.
+The per-user, per-type preference table now exists: `notification_preferences` (`userId`, `siteId`, `type`, with `email` and `push` booleans), shown as the Email/Push switches under **My account → Email and push notifications** and read by `channelPrefs()` in `notify.ts`. SMS opt-in is an `sms` column on that table (default **off**, unlike email/push), a third switch column in `AccountNotificationPreferences`, and a third channel in `channelPrefs()`. The flag in `sendNotification` stays intent only — the send also checks this preference and that `users.phone` is set.
 
 #### 7. `/api/v1/settings/sms-test` endpoint
 
@@ -342,7 +227,7 @@ Mirrors `/api/v1/settings/email-test`. Loads SMS config via `loadSmsConfig()`, s
 ### What was explicitly ruled out
 
 - **OTP / 2FA via SMS**: Better Auth handles multi-factor authentication. Integrating SMS-OTP into the auth flow requires hooking into Better Auth's plugin system specifically (it supports a `twoFactor` plugin). This is a distinct task from the transactional SMS feature above and should be tracked separately when 2FA is prioritised.
-- **Bulk SMS / marketing campaigns**: Transactional SMS (one notification triggered by a real event) is the use case here. Bulk campaign sending involves list management, opt-out compliance (TCPA/GDPR), carrier reputation, and unsubscribe handling — a significantly different scope. Not planned.
+- **Bulk SMS / marketing campaigns (in this feature)**: Transactional SMS (one notification triggered by a real event) is the use case here. Marketing texts are planned for later, as part of the mailing list (see **Mailing list: what's next**), not soon — they need their own consent record (US TCPA, UK PECR), opt-out handling and carrier reputation management, a separate scope. They would reuse this feature's provider code.
 - **Per-message cost visibility**: Carrier costs vary by country and provider. Surfacing per-message pricing in the admin is not worth the complexity; site owners should check their provider dashboard.
 - **SMS as an auth channel (passwordless login)**: Similar to OTP/2FA — belongs in the auth layer, not the notification layer.
 

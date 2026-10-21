@@ -20,6 +20,7 @@ const healthy: ChecklistInputs = {
   siteCount: 1,
   accountsOrigin: null,
   isPrimarySite: false,
+  analytics: { recording: true, readable: true },
   now: new Date('2026-09-28T00:00:00Z'),
 }
 
@@ -106,5 +107,17 @@ describe('buildSetupChecklist', () => {
     expect(status(buildSetupChecklist({ ...healthy, isPrimarySite: true }), 'ratelimit')).toMatchObject({
       tier: 'recommended', status: 'todo', docsAnchor: 'rate-limiting-cloudflare-waf',
     })
+  })
+
+  // Set up once for the install by the operator, so only suggested on the primary site.
+  it('suggests visitor analytics on the primary site until it is recording and readable', () => {
+    const off = { recording: false, readable: false }
+    expect(buildSetupChecklist({ ...healthy, analytics: off }).find(i => i.id === 'analytics')).toBeUndefined()
+    expect(status(buildSetupChecklist({ ...healthy, isPrimarySite: true, analytics: off }), 'analytics')).toMatchObject({
+      tier: 'recommended', status: 'todo', docsAnchor: 'visitor-analytics', fixUrl: '/admin/super/platform',
+    })
+    expect(status(buildSetupChecklist({ ...healthy, isPrimarySite: true, analytics: { recording: true, readable: false } }), 'analytics').detail)
+      .toContain('being recorded')
+    expect(status(buildSetupChecklist({ ...healthy, isPrimarySite: true }), 'analytics').status).toBe('done')
   })
 })

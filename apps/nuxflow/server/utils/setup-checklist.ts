@@ -5,7 +5,8 @@ import { useDb } from './db'
 import { resolveSetting } from './settings'
 import { getActiveProvider } from './media-providers/index'
 import { getAiSdkModel } from './ai-sdk'
-import { getEmailBinding } from './cf-env'
+import { getAnalyticsEngine, getEmailBinding } from './cf-env'
+import { ANALYTICS_TOKEN_KEY } from './analytics'
 import { getSeoSettings, type SeoSettings } from './seo'
 import { loadEmailConfig } from './email'
 import { getAccountsOrigin } from './accounts-origin'
@@ -61,6 +62,8 @@ export interface ChecklistInputs {
   accountsOrigin: string | null
   /** Whether this is the operator's own (primary) site — the one that can act on the Cloudflare account. */
   isPrimarySite: boolean
+  /** Visitor analytics (analytics.ts): the AE binding exists / the read token and account ID are saved. */
+  analytics: { recording: boolean; readable: boolean }
   now?: Date
 }
 
@@ -258,6 +261,21 @@ export function buildSetupChecklist(i: ChecklistInputs): ChecklistItem[] {
         fixUrl: '/admin/seo?tab=indexing', fixLabel: 'Indexing settings',
       })
 
+  // Visitor analytics are set up once for the whole install, by the operator — so, like
+  // the rate-limit rule below, only suggested on the primary site.
+  if (i.isPrimarySite) {
+    items.push(i.analytics.recording && i.analytics.readable
+      ? { id: 'analytics', tier: 'recommended', status: 'done', title: 'Visitor analytics on', detail: 'Every site has an Analytics page with its page views.' }
+      : {
+          id: 'analytics', tier: 'recommended', status: 'todo',
+          title: 'Turn on visitor analytics',
+          detail: i.analytics.recording
+            ? 'Page views are being recorded, but can\'t be shown yet. Add an API token with Account Analytics Read and your account ID in Super Admin → Platform.'
+            : 'See page views, top pages, countries and where visitors come from, with no cookies and no consent banner. Uncomment the [[analytics_engine_datasets]] block in wrangler.toml and redeploy, then add an API token in Super Admin → Platform.',
+          fixUrl: '/admin/super/platform', fixLabel: 'Platform settings', docsAnchor: 'visitor-analytics',
+        })
+  }
+
   // A Cloudflare dashboard rule — nothing a Worker can see, so this one can't tick itself
   // off: it stays open until skipped. Only on the operator's own site, since a tenant's
   // admins have no access to the Cloudflare account the rule lives in.
@@ -300,6 +318,10 @@ export async function gatherSetupChecklistInputs(event: H3Event, userId: string)
     db.select({ n: count() }).from(sites),
   ])
   const primary = await isPrimarySite(event, siteId)
+  // Only the primary site gets the analytics item; its credentials are stored there.
+  const [analyticsToken, accountId] = primary
+    ? await Promise.all([resolveSetting(event, ANALYTICS_TOKEN_KEY), resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')])
+    : ['', '']
 
   return {
     storageProvider: provider.name,
@@ -320,6 +342,7 @@ export async function gatherSetupChecklistInputs(event: H3Event, userId: string)
     siteCount: siteCountRow[0]?.n ?? 1,
     accountsOrigin: getAccountsOrigin(),
     isPrimarySite: primary,
+    analytics: { recording: Boolean(getAnalyticsEngine(event)), readable: Boolean(analyticsToken && accountId) },
   }
 }
 

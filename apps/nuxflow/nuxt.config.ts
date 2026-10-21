@@ -125,6 +125,9 @@ export default defineNuxtConfig({
     githubClientSecret: '',
     cloudflareImagesToken: '',
     cloudflareAccountId: '',
+    // Analytics Engine dataset behind the AE binding (wrangler.toml) — Admin → Analytics
+    // queries it by name. Change both together.
+    analyticsDataset: 'nuxflow_analytics',
     cloudflareStreamToken: '',
     cloudflareImagesDeliveryUrl: '',
     // Cloudflare R2 media storage — env-var fallback for resolveSetting(); requires the

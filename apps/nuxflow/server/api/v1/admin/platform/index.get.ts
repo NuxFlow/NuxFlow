@@ -7,6 +7,8 @@ import { HOSTING_WEBHOOK_SECRET_KEY, hostingSitesDomain } from '../../../../util
 import { resolveSetting } from '../../../../utils/settings'
 import { customDomainTarget, SAAS_TOKEN_KEY, SAAS_ZONE_KEY } from '../../../../utils/hosting-domains'
 import { getAiDailyCap, platformAiCreditsToday } from '../../../../utils/ai-allowance'
+import { ANALYTICS_TOKEN_KEY } from '../../../../utils/analytics'
+import { getAnalyticsEngine } from '../../../../utils/cf-env'
 
 /** Super Admin → Platform: the hosting switch, and what selling sites still needs. */
 export default defineEventHandler(async (event) => {
@@ -14,7 +16,7 @@ export default defineEventHandler(async (event) => {
   const primary = await getPrimarySite(event)
   const primaryEvent = primary ? eventForSite(event, primary.id) : null
   const db = useDb(event)
-  const [hostingEnabled, stripeKey, webhookSecret, cfZoneId, cfToken, target, aiDailyCap, aiCreditsToday] = await Promise.all([
+  const [hostingEnabled, stripeKey, webhookSecret, cfZoneId, cfToken, target, aiDailyCap, aiCreditsToday, analyticsToken, accountId] = await Promise.all([
     isHostingPlatform(db),
     primaryEvent ? resolveSetting(primaryEvent, 'payments.stripe_secret_key', 'stripeSecretKey') : '',
     primaryEvent ? resolveSetting(primaryEvent, HOSTING_WEBHOOK_SECRET_KEY) : '',
@@ -23,6 +25,8 @@ export default defineEventHandler(async (event) => {
     primaryEvent ? customDomainTarget(primaryEvent) : '',
     getAiDailyCap(db),
     platformAiCreditsToday(db, primary?.id ?? null),
+    primaryEvent ? resolveSetting(primaryEvent, ANALYTICS_TOKEN_KEY) : '',
+    primaryEvent ? resolveSetting(primaryEvent, 'cloudflare.account_id', 'cloudflareAccountId') : '',
   ])
   const central = isCentralAuth()
   return {
@@ -42,5 +46,13 @@ export default defineEventHandler(async (event) => {
     },
     // Platform-wide daily brake on AI the platform pays for (ai-allowance.ts).
     ai: { dailyCap: aiDailyCap, creditsToday: aiCreditsToday },
+    // Visitor analytics (analytics.ts): recorded through the AE binding, read back with
+    // the operator's API token. Not a hosting feature — shown on every install.
+    analytics: {
+      recording: getAnalyticsEngine(event) !== null,
+      dataset: useRuntimeConfig().analyticsDataset,
+      tokenSet: !!analyticsToken,
+      accountId: accountId ? String(accountId) : null,
+    },
   }
 })
