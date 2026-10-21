@@ -104,13 +104,13 @@ describe('GET /api/v1/settings', () => {
     globalThis.useRuntimeConfig = () => ({
       ...realRuntimeConfig(),
       stripeWebhookSecret: 'whsec_env_only',
-      s3Bucket: 'env-bucket',
+      r2PublicUrl: 'https://env-media.example.com',
       googleClientId: 'env-google-id',
     })
     const res = await (getSettingsHandler as Handler)(ev(adminId)) as { settings: Record<string, unknown> }
     // Sensitive keys already set in the DB above stay masked; an env-only one is masked too.
     expect(res.settings['payments.stripe_webhook_secret']).toBe(SECRET_MASK)
-    expect(res.settings['media.s3_bucket']).toBe('env-bucket')
+    expect(res.settings['media.r2_public_url']).toBe('https://env-media.example.com')
     expect(JSON.stringify(res)).not.toContain('whsec_env_only')
     // Social login is configured on the primary site only, so a tenant isn't shown the
     // platform's client ID (its next save used to copy it into the tenant's settings).

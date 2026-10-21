@@ -51,15 +51,6 @@ export const SENSITIVE_SETTING_KEYS = new Set([
   'push.vapid_private_key',
   'cloudflare.stream_token',
   'cloudflare.images_token',
-  // media.s3_access_key (an AWS Access Key ID) is not independently exploitable without
-  // its paired media.s3_secret_key, but it's kept sensitive for defense-in-depth: the two
-  // are stored in the same settings blob, and returning the access key unmasked widens
-  // exposure (logs, browser extensions, a compromised lower-trust session) more than
-  // necessary for no real benefit — nothing legitimate needs to read it in plaintext from
-  // the settings API.
-  'media.s3_access_key',
-  'media.s3_secret_key',
-  'media.bunny_api_key',
   // SMS provider credentials — added proactively ahead of SMS feature implementation
   'sms.twilio_auth_token',
   'sms.vonage_api_secret',

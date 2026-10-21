@@ -106,7 +106,7 @@ This project enforces [Conventional Commits](https://www.conventionalcommits.org
 
 ```
 feat: add webhook retry backoff
-fix: correct S3 signature generation for non-standard regions
+fix: correct R2 content type for SVG uploads
 docs: update plugin authoring guide
 chore: bump drizzle-orm to 0.46
 refactor: extract auth token validation into shared util
@@ -218,7 +218,7 @@ npx @nuxflow/cli theme create my-theme
 cd themes/my-theme
 ```
 
-A theme zip contains `theme.css` at the root, plus two optional files: `theme.json` (name/version metadata) and `demo.json` (starter pages, menus, forms — installed via **Admin → Themes**). Any images referenced in `demo.json` go in an `images/` subfolder — **keep each one under 512 KB**. If the installing site hasn't configured a real media provider (Cloudflare Images, S3, Bunny.net), uploads fall back to base64-encoding the image directly into a D1 column, capped at 512 KB since D1 rows have a hard 1 MB limit. An oversized image fails to upload silently-ish (the admin gets a warning toast, but the theme still installs) and renders as a broken image in the demo content.
+A theme zip contains `theme.css` at the root, plus two optional files: `theme.json` (name/version metadata) and `demo.json` (starter pages, menus, forms — installed via **Admin → Themes**). Any images referenced in `demo.json` go in an `images/` subfolder — **keep each one under 512 KB**. If the installing site hasn't configured a real media provider (R2 or Cloudflare Images), uploads fall back to base64-encoding the image directly into a D1 column, capped at 512 KB since D1 rows have a hard 1 MB limit. An oversized image fails to upload silently-ish (the admin gets a warning toast, but the theme still installs) and renders as a broken image in the demo content.
 
 See the **[Theme Development guide](docs/development.md#theme-development)** for the full CSS token reference, Canvas block selectors, and `demo.json` schema.
 

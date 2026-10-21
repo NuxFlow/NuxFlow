@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import type { CloudflareMediaState, R2State, S3State, BunnyState } from '~/types/admin-settings'
+import type { CloudflareMediaState, R2State } from '~/types/admin-settings'
 
 const cloudflare = defineModel<CloudflareMediaState>('cloudflare', { required: true })
 const r2 = defineModel<R2State>('r2', { required: true })
-const s3 = defineModel<S3State>('s3', { required: true })
-const bunny = defineModel<BunnyState>('bunny', { required: true })
 defineProps<{
   saving: boolean
   onSave: () => Promise<void>
@@ -88,7 +86,7 @@ defineProps<{
         <template #description>
           <ol class="list-decimal list-inside space-y-1 text-xs mt-1">
             <li>Cloudflare dashboard → this domain → <strong>Images → Transformations</strong> → enable it.</li>
-            <li>If your media is stored anywhere other than Cloudflare Images (R2/S3/Bunny/local above), also enable
+            <li>If your media is stored anywhere other than Cloudflare Images (R2 or the database fallback), also enable
               <strong>"Resize Images from Any Origin"</strong> and allow-list this site's storage domain as a source origin.</li>
           </ol>
           Turning this on before completing those steps will make every image on the site 404.
@@ -124,7 +122,7 @@ defineProps<{
     icon="i-lucide-arrow-down-up"
     color="neutral"
     variant="soft"
-    description="Only one storage provider is active at a time, checked in this order: Cloudflare Images → R2 with a public URL → S3 → Bunny.net → R2 through your site (the bucket binding alone, no settings) → the database. The first one that's set up wins. The status card at the top of this page always shows which one is in use."
+    description="Only one storage provider is active at a time, checked in this order: Cloudflare Images → Cloudflare R2 → the database. The first one that's set up wins. The status card at the top of this page always shows which one is in use."
   />
 
   <UCard>
@@ -143,75 +141,6 @@ defineProps<{
     <template #footer>
       <div class="flex items-center justify-between">
         <p class="text-xs text-gray-400">No credentials to store — access is via the Worker's own bucket binding.</p>
-        <UButton :loading="saving" @click="onSave">Save</UButton>
-      </div>
-    </template>
-  </UCard>
-
-  <UCard>
-    <template #header>
-      <div class="flex items-center gap-2">
-        <UIcon name="i-lucide-database" class="w-4 h-4 text-primary-500" />
-        <p class="text-sm font-semibold text-gray-900 dark:text-white">S3-compatible storage</p>
-      </div>
-      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">AWS S3, Backblaze B2, or any S3-compatible bucket (including R2's own S3-compatible endpoint, if you'd rather use access-key auth than the native binding above). Used when Cloudflare Images and R2 above aren't configured.</p>
-    </template>
-    <div class="space-y-4">
-      <UFormField label="Bucket name">
-        <UInput v-model="s3.bucket" placeholder="my-nuxflow-media" />
-      </UFormField>
-      <div class="grid grid-cols-2 gap-3">
-        <UFormField label="Access key ID">
-          <UInput v-model="s3.accessKey" type="password" placeholder="AKIA…" class="font-mono" />
-        </UFormField>
-        <UFormField label="Secret access key">
-          <UInput v-model="s3.secretKey" type="password" placeholder="••••••••" />
-        </UFormField>
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <UFormField label="Region" hint="Default us-east-1">
-          <UInput v-model="s3.region" placeholder="us-east-1" />
-        </UFormField>
-        <UFormField label="Endpoint" hint="Leave blank for AWS S3; required for R2/B2/other providers">
-          <UInput v-model="s3.endpoint" placeholder="https://<account>.r2.cloudflarestorage.com" />
-        </UFormField>
-      </div>
-      <UFormField label="Public URL" hint="Where uploaded files are publicly served from — your CDN or bucket's public endpoint">
-        <UInput v-model="s3.publicUrl" placeholder="https://media.yourdomain.com" />
-      </UFormField>
-    </div>
-    <template #footer>
-      <div class="flex items-center justify-between">
-        <p class="text-xs text-gray-400">Secret key is encrypted at rest using AES-GCM.</p>
-        <UButton :loading="saving" @click="onSave">Save</UButton>
-      </div>
-    </template>
-  </UCard>
-
-  <UCard>
-    <template #header>
-      <div class="flex items-center gap-2">
-        <UIcon name="i-lucide-zap" class="w-4 h-4 text-primary-500" />
-        <p class="text-sm font-semibold text-gray-900 dark:text-white">Bunny.net storage</p>
-      </div>
-      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Bunny.net Edge Storage + CDN. Used when none of Cloudflare Images, R2, or S3 above are configured.</p>
-    </template>
-    <div class="space-y-4">
-      <UFormField label="API key" hint="Storage zone password, found in the Bunny.net dashboard under your storage zone → FTP & API Access">
-        <UInput v-model="bunny.apiKey" type="password" placeholder="••••••••" />
-      </UFormField>
-      <div class="grid grid-cols-2 gap-3">
-        <UFormField label="Storage zone name">
-          <UInput v-model="bunny.storageZone" placeholder="my-nuxflow-media" />
-        </UFormField>
-        <UFormField label="Pull zone subdomain" hint="Without .b-cdn.net">
-          <UInput v-model="bunny.pullZone" placeholder="my-nuxflow-media" />
-        </UFormField>
-      </div>
-    </div>
-    <template #footer>
-      <div class="flex items-center justify-between">
-        <p class="text-xs text-gray-400">API key is encrypted at rest using AES-GCM.</p>
         <UButton :loading="saving" @click="onSave">Save</UButton>
       </div>
     </template>

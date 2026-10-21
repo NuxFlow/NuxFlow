@@ -131,18 +131,6 @@ export default defineNuxtConfig({
     // MEDIA_BUCKET binding in wrangler.toml plus this public base URL (a custom domain or
     // the bucket's r2.dev subdomain — R2 buckets are private by default).
     r2PublicUrl: '',
-    // S3-compatible media storage — env-var fallback for resolveSetting(); the admin
-    // Settings → Media UI writes real per-site overrides to the DB on top of these.
-    s3Bucket: '',
-    s3AccessKey: '',
-    s3SecretKey: '',
-    s3Region: 'us-east-1',
-    s3Endpoint: '',
-    s3PublicUrl: '',
-    // Bunny.net media storage — same env-var fallback pattern as S3 above.
-    bunnyApiKey: '',
-    bunnyStorageZone: '',
-    bunnyPullZone: '',
     // AI providers — env-var fallback for resolveSetting(); the admin Settings → AI UI
     // writes real per-site overrides to the DB (ai.provider / ai.*_api_key / etc.) on
     // top of these, same DB-first-env-fallback pattern as every other subsystem here.

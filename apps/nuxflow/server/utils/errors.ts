@@ -28,10 +28,10 @@ export function rethrowAsProviderError(err: unknown, operationLabel: string): ne
  * for AI provider errors, so the two kinds of "third-party API call failed" errors surface
  * with the same quality of message instead of one being classified and the other opaque.
  * Unlike AI SDK errors (which expose a structured `.status` property), the real remote
- * media providers (Cloudflare Images, S3, Bunny.net — R2 uses the R2Bucket binding directly,
- * never HTTP, so it never reaches this path) each throw a plain Error with the HTTP status
- * embedded in the message text (e.g. "Bunny.net upload failed: 401",
- * "S3 upload failed: 403 <body>"), so the status is parsed back out of that text instead.
+ * media provider (Cloudflare Images — R2 uses the R2Bucket binding directly, never HTTP,
+ * so it never reaches this path) throws a plain Error with the HTTP status embedded in the
+ * message text (e.g. "Cloudflare Images upload failed: 403 <body>"), so the status is
+ * parsed back out of that text instead.
  */
 export function mediaErrorMessage(err: unknown): string {
   if (!(err instanceof Error)) return 'Media provider request failed'

@@ -341,7 +341,9 @@ Without that binding, and with no other provider configured below, uploads fall 
 
 **Already have files stored in the database?** Once storage is connected, **Settings → Media** shows how many files are still in the database, with a **Move to …** button. It copies each file to your storage, confirms the copy works, then updates every page, draft, revision, menu, setting, and avatar that used it — and only then removes the database copy. Images embedded straight into pages (for example AI-generated ones) are added to the media library as part of the move. Anything that can't be moved is left exactly as it was and listed. It's safe to run again at any time.
 
-NuxFlow uses one provider at a time, in this order: **Cloudflare Images → R2 with a public URL → S3-compatible → Bunny.net → R2 through your site (binding only) → database fallback**. The first one that's set up wins. Adding the R2 binding never overrides an S3 or Bunny.net provider you configured on purpose. Settings → Media's status card always shows which one is in use.
+NuxFlow uses one provider at a time, in this order: **Cloudflare Images → Cloudflare R2 → database fallback**. The first one that's set up wins. Settings → Media's status card always shows which one is in use.
+
+NuxFlow is built for Cloudflare, so storage is Cloudflare-only: R2 or Cloudflare Images. Earlier pre-release builds also offered S3-compatible storage and Bunny.net; they were removed before release. Moving from another platform doesn't need them — the WordPress import copies every file into your storage.
 
 ### Cloudflare Images
 
@@ -369,8 +371,6 @@ Also set `NUXT_CLOUDFLARE_IMAGES_DELIVERY_URL` if using image resizing variants.
 ### Cloudflare R2 (native binding — recommended)
 
 R2 is Cloudflare's own object storage: zero egress fees, no third-party account, and **no API keys or access credentials to manage at all**.
-
-This is a *different, simpler* setup than "S3-Compatible Storage" further down this page, which reaches R2 through its optional S3-compatible API with access keys. Use the native binding unless you specifically want access-key auth.
 
 1. Create the bucket:
    ```bash
@@ -426,38 +426,6 @@ wrangler secret put NUXT_CLOUDFLARE_STREAM_TOKEN
 *(If you have already configured `NUXT_CLOUDFLARE_ACCOUNT_ID` for Cloudflare Images, you only need to add `NUXT_CLOUDFLARE_STREAM_TOKEN`.)*
 
 Environment variables serve as a fallback when the admin setting is empty, so you can mix approaches — set defaults via env vars and override per-site from the UI.
-
-### S3-Compatible Storage (AWS S3, Backblaze B2, Cloudflare R2, etc.)
-
-If you're specifically looking to use **R2**, see the [Cloudflare R2 (native binding)](#cloudflare-r2-native-binding--recommended) section above first — it needs no access keys at all and is simpler than the access-key-based setup below. Use this S3-compatible option for R2 only if you'd rather manage it the same way as AWS S3/Backblaze B2, via access keys instead of a Worker binding.
-
-To use S3-compatible storage instead of Cloudflare Images:
-1. Create a bucket and credentials in your S3 provider.
-2. Add the following secrets:
-```bash
-wrangler secret put NUXT_S3_BUCKET
-wrangler secret put NUXT_S3_ACCESS_KEY
-wrangler secret put NUXT_S3_SECRET_KEY
-```
-Optional variables can also be set to specify a region, custom endpoint, and custom public delivery URL:
-```bash
-wrangler secret put NUXT_S3_REGION
-wrangler secret put NUXT_S3_ENDPOINT
-wrangler secret put NUXT_S3_PUBLIC_URL
-```
-Setting `NUXT_S3_BUCKET` automatically activates the S3 provider. You can also enter all of these per site in **Admin → Settings → Media** instead, with no redeploy.
-
-### Bunny.net Storage
-
-To use Bunny.net storage:
-1. Create a storage zone and pull zone on Bunny.net.
-2. Add the following secrets:
-```bash
-wrangler secret put NUXT_BUNNY_API_KEY
-wrangler secret put NUXT_BUNNY_STORAGE_ZONE
-wrangler secret put NUXT_BUNNY_PULL_ZONE
-```
-Setting `NUXT_BUNNY_API_KEY` automatically activates the Bunny.net provider. These can also be entered per site in **Admin → Settings → Media**.
 
 ### AI Providers
 

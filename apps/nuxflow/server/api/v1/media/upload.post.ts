@@ -124,7 +124,7 @@ export default defineEventHandler(async (event) => {
     width: dimensions?.width,
     height: dimensions?.height,
     url,
-    storageProvider: provider.name as 'cloudflare' | 'local' | 'r2' | 's3' | 'bunny',
+    storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
     storageKey,
     ...(metadata ? { metadata } : {}),
   })

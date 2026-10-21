@@ -86,21 +86,6 @@ export interface R2State {
   publicUrl: string
 }
 
-export interface S3State {
-  bucket: string
-  accessKey: string
-  secretKey: string
-  region: string
-  endpoint: string
-  publicUrl: string
-}
-
-export interface BunnyState {
-  apiKey: string
-  storageZone: string
-  pullZone: string
-}
-
 export interface PushState {
   vapidPublicKey: string | null
   eventsContentPublished: boolean

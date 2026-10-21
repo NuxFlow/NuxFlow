@@ -17,7 +17,7 @@ export interface R2ProviderConfig {
 // Cloudflare R2 — zero egress fees, no third-party account, no access keys. Uses the
 // bucket binding directly (put()/delete() on the Worker's own R2Bucket object) rather
 // than R2's optional S3-compatible API, so there's no HMAC request signing to implement
-// (compare to S3Provider) and no credentials to store or leak.
+// and no credentials to store or leak.
 export class R2Provider implements MediaProvider {
   readonly name = 'r2'
 

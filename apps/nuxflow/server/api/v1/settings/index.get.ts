@@ -46,9 +46,6 @@ export default defineEventHandler(async (event) => {
     'ai.deepseek_api_key': 'deepseekApiKey',
     'cloudflare.stream_token': 'cloudflareStreamToken',
     'cloudflare.images_token': 'cloudflareImagesToken',
-    'media.s3_access_key': 's3AccessKey',
-    'media.s3_secret_key': 's3SecretKey',
-    'media.bunny_api_key': 'bunnyApiKey',
     'auth.google_client_secret': 'googleClientSecret',
     'auth.github_client_secret': 'githubClientSecret',
   }
@@ -71,17 +68,9 @@ export default defineEventHandler(async (event) => {
   const cfDeliveryUrl = rc.cloudflareImagesDeliveryUrl as string | undefined
   if (!settings['cloudflare.images_delivery_url'] && cfDeliveryUrl && !(await isEnvFallbackWithheld(db, 'cloudflare.images_delivery_url', site.isPrimary))) settings['cloudflare.images_delivery_url'] = cfDeliveryUrl
 
-  // Same for the non-sensitive S3/Bunny env vars. media.s3_access_key is deliberately NOT
-  // here — it's sensitive (see SENSITIVE_SETTING_KEYS) and its env-var fallback is already
-  // covered by envMap above, which masks it like every other sensitive key.
+  // Same for the R2 public URL env var.
   const nonSensitiveMediaEnv: Record<string, string> = {
     'media.r2_public_url': 'r2PublicUrl',
-    'media.s3_bucket': 's3Bucket',
-    'media.s3_region': 's3Region',
-    'media.s3_endpoint': 's3Endpoint',
-    'media.s3_public_url': 's3PublicUrl',
-    'media.bunny_storage_zone': 'bunnyStorageZone',
-    'media.bunny_pull_zone': 'bunnyPullZone',
   }
   for (const [key, rcKey] of Object.entries(nonSensitiveMediaEnv)) {
     const envVal = rc[rcKey] as string | undefined

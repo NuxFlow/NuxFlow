@@ -4,7 +4,7 @@
  * media-patch.test.ts covers PATCH /api/v1/media/:id; tests/unit/media-providers.test.ts
  * unit-tests the provider abstraction in isolation. Nothing previously exercised the
  * upload route's own wiring: provider selection via getActiveProvider() (which falls
- * back to the local base64-in-D1 provider when no Cloudflare Images/R2/S3/Bunny setting
+ * back to the local base64-in-D1 provider when no Cloudflare Images/R2 setting
  * or binding is configured — the easiest real path to exercise without mocking a live
  * cloud provider call), the extractExif() call chain, and the resulting media.metadata
  * write, all wired together through the real handler.

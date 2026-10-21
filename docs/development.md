@@ -291,7 +291,7 @@ Build your theme into a zip package and upload it through the admin:
 
 To include starter content images in `demo.json`, place them in an `images/` folder inside the zip. NuxFlow uploads them to your configured media provider and rewrites the references automatically.
 
-> **Keep bundled images under 512 KB.** If the installing site hasn't configured Cloudflare Images, S3, or Bunny.net (common on a fresh install, before any provider setup), uploads fall back to storing the image as base64 directly in a D1 column — capped at 512 KB, since D1 rows have a hard 1 MB limit and base64 inflates size by ~33%. An image over that cap fails to upload; the theme installs anyway, but that image reference in `demo.json` is left as the raw zip-relative path and renders as a broken image on the page. Compress/resize theme images to comfortably clear 512 KB so the demo content works out of the box regardless of what the installing site has configured.
+> **Keep bundled images under 512 KB.** If the installing site hasn't connected R2 or Cloudflare Images (common on a fresh install, before any provider setup), uploads fall back to storing the image as base64 directly in a D1 column — capped at 512 KB, since D1 rows have a hard 1 MB limit and base64 inflates size by ~33%. An image over that cap fails to upload; the theme installs anyway, but that image reference in `demo.json` is left as the raw zip-relative path and renders as a broken image on the page. Compress/resize theme images to comfortably clear 512 KB so the demo content works out of the box regardless of what the installing site has configured.
 
 ### How the CSS pipeline works
 

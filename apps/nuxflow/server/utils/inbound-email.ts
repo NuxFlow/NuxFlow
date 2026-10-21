@@ -586,7 +586,7 @@ async function handlePostByEmail(input: InboundInput): Promise<void> {
         mimeType,
         size: bytes.byteLength,
         url,
-        storageProvider: provider.name as 'cloudflare' | 'local' | 'r2' | 's3' | 'bunny',
+        storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
         storageKey,
       })
       uploaded.add(url)

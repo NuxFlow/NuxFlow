@@ -35,7 +35,7 @@ cpu_ms = 300000
 # or in the dashboard (Workers & Pages → nuxflow → Settings → Variables and Secrets).
 # Locally, `wrangler dev` reads them from apps/nuxflow/.env instead.
 # All names below are install-wide fallbacks read via Nuxt runtimeConfig — the NUXT_
-# prefix is required for Nuxt to pick them up. Cloudflare Images, S3, and Bunny.net are
+# prefix is required for Nuxt to pick them up. Cloudflare Images and the R2 public URL are
 # also configurable per-site in Settings → Media, which takes priority over these.
 #
 # Central sign-in domain — REQUIRED before hosting a second site on this Worker.
@@ -55,19 +55,6 @@ cpu_ms = 300000
 # into, or send mail through, the operator's accounts.
 # NUXT_CLOUDFLARE_IMAGES_TOKEN =
 # NUXT_CLOUDFLARE_ACCOUNT_ID =
-#
-# S3-compatible storage (checked after Cloudflare Images)
-# NUXT_S3_BUCKET =
-# NUXT_S3_ACCESS_KEY =
-# NUXT_S3_SECRET_KEY =
-# NUXT_S3_REGION = "us-east-1"
-# NUXT_S3_ENDPOINT =
-# NUXT_S3_PUBLIC_URL =
-#
-# Bunny.net storage (checked last, after Cloudflare Images and S3)
-# NUXT_BUNNY_API_KEY =
-# NUXT_BUNNY_STORAGE_ZONE =
-# NUXT_BUNNY_PULL_ZONE =
 #
 # AI provider: workers-ai | openai | anthropic | gemini | deepseek | ollama — also
 # configurable per-site in Settings → AI, which takes priority over these. workers-ai is

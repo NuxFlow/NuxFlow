@@ -178,11 +178,11 @@ describe('DELETE /api/v1/media/:id', () => {
 
   it('removes only the row for a file stored on a provider the site no longer uses', async () => {
     const db = getCurrentTestDb()
-    const id = await seedMedia(db, SITE, { storageKey: `${SITE}/old.jpg`, storageProvider: 'bunny' })
+    const id = await seedMedia(db, SITE, { storageKey: `${SITE}/old.jpg`, storageProvider: 'cloudflare' })
     await (deleteHandler as Handler)(ev(editorId, { params: { id } }))
     expect(mockProvider.delete).not.toHaveBeenCalled()
     const log = await db.query.auditLogs.findFirst({ where: and(eq(auditLogs.resource, 'media'), eq(auditLogs.resourceId, id)) })
-    expect(log?.before).toMatchObject({ orphanedOn: 'bunny' })
+    expect(log?.before).toMatchObject({ orphanedOn: 'cloudflare' })
   })
 
   it('404s for another site\'s file without touching storage', async () => {

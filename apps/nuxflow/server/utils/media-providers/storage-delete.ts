@@ -4,8 +4,7 @@ import { eventForSite } from '../site-info'
 
 /**
  * Every storage key NuxFlow writes is `<siteId>/…` (upload, AI image, WordPress import,
- * restore, theme assets, inbound email, migration). The R2 bucket — and any S3/Bunny/
- * Cloudflare Images account shared through deployment env vars — holds every tenant's
+ * restore, theme assets, inbound email, migration). The R2 bucket holds every tenant's
  * files side by side, so a key outside the caller's own prefix is never something this
  * site may touch. Enforced at the delete chokepoint below rather than trusted from the
  * media row, since rows can be written from user-editable input (a restored backup).
