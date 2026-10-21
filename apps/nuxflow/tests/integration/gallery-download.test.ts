@@ -54,7 +54,7 @@ beforeAll(async () => {
   await seedRole(db, editorId, SITE, 'editor')
   typeId = await seedContentType(db, SITE, { slug: 'page', name: 'Page', singularName: 'Page' })
 
-  await seedMedia(db, SITE, { url: 'https://cdn.example.com/site/a.jpg', originalName: 'DSC_0001.jpg', size: 10, storageProvider: 's3', storageKey: `${SITE}/a.jpg` })
+  await seedMedia(db, SITE, { url: 'https://cdn.example.com/site/a.jpg', originalName: 'DSC_0001.jpg', size: 10, storageProvider: 'cloudflare', storageKey: `${SITE}/a.jpg` })
   await seedMedia(db, SITE, { url: '/_nuxflow/media/' + `${SITE}/b.jpg`, originalName: 'DSC_0002.jpg', size: 10, storageProvider: 'r2', storageKey: `${SITE}/b.jpg` })
   await seedMedia(db, SITE, { url: 'https://r2.example.com/c.jpg', originalName: 'DSC_0001.jpg', size: 10, storageProvider: 'r2', storageKey: `${OTHER}/c.jpg` })
   await seedMedia(db, OTHER, { url: 'https://cdn.example.com/other/z.jpg', originalName: 'theirs.jpg', size: 10 })

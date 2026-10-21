@@ -8,7 +8,7 @@ import type { H3Event } from 'h3'
 import { and, eq } from 'drizzle-orm'
 import { generateText } from 'ai'
 import { MockLanguageModelV4 } from 'ai/test'
-import { dynamicPlugins, siteUsageDaily } from '@nuxflow/db/schema'
+import { dynamicPlugins, emailMessages, formSubmissions, forms, siteUsageDaily } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedContentType, seedContentItem, seedMedia, seedSetting } from '../helpers/seed'
@@ -201,6 +201,22 @@ describe('nightly snapshot', () => {
     expect(await usageRow(A, 'plugins')).toBe(1)
     expect(await usageRow(B, 'content_items')).toBe(0)
     expect(await usageRow(B, 'team_members')).toBe(1)
+  })
+
+  it("adds inbound email kept in R2 to storage, and measures each site's share of the database", async () => {
+    const db = getCurrentTestDb()
+    await db.insert(emailMessages).values({
+      id: 'em-1', siteId: B, threadId: 't', direction: 'inbound', fromAddress: 'a@x.test', toAddress: 'b@b.usage.test',
+      textBody: 'x'.repeat(300), htmlBody: null, storedBytes: 4000,
+    })
+    await db.insert(forms).values({ id: 'f-1', siteId: B, name: 'Contact', slug: 'contact', fields: [] } as never)
+    await db.insert(formSubmissions).values({ id: 'fs-1', formId: 'f-1', siteId: B, data: { msg: 'hello' } })
+
+    await snapshotUsage()
+    expect(await usageRow(B, 'storage_bytes')).toBe(4000) // a site with no media still gets its email counted
+    // 300 chars of email body + the JSON of one form entry ({"msg":"hello"} = 15).
+    expect(await usageRow(B, 'database_bytes')).toBe(315)
+    expect(await usageRow(A, 'database_bytes')).toBeGreaterThan(0)
   })
 })
 

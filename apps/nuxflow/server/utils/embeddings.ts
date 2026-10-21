@@ -2,6 +2,7 @@ import { embed } from 'ai'
 import { createWorkersAI } from 'workers-ai-provider'
 import type { H3Event } from 'h3'
 import { getWorkersAiBinding, getVectorizeIndex } from './cf-env'
+import { AI_CREDITS, checkAiAllowance, recordAiCall, type AiTrigger } from './ai-allowance'
 
 // 768-dim — the Vectorize index must be created with matching dimensions
 // (`wrangler vectorize create ... --dimensions=768 --metric=cosine`, see
@@ -14,13 +15,24 @@ const EMBEDDING_MODEL = '@cf/baai/bge-base-en-v1.5'
  * (self-hoster without the [ai] binding, or local dev without --remote) — every caller
  * treats null as "semantic search/embeddings unavailable" rather than throwing, since this
  * is always a best-effort enrichment layered on top of FTS5, never a hard dependency.
+ *
+ * Always platform-paid (the binding — the Vectorize index's dimensions rule out a site's own
+ * key), so each embedding is charged AI_CREDITS.embedding: to the team allowance when an
+ * editor's save re-indexes a page, to the visitor allowance for a search query. Once the
+ * allowance is used up this returns null, the same as "unavailable".
  */
-async function embedText(event: H3Event, text: string): Promise<number[] | null> {
+async function embedText(event: H3Event, text: string, trigger: AiTrigger): Promise<number[] | null> {
   const ai = getWorkersAiBinding(event)
   if (!ai) return null
+  if (!(await checkAiAllowance(event, AI_CREDITS.embedding, trigger)).allowed) return null
   const workersai = createWorkersAI({ binding: ai })
-  const { embedding } = await embed({ model: workersai.textEmbedding(EMBEDDING_MODEL), value: text })
-  return embedding
+  try {
+    const { embedding } = await embed({ model: workersai.textEmbedding(EMBEDDING_MODEL), value: text })
+    return embedding
+  }
+  finally {
+    recordAiCall(event, 'platform', AI_CREDITS.embedding, trigger)
+  }
 }
 
 /**
@@ -73,7 +85,7 @@ export async function upsertContentEmbedding(event: H3Event, input: ContentEmbed
     const text = buildEmbeddingText(input.title, input.excerpt, input.seoDescription)
     if (!text) return
 
-    const values = await embedText(event, text)
+    const values = await embedText(event, text, 'team')
     if (!values) return
 
     await index.upsert([{
@@ -135,7 +147,7 @@ export async function semanticSearch(event: H3Event, siteId: string, query: stri
   const index = getVectorizeIndex(event)
   if (!index) return null
 
-  const values = await embedText(event, query)
+  const values = await embedText(event, query, 'visitor')
   if (!values) return null
 
   const result = await index.query(values, { topK, namespace: siteId, returnMetadata: 'indexed' })

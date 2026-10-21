@@ -5,7 +5,7 @@ import { requireSuperAdmin } from '../../../../utils/permissions'
 import { requireHostingPlatform } from '../../../../utils/hosting-platform'
 import { writeAuditLog } from '../../../../utils/audit'
 import { conflict, noContent, notFound } from '../../../../utils/response'
-import { clearHostingPlanCache } from '../../../../utils/hosting-plans'
+import { refreshSitesAfterPlanChange } from '../../../../utils/hosting-plans'
 
 /**
  * Deletes a plan. Its sites go back to the built-in unlimited plan — done here because
@@ -24,11 +24,12 @@ export default defineEventHandler(async (event) => {
     .limit(1)
   if (paying) throw conflict('Customers are paying for this plan. Move them to another plan in Stripe first, or stop offering it instead (untick "Offer on the sign-up page").')
 
+  const onPlan = await db.select({ id: sites.id }).from(sites).where(eq(sites.hostingPlanId, id))
   await db.batch([
     db.update(sites).set({ hostingPlanId: null, updatedAt: sql`(datetime('now'))` }).where(eq(sites.hostingPlanId, id)),
     db.delete(hostingPlans).where(eq(hostingPlans.id, id)),
   ])
-  clearHostingPlanCache()
+  await refreshSitesAfterPlanChange(event, onPlan.map(s => s.id))
   await writeAuditLog(event, userId, { action: 'delete', resource: 'hosting_plan', resourceId: id, before: existing })
   return noContent(event)
 })

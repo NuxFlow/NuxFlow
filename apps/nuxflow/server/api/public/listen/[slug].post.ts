@@ -52,10 +52,11 @@ export default defineEventHandler(async (event) => {
   if (!text) throw createError({ statusCode: 422, message: 'This page has no readable article text.' })
 
   const workersai = createWorkersAI({ binding: ai })
-  // Workers AI, so platform-paid; charged by length (speech has no tokens).
+  // Workers AI, so platform-paid; charged by length (speech has no tokens). Visitors set
+  // it off, so it uses the visitor AI allowance, never the team's.
   const credits = speechCredits(text.length)
-  await assertAiAllowance(event, credits)
-  recordAiCall(event, 'platform', credits)
+  await assertAiAllowance(event, credits, 'visitor')
+  recordAiCall(event, 'platform', credits, 'visitor')
   const { audio } = await generateSpeech({
     model: workersai.speech('@cf/deepgram/aura-2-en'),
     text,

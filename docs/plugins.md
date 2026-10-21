@@ -113,7 +113,7 @@ The manifest is read by `nuxflow plugin build` and `nuxflow plugin deploy`. Keep
 
 ## Writing the Server Module
 
-`src/server.ts` exports a default Cloudflare Worker fetch handler. NuxFlow routes all requests matching `/_nuxflow/ext/{pluginId}/*` into it, with the prefix already stripped.
+`src/server.ts` exports a default Cloudflare Worker fetch handler. NuxFlow routes all requests matching `/_nuxflow/ext/{pluginId}/*` into it, with the prefix already stripped. Each visitor can make up to 120 requests a minute to one plugin; more get a `429 Too many requests`.
 
 ```typescript
 // src/server.ts
@@ -158,7 +158,7 @@ Every call is scoped to the site the plugin is installed on and to your plugin's
 | `storage` | Keep the plugin's own data: up to 10 MB, 10,000 keys, 128 KB per value | `storageGet(key)`, `storagePut(key, value, { ttlSeconds? })`, `storageDelete(key)`, `storageList({ prefix?, cursor?, limit? })` |
 | `content:read` | Read pages and posts that are published and public, which is what any visitor can see | `listContent({ type?, locale?, limit?, offset? })`, `getContent({ id } \| { slug })` (includes `content` and a `markdown` version) |
 | `content:write` | Create **drafts**. It can't publish or change existing content, and remote images in the HTML are dropped | `createDraft({ title, html?, type?, slug?, excerpt?, seoTitle?, seoDescription? })` |
-| `ai` | Generate text with the site's AI provider. This counts towards the site's AI usage and plan limit (30 calls a minute) | `generateText({ prompt, system?, maxOutputTokens? })` |
+| `ai` | Generate text with the site's AI provider. This counts towards the site's AI usage and, on a hosting platform, its *visitor* AI allowance, since anyone can call a plugin route (30 calls a minute) | `generateText({ prompt, system?, maxOutputTokens? })` |
 | `notify` | Send the site's admins an in-app notification (20 an hour). Links must be paths on the site | `notifyAdmins({ title, body, url? })` |
 | `user:read` | Learn who is signed in when someone uses your plugin's routes | Request headers `x-nuxflow-user-id` and `x-nuxflow-user-role` |
 | `network:<host>` | Make HTTPS requests to that host. `*.example.com` covers its subdomains but not `example.com` itself | Plain `fetch()` |

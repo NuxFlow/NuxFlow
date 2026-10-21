@@ -445,7 +445,7 @@ export async function migrateLocalMediaBatch(
         // Last: this is the write that actually drops the database copy.
         await db.update(media).set({
           url: stored.url,
-          storageProvider: provider.name as 'cloudflare' | 'r2' | 's3' | 'bunny',
+          storageProvider: provider.name as 'cloudflare' | 'r2',
           storageKey: stored.storageKey,
           filename: stored.storageKey,
           size: stored.size,
@@ -549,7 +549,7 @@ export async function migrateInlineImagesBatch(
           mimeType: decoded.mime,
           size: stored.size,
           url: stored.url,
-          storageProvider: provider.name as 'cloudflare' | 'r2' | 's3' | 'bunny',
+          storageProvider: provider.name as 'cloudflare' | 'r2',
           storageKey: stored.storageKey,
         }).onConflictDoNothing()
         budget.spend(3)

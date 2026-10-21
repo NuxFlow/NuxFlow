@@ -57,6 +57,13 @@
       "when": 1792389647417,
       "tag": "0007_plugin_capabilities",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792565545830,
+      "tag": "0008_resource_gating",
+      "breakpoints": true
     }
   ]
 }

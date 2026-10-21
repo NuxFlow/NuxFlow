@@ -1,8 +1,6 @@
 import type { H3Event } from 'h3'
 import { CloudflareImagesProvider } from './cloudflare-images'
 import { R2Provider } from './r2'
-import { S3Provider } from './s3'
-import { BunnyProvider } from './bunny'
 import { resolveSetting } from '../settings'
 import { getCfBindings } from '../cf-env'
 import { eventForSite } from '../site-info'
@@ -31,9 +29,9 @@ export interface MediaProvider {
 // (not the whole key as one component) so a `/` still acts as a path separator rather
 // than being escaped itself. Not currently exploitable — the key is always a validated
 // ULID + allowlisted extension (see upload.post.ts) — but guards any future key format
-// that isn't purely URL-safe characters. Shared by every HTTP-based provider (S3, Bunny,
-// Cloudflare Images) so a fix here can't drift out of sync between them; R2 never needs
-// it since it addresses objects via the R2Bucket binding directly, not a URL path.
+// that isn't purely URL-safe characters. Used by the HTTP-based Cloudflare Images
+// provider; R2 never needs it since it addresses objects via the R2Bucket binding
+// directly, not a URL path.
 export function encodeStorageKey(key: string): string {
   return key.split('/').map(encodeURIComponent).join('/')
 }
@@ -49,7 +47,7 @@ export function encodeStorageKey(key: string): string {
 /**
  * SVG is the one allowlisted media type that can carry script when opened as a document.
  * It's sanitized on upload (sanitizeSvg), and additionally stored with
- * `Content-Disposition: attachment` wherever the provider lets us set it (R2, S3), so
+ * `Content-Disposition: attachment` wherever the provider lets us set it (R2), so
  * navigating straight to the file downloads it instead of rendering it on the media
  * origin. `<img>`/CSS usage ignores Content-Disposition, so embedding is unaffected.
  */
@@ -78,22 +76,11 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
   const [
     accountId, imagesToken, deliveryUrl,
     r2PublicUrl,
-    s3Bucket, s3AccessKey, s3SecretKey, s3Region, s3Endpoint, s3PublicUrl,
-    bunnyApiKey, bunnyStorageZone, bunnyPullZone,
   ] = await Promise.all([
     resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId'),
     resolveSetting(event, 'cloudflare.images_token', 'cloudflareImagesToken'),
     resolveSetting(event, 'cloudflare.images_delivery_url', 'cloudflareImagesDeliveryUrl'),
     resolveSetting(event, 'media.r2_public_url', 'r2PublicUrl'),
-    resolveSetting(event, 'media.s3_bucket', 's3Bucket'),
-    resolveSetting(event, 'media.s3_access_key', 's3AccessKey'),
-    resolveSetting(event, 'media.s3_secret_key', 's3SecretKey'),
-    resolveSetting(event, 'media.s3_region', 's3Region'),
-    resolveSetting(event, 'media.s3_endpoint', 's3Endpoint'),
-    resolveSetting(event, 'media.s3_public_url', 's3PublicUrl'),
-    resolveSetting(event, 'media.bunny_api_key', 'bunnyApiKey'),
-    resolveSetting(event, 'media.bunny_storage_zone', 'bunnyStorageZone'),
-    resolveSetting(event, 'media.bunny_pull_zone', 'bunnyPullZone'),
   ])
 
   // deliveryUrl is required alongside the token/account — without it, getUrl() builds a
@@ -104,46 +91,16 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
     return new CloudflareImagesProvider(accountId, imagesToken, deliveryUrl)
   }
 
-  // R2 with a public URL comes next, ahead of S3/Bunny — it's Cloudflare's own object
-  // storage (zero egress fees, no third-party account). The public URL (a custom domain
-  // or the bucket's r2.dev subdomain) lets browsers fetch objects straight from R2.
+  // R2 is Cloudflare's own object storage (zero egress fees, no third-party account),
+  // through the MEDIA_BUCKET binding. With a public URL (a custom domain or the bucket's
+  // r2.dev subdomain) browsers fetch objects straight from R2; without one, objects are
+  // served through this Worker at /_nuxflow/media/<key> (server/routes/_nuxflow/media/),
+  // so having the bucket bound is all it takes for real media storage — nobody has to
+  // find and paste a public bucket URL first, the step operators kept missing and
+  // silently ending up on the database fallback below.
   const { r2 } = getCfBindings(event)
-  if (r2 && r2PublicUrl) {
-    return new R2Provider({ bucket: r2, publicUrl: r2PublicUrl })
-  }
-
-  // S3 and Bunny are resolved the same way as Cloudflare Images above — per-site DB
-  // setting first, environment variable fallback — so a multi-site install can give
-  // different sites different buckets/zones, not just a single global env var shared
-  // by every site.
-  if (s3Bucket) {
-    return new S3Provider({
-      bucket: s3Bucket,
-      accessKey: s3AccessKey,
-      secretKey: s3SecretKey,
-      region: s3Region,
-      endpoint: s3Endpoint,
-      publicUrl: s3PublicUrl,
-    })
-  }
-
-  if (bunnyApiKey) {
-    return new BunnyProvider({
-      apiKey: bunnyApiKey,
-      storageZone: bunnyStorageZone,
-      pullZone: bunnyPullZone,
-    })
-  }
-
-  // Zero-config R2: the MEDIA_BUCKET binding alone, no public URL. Objects are served
-  // through this Worker at /_nuxflow/media/<key> (server/routes/_nuxflow/media/), so
-  // having the bucket bound is all it takes for real media storage — nobody has to find
-  // and paste a public bucket URL first, which is the step operators kept missing and
-  // silently ending up on the database fallback below. Deliberately AFTER every provider
-  // that needs explicit settings, so an operator who configured S3/Bunny on purpose
-  // keeps using it even if the bucket binding also exists.
   if (r2) {
-    return new R2Provider({ bucket: r2 })
+    return new R2Provider({ bucket: r2, publicUrl: r2PublicUrl || null })
   }
 
   return {

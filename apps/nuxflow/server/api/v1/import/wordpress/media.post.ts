@@ -70,7 +70,7 @@ export default defineEventHandler(async (event) => {
         mimeType: contentType,
         size: file.size,
         url: localUrl,
-        storageProvider: provider.name as 'cloudflare' | 'local' | 'r2' | 's3' | 'bunny',
+        storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
         storageKey,
       })
       return { url: remoteUrl, localUrl, created: true }

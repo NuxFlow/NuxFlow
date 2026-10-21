@@ -48,22 +48,12 @@ describe('getActiveProvider — zero-config R2', () => {
     expect(provider.getUrl('site-1/01ABC.png')).toBe('https://media.example.com/site-1/01ABC.png')
   })
 
-  // Explicitly configured providers keep their existing priority: adding the bucket
-  // binding must not silently move an S3/Bunny site onto R2.
-  it('keeps an explicitly configured S3 or Bunny provider ahead of binding-only R2', async () => {
+  it('prefers a fully configured Cloudflare Images over the R2 binding', async () => {
     bucket = fakeBucket
-    settings.set('media.s3_bucket', 'my-bucket')
-    expect((await getActiveProvider(mkEvent())).name).toBe('s3')
-    settings.clear()
-    settings.set('media.bunny_api_key', 'k')
-    expect((await getActiveProvider(mkEvent())).name).toBe('bunny')
-  })
-
-  it('still prefers R2 with a public URL over S3, as before', async () => {
-    bucket = fakeBucket
-    settings.set('media.r2_public_url', 'https://media.example.com')
-    settings.set('media.s3_bucket', 'my-bucket')
-    expect((await getActiveProvider(mkEvent())).name).toBe('r2')
+    settings.set('cloudflare.account_id', 'acct123')
+    settings.set('cloudflare.images_token', 'tok123')
+    settings.set('cloudflare.images_delivery_url', 'https://imagedelivery.net/abc123')
+    expect((await getActiveProvider(mkEvent())).name).toBe('cloudflare')
   })
 
   it('falls back to the database only when no bucket and nothing configured', async () => {

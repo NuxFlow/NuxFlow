@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PLAN_LIMITS, type PlanLimitColumn } from '#shared/lib/hosting-plan-limits'
+import { PLAN_FEATURES, PLAN_LIMITS, type PlanFeatureColumn, type PlanLimitColumn } from '#shared/lib/hosting-plan-limits'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Plans' })
@@ -18,7 +18,7 @@ type Plan = {
   trialDays: number
   stripePriceMonthlyId: string | null
   stripePriceYearlyId: string | null
-} & Record<PlanLimitColumn, number | null>
+} & Record<PlanLimitColumn, number | null> & Record<PlanFeatureColumn, boolean>
 
 const { data, pending, error, refresh } = await useFetch<{ plans: Plan[] }>('/api/v1/admin/plans')
 const plans = computed(() => data.value?.plans ?? [])
@@ -47,6 +47,10 @@ function setLimits(plan: Plan) {
   return PLAN_LIMITS.filter(l => plan[l.column] !== null)
 }
 
+function includedFeatures(plan: Plan) {
+  return PLAN_FEATURES.filter(f => plan[f.column])
+}
+
 // ── Editor ────────────────────────────────────────────────────────────────────
 const isEditOpen = ref(false)
 const editingId = ref<string | null>(null)
@@ -64,7 +68,9 @@ const form = reactive({
   trialDays: '0',
   // Every limit as text, so an empty box can mean "unlimited".
   limits: {} as Record<PlanLimitColumn, string>,
-  storageUnit: 'GB' as 'MB' | 'GB',
+  // MB or GB, for each limit measured in bytes.
+  units: {} as Record<PlanLimitColumn, 'MB' | 'GB'>,
+  features: {} as Record<PlanFeatureColumn, boolean>,
 })
 
 function openEditor(plan?: Plan) {
@@ -78,14 +84,14 @@ function openEditor(plan?: Plan) {
   form.priceYearly = plan?.priceYearly != null ? String(plan.priceYearly) : ''
   form.currency = plan?.currency ?? 'gbp'
   form.trialDays = String(plan?.trialDays ?? 0)
-  const storage = plan?.maxStorageBytes ?? null
-  form.storageUnit = storage !== null && storage < GB ? 'MB' : 'GB'
   for (const l of PLAN_LIMITS) {
     const value = plan?.[l.column] ?? null
+    if (l.unit === 'bytes') form.units[l.column] = value !== null && value < GB ? 'MB' : 'GB'
     form.limits[l.column] = value === null
       ? ''
-      : l.unit === 'bytes' ? String(+(value / (form.storageUnit === 'GB' ? GB : MB)).toFixed(2)) : String(value)
+      : l.unit === 'bytes' ? String(+(value / (form.units[l.column] === 'GB' ? GB : MB)).toFixed(2)) : String(value)
   }
+  for (const f of PLAN_FEATURES) form.features[f.column] = plan?.[f.column] ?? false
   saveError.value = ''
   isEditOpen.value = true
 }
@@ -101,7 +107,7 @@ function parsedLimits(): Record<PlanLimitColumn, number | null> | string {
     }
     const n = Number(raw)
     if (!Number.isFinite(n) || n < 0) return `${l.label} must be a number, or blank for unlimited.`
-    if (l.unit === 'bytes') out[l.column] = Math.round(n * (form.storageUnit === 'GB' ? GB : MB))
+    if (l.unit === 'bytes') out[l.column] = Math.round(n * (form.units[l.column] === 'GB' ? GB : MB))
     else if (!Number.isInteger(n)) return `${l.label} must be a whole number.`
     else out[l.column] = n
   }
@@ -154,6 +160,7 @@ async function savePlan() {
       currency: form.currency,
       trialDays,
       ...limits,
+      ...form.features,
     }
     const url: string = editingId.value ? `/api/v1/admin/plans/${editingId.value}` : '/api/v1/admin/plans'
     await $fetch(url, { method: editingId.value ? 'PATCH' : 'POST', body })
@@ -235,6 +242,9 @@ async function deletePlan() {
             </template>
           </dl>
           <p v-if="!setLimits(plan).length" class="text-sm text-gray-400">No limits set — works like Unlimited.</p>
+          <div v-if="includedFeatures(plan).length" class="flex flex-wrap gap-1.5">
+            <UBadge v-for="f in includedFeatures(plan)" :key="f.key" size="sm" variant="subtle" color="neutral" icon="i-lucide-check">{{ f.label }}</UBadge>
+          </div>
           <div class="flex justify-end gap-1.5 pt-1">
             <UButton variant="ghost" size="sm" icon="i-lucide-pencil" @click="openEditor(plan)">Edit</UButton>
             <UButton variant="ghost" size="sm" color="error" icon="i-lucide-trash-2" @click="deleting = plan">Delete</UButton>
@@ -292,7 +302,7 @@ async function deletePlan() {
               <UFormField v-for="l in HARD" :key="l.key" :label="l.label" :help="l.hint">
                 <div class="flex gap-2">
                   <UInput v-model="form.limits[l.column]" inputmode="decimal" placeholder="Unlimited" class="w-full" />
-                  <USelect v-if="l.unit === 'bytes'" v-model="form.storageUnit" :items="['MB', 'GB']" class="w-24" />
+                  <USelect v-if="l.unit === 'bytes'" v-model="form.units[l.column]" :items="['MB', 'GB']" class="w-24" />
                 </div>
               </UFormField>
             </div>
@@ -304,10 +314,21 @@ async function deletePlan() {
               <p class="text-xs text-gray-500">Never blocked. You get a notification when a site reaches 80% and 100% in a month.</p>
             </div>
             <div class="grid gap-3 sm:grid-cols-2">
-              <UFormField v-for="l in SOFT" :key="l.key" :label="l.label">
-                <UInput v-model="form.limits[l.column]" inputmode="numeric" placeholder="Unlimited" class="w-full" />
+              <UFormField v-for="l in SOFT" :key="l.key" :label="l.label" :help="l.hint">
+                <div class="flex gap-2">
+                  <UInput v-model="form.limits[l.column]" inputmode="decimal" placeholder="Unlimited" class="w-full" />
+                  <USelect v-if="l.unit === 'bytes'" v-model="form.units[l.column]" :items="['MB', 'GB']" class="w-24" />
+                </div>
               </UFormField>
             </div>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">Included features</p>
+              <p class="text-xs text-gray-500">Features that cost you money per use. Off unless ticked.</p>
+            </div>
+            <UCheckbox v-for="f in PLAN_FEATURES" :key="f.key" v-model="form.features[f.column]" :label="f.label" :description="f.hint" />
           </div>
 
           <UAlert v-if="saveError" color="error" variant="soft" :description="saveError" />

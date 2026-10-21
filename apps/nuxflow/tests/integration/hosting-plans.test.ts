@@ -10,7 +10,7 @@ import { and, eq } from 'drizzle-orm'
 import { generateText } from 'ai'
 import { MockLanguageModelV4 } from 'ai/test'
 import { ulid } from 'ulid'
-import { dynamicPlugins, emailLog, hostingPlans, notifications, siteInvitations, siteSettings, sites, siteUsageDaily, users } from '@nuxflow/db/schema'
+import { dynamicPlugins, emailLog, emailMessages, hostingPlans, notifications, siteInvitations, siteSettings, sites, siteUsageDaily, users } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedContentType, seedContentItem, seedMedia, seedSetting } from '../helpers/seed'
@@ -40,12 +40,12 @@ vi.mock('../../server/utils/better-auth', () => ({
   clearBetterAuthCache: () => {},
 }))
 
-const { checkPlanLimit, assertWithinPlan, clearHostingPlanCache, limitForRole, planUsage } = await import('../../server/utils/hosting-plans')
+const { checkPlanLimit, assertWithinPlan, clearHostingPlanCache, limitForRole, planIncludes, planUsage } = await import('../../server/utils/hosting-plans')
 const { requireAiSdkModel, withUsageCounting } = await import('../../server/utils/ai-sdk')
 const { sendEmailWithConfig } = await import('../../server/utils/email')
 const { registerAccountForSite } = await import('../../server/utils/registration')
 const { countUsage, flushUsage, pendingUsage, resetUsageBuffer, usageDay } = await import('../../server/utils/usage')
-const { checkAiAllowance, clearAiDailyCapCache } = await import('../../server/utils/ai-allowance')
+const { checkAiAllowance, clearAiDailyCapCache, platformAiCreditsToday } = await import('../../server/utils/ai-allowance')
 const { resolveSetting, saveSetting } = await import('../../server/utils/settings')
 const { sendPlanUsageAlerts, sendPlatformAiCapAlert } = await import('../../server/scheduled/plan-usage-alerts')
 const { default: createContent } = await import('../../server/api/v1/content/index.post')
@@ -356,6 +356,82 @@ describe("the operator's 80% / 100% notices", () => {
     await sendPlanUsageAlerts()
     const [notice] = await planNotices()
     expect(notice!.body).toContain('New requests are refused until the 1st.')
+  })
+})
+
+describe('visitor AI, inbound email storage, image resizing and database size', () => {
+  it("keeps visitor-triggered AI in its own allowance, so the public can't use up the team's", async () => {
+    primeUsageBuffer()
+    await useLimits({ maxAiCallsPerMonth: 3, maxVisitorAiCreditsPerMonth: 2 })
+    await setMonthUsage('ai_credits', 3)
+
+    // The team's allowance is used up, but a visitor feature still runs — and is charged
+    // to the visitor bucket, not the team's.
+    await expect(requireAiSdkModel(aiEv())).rejects.toMatchObject({ data: { limit: 'ai' } })
+    await generateText({ model: withUsageCounting(ev(), { model: mockModel(), payer: 'platform', heavy: false, trigger: 'visitor' }), prompt: 'hi', maxRetries: 0 })
+    expect(pendingFor('ai_visitor_credits')).toBe(1)
+    expect(pendingFor('ai_credits')).toBe(0)
+
+    // Once the visitor allowance is used, only visitor features stop.
+    await setMonthUsage('ai_visitor_credits', 2)
+    await expect(requireAiSdkModel(aiEv(), 'fast', { trigger: 'visitor' }))
+      .rejects.toMatchObject({ statusCode: 403, data: { code: 'plan_limit', limit: 'visitor_ai' } })
+    const model = new MockLanguageModelV4({ doGenerate: async () => { throw new Error('should not be called') } })
+    await expect(generateText({ model: withUsageCounting(ev(), { model, payer: 'platform', heavy: false, trigger: 'visitor' }), prompt: 'hi', maxRetries: 0 }))
+      .rejects.toThrow('AI allowance for visitor features is used up')
+  })
+
+  it("counts visitor AI towards the platform's daily cap", async () => {
+    await setMonthUsage('ai_credits', 5)
+    await setMonthUsage('ai_visitor_credits', 7)
+    expect(await platformAiCreditsToday(getCurrentTestDb(), PRIMARY)).toBe(12)
+  })
+
+  it('counts inbound email kept in R2 towards storage', async () => {
+    const db = getCurrentTestDb()
+    const before = await planUsage(db, TENANT, 'storage')
+    await db.insert(emailMessages).values({
+      id: ulid(), siteId: TENANT, threadId: 't', direction: 'inbound', fromAddress: 'a@x.test', toAddress: 'hi@tenant.plans.test', storedBytes: 5000,
+    })
+    expect(await planUsage(db, TENANT, 'storage')).toBe(before + 5000)
+  })
+
+  it('only lets a plan that includes image resizing switch it on, and never blocks saving it off', async () => {
+    const db = getCurrentTestDb()
+    await saveSetting(ev(), 'media.enable_image_transformations', null)
+    expect(await planIncludes(db, TENANT, 'imageTransformations')).toBe(true) // unlimited plan
+    const planId = await useLimits({})
+    expect(await planIncludes(db, TENANT, 'imageTransformations')).toBe(false)
+
+    const save = (on: boolean) => (patchSettings as Handler)(ev({ session: tenantAdmin(), body: { media: { enableImageTransformations: on } } }))
+    await expect(save(true)).rejects.toMatchObject({ statusCode: 403, data: { code: 'plan_feature', feature: 'imageTransformations' } })
+    await expect(save(false)).resolves.toBeDefined()
+
+    await (patchPlan as Handler)(ev({ siteId: PRIMARY, session: operator(), params: { id: planId }, body: { allowImageTransformations: true } }))
+    await expect(save(true)).resolves.toBeDefined()
+
+    // Moved back to a plan without it: the whole Settings page (which re-sends the value)
+    // still saves, and the feature itself is off (GET /api/public/site checks planIncludes).
+    await (patchPlan as Handler)(ev({ siteId: PRIMARY, session: operator(), params: { id: planId }, body: { allowImageTransformations: false } }))
+    await expect(save(true)).resolves.toBeDefined()
+    expect(await planIncludes(db, TENANT, 'imageTransformations')).toBe(false)
+    await saveSetting(ev(), 'media.enable_image_transformations', null)
+  })
+
+  it('reads database size from the latest nightly snapshot and tells the operator at 80%', async () => {
+    const db = getCurrentTestDb()
+    await db.delete(notifications)
+    await useLimits({ maxDatabaseBytes: 10 * 1024 ** 2 })
+    await flushUsage(db, [
+      { siteId: TENANT, day: '2000-01-01', metric: 'database_bytes', value: 1 },
+      { siteId: TENANT, day: usageDay(), metric: 'database_bytes', value: 9 * 1024 ** 2 },
+    ])
+    expect(await planUsage(db, TENANT, 'database')).toBe(9 * 1024 ** 2)
+    expect(await sendPlanUsageAlerts()).toMatchObject({ notified: 1 })
+    const [notice] = await db.select().from(notifications).where(and(eq(notifications.type, 'system.plan_usage'), eq(notifications.userId, operatorId)))
+    expect(notice).toMatchObject({ title: 'Tenant Co: database size at 90%' })
+    expect(notice!.body).toContain('is at 9.0 MB of the 10.0 MB database size')
+    expect(notice!.body).toContain('Nothing is blocked')
   })
 })
 

@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } 
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedContentType, seedSetting } from '../helpers/seed'
-import { contentItems, emailMessages, mailboxes, media, notifications } from '@nuxflow/db/schema'
+import { contentItems, emailMessages, hostingPlans, mailboxes, media, notifications, sites, siteUsageDaily } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 
@@ -52,6 +52,9 @@ vi.mock('../../server/utils/media-providers/index', () => ({
 }))
 
 const { handleInboundEmail } = await import('../../server/utils/inbound-email')
+const { clearHostingPlanCache } = await import('../../server/utils/hosting-plans')
+const { clearHostingPlatformCache } = await import('../../server/utils/hosting-platform')
+const { flushUsage, resetUsageBuffer, usageDay } = await import('../../server/utils/usage')
 
 const SITE = 'site-inbound-01'
 const PLATFORM = 'in.platform.test'
@@ -376,5 +379,77 @@ describe('email-to-draft', () => {
     finally {
       await db.delete(mailboxes).where(eq(mailboxes.id, catchAllId))
     }
+  })
+})
+
+describe('hosting plan limits', () => {
+  const PRIMARY = 'site-inbound-primary'
+
+  async function useLimits(limits: Partial<typeof hostingPlans.$inferInsert>) {
+    const db = getCurrentTestDb()
+    const id = ulid()
+    await db.insert(hostingPlans).values({ id, name: 'Small', ...limits })
+    await db.update(sites).set({ hostingPlanId: id }).where(eq(sites.id, SITE))
+    clearHostingPlanCache()
+  }
+  const limitNotices = (limit: string) => getCurrentTestDb().select().from(notifications)
+    .where(and(eq(notifications.type, 'system.plan_limit'), eq(notifications.userId, adminId)))
+    .then(rows => rows.filter(n => (n.data as { limit?: string }).limit === limit))
+
+  beforeAll(async () => {
+    const db = getCurrentTestDb()
+    await seedSite(db, { id: PRIMARY, domain: 'platform.inbound.test', isPrimary: true })
+    await seedSetting(db, PRIMARY, 'platform.hosting_enabled', 'true')
+    clearHostingPlatformCache()
+  })
+
+  afterEach(async () => {
+    const db = getCurrentTestDb()
+    await db.update(sites).set({ hostingPlanId: null }).where(eq(sites.id, SITE))
+    await db.delete(hostingPlans)
+    await db.delete(siteUsageDaily)
+    resetUsageBuffer()
+    clearHostingPlanCache()
+  })
+
+  afterAll(async () => {
+    await getCurrentTestDb().update(sites).set({ isPrimary: false }).where(eq(sites.id, PRIMARY))
+    clearHostingPlatformCache()
+  })
+
+  it("stops keeping mail once the month's allowance is used — still forwarding it — and tells the admins once", async () => {
+    await useLimits({ maxInboundEmailsPerMonth: 1 })
+    await flushUsage(getCurrentTestDb(), [{ siteId: SITE, day: usageDay(), metric: 'inbound_emails', value: 1 }])
+
+    const m = message(mime({ subject: 'Over the limit' }))
+    await receive(m)
+    expect(await inboxRows()).toHaveLength(0)
+    expect(m.forward).toHaveBeenCalledWith('owner@gmail.test')
+    expect(m.setReject).toHaveBeenCalled()
+
+    await receive(message(mime({ subject: 'Still over' })))
+    const notices = await limitNotices('inbound')
+    expect(notices).toHaveLength(1)
+    expect(notices[0]).toMatchObject({ title: 'Incoming email is paused' })
+  })
+
+  it('records the bytes each message keeps in R2, so they count towards storage', async () => {
+    await receive(message(mime({ attachments: [{ filename: 'a.txt', type: 'text/plain', base64: btoa('hello attachment') }] })))
+    const [row] = await inboxRows()
+    expect(row!.rawKey).not.toBeNull()
+    expect(row!.storedBytes).toBe(row!.size + 'hello attachment'.length)
+  })
+
+  it('keeps the message but not its raw copy or attachments when storage is full, and says so once', async () => {
+    await useLimits({ maxStorageBytes: 10 })
+    await receive(message(mime({ attachments: [{ filename: 'a.txt', type: 'text/plain', base64: btoa('hello attachment') }] })))
+    await receive(message(mime({ subject: 'Another' })))
+
+    const rows = await inboxRows()
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({ rawKey: null, storedBytes: 0 })
+    expect(rows[0]!.attachments![0]).toMatchObject({ filename: 'a.txt', key: null })
+    expect(bucket.size).toBe(0)
+    expect(await limitNotices('storage')).toHaveLength(1)
   })
 })

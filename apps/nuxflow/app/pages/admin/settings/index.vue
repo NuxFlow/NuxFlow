@@ -9,8 +9,6 @@ import type {
   AiState,
   CloudflareMediaState,
   R2State,
-  S3State,
-  BunnyState,
   PushState,
   SecurityState,
 } from '~/types/admin-settings'
@@ -21,6 +19,7 @@ interface SiteData {
   site: { id: string; name: string; domain: string; locale: string; timezone: string; status: string; isPrimary?: boolean }
   settings: Record<string, unknown>
   ollamaAvailable?: boolean
+  imageTransformationsAvailable?: boolean
 }
 
 const { data, refresh } = await useFetch<SiteData>('/api/v1/settings')
@@ -132,21 +131,6 @@ const r2 = reactive<R2State>({
   publicUrl: '',
 })
 
-const s3 = reactive<S3State>({
-  bucket: '',
-  accessKey: '',
-  secretKey: '',
-  region: 'us-east-1',
-  endpoint: '',
-  publicUrl: '',
-})
-
-const bunny = reactive<BunnyState>({
-  apiKey: '',
-  storageZone: '',
-  pullZone: '',
-})
-
 const push = reactive<PushState>({
   vapidPublicKey: null,
   eventsContentPublished: false,
@@ -230,16 +214,7 @@ watch(data, (d) => {
 
   r2.publicUrl = (s['media.r2_public_url'] as string) ?? ''
 
-  s3.bucket = (s['media.s3_bucket'] as string) ?? ''
-  s3.accessKey = (s['media.s3_access_key'] as string) ?? ''
-  s3.secretKey = (s['media.s3_secret_key'] as string) ?? ''
-  s3.region = (s['media.s3_region'] as string) || 'us-east-1'
-  s3.endpoint = (s['media.s3_endpoint'] as string) ?? ''
-  s3.publicUrl = (s['media.s3_public_url'] as string) ?? ''
 
-  bunny.apiKey = (s['media.bunny_api_key'] as string) ?? ''
-  bunny.storageZone = (s['media.bunny_storage_zone'] as string) ?? ''
-  bunny.pullZone = (s['media.bunny_pull_zone'] as string) ?? ''
 }, { immediate: true })
 
 // The single shared save button, used by every tab except Push's event toggles (which
@@ -308,15 +283,6 @@ async function save() {
         },
         media: {
           r2PublicUrl: r2.publicUrl,
-          s3Bucket: s3.bucket,
-          s3AccessKey: s3.accessKey,
-          s3SecretKey: s3.secretKey,
-          s3Region: s3.region,
-          s3Endpoint: s3.endpoint,
-          s3PublicUrl: s3.publicUrl,
-          bunnyApiKey: bunny.apiKey,
-          bunnyStorageZone: bunny.storageZone,
-          bunnyPullZone: bunny.pullZone,
           enableImageTransformations: cloudflare.enableImageTransformations,
         },
         auth: {
@@ -372,7 +338,7 @@ async function save() {
         <AdminSettingsAppearanceTab v-if="active === 'Appearance'" v-model:appearance="appearance" :saving="saving" :on-save="save" />
         <AdminSettingsEmailTab v-if="active === 'Email'" v-model:email="email" :domain="general.domain" :saving="saving" :on-save="save" />
         <AdminSettingsPaymentsTab v-if="active === 'Payments'" v-model:payments="payments" :domain="general.domain" :saving="saving" :on-save="save" />
-        <AdminSettingsMediaTab v-if="active === 'Media'" v-model:cloudflare="cloudflare" v-model:r2="r2" v-model:s3="s3" v-model:bunny="bunny" :saving="saving" :on-save="save" />
+        <AdminSettingsMediaTab v-if="active === 'Media'" v-model:cloudflare="cloudflare" v-model:r2="r2" :saving="saving" :on-save="save" :image-transformations-available="data?.imageTransformationsAvailable !== false" />
         <AdminSettingsIntegrationsTab v-if="active === 'Integrations'" v-model:integrations="integrations" v-model:social="social" :domain="general.domain" :is-primary="isPrimarySite" :saving="saving" :on-save="save" />
         <AdminSettingsAiTab v-if="active === 'AI Settings'" v-model:ai="ai" :saving="saving" :on-save="save" :ollama-available="data?.ollamaAvailable !== false" />
         <AdminSettingsPushTab v-if="active === 'Push'" v-model:push="push" :saving="saving" :on-save="save" />

@@ -87,7 +87,7 @@ Every feature in the admin is fully functional. The demo resets automatically at
 
 ### Media Management & Video Streaming
 - **Drag-and-drop upload** to the media library, with folders
-- **Storage** — Cloudflare R2 out of the box (just bind a bucket — no keys or public URL needed), or Cloudflare Images, S3-compatible storage (AWS S3, Backblaze B2, …), or Bunny.net, configured per site in Settings → Media
+- **Storage** — Cloudflare R2 out of the box (just bind a bucket — no keys or public URL needed), or Cloudflare Images, configured per site in Settings → Media
 - **Alt text and caption** editor per asset, with AI-generated alt text from the actual image
 - **Responsive image delivery** via optional Cloudflare Image Transformations
 - **Media picker** component embedded in the block editor
@@ -349,15 +349,6 @@ Variables use the `NUXT_` prefix (Turnstile's secret is the one exception). Loca
 | `NUXT_PUBLIC_CLOUDFLARE_IMAGES_DELIVERY_URL` | | Same value, exposed to the client |
 | `CLOUDFLARE_TURNSTILE_SECRET_KEY` | | Turnstile secret key. The site key goes in Settings → Integrations; set both or neither |
 | `NUXT_PUBLIC_ACCOUNTS_URL` | | Central sign-in domain — required before a second site can be created (see the Installation Guide) |
-| `NUXT_S3_BUCKET` | | S3 media provider — bucket name (setting this enables S3) |
-| `NUXT_S3_ACCESS_KEY` | | S3 media provider — access key ID |
-| `NUXT_S3_SECRET_KEY` | | S3 media provider — secret access key |
-| `NUXT_S3_REGION` | | S3 media provider — region (default `us-east-1`) |
-| `NUXT_S3_ENDPOINT` | | S3 media provider — custom endpoint URL (e.g. for Backblaze B2, R2) |
-| `NUXT_S3_PUBLIC_URL` | | S3 media provider — public CDN/delivery URL |
-| `NUXT_BUNNY_API_KEY` | | Bunny.net media provider — API key (setting this enables Bunny.net) |
-| `NUXT_BUNNY_STORAGE_ZONE` | | Bunny.net media provider — storage zone name |
-| `NUXT_BUNNY_PULL_ZONE` | | Bunny.net media provider — pull zone subdomain |
 | `NUXT_STRIPE_SECRET_KEY` | | Payments — Stripe secret key |
 | `NUXT_STRIPE_WEBHOOK_SECRET` | | Payments — Stripe webhook signing secret |
 | `NUXT_LS_API_KEY` | | Payments — Lemon Squeezy API key |

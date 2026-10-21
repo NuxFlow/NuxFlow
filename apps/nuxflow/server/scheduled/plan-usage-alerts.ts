@@ -1,22 +1,31 @@
-import { and, eq, gte, isNotNull, sql } from 'drizzle-orm'
+import { and, eq, gte, isNotNull, max, sql } from 'drizzle-orm'
 import { hostingPlans, notifications, sites, siteUsageDaily } from '@nuxflow/db/schema'
 import { useDb } from '../utils/db'
 import { createSystemEvent } from '../utils/system-event'
 import { notifySiteRole } from '../utils/notify'
-import { planMax, type HostingPlan } from '../utils/hosting-plans'
+import { MONTHLY_METRIC, planMax, type HostingPlan } from '../utils/hosting-plans'
 import { isHostingPlatform } from '../utils/hosting-platform'
 import { usageDay } from '../utils/usage'
 import { PLAN_LIMITS } from '../../shared/lib/hosting-plan-limits'
 import { getAiDailyCap, platformAiCreditsToday } from '../utils/ai-allowance'
 
 const THRESHOLDS = [100, 80] as const
-const MONTHLY_LIMITS = PLAN_LIMITS.filter(l => l.monthly)
-const METRIC: Record<string, string> = { ai: 'ai_credits', emails: 'emails', views: 'views', renders: 'renders' }
+// Every monthly limit, plus soft limits on totals (database size) — hard totals refuse the
+// action itself and need no notice.
+const ALERT_LIMITS = PLAN_LIMITS.filter(l => l.monthly || l.kind === 'soft')
+const METRIC: Record<string, string> = { ...MONTHLY_METRIC, database: 'database_bytes' }
+
+function formatAmount(unit: 'bytes' | 'count', n: number): string {
+  if (unit === 'count') return n.toLocaleString('en')
+  const mb = n / 1024 ** 2
+  return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`
+}
 
 /**
  * Hourly: tells the platform operator (super admins of the primary site) when a site
- * reaches 80% or 100% of a monthly limit on its hosting plan — once per site, limit,
- * threshold and month. For soft limits (views, renders) this is the only thing that
+ * reaches 80% or 100% of a monthly limit (or the soft database-size limit, read from the
+ * latest nightly snapshot) on its hosting plan — once per site, limit, threshold and
+ * month. For soft limits (views, renders, plugin requests, database) this is the only thing that
  * happens: a person decides what to do. Uses the notifications table itself as the
  * "already told" record, like stale-content-scan.ts.
  */
@@ -36,16 +45,23 @@ export const sendPlanUsageAlerts = async (now = new Date()) => {
   const primary = await db.query.sites.findFirst({ where: eq(sites.isPrimary, true), columns: { id: true, domain: true } })
   if (!primary) return { checked: limited.length, notified: capNotified }
 
-  const [totals, alreadySent] = await Promise.all([
+  const [latestDatabaseDay] = await db.select({ day: max(siteUsageDaily.day) }).from(siteUsageDaily).where(eq(siteUsageDaily.metric, 'database_bytes'))
+  const [totals, databaseSizes, alreadySent] = await Promise.all([
     db.select({ siteId: siteUsageDaily.siteId, metric: siteUsageDaily.metric, value: sql<number>`sum(${siteUsageDaily.value})` })
       .from(siteUsageDaily)
       .where(gte(siteUsageDaily.day, monthStart))
       .groupBy(siteUsageDaily.siteId, siteUsageDaily.metric),
+    latestDatabaseDay?.day
+      ? db.select({ siteId: siteUsageDaily.siteId, value: siteUsageDaily.value }).from(siteUsageDaily)
+          .where(and(eq(siteUsageDaily.metric, 'database_bytes'), eq(siteUsageDaily.day, latestDatabaseDay.day)))
+      : Promise.resolve([]),
     db.select({ data: notifications.data })
       .from(notifications)
       .where(and(eq(notifications.siteId, primary.id), eq(notifications.type, 'system.plan_usage'), gte(notifications.createdAt, monthStart))),
   ])
-  const used = new Map(totals.map(t => [`${t.siteId}|${t.metric}`, Number(t.value)]))
+  // A snapshot metric is a total, not a monthly sum: take the latest night's value instead.
+  const used = new Map(totals.filter(t => t.metric !== 'database_bytes').map(t => [`${t.siteId}|${t.metric}`, Number(t.value)]))
+  for (const d of databaseSizes) used.set(`${d.siteId}|database_bytes`, Number(d.value))
   const sent = new Set(alreadySent.map((n) => {
     const d = (n.data ?? {}) as Record<string, unknown>
     return `${d.siteId}|${d.limit}|${d.threshold}|${d.month}`
@@ -54,7 +70,7 @@ export const sendPlanUsageAlerts = async (now = new Date()) => {
   const event = createSystemEvent({ env: (globalThis as { __env__?: unknown }).__env__, siteId: primary.id, host: primary.domain })
   let notified = capNotified
   for (const { site, plan } of limited) {
-    for (const limit of MONTHLY_LIMITS) {
+    for (const limit of ALERT_LIMITS) {
       const max = planMax(plan as HostingPlan, limit.key)
       if (!max) continue
       const value = used.get(`${site.id}|${METRIC[limit.key]}`) ?? 0
@@ -70,7 +86,9 @@ export const sendPlanUsageAlerts = async (now = new Date()) => {
         minRole: 'super_admin',
         type: 'system.plan_usage',
         title: `${site.name}: ${limit.label.toLowerCase()} at ${pct}%`,
-        body: `${site.name} (${site.domain}) has used ${value.toLocaleString('en')} of ${max.toLocaleString('en')} ${limit.label.toLowerCase()} on the ${plan.name} plan this month.`
+        body: (limit.monthly
+          ? `${site.name} (${site.domain}) has used ${formatAmount(limit.unit, value)} of ${formatAmount(limit.unit, max)} ${limit.label.toLowerCase()} on the ${plan.name} plan this month.`
+          : `${site.name} (${site.domain}) is at ${formatAmount(limit.unit, value)} of the ${formatAmount(limit.unit, max)} ${limit.label.toLowerCase()} on the ${plan.name} plan.`)
           + (blocked ? ' New requests are refused until the 1st.' : limit.kind === 'soft' ? ' Nothing is blocked — this is for you to decide.' : ''),
         data: { siteId: site.id, limit: limit.key, threshold, month },
         pushUrl: '/admin/super/usage',

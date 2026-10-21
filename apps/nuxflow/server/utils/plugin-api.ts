@@ -300,8 +300,10 @@ export async function aiGenerateText(ctx: PluginCallContext, input: unknown): Pr
   const maxOutputTokens = intInRange(input.maxOutputTokens, 'maxOutputTokens', 1, 4000, 1000)
   await rateLimit(ctx.event, { limit: 30, windowMs: 60_000, keyPrefix: `plugin-ai:${ctx.pluginId}` })
   // requireAiSdkModel checks the hosting-plan AI limit, and the model it returns counts
-  // each call towards the site's usage like every other AI feature.
-  const model = await requireAiSdkModel(ctx.event, 'fast')
+  // each call towards the site's usage like every other AI feature. Plugin routes are
+  // public, so anyone can set these calls off: they use the visitor AI allowance, never
+  // the team's.
+  const model = await requireAiSdkModel(ctx.event, 'fast', { trigger: 'visitor' })
   const result = await generateText({ model, prompt, ...(system ? { system } : {}), maxOutputTokens })
   return { text: result.text }
 }

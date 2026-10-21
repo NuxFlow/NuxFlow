@@ -29,8 +29,6 @@ watch(() => props.saving, (now, before) => {
 const PROVIDER_LABELS: Record<string, string> = {
   cloudflare: 'Cloudflare Images',
   r2: 'Cloudflare R2',
-  s3: 'S3-compatible storage',
-  bunny: 'Bunny.net',
 }
 
 const connected = computed(() => status.value?.canMigrate === true)

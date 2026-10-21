@@ -23,11 +23,17 @@ export const hostingPlans = sqliteTable('hosting_plans', {
   maxPlugins: integer('max_plugins'),
   maxAiCallsPerMonth: integer('max_ai_calls_per_month'),
   maxEmailsPerMonth: integer('max_emails_per_month'),
+  maxInboundEmailsPerMonth: integer('max_inbound_emails_per_month'),
+  maxVisitorAiCreditsPerMonth: integer('max_visitor_ai_credits_per_month'),
   // Soft limits: counted only; the operator is notified at 80% and 100%.
   maxViewsPerMonth: integer('max_views_per_month'),
   maxRendersPerMonth: integer('max_renders_per_month'),
+  maxPluginCallsPerMonth: integer('max_plugin_calls_per_month'),
+  maxDatabaseBytes: integer('max_database_bytes'),
   // Hard limit: customers' own domains on a site (0 = not included in this plan).
   maxCustomDomains: integer('max_custom_domains'),
+  // Yes/no features (shared/lib/hosting-plan-limits.ts, PLAN_FEATURES). Off by default.
+  allowImageTransformations: integer('allow_image_transformations', { mode: 'boolean' }).notNull().default(false),
   // Selling the plan (the hosting-platform sign-up, apps/nuxflow/server/utils/hosting-billing.ts).
   // Prices are in major units (5 = £5); null = not offered at that interval. NuxFlow
   // creates the Stripe product/prices from these and keeps their ids here — a changed

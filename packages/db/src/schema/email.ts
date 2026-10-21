@@ -90,6 +90,9 @@ export const emailMessages = sqliteTable('email_messages', {
   aiSummary: text('ai_summary'),
   rawKey: text('raw_key'),
   size: integer('size').notNull().default(0),
+  // Bytes this message keeps in R2 (raw .eml + stored attachments) — counted towards the
+  // site's storage limit alongside the media library (hosting-plans.ts).
+  storedBytes: integer('stored_bytes').notNull().default(0),
   sentByUserId: text('sent_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   // Set when a post-by-email message was turned into a draft.
   contentItemId: text('content_item_id'),

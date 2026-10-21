@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
       // via `<img :src="file.url">` for every storage provider, so dropping it would
       // break thumbnails, not just save bytes. It's only actually large when the
       // active provider is the `local` base64-data-URI fallback (512 KB cap) — for
-      // the common case (Cloudflare Images / S3 / Bunny) it's a short HTTP link, so
+      // the common case (R2 / Cloudflare Images) it's a short link, so
       // keeping it costs nothing there. There's no separate thumbnail representation
       // to fetch instead, so this is accepted as the local-fallback path's documented
       // last-resort cost rather than solved here.

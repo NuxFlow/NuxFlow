@@ -18,6 +18,8 @@ import { htmlToTipTap, stripHtmlToPlainText, type TTNode } from './html-to-tipta
 import { getActiveProvider } from './media-providers/index'
 import { assertWithinPlan, checkPlanLimit, planLimitMessage } from './hosting-plans'
 import { buildAuditLogInsert, batchWithAudit } from './audit'
+import { countUsage } from './usage'
+import { noticePlanLimitOnce } from './plan-limit-notice'
 import { bufferToHex } from './buffer'
 
 /**
@@ -259,6 +261,15 @@ export async function handleInboundEmail(
     }
   }
 
+  // The hosting plan's "Emails received a month". Forwarding above still happens — it
+  // costs nothing to keep — but nothing more is stored or processed until the 1st.
+  const inbound = await checkPlanLimit(db, resolved.siteId, 'inbound')
+  if (!inbound.allowed) {
+    await noticePlanLimitOnce(event, resolved.siteId, 'inbound', 'Incoming email is paused',
+      `This site has received its plan's ${(inbound.max ?? 0).toLocaleString('en')} emails for this month. New mail isn't kept in the inbox, or turned into drafts, until the 1st. Mail that's set to forward still forwards.`)
+    return reject(message, 'Mailbox over its monthly limit')
+  }
+
   const raw = new Uint8Array(await new Response(message.raw).arrayBuffer())
   const parsed = await PostalMime.parse(raw, { attachmentEncoding: 'arraybuffer' })
   const auth = parseAuthResults(message.headers.get('authentication-results'))
@@ -272,6 +283,7 @@ export async function handleInboundEmail(
     })
     if (dup) return
   }
+  countUsage(event, 'inbound_emails')
 
   const input: InboundInput = { event, resolved, parsed, raw, auth, envelopeFrom: message.from.toLowerCase(), envelopeTo: message.to.toLowerCase(), messageId }
   if (mailbox.kind === 'post') {
@@ -295,16 +307,36 @@ interface InboundInput {
 
 // ── Inbox ───────────────────────────────────────────────────────────────────────────
 
-async function storeRawAndAttachments(event: H3Event, siteId: string, id: string, raw: Uint8Array, attachments: Attachment[]): Promise<{ rawKey: string | null; meta: EmailAttachmentMeta[] }> {
-  const bucket = getBucket(event)
+/**
+ * Keeps the raw message and its attachments in R2. Those bytes count towards the site's
+ * storage limit (`storedBytes` on the row, summed in hosting-plans.ts); when they won't fit,
+ * nothing goes to R2 — the message text is still kept in the inbox — and the admins are
+ * told once that month.
+ */
+async function storeRawAndAttachments(event: H3Event, siteId: string, id: string, raw: Uint8Array, attachments: Attachment[]): Promise<{ rawKey: string | null; meta: EmailAttachmentMeta[]; storedBytes: number }> {
   const suffix = randomSuffix()
   let rawKey: string | null = null
   const meta: EmailAttachmentMeta[] = []
+  let storedBytes = 0
+
+  const kept = attachments.slice(0, MAX_ATTACHMENTS)
+  const wanted = raw.byteLength + kept.reduce((sum, att) => sum + attachmentBytes(att).byteLength, 0)
+  let bucket = getBucket(event)
+  if (bucket) {
+    const storage = await checkPlanLimit(useDb(event), siteId, 'storage', wanted)
+    if (!storage.allowed) {
+      bucket = null
+      console.warn(`[inbound-email] Storage limit reached for site ${siteId}; keeping message ${id} without its raw copy or attachments`)
+      await noticePlanLimitOnce(event, siteId, 'storage', 'Email attachments are not being kept',
+        `${planLimitMessage('storage', storage.max ?? 0)} New emails still arrive in the inbox, but their attachments aren't kept until some space is freed.`)
+    }
+  }
 
   if (bucket) {
     try {
       rawKey = `${privateEmailKey(siteId, id, suffix)}.eml`
       await bucket.put(rawKey, raw, { httpMetadata: { contentType: 'message/rfc822' } })
+      storedBytes += raw.byteLength
     }
     catch (err) {
       console.error('[inbound-email] Failed to store raw message in R2:', err)
@@ -312,7 +344,7 @@ async function storeRawAndAttachments(event: H3Event, siteId: string, id: string
     }
   }
 
-  for (const [i, att] of attachments.slice(0, MAX_ATTACHMENTS).entries()) {
+  for (const [i, att] of kept.entries()) {
     const bytes = attachmentBytes(att)
     const entry: EmailAttachmentMeta = {
       filename: (att.filename || `attachment-${i + 1}`).slice(0, 200),
@@ -325,6 +357,7 @@ async function storeRawAndAttachments(event: H3Event, siteId: string, id: string
         const key = `${privateEmailKey(siteId, id, suffix)}/${i}`
         await bucket.put(key, bytes, { httpMetadata: { contentType: entry.contentType } })
         entry.key = key
+        storedBytes += bytes.byteLength
       }
       catch (err) {
         console.error('[inbound-email] Failed to store attachment in R2:', err)
@@ -332,7 +365,7 @@ async function storeRawAndAttachments(event: H3Event, siteId: string, id: string
     }
     meta.push(entry)
   }
-  return { rawKey, meta }
+  return { rawKey, meta, storedBytes }
 }
 
 /** Subject with any number of leading Re:/Fwd:/AW:/SV: prefixes removed, lowercased. */
@@ -387,7 +420,7 @@ async function storeInboxMessage(input: InboundInput): Promise<void> {
 
   const from = firstMailbox(parsed.from) ?? { address: envelopeFrom, name: '' }
   const threadId = await resolveThreadId(db, resolved.siteId, parsed, from.address, id)
-  const { rawKey, meta } = await storeRawAndAttachments(event, resolved.siteId, id, raw, parsed.attachments)
+  const { rawKey, meta, storedBytes } = await storeRawAndAttachments(event, resolved.siteId, id, raw, parsed.attachments)
   const text = parsed.text ?? (parsed.html ? stripHtmlToPlainText(parsed.html) : '')
   const subject = (parsed.subject ?? '').slice(0, 998)
 
@@ -413,6 +446,7 @@ async function storeInboxMessage(input: InboundInput): Promise<void> {
     auth,
     rawKey,
     size: raw.byteLength,
+    storedBytes,
   })
 
   const spam = await triageMessage(event, id, { subject, text, from: from.address })
@@ -454,7 +488,8 @@ Do not mark genuine but negative or critical messages as spam. Then write a one-
  */
 async function triageMessage(event: H3Event, id: string, msg: { subject: string; text: string; from: string }): Promise<boolean> {
   try {
-    const model = await getAiSdkModel(event, 'fast')
+    // Set off by whoever sent the email — the visitor AI allowance.
+    const model = await getAiSdkModel(event, 'fast', { trigger: 'visitor' })
     if (!model) return false
     const { object } = await callAiOrThrow(() => generateObject({
       model,
@@ -586,7 +621,7 @@ async function handlePostByEmail(input: InboundInput): Promise<void> {
         mimeType,
         size: bytes.byteLength,
         url,
-        storageProvider: provider.name as 'cloudflare' | 'local' | 'r2' | 's3' | 'bunny',
+        storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
         storageKey,
       })
       uploaded.add(url)

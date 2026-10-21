@@ -22,6 +22,16 @@ vi.mock('workers-ai-provider', () => ({
   createWorkersAI: () => ({ textEmbedding: (modelId: string) => ({ modelId }) }),
 }))
 
+// Embeddings are platform-paid AI: charged to the team allowance on save, the visitor
+// allowance on search (ai-allowance.ts, tested in hosting-plans.test.ts).
+const mockCheckAiAllowance = vi.fn()
+const mockRecordAiCall = vi.fn()
+vi.mock('../../server/utils/ai-allowance', () => ({
+  AI_CREDITS: { embedding: 1 },
+  checkAiAllowance: (...args: unknown[]) => mockCheckAiAllowance(...args),
+  recordAiCall: (...args: unknown[]) => mockRecordAiCall(...args),
+}))
+
 const { upsertContentEmbedding, deleteContentEmbedding, semanticSearch } = await import('../../server/utils/embeddings')
 
 function fakeEvent(): H3Event {
@@ -43,6 +53,8 @@ beforeEach(() => {
   mockGetWorkersAiBinding.mockReset()
   mockGetVectorizeIndex.mockReset()
   mockEmbed.mockReset()
+  mockCheckAiAllowance.mockReset().mockResolvedValue({ allowed: true })
+  mockRecordAiCall.mockReset()
 })
 
 const BASE_INPUT = {
@@ -123,6 +135,30 @@ describe('upsertContentEmbedding', () => {
     expect(callArgs.value).toContain('SEO fallback text')
   })
 
+  it('charges one team AI credit per embedding', async () => {
+    mockGetVectorizeIndex.mockReturnValue(fakeIndex())
+    mockGetWorkersAiBinding.mockReturnValue({ run: vi.fn() })
+    mockEmbed.mockResolvedValue({ embedding: [0.1] })
+
+    await upsertContentEmbedding(fakeEvent(), BASE_INPUT)
+
+    expect(mockCheckAiAllowance).toHaveBeenCalledWith(expect.anything(), 1, 'team')
+    expect(mockRecordAiCall).toHaveBeenCalledWith(expect.anything(), 'platform', 1, 'team')
+  })
+
+  it('skips the embedding (and charges nothing) once the AI allowance is used up', async () => {
+    const index = fakeIndex()
+    mockGetVectorizeIndex.mockReturnValue(index)
+    mockGetWorkersAiBinding.mockReturnValue({ run: vi.fn() })
+    mockCheckAiAllowance.mockResolvedValue({ allowed: false, reason: 'plan', plan: { key: 'ai', allowed: false, used: 10, max: 10 } })
+
+    await upsertContentEmbedding(fakeEvent(), BASE_INPUT)
+
+    expect(mockEmbed).not.toHaveBeenCalled()
+    expect(index.upsert).not.toHaveBeenCalled()
+    expect(mockRecordAiCall).not.toHaveBeenCalled()
+  })
+
   it('skips the upsert (no embed call) when the AI binding is unavailable', async () => {
     const index = fakeIndex()
     mockGetVectorizeIndex.mockReturnValue(index)
@@ -165,6 +201,17 @@ describe('deleteContentEmbedding', () => {
 })
 
 describe('semanticSearch', () => {
+  it('charges search queries to the visitor AI allowance, and returns null once it is used up', async () => {
+    const index = fakeIndex()
+    mockGetVectorizeIndex.mockReturnValue(index)
+    mockGetWorkersAiBinding.mockReturnValue({ run: vi.fn() })
+    mockCheckAiAllowance.mockResolvedValue({ allowed: false, reason: 'plan', plan: { key: 'visitor_ai', allowed: false, used: 5, max: 5 } })
+
+    expect(await semanticSearch(fakeEvent(), 'site-01', 'tomatoes')).toBeNull()
+    expect(mockCheckAiAllowance).toHaveBeenCalledWith(expect.anything(), 1, 'visitor')
+    expect(index.query).not.toHaveBeenCalled()
+  })
+
   it('returns null when no Vectorize index is configured', async () => {
     mockGetVectorizeIndex.mockReturnValue(null)
     const result = await semanticSearch(fakeEvent(), 'site-01', 'tomatoes')

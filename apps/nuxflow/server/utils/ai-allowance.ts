@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { and, eq, gte, ne, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, ne, sql } from 'drizzle-orm'
 import { siteSettings, sites, siteUsageDaily } from '@nuxflow/db/schema'
 import { useDb, type Db } from './db'
 import { createIsolateCache } from './isolate-cache'
@@ -21,12 +21,26 @@ import { getPrimarySite } from './site-info'
  *
  * Every call of either kind still counts once in `ai_calls`, for Super Admin → Usage.
  *
+ * Platform-paid calls are split by who set them off. The site's team (writing tools, page
+ * generation) uses `ai_credits` and the plan's "AI credits a month". Visitors, incoming
+ * mail and plugins (Listen to this article, spam checks on comments and forms, inbox
+ * sorting, smart search, plugin AI — plugin routes are public) use `ai_visitor_credits` and the plan's "Visitor AI credits a month" — so
+ * a bot hammering a public feature can only pause those features, never the team's tools.
+ * Both count towards the platform-wide daily cap.
+ *
  * Credits are weighted so the allowance follows the real bill rather than the number of
  * clicks: a page generation on the big model costs far more than a grammar check. The
  * weights are relative, not a price — see AI_CREDITS.
  */
 
 export type AiPayer = 'platform' | 'site'
+
+/** Who set the call off: the site's own team, or the public (visitors, incoming mail). */
+export type AiTrigger = 'team' | 'visitor'
+
+const CREDIT_METRIC = { team: 'ai_credits', visitor: 'ai_visitor_credits' } as const
+const PLAN_KEY = { team: 'ai', visitor: 'visitor_ai' } as const
+const PLATFORM_CREDIT_METRICS = [CREDIT_METRIC.team, CREDIT_METRIC.visitor]
 
 /**
  * Credit weights. 1 credit ≈ 1,000 tokens (prompt + answer) on the fast text model. The
@@ -41,6 +55,8 @@ export const AI_CREDITS = {
   image: 10,
   transcription: 2,
   speechCharsPerCredit: 1000,
+  /** One embedding (semantic search index or query) — tiny next to a generation. */
+  embedding: 1,
 } as const
 
 export function textCredits(totalTokens: number | undefined, heavy: boolean): number {
@@ -84,16 +100,16 @@ export async function getAiDailyCap(db: Db): Promise<number | null> {
   return cap
 }
 
-/** AI credits every site except the primary one has used today (UTC): stored rows plus this isolate's unwritten counts. */
+/** AI credits (team and visitor) every site except the primary one has used today (UTC): stored rows plus this isolate's unwritten counts. */
 export async function platformAiCreditsToday(db: Db, primarySiteId: string | null, now = new Date()): Promise<number> {
   const day = usageDay(now)
-  const conditions = [eq(siteUsageDaily.metric, 'ai_credits'), gte(siteUsageDaily.day, day)]
+  const conditions = [inArray(siteUsageDaily.metric, PLATFORM_CREDIT_METRICS), gte(siteUsageDaily.day, day)]
   if (primarySiteId) conditions.push(ne(siteUsageDaily.siteId, primarySiteId))
   const [r] = await db.select({ n: sql<number>`coalesce(sum(${siteUsageDaily.value}), 0)` })
     .from(siteUsageDaily)
     .where(and(...conditions))
   const unwritten = pendingUsage()
-    .filter(p => p.metric === 'ai_credits' && p.day >= day && p.siteId !== primarySiteId)
+    .filter(p => (PLATFORM_CREDIT_METRICS as string[]).includes(p.metric) && p.day >= day && p.siteId !== primarySiteId)
     .reduce((sum, p) => sum + p.value, 0)
   return Number(r?.n ?? 0) + unwritten
 }
@@ -109,7 +125,7 @@ export const PLATFORM_AI_CAP_MESSAGE = 'AI is paused for today: the platform\'s 
 
 export function aiAllowanceMessage(check: Exclude<AiAllowanceCheck, { allowed: true }>): string {
   if (check.reason === 'platform') return PLATFORM_AI_CAP_MESSAGE
-  return planLimitMessage('ai', check.plan.max ?? 0)
+  return planLimitMessage(check.plan.key, check.plan.max ?? 0)
 }
 
 /**
@@ -117,10 +133,10 @@ export function aiAllowanceMessage(check: Exclude<AiAllowanceCheck, { allowed: t
  * daily cap are checked — site-paid calls never come here. Usage is only known after a
  * text call, so text calls check with 1 credit; a site can go over by one call's worth.
  */
-export async function checkAiAllowance(event: H3Event, credits = 1, siteId = event.context?.siteId as string | undefined): Promise<AiAllowanceCheck> {
+export async function checkAiAllowance(event: H3Event, credits = 1, trigger: AiTrigger = 'team', siteId = event.context?.siteId as string | undefined): Promise<AiAllowanceCheck> {
   if (!siteId) return { allowed: true }
   const db = useDb(event)
-  const plan = await checkPlanLimit(db, siteId, 'ai', credits)
+  const plan = await checkPlanLimit(db, siteId, PLAN_KEY[trigger], credits)
   if (!plan.allowed) return { allowed: false, reason: 'plan', plan }
 
   if (!(await isHostingPlatform(db))) return { allowed: true }
@@ -142,23 +158,23 @@ export class AiAllowanceError extends Error {
 }
 
 /** Throws the standard 403 (`data.code: 'plan_limit'`, or `'platform_ai_cap'`) when a platform-paid call isn't allowed. */
-export async function assertAiAllowance(event: H3Event, credits = 1): Promise<void> {
-  const check = await checkAiAllowance(event, credits)
+export async function assertAiAllowance(event: H3Event, credits = 1, trigger: AiTrigger = 'team'): Promise<void> {
+  const check = await checkAiAllowance(event, credits, trigger)
   if (check.allowed) return
   throw createError({
     statusCode: 403,
     message: aiAllowanceMessage(check),
     data: check.reason === 'plan'
-      ? { code: 'plan_limit', limit: 'ai', used: check.plan.used, max: check.plan.max }
+      ? { code: 'plan_limit', limit: check.plan.key, used: check.plan.used, max: check.plan.max }
       : { code: 'platform_ai_cap', used: check.used, max: check.max },
   })
 }
 
 /**
- * Counts one AI call. `ai_calls` always goes up by one; `ai_credits` only for
- * platform-paid calls. Never throws, like countUsage().
+ * Counts one AI call. `ai_calls` always goes up by one; the credits only for platform-paid
+ * calls, into the team or visitor bucket. Never throws, like countUsage().
  */
-export function recordAiCall(event: H3Event, payer: AiPayer, credits: number): void {
+export function recordAiCall(event: H3Event, payer: AiPayer, credits: number, trigger: AiTrigger = 'team'): void {
   countUsage(event, 'ai_calls')
-  if (payer === 'platform') countUsage(event, 'ai_credits', credits)
+  if (payer === 'platform') countUsage(event, CREDIT_METRIC[trigger], credits)
 }

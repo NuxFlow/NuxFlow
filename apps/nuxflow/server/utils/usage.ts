@@ -34,12 +34,22 @@ export const USAGE_EVENT_METRICS = [
    * site's own API key aren't included. See ai-allowance.ts.
    */
   'ai_credits',
+  /**
+   * Weighted cost of platform-paid AI that visitors, incoming mail and plugins set off
+   * (listen, spam checks, inbox sorting, smart search, plugin AI) — kept out of `ai_credits` so the public
+   * can't use up the team's allowance. Limited by the plan's "Visitor AI credits a month".
+   */
+  'ai_visitor_credits',
   /** Emails handed to a real provider (console-only "sends" aren't counted). */
   'emails',
+  /** Emails received at the site's own addresses and accepted (inbox and post-by-email). */
+  'inbound_emails',
+  /** Requests and event hooks handled by the site's dynamic plugins (each runs a Dynamic Worker). */
+  'plugin_calls',
 ] as const
 
 export const USAGE_SNAPSHOT_METRICS = [
-  /** Sum of media file sizes. */
+  /** Sum of media file sizes plus inbound email kept in R2. */
   'storage_bytes',
   /** Pages, posts and every other content item, any status. */
   'content_items',
@@ -49,6 +59,8 @@ export const USAGE_SNAPSHOT_METRICS = [
   'site_members',
   /** Installed dynamic plugins. */
   'plugins',
+  /** Approximate bytes the site takes in the shared D1 database (see siteDatabaseBytes()). */
+  'database_bytes',
 ] as const
 
 export type UsageEventMetric = typeof USAGE_EVENT_METRICS[number]

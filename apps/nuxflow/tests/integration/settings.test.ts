@@ -99,25 +99,6 @@ describe('saveSetting + resolveSetting', () => {
     await expect(saveSetting(event, 'foo', 'bar')).rejects.toMatchObject({ statusCode: 400 })
   })
 
-  it('treats media.s3_access_key as sensitive (defense-in-depth alongside the paired secret key)', () => {
-    expect(SENSITIVE_SETTING_KEYS.has('media.s3_access_key')).toBe(true)
-    expect(SENSITIVE_SETTING_KEYS.has('media.s3_secret_key')).toBe(true)
-  })
-
-  it('encrypts and round-trips media.s3_access_key like any other sensitive key', async () => {
-    const s3SiteId = `${siteId}-s3`
-    await seedSite(getCurrentTestDb(), { id: s3SiteId, domain: `s3-${Date.now()}.localhost` })
-    const event = mkEvent(s3SiteId)
-    await saveSetting(event, 'media.s3_access_key', 'AKIAABCDEFGHIJKLMNOP')
-
-    const rows = await getCurrentTestDb().query.siteSettings.findMany()
-    const stored = rows.find(r => r.siteId === s3SiteId && r.key === 'media.s3_access_key')
-    expect(stored?.value).not.toBe('AKIAABCDEFGHIJKLMNOP')
-
-    const value = await resolveSetting(event, 'media.s3_access_key')
-    expect(value).toBe('AKIAABCDEFGHIJKLMNOP')
-  })
-
   it('treats payments.paddle_webhook_secret as sensitive (Paddle signs webhooks with HMAC-SHA256 keyed by this shared secret, not an asymmetric keypair)', () => {
     expect(SENSITIVE_SETTING_KEYS.has('payments.paddle_webhook_secret')).toBe(true)
   })

@@ -14,6 +14,7 @@ import { clearSeoSettingsCache, getSeoSettings } from '../../../utils/seo'
 import { normalizeSeoSettings } from '../../../utils/seo-settings-schema'
 import { generateIndexNowKey } from '../../../utils/indexnow'
 import { isPrimarySite } from '../../../utils/site-info'
+import { planIncludes } from '../../../utils/hosting-plans'
 
 const bodySchema = z.object({
   // Site columns
@@ -43,19 +44,10 @@ const bodySchema = z.object({
     imagesToken: z.string().optional(),
     imagesDeliveryUrl: z.string().optional(),
   }).optional(),
-  // S3-compatible and Bunny.net media storage — per-site overrides of the env-var
-  // fallbacks in nuxt.config.ts, resolved the same way as the Cloudflare settings above.
+  // Media storage — per-site override of the R2 public URL env-var fallback in
+  // nuxt.config.ts, resolved the same way as the Cloudflare settings above.
   media: z.object({
     r2PublicUrl: z.string().optional(),
-    s3Bucket: z.string().optional(),
-    s3AccessKey: z.string().optional(),
-    s3SecretKey: z.string().optional(),
-    s3Region: z.string().optional(),
-    s3Endpoint: z.string().optional(),
-    s3PublicUrl: z.string().optional(),
-    bunnyApiKey: z.string().optional(),
-    bunnyStorageZone: z.string().optional(),
-    bunnyPullZone: z.string().optional(),
     enableImageTransformations: z.boolean().optional(),
   }).optional(),
   // Per-site Google/GitHub OAuth app credentials — per-site overrides of the
@@ -189,15 +181,6 @@ export default defineEventHandler(async (event) => {
   if (body.media) {
     const m = body.media
     if (m.r2PublicUrl !== undefined) settingEntries.push(['media.r2_public_url', m.r2PublicUrl])
-    if (m.s3Bucket !== undefined) settingEntries.push(['media.s3_bucket', m.s3Bucket])
-    if (m.s3AccessKey !== undefined) settingEntries.push(['media.s3_access_key', m.s3AccessKey])
-    if (m.s3SecretKey !== undefined) settingEntries.push(['media.s3_secret_key', m.s3SecretKey])
-    if (m.s3Region !== undefined) settingEntries.push(['media.s3_region', m.s3Region])
-    if (m.s3Endpoint !== undefined) settingEntries.push(['media.s3_endpoint', m.s3Endpoint])
-    if (m.s3PublicUrl !== undefined) settingEntries.push(['media.s3_public_url', m.s3PublicUrl])
-    if (m.bunnyApiKey !== undefined) settingEntries.push(['media.bunny_api_key', m.bunnyApiKey])
-    if (m.bunnyStorageZone !== undefined) settingEntries.push(['media.bunny_storage_zone', m.bunnyStorageZone])
-    if (m.bunnyPullZone !== undefined) settingEntries.push(['media.bunny_pull_zone', m.bunnyPullZone])
     if (m.enableImageTransformations !== undefined) settingEntries.push(['media.enable_image_transformations', m.enableImageTransformations])
   }
 
@@ -212,6 +195,21 @@ export default defineEventHandler(async (event) => {
     if (a.githubClientId !== undefined) settingEntries.push(['auth.github_client_id', a.githubClientId])
     if (a.githubClientSecret !== undefined) settingEntries.push(['auth.github_client_secret', a.githubClientSecret])
     if (a.turnstileSignIn !== undefined) settingEntries.push(['auth.turnstile_sign_in', a.turnstileSignIn ? 'true' : 'false'])
+  }
+
+  // Image Transformations are billed to the platform's Cloudflare zone, so on a hosting
+  // platform only a plan that includes them may switch them on. Switching off is always
+  // fine, and re-sending a value that's already on isn't "switching on" — the whole
+  // Settings page saves at once, and a site moved to a smaller plan must still be able to
+  // save (GET /api/public/site ignores the setting while the plan doesn't include it).
+  if (settingEntries.some(([k, v]) => k === 'media.enable_image_transformations' && v === true)
+    && (await resolveSetting(event, 'media.enable_image_transformations')) !== true
+    && !(await planIncludes(db, siteId, 'imageTransformations'))) {
+    throw createError({
+      statusCode: 403,
+      message: 'Image resizing is not included in this site\'s plan.',
+      data: { code: 'plan_feature', feature: 'imageTransformations' },
+    })
   }
 
   await batchSaveSettings(event, settingEntries)

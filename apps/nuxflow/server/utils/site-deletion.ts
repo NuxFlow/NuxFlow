@@ -72,8 +72,8 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
   }))
 
   // 1. Delete physical media files from the active storage provider. This is the one
-  // step here that genuinely can't be a DB-level cascade — the provider (R2, S3,
-  // Cloudflare Images, Bunny) is external storage, not a D1 table, so nothing short of
+  // step here that genuinely can't be a DB-level cascade — the provider (R2,
+  // Cloudflare Images) is external storage, not a D1 table, so nothing short of
   // calling its API actually removes the files. Read the rows first (need storageKey),
   // then delete each file; the media *rows* themselves don't need a manual delete here —
   // see step 4 below, which removes them (and every other site-scoped table) via D1's
@@ -90,7 +90,7 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
   // triggered the deletion instead of disappearing silently.
   //
   // deleteStoredMedia() resolves the provider from the *deleted* site's own settings (not
-  // the acting super admin's site — a tenant on its own S3/Bunny/Images account would
+  // the acting super admin's site — a tenant on its own Cloudflare Images account would
   // otherwise have every delete sent to the wrong storage) and only ever touches keys
   // under that site's own prefix.
   const allMedia = await db.select({ storageKey: media.storageKey, storageProvider: media.storageProvider })
