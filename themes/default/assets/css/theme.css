@@ -122,6 +122,11 @@
      .canvas-testimonial   Testimonial / quote card block
      .canvas-cta           Call-to-action banner block
      .canvas-spacer        Vertical spacer / divider block
+     .canvas-signup        Signup box block (mailing list)
+     .nuxflow-signup       Mailing-list signup popup — also carries
+                           .nuxflow-signup--slide-in or .nuxflow-signup--modal
+       .nuxflow-signup-form                     the form inside the popup and the
+                                               Signup box block
      .nux-blocks           Outer wrapper for the entire canvas page
 
    Important: Canvas pages render full-width with no container. Add

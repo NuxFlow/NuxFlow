@@ -8,8 +8,10 @@ import { getSeoSettings, siteBaseUrl } from '../../utils/seo'
 import { getActiveLocales } from '../../utils/locale-cache'
 import { absoluteUrl } from '../../utils/media-url'
 import { planIncludes } from '../../utils/hosting-plans'
+import { SIGNUP_SETTING_KEY } from '../../utils/mailing-list'
+import { parseSignupSettings, publicSignupSettings } from '../../../shared/lib/signup-prompt'
 
-const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations'] as const
+const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations', SIGNUP_SETTING_KEY] as const
 
 const CACHE_MAX_AGE = 300
 
@@ -79,6 +81,9 @@ async function buildPayload(event: H3Event, siteId: string) {
     // Lets the catch-all route render /{taxonomy} as that taxonomy's overview page.
     // Purged by every taxonomy create/rename/delete (purgeTaxonomyCache).
     taxonomies: taxonomyRows,
+    // Mailing-list signup texts for the popup and the Signup box block (Admin → Mailing
+    // list). The reward and list-sync settings are left out — see publicSignupSettings().
+    signup: publicSignupSettings(parseSignupSettings(kvMap[SIGNUP_SETTING_KEY])),
     // Site-wide SEO defaults (Admin → SEO) consumed by app.vue / layouts / pages.
     seo: {
       title: seo.title,

@@ -124,3 +124,41 @@ export const emailLog = sqliteTable('email_log', {
 }, (t) => [
   index('idx_email_log_site_created').on(t.siteId, t.createdAt),
 ])
+
+/**
+ * The site's mailing list — addresses collected by the signup popup and the Signup box
+ * Canvas block (server/utils/mailing-list.ts). One row per (site, email): signing up again
+ * updates the row rather than adding a second one.
+ *
+ * `pending` = waiting for the double opt-in confirmation link to be clicked; `subscribed` =
+ * confirmed (or single opt-in); `unsubscribed` = kept so a re-import or sync never quietly
+ * re-adds someone who left. The confirm and unsubscribe links are HMACs of the row id, so no
+ * token is stored. `consentText` is the wording the visitor agreed to, kept as the record of
+ * consent GDPR asks for.
+ *
+ * Mail to this list is never sent through Cloudflare's binding (transactional only under its
+ * terms) — only through the site's own third-party provider.
+ */
+export const mailingListSubscribers = sqliteTable('mailing_list_subscribers', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  name: text('name'),
+  status: text('status', { enum: ['pending', 'subscribed', 'unsubscribed'] }).notNull().default('pending'),
+  // 'popup' | 'block' | 'import' — where the address came from.
+  source: text('source').notNull().default('popup'),
+  sourcePath: text('source_path'),
+  consentText: text('consent_text'),
+  ipAddress: text('ip_address'),
+  confirmSentAt: text('confirm_sent_at'),
+  confirmedAt: text('confirmed_at'),
+  unsubscribedAt: text('unsubscribed_at'),
+  // Last sync to the site's Brevo contact list, if one is set up.
+  syncedAt: text('synced_at'),
+  syncError: text('sync_error'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  uniqueIndex('uq_mailing_list_site_email').on(t.siteId, t.email),
+  index('idx_mailing_list_site_status').on(t.siteId, t.status, t.createdAt),
+])

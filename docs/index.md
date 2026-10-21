@@ -25,6 +25,7 @@ If you are new to NuxFlow, start with these guides:
 - **Canvas Page Builder**: Visual drag-and-drop layout editor built into core, with nestable blocks (Columns, Container), undo/redo, and AI page generation.
 - **Visual Customizer**: No-code style editor with a live site preview — change fonts, colours, backgrounds, spacing density, content width, and corner shapes without touching CSS. Site logo and custom `<head>`/`<body>` code injection are also available from Settings → Appearance.
 - **Forms**: A built-in contact form plus a form builder (dates, choices, file uploads, signatures), all spam-protected, with a submissions inbox for every form.
+- **Mailing List**: A polite signup popup (and an inline Signup box block) that collects email addresses with double opt-in, an optional incentive, CSV export and Brevo sync.
 - **Email Inbox**: Receive email at contact@, leads@ or any address on your domain, triaged by AI and answered from the admin — plus post-by-email drafts and security alerts.
 - **Payments & Memberships**: Subscription tiers and content gating via Stripe, Lemon Squeezy, or Paddle.
 - **Hot-Loading Plugins**: Install and activate dynamic plugins at runtime without redeploying — they run as isolated Cloudflare Workers spawned on demand.

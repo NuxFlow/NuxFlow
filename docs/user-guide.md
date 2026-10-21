@@ -538,6 +538,49 @@ The old **Admin → Contact Forms** page has been merged into Forms; links to it
 
 ---
 
+## Mailing list and signup popup
+
+**Admin → Mailing list** (admins only) collects email addresses from visitors who want to hear from you. There are two ways to ask:
+
+- **Signup popup**: a small prompt that appears while someone is reading. Turn it on under **Mailing list → Signup popup**.
+- **Signup box block**: an inline form you place on any Canvas page (Add block → Forms → **Signup box**). Use it if you'd rather not have a popup at all. It works whether the popup is on or off.
+
+### How the popup behaves
+
+Most popups are annoying because they cover the page seconds after you arrive. NuxFlow's version is set up to avoid that:
+
+- By default it's a **small box in the corner**, not a window over the whole page. On phones it's always a small bar at the bottom of the screen, because Google ranks pages with full-screen mobile popups lower.
+- By default it appears **once the visitor is reading**: part-way down a page (50% unless you change it), or on the second page they open. You can choose **when they go to leave** instead (the mouse heads for the tabs or close button; on touch screens it falls back to the reading rule) or **after a number of seconds**.
+- It never appears to signed-in people, to anyone who has already signed up, on admin and account pages, or on any page you list under **Never show on these pages**.
+- It waits until the visitor has answered the cookie banner, so the two never stack.
+- Once closed, it stays away for 30 days (you can change this).
+
+### Offering something in return
+
+Under **After signing up** you can add a discount code, a download link, or anything else you want to give people for joining. It's only shown after they sign up (and confirm, with double opt-in), so it can't be found without joining.
+
+### Double opt-in and email providers
+
+With **double opt-in** on, new subscribers get an email with a confirmation link. They're only added once they click it and press **Yes, subscribe me**. This keeps mistyped and fake addresses off your list, and some countries (such as Germany) expect it.
+
+Mailing-list email is **only ever sent through a third-party provider**: Resend, Brevo or ZeptoMail, set up in **Settings → Email**. It's never sent through Cloudflare Email Sending, because Cloudflare only allows transactional email. Without a third-party provider, double opt-in can't be turned on and people are added straight away.
+
+### Looking after the list
+
+- The **Subscribers** tab shows everyone who has signed up, filtered by *Subscribed*, *Waiting to confirm* or *Unsubscribed*. The figures at the top show how many people saw the popup and how many signed up from it over the last 30 days.
+- **Export CSV** downloads the list, for example to import into a newsletter service.
+- From each row's menu you can **Resend confirmation email**, **Unsubscribe** someone (they stay on record as having left), or **Delete** them completely if they ask for their data to be erased.
+- Every signup records the consent wording the person agreed to, the page they signed up on, and when.
+- Unsubscribe links (`/mailing-list/unsubscribe`) take people off the list at once, and support one-click unsubscribe in mail apps.
+
+### Copying subscribers to Brevo
+
+To send newsletters with Brevo, enter a **Brevo list ID** under **Copy to Brevo**. Confirmed subscribers are added to that Brevo contact list and removed when they unsubscribe. This uses the Brevo API key from Settings → Email. If a copy fails, a warning icon appears next to that person on the Subscribers tab.
+
+NuxFlow doesn't send newsletters itself yet; see the [roadmap](./roadmap.md#mailing-list-whats-next).
+
+---
+
 ## Plugins
 
 The **Admin → Plugins** page manages dynamic third-party plugins. NuxFlow does not use bundled plugins — all built-in features (Canvas, Contact Forms, Memberships, HTML embeds) are part of core.

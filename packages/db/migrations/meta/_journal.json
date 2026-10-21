@@ -64,6 +64,13 @@
       "when": 1792565545830,
       "tag": "0008_resource_gating",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792587469913,
+      "tag": "0009_mailing_list",
+      "breakpoints": true
     }
   ]
 }

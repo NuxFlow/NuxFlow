@@ -557,6 +557,26 @@ describe('dynamic-form/form block definition', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Signup box (mailing list)
+// ---------------------------------------------------------------------------
+
+describe('mailing-list/signup block definition', () => {
+  const block = CANVAS_BLOCKS.find(b => b.id === 'mailing-list/signup')!
+
+  it('exists in the forms category, rendered by the app-owned SignupBlock', () => {
+    expect(block).toBeDefined()
+    expect(block.category).toBe('forms')
+    expect(block.component).toBe('SignupBlock')
+  })
+
+  it('has title, description and button label fields with defaults', () => {
+    const keys = block.fields.map(f => f.key)
+    expect(keys).toEqual(expect.arrayContaining(['title', 'description', 'submitLabel']))
+    expect(block.defaultProps.submitLabel).toBe('Subscribe')
+  })
+})
+
+// ---------------------------------------------------------------------------
 // HTML block
 // ---------------------------------------------------------------------------
 
