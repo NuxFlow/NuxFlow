@@ -46,6 +46,7 @@ export interface AdminNavItem {
 
 export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Dashboard', to: '/admin', icon: 'i-lucide-layout-dashboard' },
+  { label: 'Analytics', to: '/admin/analytics', icon: 'i-lucide-chart-line', minRole: 'editor' },
   { label: 'Content', to: '/admin/content', icon: 'i-lucide-file-text' },
   { label: 'Generate with AI', to: '/admin/content/generate', icon: 'i-lucide-sparkles', minRole: 'editor' },
   { label: 'Calendar', to: '/admin/calendar', icon: 'i-lucide-calendar-days' },

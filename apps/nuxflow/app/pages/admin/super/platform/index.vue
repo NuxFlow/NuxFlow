@@ -13,6 +13,7 @@ interface PlatformState {
   signUpUrl: string | null
   customDomains: { zoneId: string | null; tokenSet: boolean; target: string | null }
   ai: { dailyCap: number | null; creditsToday: number }
+  analytics: { recording: boolean; dataset: string; tokenSet: boolean; accountId: string | null }
 }
 
 // Every event the hosting webhook acts on — the operator ticks these in Stripe.
@@ -76,6 +77,19 @@ const aiCapInvalid = computed(() => aiCap.value.trim() !== '' && !/^\d+$/.test(a
 async function saveAiCap() {
   const v = aiCap.value.trim()
   await save({ aiDailyCreditCap: v === '' ? null : Number(v) }, v === '' ? 'Daily AI cap removed' : 'Daily AI cap saved')
+}
+
+// Visitor analytics (Admin → Analytics on every site).
+const analytics = reactive({ accountId: '', token: '' })
+watch(() => data.value?.analytics.accountId, (id) => {
+  analytics.accountId = id ?? ''
+}, { immediate: true })
+const accountIdInvalid = computed(() => analytics.accountId.trim() !== '' && !/^[a-f0-9]{32}$/i.test(analytics.accountId.trim()))
+const analyticsReady = computed(() => !!data.value && data.value.analytics.recording && data.value.analytics.tokenSet && !!data.value.analytics.accountId)
+async function saveAnalytics() {
+  const body: Record<string, string> = { cloudflareAccountId: analytics.accountId.trim() }
+  if (analytics.token.trim()) body.analyticsApiToken = analytics.token.trim()
+  if (await save(body, 'Visitor analytics settings saved')) analytics.token = ''
 }
 
 async function saveWebhookSecret() {
@@ -146,6 +160,44 @@ async function copy(text: string) {
           icon="i-lucide-triangle-alert"
           description="No site is marked as the primary site, so this can't be turned on. The first site created by the setup wizard is normally the primary site."
         />
+      </UCard>
+
+      <UCard>
+        <template #header>
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="font-semibold text-gray-900 dark:text-white">Visitor analytics</h2>
+            <UBadge :color="analyticsReady ? 'success' : 'neutral'" variant="subtle">{{ analyticsReady ? 'On' : 'Not set up' }}</UBadge>
+          </div>
+        </template>
+        <div class="space-y-4 text-sm">
+          <p class="text-gray-500">
+            Gives every site an <strong>Analytics</strong> page: page views, top pages, countries, where visitors came from.
+            No cookies and no consent banner needed. It uses Cloudflare Analytics Engine, which the Workers Paid plan includes
+            (about 10 million recorded views a month before Cloudflare charges more). Set it up once:
+          </p>
+          <ol class="list-decimal pl-5 space-y-2 text-gray-600 dark:text-gray-300">
+            <li :class="{ 'text-gray-400': data.analytics.recording }">
+              <UIcon v-if="data.analytics.recording" name="i-lucide-circle-check" class="size-4 text-green-500 align-text-bottom" />
+              In <code>wrangler.toml</code>, uncomment the <code>[[analytics_engine_datasets]]</code> block — binding <code>AE</code>,
+              dataset <code>{{ data.analytics.dataset }}</code> — and deploy. Counting starts within the hour, as cached pages refresh.
+            </li>
+            <li>
+              Cloudflare → <strong>My Profile → API Tokens → Create Token → Custom token</strong>. Give it one permission,
+              <strong>Account → Account Analytics → Read</strong>, for the account this Worker runs in, and paste it below.
+            </li>
+            <li>Add your <strong>account ID</strong> (Cloudflare dashboard → Account home → the ⋯ next to your account → Copy account ID).</li>
+          </ol>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <UFormField label="Account ID" :error="accountIdInvalid ? 'An account ID is 32 letters and numbers.' : undefined">
+              <UInput v-model="analytics.accountId" placeholder="32 letters and numbers" class="w-full" autocomplete="off" />
+            </UFormField>
+            <UFormField label="API token">
+              <UInput v-model="analytics.token" type="password" :placeholder="data.analytics.tokenSet ? 'Saved — paste a new one to replace it' : 'Paste the token'" class="w-full" autocomplete="off" />
+            </UFormField>
+          </div>
+          <p class="text-xs text-gray-400">The account ID is the same one Settings → Media and AI use on {{ data.primarySite?.name ?? 'your main site' }}.</p>
+          <UButton :loading="saving" :disabled="accountIdInvalid || !data.primarySite" @click="saveAnalytics">Save</UButton>
+        </div>
       </UCard>
 
       <UCard v-if="data.hostingEnabled">

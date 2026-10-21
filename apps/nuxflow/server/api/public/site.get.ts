@@ -7,6 +7,7 @@ import { notFound } from '../../utils/response'
 import { getSeoSettings, siteBaseUrl } from '../../utils/seo'
 import { getActiveLocales } from '../../utils/locale-cache'
 import { absoluteUrl } from '../../utils/media-url'
+import { getAnalyticsEngine } from '../../utils/cf-env'
 import { planIncludes } from '../../utils/hosting-plans'
 import { SIGNUP_SETTING_KEY } from '../../utils/mailing-list'
 import { parseSignupSettings, publicSignupSettings } from '../../../shared/lib/signup-prompt'
@@ -74,6 +75,9 @@ async function buildPayload(event: H3Event, siteId: string) {
     // Lets dynamic-plugins.client.ts skip its own plugin-listing fetch entirely on the
     // (common) plugin-free site — see the query above for exactly what this reflects.
     hasPlugins: Boolean(activePlugin),
+    // Visitor analytics are being recorded (the AE binding exists), so the browser sends
+    // its page-view beacon — page-views.client.ts stays silent otherwise.
+    pageViews: getAnalyticsEngine(event) !== null,
     // Every locale the site has content in (the default one included) — lets the
     // [taxonomySlug]/[termSlug] route recognize /es/about as a translated page rather
     // than a taxonomy archive.

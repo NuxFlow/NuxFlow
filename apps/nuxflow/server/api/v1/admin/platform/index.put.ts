@@ -9,6 +9,7 @@ import { eventForSite, getPrimarySite } from '../../../../utils/site-info'
 import { saveSetting } from '../../../../utils/settings'
 import { writeAuditLog } from '../../../../utils/audit'
 import { AI_DAILY_CAP_SETTING_KEY, clearAiDailyCapCache } from '../../../../utils/ai-allowance'
+import { ANALYTICS_TOKEN_KEY, clearAnalyticsCache } from '../../../../utils/analytics'
 
 const bodySchema = z.object({
   hostingEnabled: z.boolean().optional(),
@@ -20,6 +21,10 @@ const bodySchema = z.object({
   customDomainTarget: z.string().trim().max(253).optional(),
   /** Most AI credits all customer sites together may use per UTC day; null removes the cap. */
   aiDailyCreditCap: z.number().int().min(0).max(100_000_000).nullable().optional(),
+  /** Visitor analytics: an API token with Account Analytics Read; '' removes it. */
+  analyticsApiToken: z.string().trim().max(200).optional(),
+  /** The Cloudflare account the Worker runs in (also used by Stream/Images); '' removes it. */
+  cloudflareAccountId: z.string().trim().regex(/^(?:[a-f0-9]{32})?$/i, 'An account ID is 32 letters and numbers (Cloudflare dashboard → Account home → the ⋯ menu next to your account → Copy account ID).').optional(),
 })
 
 /**
@@ -56,6 +61,9 @@ export default defineEventHandler(async (event) => {
     await saveSetting(primaryEvent, AI_DAILY_CAP_SETTING_KEY, body.aiDailyCreditCap)
     clearAiDailyCapCache()
   }
+  if (body.analyticsApiToken !== undefined) await saveSetting(primaryEvent, ANALYTICS_TOKEN_KEY, body.analyticsApiToken || null)
+  if (body.cloudflareAccountId !== undefined) await saveSetting(primaryEvent, 'cloudflare.account_id', body.cloudflareAccountId.toLowerCase() || null)
+  if (body.analyticsApiToken !== undefined || body.cloudflareAccountId !== undefined) clearAnalyticsCache()
   await writeAuditLog(event, userId, {
     action: 'update',
     resource: 'platform',
@@ -67,6 +75,8 @@ export default defineEventHandler(async (event) => {
       cfApiToken: body.cfApiToken === undefined ? undefined : (body.cfApiToken ? 'set' : 'removed'),
       customDomainTarget: body.customDomainTarget,
       aiDailyCreditCap: body.aiDailyCreditCap,
+      analyticsApiToken: body.analyticsApiToken === undefined ? undefined : (body.analyticsApiToken ? 'set' : 'removed'),
+      cloudflareAccountId: body.cloudflareAccountId,
     },
   })
   return { hostingEnabled: body.hostingEnabled }

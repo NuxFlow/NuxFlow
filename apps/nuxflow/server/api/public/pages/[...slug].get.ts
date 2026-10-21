@@ -1,5 +1,4 @@
 import { useDb, useReplicaDb, type Db } from '../../../utils/db'
-import { trackPageView } from '../../../utils/analytics'
 import { contentItems, contentTypes, sites, users } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { withEdgeCache } from '../../../utils/edge-cache'
@@ -69,8 +68,6 @@ export default defineEventHandler(async (event) => {
       data: { gated: true, requiredTier: gate.requiredTier, tiers: gate.tiers },
     })
   }
-
-  trackPageView(event, { siteId, slug })
 
   // Member-gated pages that passed the gate are per-caller (the response depends on the
   // requester's session/subscription, not just the URL), so they must never be shared via

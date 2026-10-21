@@ -19,6 +19,41 @@ The dashboard provides a high-level overview of your site's health and activity:
 
 ---
 
+## Analytics
+
+**Admin → Analytics** shows how many people visit your site and what they read. Editors and admins can open it. It covers the last 7, 30 or 90 days:
+
+- **Page views**: the total, the average per day, your busiest day, and the change since the period before.
+- **Page views per day**: a bar chart. Point at a bar to see that day's number.
+- **Top pages**: the 10 most-viewed pages.
+- **Where visitors came from**: the websites that linked to you, such as `google.com`. **Direct, or not shared** means the visitor typed the address, used a bookmark or an app, or their browser didn't say.
+- **Countries** and **Devices** (phone, tablet or desktop).
+
+### What is and isn't counted
+
+NuxFlow's analytics don't use cookies and don't store anything about individual visitors. Each view records only the page, the visitor's country, the *name* of the website they came from (never the full link, which can contain search terms), and the type of device. That's why you don't need a cookie banner for them.
+
+- A view is counted when a page finishes loading in the visitor's browser, including pages served from the cache and pages opened from your menus.
+- Not counted: search engines and other bots, the admin and sign-in pages, pages that don't exist, and visitors whose browser blocks scripts.
+- New visits show within a few minutes. The page refreshes its numbers at most every 5 minutes.
+- Cloudflare keeps the data for **3 months**. Days are counted in UTC.
+- Analytics show **page views**, not separate people: someone who reads three pages counts three times.
+- On very busy sites Cloudflare records a sample, so large numbers are close estimates rather than exact counts.
+
+### Switching it on (whoever runs the NuxFlow install)
+
+Analytics use **Cloudflare Analytics Engine**, which is included in the Workers Paid plan (around 10 million recorded views a month; check Cloudflare's pricing page for the current allowance). It is set up once for the whole install, and then every site gets its own Analytics page with only its own numbers.
+
+1. In `apps/nuxflow/wrangler.toml`, uncomment the `[[analytics_engine_datasets]]` block (binding `AE`, dataset `nuxflow_analytics`) and deploy. Nothing needs creating first. Counting starts within the hour: pages already in the cache start sending views once their cached copy refreshes.
+2. In Cloudflare, go to **My Profile → API Tokens → Create Token → Custom token**. Give it one permission, **Account → Account Analytics → Read**, for the account your Worker runs in.
+3. In **Admin → Super Admin → Platform → Visitor analytics**, paste the token and your **account ID**, then save.
+
+If a site's Analytics page says *"Cloudflare refused the analytics API token"*, the token is missing that permission or belongs to a different account.
+
+The full instructions, including how to check it's working, are in the [Installation Guide](./installation.md#visitor-analytics).
+
+---
+
 ## Content Management
 
 ### Pages vs. Posts

@@ -71,6 +71,16 @@ const { data: page, error, refresh } = await useFetch<PublicPage>(() => `/api/pu
   headers: useRequestHeaders(['host', 'cookie']),
 })
 
+// A missing or broken page renders its message here rather than through Nuxt's error
+// page, so tell the visitor-analytics beacon (page-views.client.ts) not to count it. A
+// paywall or password prompt (402/401) is still a view of a real page.
+const uncountedPath = useState<string | null>('nuxflow:uncounted-view-path', () => null)
+const currentRoute = useRoute()
+watchEffect(() => {
+  const status = error.value?.statusCode
+  if (status && status !== 401 && status !== 402) uncountedPath.value = currentRoute.path
+})
+
 // The gate details are the API error's `data` (Nitro's error body is { statusCode,
 // message, data }, and useFetch's error keeps that body as error.data). Derived from
 // `error` rather than set in an onResponseError hook: `error` is carried from the server

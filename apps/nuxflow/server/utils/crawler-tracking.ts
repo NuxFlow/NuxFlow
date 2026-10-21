@@ -8,13 +8,12 @@ import type { KnownCrawler } from './seo'
 
 /**
  * Records one request from a known search/AI crawler (seo.ts's detectCrawler), called by
- * 05.seo-headers.ts for every public GET — including full-page-cache hits, which never
- * reach the page API's own trackPageView().
+ * 05.seo-headers.ts for every public GET — including full-page-cache hits.
  *
  * Two sinks:
  * - Analytics Engine (when the `AE` binding exists), blobs `['crawler', token, category,
  *   path]` indexed by siteId — queryable with the account's AE SQL API for raw detail.
- *   The leading 'crawler' blob tells these rows apart from trackPageView's page views,
+ *   The leading 'crawler' blob tells these rows apart from analytics.ts's 'view' points,
  *   which share the dataset.
  * - A daily per-bot counter in D1 (`crawler_hits`), so Admin → SEO can show crawler
  *   activity without the account-level API token the AE SQL API needs.

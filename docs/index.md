@@ -32,6 +32,7 @@ If you are new to NuxFlow, start with these guides:
 - **Photography Ready**: Responsive image Gallery block with full-screen lightbox, EXIF metadata display, live focal-point crop preview, and a dedicated Google Image Sitemap at `/sitemap-images.xml`.
 - **Video & Vlogging Ready**: Canvas Video block embeds YouTube, Vimeo, and Cloudflare Stream. Self-hosted Stream videos are ad-free, brandable, and can be gated behind membership tiers.
 - **Multi-Site**: Manage multiple sites from a single installation.
+- **Privacy-Friendly Analytics**: Page views, top pages, referrers, countries and devices for every site, on Cloudflare Analytics Engine — no cookies, no consent banner, no third-party script.
 - **SEO & GEO Built In**: Sitemaps, structured data, hreflang, redirects (with automatic redirects when a page is renamed), IndexNow, an SEO audit, and AI-crawler controls, plus `llms.txt` and Markdown versions of every page for AI assistants.
 - **AI-Powered**: Writing assistance, SEO/readability scoring, AI page & site generation, image generation, semantic search, and automatic spam filtering — works out of the box via Cloudflare Workers AI, or bring your own OpenAI/Anthropic/Gemini/DeepSeek/Ollama key.
 
