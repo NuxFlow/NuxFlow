@@ -68,7 +68,7 @@ The **Image** block has a toggle called **Open lightbox on click**. It is off by
 
 ### Fast loading for large photos
 
-Turn on **Image Transformations** in **Settings → Media** (after the one-time Cloudflare dashboard step it describes). Galleries then load resized, modern-format copies, and the lightbox loads a screen-sized copy, instead of the full-size original from your camera. Without it, a visitor's browser downloads every original file.
+Turn on **Image Transformations** in **Settings → Media** (after the one-time Cloudflare dashboard step it describes). On a hosted site, your plan must include image resizing; if it doesn't, the switch is locked and says so. Galleries then load resized, modern-format copies, and the lightbox loads a screen-sized copy, instead of the full-size original from your camera. Without it, a visitor's browser downloads every original file.
 
 ---
 

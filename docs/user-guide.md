@@ -429,6 +429,8 @@ NuxFlow includes built-in membership and payment support. Manage it from **Admin
 
 **Pricing page**: There is no hardcoded `/pricing` route. Instead, add the **Membership Pricing** canvas block to any canvas page (see [Canvas Page Builder](#canvas-page-builder) below). The block fetches your live membership tiers automatically — no content to maintain separately. You can place it at any URL, mix it with other blocks, and highlight a specific tier as "Popular" from the block settings.
 
+**Members aren't team.** Anyone who signs up on your site, joins it, or buys a membership gets the **member** role. Members can read members-only content and manage their own account at `/account`, but never see the admin area or its data: drafts, the media library, or other people's pages. Visiting `/admin` sends them to their account page.
+
 **Member account**: Subscribers can view their active plan and cancel at any time from `/account`. Stripe subscribers also get a **Manage billing** link that opens the Stripe Customer Portal for invoice history and payment method updates.
 
 To accept payments, configure at least one payment provider in **Admin → Settings → Payments**. The checkout flow is fully handled server-side; no payment provider credentials are exposed to the browser. See the [Payments Setup Guide](./payments-setup.md) for full instructions.
@@ -500,7 +502,7 @@ To use Canvas on a piece of content, open the content item and switch the editor
 
 ## Blog
 
-The public blog index is available at `/blog`. It lists all published posts with their title, excerpt, featured image, and publication date.
+The public blog index is available at `/blog`. It lists all published posts with their title, excerpt, featured image, and publication date. Only items of the **Post** type are listed: pages such as About or Contact never appear there or in the site-wide RSS and Atom feeds. (A category or tag feed lists everything tagged with that term, matching its archive page.)
 
 Visitors can switch between two display layouts using the toggle in the top-right corner of the page:
 

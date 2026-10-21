@@ -16,7 +16,7 @@ Cloudflare Email Service is for **transactional** email only: messages triggered
 
 Sending needs the Workers Paid plan, which NuxFlow already requires. Each Cloudflare account includes 3,000 emails a month, then $0.35 per 1,000. The quota and the daily sending limit belong to the **account**, so every site on your deployment shares them. New accounts start with a conservative daily limit that Cloudflare raises over time. **Admin → Super Admin → Email** shows how much each site sends and which sends failed.
 
-Receiving through Email Routing is free and unlimited.
+Receiving through Email Routing is free and unlimited (on a hosting platform, a plan can limit how much each site keeps — see [Where messages are stored](#where-messages-are-stored) below).
 
 ---
 
@@ -77,6 +77,8 @@ If the mail arrived through the platform domain (option B), the reply goes out f
 ### Where messages are stored
 
 Message details and text go in D1. The original message and its attachments go in your R2 bucket (`MEDIA_BUCKET`) under a private `_private/` prefix that the public media route never serves. Every key also ends in a random suffix, in case a public r2.dev or custom domain is attached to the bucket. Without an R2 bucket, messages are still received, but attachments can't be downloaded.
+
+**On a hosting platform**, received mail counts towards the site's plan: the original message and its attachments count towards **Storage**, and the plan can set **Emails received a month**. Over that, new mail isn't kept until the 1st (forwarding still works); when storage is full, new mail still arrives but its attachments aren't kept. The site's admins get one notice each month when either happens. See [Hosting plans](./multi-site.md#hosting-plans).
 
 ---
 

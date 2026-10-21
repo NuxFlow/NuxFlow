@@ -127,12 +127,25 @@ Both functions are called by the plugin installer, theme importer, and any other
 
 ## Rate Limiting
 
-`rateLimit(event, opts)` in `server/utils/rate-limit.ts` enforces request limits with a two-tier strategy:
+`rateLimit(event, opts)` in `server/utils/rate-limit.ts` counts requests per site and IP address:
 
-1. **Isolate-level memory cache** — checked first, no database round-trip; eliminates most burst traffic instantly
-2. **D1 database upsert** — atomic counter shared across all Cloudflare Worker isolates (including across data centres under the same D1 global replica)
+1. **D1 atomic upsert** — one `INSERT … ON CONFLICT DO UPDATE … RETURNING` per request, so concurrent requests across every Worker isolate share one exact counter (no read-then-write race).
+2. **Isolate-level block cache** — once a key is over its limit, that isolate rejects it without a database call until the window resets. It only ever holds keys D1 has already confirmed as blocked, so it can't under-count.
 
-Auth endpoints (`/api/auth/sign-in`, `/api/auth/sign-up`, password reset) apply rate limits by IP address and email address independently, making credential-stuffing attacks significantly more expensive.
+Auth endpoints (`/api/auth/sign-in`, `/api/auth/sign-up`, password reset) apply rate limits by IP address and email address independently, making credential-stuffing attacks significantly more expensive. Public endpoints that cost real resources are limited too: comments and form submissions (10 a minute), "Listen to this article" (10 a minute), smart search (60 a minute), and each plugin's routes (120 a minute per visitor).
+
+---
+
+## Team vs members
+
+Accounts are shared across every site on a deployment, so a site's roles decide what someone can do there. **Team** roles (viewer, author, editor, admin, super admin) can use the admin area. **Member** is for visitors: public sign-up, joining from the accounts domain, and paid memberships. Members can read members-only content and manage their own account, nothing more.
+
+- `requireAuth` (and so `requireRole`) refuses members at every level. Only routes about the caller's own data (notifications, push, notification preferences) use `requireSiteUser`, which accepts any role.
+- An API key whose owner is now only a member is ignored.
+- The content list shows non-team callers only published, public items, so members-only, password-protected and private titles never leak through it.
+- Regression tests: `tests/integration/member-admin-boundary.test.ts`.
+
+Before October 2026 a member passed these checks, so anyone who registered on a site could list its drafts and read paid or password-protected pages by id. Never decide admin access by role rank (`member` ranks above `viewer`); use `isTeamRole()`.
 
 ---
 
