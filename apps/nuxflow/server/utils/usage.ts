@@ -63,7 +63,19 @@ export const USAGE_SNAPSHOT_METRICS = [
   'database_bytes',
 ] as const
 
+/**
+ * Counted the same way as event metrics, but they are a site's own statistics, not resource
+ * use — so they never appear in Super Admin → Usage or count towards a hosting plan.
+ */
+export const SITE_STAT_METRICS = [
+  /** The signup popup was shown to a visitor (mailing-list.ts). */
+  'signup_prompt_shown',
+  /** A visitor closed the signup popup without signing up. */
+  'signup_prompt_dismissed',
+] as const
+
 export type UsageEventMetric = typeof USAGE_EVENT_METRICS[number]
+export type SiteStatMetric = typeof SITE_STAT_METRICS[number]
 export type UsageSnapshotMetric = typeof USAGE_SNAPSHOT_METRICS[number]
 export type UsageMetric = UsageEventMetric | UsageSnapshotMetric
 
@@ -92,7 +104,7 @@ export function usageDay(now = new Date()): string {
  * origin, setup) — usage belongs to a site or to nobody. Never throws: counting must not
  * be able to fail the request it's counting.
  */
-export function countUsage(event: H3Event, metric: UsageEventMetric, n = 1, siteId = event.context?.siteId as string | undefined): void {
+export function countUsage(event: H3Event, metric: UsageEventMetric | SiteStatMetric, n = 1, siteId = event.context?.siteId as string | undefined): void {
   if (!siteId || n <= 0) return
   try {
     const day = usageDay()

@@ -25,7 +25,7 @@ export { slugify } from '../../shared/lib/slug'
 const RESERVED_TAXONOMY_SLUGS = new Set([
   'admin', 'api', 'blog', 'search', 'account', 'login', 'register', 'forgot-password',
   'reset-password', 'setup', 'authorize', '_nuxflow', 'cdn-cgi', 'index', 'home',
-  'feed', 'sitemap', 'robots', 'llms', 'events', 'tag-archive',
+  'feed', 'sitemap', 'robots', 'llms', 'events', 'tag-archive', 'mailing-list',
 ])
 
 // Language-prefix shaped (`es`, `pt-br`, `zh-cn`) — the [taxonomySlug]/[termSlug] route

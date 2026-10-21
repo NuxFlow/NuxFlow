@@ -192,6 +192,18 @@ No urgency to monitor actively — check when bumping Nuxt to a new major/minor,
 
 ---
 
+## Mailing list: what's next
+
+The mailing list (Admin → Mailing list) collects email addresses through the signup popup and the Signup box block, with double opt-in, unsubscribe links, CSV export and optional copying to a Brevo list. Not built yet:
+
+- **Sending newsletters from NuxFlow.** This would go through the site's own third-party provider only (Resend, Brevo or ZeptoMail), never Cloudflare Email Sending, whose terms allow transactional mail only. Each email needs the `List-Unsubscribe` / `List-Unsubscribe-Post` headers. The one-click endpoint already exists (`POST /api/public/mailing-list/unsubscribe?id=&token=`, see `oneClickUnsubscribeUrl()` in `server/utils/mailing-list.ts`).
+- **Phone number capture and SMS marketing.** Left out of the first version. Marketing texts need their own explicit consent (US TCPA, UK PECR), stored separately from email consent, and an SMS provider. It would share its provider work with **SMS Notifications** below.
+- **Mailchimp sync**, alongside the existing Brevo sync.
+- **Subscribers in the per-site backup.** Today the signup settings are backed up but the list itself isn't; moving a site means exporting the CSV.
+- **Several popups** (different offers per section of the site) and A/B testing of headings.
+
+---
+
 ## SMS Notifications
 
 ### Vision

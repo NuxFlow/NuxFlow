@@ -968,6 +968,32 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     },
   },
 
+  // ── Signup box (mailing list) ─────────────────────────────────────────────
+  {
+    id: 'mailing-list/signup',
+    name: 'Signup box',
+    description: 'Collect email addresses for the site mailing list — the inline alternative to a popup.',
+    icon: 'i-lucide-mail-plus',
+    category: 'forms',
+    component: 'SignupBlock',
+    ai: { hint: 'Email newsletter signup — use near the end of a blog, landing or home page.' },
+    thumbnailColor: '#f0fdf4',
+    fields: [
+      { key: 'title', label: 'Title', type: 'text', placeholder: 'Get new posts by email' },
+      { key: 'description', label: 'Description', type: 'textarea', placeholder: 'No spam. Unsubscribe any time.' },
+      { key: 'submitLabel', label: 'Button label', type: 'text', placeholder: 'Subscribe' },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      title: 'Get new posts by email',
+      description: 'No spam. Unsubscribe any time.',
+      submitLabel: 'Subscribe',
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
   // ── HTML Block ─────────────────────────────────────────────────────────────
   {
     id: 'html-block/html',

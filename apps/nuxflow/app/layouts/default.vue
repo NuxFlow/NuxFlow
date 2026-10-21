@@ -118,5 +118,6 @@ useHead({
 
     <ClientOnly><PublicCookieConsent /></ClientOnly>
     <ClientOnly><PublicPushNotificationBanner /></ClientOnly>
+    <ClientOnly><PublicSignupPrompt /></ClientOnly>
   </div>
 </template>
