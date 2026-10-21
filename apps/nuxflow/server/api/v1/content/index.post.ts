@@ -11,6 +11,7 @@ import { waitUntil } from '../../../utils/cf-env'
 import { upsertContentEmbedding } from '../../../utils/embeddings'
 import { assertContentSlugNotTaxonomy, getTermRefsWithAncestors, replaceContentTermsStatements, validateSiteTermIds } from '../../../utils/taxonomy'
 import { queueContentHook } from '../../../utils/plugin-hooks'
+import { queueContentPublishedPush } from '../../../utils/push-content'
 import { contentItems, sites } from '@nuxflow/db/schema'
 import { PAGE_PASSWORD_MAX_LENGTH, resolvePageSettings } from '../../../utils/page-password'
 import { and, eq, sql } from 'drizzle-orm'
@@ -136,6 +137,9 @@ export default defineEventHandler(async (event) => {
   queueContentHook(event, siteId, null, { status: body.status, visibility: deriveVisibilityFromSettings(body.settings) }, {
     id, typeId: type.id, title: body.title, slug: body.slug, locale: body.locale || siteLocale, sourceItemId: body.sourceItemId || null,
     publishedAt: body.status === 'published' ? new Date().toISOString() : null,
+  })
+  queueContentPublishedPush(event, siteId, null, { status: body.status, visibility: deriveVisibilityFromSettings(body.settings) }, {
+    title: body.title, slug: body.slug, locale: body.locale || siteLocale, sourceItemId: body.sourceItemId || null,
   })
 
   return created(event, { id })

@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
+import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedContentType, seedContentItem } from '../helpers/seed'
 import { contentItems } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
@@ -13,6 +14,15 @@ import { publishScheduled } from '../../server/scheduled/publish-scheduled'
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
   getD1: () => null,
+}))
+
+// h3's createEvent isn't usable under Vitest; same stand-in as inbound-email.test.ts.
+vi.mock('../../server/utils/system-event', () => ({
+  createSystemEvent: (opts: { env: unknown; siteId?: string }) => {
+    const event = createMockEvent({ siteId: opts.siteId }) as unknown as { context: Record<string, unknown> }
+    event.context.cloudflare = { env: opts.env, context: { waitUntil: (p: Promise<unknown>) => { void p } } }
+    return event
+  },
 }))
 
 // hashPassword (argon2) is slow and environment-dependent; stub it

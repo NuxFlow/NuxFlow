@@ -11,8 +11,8 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } 
 import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
-import { seedSite, seedUser, seedRole } from '../helpers/seed'
-import { pushSubscriptions, siteSettings } from '@nuxflow/db/schema'
+import { seedSite, seedUser, seedRole, seedSetting, seedContentType, seedContentItem } from '../helpers/seed'
+import { contentItems, pushSubscriptions, siteSettings } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { resolveSetting } from '../../server/utils/settings'
@@ -20,6 +20,14 @@ import { resolveSetting } from '../../server/utils/settings'
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
   getD1: () => null,
+}))
+// h3's createEvent isn't usable under Vitest; same stand-in as inbound-email.test.ts.
+vi.mock('../../server/utils/system-event', () => ({
+  createSystemEvent: (opts: { env: unknown; siteId?: string }) => {
+    const event = createMockEvent({ siteId: opts.siteId }) as unknown as { context: Record<string, unknown> }
+    event.context.cloudflare = { env: opts.env, context: { waitUntil: (p: Promise<unknown>) => { void p } } }
+    return event
+  },
 }))
 
 const { default: vapidKeysHandler } = await import('../../server/api/v1/push/vapid-keys.post')
@@ -30,6 +38,9 @@ const { default: unsubscribeHandler } = await import('../../server/api/v1/push/u
 const { default: testHandler } = await import('../../server/api/v1/push/test.post')
 const { default: broadcastHandler } = await import('../../server/api/v1/push/broadcast.post')
 const { sendPushToUser } = await import('../../server/utils/webpush')
+const { sendNotification } = await import('../../server/utils/notify')
+const { pushContentPublished } = await import('../../server/utils/push-content')
+const { publishScheduled } = await import('../../server/scheduled/publish-scheduled')
 
 type Handler = (e: H3Event) => Promise<unknown>
 
@@ -110,6 +121,7 @@ async function verifyVapid(authHeader: string, endpoint: string, vapidPublic: st
   expect(claims.exp).toBeGreaterThan(Date.now() / 1000)
   expect(claims.exp - Date.now() / 1000).toBeLessThanOrEqual(24 * 3600)
   expect(claims.sub).toMatch(/^(mailto:|https:)/)
+  return claims as { sub: string }
 }
 
 // ── fetch capture ──────────────────────────────────────────────────────────────
@@ -144,11 +156,12 @@ beforeEach(() => {
 })
 afterEach(() => { globalThis.fetch = realFetch })
 
-function ev(userId: string, opts: { siteId?: string; body?: unknown } = {}) {
+function ev(userId: string, opts: { siteId?: string; body?: unknown; query?: Record<string, string> } = {}) {
   return createMockEvent({
     siteId: opts.siteId ?? SITE,
     session: { user: { id: userId, name: 'U', email: 'u@example.com' } },
     body: opts.body,
+    query: opts.query,
   }) as unknown as H3Event
 }
 
@@ -218,7 +231,9 @@ describe('delivery', () => {
     expect(req.url).toBe(sub.endpoint)
     expect(req.headers['content-encoding']).toBe('aes128gcm')
     expect(req.headers.ttl).toBe('86400')
-    await verifyVapid(req.headers.authorization, sub.endpoint, vapidPublic)
+    const claims = await verifyVapid(req.headers.authorization, sub.endpoint, vapidPublic)
+    // Names this site, not the push service (Apple rejects a subject on its own domain).
+    expect(claims.sub).toBe('https://push.localhost')
     expect(JSON.parse(await decrypt(sub, req.body))).toEqual({ title: 'Hello', body: 'World', url: '/admin' })
   })
 
@@ -226,7 +241,8 @@ describe('delivery', () => {
     const sub = await makeSubscriber('https://updates.push.services.mozilla.com/wpush/v2/gone')
     const id = await addSub(adminId, sub)
     pushStatus = 410
-    await (testHandler as Handler)(ev(adminId))
+    // Its only subscription was dead, so the admin is told they aren't subscribed.
+    await expect((testHandler as Handler)(ev(adminId))).rejects.toMatchObject({ statusCode: 422 })
     expect(await getCurrentTestDb().query.pushSubscriptions.findFirst({ where: eq(pushSubscriptions.id, id) })).toBeUndefined()
   })
 
@@ -291,5 +307,117 @@ describe('subscription status and unsubscribe', () => {
     const id = await addSub(adminId, { endpoint, p256dh: 'x', auth: 'y' })
     await (unsubscribeHandler as Handler)(ev(memberId, { body: { endpoint } }))
     expect(await getCurrentTestDb().query.pushSubscriptions.findFirst({ where: eq(pushSubscriptions.id, id) })).toBeDefined()
+  })
+})
+
+describe('admin test and broadcast results', () => {
+  beforeEach(async () => { await getCurrentTestDb().delete(pushSubscriptions) })
+
+  it('test push says so when the admin has no subscribed browser, instead of "sent"', async () => {
+    await expect((testHandler as Handler)(ev(adminId))).rejects.toMatchObject({ statusCode: 422 })
+    expect(sent).toEqual([])
+  })
+
+  it('test push fails when the push service refuses it', async () => {
+    await addSub(adminId, await makeSubscriber('https://fcm.googleapis.com/fcm/send/refused'))
+    pushStatus = 400
+    await expect((testHandler as Handler)(ev(adminId))).rejects.toMatchObject({ statusCode: 502 })
+  })
+
+  it('test push reports what was delivered', async () => {
+    await addSub(adminId, await makeSubscriber('https://fcm.googleapis.com/fcm/send/ok'))
+    expect(await (testHandler as Handler)(ev(adminId))).toEqual({ sent: true, total: 1, delivered: 1, removed: 0 })
+  })
+
+  it('broadcast reports how many browsers it reached', async () => {
+    await addSub(adminId, await makeSubscriber('https://fcm.googleapis.com/fcm/send/1'))
+    await addSub(memberId, await makeSubscriber('https://fcm.googleapis.com/fcm/send/2'))
+    expect(await (broadcastHandler as Handler)(ev(adminId, { body: { title: 't', body: 'b' } })))
+      .toMatchObject({ total: 2, delivered: 2 })
+  })
+
+  it('broadcast takes a site path, as its form hint says, or a full URL', async () => {
+    for (const url of ['/blog/my-post', 'https://example.com/page']) {
+      await expect((broadcastHandler as Handler)(ev(adminId, { body: { title: 't', body: 'b', url } }))).resolves.toBeDefined()
+    }
+    for (const url of ['//evil.example', '/\\evil.example', 'javascript:alert(1)', 'blog/no-slash']) {
+      await expect((broadcastHandler as Handler)(ev(adminId, { body: { title: 't', body: 'b', url } })))
+        .rejects.toMatchObject({ statusCode: expect.any(Number) })
+    }
+  })
+})
+
+describe('status is per browser', () => {
+  it('answers for the asking browser\'s endpoint when given one', async () => {
+    await getCurrentTestDb().delete(pushSubscriptions)
+    const phone = 'https://fcm.googleapis.com/fcm/send/phone'
+    await addSub(memberId, { endpoint: phone, p256dh: 'x', auth: 'y' })
+
+    expect(await (statusHandler as Handler)(ev(memberId, { query: { endpoint: phone } }))).toEqual({ subscribed: true })
+    expect(await (statusHandler as Handler)(ev(memberId, { query: { endpoint: 'https://fcm.googleapis.com/fcm/send/laptop' } }))).toEqual({ subscribed: false })
+  })
+})
+
+describe('notifications about another site', () => {
+  it('push to that site\'s subscribers with that site\'s keys, not the request\'s site', async () => {
+    const db = getCurrentTestDb()
+    await db.delete(pushSubscriptions)
+    await seedRole(db, adminId, OTHER, 'admin')
+    const { publicKey: otherKey } = await (vapidKeysHandler as Handler)(ev(adminId, { siteId: OTHER })) as { publicKey: string }
+    const there = await makeSubscriber('https://fcm.googleapis.com/fcm/send/other-site')
+    await addSub(memberId, there, OTHER)
+
+    // A super admin on SITE changes OTHER's status (admin/sites/[id].patch.ts).
+    await sendNotification({ siteId: OTHER, userId: memberId, type: 'system.site_status', title: 'Suspended', body: 'b', sendPush: true }, ev(adminId))
+
+    expect(sent.map(s => s.url)).toEqual([there.endpoint])
+    const claims = await verifyVapid(sent[0].headers.authorization, there.endpoint, otherKey)
+    expect(claims.sub).toBe('https://push2.localhost')
+  })
+})
+
+describe('"New content published" broadcast', () => {
+  const published = { status: 'published', visibility: 'public' }
+  let typeId: string
+  let reader: Subscriber
+
+  beforeAll(async () => {
+    const db = getCurrentTestDb()
+    await seedSetting(db, SITE, 'push.events.content_published', 'true')
+    typeId = await seedContentType(db, SITE, { slug: 'post' })
+  })
+  beforeEach(async () => {
+    await getCurrentTestDb().delete(pushSubscriptions)
+    reader = await makeSubscriber('https://fcm.googleapis.com/fcm/send/reader')
+    await addSub(memberId, reader)
+  })
+
+  it('announces a public item going live, linking to its real public path', async () => {
+    await pushContentPublished(ev(adminId), SITE, { status: 'draft', visibility: 'public' }, published, { title: 'Home', slug: 'home' })
+    expect(sent).toHaveLength(1)
+    // The homepage lives at "/", not "/home".
+    expect(JSON.parse(await decrypt(reader, sent[0].body))).toMatchObject({ title: 'Home', url: '/' })
+  })
+
+  it('never announces members-only or private items', async () => {
+    for (const visibility of ['members', 'private']) {
+      await pushContentPublished(ev(adminId), SITE, { status: 'draft', visibility }, { status: 'published', visibility }, { title: 'Secret', slug: 'secret' })
+    }
+    expect(sent).toEqual([])
+  })
+
+  it('does nothing for an edit to something already live', async () => {
+    await pushContentPublished(ev(adminId), SITE, published, published, { title: 'x', slug: 'x' })
+    expect(sent).toEqual([])
+  })
+
+  it('is sent when a scheduled post goes live', async () => {
+    const db = getCurrentTestDb()
+    await seedContentItem(db, SITE, typeId, { slug: 'scheduled-post', title: 'Scheduled', status: 'scheduled', visibility: 'public', scheduledAt: '2000-01-01 00:00:00' })
+    await publishScheduled()
+    const row = await db.query.contentItems.findFirst({ where: eq(contentItems.slug, 'scheduled-post') })
+    expect(row?.status).toBe('published')
+    expect(sent).toHaveLength(1)
+    expect(JSON.parse(await decrypt(reader, sent[0].body))).toMatchObject({ title: 'Scheduled', url: '/scheduled-post' })
   })
 })

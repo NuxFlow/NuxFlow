@@ -18,6 +18,9 @@ import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole } from '../helpers/seed'
 import subscribeHandler from '../../server/api/v1/push/subscribe.post'
 
+const rateLimit = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+vi.mock('../../server/utils/rate-limit', () => ({ rateLimit }))
+
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
   getD1: () => null,
@@ -27,7 +30,7 @@ type HandlerFn = (e: H3Event) => Promise<unknown>
 
 const SITE_A = 'site-push-a'
 const SITE_B = 'site-push-b'
-const ENDPOINT = 'https://push.example.com/endpoint/shared-browser'
+const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/shared-browser'
 let userId: string
 
 function mkEvent(siteId: string, body: unknown) {
@@ -89,5 +92,47 @@ describe('POST /api/v1/push/subscribe', () => {
 
     expect(rows).toHaveLength(1)
     expect(rows[0]?.p256dh).toBe('p256dh-a-updated')
+  })
+})
+
+describe('POST /api/v1/push/subscribe — abuse protection', () => {
+  it('refuses endpoints that are not a browser push service', async () => {
+    for (const endpoint of [
+      'https://evil.example.com/collect', // any public host
+      'http://fcm.googleapis.com/fcm/send/x', // not https
+      'https://fcm.googleapis.com:8443/fcm/send/x', // odd port
+      'https://fcm.googleapis.com.evil.example/x', // look-alike host
+      'https://127.0.0.1/x',
+    ]) {
+      await expect((subscribeHandler as HandlerFn)(mkEvent(SITE_A, { endpoint, p256dh: 'k', auth: 'a' })))
+        .rejects.toMatchObject({ statusCode: 422 })
+    }
+  })
+
+  it('accepts each browser vendor\'s push service', async () => {
+    for (const endpoint of [
+      'https://updates.push.services.mozilla.com/wpush/v2/abc',
+      'https://web.push.apple.com/QAbc',
+      'https://wns2-par02p.notify.windows.com/w/?token=abc',
+    ]) {
+      await expect((subscribeHandler as HandlerFn)(mkEvent(SITE_B, { endpoint, p256dh: 'k', auth: 'a' }))).resolves.toBeDefined()
+    }
+  })
+
+  it('keeps at most 10 subscriptions per user per site, dropping the oldest', async () => {
+    const db = getCurrentTestDb()
+    await db.delete(pushSubscriptions)
+    for (let i = 0; i < 12; i++) {
+      await (subscribeHandler as HandlerFn)(mkEvent(SITE_A, { endpoint: `https://fcm.googleapis.com/fcm/send/device-${i}`, p256dh: 'k', auth: 'a' }))
+    }
+    const rows = await db.query.pushSubscriptions.findMany({
+      where: and(eq(pushSubscriptions.userId, userId), eq(pushSubscriptions.siteId, SITE_A)),
+    })
+    expect(rows).toHaveLength(10)
+    expect(rateLimit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ keyPrefix: 'push-subscribe' }))
+    const endpoints = rows.map(r => r.endpoint)
+    expect(endpoints).not.toContain('https://fcm.googleapis.com/fcm/send/device-0')
+    expect(endpoints).not.toContain('https://fcm.googleapis.com/fcm/send/device-1')
+    expect(endpoints).toContain('https://fcm.googleapis.com/fcm/send/device-11')
   })
 })

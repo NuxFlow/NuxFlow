@@ -2,8 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole, roleAtLeast, AUTHOR_SETTABLE_STATUSES, assertCanEditContentItem } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
-import { resolveSetting } from '../../../utils/settings'
-import { broadcastPushToSite } from '../../../utils/webpush'
+import { queueContentPublishedPush } from '../../../utils/push-content'
 import { getContentItemOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
 import { contentItems, contentRevisions } from '@nuxflow/db/schema'
 import { and, eq, ne, sql } from 'drizzle-orm'
@@ -251,18 +250,10 @@ export default defineEventHandler(async (event) => {
     publishedAt: existing.publishedAt ?? (nextStatus === 'published' ? new Date().toISOString() : null),
   })
 
-  // Push broadcast when content is first published
-  const isFirstPublish = updateFields.status === 'published' && existing.status !== 'published'
-  if (isFirstPublish) {
-    const enabled = await resolveSetting(event, 'push.events.content_published')
-    if (enabled === 'true') {
-      waitUntil(event, broadcastPushToSite(event, {
-        title: body.title ?? existing.title,
-        body: 'New content has been published.',
-        url: `/${updateFields.slug ?? existing.slug}`,
-      }).catch(err => console.error('[push] Content publish broadcast failed:', err)))
-    }
-  }
+  queueContentPublishedPush(event, siteId, existing, { status: nextStatus, visibility: nextVisibility }, {
+    title: updateFields.title ?? existing.title,
+    ...nextItem,
+  })
 
   return { id, version: nextVersion }
 })

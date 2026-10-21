@@ -203,8 +203,10 @@ watch(data, (d) => {
 
   push.vapidPublicKey = (s['push.vapid_public_key'] as string) || null
   push.eventsContentPublished = s['push.events.content_published'] === 'true'
-  push.eventsPaymentConfirmation = s['push.events.payment_confirmation'] !== 'false'
-  push.eventsFormSubmission = s['push.events.form_submission'] !== 'false'
+  // Same reading as the server (only 'true' is on) — these used to show as on while unset,
+  // which the server treated as off.
+  push.eventsPaymentConfirmation = s['push.events.payment_confirmation'] === 'true'
+  push.eventsFormSubmission = s['push.events.form_submission'] === 'true'
 
   cloudflare.accountId = (s['cloudflare.account_id'] as string) ?? ''
   cloudflare.streamToken = (s['cloudflare.stream_token'] as string) ?? ''

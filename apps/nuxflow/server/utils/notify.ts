@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { useDb } from './db'
 import { sendTemplatedEmail } from './email-template'
 import { sendPushToUser } from './webpush'
+import { eventForSite } from './site-info'
 import { notifications, notificationPreferences, sites, users, userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -135,7 +136,12 @@ export async function sendNotification(opts: NotifyOptions, event: H3Event) {
   }
 
   if (opts.sendPush && prefs.push) {
-    await sendPushToUser(event, opts.userId, {
+    // Subscriptions and VAPID keys belong to the site being notified about, which isn't
+    // always the request's own — a super admin suspending a tenant from the primary site
+    // notifies that tenant's admins. Pushing with the request's site looked for their
+    // subscriptions on the primary site, so they never got it.
+    const pushEvent = event.context.siteId === opts.siteId ? event : eventForSite(event, opts.siteId)
+    await sendPushToUser(pushEvent, opts.userId, {
       title: opts.title,
       body: opts.body,
       url: opts.pushUrl,
