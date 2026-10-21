@@ -4,9 +4,11 @@ import { baselineSecurityHeaders } from '../utils/security-headers'
 // origin's stricter headers are already set and are left alone; and before the page cache
 // (07), so cached HITs carry these too. See utils/security-headers.ts.
 export default defineEventHandler((event) => {
+  const url = getRequestURL(event)
   const headers = baselineSecurityHeaders(
-    getRequestURL(event).pathname,
+    url.pathname,
     name => getResponseHeader(event, name),
+    { https: url.protocol === 'https:' },
   )
   setResponseHeaders(event, headers)
 })

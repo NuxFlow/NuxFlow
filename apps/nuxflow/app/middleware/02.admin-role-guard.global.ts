@@ -1,4 +1,4 @@
-import { findNavRule, canAccessNavItem } from '~/utils/admin-nav'
+import { findNavRule, canAccessNavItem, isTeamRole } from '~/utils/admin-nav'
 import { fetchAdminAccess } from '~/composables/useAdminAccess'
 
 // Bounces direct navigation to an /admin section the current user's role can't use
@@ -20,11 +20,17 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (!to.path.startsWith('/admin')) return
   if (to.path === '/admin/forbidden') return
 
-  const rule = findNavRule(to.path)
-  if (!rule) return // no configured rule for this path — allow; server still enforces the real boundary
-
   const access = await fetchAdminAccess()
   if (!access) return // no session — app/middleware/auth.ts (page-level) handles the /login redirect
+
+  // Members (public sign-up, memberships) aren't the site's team: the admin API refuses
+  // them everywhere, so send them to their own account page rather than a broken admin.
+  if (!isTeamRole(access.role) && !access.isSuperAdmin) {
+    return navigateTo('/account', { external: true })
+  }
+
+  const rule = findNavRule(to.path)
+  if (!rule) return // no configured rule for this path — allow; server still enforces the real boundary
 
   if (!canAccessNavItem(rule, access)) {
     return navigateTo('/admin/forbidden')

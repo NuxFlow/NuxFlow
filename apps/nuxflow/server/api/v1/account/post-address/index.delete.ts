@@ -1,14 +1,14 @@
 import { eq } from 'drizzle-orm'
 import { mailboxes } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
-import { requireAuth } from '../../../../utils/permissions'
+import { requireSiteUser } from '../../../../utils/permissions'
 import { getPostMailbox } from '../../../../utils/post-address'
 import { writeAuditLog } from '../../../../utils/audit'
 import { noContent } from '../../../../utils/response'
 
-/** Turns off the caller's post-by-email address. requireAuth, not author — a demoted user can still switch theirs off. */
+/** Turns off the caller's post-by-email address. requireSiteUser, not author — a demoted user can still switch theirs off. */
 export default defineEventHandler(async (event) => {
-  const { userId } = await requireAuth(event)
+  const { userId } = await requireSiteUser(event)
   const db = useDb(event)
   const siteId = event.context.siteId as string
 

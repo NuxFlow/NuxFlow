@@ -3,6 +3,7 @@ import { isError, type H3Event } from 'h3'
 import { isOllamaAvailable, resolveSetting } from './settings'
 import { getCfBindings, getWorkersAiBinding } from './cf-env'
 import { WORKER_MEDIA_PREFIX, workerMediaKey } from './media-url'
+import { safeFetch } from './ssrf'
 import { AiAllowanceError, assertAiAllowance, checkAiAllowance, recordAiCall, textCredits, type AiPayer } from './ai-allowance'
 
 /**
@@ -355,7 +356,9 @@ export async function loadImageBytesForAi(event: H3Event, url: string, fallbackM
   }
 
   if (!/^https?:\/\//i.test(url)) throw new Error('Unsupported image URL')
-  const res = await fetch(url)
+  // safeFetch, not fetch: a media row's url can arrive from a restored backup, so it
+  // isn't trusted to be a public address.
+  const res = await safeFetch(url)
   if (!res.ok) throw new Error(`Failed to fetch image for AI processing (${res.status})`)
   const buf = await res.arrayBuffer()
   return { data: new Uint8Array(buf), mediaType: res.headers.get('content-type') || fallbackMediaType }

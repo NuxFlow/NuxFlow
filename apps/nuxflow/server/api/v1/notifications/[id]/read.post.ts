@@ -1,10 +1,10 @@
 import { useDb } from '../../../../utils/db'
-import { requireAuth } from '../../../../utils/permissions'
+import { requireSiteUser } from '../../../../utils/permissions'
 import { notifications } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
-  const { userId } = await requireAuth(event)
+  const { userId } = await requireSiteUser(event)
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const id = getRouterParam(event, 'id')!

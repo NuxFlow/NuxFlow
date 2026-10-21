@@ -68,10 +68,16 @@ export function siteCallbackUrl(domain: string): string {
   return `${siteOriginForDomain(domain)}/_nuxflow/auth/callback`
 }
 
-/** Only same-site relative paths — never `//host`, `/\host` or an absolute URL. */
+// Browsers drop tab/CR/LF wherever they appear in a URL and treat `\` like `/`, so
+// "/<tab>/evil.com" or "/\evil.com" is read as "//evil.com" — another site. Any control
+// character or backslash is refused outright rather than trying to spot every spelling.
+// eslint-disable-next-line no-control-regex -- matching control characters is the point
+const UNSAFE_PATH_CHARS = /[\u0000-\u001F\u007F\\]/
+
+/** Only same-site relative paths — never `//host`, `/\host`, `/<tab>/host` or an absolute URL. */
 export function safeReturnPath(value: unknown, fallback = '/admin'): string {
-  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return fallback
-  if (/[\r\n]/.test(value)) return fallback
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return fallback
+  if (UNSAFE_PATH_CHARS.test(value)) return fallback
   return value
 }
 

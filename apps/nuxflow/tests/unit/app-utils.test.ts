@@ -9,7 +9,8 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { ADMIN_NAV, SUPER_ADMIN_NAV, canAccessNavItem, findNavRule, roleAtLeast, type Role } from '../../app/utils/admin-nav'
+import { ADMIN_NAV, SUPER_ADMIN_NAV, canAccessNavItem, findNavRule, isTeamRole, roleAtLeast, type Role } from '../../app/utils/admin-nav'
+import { safeNextPath } from '../../app/composables/useAccounts'
 import { evaluateArithmeticExpression } from '../../app/utils/safe-math'
 import { formatBytes, formatDuration, formatPrice } from '../../app/utils/format'
 import { getErrorMessage } from '../../app/utils/errors'
@@ -45,6 +46,12 @@ describe('admin-nav', () => {
 
   it('shows a user with no role on the site nothing', () => {
     for (const item of ADMIN_NAV) expect(canAccessNavItem(item, { role: null, isSuperAdmin: false })).toBe(false)
+  })
+
+  it('shows a member (site visitor, not team) nothing, although member ranks above viewer', () => {
+    for (const item of ADMIN_NAV) expect(canAccessNavItem(item, { role: 'member', isSuperAdmin: false })).toBe(false)
+    expect(isTeamRole('member')).toBe(false)
+    expect(isTeamRole('viewer')).toBe(true)
   })
 
   it('matches the longest nav prefix for a path', () => {
@@ -102,6 +109,20 @@ describe('admin-nav', () => {
     // Same effective gate for every role, rather than string equality (viewer ≡ no minRole).
     for (const role of ALL_ROLES) {
       expect(roleAtLeast(role, clientMin), `${role} on ${to}`).toBe(roleAtLeast(role, server.role))
+    }
+  })
+})
+
+describe('safeNextPath', () => {
+  it('keeps same-site paths', () => {
+    expect(safeNextPath('/admin/content?x=1', '/f')).toBe('/admin/content?x=1')
+  })
+
+  it('refuses anything a browser would read as another site', () => {
+    // Browsers strip tab/newline anywhere in a URL ("/\t/evil.com" → "//evil.com") and
+    // read a backslash anywhere as a slash.
+    for (const bad of ['//evil.com', 'https://evil.com', '/\\evil.com', '/\t/evil.com', '/\n/evil.com', '/\r/evil.com', '/x\\..\\evil.com', 'admin', 42, undefined]) {
+      expect(safeNextPath(bad, '/f'), JSON.stringify(bad)).toBe('/f')
     }
   })
 })

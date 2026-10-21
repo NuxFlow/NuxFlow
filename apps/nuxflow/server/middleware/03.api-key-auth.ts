@@ -3,6 +3,7 @@ import { useDb } from '../utils/db'
 import { waitUntil } from '../utils/cf-env'
 import { apiKeys, userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { isTeamRole, type Role } from '../utils/permissions'
 
 const LAST_USED_RESOLUTION_MS = 60 * 60_000
 
@@ -56,7 +57,9 @@ export default defineEventHandler(async (event) => {
   const roleRow = await db.query.userSiteRoles.findFirst({
     where: and(eq(userSiteRoles.userId, apiKey.userId), eq(userSiteRoles.siteId, siteId)),
   })
-  if (!roleRow) return
+  // A key whose owner has been moved down to `member` (a site visitor, not team) is
+  // revoked the same way: keys are issued by admins and act on the admin API.
+  if (!roleRow || !isTeamRole(roleRow.role as Role)) return
 
   event.context.apiKeyUserId = apiKey.userId
   event.context.apiKeyRole = roleRow.role

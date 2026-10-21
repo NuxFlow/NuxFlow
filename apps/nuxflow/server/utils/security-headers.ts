@@ -19,11 +19,16 @@ export function isFrameProtectedPath(path: string): boolean {
 }
 
 /** Headers to add for `path`, skipping any name `existing` already has (case-insensitive). */
-export function baselineSecurityHeaders(path: string, existing: (name: string) => unknown): Record<string, string> {
+export function baselineSecurityHeaders(path: string, existing: (name: string) => unknown, opts: { https?: boolean } = {}): Record<string, string> {
   const headers: Record<string, string> = {
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
   }
+  // HTTPS only (a browser ignores it over plain HTTP anyway, and local `wrangler dev` is
+  // HTTP). Deliberately without includeSubDomains/preload: those commit every subdomain of
+  // a customer's domain — some of which this Worker never serves — and can't be undone
+  // quickly.
+  if (opts.https) headers['Strict-Transport-Security'] = 'max-age=31536000'
   if (isFrameProtectedPath(path)) {
     headers['X-Frame-Options'] = 'SAMEORIGIN'
     headers['Content-Security-Policy'] = 'frame-ancestors \'self\''
