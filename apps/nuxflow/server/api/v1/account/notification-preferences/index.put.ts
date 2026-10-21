@@ -3,7 +3,7 @@ import { ulid } from 'ulid'
 import { sql } from 'drizzle-orm'
 import { notificationPreferences } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
-import { requireAuth } from '../../../../utils/permissions'
+import { requireSiteUser } from '../../../../utils/permissions'
 import { parseBody } from '../../../../utils/validate'
 import { NOTIFICATION_TYPES } from '../../../../utils/notify'
 
@@ -16,7 +16,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const { userId } = await requireAuth(event)
+  const { userId } = await requireSiteUser(event)
   const db = useDb(event)
   const siteId = event.context.siteId as string
   const body = await parseBody(event, bodySchema)

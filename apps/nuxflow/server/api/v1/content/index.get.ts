@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { getContentTypeBySlugOrThrow } from '../../../utils/content-queries'
 import { parsePagination } from '../../../utils/pagination'
-import { isSiteMember } from '../../../utils/permissions'
+import { isSiteTeamMember } from '../../../utils/permissions'
 import { paginate, countRows } from '@nuxflow/db/queries'
 import { contentItems, contentTaxonomyTerms, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq, desc, gt, inArray } from 'drizzle-orm'
@@ -42,23 +42,24 @@ export default defineEventHandler(async (event) => {
   const typeSlug = query.type || 'page'
 
   // A caller may only see non-published content (or filter by status at all) if they
-  // are an actual member of THIS site — not merely "has some valid session or API
-  // key." User accounts/sessions are global across this multi-tenant install, so a
-  // bare session check would let anyone with an account on ANY site (or a self-
-  // registered account where public registration is enabled) list another tenant's
-  // drafts/unpublished/scheduled content by hitting that tenant's domain directly.
-  // API-key requests are already scoped: 03.api-key-auth.ts only sets apiKeyUserId
-  // when a live user_site_roles row exists for this exact site.
+  // are on THIS site's team — not merely "has some valid session or API key", and not a
+  // `member` (a site visitor who registered or subscribed). User accounts/sessions are
+  // global across this multi-tenant install, so a bare session check would let anyone
+  // with an account on ANY site list another tenant's drafts. API-key requests are
+  // already scoped: 03.api-key-auth.ts only sets apiKeyUserId for a live team role on
+  // this exact site.
   const apiKeyUserId = event.context.apiKeyUserId as string | undefined
-  const isMember = Boolean(apiKeyUserId) || (await isSiteMember(event))
+  const isTeam = Boolean(apiKeyUserId) || (await isSiteTeamMember(event))
 
   const type = await getContentTypeBySlugOrThrow(db, siteId, typeSlug, `Content type "${typeSlug}" not found`)
 
   const conditions = [eq(contentItems.siteId, siteId), eq(contentItems.typeId, type.id)]
 
-  // Non-members (including unauthenticated callers) see only published content
-  if (!isMember) {
-    conditions.push(eq(contentItems.status, 'published'))
+  // Everyone else (members, unauthenticated callers) sees only published PUBLIC content —
+  // a members-only, password-protected or private item's title and slug are not theirs
+  // to list (a slug like "smith-wedding" gives a client gallery away).
+  if (!isTeam) {
+    conditions.push(eq(contentItems.status, 'published'), eq(contentItems.visibility, 'public'))
   } else if (query.status) {
     conditions.push(eq(contentItems.status, query.status))
   }

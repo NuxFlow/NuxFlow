@@ -36,8 +36,15 @@ export function useAccounts() {
   return { central, accountsOrigin, isAccountsHost, onSiteDomain, signInUrl, accountsLink }
 }
 
+// Browsers drop tab/CR/LF wherever they appear in a URL and treat `\` like `/`, so
+// "/<tab>/evil.com" is read as "//evil.com" — another site. Mirrors safeReturnPath() in
+// server/utils/site-auth.ts.
+// eslint-disable-next-line no-control-regex -- matching control characters is the point
+const UNSAFE_PATH_CHARS = /[\u0000-\u001F\u007F\\]/
+
 /** Accept only same-origin relative paths as a post-sign-in destination. */
 export function safeNextPath(value: unknown, fallback: string): string {
-  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return fallback
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return fallback
+  if (UNSAFE_PATH_CHARS.test(value)) return fallback
   return value
 }

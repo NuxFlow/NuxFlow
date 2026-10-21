@@ -72,7 +72,35 @@ export function assertCanEditContentItem(role: Role, userId: string, item: { aut
   }
 }
 
+/**
+ * True for roles that belong to the site's team (viewer and up). `member` is a site
+ * visitor — someone who registered publicly, joined through the accounts origin, or holds
+ * a membership — and ranks above `viewer` only for historical reasons, so never compare it
+ * with roleAtLeast() to decide admin access.
+ */
+export function isTeamRole(role: Role | null | undefined): boolean {
+  return !!role && role !== 'member'
+}
+
+/**
+ * The caller's role on the current site, for TEAM routes (the admin API): throws 403 for
+ * a `member`, as well as for anyone with no role here. Members get no admin data at all —
+ * not drafts, not the media library, not gated content by id. The few routes a member
+ * genuinely uses (their own notifications, push, account preferences) call
+ * requireSiteUser() instead.
+ */
 export async function requireAuth(event: H3Event): Promise<{ userId: string; role: Role }> {
+  const result = await requireSiteUser(event)
+  if (!isTeamRole(result.role)) throw forbidden('You do not have access to this site\'s admin')
+  return result
+}
+
+/**
+ * Any signed-in person with a role on the current site, members included (or a super
+ * admin's cross-site 'viewer'). Only for routes about the caller's OWN data — their
+ * notifications, push subscriptions, preferences. Everything else uses requireAuth().
+ */
+export async function requireSiteUser(event: H3Event): Promise<{ userId: string; role: Role }> {
   const session = await requireSession(event)
 
   const siteId = event.context.siteId
@@ -135,41 +163,19 @@ export async function requireRoleOrApiKey(event: H3Event, minimum: Role, scope: 
 }
 
 /**
- * Non-throwing counterpart to requireAuth() — true when the caller is a real
- * member of the current site (has a user_site_roles row) or a super admin,
- * false for everything else, including "no session at all." Several routes
- * need this as a boolean to branch on (show published-only vs. everything,
- * auto-approve a comment vs. hold it for moderation, expose moderation-only
- * fields, etc.) rather than a hard 401/403 — the request itself is often a
- * perfectly legitimate anonymous/guest one, just with reduced visibility.
- * Deliberately implemented as a thin wrapper around requireAuth() rather than
- * re-querying user_site_roles/hasSuperAdminRole directly, so the cross-tenant
- * membership check has exactly one implementation to keep correct (see
- * requireAuth's own doc comment for the leak this closes).
+ * Non-throwing counterpart to requireAuth() — true when the caller is on the current
+ * site's TEAM (a role other than `member`) or a super admin, false for everything else,
+ * including members and "no session at all." For routes that branch (show published-only
+ * vs. everything) rather than refuse. A thin wrapper around requireAuth() so the rule has
+ * exactly one implementation.
  */
-export async function isSiteMember(event: H3Event): Promise<boolean> {
+export async function isSiteTeamMember(event: H3Event): Promise<boolean> {
   try {
     await requireAuth(event)
     return true
   } catch {
     return false
   }
-}
-
-/**
- * Session-aware counterpart to isSiteMember() for callers that already hold a resolved
- * session from earlier in the same handler (e.g. an optional-auth check for guest vs.
- * logged-in behavior) — reuses it instead of paying for a second independent Better Auth
- * session lookup (requireAuth → requireSession → auth.api.getSession()) for the same
- * request. `session` may be null (no session at all), which is simply "not a member."
- * Mirrors requireAuth's own membership rule (a real user_site_roles row, or a super admin
- * on any site) without throwing.
- */
-export async function isSiteMemberForSession(db: Db, session: { user: { id: string } } | null, siteId: string): Promise<boolean> {
-  if (!session) return false
-  const roleRow = await getUserSiteRole(db, session.user.id, siteId)
-  if (roleRow) return true
-  return hasSuperAdminRole(db, session.user.id)
 }
 
 export async function getUserSiteRole(db: Db, userId: string, siteId: string) {

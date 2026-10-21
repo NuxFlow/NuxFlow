@@ -119,7 +119,9 @@ describe('the handoff', () => {
 
   it('only ever returns to a same-site path', () => {
     expect(safeReturnPath('/admin')).toBe('/admin')
-    for (const bad of ['//evil.com/x', 'https://evil.com', '/\\evil.com', 'admin', '/a\r\nSet-Cookie: x=1', undefined]) {
+    // Browsers strip tab/newline anywhere in a URL ("/\t/evil.com" → "//evil.com") and read
+    // a backslash anywhere as a slash.
+    for (const bad of ['//evil.com/x', 'https://evil.com', '/\\evil.com', 'admin', '/a\r\nSet-Cookie: x=1', undefined, '/\t/evil.com', '/\n/evil.com', '/\r/evil.com', '/\u0000/evil.com', '/x\\..\\evil.com']) {
       expect(safeReturnPath(bad)).toBe('/admin')
     }
   })

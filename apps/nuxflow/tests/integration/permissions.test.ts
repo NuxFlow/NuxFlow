@@ -3,7 +3,7 @@ import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole } from '../helpers/seed'
-import { requireAuth, requireRole, requireSuperAdmin, roleAtLeast, canEditContentItem } from '../../server/utils/permissions'
+import { requireAuth, requireRole, requireSiteUser, requireSuperAdmin, roleAtLeast, canEditContentItem, isTeamRole, isSiteTeamMember } from '../../server/utils/permissions'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -17,6 +17,7 @@ let adminUserId: string
 let editorUserId: string
 let noRoleUserId: string
 let superAdminUserId: string
+let memberUserId: string
 
 beforeAll(async () => {
   await initTestDb()
@@ -37,6 +38,9 @@ beforeAll(async () => {
   // superAdminUserId has a super_admin row on SITE only — deliberately has no row
   // on OTHER_SITE, to exercise the preserved cross-site "still gets viewer" fallback.
   await seedRole(db, superAdminUserId, SITE, 'super_admin')
+  // A site visitor (public sign-up / membership) — not the team.
+  memberUserId = await seedUser(db, { name: 'Member', email: 'member@perms.test' })
+  await seedRole(db, memberUserId, SITE, 'member')
 })
 
 afterAll(teardownTestDb)
@@ -64,6 +68,43 @@ describe('roleAtLeast', () => {
 // ---------------------------------------------------------------------------
 // requireAuth
 // ---------------------------------------------------------------------------
+
+describe('members are not the team', () => {
+  const memberEvent = () => createMockEvent({
+    siteId: SITE,
+    session: { user: { id: memberUserId, name: 'Member', email: 'member@perms.test' } },
+  }) as unknown as H3Event
+
+  it('isTeamRole: every role but member', () => {
+    expect(isTeamRole('member')).toBe(false)
+    expect(isTeamRole(null)).toBe(false)
+    for (const role of ['viewer', 'author', 'editor', 'admin', 'super_admin'] as const) expect(isTeamRole(role)).toBe(true)
+  })
+
+  it('requireAuth refuses a member (they rank above viewer, so this is not just a rank check)', async () => {
+    await expect(requireAuth(memberEvent())).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('requireRole(viewer) refuses a member too', async () => {
+    await expect(requireRole(memberEvent(), 'viewer')).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('isSiteTeamMember is false for a member', async () => {
+    expect(await isSiteTeamMember(memberEvent())).toBe(false)
+  })
+
+  it('requireSiteUser still lets a member reach their own data', async () => {
+    expect(await requireSiteUser(memberEvent())).toEqual({ userId: memberUserId, role: 'member' })
+  })
+
+  it('requireSiteUser still refuses someone with no role here', async () => {
+    const event = createMockEvent({
+      siteId: SITE,
+      session: { user: { id: noRoleUserId, name: 'Norole', email: 'norole@perms.test' } },
+    })
+    await expect(requireSiteUser(event as unknown as H3Event)).rejects.toMatchObject({ statusCode: 403 })
+  })
+})
 
 describe('requireAuth', () => {
   it('returns the userId and role when a valid session and role row exist', async () => {

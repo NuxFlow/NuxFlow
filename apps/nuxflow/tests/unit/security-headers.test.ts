@@ -21,6 +21,11 @@ describe('baselineSecurityHeaders', () => {
     })
   })
 
+  it('sends HSTS over HTTPS only, without includeSubDomains', () => {
+    expect(baselineSecurityHeaders('/about', none, { https: true })['Strict-Transport-Security']).toBe('max-age=31536000')
+    expect(baselineSecurityHeaders('/about', none, { https: false })).not.toHaveProperty('Strict-Transport-Security')
+  })
+
   it('limits framing to the same origin on admin and sign-in screens', () => {
     expect(baselineSecurityHeaders('/admin/settings', none)).toMatchObject({
       'X-Frame-Options': 'SAMEORIGIN',

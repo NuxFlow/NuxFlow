@@ -77,7 +77,17 @@ export const SUPER_ADMIN_NAV: AdminNavItem[] = [
   { label: 'Platform', to: '/admin/super/platform', icon: 'i-lucide-server', superAdminOnly: true },
 ]
 
+/**
+ * Team roles (viewer and up) may use /admin; `member` is a site visitor (public sign-up,
+ * a membership) and never may — it ranks above `viewer` only for historical reasons, so
+ * roleAtLeast() alone would let members in. Mirrors isTeamRole() in server/utils/permissions.ts.
+ */
+export function isTeamRole(role: Role | null | undefined): boolean {
+  return !!role && role !== 'member'
+}
+
 export function canAccessNavItem(item: AdminNavItem, access: { role: Role | null; isSuperAdmin: boolean; hostingPlatform?: boolean } | null | undefined): boolean {
+  if (!isTeamRole(access?.role) && !access?.isSuperAdmin) return false
   if (item.hostingOnly && !access?.hostingPlatform) return false
   if (item.superAdminOnly) return access?.isSuperAdmin ?? false
   return roleAtLeast(access?.role, item.minRole ?? 'viewer')

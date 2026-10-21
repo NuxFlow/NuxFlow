@@ -1,12 +1,12 @@
 import { and, eq } from 'drizzle-orm'
 import { notificationPreferences } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
-import { requireAuth, roleAtLeast } from '../../../../utils/permissions'
+import { requireSiteUser, roleAtLeast } from '../../../../utils/permissions'
 import { NOTIFICATION_TYPES } from '../../../../utils/notify'
 
 /** The caller's delivery preferences on this site, one entry per type relevant to their role. */
 export default defineEventHandler(async (event) => {
-  const { userId, role } = await requireAuth(event)
+  const { userId, role } = await requireSiteUser(event)
   const db = useDb(event)
   const siteId = event.context.siteId as string
 
