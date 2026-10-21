@@ -7,6 +7,18 @@ function fromBase64Url(str: string): Uint8Array<ArrayBuffer> {
   return out
 }
 
+function sameKey(a: ArrayBuffer | null, b: Uint8Array): boolean {
+  if (!a || a.byteLength !== b.length) return false
+  const view = new Uint8Array(a)
+  return view.every((byte, i) => byte === b[i])
+}
+
+/** This browser's push subscription for the site, if it has one. */
+async function currentSubscription(): Promise<PushSubscription | null> {
+  const reg = await navigator.serviceWorker.getRegistration('/')
+  return (await reg?.pushManager.getSubscription()) ?? null
+}
+
 export function usePushNotifications() {
   const isSupported = computed(() =>
     import.meta.client && 'serviceWorker' in navigator && 'PushManager' in window,
@@ -20,10 +32,17 @@ export function usePushNotifications() {
     permission.value = Notification.permission
   }
 
+  // Per browser, not per account: subscribed means this browser has a subscription *and*
+  // the site still has it on file (regenerating the site's keys drops every row).
   async function refreshStatus() {
     if (!isSupported.value) return
     try {
-      const { subscribed } = await $fetch<{ subscribed: boolean }>('/api/v1/push/status')
+      const sub = await currentSubscription()
+      if (!sub) {
+        isSubscribed.value = false
+        return
+      }
+      const { subscribed } = await $fetch<{ subscribed: boolean }>('/api/v1/push/status', { query: { endpoint: sub.endpoint } })
       isSubscribed.value = subscribed
     } catch { /* not logged in or push not configured */ }
   }
@@ -45,10 +64,18 @@ export function usePushNotifications() {
       const { publicKey } = await $fetch<{ publicKey: string | null }>('/api/v1/push/vapid-public-key')
       if (!publicKey) return false
 
+      const applicationServerKey = fromBase64Url(publicKey)
       const reg = await ensureServiceWorker()
+      // A browser keeps one subscription per site, tied to the key it was made with, and
+      // subscribe() with a different key throws. After an admin regenerates the site's
+      // keys, drop the old one first or the switch can never be turned back on.
+      const existing = await reg.pushManager.getSubscription()
+      if (existing && !sameKey(existing.options.applicationServerKey, applicationServerKey)) {
+        await existing.unsubscribe()
+      }
       const subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: fromBase64Url(publicKey),
+        applicationServerKey,
       })
 
       const keys = subscription.toJSON().keys ?? {}
@@ -75,8 +102,7 @@ export function usePushNotifications() {
     if (!isSupported.value || isLoading.value) return
     isLoading.value = true
     try {
-      const reg = await navigator.serviceWorker.getRegistration('/sw.js')
-      const sub = await reg?.pushManager.getSubscription()
+      const sub = await currentSubscription()
 
       if (sub) {
         await $fetch('/api/v1/push/unsubscribe', {

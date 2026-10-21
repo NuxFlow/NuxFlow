@@ -1,9 +1,35 @@
 import type { H3Event } from 'h3'
 import { useDb } from './db'
-import { pushSubscriptions } from '@nuxflow/db/schema'
+import { pushSubscriptions, sites } from '@nuxflow/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { resolveSetting } from './settings'
-import { isSafeUrl } from './ssrf'
+
+// ─── Push services ────────────────────────────────────────────────────────────
+// A subscription's endpoint comes from the browser, so it's attacker-controlled: any
+// signed-in member could register a URL on any host and make every broadcast send this
+// Worker there (an amplifier, and a way to burn the per-request subrequest budget the
+// real subscribers need). Only the browser vendors' push services are accepted — they
+// are the only hosts a real PushSubscription ever points at. Being public hostnames,
+// this also rules out every private/loopback address the old isSafeUrl() check covered.
+const PUSH_SERVICE_HOSTS = [
+  'fcm.googleapis.com', // Chrome, Edge (Chromium), Brave, Opera, Samsung Internet
+  'android.googleapis.com', // older Chrome subscriptions
+  'updates.push.services.mozilla.com', // Firefox
+  'web.push.apple.com', // Safari (macOS, iOS home-screen apps)
+]
+const PUSH_SERVICE_SUFFIXES = [
+  '.push.apple.com',
+  '.notify.windows.com', // legacy Edge / Windows (WNS)
+  '.push.services.mozilla.com',
+]
+
+export function isKnownPushService(endpoint: string): boolean {
+  let url: URL
+  try { url = new URL(endpoint) } catch { return false }
+  if (url.protocol !== 'https:' || url.port !== '' || url.username || url.password) return false
+  const host = url.hostname.toLowerCase()
+  return PUSH_SERVICE_HOSTS.includes(host) || PUSH_SERVICE_SUFFIXES.some(s => host.endsWith(s))
+}
 
 // ─── Base64url ────────────────────────────────────────────────────────────────
 
@@ -152,23 +178,19 @@ class SubscriptionExpiredError extends Error {
   constructor() { super('push-subscription-expired') }
 }
 
+/** Resolves true when the push service accepted the message. */
 async function dispatchPush(
   endpoint: string,
   p256dh: string,
   auth: string,
   payload: PushPayload,
-  vapidPublicKey: string,
-  vapidPrivateKey: string,
-): Promise<void> {
-  // Subscription endpoints are browser-push-service URLs (FCM/Mozilla autopush/etc.) supplied
-  // by the client at subscribe time — an attacker-controlled endpoint pointed at an internal
-  // host would make this Worker issue an authenticated-looking request on their behalf (SSRF).
-  // Guard here too, not just at subscribe time, so a row written before this check existed
-  // (or written by any other path) can't be used to reach an internal address.
-  if (!isSafeUrl(endpoint)) throw new SubscriptionExpiredError()
+  vapid: VapidConfig,
+): Promise<boolean> {
+  // Checked at send time too, not just at subscribe time, so a row written before the
+  // allowlist existed (or by any other path) is pruned instead of fetched.
+  if (!isKnownPushService(endpoint)) throw new SubscriptionExpiredError()
 
-  const subject = `mailto:noreply@${new URL(endpoint).hostname}`
-  const jwt = await buildVapidJwt(endpoint, vapidPrivateKey, subject)
+  const jwt = await buildVapidJwt(endpoint, vapid.priv, vapid.subject)
   const body = await encryptPayload(p256dh, auth, JSON.stringify(payload))
 
   const res = await fetch(endpoint, {
@@ -176,7 +198,7 @@ async function dispatchPush(
     headers: {
       'Content-Type': 'application/octet-stream',
       'Content-Encoding': 'aes128gcm',
-      'Authorization': `vapid t=${jwt},k=${vapidPublicKey}`,
+      'Authorization': `vapid t=${jwt},k=${vapid.pub}`,
       'TTL': '86400',
     },
     body,
@@ -184,62 +206,81 @@ async function dispatchPush(
 
   if (res.status === 404 || res.status === 410) throw new SubscriptionExpiredError()
 
-  if (!res.ok && res.status !== 201) {
+  if (!res.ok) {
     console.error(`[webpush] Push failed: ${res.status} ${await res.text()}`)
+    return false
   }
+  return true
 }
 
 // ─── Helpers that load VAPID keys from site settings ─────────────────────────
 
-async function getVapidKeys(event: H3Event): Promise<{ pub: string; priv: string } | null> {
-  const [pub, priv] = await Promise.all([
+interface VapidConfig { pub: string; priv: string; subject: string }
+
+async function getVapidKeys(event: H3Event): Promise<VapidConfig | null> {
+  const siteId = event.context.siteId as string
+  const [pub, priv, site] = await Promise.all([
     resolveSetting(event, 'push.vapid_public_key'),
     resolveSetting(event, 'push.vapid_private_key'),
+    useDb(event).query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } }),
   ])
   if (!pub || !priv) return null
-  return { pub, priv }
+  // The JWT's `sub` is how a push service contacts the sender about problems, so it names
+  // this site — it used to be `noreply@<the push service's own host>`, which Apple's
+  // service in particular treats as invalid.
+  return { pub, priv, subject: `https://${site?.domain ?? 'localhost'}` }
 }
+
+/** What happened to one send — the admin UI reports it instead of a blanket "sent". */
+export interface PushResult {
+  /** Subscriptions tried. */
+  total: number
+  /** Accepted by the push service. */
+  delivered: number
+  /** Gone (404/410) or not a push service, so deleted. */
+  removed: number
+}
+
+async function deliver(event: H3Event, vapid: VapidConfig, subs: (typeof pushSubscriptions.$inferSelect)[], payload: PushPayload): Promise<PushResult> {
+  const siteId = event.context.siteId as string
+  const db = useDb(event)
+  const result: PushResult = { total: subs.length, delivered: 0, removed: 0 }
+  await Promise.allSettled(subs.map(sub =>
+    dispatchPush(sub.endpoint, sub.p256dh, sub.auth, payload, vapid)
+      .then((ok) => { if (ok) result.delivered++ })
+      .catch(async (err) => {
+        if (err instanceof SubscriptionExpiredError) {
+          result.removed++
+          await db.delete(pushSubscriptions).where(and(eq(pushSubscriptions.id, sub.id), eq(pushSubscriptions.siteId, siteId)))
+        } else {
+          console.error('[webpush] Push dispatch failed:', err)
+        }
+      }),
+  ))
+  return result
+}
+
+const NOTHING_SENT: PushResult = { total: 0, delivered: 0, removed: 0 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-export async function sendPushToUser(event: H3Event, userId: string, payload: PushPayload): Promise<void> {
+/** Pushes to every browser `userId` subscribed on the event's site (event.context.siteId). */
+export async function sendPushToUser(event: H3Event, userId: string, payload: PushPayload): Promise<PushResult> {
   const vapid = await getVapidKeys(event)
-  if (!vapid) return
+  if (!vapid) return NOTHING_SENT
 
   const siteId = event.context.siteId as string
-  const db = useDb(event)
-  const subs = await db.select().from(pushSubscriptions)
+  const subs = await useDb(event).select().from(pushSubscriptions)
     .where(and(eq(pushSubscriptions.siteId, siteId), eq(pushSubscriptions.userId, userId)))
-
-  await Promise.allSettled(subs.map(sub =>
-    dispatchPush(sub.endpoint, sub.p256dh, sub.auth, payload, vapid.pub, vapid.priv)
-      .catch(async (err) => {
-        if (err instanceof SubscriptionExpiredError) {
-          await db.delete(pushSubscriptions).where(and(eq(pushSubscriptions.id, sub.id), eq(pushSubscriptions.siteId, siteId)))
-        } else {
-          console.error('[webpush] Push dispatch failed:', err)
-        }
-      }),
-  ))
+  return deliver(event, vapid, subs, payload)
 }
 
-export async function broadcastPushToSite(event: H3Event, payload: PushPayload): Promise<void> {
+export async function broadcastPushToSite(event: H3Event, payload: PushPayload): Promise<PushResult> {
   const vapid = await getVapidKeys(event)
-  if (!vapid) return
+  if (!vapid) return NOTHING_SENT
 
   const siteId = event.context.siteId as string
-  const db = useDb(event)
-  const subs = await db.select().from(pushSubscriptions)
+  const subs = await useDb(event).select().from(pushSubscriptions)
     .where(eq(pushSubscriptions.siteId, siteId))
-
-  await Promise.allSettled(subs.map(sub =>
-    dispatchPush(sub.endpoint, sub.p256dh, sub.auth, payload, vapid.pub, vapid.priv)
-      .catch(async (err) => {
-        if (err instanceof SubscriptionExpiredError) {
-          await db.delete(pushSubscriptions).where(and(eq(pushSubscriptions.id, sub.id), eq(pushSubscriptions.siteId, siteId)))
-        } else {
-          console.error('[webpush] Push dispatch failed:', err)
-        }
-      }),
-  ))
+  return deliver(event, vapid, subs, payload)
 }

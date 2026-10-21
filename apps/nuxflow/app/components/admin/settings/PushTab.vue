@@ -7,6 +7,7 @@ defineProps<{
   onSave: () => Promise<void>
 }>()
 
+const toast = useToast()
 const pushSubscriberCount = ref(0)
 const { loading: generatingVapid, run: runGenerateVapid } = useAdminAction()
 const { loading: sendingTestPush, run: runTestPush } = useAdminAction()
@@ -26,27 +27,25 @@ async function generateVapidKeys() {
 async function sendTestPush() {
   await runTestPush(() => $fetch<unknown>('/api/v1/push/test', { method: 'POST' }), {
     successTitle: 'Test notification sent',
-    errorTitle: 'Failed — make sure you have subscribed to push notifications',
+    errorTitle: 'Test notification not sent',
   })
 }
 
 async function sendBroadcast() {
   if (!broadcastTitle.value || !broadcastBody.value) return
-  // The callback resolves to `true` on success so clearing the fields below can check
-  // an unambiguous signal, rather than trusting the fetch response body's own shape
-  // (which could itself resolve to undefined on a legitimate 204/empty response).
-  const ok = await runBroadcast(async () => {
-    await $fetch<unknown>('/api/v1/push/broadcast', {
-      method: 'POST',
-      body: {
-        title: broadcastTitle.value,
-        body: broadcastBody.value,
-        url: broadcastUrl.value || undefined,
-      },
-    })
-    return true
-  }, { successTitle: 'Notification broadcast sent', errorTitle: 'Broadcast failed' })
-  if (ok) {
+  const result = await runBroadcast(() => $fetch<{ total: number; delivered: number }>('/api/v1/push/broadcast', {
+    method: 'POST',
+    body: {
+      title: broadcastTitle.value,
+      body: broadcastBody.value,
+      url: broadcastUrl.value || undefined,
+    },
+  }), { errorTitle: 'Broadcast failed' })
+  if (result) {
+    toast.add(result.total === 0
+      ? { title: 'Nobody to send to yet', description: 'No browsers are subscribed to notifications on this site.', color: 'warning' }
+      : { title: 'Notification broadcast sent', description: `Delivered to ${result.delivered} of ${result.total} subscribed browser${result.total === 1 ? '' : 's'}.`, color: 'success' })
+    fetchPushSubscriberCount()
     broadcastTitle.value = ''
     broadcastBody.value = ''
     broadcastUrl.value = ''
@@ -114,7 +113,7 @@ onMounted(() => fetchPushSubscriberCount())
       <div class="flex items-start justify-between gap-4">
         <div>
           <p class="text-sm font-medium text-gray-900 dark:text-white">New content published</p>
-          <p class="text-xs text-gray-400 mt-0.5">Broadcast to all subscribers when a content item is first published.</p>
+          <p class="text-xs text-gray-400 mt-0.5">Broadcast to all subscribers when a public content item goes live — including scheduled posts. Members-only and private items are never announced.</p>
         </div>
         <USwitch v-model="push.eventsContentPublished" :disabled="!push.vapidPublicKey" />
       </div>
@@ -151,7 +150,7 @@ onMounted(() => fetchPushSubscriberCount())
       <div class="flex items-center justify-between gap-4">
         <div>
           <p class="text-sm font-medium text-gray-900 dark:text-white">Test push</p>
-          <p class="text-xs text-gray-400 mt-0.5">Sends a test notification to your own browser (you must be subscribed).</p>
+          <p class="text-xs text-gray-400 mt-0.5">Sends a test notification to your own browsers. Turn on push notifications under My account first.</p>
         </div>
         <UButton
           variant="outline"
@@ -174,8 +173,8 @@ onMounted(() => fetchPushSubscriberCount())
       <UFormField label="Message">
         <UTextarea v-model="broadcastBody" class="w-full" placeholder="Notification body text" :disabled="!push.vapidPublicKey" />
       </UFormField>
-      <UFormField label="Link (optional)" hint="Absolute path e.g. /blog/my-post">
-        <UInput v-model="broadcastUrl" placeholder="https://yoursite.com/page" :disabled="!push.vapidPublicKey" />
+      <UFormField label="Link (optional)" hint="A page on this site, e.g. /blog/my-post, or a full URL">
+        <UInput v-model="broadcastUrl" placeholder="/blog/my-post" :disabled="!push.vapidPublicKey" />
       </UFormField>
       <div class="flex justify-end">
         <UButton

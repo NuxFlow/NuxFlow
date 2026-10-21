@@ -5,6 +5,7 @@ import { indexablePathsForItems, submitToIndexNow } from '../utils/indexnow'
 import { bumpCacheVersionInKv } from '../utils/cache-version'
 import { createSystemEvent } from '../utils/system-event'
 import { dispatchContentHook } from '../utils/plugin-hooks'
+import { pushContentPublished } from '../utils/push-content'
 
 /** What Nitro hands a Cloudflare cron task (`context.cloudflare`). */
 export interface ScheduledCloudflareContext {
@@ -58,16 +59,22 @@ export const publishScheduled = async (cloudflare?: ScheduledCloudflareContext) 
       } catch (err) {
         console.error(`[publish-scheduled] IndexNow notification failed for site ${siteId}:`, err)
       }
-      // Plugins granted `hook:content.published`. Needs the Worker's env and context (the
-      // plugin is spawned through LOADER and handed ctx.exports stubs), which only the
-      // Cloudflare cron path provides.
-      if (cloudflare) {
-        const event = createSystemEvent({ env: cloudflare.env, ctx: cloudflare.context, siteId })
-        const publishedAt = new Date().toISOString()
-        for (const item of items) {
-          await dispatchContentHook(event, siteId, { status: 'scheduled', visibility: item.visibility }, { status: 'published', visibility: item.visibility }, { ...item, publishedAt })
+      const env = cloudflare?.env ?? (globalThis as { __env__?: unknown }).__env__
+      const event = createSystemEvent({ env, ctx: cloudflare?.context, siteId })
+      const publishedAt = new Date().toISOString()
+      for (const item of items) {
+        const before = { status: 'scheduled', visibility: item.visibility }
+        const after = { status: 'published', visibility: item.visibility }
+        // Plugins granted `hook:content.published`. Needs the Worker's env and context (the
+        // plugin is spawned through LOADER and handed ctx.exports stubs), which only the
+        // Cloudflare cron path provides.
+        if (cloudflare) {
+          await dispatchContentHook(event, siteId, before, after, { ...item, publishedAt })
             .catch(err => console.error(`[publish-scheduled] Plugin hook failed for ${item.id}:`, err))
         }
+        // The "New content published" push (Settings → Push) — scheduled posts never sent it.
+        await pushContentPublished(event, siteId, before, after, item)
+          .catch(err => console.error(`[publish-scheduled] Push broadcast failed for ${item.id}:`, err))
       }
     }
   }
