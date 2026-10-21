@@ -7,6 +7,7 @@ import { notFound } from '../../utils/response'
 import { getSeoSettings, siteBaseUrl } from '../../utils/seo'
 import { getActiveLocales } from '../../utils/locale-cache'
 import { absoluteUrl } from '../../utils/media-url'
+import { planIncludes } from '../../utils/hosting-plans'
 
 const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations'] as const
 
@@ -37,11 +38,13 @@ async function buildPayload(event: H3Event, siteId: string) {
     columns: { id: true },
   })
 
-  const [seo, locales, taxonomyRows] = await Promise.all([
+  const [seo, locales, taxonomyRows, transformsIncluded] = await Promise.all([
     getSeoSettings(db, siteId),
     getActiveLocales(db, siteId),
     db.select({ slug: taxonomies.slug, name: taxonomies.name }).from(taxonomies)
       .where(eq(taxonomies.siteId, siteId)).orderBy(asc(taxonomies.name)),
+    // A site moved to a plan without them stops using them even if the setting is still on.
+    planIncludes(db, siteId, 'imageTransformations'),
   ])
   const canonicalBase = siteBaseUrl(seo, site.domain)
 
@@ -65,7 +68,7 @@ async function buildPayload(event: H3Event, siteId: string) {
     // completed the one-time "enable Image Transformations + Resize Images from Any
     // Origin" step in their Cloudflare dashboard (Settings → Media); serving
     // /cdn-cgi/image/... URLs before that step is done would just 404 every image.
-    imageTransformsEnabled: (kvMap['media.enable_image_transformations'] as boolean | undefined) === true,
+    imageTransformsEnabled: transformsIncluded && (kvMap['media.enable_image_transformations'] as boolean | undefined) === true,
     // Lets dynamic-plugins.client.ts skip its own plugin-listing fetch entirely on the
     // (common) plugin-free site — see the query above for exactly what this reflects.
     hasPlugins: Boolean(activePlugin),

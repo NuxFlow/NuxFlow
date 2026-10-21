@@ -3,6 +3,7 @@ import { requireRole } from '../../../utils/permissions'
 import { sites, siteSettings } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { SENSITIVE_SETTING_KEYS, SECRET_MASK, isEnvFallbackWithheld, isOllamaAvailable } from '../../../utils/settings'
+import { planIncludes } from '../../../utils/hosting-plans'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
@@ -88,5 +89,10 @@ export default defineEventHandler(async (event) => {
     if (!settings['auth.github_client_id'] && githubClientId) settings['auth.github_client_id'] = githubClientId
   }
 
-  return { site, settings, ollamaAvailable: await isOllamaAvailable(event) }
+  return {
+    site,
+    settings,
+    ollamaAvailable: await isOllamaAvailable(event),
+    imageTransformationsAvailable: await planIncludes(db, siteId, 'imageTransformations'),
+  }
 })

@@ -5,8 +5,12 @@ import { PLUGIN_EXT_CORS_HEADERS, confinePluginResponseHeaders } from '../../../
 import { getAuthSession } from '../../../../utils/auth'
 import { getUserSiteRole } from '../../../../utils/permissions'
 import { isCrossOriginUnsafeRequest } from '../../../../utils/csrf'
+import { rateLimit } from '../../../../utils/rate-limit'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+
+// Per visitor, per plugin (see the rateLimit() call below).
+const PLUGIN_REQUESTS_PER_MINUTE = 120
 
 // Headers safe to forward into untrusted plugin code. Deliberately an allowlist, not a
 // denylist: `getHeaders(event)` includes `Cookie` and `Authorization`, and a plugin only
@@ -65,6 +69,9 @@ export default defineEventHandler(async (event) => {
   if (!plugin) throw notFound('Plugin not found')
   if (!plugin.isActive) throw forbidden('Plugin is not active')
   if (!plugin.hasServer) throw notFound('Plugin has no server module')
+  // Each request runs the plugin's Dynamic Worker on the operator's account — per visitor
+  // and plugin, generous for a real page (several blocks polling) but not a free loop.
+  await rateLimit(event, { limit: PLUGIN_REQUESTS_PER_MINUTE, windowMs: 60_000, keyPrefix: `plugin-ext:${pluginId}` })
 
   // Rebuild the request URL so the plugin worker receives the path after /ext/{pluginId}
   const url = getRequestURL(event)

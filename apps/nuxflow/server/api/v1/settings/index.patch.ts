@@ -14,6 +14,7 @@ import { clearSeoSettingsCache, getSeoSettings } from '../../../utils/seo'
 import { normalizeSeoSettings } from '../../../utils/seo-settings-schema'
 import { generateIndexNowKey } from '../../../utils/indexnow'
 import { isPrimarySite } from '../../../utils/site-info'
+import { planIncludes } from '../../../utils/hosting-plans'
 
 const bodySchema = z.object({
   // Site columns
@@ -194,6 +195,21 @@ export default defineEventHandler(async (event) => {
     if (a.githubClientId !== undefined) settingEntries.push(['auth.github_client_id', a.githubClientId])
     if (a.githubClientSecret !== undefined) settingEntries.push(['auth.github_client_secret', a.githubClientSecret])
     if (a.turnstileSignIn !== undefined) settingEntries.push(['auth.turnstile_sign_in', a.turnstileSignIn ? 'true' : 'false'])
+  }
+
+  // Image Transformations are billed to the platform's Cloudflare zone, so on a hosting
+  // platform only a plan that includes them may switch them on. Switching off is always
+  // fine, and re-sending a value that's already on isn't "switching on" — the whole
+  // Settings page saves at once, and a site moved to a smaller plan must still be able to
+  // save (GET /api/public/site ignores the setting while the plan doesn't include it).
+  if (settingEntries.some(([k, v]) => k === 'media.enable_image_transformations' && v === true)
+    && (await resolveSetting(event, 'media.enable_image_transformations')) !== true
+    && !(await planIncludes(db, siteId, 'imageTransformations'))) {
+    throw createError({
+      statusCode: 403,
+      message: 'Image resizing is not included in this site\'s plan.',
+      data: { code: 'plan_feature', feature: 'imageTransformations' },
+    })
   }
 
   await batchSaveSettings(event, settingEntries)

@@ -27,6 +27,11 @@ vi.mock('../../server/utils/db', () => ({
   getD1: () => null,
 }))
 
+const mockRateLimit = vi.fn().mockResolvedValue(undefined)
+vi.mock('../../server/utils/rate-limit', () => ({
+  rateLimit: (...args: unknown[]) => mockRateLimit(...args),
+}))
+
 // Signed-in visitor stand-in for the user:read identity tests: a request carrying the
 // test-only `x-test-user` header is treated as that user's session.
 vi.mock('../../server/utils/auth', async (importOriginal) => ({
@@ -203,6 +208,11 @@ describe('/_nuxflow/ext/:pluginId/*', () => {
     expect(lastForwarded?.headers.get('accept')).toBe('application/json')
     // Site + code checksum + a hash of the bindings (granted permissions) — never shared across sites.
     expect(loader.get.mock.calls[0][0]).toMatch(new RegExp(`^${SITE}:com[.]ok:${await computeSha256(SERVER_CODE)}:[0-9a-f]{16}$`))
+  })
+
+  it('rate-limits each visitor per plugin, since every request runs a Dynamic Worker', async () => {
+    await (extHandler as Handler)(extEv('com.ok'))
+    expect(mockRateLimit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ keyPrefix: 'plugin-ext:com.ok', windowMs: 60_000 }))
   })
 
   it('forwards the body for non-GET methods', async () => {

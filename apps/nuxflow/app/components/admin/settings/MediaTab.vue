@@ -3,10 +3,12 @@ import type { CloudflareMediaState, R2State } from '~/types/admin-settings'
 
 const cloudflare = defineModel<CloudflareMediaState>('cloudflare', { required: true })
 const r2 = defineModel<R2State>('r2', { required: true })
-defineProps<{
+withDefaults(defineProps<{
   saving: boolean
   onSave: () => Promise<void>
-}>()
+  /** False when the site's hosting plan doesn't include image resizing. */
+  imageTransformationsAvailable?: boolean
+}>(), { imageTransformationsAvailable: true })
 </script>
 
 <template>
@@ -74,10 +76,19 @@ defineProps<{
       </p>
     </template>
     <div class="space-y-3">
+      <UAlert
+        v-if="!imageTransformationsAvailable"
+        icon="i-lucide-lock"
+        color="neutral"
+        variant="soft"
+        title="Not included in this site's plan"
+        description="Image resizing isn't part of this site's hosting plan, so images are served as uploaded. Ask your host about a plan that includes it."
+      />
       <UFormField label="Enable Image Transformations" description="Reserves layout space and serves smaller, modern-format images across the site.">
-        <USwitch v-model="cloudflare.enableImageTransformations" />
+        <USwitch v-model="cloudflare.enableImageTransformations" :disabled="!imageTransformationsAvailable && !cloudflare.enableImageTransformations" />
       </UFormField>
       <UAlert
+        v-if="imageTransformationsAvailable"
         icon="i-lucide-triangle-alert"
         color="warning"
         variant="soft"

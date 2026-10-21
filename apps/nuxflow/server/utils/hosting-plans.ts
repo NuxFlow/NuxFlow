@@ -1,11 +1,12 @@
 import type { H3Event } from 'h3'
-import { and, count, eq, gt, gte, ne, notInArray, sql } from 'drizzle-orm'
-import { contentItems, dynamicPlugins, hostingPlans, media, siteDomains, siteInvitations, sites, siteUsageDaily, userSiteRoles } from '@nuxflow/db/schema'
-import { PLAN_LIMITS, planLimit, type PlanLimitKey } from '../../shared/lib/hosting-plan-limits'
+import { and, count, desc, eq, gt, gte, ne, notInArray, sql } from 'drizzle-orm'
+import { contentItems, dynamicPlugins, emailMessages, hostingPlans, media, siteDomains, siteInvitations, sites, siteUsageDaily, userSiteRoles } from '@nuxflow/db/schema'
+import { PLAN_LIMITS, planFeature, planLimit, type PlanFeatureKey, type PlanLimitKey } from '../../shared/lib/hosting-plan-limits'
 import { useDb, type Db } from './db'
 import { createIsolateCache } from './isolate-cache'
 import { pendingUsage, usageDay, type UsageEventMetric } from './usage'
 import { isHostingPlatform } from './hosting-platform'
+import { bumpCacheVersion } from './cache-version'
 
 /**
  * Hosting plans: what the operator sells a site, and the limits that come with it
@@ -30,6 +31,19 @@ export function clearHostingPlanCache(): void {
   planCache.clear()
 }
 
+/**
+ * After sites' plans (or a plan's yes/no features) change: drop the cached plans and clear
+ * those sites' edge caches, since `GET /api/public/site` bakes plan features into the
+ * cached JSON (image transformations) — otherwise a site moved off a feature would keep
+ * using it until its next content edit.
+ */
+export async function refreshSitesAfterPlanChange(event: H3Event, siteIds: string[]): Promise<void> {
+  clearHostingPlanCache()
+  await Promise.all(siteIds.map(id => bumpCacheVersion(event, id).catch((err) => {
+    console.error(`[hosting-plans] Could not clear the cache for site ${id}:`, err)
+  })))
+}
+
 /** The site's plan, or null for the built-in unlimited plan (always, while the hosting-platform switch is off). */
 export async function getSitePlan(db: Db, siteId: string): Promise<HostingPlan | null> {
   if (!(await isHostingPlatform(db))) return null
@@ -51,11 +65,25 @@ export function planMax(plan: HostingPlan | null, key: PlanLimitKey): number | n
   return value ?? null
 }
 
-const MONTHLY_METRIC: Record<'ai' | 'emails' | 'views' | 'renders', UsageEventMetric> = {
+/** The site_usage_daily metric each monthly limit reads. */
+export const MONTHLY_METRIC: Record<'ai' | 'visitor_ai' | 'emails' | 'inbound' | 'views' | 'renders' | 'plugin_calls', UsageEventMetric> = {
   ai: 'ai_credits',
+  visitor_ai: 'ai_visitor_credits',
   emails: 'emails',
+  inbound: 'inbound_emails',
   views: 'views',
   renders: 'renders',
+  plugin_calls: 'plugin_calls',
+}
+
+/**
+ * Does the site's plan include a yes/no feature? No plan (the built-in unlimited one, or
+ * the hosting-platform switch off) includes everything.
+ */
+export async function planIncludes(db: Db, siteId: string, key: PlanFeatureKey): Promise<boolean> {
+  const plan = await getSitePlan(db, siteId)
+  if (!plan) return true
+  return plan[planFeature(key).column] === true
 }
 
 // Roles that are audience, not staff. super_admin is the platform operator's own grant
@@ -67,7 +95,19 @@ const NOT_TEAM_ROLES: ('member' | 'super_admin')[] = ['member', 'super_admin']
 export async function planUsage(db: Db, siteId: string, key: PlanLimitKey, now = new Date()): Promise<number> {
   switch (key) {
     case 'storage': {
-      const [r] = await db.select({ n: sql<number>`coalesce(sum(${media.size}), 0)` }).from(media).where(eq(media.siteId, siteId))
+      // The media library plus inbound email (raw messages and attachments) kept in R2.
+      const [[m], [e]] = await Promise.all([
+        db.select({ n: sql<number>`coalesce(sum(${media.size}), 0)` }).from(media).where(eq(media.siteId, siteId)),
+        db.select({ n: sql<number>`coalesce(sum(${emailMessages.storedBytes}), 0)` }).from(emailMessages).where(eq(emailMessages.siteId, siteId)),
+      ])
+      return Number(m?.n ?? 0) + Number(e?.n ?? 0)
+    }
+    case 'database': {
+      // Measured nightly (usage-snapshot.ts) — too costly to add up on demand.
+      const [r] = await db.select({ n: siteUsageDaily.value }).from(siteUsageDaily)
+        .where(and(eq(siteUsageDaily.siteId, siteId), eq(siteUsageDaily.metric, 'database_bytes')))
+        .orderBy(desc(siteUsageDaily.day))
+        .limit(1)
       return Number(r?.n ?? 0)
     }
     case 'content': {
@@ -140,6 +180,8 @@ export function planLimitMessage(key: PlanLimitKey, max: number): string {
     case 'plugins': return max === 0 ? "Your plan doesn't include plugins." : `Your plan allows ${max.toLocaleString('en')} plugins.`
     case 'ai': return "This month's AI allowance is used up. It resets on the 1st. To keep going now, add your own AI key in Settings → AI."
     case 'emails': return "This month's email allowance is used up. It resets on the 1st. Sign-in and security emails still go out."
+    case 'visitor_ai': return "This month's AI allowance for visitor features is used up. It resets on the 1st."
+    case 'inbound': return "This month's allowance for receiving email is used up. New mail is turned away until the 1st."
     default: return 'This is over your plan.'
   }
 }

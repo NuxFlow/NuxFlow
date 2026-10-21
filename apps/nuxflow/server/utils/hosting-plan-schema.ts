@@ -1,11 +1,16 @@
 import { z } from 'zod'
-import { PLAN_LIMITS } from '../../shared/lib/hosting-plan-limits'
+import { PLAN_FEATURES, PLAN_LIMITS } from '../../shared/lib/hosting-plan-limits'
 
 // One nullable, non-negative whole number per limit (null = unlimited), keyed by the
 // hosting_plans column name.
 const limitFields = Object.fromEntries(
   PLAN_LIMITS.map(l => [l.column, z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable().optional()]),
 ) as Record<typeof PLAN_LIMITS[number]['column'], z.ZodOptional<z.ZodNullable<z.ZodNumber>>>
+
+// One on/off switch per yes/no feature, keyed by its hosting_plans column.
+const featureFields = Object.fromEntries(
+  PLAN_FEATURES.map(f => [f.column, z.boolean().optional()]),
+) as Record<typeof PLAN_FEATURES[number]['column'], z.ZodOptional<z.ZodBoolean>>
 
 export const planBodySchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -20,4 +25,5 @@ export const planBodySchema = z.object({
   currency: z.string().trim().toLowerCase().regex(/^[a-z]{3}$/, 'Use a 3-letter currency code, e.g. gbp').optional(),
   trialDays: z.number().int().min(0).max(90).optional(),
   ...limitFields,
+  ...featureFields,
 })

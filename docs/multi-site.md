@@ -255,19 +255,30 @@ Good to know:
 
 | Limit | Kind | What happens at the limit |
 |---|---|---|
-| **Storage** | Hard | Uploads are refused: "Your plan's storage is full". This covers the media library, AI images, imported and restored media, theme images and emailed-in images. |
+| **Storage** | Hard | Uploads are refused: "Your plan's storage is full". This covers the media library, AI images, imported and restored media, theme images and emailed-in images, plus received email kept in storage (the original message and its attachments). When it's full, new emails still arrive in the inbox but their attachments aren't kept, and the site's admins are told once that month. |
 | **Pages and posts** | Hard | New pages and posts are refused: from the editor, AI generation, translation, WordPress import, restore, post-by-email and the MCP tools. |
 | **Team members** | Hard | Inviting someone, or changing a member into a team role, is refused. Pending invitations count. |
 | **Site members** | Hard | Sign-ups and "join this site" are refused: "This site isn't accepting new members". |
 | **Plugins** | Hard | Installing is refused. Set it to 0 for a plan without plugins. |
-| **AI credits a month** | Hard | AI on Workers AI is refused until the 1st, with a message telling the site it can add its own AI key. Background checks (comment spam, inbox sorting) quietly stop until then. AI on the site's own key is never limited. Set it to 0 for a plan where customers bring their own key. |
+| **AI credits a month** | Hard | The site team's AI on Workers AI (writing tools, page generation, image descriptions) is refused until the 1st, with a message telling the site it can add its own AI key. AI on the site's own key is never limited. Set it to 0 for a plan where customers bring their own key. |
+| **Visitor AI credits a month** | Hard | AI that visitors, incoming mail and plugins set off: "Listen to this article", spam checks on comments and forms, inbox sorting, smart search and plugin AI. It has its own allowance so a bot hammering a public feature can never use up the team's. At the limit these features pause until the 1st (smart search falls back to keyword search, spam checks are skipped); nothing else stops. |
 | **Emails a month** | Hard | Ordinary emails (form notifications, notices, inbox replies) are held back until the 1st. **Sign-in, password, invitation and security emails always go out.** |
+| **Emails received a month** | Hard | Mail to the site's own addresses (inbox and post-by-email) is no longer kept until the 1st. Mail set to forward still forwards. The site's admins are told once that month. |
+| **Own domains** | Hard | Connecting another of the customer's own domains is refused. 0 means not included. |
 | **Page views a month** | Soft | Nothing is blocked. |
 | **Server renders a month** | Soft | Nothing is blocked. |
+| **Plugin requests a month** | Soft | Nothing is blocked. Each plugin request or event runs the plugin on your Cloudflare account. (Each visitor is also limited to 120 requests a minute per plugin.) |
+| **Database size** | Soft | Nothing is blocked. Roughly how much of the shared database the site's pages, revisions, emails, form entries, comments and plugin data take, measured nightly. |
+
+A plan also has **included features**: things that cost you money per use and are off unless you tick them.
+
+| Feature | What it does |
+|---|---|
+| **Image resizing (Cloudflare Image Transformations)** | Lets the site turn on Image Transformations in Settings → Media. They're billed to your Cloudflare zone (5,000 unique transformations a month free, then $0.50 per 1,000), whichever domain the site uses. Without it the switch is locked; a site moved to a plan without it stops using it straight away. |
 
 Monthly limits reset on the 1st of the month (UTC).
 
-**Notifications for you.** Once an hour NuxFlow checks every site on a plan. When a site reaches **80%** or **100%** of a monthly limit (AI credits, emails, page views or server renders), you get a notification and an email on your main site, once per limit per month. For page views and server renders that's all that happens: you decide whether to talk to the customer, move them to a bigger plan, or put the site into maintenance mode.
+**Notifications for you.** Once an hour NuxFlow checks every site on a plan. When a site reaches **80%** or **100%** of a monthly limit, or of its database size, you get a notification and an email on your main site, once per limit per month. For soft limits that's all that happens: you decide whether to talk to the customer, move them to a bigger plan, or put the site into maintenance mode.
 
 **What the site owner sees.** On a plan with limits, a site's admins get a **Your plan** card on their dashboard showing each limit and how much they've used. On the Unlimited plan they see nothing.
 
@@ -282,7 +293,7 @@ Monthly limits reset on the 1st of the month (UTC).
 
 A customer site's AI runs in one of two ways:
 
-- **On Workers AI, paid by you.** That's the default for any site that hasn't added its own key. It's billed to your Cloudflare account, so it's counted as **AI credits** and limited by the plan's **AI credits a month**.
+- **On Workers AI, paid by you.** That's the default for any site that hasn't added its own key. It's billed to your Cloudflare account, so it's counted as **AI credits** and limited by the plan: **AI credits a month** for what the site's team does, **Visitor AI credits a month** for what visitors, incoming mail and plugins set off. Smart search always runs on Workers AI (its index needs one fixed model), so its embeddings are always counted: 1 credit each, to the team when a page is saved, to visitors for a search.
 - **On the site's own key.** A site that adds an OpenAI, Anthropic, Gemini or DeepSeek key in **Settings → AI** pays that provider directly. Its AI is never counted against its plan or the daily cap, and never refused by them.
 
 **Your own keys stay yours.** While hosting is on, these env vars in `wrangler.toml` are used only by your main site, and customer sites never fall back to them:
@@ -301,10 +312,11 @@ A customer site's AI runs in one of two ways:
 | Generating an image | 10 |
 | Dictation | 2 |
 | "Listen to this article" | 1 per 1,000 characters read |
+| Smart search (indexing a page, or one search) | 1 |
 
 Every call costs at least 1 credit, including one that fails. The numbers are relative weights, not a price: compare them with the Workers AI line on your Cloudflare bill to decide what to put in each plan.
 
-**The daily cap.** On **Super Admin → Platform → AI you pay for** you can set the most credits all customer sites together may use in one day (UTC). It's a safety brake on top of the plans, for example in case a plan's AI box was left empty. Once it's reached, Workers AI pauses for every customer site until midnight UTC, and they're told they can add their own key to keep going. Your main site is never paused. You get a notification at 80% and 100%. Leave the box empty for no cap.
+**The daily cap.** On **Super Admin → Platform → AI you pay for** you can set the most credits (team and visitor together) all customer sites may use in one day (UTC). It's a safety brake on top of the plans, for example in case a plan's AI box was left empty. Once it's reached, Workers AI pauses for every customer site until midnight UTC, and they're told they can add their own key to keep going. Your main site is never paused. You get a notification at 80% and 100%. Leave the box empty for no cap.
 
 ---
 

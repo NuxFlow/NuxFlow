@@ -2,8 +2,8 @@
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Usage' })
 
-type MetricKey = 'views' | 'renders' | 'api' | 'ai_calls' | 'ai_credits' | 'emails'
-  | 'storage_bytes' | 'content_items' | 'team_members' | 'site_members' | 'plugins'
+type MetricKey = 'views' | 'renders' | 'api' | 'ai_calls' | 'ai_credits' | 'ai_visitor_credits' | 'emails' | 'inbound_emails' | 'plugin_calls'
+  | 'storage_bytes' | 'content_items' | 'team_members' | 'site_members' | 'plugins' | 'database_bytes'
 
 interface SiteUsage {
   id: string
@@ -31,15 +31,19 @@ const METRICS: { key: MetricKey; label: string; hint: string; bytes?: boolean }[
   { key: 'renders', label: 'Renders', hint: 'Pages built by the server — the best stand-in for CPU time' },
   { key: 'api', label: 'API', hint: 'Requests to the site’s /api routes' },
   { key: 'ai_calls', label: 'AI calls', hint: 'Every AI call: text, image, transcription and speech, whoever pays' },
-  { key: 'ai_credits', label: 'AI credits', hint: 'AI you pay for (Workers AI), weighted by cost — what plans limit. Sites’ own API keys aren’t counted' },
+  { key: 'ai_credits', label: 'AI credits', hint: 'AI you pay for (Workers AI) that the site’s team used, weighted by cost. Sites’ own API keys aren’t counted' },
+  { key: 'ai_visitor_credits', label: 'Visitor AI', hint: 'AI you pay for that visitors, incoming mail and plugins set off: listen, spam checks, inbox sorting, smart search, plugin AI' },
   { key: 'emails', label: 'Emails', hint: 'Recipients a provider accepted' },
-  { key: 'storage_bytes', label: 'Storage', hint: 'Media library size (nightly)', bytes: true },
+  { key: 'inbound_emails', label: 'Received', hint: 'Emails received at the site’s own addresses' },
+  { key: 'plugin_calls', label: 'Plugin calls', hint: 'Requests and events handled by plugins (each runs a Dynamic Worker)' },
+  { key: 'storage_bytes', label: 'Storage', hint: 'Media library plus email kept in R2 (nightly)', bytes: true },
   { key: 'content_items', label: 'Pages', hint: 'Pages, posts and other content (nightly)' },
   { key: 'team_members', label: 'Team', hint: 'Viewer role and above, not counting super admins (nightly)' },
   { key: 'site_members', label: 'Members', hint: 'Member role (nightly)' },
   { key: 'plugins', label: 'Plugins', hint: 'Installed plugins (nightly)' },
+  { key: 'database_bytes', label: 'Database', hint: 'Approximate share of the shared D1 database (nightly)', bytes: true },
 ]
-const EVENT_METRICS = METRICS.slice(0, 6)
+const EVENT_METRICS = METRICS.slice(0, 9)
 
 const month = ref(new Date().toISOString().slice(0, 7))
 const { data, pending, error, refresh } = await useFetch<UsageResponse>('/api/v1/admin/usage', { query: { month } })

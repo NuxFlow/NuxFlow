@@ -4,7 +4,7 @@ import { isOllamaAvailable, resolveSetting } from './settings'
 import { getCfBindings, getWorkersAiBinding } from './cf-env'
 import { WORKER_MEDIA_PREFIX, workerMediaKey } from './media-url'
 import { safeFetch } from './ssrf'
-import { AiAllowanceError, assertAiAllowance, checkAiAllowance, recordAiCall, textCredits, type AiPayer } from './ai-allowance'
+import { AiAllowanceError, assertAiAllowance, checkAiAllowance, recordAiCall, textCredits, type AiPayer, type AiTrigger } from './ai-allowance'
 
 /**
  * 'vision' is for routes that send image bytes to the model (alt-text.post.ts,
@@ -24,6 +24,12 @@ export interface GetAiSdkModelOptions {
    * route already resolves this via requireAuth/requireRole before calling getAiSdkModel.
    */
   userId?: string
+  /**
+   * Who sets the calls off (ai-allowance.ts). 'visitor' for anything the public or incoming
+   * mail triggers (spam checks, inbox sorting) — charged to the visitor AI allowance, so it
+   * can never use up the team's. Defaults to 'team'.
+   */
+  trigger?: AiTrigger
 }
 
 export interface GatewaySettings { gatewayId: string; accountId: string; token: string }
@@ -76,6 +82,8 @@ export interface ResolvedAiModel {
   model: LanguageModel
   payer: AiPayer
   heavy: boolean
+  /** Who sets the calls off — 'team' when left out (ai-allowance.ts). */
+  trigger?: AiTrigger
 }
 
 /**
@@ -113,12 +121,12 @@ export async function getAiSdkModel(event: H3Event, quality: AiQuality = 'fast',
  * site-paid model (the site's own key) is counted in `ai_calls` only and never refused.
  */
 export function withUsageCounting(event: H3Event, resolved: ResolvedAiModel): LanguageModel {
-  const { model, payer, heavy } = resolved
+  const { model, payer, heavy, trigger = 'team' } = resolved
   // A gateway model id string, or anything that isn't a provider model object, can't be wrapped.
   if (typeof model !== 'object' || !('specificationVersion' in model)) return model
   const guard = async () => {
     if (payer !== 'platform') return
-    const check = await checkAiAllowance(event)
+    const check = await checkAiAllowance(event, 1, trigger)
     if (!check.allowed) throw new AiAllowanceError(check)
   }
   return wrapLanguageModel({
@@ -135,7 +143,7 @@ export function withUsageCounting(event: H3Event, resolved: ResolvedAiModel): La
         } finally {
           // A failed call still counts (at the 1-credit minimum), so retrying a failing
           // call can't be a way round the allowance.
-          recordAiCall(event, payer, textCredits(tokens, heavy))
+          recordAiCall(event, payer, textCredits(tokens, heavy), trigger)
         }
       },
       wrapStream: async ({ doStream }) => {
@@ -148,7 +156,7 @@ export function withUsageCounting(event: H3Event, resolved: ResolvedAiModel): La
             controller.enqueue(part)
           },
           flush() {
-            recordAiCall(event, payer, textCredits(tokens, heavy))
+            recordAiCall(event, payer, textCredits(tokens, heavy), trigger)
           },
         }))
         return { ...result, stream }
@@ -166,7 +174,7 @@ function totalTokens(usage: { inputTokens?: { total?: number }, outputTokens?: {
 async function resolveAiSdkModel(event: H3Event, quality: AiQuality, opts: GetAiSdkModelOptions): Promise<ResolvedAiModel | null> {
   const resolved = await resolveProviderModel(event, quality, opts)
   if (!resolved) return null
-  return { ...resolved, heavy: quality !== 'fast' }
+  return { ...resolved, heavy: quality !== 'fast', trigger: opts.trigger ?? 'team' }
 }
 
 async function resolveProviderModel(event: H3Event, quality: AiQuality, opts: GetAiSdkModelOptions): Promise<{ model: LanguageModel, payer: AiPayer } | null> {
@@ -306,7 +314,7 @@ export async function requireAiSdkModel(event: H3Event, quality: AiQuality = 'fa
     throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
   }
   // Only AI the platform pays for is limited; the site's own key is never refused.
-  if (resolved.payer === 'platform') await assertAiAllowance(event)
+  if (resolved.payer === 'platform') await assertAiAllowance(event, 1, resolved.trigger)
   return withUsageCounting(event, resolved)
 }
 

@@ -15,6 +15,7 @@ import type { H3Event } from 'h3'
 import { eq } from 'drizzle-orm'
 import { sites } from '@nuxflow/db/schema'
 import { useDb } from './db'
+import { countUsage } from './usage'
 import { spawnPluginWorker, getPluginServerCode, PLUGIN_WORKER_LIMITS } from './cf-plugin-kv'
 import { assertCodeIntegrity, computeSha256 } from './plugin-signing'
 import { getAccountsHost } from './accounts-origin'
@@ -123,8 +124,13 @@ export async function getPluginWorker(event: H3Event, plugin: RunnablePlugin): P
   })
 }
 
-/** Sends `request` to the plugin's fetch handler. */
+/**
+ * Sends `request` to the plugin's fetch handler. Every call — visitor request or event
+ * hook — runs a Dynamic Worker on the operator's account, so each one is counted
+ * (`plugin_calls`, the hosting plan's soft "Plugin requests a month").
+ */
 export async function invokePlugin(event: H3Event, plugin: RunnablePlugin, request: Request): Promise<Response> {
+  countUsage(event, 'plugin_calls')
   const worker = await getPluginWorker(event, plugin)
   // Also enforced on the spawned WorkerLoaderWorkerCode itself (cf-plugin-kv.ts) — the
   // lower of the two wins, so either call site changing later can't drop the bound.

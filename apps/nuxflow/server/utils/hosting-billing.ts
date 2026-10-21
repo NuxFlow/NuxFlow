@@ -5,7 +5,7 @@ import { ulid } from 'ulid'
 import { auditLogs, contentTypes, hostingPlans, hostingSubscriptions, sites, userSiteRoles, users } from '@nuxflow/db/schema'
 import { useDb, type Db } from './db'
 import { isHostingPlatform } from './hosting-platform'
-import { clearHostingPlanCache, type HostingPlan } from './hosting-plans'
+import { refreshSitesAfterPlanChange, type HostingPlan } from './hosting-plans'
 import { accountsUrl, isAccountsHost, isCentralAuth } from './accounts-origin'
 import { eventForSite, getPrimarySite, type SiteInfo } from './site-info'
 import { resolveStripeProvider, getStripeProvider } from './payments/resolve'
@@ -341,7 +341,7 @@ export async function syncHostingSubscription(ctx: HostingContext, sub: Stripe.S
 
   if (current.hostedSiteId && planId !== row.planId) {
     await db.update(sites).set({ hostingPlanId: planId, updatedAt: sql`(datetime('now'))` }).where(eq(sites.id, current.hostedSiteId))
-    clearHostingPlanCache()
+    await refreshSitesAfterPlanChange(ctx.primaryEvent, [current.hostedSiteId])
   }
 
   if (live) {

@@ -8,7 +8,7 @@ import { eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { notifySiteRole } from '../../../../utils/notify'
 import { waitUntil } from '../../../../utils/cf-env'
-import { clearHostingPlanCache } from '../../../../utils/hosting-plans'
+import { refreshSitesAfterPlanChange } from '../../../../utils/hosting-plans'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -48,7 +48,7 @@ export default defineEventHandler(async (event) => {
   }
 
   await db.update(sites).set({ ...body, updatedAt: sql`(datetime('now'))` }).where(eq(sites.id, id))
-  if (body.hostingPlanId !== undefined) clearHostingPlanCache()
+  if (body.hostingPlanId !== undefined && body.hostingPlanId !== existing.hostingPlanId) await refreshSitesAfterPlanChange(event, [id])
 
   // writeAuditLog() always scopes the row to event.context.siteId (the acting
   // super admin's CURRENT site from the Host header), which would be the wrong
