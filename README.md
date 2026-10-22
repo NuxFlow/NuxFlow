@@ -191,7 +191,7 @@ Every feature in the admin is fully functional. The demo resets automatically at
 | ORM | Drizzle ORM |
 | UI | Nuxt UI (free) — TipTap integrated directly via `@tiptap/vue-3`, admin layout is hand-built |
 | Auth | Better Auth (hand-rolled integration, no Nuxt auth module) |
-| State | Pinia |
+| State | Composables + `useState` (no store library) |
 | Validation | Zod |
 | Animations | Vue's built-in `<Transition>` — no animation library dependency |
 | AI | Vercel AI SDK + Workers AI |
@@ -210,7 +210,9 @@ nuxflow/
 │   │   ├── pages/setup/        # Onboarding wizard
 │   │   ├── components/         # Editor, forms, media, setup components
 │   │   ├── layouts/            # Admin + public layouts
-│   │   └── stores/             # Pinia store (auth)
+│   │   └── composables/        # Auth session, admin access, editor helpers
+│   ├── shared/lib/             # Code shared by app and server (TipTap renderer, base64, slugs…)
+│   ├── tests/                  # Unit, integration and E2E tests (for the packages too)
 │   └── server/
 │       ├── api/v1/             # REST API handlers (and the MCP endpoint)
 │       ├── middleware/         # Site resolution, auth, redirects, maintenance
