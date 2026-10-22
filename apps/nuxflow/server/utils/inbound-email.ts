@@ -5,7 +5,7 @@ import { generateObject } from 'ai'
 import { ulid } from 'ulid'
 import { and, eq, gt, inArray, or, sql } from 'drizzle-orm'
 import {
-  contentItems, contentTypes, emailMessages, mailboxes, media, sites, siteSettings, users,
+  contentItems, contentTypes, emailMessages, mailboxes, media, siteDirectory, sites, siteSettings, users,
   type EmailAttachmentMeta, type EmailAuthResults,
 } from '@nuxflow/db/schema'
 import { requireSiteId } from './site-context'
@@ -22,6 +22,10 @@ import { buildAuditLogInsert, batchWithAudit } from './audit'
 import { countUsage } from './usage'
 import { noticePlanLimitOnce } from './plan-limit-notice'
 import { bufferToHex } from './buffer'
+import { isMemberPool } from './control-plane'
+import { callPool, poolAdminStub, type PoolAdminStub } from './pools'
+import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
+import { POOL_ID_RE } from '../../shared/lib/pool-id'
 
 /**
  * Inbound email — Cloudflare Email Routing → this Worker's `email()` export (Nitro's
@@ -39,9 +43,12 @@ import { bufferToHex } from './buffer'
  *      already has a mail host; they point a forward from their own mailbox at it.
  *      `<handle>@…` with no `+mailbox` goes to the site's catch-all mailbox.
  *
- * Nitro runs the hook inside `ctx.waitUntil()` and returns from `email()` immediately, so
- * `setReject()` may be a no-op by the time it's called — nothing here depends on a reject
- * actually bouncing; an unknown recipient is simply not stored.
+ * Nitro runs the hook inside `ctx.waitUntil()` and returns from `email()` at once, after
+ * which the message can no longer be forwarded or rejected — so the Worker's own entry
+ * (server/cloudflare-entry.ts) makes `email()` wait for this to finish.
+ *
+ * On a hosting platform, every receiving domain's mail reaches the control plane; mail for
+ * a site in a member pool is handed to that pool ("Member pools" below).
  */
 
 export const MAX_INBOUND_BYTES = 25 * 1024 * 1024
@@ -239,60 +246,172 @@ export async function handleInboundEmail(
 ): Promise<void> {
   const lookupEvent = createSystemEvent({ env, ctx })
   const db = useDb(lookupEvent)
-  const rc = useRuntimeConfig()
+  const platformDomain = String(useRuntimeConfig().inboundEmailDomain ?? '')
 
-  const resolved = await resolveRecipient(db, message.to, String(rc.inboundEmailDomain ?? ''))
-  if (!resolved) return reject(message, 'Unknown recipient')
+  const resolved = await resolveRecipient(db, message.to, platformDomain)
+  if (!resolved) {
+    // On a hosting platform's control plane, an address it doesn't know may belong to a
+    // site in a member pool — Email Routing only ever delivers to this Worker.
+    if (!isMemberPool()) {
+      const poolId = await poolForRecipient(db, message.to, platformDomain)
+      const stub = poolId ? poolAdminStub(lookupEvent, poolId) : null
+      if (poolId && stub) return deliverToPool(message, stub, poolId)
+    }
+    return reject(message, 'Unknown recipient')
+  }
   if (message.rawSize > MAX_INBOUND_BYTES) return reject(message, 'Message too large')
   // Our own outbound mail echoing back (a forwardTo pointing at another of this site's
   // addresses, a misconfigured provider) must never loop.
   if (message.from.toLowerCase() === message.to.toLowerCase()) return reject(message, 'Loop detected')
 
-  const event = createSystemEvent({ env, ctx, siteId: resolved.siteId, host: resolved.siteDomain })
-  const { mailbox } = resolved
+  // Forward first: it's independent of our own storage succeeding.
+  await forwardIfAsked(message, forwardAddress(resolved.mailbox, message.to))
 
-  // Forward first: it's independent of our own storage succeeding. Cloudflare only
-  // forwards to verified destination addresses; anything else fails here and is logged.
-  if (mailbox.kind === 'inbox' && mailbox.forwardTo && mailbox.forwardTo.toLowerCase() !== message.to.toLowerCase()) {
-    try {
-      await message.forward(mailbox.forwardTo)
-    }
-    catch (err) {
-      console.error(`[inbound-email] Forward to ${mailbox.forwardTo} failed (is it a verified destination address?):`, err)
-    }
+  const refused = await acceptForSite(env, ctx, resolved, {
+    from: message.from,
+    to: message.to,
+    authResults: message.headers.get('authentication-results'),
+    readRaw: async () => new Uint8Array(await new Response(message.raw).arrayBuffer()),
+  })
+  if (refused) reject(message, refused)
+}
+
+/** Where an inbox mailbox forwards a copy, if anywhere (never back to the address it came to). */
+function forwardAddress(mailbox: MailboxRow, to: string): string | null {
+  return mailbox.kind === 'inbox' && mailbox.forwardTo && mailbox.forwardTo.toLowerCase() !== to.toLowerCase()
+    ? mailbox.forwardTo
+    : null
+}
+
+/** Cloudflare only forwards to verified destination addresses; anything else fails here and is logged. */
+async function forwardIfAsked(message: ForwardableEmailMessage, forwardTo: string | null): Promise<void> {
+  if (!forwardTo) return
+  try {
+    await message.forward(forwardTo)
   }
+  catch (err) {
+    console.error(`[inbound-email] Forward to ${forwardTo} failed (is it a verified destination address?):`, err)
+  }
+}
 
-  // The hosting plan's "Emails received a month". Forwarding above still happens — it
-  // costs nothing to keep — but nothing more is stored or processed until the 1st.
+interface ReceivedMail {
+  from: string
+  to: string
+  /** The receiving MX's Authentication-Results header. */
+  authResults: string | null
+  readRaw(): Promise<Uint8Array>
+}
+
+/**
+ * Keeps a message for the site that has its address: in the inbox, or as a draft for a
+ * posting address. Returns why it wasn't kept, or null. Used for this Worker's own sites
+ * and, in a member pool, for mail its control plane passes on (poolReceiveEmail).
+ */
+async function acceptForSite(env: unknown, ctx: { waitUntil(promise: Promise<unknown>): void } | undefined, resolved: ResolvedRecipient, mail: ReceivedMail): Promise<string | null> {
+  const event = createSystemEvent({ env, ctx, siteId: resolved.siteId, host: resolved.siteDomain })
+  const db = useDb(event)
+
+  // The hosting plan's "Emails received a month". Forwarding still happens — it costs
+  // nothing to keep — but nothing more is stored or processed until the 1st.
   const inbound = await checkPlanLimit(db, resolved.siteId, 'inbound')
   if (!inbound.allowed) {
     await noticePlanLimitOnce(event, resolved.siteId, 'inbound', 'Incoming email is paused',
       `This site has received its plan's ${(inbound.max ?? 0).toLocaleString('en')} emails for this month. New mail isn't kept in the inbox, or turned into drafts, until the 1st. Mail that's set to forward still forwards.`)
-    return reject(message, 'Mailbox over its monthly limit')
+    return 'Mailbox over its monthly limit'
   }
 
-  const raw = new Uint8Array(await new Response(message.raw).arrayBuffer())
+  const raw = await mail.readRaw()
   const parsed = await PostalMime.parse(raw, { attachmentEncoding: 'arraybuffer' })
-  const auth = parseAuthResults(message.headers.get('authentication-results'))
+  const auth = parseAuthResults(mail.authResults)
 
   // Providers retry delivery; a Message-ID we've already stored means this is a repeat.
   const messageId = parsed.messageId?.trim() || null
   if (messageId) {
-    const dup = await useDb(event).query.emailMessages.findFirst({
+    const dup = await db.query.emailMessages.findFirst({
       where: and(eq(emailMessages.siteId, resolved.siteId), eq(emailMessages.messageId, messageId)),
       columns: { id: true },
     })
-    if (dup) return
+    if (dup) return null
   }
   countUsage(event, 'inbound_emails')
 
-  const input: InboundInput = { event, resolved, parsed, raw, auth, envelopeFrom: message.from.toLowerCase(), envelopeTo: message.to.toLowerCase(), messageId }
-  if (mailbox.kind === 'post') {
+  const input: InboundInput = { event, resolved, parsed, raw, auth, envelopeFrom: mail.from.toLowerCase(), envelopeTo: mail.to.toLowerCase(), messageId }
+  if (resolved.mailbox.kind === 'post') {
     await handlePostByEmail(input)
   }
   else {
     await storeInboxMessage(input)
   }
+  return null
+}
+
+// ── Member pools ────────────────────────────────────────────────────────────────────
+
+/**
+ * The member pool whose site has this address, as far as the control plane can tell: a
+ * site address the router sends to a pool (`site_directory`, `www.` included), or a
+ * handle on the shared inbound domain — a pool's handles end in `.<pool id>`
+ * (inbox.ts ensureInboundHandle), so they need no directory entry.
+ */
+export async function poolForRecipient(db: Db, to: string, platformDomain: string): Promise<string | null> {
+  const parsed = parseRecipient(to)
+  if (!parsed) return null
+  const platform = platformDomain.trim().toLowerCase()
+  if (platform && parsed.domain === platform) {
+    const dot = parsed.local.lastIndexOf('.')
+    const poolId = parsed.local.slice(dot + 1)
+    return dot > 0 && POOL_ID_RE.test(poolId) ? poolId : null
+  }
+  const [row] = await db.select({ poolId: siteDirectory.poolId }).from(siteDirectory)
+    .where(inArray(siteDirectory.hostname, [parsed.domain, `www.${parsed.domain}`])).limit(1)
+  return row?.poolId ?? null
+}
+
+/**
+ * Hands a message to the pool that has its address: asks where to forward a copy
+ * (forwarding needs the original message, which only this Worker holds), forwards, then
+ * sends the bytes over for the pool to keep.
+ */
+async function deliverToPool(message: ForwardableEmailMessage, stub: PoolAdminStub, poolId: string): Promise<void> {
+  const what = `pool ${poolId}`
+  const recipient = await callPool(stub.inboundRecipient({ protocol: POOL_PROTOCOL, to: message.to }), what)
+  if (!recipient) return reject(message, 'Unknown recipient')
+  if (message.rawSize > MAX_INBOUND_BYTES) return reject(message, 'Message too large')
+  if (message.from.toLowerCase() === message.to.toLowerCase()) return reject(message, 'Loop detected')
+
+  await forwardIfAsked(message, recipient.forwardTo)
+
+  const raw = await new Response(message.raw).arrayBuffer()
+  const { refused } = await callPool(stub.receiveEmail({
+    protocol: POOL_PROTOCOL,
+    from: message.from,
+    to: message.to,
+    authResults: message.headers.get('authentication-results'),
+    raw,
+  }), what)
+  if (refused) reject(message, refused)
+}
+
+/** A member pool's answer to "is this one of your sites' addresses?", with where it forwards a copy. */
+export async function poolInboundRecipient(event: H3Event, input: { protocol: number; to: string }): Promise<{ forwardTo: string | null } | null> {
+  assertCompatibleProtocol(input.protocol)
+  const resolved = await resolveRecipient(useDb(event), input.to, String(useRuntimeConfig().inboundEmailDomain ?? ''))
+  return resolved ? { forwardTo: forwardAddress(resolved.mailbox, input.to) } : null
+}
+
+/** A member pool keeping a message its control plane received for one of its sites. */
+export async function poolReceiveEmail(event: H3Event, input: { protocol: number; from: string; to: string; authResults: string | null; raw: ArrayBuffer }): Promise<{ refused: string | null }> {
+  assertCompatibleProtocol(input.protocol)
+  const resolved = await resolveRecipient(useDb(event), input.to, String(useRuntimeConfig().inboundEmailDomain ?? ''))
+  if (!resolved) return { refused: 'Unknown recipient' }
+  if (input.raw.byteLength > MAX_INBOUND_BYTES) return { refused: 'Message too large' }
+  const refused = await acceptForSite(event.context.cloudflare?.env, event.context.cloudflare?.context, resolved, {
+    from: input.from,
+    to: input.to,
+    authResults: input.authResults,
+    readRaw: async () => new Uint8Array(input.raw),
+  })
+  return { refused }
 }
 
 interface InboundInput {

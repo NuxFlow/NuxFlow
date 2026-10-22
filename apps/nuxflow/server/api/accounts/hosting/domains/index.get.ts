@@ -9,6 +9,6 @@ export default defineEventHandler(async (event) => {
   const ctx = await hostingContext(event)
   const session = await requireSession(event)
   const { id } = parseQuery(event, querySchema)
-  const site = await ownedHostedSite(ctx.db, session.user.id, id)
+  const site = await ownedHostedSite(ctx, session.user.id, id)
   return domainPanel(ctx, site)
 })

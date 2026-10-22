@@ -9,6 +9,7 @@ import { sitePool } from '../../../../utils/pool-sites'
 import { syncSiteDirectory } from '../../../../utils/site-directory'
 import { POOL_PROTOCOL } from '../../../../utils/pool-admin'
 import { callPool } from '../../../../utils/pools'
+import { removePoolSiteDomains } from '../../../../utils/hosting-domains'
 
 export default defineEventHandler(async (event) => {
   requireControlPlane(event)
@@ -26,6 +27,8 @@ export default defineEventHandler(async (event) => {
   // Its hosting subscription lives here, not in the pool: stop the billing first (refuses
   // if Stripe can't be reached), as deleteSiteCompletely() does for this Worker's own sites.
   if (pool) await cancelHostingForDeletedSite(event, id)
+  // The pool can't reach Cloudflare, so the site's own domains are removed from it here.
+  if (pool) await removePoolSiteDomains(event, pool.poolId, id)
   const { failedMediaDeletes } = pool
     ? await callPool(pool.stub.deleteSite({ protocol: POOL_PROTOCOL, siteId: id, actorUserId: userId }), `pool ${pool.poolId}`)
     : await deleteSiteCompletely(event, id, userId)

@@ -13,6 +13,7 @@ import type { HostingPlanRow, NewPoolSite, SiteSummary } from './pool-sites'
 import type { MonthlySiteUsage, SiteUsageSeries } from './usage-report'
 import type { SiteChanges } from './site-admin'
 import type { AccountProvisioningStatus } from './user-provisioning'
+import type { DomainOp, DomainOpResult, PendingDomain } from './hosting-domains'
 
 /**
  * The control plane's view of its member pools (control-plane.ts). A pool is connected by
@@ -52,6 +53,12 @@ export interface PoolAdminStub {
   siteUsage(input: { protocol: number; siteId: string; days: number }): Promise<SiteUsageSeries | null>
   deleteSite(input: { protocol: number; siteId: string; actorUserId: string | null }): Promise<{ deleted: boolean; failedMediaDeletes: string[] }>
   setPlans(input: { protocol: number; plans: HostingPlanRow[] }): Promise<{ stored: number }>
+  // Mail for a pool's sites, which Email Routing delivers to the control plane (inbound-email.ts).
+  inboundRecipient(input: { protocol: number; to: string }): Promise<{ forwardTo: string | null } | null>
+  receiveEmail(input: { protocol: number; from: string; to: string; authResults: string | null; raw: ArrayBuffer }): Promise<{ refused: string | null }>
+  // Customers' own domains on a pool's site: Cloudflare is called here, the rows live there (hosting-domains.ts).
+  siteDomains(input: { protocol: number; siteId: string; op: DomainOp }): Promise<DomainOpResult>
+  pendingDomains(input: { protocol: number; limit: number }): Promise<PendingDomain[]>
 }
 
 /** The admin stub of the pool with this id, if this Worker has a binding to it. */
