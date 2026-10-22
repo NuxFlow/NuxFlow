@@ -25,7 +25,7 @@ import {
   wranglerCapture,
   wranglerLive,
 } from '../release/shell'
-import { addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasSecret, parsePoolFlags, poolConfigFile, poolNames } from './lib'
+import { addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasSecret, parsePoolFlags, poolConfigFile, poolNames, serviceBindingBlock } from './lib'
 
 const HELP = `pnpm pool:create <name> [--from wrangler.cloud.toml] [--ring 1|2] [--location weur] [--dry-run] [--yes]
 
@@ -155,5 +155,10 @@ runMain(async () => {
   heading('Done')
   console.log(`Pool "${poolId}" runs commit ${shortSha(headCommit())}, with no sites yet.`)
   console.log(added ? `Added to ${TARGETS_FILE} as ring ${flags.ring}: pnpm ring:canary / ring:promote deploy it from now on.` : `Already in ${TARGETS_FILE}.`)
-  console.log('Nothing reaches it yet: sites are placed in pools, and traffic routed to them, by later phases of the pools plan.')
+
+  heading('Next: connect it to the control panel')
+  console.log(`1. Add this to the end of apps/nuxflow/${flags.from}:\n`)
+  console.log(serviceBindingBlock(poolId))
+  console.log(`\n2. Deploy the control panel (the Worker in ${flags.from}).`)
+  console.log('3. Super Admin → Pools: the pool appears. Press "Send platform settings".')
 })

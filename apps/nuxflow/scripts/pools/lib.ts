@@ -2,7 +2,7 @@
 // tests/unit/pool-scripts.test.ts. A member pool is a hosting platform's extra Worker + D1
 // for some of its sites (server/utils/control-plane.ts); its wrangler config is the
 // control plane's own config with its own name, D1 and KV, no routes, and NUXT_POOL_ID.
-import { POOL_ID_RE } from '../../shared/lib/pool-id'
+import { POOL_ID_RE, poolBindingName } from '../../shared/lib/pool-id'
 
 export interface PoolNames {
   worker: string
@@ -74,6 +74,17 @@ export function poolConfigFile(config: Config, input: { poolId: string; from: st
 // Gitignored like the other wrangler configs. Deployed by pnpm ring:canary / ring:promote.
 ${JSON.stringify(config, null, 2)}
 `
+}
+
+/**
+ * What connects the pool to its control plane (server/utils/pools.ts): a service binding
+ * in the control plane's wrangler.toml to the pool's private admin entrypoint.
+ */
+export function serviceBindingBlock(poolId: string): string {
+  return `[[services]]
+binding = "${poolBindingName(poolId)}"
+service = "${poolNames(poolId).worker}"
+entrypoint = "NuxflowPoolAdmin"`
 }
 
 /** The id of a D1 database by name, from `wrangler d1 list --json`. */

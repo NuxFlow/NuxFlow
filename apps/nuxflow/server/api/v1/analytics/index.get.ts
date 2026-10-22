@@ -30,7 +30,7 @@ export default defineEventHandler(async (event): Promise<AnalyticsResponse> => {
   const db = useDb(event)
   const [token, accountId] = await Promise.all([
     getPlatformSetting(db, ANALYTICS_TOKEN_KEY),
-    getPlatformSetting(db, 'cloudflare.account_id', 'cloudflareAccountId'),
+    getPlatformSetting(db, 'cloudflare.account_id'),
   ])
 
   const recording = getAnalyticsEngine(event) !== null

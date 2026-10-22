@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
     getAiDailyCap(db),
     platformAiCreditsToday(db, primary?.id ?? null),
     getPlatformSetting(db, ANALYTICS_TOKEN_KEY),
-    getPlatformSetting(db, 'cloudflare.account_id', 'cloudflareAccountId'),
+    getPlatformSetting(db, 'cloudflare.account_id'),
   ])
   const central = isCentralAuth()
   const config = useRuntimeConfig()

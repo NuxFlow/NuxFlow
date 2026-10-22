@@ -9,6 +9,8 @@ import { normalizeDomain } from '../../../../utils/domain'
 import { eventForSite, getPrimarySite } from '../../../../utils/site-info'
 import { saveSetting } from '../../../../utils/settings'
 import { writeAuditLog } from '../../../../utils/audit'
+import { pushSettingsToPools } from '../../../../utils/pools'
+import { waitUntil } from '../../../../utils/cf-env'
 import { AI_DAILY_CAP_SETTING_KEY, clearAiDailyCapCache } from '../../../../utils/ai-allowance'
 import { ANALYTICS_TOKEN_KEY, clearAnalyticsCache } from '../../../../utils/analytics'
 
@@ -66,6 +68,11 @@ export default defineEventHandler(async (event) => {
   if (body.analyticsApiToken !== undefined) await saveSetting(primaryEvent, ANALYTICS_TOKEN_KEY, body.analyticsApiToken || null)
   if (body.cloudflareAccountId !== undefined) await saveSetting(primaryEvent, 'cloudflare.account_id', body.cloudflareAccountId.toLowerCase() || null)
   if (body.analyticsApiToken !== undefined || body.cloudflareAccountId !== undefined) clearAnalyticsCache()
+  // Member pools keep their own copy of these (control-plane.ts) — send it on. In the
+  // background: an unreachable pool mustn't fail the save, and Super Admin → Pools can resend.
+  if (body.aiDailyCreditCap !== undefined || body.analyticsApiToken !== undefined || body.cloudflareAccountId !== undefined) {
+    waitUntil(event, pushSettingsToPools(event))
+  }
   await writeAuditLog(event, userId, {
     action: 'update',
     resource: 'platform',

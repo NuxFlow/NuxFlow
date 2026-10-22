@@ -10,7 +10,12 @@ import { errorMessage } from '../utils/errors'
 let _migrationsDone = false
 let _migrationPromise: Promise<void> | null = null
 
-export default defineEventHandler(async (event) => {
+/**
+ * Brings the database up to date (once per isolate). Also called outside HTTP requests —
+ * a member pool's admin RPC (server/pool-host/entrypoint.ts) can be the first thing a
+ * brand-new pool ever runs.
+ */
+export async function ensureMigrations(event: H3Event): Promise<void> {
   if (_migrationsDone) return
   if (!_migrationPromise) {
     _migrationPromise = applyMigrations(event).then(() => {
@@ -21,7 +26,9 @@ export default defineEventHandler(async (event) => {
     })
   }
   await _migrationPromise
-})
+}
+
+export default defineEventHandler(ensureMigrations)
 
 // Cloudflare can spin up multiple Worker isolates concurrently on a cold deploy, each
 // running this same middleware with its own independent _migrationsDone/_migrationPromise
