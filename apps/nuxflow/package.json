@@ -17,7 +17,10 @@
     "test:all": "vitest run --config vitest.config.ts && vitest run --config vitest.integration.config.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage && vitest run --config vitest.integration.config.ts --coverage",
     "test:e2e": "playwright test",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "ring:canary": "tsx scripts/release/canary.ts",
+    "ring:promote": "tsx scripts/release/promote.ts",
+    "ring:status": "tsx scripts/release/status.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.79",
@@ -62,6 +65,7 @@
     "cross-env": "^10.1.0",
     "eslint": "^10.12.0",
     "nuxt": "^4.6.1",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^5.0.4",
     "vue-tsc": "^3.3.13",

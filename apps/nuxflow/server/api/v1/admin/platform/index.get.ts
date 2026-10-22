@@ -29,7 +29,13 @@ export default defineEventHandler(async (event) => {
     primaryEvent ? resolveSetting(primaryEvent, 'cloudflare.account_id', 'cloudflareAccountId') : '',
   ])
   const central = isCentralAuth()
+  const config = useRuntimeConfig()
   return {
+    // The release this Worker runs, when deployed by the release scripts (scripts/release/).
+    build: {
+      commit: config.buildCommit ? String(config.buildCommit) : null,
+      release: config.buildRelease ? String(config.buildRelease) : null,
+    },
     hostingEnabled,
     primarySite: primary ? { id: primary.id, name: primary.name, domain: primary.domain } : null,
     centralAuth: central,
@@ -50,7 +56,7 @@ export default defineEventHandler(async (event) => {
     // the operator's API token. Not a hosting feature — shown on every install.
     analytics: {
       recording: getAnalyticsEngine(event) !== null,
-      dataset: useRuntimeConfig().analyticsDataset,
+      dataset: config.analyticsDataset,
       tokenSet: !!analyticsToken,
       accountId: accountId ? String(accountId) : null,
     },
