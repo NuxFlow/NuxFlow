@@ -1,6 +1,6 @@
 import { useDb } from '../utils/db'
 import { contentItems, sites } from '@nuxflow/db/schema'
-import { and, eq, lte, notInArray, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, lte, notInArray, or, sql } from 'drizzle-orm'
 import { indexablePathsForItems, submitToIndexNow } from '../utils/indexnow'
 import { bumpCacheVersionInKv } from '../utils/cache-version'
 import { createSystemEvent } from '../utils/system-event'
@@ -20,8 +20,10 @@ export const publishScheduled = async (cloudflare?: ScheduledCloudflareContext) 
     eq(contentItems.status, 'scheduled'),
     lte(contentItems.scheduledAt, sql`(datetime('now'))`),
     // A suspended site is closed by the operator — nothing on it changes until it's
-    // reactivated, at which point anything overdue publishes on the next tick.
-    notInArray(contentItems.siteId, db.select({ id: sites.id }).from(sites).where(eq(sites.status, 'suspended'))),
+    // reactivated, at which point anything overdue publishes on the next tick. A site being
+    // moved between pools (utils/site-move.ts) waits too, so a post goes out once, from
+    // its new home.
+    notInArray(contentItems.siteId, db.select({ id: sites.id }).from(sites).where(or(eq(sites.status, 'suspended'), isNotNull(sites.moveState)))),
   )
 
   const due = await db.query.contentItems.findMany({

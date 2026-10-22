@@ -4,6 +4,7 @@ import { siteDirectory, siteDomains, sites } from '@nuxflow/db/schema'
 import { useDb } from './db'
 import { getCfBindings } from './cf-env'
 import { describePools } from './pools'
+import { isServedCopy } from './move-state'
 import { directoryKey, normalizeHostname, poolBindingName } from '../../shared/lib/pool-id'
 
 /**
@@ -71,11 +72,13 @@ export async function syncSiteDirectory(event: H3Event): Promise<DirectorySyncRe
   const hostnames = candidates.map(e => e.hostname)
   const [ownDomains, ownAliases] = hostnames.length
     ? await Promise.all([
-        db.select({ hostname: sites.domain }).from(sites).where(inArray(sites.domain, hostnames)),
-        db.select({ hostname: siteDomains.hostname }).from(siteDomains).where(inArray(siteDomains.hostname, hostnames)),
+        db.select({ hostname: sites.domain, moveState: sites.moveState }).from(sites).where(inArray(sites.domain, hostnames)),
+        db.select({ hostname: siteDomains.hostname, moveState: sites.moveState }).from(siteDomains)
+          .innerJoin(sites, eq(sites.id, siteDomains.siteId)).where(inArray(siteDomains.hostname, hostnames)),
       ])
     : [[], []]
-  const ownHosts = new Set([...ownDomains, ...ownAliases].map(r => r.hostname))
+  // A copy here that is mid-move or left behind by one (site-move.ts) doesn't hold its addresses.
+  const ownHosts = new Set([...ownDomains, ...ownAliases].filter(r => isServedCopy(r.moveState)).map(r => r.hostname))
   const entries = candidates.filter((e) => {
     if (!ownHosts.has(e.hostname)) return true
     conflicts.push({ hostname: e.hostname, reason: `pool ${e.poolId} has it, but a site on this control panel uses it too` })

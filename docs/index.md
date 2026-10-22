@@ -13,6 +13,7 @@ If you are new to NuxFlow, start with these guides:
 - **[Video & Vlogging Guide](./video.md)**: Publish video content with Cloudflare Stream (self-hosted, ad-free, membership-gateable) or embed from YouTube and Vimeo — and understand when to choose each.
 - **[Email](./email.md)**: Receive mail at addresses like contact@ in an admin inbox, post drafts by email, and get security and system alerts — built on Cloudflare Email Routing and Email Sending.
 - **[Release Rings](./release-rings.md)**: Optional, for operators with several deployments. Send new code to your own sites first and to customers two days later, with two commands.
+- **[Member Pools](./pools.md)**: Optional, for hosting platforms. Spread sites over several Workers and databases, keep a client's sites apart, and move a site between them from Super Admin.
 - **[External Plugin Development](./plugins.md)**: Build, deploy, and publish dynamic plugins using the NuxFlow CLI and Cloudflare Dynamic Workers.
 - **[Model Context Protocol (MCP)](./mcp.md)**: Connect AI coding assistants and agents (like Claude Desktop) to manage your site's content securely.
 - **[Roadmap](./roadmap.md)**: Planned features and the preparatory groundwork already in place for them.

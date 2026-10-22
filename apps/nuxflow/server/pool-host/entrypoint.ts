@@ -16,6 +16,7 @@ import { poolCreateSite, poolDeleteSite, poolGetSite, poolSetPlans, poolUpdateSi
 import { poolMonthlyUsage, poolSiteUsage } from '../utils/usage-report'
 import { poolInboundRecipient, poolReceiveEmail } from '../utils/inbound-email'
 import { poolPendingDomains, poolSiteDomains } from '../utils/hosting-domains'
+import { poolSiteMove } from '../utils/site-move'
 
 type Input<F> = F extends (event: H3Event, input: infer I) => unknown ? I : never
 
@@ -56,4 +57,5 @@ export class NuxflowPoolAdmin extends WorkerEntrypoint<Record<string, unknown>> 
   receiveEmail(input: Input<typeof poolReceiveEmail>) { return this.run('receiveEmail', e => poolReceiveEmail(e, input)) }
   siteDomains(input: Input<typeof poolSiteDomains>) { return this.run('siteDomains', e => poolSiteDomains(e, input), input?.siteId) }
   pendingDomains(input: Input<typeof poolPendingDomains>) { return this.run('pendingDomains', e => poolPendingDomains(e, input)) }
+  siteMove(input: Input<typeof poolSiteMove>) { return this.run('siteMove', e => poolSiteMove(e, input)) }
 }

@@ -39,7 +39,9 @@ export async function localMonthlyUsage(event: H3Event, month: string): Promise<
   const latestSnapshotDay = sql`(select max(u2.day) from site_usage_daily u2 where u2.site_id = ${siteUsageDaily.siteId} and u2.metric = ${siteUsageDaily.metric} and u2.day <= ${last})`
 
   const [siteRows, eventRows, snapshotRows] = await Promise.all([
-    db.select({ id: sites.id, name: sites.name, domain: sites.domain, status: sites.status, isPrimary: sites.isPrimary }).from(sites),
+    // A copy mid-move that isn't the live one (site-move.ts) would be counted twice.
+    db.select({ id: sites.id, name: sites.name, domain: sites.domain, status: sites.status, isPrimary: sites.isPrimary }).from(sites)
+      .where(sql`coalesce(${sites.moveState}, '') not in ('incoming', 'moved')`),
     db.select({ siteId: siteUsageDaily.siteId, metric: siteUsageDaily.metric, value: sql<number>`sum(${siteUsageDaily.value})` })
       .from(siteUsageDaily)
       .where(and(inArray(siteUsageDaily.metric, [...USAGE_EVENT_METRICS]), gte(siteUsageDaily.day, first), lte(siteUsageDaily.day, last)))

@@ -161,6 +161,8 @@ Usage and hosting plans (the next two sections) are for selling sites to other p
 - Turning it off again doesn't forget anything: each site keeps its plan, and the limits come back when you turn it on.
 - Only a super admin can change it. It isn't part of a site backup, so restoring a site elsewhere never turns it on.
 
+As a platform grows, its sites can be spread over several Workers and databases, and moved between them: see [Member Pools](./pools.md).
+
 ### Selling sites: sign-up and billing
 
 With the switch on, people can sign up, pay and get a site without you doing anything. It uses your Stripe account and Stripe's own pages for payment and billing.
@@ -210,6 +212,7 @@ Good to know:
 - A domain without `www` only works if the customer's DNS provider allows a CNAME at the root (Cloudflare DNS and many others call this CNAME flattening or ALIAS). Otherwise they connect `www.` and redirect the bare domain at their provider.
 - Each plan's **Own domains** allowance sets how many a site may connect (0 = not included, empty = any number, up to 10).
 - Removing a site removes its domains from Cloudflare too.
+- This works the same for sites in a [member pool](./pools.md).
 - Customer sites keep sending email from the shared sites domain, even on their own domain.
 
 **One-time setup** (in the Cloudflare dashboard, on your sites domain's zone):

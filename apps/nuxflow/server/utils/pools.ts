@@ -14,6 +14,7 @@ import type { MonthlySiteUsage, SiteUsageSeries } from './usage-report'
 import type { SiteChanges } from './site-admin'
 import type { AccountProvisioningStatus } from './user-provisioning'
 import type { DomainOp, DomainOpResult, PendingDomain } from './hosting-domains'
+import type { MoveOp } from './site-move'
 
 /**
  * The control plane's view of its member pools (control-plane.ts). A pool is connected by
@@ -59,6 +60,8 @@ export interface PoolAdminStub {
   // Customers' own domains on a pool's site: Cloudflare is called here, the rows live there (hosting-domains.ts).
   siteDomains(input: { protocol: number; siteId: string; op: DomainOp }): Promise<DomainOpResult>
   pendingDomains(input: { protocol: number; limit: number }): Promise<PendingDomain[]>
+  // Moving a site between pools (site-move.ts); the answer's shape depends on the operation.
+  siteMove(input: { protocol: number; siteId: string; op: MoveOp }): Promise<unknown>
 }
 
 /** The admin stub of the pool with this id, if this Worker has a binding to it. */

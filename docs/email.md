@@ -41,11 +41,11 @@ The platform operator can set up one shared receiving domain for every site, suc
 1. Pick a domain or subdomain in the NuxFlow Cloudflare account that doesn't receive other mail, and set up Email Routing on it as in option A.
 2. Set `NUXT_INBOUND_EMAIL_DOMAIN=in.example.com` on the Worker and redeploy.
 
-Each site then gets a handle based on its domain (`acme.com` becomes `acme`). Every address also works as `acme+contact@in.example.com`, and `acme@in.example.com` reaches the site's catch-all address. To keep your normal mailbox and still get mail into NuxFlow, set up a forward in your existing provider to that address. **Admin → Inbox → Addresses** shows the exact address for each mailbox.
+Each site then gets a handle based on its domain (`acme.com` becomes `acme`). On a hosting platform with [member pools](./pools.md), a site in a pool gets the pool's name added (`acme.clientx`), and its handle changes if it's moved to another pool. Every address also works as `acme+contact@in.example.com`, and `acme@in.example.com` reaches the site's catch-all address. To keep your normal mailbox and still get mail into NuxFlow, set up a forward in your existing provider to that address. **Admin → Inbox → Addresses** shows the exact address for each mailbox.
 
 ### Catch-all
 
-An address named `*` receives everything sent to the domain that doesn't match another address. Without one, mail to an unknown address is ignored.
+An address named `*` receives everything sent to the domain that doesn't match another address. Without one, mail to an unknown address is bounced back to the sender.
 
 ### Forwarding a copy
 
@@ -135,6 +135,6 @@ Everyone can choose email and push for the other notification types under **My a
 
 **Password resets reach you but not other people.** Until a domain is onboarded for sending, Cloudflare only delivers to verified addresses in your own account. Onboard the domain your From address uses.
 
-**Forwarded copies don't arrive.** The forwarding address must be a verified destination in Email Routing. Cloudflare doesn't send the copy otherwise.
+**Forwarded copies don't arrive.** The forwarding address must be a verified destination in Email Routing. Cloudflare doesn't send the copy otherwise. (Before October 2026 no copy was ever sent, verified or not; update NuxFlow if you're on an older version.)
 
 **Post-by-email drafts don't appear.** Check your notifications for a "not accepted" note. It says whether the sender address didn't match, sender verification failed, or you hit the hourly limit.
