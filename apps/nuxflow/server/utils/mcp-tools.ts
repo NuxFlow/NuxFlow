@@ -26,7 +26,7 @@ export interface McpToolContext {
   db: Db
   siteId: string
   apiKeyUserId: string
-  apiKeyRole: string | undefined
+  apiKeyRole: Role | undefined
 }
 
 type McpToolResult = { content: { type: 'text'; text: string }[] }
@@ -40,8 +40,8 @@ function textResult(text: string): McpToolResult {
 // substitute for it — a key can be scoped down to read-only even when issued by an
 // editor/admin. Every tool below needs its matching scope in addition to whatever role
 // check it already performs.
-function apiKeyRoleAtLeast(apiKeyRole: string | undefined, minimum: Role): boolean {
-  return roleAtLeast((apiKeyRole ?? 'viewer') as Role, minimum)
+function apiKeyRoleAtLeast(apiKeyRole: Role | undefined, minimum: Role): boolean {
+  return roleAtLeast(apiKeyRole ?? 'viewer', minimum)
 }
 
 const CONTENT_STATUS = z.enum(['draft', 'review', 'published', 'scheduled', 'archived'])
