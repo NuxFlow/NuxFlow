@@ -13,9 +13,8 @@ const SYSTEM = `You are an accessibility expert. Write concise, descriptive alt 
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
-  // Single-image vision call — same order of magnitude as the other single-call AI routes
-  // (grammar.post.ts, generate-content.post.ts both use 15/min); this one costs real
-  // provider tokens/money per call and previously had no rate limit at all.
+  // One vision call per request, which costs provider tokens — same limit as the other
+  // single-call AI routes (grammar.post.ts, generate-content.post.ts).
   await rateLimit(event, { limit: 15, windowMs: 60_000, keyPrefix: 'ai-alt-text' })
   const model = await requireAiSdkModel(event, 'vision', { userId })
 

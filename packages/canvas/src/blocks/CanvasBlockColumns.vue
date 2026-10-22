@@ -10,6 +10,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   columns: '2',
   gap: 24,
+  padding: undefined,
 })
 
 const gridClass = computed(() => ({

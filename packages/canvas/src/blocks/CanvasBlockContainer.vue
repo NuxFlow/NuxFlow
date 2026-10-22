@@ -9,6 +9,8 @@ const props = withDefaults(defineProps<{
   padding?: SpacingValue
 }>(), {
   maxWidth: 'full',
+  bgColor: undefined,
+  padding: undefined,
 })
 
 const maxWidthClass = computed(() => ({

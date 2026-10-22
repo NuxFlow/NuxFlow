@@ -59,8 +59,7 @@ export async function restoreTaxonomies(
     return termIdBySlugPath
   }
 
-  // One prefetch instead of one findFirst() per taxonomy — a backup with many
-  // taxonomies previously meant one D1 round trip per taxonomy before any write.
+  // One prefetch instead of one D1 round trip per taxonomy before any write.
   const taxSlugs = backup.taxonomies.map(t => t.slug)
   const existingTaxRows = taxSlugs.length > 0
     ? await db.query.taxonomies.findMany({

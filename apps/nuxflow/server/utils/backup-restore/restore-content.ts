@@ -81,9 +81,8 @@ export async function restoreContent(
 
   const idBySlug = new Map<string, string>()
 
-  // One prefetch instead of one findFirst() per backup item — a backup with a few
-  // thousand items previously meant a few thousand sequential existence-check round
-  // trips before any write even happened.
+  // One prefetch instead of one findFirst() per backup item, which for a large backup
+  // would be thousands of sequential round trips before the first write.
   const existingBySlug = new Map<string, { id: string; title: string }>()
   if (backup.content.length > 0) {
     const existingItems = await db.query.contentItems.findMany({

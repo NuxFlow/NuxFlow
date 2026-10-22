@@ -29,6 +29,7 @@ const props = withDefaults(defineProps<{
   align: 'center',
   bgColor: '#ffffff',
   textColor: '#111827',
+  padding: undefined,
 })
 
 const containerStyle = computed(() => {

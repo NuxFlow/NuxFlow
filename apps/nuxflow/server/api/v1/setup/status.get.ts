@@ -20,10 +20,9 @@ type SetupStatus = {
 }
 
 // app/middleware/00.setup-guard.global.ts calls this route once per SSR render (its own
-// useState cache resets every request), so this used to pay 2 count() scans plus a site
-// lookup on *every single page view of every site*, forever — setup normally completes
-// once and never reverts, so almost all of that cost bought nothing. Only the "fully set
-// up" result is cached (a fresh/in-progress install still gets a live check on every
+// useState cache resets every request) — uncached, that's 2 count() scans plus a site
+// lookup on every page view of every site, for an answer that almost never changes once
+// setup completes. Only the "fully set up" result is cached (a fresh/in-progress install still gets a live check on every
 // request, since that flow is low-traffic and needs to react immediately as it
 // progresses); setup/complete.post.ts clears the entry for its host so the wizard's own
 // redirect away from /setup isn't stuck behind the TTL.

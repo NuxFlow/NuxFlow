@@ -86,8 +86,7 @@ export class WebhookForOtherSite extends Error {}
  * standard 503 when it's empty — never verify a signature against an empty secret, since
  * Stripe's SDK (and a bare HMAC, for LemonSqueezy/Paddle) both accept a zero-length key
  * without error, which would make the signature check trivially forgeable by anyone.
- * Centralizes what used to be an identical guard copy-pasted across
- * handleStripeWebhook/handleLemonSqueezyWebhook/handlePaddleWebhook in [provider].post.ts.
+ * Shared by every provider's handler in [provider].post.ts.
  */
 export async function requireWebhookSecret(event: H3Event, settingKey: string, envKey: string, providerLabel: string): Promise<string> {
   const secret = await resolveSetting(event, settingKey, envKey)

@@ -47,7 +47,6 @@ function hasPnpm(): boolean {
 }
 
 async function main() {
-  console.log()
   p.intro('create-nuxflow-app  —  Edge-native CMS on Nuxt 4 + Cloudflare Workers')
 
   // ── 1. Project directory ──────────────────────────────────────────────────

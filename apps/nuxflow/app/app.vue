@@ -73,9 +73,7 @@ useSeoMeta({
 
 <template>
   <!-- UApp is Nuxt UI v4's root: it renders the toast viewport (every useToast() call
-       in the admin) and the tooltip provider. This used to be a v2-era <UNotifications />,
-       which doesn't exist in v4 — it rendered nothing, so toasts never showed, and the
-       unresolved tag caused a hydration mismatch on every page. -->
+       in the admin) and the tooltip provider. Without it toasts never show. -->
   <UApp>
     <NuxtLayout>
       <NuxtPage />

@@ -17,6 +17,9 @@ const props = withDefaults(defineProps<{
   description: 'Join us at our upcoming meetups, webinars, and workshops.',
   displayMode: 'list',
   limit: 10,
+  bgColor: undefined,
+  textColor: undefined,
+  padding: undefined,
 })
 
 const containerStyle = computed(() => {

@@ -11,6 +11,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   content: '<p>Start writing your content here.</p>',
   align: 'left',
+  padding: undefined,
 })
 
 const containerStyle = computed(() => ({ padding: spacingToCss(props.padding, '24px') }))
@@ -30,10 +31,7 @@ const safeContent = computed(() => sanitizeRichText(props.content))
 
 <template>
   <div class="canvas-text" :style="containerStyle">
-    <div
-      class="prose prose-gray dark:prose-invert max-w-none"
-      :class="alignClass"
-      v-html="safeContent"
-    />
+    <!-- eslint-disable-next-line vue/no-v-html -- sanitized by sanitizeRichText() -->
+    <div class="prose prose-gray dark:prose-invert max-w-none" :class="alignClass" v-html="safeContent" />
   </div>
 </template>

@@ -12,8 +12,7 @@ import {
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
-// The inbox for one form's submissions — every form, including the built-in contact
-// form (which used to have its own Admin → Contact Forms page).
+// The inbox for one form's submissions — every form, including the built-in contact form.
 
 const route = useRoute()
 const toast = useToast()

@@ -16,6 +16,7 @@ const props = withDefaults(defineProps<{
   caption: '',
   autoplay: false,
   muted: false,
+  padding: undefined,
 })
 
 const paddingStyle = computed(() => ({ padding: spacingToCss(props.padding, '16px 24px') }))

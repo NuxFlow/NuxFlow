@@ -37,10 +37,9 @@ export default defineEventHandler(async (event) => {
   }
 
   // The `uid` is client-supplied and never verified against what token.post.ts actually
-  // issued. Requiring this lookup to succeed before inserting anything is the whole
-  // fix here: previously any failure (bad uid, network error, non-2xx) fell through
-  // silently and still inserted a video_assets row stuck at status:'processing'
-  // forever, since nothing ever revisits it. Fail the request instead.
+  // issued, so this lookup must succeed before anything is inserted. Any failure (bad uid,
+  // network error, non-2xx) fails the request: a row inserted anyway would sit at
+  // status:'processing' until the stuck-video sweep marks it failed.
   interface CloudflareStreamDetailsResponse {
     success: boolean
     result?: {

@@ -21,6 +21,7 @@ const props = withDefaults(defineProps<{
   bgColor: '#00dc82',
   textColor: '#0f172a',
   btnColor: '#0f172a',
+  padding: undefined,
 })
 
 const containerStyle = computed(() => {

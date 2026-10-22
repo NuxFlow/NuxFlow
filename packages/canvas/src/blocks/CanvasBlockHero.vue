@@ -28,6 +28,12 @@ const props = withDefaults(defineProps<{
   align: 'center',
   bgColor: '#ffffff',
   textColor: '#111827',
+  cta2Label: undefined,
+  cta2Url: undefined,
+  bgGradient: undefined,
+  ctaBgColor: undefined,
+  logoIcon: undefined,
+  padding: undefined,
 })
 
 const containerStyle = computed(() => ({
