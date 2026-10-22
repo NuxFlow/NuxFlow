@@ -13,12 +13,16 @@ interface SiteUsage {
   isPrimary: boolean
   usage: Record<MetricKey, number>
   snapshotDay: string | null
+  /** The member pool it lives in (Super Admin → Pools), or null for this control panel's own. */
+  poolId?: string | null
 }
 interface UsageResponse {
   month: string
   from: string
   to: string
   sites: SiteUsage[]
+  /** Pools that couldn't be reached, so their sites are missing. */
+  unreachablePools?: string[]
 }
 interface TrendResponse {
   site: { id: string; name: string; domain: string }
@@ -133,6 +137,13 @@ const hovered = ref<{ metric: MetricKey; index: number } | null>(null)
     <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-circle-alert" :description="getErrorMessage(error, 'Could not load usage')" />
 
     <template v-else-if="data">
+      <UAlert
+        v-if="data.unreachablePools?.length"
+        color="warning"
+        variant="soft"
+        icon="i-lucide-triangle-alert"
+        :description="`Couldn't reach ${data.unreachablePools.join(', ')}, so their sites aren't counted here. See Super Admin → Pools.`"
+      />
       <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
         <UCard v-for="m in EVENT_METRICS" :key="m.key">
           <p class="text-xs text-gray-500">{{ m.label }}</p>
@@ -170,6 +181,7 @@ const hovered = ref<{ metric: MetricKey; index: number } | null>(null)
                     <button type="button" class="text-left" :aria-expanded="selectedSiteId === site.id" @click="showTrend(site.id)">
                       <span class="font-medium text-gray-900 dark:text-white hover:underline">{{ site.name }}</span>
                       <UBadge v-if="site.isPrimary" size="sm" variant="subtle" class="ml-1">Primary</UBadge>
+                      <UBadge v-if="site.poolId" size="sm" color="neutral" variant="outline" class="ml-1 whitespace-nowrap">Pool: {{ site.poolId }}</UBadge>
                       <UBadge v-if="site.status !== 'active'" size="sm" color="warning" variant="subtle" class="ml-1">{{ site.status }}</UBadge>
                       <span class="block text-xs text-gray-400">{{ site.domain }}</span>
                     </button>

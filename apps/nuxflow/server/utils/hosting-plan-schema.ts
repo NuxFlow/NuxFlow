@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { PLAN_FEATURES, PLAN_LIMITS } from '../../shared/lib/hosting-plan-limits'
+import { POOL_ID_RE } from '../../shared/lib/pool-id'
 
 // One nullable, non-negative whole number per limit (null = unlimited), keyed by the
 // hosting_plans column name.
@@ -24,6 +25,8 @@ export const planBodySchema = z.object({
   priceYearly: z.number().min(0.5).max(1_000_000).multipleOf(0.01).nullable().optional(),
   currency: z.string().trim().toLowerCase().regex(/^[a-z]{3}$/, 'Use a 3-letter currency code, e.g. gbp').optional(),
   trialDays: z.number().int().min(0).max(90).optional(),
+  // The member pool a sign-up on this plan gets its site in (pool-sites.ts); null = here.
+  defaultPoolId: z.string().regex(POOL_ID_RE, 'Not a pool name').nullable().optional(),
   ...limitFields,
   ...featureFields,
 })

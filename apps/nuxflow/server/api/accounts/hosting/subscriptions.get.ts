@@ -4,5 +4,5 @@ import { hostingContext, listCustomerHosting } from '../../../utils/hosting-bill
 export default defineEventHandler(async (event) => {
   const ctx = await hostingContext(event)
   const session = await requireSession(event)
-  return { subscriptions: await listCustomerHosting(ctx.db, session.user.id) }
+  return { subscriptions: await listCustomerHosting(ctx.db, session.user.id, ctx.primaryEvent) }
 })

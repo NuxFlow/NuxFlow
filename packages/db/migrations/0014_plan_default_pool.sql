@@ -1,0 +1,1 @@
+ALTER TABLE `hosting_plans` ADD `default_pool_id` text;
