@@ -57,7 +57,7 @@ export async function assertPrimarySiteDeletable(event: H3Event, siteId: string)
   }
 }
 
-export async function deleteSiteCompletely(event: H3Event, siteId: string, actorUserId: string): Promise<SiteDeletionResult> {
+export async function deleteSiteCompletely(event: H3Event, siteId: string, actorUserId: string | null): Promise<SiteDeletionResult> {
   const db = useDb(event)
 
   await assertPrimarySiteDeletable(event, siteId)

@@ -48,6 +48,9 @@ export interface PoolSite {
    * a pool on an older release doesn't send it.
    */
   aliases?: string[]
+  /** Optional, like aliases: older pools don't send them. */
+  hostingPlanId?: string | null
+  locale?: string
 }
 
 export async function poolStatus(db: Db): Promise<PoolStatus> {
@@ -79,12 +82,12 @@ async function newestMigration(db: Db): Promise<string | null> {
 
 export async function poolSites(db: Db): Promise<PoolSite[]> {
   const [rows, extra] = await Promise.all([
-    db.select({ id: sites.id, name: sites.name, domain: sites.domain, status: sites.status, createdAt: sites.createdAt })
+    db.select({ id: sites.id, name: sites.name, domain: sites.domain, status: sites.status, createdAt: sites.createdAt, hostingPlanId: sites.hostingPlanId, locale: sites.locale })
       .from(sites)
       .orderBy(desc(sites.isPrimary), asc(sites.createdAt)),
     db.select({ siteId: siteDomains.siteId, hostname: siteDomains.hostname }).from(siteDomains),
   ])
-  return rows.map(site => ({ ...site, aliases: extra.filter(d => d.siteId === site.id).map(d => d.hostname) }))
+  return rows.map(site => ({ ...site, locale: site.locale ?? undefined, aliases: extra.filter(d => d.siteId === site.id).map(d => d.hostname) }))
 }
 
 const RECEIVED_AT_KEY = '_received_at'

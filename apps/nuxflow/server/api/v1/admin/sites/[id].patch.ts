@@ -1,93 +1,35 @@
-import { z } from 'zod'
-import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
 import { requireControlPlane } from '../../../../utils/control-plane'
-import { clearSiteCache } from '../../../../middleware/02.multi-site'
-import { normalizeDomain } from '../../../../utils/domain'
-import { sites, siteDomains, auditLogs, hostingPlans } from '@nuxflow/db/schema'
-import { eq, sql } from 'drizzle-orm'
-import { ulid } from 'ulid'
-import { notifySiteRole } from '../../../../utils/notify'
-import { waitUntil } from '../../../../utils/cf-env'
-import { refreshSitesAfterPlanChange } from '../../../../utils/hosting-plans'
+import { assertDomainAvailable, siteChangesSchema, updateSiteRecord } from '../../../../utils/site-admin'
+import { pushPlansToPools, sitePool } from '../../../../utils/pool-sites'
+import { syncSiteDirectory } from '../../../../utils/site-directory'
+import { POOL_PROTOCOL } from '../../../../utils/pool-admin'
+import { callPool } from '../../../../utils/pools'
+import { useDb } from '../../../../utils/db'
+import { poolBindingName } from '../../../../../shared/lib/pool-id'
 
-const bodySchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  domain: z.string().optional(),
-  status: z.enum(['active', 'maintenance', 'suspended']).optional(),
-  locale: z.string().optional(),
-  /** null = the built-in unlimited plan. */
-  hostingPlanId: z.string().nullable().optional(),
-})
-
+/**
+ * Super Admin → Sites → Edit: name, domain, status, locale, hosting plan. Applied by
+ * updateSiteRecord() (utils/site-admin.ts) in whichever database the site lives in — this
+ * one, or its member pool's (utils/pool-sites.ts).
+ */
 export default defineEventHandler(async (event) => {
   requireControlPlane(event)
   const { userId } = await requireSuperAdmin(event)
-  const db = useDb(event)
   const id = getRouterParam(event, 'id')!
-  const body = await parseBody(event, bodySchema)
+  const changes = await parseBody(event, siteChangesSchema)
 
-  const existing = await db.query.sites.findFirst({
-    where: eq(sites.id, id),
-    columns: { domain: true, status: true, name: true, locale: true, hostingPlanId: true },
-  })
-  if (!existing) throw notFound('Site not found')
+  if (await updateSiteRecord(event, id, changes, userId)) return { id }
 
-  if (body.domain !== undefined) {
-    // Stored exactly as the Host header will present it (see utils/domain.ts).
-    const domain = normalizeDomain(body.domain)
-    if (!domain) throw validationError('Enter a valid domain, e.g. example.com')
-    const taken = await db.query.sites.findFirst({ where: eq(sites.domain, domain), columns: { id: true } })
-    if (taken && taken.id !== id) throw conflict('Another site already uses that domain')
-    const alias = await db.query.siteDomains.findFirst({ where: eq(siteDomains.hostname, domain), columns: { siteId: true } })
-    if (alias && alias.siteId !== id) throw conflict('That domain is already connected to another site')
-    body.domain = domain
-  }
-
-  if (body.hostingPlanId) {
-    const plan = await db.query.hostingPlans.findFirst({ where: eq(hostingPlans.id, body.hostingPlanId), columns: { id: true } })
-    if (!plan) throw validationError('That hosting plan no longer exists')
-  }
-
-  await db.update(sites).set({ ...body, updatedAt: sql`(datetime('now'))` }).where(eq(sites.id, id))
-  if (body.hostingPlanId !== undefined && body.hostingPlanId !== existing.hostingPlanId) await refreshSitesAfterPlanChange(event, [id])
-
-  // writeAuditLog() always scopes the row to event.context.siteId (the acting
-  // super admin's CURRENT site from the Host header), which would be the wrong
-  // site here — the action targets the site being patched, not the caller's
-  // own. Insert directly, scoped to the target site's real id, mirroring the
-  // explicit-siteId pattern deleteSiteCompletely() uses for the same reason.
-  await db.insert(auditLogs).values({
-    id: ulid(),
-    siteId: id,
-    userId,
-    action: 'update',
-    resource: 'site',
-    resourceId: id,
-    before: existing,
-    after: body,
-    ipAddress: getHeader(event, 'cf-connecting-ip') ?? getHeader(event, 'x-forwarded-for') ?? null,
-    userAgent: getHeader(event, 'user-agent') ?? null,
-  })
-
-  // Domain (or status) may have changed — drop the whole cache rather than
-  // tracking the old domain key, since a rename means the old key is now stale too.
-  clearSiteCache()
-
-  if (body.status && body.status !== existing.status) {
-    const described = { active: 'reactivated', maintenance: 'put into maintenance mode', suspended: 'suspended by the platform operator' }[body.status]
-    waitUntil(event, notifySiteRole(event, {
-      siteId: id,
-      minRole: 'admin',
-      excludeUserId: userId,
-      type: 'system.site_status',
-      title: `${existing.name} was ${described}`,
-      body: body.status === 'suspended'
-        ? `${existing.name} (${existing.domain}) is now suspended: visitors and the admin panel are closed. Contact the platform operator for details.`
-        : `${existing.name} (${existing.domain}) was ${described}.`,
-      sendEmailNotification: true,
-      sendPush: true,
-    }).catch(err => console.error('[sites] Status notification failed:', err)))
-  }
+  const pool = await sitePool(event, id)
+  if (!pool) throw notFound('Site not found')
+  // Checked here too: only the control plane sees every pool's addresses and its own.
+  if (changes.domain !== undefined) changes.domain = await assertDomainAvailable(useDb(event), changes.domain, id)
+  // The plan must exist in the pool's copy before a site can be given it.
+  if (changes.hostingPlanId) await pushPlansToPools(event, [poolBindingName(pool.poolId)])
+  const { updated } = await callPool(pool.stub.updateSite({ protocol: POOL_PROTOCOL, siteId: id, changes, actorUserId: userId }), `pool ${pool.poolId}`)
+  if (!updated) throw notFound('Site not found')
+  // A new address must reach the pool through the router.
+  if (changes.domain !== undefined) await syncSiteDirectory(event)
   return { id }
 })
