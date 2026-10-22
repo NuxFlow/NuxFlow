@@ -129,6 +129,12 @@ export default defineNuxtConfig({
     // Analytics Engine dataset behind the AE binding (wrangler.toml) — Admin → Analytics
     // queries it by name. Change both together.
     analyticsDataset: 'nuxflow_analytics',
+    // Which release this Worker runs — set by the release scripts (scripts/release/) with
+    // `wrangler deploy --var NUXT_BUILD_COMMIT:… --var NUXT_BUILD_RELEASE:…`, shown on
+    // Super Admin → Platform. Private, not `public`: public config is sent to every
+    // visitor, and the exact commit tells an attacker which fixes a deployment lacks.
+    buildCommit: '',
+    buildRelease: '',
     cloudflareStreamToken: '',
     cloudflareImagesDeliveryUrl: '',
     // Cloudflare R2 media storage — env-var fallback for resolveSetting(); requires the

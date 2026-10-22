@@ -13,7 +13,10 @@
     "deploy": "turbo deploy --filter=@nuxflow/app",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "turbo build --filter=@nuxflow/cli --filter=create-nuxflow-app && changeset publish"
+    "release": "turbo build --filter=@nuxflow/cli --filter=create-nuxflow-app && changeset publish",
+    "ring:canary": "pnpm -C apps/nuxflow ring:canary",
+    "ring:promote": "pnpm -C apps/nuxflow ring:promote",
+    "ring:status": "pnpm -C apps/nuxflow ring:status"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",

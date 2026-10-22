@@ -3,6 +3,7 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Platform' })
 
 interface PlatformState {
+  build: { commit: string | null; release: string | null }
   hostingEnabled: boolean
   primarySite: { id: string; name: string; domain: string } | null
   centralAuth: boolean
@@ -316,6 +317,17 @@ async function copy(text: string) {
             </UFormField>
             <UButton class="mt-6" :loading="saving" :disabled="aiCapInvalid" @click="saveAiCap">Save</UButton>
           </div>
+        </div>
+      </UCard>
+
+      <!-- Only for deployments made by the release scripts (scripts/release/), which record these. -->
+      <UCard v-if="data.build.commit">
+        <div class="space-y-1 text-sm">
+          <h2 class="font-semibold text-gray-900 dark:text-white">Running version</h2>
+          <p class="text-gray-500">
+            <template v-if="data.build.release"><strong>{{ data.build.release }}</strong>, </template>commit
+            <a :href="`https://github.com/NuxFlow/NuxFlow/commit/${data.build.commit}`" target="_blank" rel="noopener" class="font-mono underline">{{ data.build.commit.slice(0, 7) }}</a>
+          </p>
         </div>
       </UCard>
     </template>

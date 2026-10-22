@@ -1,0 +1,7 @@
+{
+  "$comment": "Copy to release-targets.json (gitignored) and list your deployments. Ring 1 gets new code first (pnpm ring:canary); ring 2 gets the same commit at least 48 hours later (pnpm ring:promote). config = a wrangler file in apps/nuxflow. checkUrl = a public page loaded after deploying. See docs/release-rings.md.",
+  "targets": [
+    { "name": "canary", "ring": 1, "config": "wrangler.canary.toml", "checkUrl": "https://canary.example.com/" },
+    { "name": "main", "ring": 2, "config": "wrangler.toml", "checkUrl": "https://example.com/" }
+  ]
+}

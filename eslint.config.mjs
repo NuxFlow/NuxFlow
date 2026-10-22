@@ -54,6 +54,13 @@ export default createConfigForNuxt({
     },
   },
   {
+    // Terminal commands (pnpm ring:*): printing to the terminal is their whole job.
+    files: ['apps/nuxflow/scripts/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
     files: [
       'apps/nuxflow/app/*.vue',
       'apps/nuxflow/app/pages/**/*.vue',

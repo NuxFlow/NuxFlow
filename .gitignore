@@ -54,6 +54,8 @@ apps/nuxflow/tests/e2e/.auth/
 apps/nuxflow/wrangler.toml
 apps/nuxflow/wrangler.demo.toml
 apps/nuxflow/wrangler.cloud.toml
+# Release rings (scripts/release/) — names the operator's own deployments
+apps/nuxflow/release-targets.json
 
 # AI agent context and locally installed agent skills — per-developer, never shipped
 # (create-nuxflow-app downloads this repo, so anything tracked lands in every new project)
