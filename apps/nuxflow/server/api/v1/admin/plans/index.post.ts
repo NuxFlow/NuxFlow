@@ -2,6 +2,8 @@ import { ulid } from 'ulid'
 import { hostingPlans } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
+import { pushPlansToPools } from '../../../../utils/pool-sites'
+import { waitUntil } from '../../../../utils/cf-env'
 import { requireControlPlane } from '../../../../utils/control-plane'
 import { requireHostingPlatform } from '../../../../utils/hosting-platform'
 import { writeAuditLog } from '../../../../utils/audit'
@@ -29,5 +31,7 @@ export default defineEventHandler(async (event) => {
   })
   const [plan] = await db.insert(hostingPlans).values({ id, ...body, ...stripeIds }).returning()
   await writeAuditLog(event, userId, { action: 'create', resource: 'hosting_plan', resourceId: id, after: body })
+  // Member pools keep a copy of the plans their sites' limits come from (utils/pool-sites.ts).
+  waitUntil(event, pushPlansToPools(event).catch(err => console.error('[plans] Sending plans to pools failed:', err)))
   return created(event, plan)
 })

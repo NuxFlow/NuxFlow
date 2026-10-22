@@ -57,12 +57,15 @@ function operatorEvent(env: Record<string, unknown>, opts: { body?: unknown; met
 /** A fake pool binding: answers like a pool and records what it was sent. */
 function fakePool(status: Record<string, unknown>, sites: unknown[] = []) {
   const received: unknown[] = []
+  const plans: unknown[] = []
   return {
     received,
+    plans,
     stub: {
       status: async () => ({ protocol: POOL_PROTOCOL, commit: null, release: null, siteCount: sites.length, lastMigration: null, settingsReceivedAt: null, ...status }),
       listSites: async () => sites,
       pushPlatformSettings: async (payload: unknown) => { received.push(payload); return { stored: 1 } },
+      setPlans: async (payload: unknown) => { plans.push(payload); return { stored: 0 } },
     },
   }
 }
@@ -164,6 +167,8 @@ describe('Super Admin → Pools', () => {
       settings: { 'platform.ai_daily_credit_cap': '250', 'analytics.cf_api_token': null, 'cloudflare.account_id': 'a'.repeat(32) },
     }])
     expect(b.received).toHaveLength(1)
+    // The hosting plans go with them, so a newly connected pool has everything (pool-sites.ts).
+    expect(a.plans).toEqual([{ protocol: POOL_PROTOCOL, plans: [] }])
   })
 
   it('sends them on automatically when Super Admin → Platform saves one', async () => {

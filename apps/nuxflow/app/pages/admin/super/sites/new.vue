@@ -3,22 +3,53 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const router = useRouter()
 
+// Member pools a site can be created in (a hosting platform's extra Workers — Super Admin → Pools).
+const { data: sitesData } = await useFetch<{ pools: string[] }>('/api/v1/admin/sites')
+const HERE = '__control_panel__'
+const placeItems = computed(() => [
+  { label: 'This control panel', value: HERE },
+  ...(sitesData.value?.pools ?? []).map(id => ({ label: `Pool: ${id}`, value: id })),
+])
+
 const form = reactive({
   name: '',
   domain: '',
   locale: 'en',
   timezone: 'UTC',
+  place: HERE,
+  ownerName: '',
+  ownerEmail: '',
 })
+const inPool = computed(() => form.place !== HERE)
 
 const saving = ref(false)
 const error = ref('')
 const setupUrl = ref('')
+const poolResult = ref<{ poolId: string; pending: boolean; emailDelivery: { sent: boolean; reason?: string } } | null>(null)
 const copied = ref(false)
 
+// Not useAdminAction(): the outcome (setup link, or the owner's email status) is shown on the page, not a toast.
 async function create() {
   saving.value = true
   error.value = ''
   try {
+    if (inPool.value) {
+      // A pool has no passwords to set up: the site is created ready to use, and its owner
+      // gets an email (a set-password link for a new account).
+      const res = await $fetch<{ id: string; poolId: string; pending: boolean; emailDelivery: { sent: boolean; reason?: string } }>('/api/v1/admin/sites', {
+        method: 'POST',
+        body: {
+          name: form.name,
+          domain: form.domain,
+          locale: form.locale,
+          timezone: form.timezone,
+          poolId: form.place,
+          owner: { name: form.ownerName, email: form.ownerEmail },
+        },
+      })
+      poolResult.value = res
+      return
+    }
     const res = await $fetch<{ id: string; setupToken: string }>('/api/v1/admin/sites', {
       method: 'POST',
       body: {
@@ -30,7 +61,7 @@ async function create() {
     })
     setupUrl.value = `https://${form.domain}/setup?token=${res.setupToken}`
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'Failed to create site'
+    error.value = getErrorMessage(e, 'Failed to create site')
   } finally {
     saving.value = false
   }
@@ -45,6 +76,8 @@ async function copySetupUrl() {
 function done() {
   router.push('/admin/super/sites')
 }
+
+const canCreate = computed(() => !!form.name && !!form.domain && (!inPool.value || (!!form.ownerName && !!form.ownerEmail)))
 </script>
 
 <template>
@@ -76,6 +109,32 @@ function done() {
       </div>
     </template>
 
+    <template v-else-if="poolResult">
+      <UCard>
+        <template #header>
+          <p class="text-sm font-semibold text-gray-900 dark:text-white">Site created in pool {{ poolResult.poolId }}</p>
+        </template>
+        <div class="space-y-3 text-sm text-gray-500">
+          <p>
+            <strong class="text-gray-900 dark:text-white">{{ form.name }}</strong> is ready at {{ form.domain }}, with {{ form.ownerEmail }}
+            {{ poolResult.pending ? 'invited as its admin (they become admin once they confirm their email address)' : 'as its admin' }}.
+            Visitors reach it within about a minute, once the front-door router routes nuxflow.site addresses.
+          </p>
+          <UAlert
+            v-if="!poolResult.emailDelivery.sent"
+            color="warning"
+            variant="soft"
+            icon="i-lucide-mail-warning"
+            :description="`The email to the owner wasn't sent: ${poolResult.emailDelivery.reason ?? 'unknown reason'}`"
+          />
+          <p v-else>The owner has been emailed.</p>
+        </div>
+      </UCard>
+      <div class="flex justify-end">
+        <UButton @click="done">Done</UButton>
+      </div>
+    </template>
+
     <template v-else>
       <UCard>
         <template #header>
@@ -96,13 +155,40 @@ function done() {
               <UInput v-model="form.timezone" placeholder="UTC" />
             </UFormField>
           </div>
+          <UFormField
+            v-if="placeItems.length > 1"
+            label="Where"
+            help="A pool keeps a client's site on its own Worker and database (Super Admin → Pools)."
+          >
+            <USelect v-model="form.place" :items="placeItems" class="w-full" />
+          </UFormField>
+        </div>
+      </UCard>
+
+      <UCard v-if="inPool">
+        <template #header>
+          <p class="text-sm font-semibold text-gray-900 dark:text-white">Owner</p>
+        </template>
+        <div class="space-y-4">
+          <p class="text-sm text-gray-500">
+            The site is created ready to use, with this person as its admin. A new account gets an email to set a password;
+            an existing one gets a "your site is ready" email.
+          </p>
+          <div class="grid grid-cols-2 gap-4">
+            <UFormField label="Name" required>
+              <UInput v-model="form.ownerName" />
+            </UFormField>
+            <UFormField label="Email" required>
+              <UInput v-model="form.ownerEmail" type="email" />
+            </UFormField>
+          </div>
         </div>
       </UCard>
 
       <UAlert v-if="error" color="error" variant="soft" :description="error" />
 
       <div class="flex justify-end">
-        <UButton :loading="saving" :disabled="!form.name || !form.domain" @click="create">
+        <UButton :loading="saving" :disabled="!canCreate" @click="create">
           Create site
         </UButton>
       </div>

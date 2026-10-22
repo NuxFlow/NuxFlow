@@ -1,8 +1,10 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
-type SiteRow = { id: string; name: string; domain: string; status: string; locale?: string; hostingPlanId: string | null; createdAt: string }
-const { data, refresh } = await useFetch<{ sites: SiteRow[] }>('/api/v1/admin/sites')
+// poolId: the member pool the site lives in (null = this control panel's own).
+type SiteRow = { id: string; name: string; domain: string; status: string; locale?: string; hostingPlanId: string | null; createdAt: string; poolId: string | null }
+const { data, refresh } = await useFetch<{ sites: SiteRow[]; pools: string[]; unreachablePools: string[] }>('/api/v1/admin/sites')
+const showPools = computed(() => (data.value?.pools.length ?? 0) > 0 || (data.value?.sites ?? []).some(s => s.poolId))
 // Plans only exist while Super Admin → Platform's hosting switch is on (the API 404s otherwise).
 const hostingPlatform = (await fetchAdminAccess())?.hostingPlatform ?? false
 const { data: planData } = await useFetch<{ plans: { id: string; name: string }[] }>('/api/v1/admin/plans', { immediate: hostingPlatform })
@@ -25,14 +27,15 @@ const items = computed(() => data.value?.sites ?? [])
 type Color = 'success' | 'warning' | 'error' | 'primary' | 'neutral'
 const statusColor: Record<string, Color> = { active: 'success', maintenance: 'warning', suspended: 'error' }
 
-const columns = [
+const columns = computed(() => [
   { accessorKey: 'name', header: 'Name' },
   { accessorKey: 'domain', header: 'Domain' },
+  ...(showPools.value ? [{ accessorKey: 'poolId', header: 'Pool' }] : []),
   { accessorKey: 'status', header: 'Status' },
   ...(hostingPlatform ? [{ accessorKey: 'hostingPlanId', header: 'Plan' }] : []),
   { accessorKey: 'createdAt', header: 'Created' },
   { id: 'actions', header: actionsHeader },
-]
+])
 
 // Modal & Form States
 const isEditOpen = ref(false)
@@ -119,8 +122,19 @@ async function deleteSite() {
       <UButton to="/admin/super/sites/new" icon="i-lucide-plus">New site</UButton>
     </div>
 
+    <UAlert
+      v-if="data?.unreachablePools.length"
+      color="warning"
+      variant="soft"
+      icon="i-lucide-triangle-alert"
+      :description="`Couldn't reach ${data.unreachablePools.join(', ')}, so their sites aren't listed. See Super Admin → Pools.`"
+    />
+
     <UCard>
       <UTable :data="items" :columns="columns">
+        <template #poolId-cell="{ row }">
+          <span class="text-sm" :class="row.original.poolId ? 'text-gray-900 dark:text-white' : 'text-gray-400'">{{ row.original.poolId ?? 'This control panel' }}</span>
+        </template>
         <template #domain-cell="{ row }">
           <a :href="`https://${row.original.domain}`" target="_blank" class="text-primary-500 hover:underline text-sm">{{ row.original.domain }}</a>
         </template>

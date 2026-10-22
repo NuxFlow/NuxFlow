@@ -1,6 +1,13 @@
+import { eq } from 'drizzle-orm'
+import { sites } from '@nuxflow/db/schema'
+import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
 import { requireControlPlane } from '../../../../utils/control-plane'
 import { deleteSiteCompletely } from '../../../../utils/site-deletion'
+import { sitePool } from '../../../../utils/pool-sites'
+import { syncSiteDirectory } from '../../../../utils/site-directory'
+import { POOL_PROTOCOL } from '../../../../utils/pool-admin'
+import { callPool } from '../../../../utils/pools'
 
 export default defineEventHandler(async (event) => {
   requireControlPlane(event)
@@ -11,10 +18,15 @@ export default defineEventHandler(async (event) => {
     throw conflict('Cannot delete the site you are currently viewing. Switch to another domain first.')
   }
 
-  const { failedMediaDeletes } = await deleteSiteCompletely(event, id, userId)
+  // A site in a member pool is deleted there, by the same code (utils/pool-sites.ts), and
+  // its addresses stop routing to the pool.
+  const [local] = await useDb(event).select({ id: sites.id }).from(sites).where(eq(sites.id, id)).limit(1)
+  const pool = local ? null : await sitePool(event, id)
+  const { failedMediaDeletes } = pool
+    ? await callPool(pool.stub.deleteSite({ protocol: POOL_PROTOCOL, siteId: id, actorUserId: userId }), `pool ${pool.poolId}`)
+    : await deleteSiteCompletely(event, id, userId)
+  if (pool) await syncSiteDirectory(event)
 
-  // Non-204 only when something needs the operator's attention — every previous
-  // behaviour (silent success) is unchanged for the common case.
   if (failedMediaDeletes.length > 0) {
     return { failedMediaDeletes }
   }

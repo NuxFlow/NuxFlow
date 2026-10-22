@@ -12,6 +12,7 @@ import { ensureMigrations } from '../middleware/00.migrate'
 import { poolSites, poolStatus, receivePlatformSettings, type PushedSettings } from '../utils/pool-admin'
 import { poolJoinSite, poolSiteForAccounts, poolUserSites } from '../utils/accounts-sites'
 import { poolAccountDeletionCheck, poolDeleteAccount, poolExportUserData } from '../utils/account-data'
+import { poolCreateSite, poolDeleteSite, poolSetPlans, poolUpdateSite } from '../utils/pool-sites'
 
 type Input<F> = F extends (event: H3Event, input: infer I) => unknown ? I : never
 
@@ -41,4 +42,8 @@ export class NuxflowPoolAdmin extends WorkerEntrypoint<Record<string, unknown>> 
   accountDeletionCheck(input: Input<typeof poolAccountDeletionCheck>) { return this.run('accountDeletionCheck', e => poolAccountDeletionCheck(e, input)) }
   deleteAccount(input: Input<typeof poolDeleteAccount>) { return this.run('deleteAccount', e => poolDeleteAccount(e, input)) }
   exportUserData(input: Input<typeof poolExportUserData>) { return this.run('exportUserData', e => poolExportUserData(e, input)) }
+  createSite(input: Input<typeof poolCreateSite>) { return this.run('createSite', e => poolCreateSite(e, input)) }
+  updateSite(input: Input<typeof poolUpdateSite>) { return this.run('updateSite', e => poolUpdateSite(e, input)) }
+  deleteSite(input: Input<typeof poolDeleteSite>) { return this.run('deleteSite', e => poolDeleteSite(e, input)) }
+  setPlans(input: Input<typeof poolSetPlans>) { return this.run('setPlans', e => poolSetPlans(e, input)) }
 }

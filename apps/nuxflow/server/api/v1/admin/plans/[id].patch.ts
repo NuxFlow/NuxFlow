@@ -3,6 +3,8 @@ import { hostingPlans, sites } from '@nuxflow/db/schema'
 import { PLAN_FEATURES } from '../../../../../shared/lib/hosting-plan-limits'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
+import { pushPlansToPools } from '../../../../utils/pool-sites'
+import { waitUntil } from '../../../../utils/cf-env'
 import { requireControlPlane } from '../../../../utils/control-plane'
 import { requireHostingPlatform } from '../../../../utils/hosting-platform'
 import { writeAuditLog } from '../../../../utils/audit'
@@ -35,5 +37,7 @@ export default defineEventHandler(async (event) => {
     await refreshSitesAfterPlanChange(event, onPlan.map(s => s.id))
   }
   await writeAuditLog(event, userId, { action: 'update', resource: 'hosting_plan', resourceId: id, before: existing, after: body })
+  // Member pools keep a copy of the plans their sites' limits come from (utils/pool-sites.ts).
+  waitUntil(event, pushPlansToPools(event).catch(err => console.error('[plans] Sending plans to pools failed:', err)))
   return plan
 })

@@ -4,12 +4,12 @@ import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
 import { requireControlPlane } from '../../../../utils/control-plane'
 import { clearSiteCache } from '../../../../middleware/02.multi-site'
-import { normalizeDomain } from '../../../../utils/domain'
+import { assertDomainAvailable } from '../../../../utils/site-admin'
+import { createSiteInPool } from '../../../../utils/pool-sites'
 import { isCentralAuth } from '../../../../utils/accounts-origin'
 import { created } from '../../../../utils/response'
-import { sites, siteDomains, auditLogs } from '@nuxflow/db/schema'
+import { sites, auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
-import { eq } from 'drizzle-orm'
 import { randomToken } from '../../../../../shared/lib/base64'
 
 const bodySchema = z.object({
@@ -17,6 +17,10 @@ const bodySchema = z.object({
   domain: z.string().min(1),
   locale: z.string().default('en'),
   timezone: z.string().default('UTC'),
+  // A member pool to create it in (utils/pool-sites.ts), with its owner — instead of the
+  // setup link, which can't work there (a pool has no passwords to set up).
+  poolId: z.string().min(1).max(40).optional(),
+  owner: z.object({ name: z.string().min(1).max(100), email: z.email() }).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -28,18 +32,17 @@ export default defineEventHandler(async (event) => {
     throw conflict('Set up the central sign-in domain (NUXT_PUBLIC_ACCOUNTS_URL) before adding more sites — see "Hosting several sites" in docs/installation.md.')
   }
   const db = useDb(event)
-  const body = await parseBody(event, bodySchema)
+  const { poolId, owner, ...body } = await parseBody(event, bodySchema)
 
-  // Stored exactly as the Host header will present it (see utils/domain.ts).
-  const domain = normalizeDomain(body.domain)
-  if (!domain) throw validationError('Enter a valid domain, e.g. example.com')
-  if (await db.query.sites.findFirst({ where: eq(sites.domain, domain), columns: { id: true } })) {
-    throw conflict('Another site already uses that domain')
+  if (poolId) {
+    if (!owner) throw validationError('A site in a pool needs an owner: their name and email address.')
+    const { id, pending, emailDelivery } = await createSiteInPool(event, { poolId, name: body.name, domain: body.domain, locale: body.locale, timezone: body.timezone, owner }, userId)
+    return created(event, { id, poolId, pending, emailDelivery })
   }
-  if (await db.query.siteDomains.findFirst({ where: eq(siteDomains.hostname, domain), columns: { id: true } })) {
-    throw conflict('That domain is already connected to a site as an extra address')
-  }
-  body.domain = domain
+
+  // Stored exactly as the Host header will present it (see utils/domain.ts). Not one any
+  // site here — or, on a platform with pools, in a pool — already uses.
+  body.domain = await assertDomainAvailable(db, body.domain, null)
 
   const id = ulid()
 
