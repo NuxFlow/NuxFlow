@@ -2,6 +2,11 @@ import type { H3Event } from 'h3'
 import { useDb } from './db'
 import type { Db } from './db'
 import { getOrCreateBetterAuth } from './better-auth'
+import { getPoolId, isMemberPool } from './control-plane'
+import { POOL_PROTOCOL } from './pool-admin'
+import { callControlPlane, upsertUserCopy } from './pool-session'
+import { requireSiteId } from './site-context'
+import type { EmailDeliveryOutcome } from './email'
 
 /**
  * - `new`       — no account existed; one was just created, with no password yet.
@@ -59,7 +64,29 @@ export async function isUnclaimedAccount(db: Db, userId: string, emailVerified: 
 // when the person sets their real password. No session is created either.
 //
 // Never mutates an existing account.
+//
+// In a member pool (control-plane.ts) accounts live on the control plane, so it makes the
+// account and the pool keeps its copy of the person.
 export async function findOrCreateUserAccount(
+  event: H3Event,
+  input: { name: string; email: string },
+): Promise<{ userId: string; status: AccountProvisioningStatus }> {
+  if (!isMemberPool()) return findOrCreateLocalAccount(event, input)
+  const db = useDb(event)
+  const { user, status } = await callControlPlane(event, cp => cp.provisionAccount({
+    protocol: POOL_PROTOCOL, poolId: getPoolId()!, siteId: requireSiteId(event), ...input,
+  }))
+  await upsertUserCopy(db, user)
+  // The control plane only sees roles on its own sites; a staff role in this pool vouches
+  // for the account just the same.
+  if (status === 'unclaimed' && !(await isUnclaimedAccount(db, user.id, user.emailVerified))) {
+    return { userId: user.id, status: 'existing' }
+  }
+  return { userId: user.id, status }
+}
+
+/** findOrCreateUserAccount() against this Worker's own accounts — the control plane's. */
+export async function findOrCreateLocalAccount(
   event: H3Event,
   { name, email }: { name: string; email: string },
 ): Promise<{ userId: string; status: AccountProvisioningStatus }> {
@@ -91,8 +118,26 @@ export async function findOrCreateUserAccount(
  * URL so the email is branded for, and the finished flow returns to, the inviting site
  * (see sendResetPassword in better-auth.ts). Never throws: a failed send is logged and the
  * admin can use "Resend invite".
+ *
+ * In a member pool the control plane sends it (it runs sign-in) and returns how the send
+ * went, since it's logged there; elsewhere it returns null and callers read the email log.
  */
-export async function sendSetPasswordEmail(event: H3Event, email: string, siteId: string, purpose: 'invite' | 'reset' = 'invite'): Promise<void> {
+export async function sendSetPasswordEmail(event: H3Event, email: string, siteId: string, purpose: 'invite' | 'reset' = 'invite'): Promise<EmailDeliveryOutcome | null> {
+  if (isMemberPool()) {
+    try {
+      const { emailDelivery } = await callControlPlane(event, cp => cp.sendSetPasswordEmail({ protocol: POOL_PROTOCOL, poolId: getPoolId()!, siteId, email, purpose }))
+      return emailDelivery
+    } catch (err) {
+      console.error('[user-provisioning] The control panel couldn\'t send a set-password email:', err)
+      return { sent: false, reason: 'The control panel couldn\'t be reached to send it.' }
+    }
+  }
+  await sendLocalSetPasswordEmail(event, email, siteId, purpose)
+  return null
+}
+
+/** sendSetPasswordEmail() through this Worker's own Better Auth — the control plane's. */
+export async function sendLocalSetPasswordEmail(event: H3Event, email: string, siteId: string, purpose: 'invite' | 'reset' = 'invite'): Promise<void> {
   try {
     const auth = await getOrCreateBetterAuth(event)
     const params = new URLSearchParams({ site: siteId, purpose })

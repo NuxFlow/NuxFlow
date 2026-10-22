@@ -1,19 +1,15 @@
-import { eq, desc } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
-import {
-  users, userSiteRoles, sites, contentItems, contentRevisions, media, comments,
-  formSubmissions, subscriptions, apiKeys, auditLogs,
-} from '@nuxflow/db/schema'
+import { users } from '@nuxflow/db/schema'
+import { collectUserData, collectUserDataFromPools, mergeUserData } from '../../../utils/account-data'
 
 // Article 15 (right of access) / Article 20 (portability) self-service export. `users`
 // is a single global account shared across every site in this D1 instance (no siteId
-// column — see the multi-site note in CLAUDE.md), so every query here is scoped to
-// `userId` alone, across every site, matching hasSuperAdminRole()'s own "any site"
-// model elsewhere in this codebase. A deployment that has split into multiple
-// independent Worker+D1 "pools" (see the Database size monitoring note in CLAUDE.md)
-// only ever has one pool's data in front of a given request — a person with roles on
-// sites split across pools needs to run this once per pool, an inherent limit of that
-// architecture, not something a single request can see past.
+// column — see the multi-site note in CLAUDE.md), so every query is scoped to `userId`
+// alone, across every site, matching hasSuperAdminRole()'s own "any site" model
+// elsewhere in this codebase. On a hosting platform with member pools, each pool adds
+// what it holds about the person (utils/account-data.ts); a pool that can't be reached
+// is named in `incompleteFrom` rather than silently missing.
 //
 // Deliberately excludes: full content bodies (title/slug/dates only — the body is the
 // site's content, not personal data about the author), raw media bytes (already
@@ -22,11 +18,9 @@ import {
 // person volunteered), and API key secrets (only a one-way hash is ever stored, per
 // CLAUDE.md — there is no secret to export).
 //
-// Every query is capped so a single very active account can't produce an unbounded
-// response — see CLAUDE.md's D1 export section for how costly an unbounded per-row
-// read can get against real D1, even at a much smaller scale than a full DB dump.
-const EXPORT_ROW_LIMIT = 2000
-
+// Every query is capped (collectUserData) so a single very active account can't produce
+// an unbounded response — see CLAUDE.md's D1 export section for how costly an unbounded
+// per-row read can get against real D1, even at a much smaller scale than a full DB dump.
 export default defineEventHandler(async (event) => {
   // Account-wide export — accounts origin only under central sign-in (requireAccountSession).
   const session = await requireAccountSession(event)
@@ -47,97 +41,14 @@ export default defineEventHandler(async (event) => {
     throw notFound('Account not found')
   }
 
-  const [
-    siteRoles,
-    authoredContent,
-    authoredRevisions,
-    uploadedMedia,
-    authoredComments,
-    submissions,
-    subs,
-    keys,
-    logs,
-  ] = await Promise.all([
-    db.select({
-      siteId: userSiteRoles.siteId,
-      role: userSiteRoles.role,
-      createdAt: userSiteRoles.createdAt,
-      siteName: sites.name,
-      siteDomain: sites.domain,
-    }).from(userSiteRoles)
-      .innerJoin(sites, eq(sites.id, userSiteRoles.siteId))
-      .where(eq(userSiteRoles.userId, userId)),
-
-    db.select({
-      id: contentItems.id, siteId: contentItems.siteId, title: contentItems.title,
-      slug: contentItems.slug, status: contentItems.status, createdAt: contentItems.createdAt,
-    }).from(contentItems).where(eq(contentItems.authorId, userId)).limit(EXPORT_ROW_LIMIT),
-
-    db.select({
-      id: contentRevisions.id, itemId: contentRevisions.itemId, title: contentRevisions.title,
-      createdAt: contentRevisions.createdAt,
-    }).from(contentRevisions).where(eq(contentRevisions.authorId, userId)).limit(EXPORT_ROW_LIMIT),
-
-    db.select({
-      id: media.id, siteId: media.siteId, filename: media.originalName, url: media.url,
-      createdAt: media.createdAt,
-    }).from(media).where(eq(media.uploadedBy, userId)).limit(EXPORT_ROW_LIMIT),
-
-    db.select({
-      id: comments.id, siteId: comments.siteId, itemId: comments.itemId, body: comments.body,
-      status: comments.status, createdAt: comments.createdAt,
-    }).from(comments).where(eq(comments.authorId, userId)).limit(EXPORT_ROW_LIMIT),
-
-    db.select({
-      id: formSubmissions.id, siteId: formSubmissions.siteId, formId: formSubmissions.formId,
-      data: formSubmissions.data, createdAt: formSubmissions.createdAt,
-    }).from(formSubmissions).where(eq(formSubmissions.userId, userId)).limit(EXPORT_ROW_LIMIT),
-
-    db.select({
-      id: subscriptions.id, siteId: subscriptions.siteId, provider: subscriptions.provider,
-      status: subscriptions.status, tierId: subscriptions.tierId,
-      currentPeriodStart: subscriptions.currentPeriodStart, currentPeriodEnd: subscriptions.currentPeriodEnd,
-      cancelAtPeriodEnd: subscriptions.cancelAtPeriodEnd, createdAt: subscriptions.createdAt,
-    }).from(subscriptions).where(eq(subscriptions.userId, userId)),
-
-    db.select({
-      id: apiKeys.id, siteId: apiKeys.siteId, name: apiKeys.name, scopes: apiKeys.scopes,
-      lastUsedAt: apiKeys.lastUsedAt, createdAt: apiKeys.createdAt,
-    }).from(apiKeys).where(eq(apiKeys.userId, userId)),
-
-    db.select({
-      id: auditLogs.id, siteId: auditLogs.siteId, action: auditLogs.action,
-      resource: auditLogs.resource, resourceId: auditLogs.resourceId, createdAt: auditLogs.createdAt,
-    }).from(auditLogs).where(eq(auditLogs.userId, userId)).orderBy(desc(auditLogs.createdAt)).limit(EXPORT_ROW_LIMIT),
-  ])
+  const [own, fromPools] = await Promise.all([collectUserData(db, userId), collectUserDataFromPools(event, userId)])
 
   setResponseHeader(event, 'content-disposition', `attachment; filename="nuxflow-data-export.json"`)
-
-  // Every capped section (EXPORT_ROW_LIMIT above) gets a sibling `*Truncated` flag —
-  // without it, a prolific account's export looks complete when it's actually silently
-  // missing rows past the cap. Exactly-at-the-limit is treated as truncated (a false
-  // positive is possible if the real total happens to equal the cap exactly, but the
-  // alternative — an extra COUNT query per table just to know for certain — isn't worth
-  // it for what's meant to be a "did I get everything" signal, not an exact accounting).
-  const isTruncated = (rows: unknown[]) => rows.length >= EXPORT_ROW_LIMIT
 
   return {
     exportedAt: new Date().toISOString(),
     profile,
-    siteRoles,
-    authoredContent,
-    authoredContentTruncated: isTruncated(authoredContent),
-    authoredRevisions,
-    authoredRevisionsTruncated: isTruncated(authoredRevisions),
-    uploadedMedia,
-    uploadedMediaTruncated: isTruncated(uploadedMedia),
-    comments: authoredComments,
-    commentsTruncated: isTruncated(authoredComments),
-    formSubmissions: submissions,
-    formSubmissionsTruncated: isTruncated(submissions),
-    subscriptions: subs,
-    apiKeys: keys,
-    auditLog: logs,
-    auditLogTruncated: isTruncated(logs),
+    ...mergeUserData([own, ...fromPools.parts]),
+    ...(fromPools.unreachable.length && { incompleteFrom: fromPools.unreachable }),
   }
 })

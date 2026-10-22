@@ -8,6 +8,7 @@ import { errorMessage } from './errors'
 import { poolBindingName } from '../../shared/lib/pool-id'
 import type { PoolSignInUser } from './pool-sign-in'
 import type { AccountSiteListing, PoolAccountsSite } from './accounts-sites'
+import type { UserData } from './account-data'
 
 /**
  * The control plane's view of its member pools (control-plane.ts). A pool is connected by
@@ -34,6 +35,10 @@ export interface PoolAdminStub {
   siteForAccounts(input: { protocol: number; siteId: string; userId: string | null }): Promise<PoolAccountsSite | null>
   joinSite(input: { protocol: number; siteId: string; user: PoolSignInUser; platformOperator: boolean }): Promise<{ joined: boolean }>
   userSites(input: { protocol: number; userId: string }): Promise<AccountSiteListing[]>
+  // Account-wide actions (account-data.ts): deleting an account, downloading its data.
+  accountDeletionCheck(input: { protocol: number; userId: string }): Promise<{ soleAdminDomains: string[] }>
+  deleteAccount(input: { protocol: number; userId: string }): Promise<{ deleted: boolean }>
+  exportUserData(input: { protocol: number; userId: string }): Promise<UserData>
 }
 
 /** The admin stub of the pool with this id, if this Worker has a binding to it. */

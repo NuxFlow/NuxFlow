@@ -1,6 +1,9 @@
+import type { H3Event } from 'h3'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { sessions, siteDirectory, sites, users } from '@nuxflow/db/schema'
-import type { Db } from './db'
+import { useDb, type Db } from './db'
+import { emailLogTimestamp, lastEmailOutcome, type EmailDeliveryOutcome } from './email'
+import { findOrCreateLocalAccount, sendLocalSetPasswordEmail, type AccountProvisioningStatus } from './user-provisioning'
 import { consumeSiteAuthCode } from './site-auth'
 import { isSuperAdminOnSite } from './permissions'
 import { assertCompatibleProtocol } from './pool-admin'
@@ -58,11 +61,7 @@ export async function redeemSignInCode(db: Db, input: {
   // Used up first, whatever happens next: a code is good for one attempt only.
   const grant = await consumeSiteAuthCode(db, input.code, input.siteId, input.redirectUri)
   if (!grant) return null
-  // Only for a site the calling pool really serves, per the router's directory.
-  const [listed] = await db.select({ hostname: siteDirectory.hostname }).from(siteDirectory)
-    .where(and(eq(siteDirectory.poolId, input.poolId), eq(siteDirectory.poolSiteId, input.siteId)))
-    .limit(1)
-  if (!listed) return null
+  if (!(await poolServesSite(db, input.poolId, input.siteId))) return null
   const parent = await liveSession(db, grant.parentSessionId, grant.userId)
   if (!parent) return null
   const [user] = await db.select({ id: users.id, name: users.name, email: users.email, emailVerified: users.emailVerified, image: users.image })
@@ -97,6 +96,46 @@ export async function sessionStatus(db: Db, input: { protocol: number; parentSes
     expiresAt = input.extendTo
   }
   return { alive: true, expiresAt, platformSuperAdmin: await isPlatformSuperAdmin(db, input.userId) }
+}
+
+// ── Inviting people to a pool's site (user-provisioning.ts) ───────────────────────────
+
+/** Only for a site the calling pool really serves, per the router's directory. */
+async function poolServesSite(db: Db, poolId: string, siteId: string): Promise<boolean> {
+  const [listed] = await db.select({ hostname: siteDirectory.hostname }).from(siteDirectory)
+    .where(and(eq(siteDirectory.poolId, poolId), eq(siteDirectory.poolSiteId, siteId)))
+    .limit(1)
+  return !!listed
+}
+
+/** findOrCreateUserAccount() for an invite on a pool's site: the account is made here. */
+export async function provisionAccount(event: H3Event, input: { protocol: number; poolId: string; siteId: string; name: string; email: string }): Promise<{ user: PoolSignInUser; status: AccountProvisioningStatus }> {
+  assertCompatibleProtocol(input.protocol)
+  const db = useDb(event)
+  if (!(await poolServesSite(db, input.poolId, input.siteId))) throw new Error('That site isn\'t in the calling pool.')
+  const { userId, status } = await findOrCreateLocalAccount(event, { name: input.name, email: input.email })
+  const [user] = await db.select({ id: users.id, name: users.name, email: users.email, emailVerified: users.emailVerified, image: users.image })
+    .from(users).where(eq(users.id, userId)).limit(1)
+  if (!user) throw new Error('The account wasn\'t found after creating it.')
+  return { user: { ...user, image: user.image ?? null }, status }
+}
+
+/**
+ * The set-password email for an invite on a pool's site. Auth emails go out through the
+ * primary site's email settings (the pool's site isn't in this database — see
+ * resolveEmailSite in better-auth.ts), so that's where the outcome is logged.
+ */
+export async function sendSetPasswordEmailForPool(event: H3Event, input: { protocol: number; poolId: string; siteId: string; email: string; purpose: 'invite' | 'reset' }): Promise<{ emailDelivery: EmailDeliveryOutcome }> {
+  assertCompatibleProtocol(input.protocol)
+  const db = useDb(event)
+  if (!(await poolServesSite(db, input.poolId, input.siteId))) throw new Error('That site isn\'t in the calling pool.')
+  const since = emailLogTimestamp()
+  await sendLocalSetPasswordEmail(event, input.email, input.siteId, input.purpose === 'reset' ? 'reset' : 'invite')
+  const [primary] = await db.select({ id: sites.id }).from(sites).where(eq(sites.isPrimary, true)).limit(1)
+  const emailDelivery = primary
+    ? await lastEmailOutcome(event, primary.id, input.email, since)
+    : { sent: false as const, reason: 'No primary site to send from.' }
+  return { emailDelivery }
 }
 
 /** Ends a sign-in everywhere (every site session on every site hangs off it). */

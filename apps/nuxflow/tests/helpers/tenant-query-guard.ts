@@ -80,6 +80,11 @@ export const ALLOWLIST: AllowlistEntry[] = [
     reason: "Data export (GDPR): the signed-in person's own data, from every site they use.",
   },
   {
+    file: 'server/utils/account-data.ts',
+    tables: ['api_keys', 'audit_logs', 'comments', 'content_items', 'form_submissions', 'media', 'subscriptions', 'user_site_roles'],
+    reason: "Account deletion/export in a member pool (account-data.ts, reached from the control plane): the person's own data on every site in the pool.",
+  },
+  {
     file: 'server/utils/security-alerts.ts',
     tables: ['notifications'],
     reason: "New-device check: a person's earlier sign-in alerts are their device history, across every site.",
@@ -101,8 +106,8 @@ export const ALLOWLIST: AllowlistEntry[] = [
   },
   {
     file: 'server/utils/pool-session.ts',
-    tables: ['user_site_roles'],
-    reason: "Member pool: a person who lost the platform's super-admin role loses it on every site in the pool (pool-session.ts syncPlatformSuperAdmin).",
+    tables: ['user_site_roles', 'site_invitations'],
+    reason: "Member pool sign-in: a person who lost the platform's super-admin role loses it on every site in the pool, and once their address is verified every pending invitation they hold in the pool becomes a role (as the control plane does at password reset).",
   },
   {
     file: 'server/utils/inbound-email.ts',

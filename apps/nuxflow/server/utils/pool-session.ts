@@ -7,7 +7,10 @@ import { getPoolId } from './control-plane'
 import { POOL_PROTOCOL } from './pool-admin'
 import { clearCachedRole } from './role-cache'
 import { randomToken } from '../../shared/lib/base64'
+import { activatePendingInvitations } from './invitations'
 import type { PoolSignInGrant, PoolSignInUser, SessionStatus } from './pool-sign-in'
+import type { AccountProvisioningStatus } from './user-provisioning'
+import type { EmailDeliveryOutcome } from './email'
 
 /**
  * A member pool's side of signing in (the control plane's is pool-sign-in.ts). Accounts and
@@ -29,6 +32,15 @@ interface ControlPlaneStub {
   redeemSignInCode(input: { protocol: number; poolId: string; code: string; siteId: string; redirectUri: string }): Promise<PoolSignInGrant | null>
   sessionStatus(input: { protocol: number; parentSessionId: string; userId: string; extendTo?: string }): Promise<SessionStatus>
   endSession(input: { protocol: number; parentSessionId: string; userId: string }): Promise<{ ended: boolean }>
+  // Inviting people to a pool's site (user-provisioning.ts): accounts are made, and
+  // set-password emails sent, by the control plane.
+  provisionAccount(input: { protocol: number; poolId: string; siteId: string; name: string; email: string }): Promise<{ user: PoolSignInUser; status: AccountProvisioningStatus }>
+  sendSetPasswordEmail(input: { protocol: number; poolId: string; siteId: string; email: string; purpose: 'invite' | 'reset' }): Promise<{ emailDelivery: EmailDeliveryOutcome }>
+}
+
+/** A call to the control plane over this pool's CONTROL_PLANE binding, with a timeout. */
+export function callControlPlane<T>(event: H3Event, call: (cp: ControlPlaneStub) => Promise<T>): Promise<T> {
+  return withTimeout(call(controlPlane(event)))
 }
 
 function controlPlane(event: H3Event): ControlPlaneStub {
@@ -67,6 +79,12 @@ export async function signInThroughControlPlane(event: H3Event, input: { code: s
     expiresAt: grant.parentExpiresAt,
   }).onConflictDoUpdate({ target: sessions.id, set: { expiresAt: grant.parentExpiresAt, updatedAt: sql`(datetime('now'))` } })
   await syncPlatformSuperAdmin(db, grant.user.id, input.siteId, grant.platformSuperAdmin)
+  // An invitation held for an account nobody had proven they own (invitations.ts) becomes
+  // a real role once the control plane says the address is verified — on the control
+  // plane that happens as the password reset completes; here, at the next sign-in.
+  if (grant.user.emailVerified) {
+    for (const siteId of await activatePendingInvitations(db, grant.user.id)) clearCachedRole(grant.user.id, siteId)
+  }
   remember(grant.parentSessionId, true)
   return { userId: grant.user.id, parentSessionId: grant.parentSessionId }
 }
