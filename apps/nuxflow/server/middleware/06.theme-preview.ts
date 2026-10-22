@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   const themeId = query.__theme_id as string | undefined
 
   if (themeId) {
-    const siteId = (event.context.siteId ?? null)
+    const siteId = event.context.siteId
     if (siteId) {
       const session = await getAuthSession(event)
       if (session) {

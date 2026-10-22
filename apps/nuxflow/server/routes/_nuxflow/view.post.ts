@@ -19,7 +19,7 @@ const recentViews = createIsolateCache<number>(60_000)
  * for it, and a refused view isn't worth telling anyone about.
  */
 export default defineEventHandler(async (event) => {
-  const siteId = (event.context.siteId ?? undefined)
+  const siteId = event.context.siteId
   if (!siteId || event.context.isAccountsHost) return noContent(event)
 
   // Only the site's own pages. A beacon from another site arrives as `cross-site`, which

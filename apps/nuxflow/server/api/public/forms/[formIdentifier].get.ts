@@ -29,7 +29,7 @@ async function loadForm(event: H3Event, siteId: string, formIdentifier: string) 
 // form on a page (Canvas "dynamic-form/form" block) — never the notifications
 // config or any other internal/admin-only field.
 export default defineEventHandler(async (event) => {
-  const siteId = (event.context.siteId ?? null)
+  const siteId = event.context.siteId
   if (!siteId) notFound()
 
   const formIdentifier = getRouterParam(event, 'formIdentifier')!

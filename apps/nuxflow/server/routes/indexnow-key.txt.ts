@@ -8,7 +8,7 @@ import { getSeoSettings } from '../utils/seo'
  * control of the host is exactly what publishing it here does.
  */
 export default defineEventHandler(async (event) => {
-  const siteId = (event.context.siteId ?? null)
+  const siteId = event.context.siteId
   if (!siteId) throw createError({ statusCode: 404, statusMessage: 'Not found' })
 
   const seo = await getSeoSettings(useDb(event), siteId)

@@ -66,8 +66,8 @@ async function save() {
     })
     toast.add({ title: 'AI Settings saved successfully', color: 'success' })
     await refresh()
-  } catch {
-    toast.add({ title: 'Failed to save AI Settings', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Failed to save AI Settings', description: getErrorMessage(e, ''), color: 'error' })
   } finally {
     saving.value = false
   }

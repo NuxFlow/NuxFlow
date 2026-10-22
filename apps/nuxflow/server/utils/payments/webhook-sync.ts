@@ -66,7 +66,7 @@ export interface SubscriptionCancellation {
  * a different Host. Call this before every DB write these handlers make.
  */
 export function assertWebhookSiteMatch(event: H3Event, payloadSiteId: string | undefined | null): void {
-  const contextSiteId = (event.context.siteId ?? undefined)
+  const contextSiteId = event.context.siteId ?? undefined
   if (!payloadSiteId || !contextSiteId || payloadSiteId !== contextSiteId) {
     throw new WebhookForOtherSite(`Webhook event belongs to site ${payloadSiteId ?? '(none)'}, not ${contextSiteId ?? '(none)'}`)
   }

@@ -135,7 +135,7 @@ export async function purgeEdgeCache(event: H3Event, paths: string[]): Promise<v
   if (!cf?.request) return
 
   const replaced = await currentCacheVersion(event)
-  const siteId = (event.context.siteId ?? undefined)
+  const siteId = event.context.siteId
   if (siteId) await bumpCacheVersion(event, siteId)
   await deleteLocally(event, paths, replaced)
 }

@@ -67,7 +67,7 @@ export const sendPlanUsageAlerts = async (now = new Date()) => {
     return `${d.siteId}|${d.limit}|${d.threshold}|${d.month}`
   }))
 
-  const event = createSystemEvent({ env: (globalThis as { __env__?: unknown }).__env__, siteId: primary.id, host: primary.domain })
+  const event = createSystemEvent({ env: globalThis.__env__, siteId: primary.id, host: primary.domain })
   let notified = capNotified
   for (const { site, plan } of limited) {
     for (const limit of ALERT_LIMITS) {
@@ -126,7 +126,7 @@ export const sendPlatformAiCapAlert = async (now = new Date()): Promise<number> 
   }))
   if (sent.has(`${threshold}|${day}`) || (threshold === 80 && sent.has(`100|${day}`))) return 0
 
-  const event = createSystemEvent({ env: (globalThis as { __env__?: unknown }).__env__, siteId: primary.id, host: primary.domain })
+  const event = createSystemEvent({ env: globalThis.__env__, siteId: primary.id, host: primary.domain })
   await notifySiteRole(event, {
     siteId: primary.id,
     minRole: 'super_admin',

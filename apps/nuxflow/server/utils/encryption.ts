@@ -64,15 +64,13 @@ export async function decryptText(ciphertextWithIv: string, secret: string): Pro
   const iv = base64ToBytes(ivB64)
   const ciphertext = base64ToBytes(cipherB64)
 
-  /* eslint-disable @typescript-eslint/no-explicit-any */
   // AES-GCM's authentication tag makes decrypting under the wrong key fail loudly rather
   // than silently produce garbage.
   try {
     const key = await getEncryptionKey(secret)
-    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv as any }, key, ciphertext as any)
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext)
     return DECODER.decode(decrypted)
   } catch {
     throw new Error('Failed to decrypt data: key mismatch or corrupted ciphertext')
   }
-  /* eslint-enable @typescript-eslint/no-explicit-any */
 }

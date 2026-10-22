@@ -24,7 +24,7 @@ function signInFailed(event: H3Event, reason: string, returnTo: string): string 
 // that, anyone could send a victim a link that silently signs them in to the attacker's
 // account on this site. The code is exchanged server-side and deleted as it's read.
 export default defineEventHandler(async (event) => {
-  const siteId = (event.context.siteId ?? null)
+  const siteId = event.context.siteId
   if (!siteId) throw createError({ statusCode: 404, statusMessage: 'Unknown site' })
 
   const query = getQuery(event)

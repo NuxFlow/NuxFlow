@@ -1,4 +1,6 @@
+import { z } from 'zod'
 import { useDb } from '../../../utils/db'
+import { parseQuery } from '../../../utils/validate'
 import { requireAuth } from '../../../utils/permissions'
 import { parsePagination } from '../../../utils/pagination'
 import { paginate, countRows } from '@nuxflow/db/queries'
@@ -6,16 +8,24 @@ import { media } from '@nuxflow/db/schema'
 import { and, asc, eq, isNull, desc } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
 
+const querySchema = z.object({
+  // 'null' or '' lists the files outside any folder; absent lists everything.
+  folderId: z.string().max(100).optional(),
+  sort: z.enum(['name', 'newest']).optional(),
+  page: z.string().optional(),
+  limit: z.string().optional(),
+})
+
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
   const db = useDb(event)
   const siteId = requireSiteId(event)
-  const query = getQuery(event)
+  const query = parseQuery(event, querySchema)
 
   const folderFilter = query.folderId !== undefined
     ? (query.folderId === 'null' || query.folderId === '')
       ? isNull(media.folderId)
-      : eq(media.folderId, query.folderId as string)
+      : eq(media.folderId, query.folderId)
     : undefined
 
   const where = folderFilter

@@ -107,8 +107,8 @@ async function deletePasskey(id: string) {
 
     toast.add({ title: 'Passkey deleted successfully', color: 'success' })
     await fetchPasskeys()
-  } catch {
-    toast.add({ title: 'Failed to delete passkey', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Failed to delete passkey', description: getErrorMessage(e, ''), color: 'error' })
   }
 }
 

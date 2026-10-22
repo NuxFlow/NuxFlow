@@ -20,6 +20,15 @@ export interface NuxFlowCloudflareEnv {
   [key: string]: unknown
 }
 
+declare global {
+  /**
+   * The Worker's env bindings, which Nitro puts here before running a scheduled task or
+   * another non-request handler (no H3 event to carry them). Prefer the event's own
+   * `context.cloudflare.env` whenever there is a request.
+   */
+  var __env__: NuxFlowCloudflareEnv | undefined
+}
+
 declare module 'h3' {
   interface H3EventContext {
     cloudflare?: {

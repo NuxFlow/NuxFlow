@@ -97,8 +97,8 @@ async function deleteRedirect(id: string) {
     if (editing.value === id) resetForm()
     await refreshRedirects()
     toast.add({ title: 'Redirect deleted', color: 'success' })
-  } catch {
-    toast.add({ title: 'Failed to delete redirect', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Failed to delete redirect', description: getErrorMessage(e, ''), color: 'error' })
   } finally {
     deletingId.value = null
   }

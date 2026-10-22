@@ -134,7 +134,7 @@ export const pruneOldData = async () => {
     limit: MAX_OVERFLOW_ITEMS_PER_RUN,
   })
   if (spam.length) {
-    const bucket = (globalThis as { __env__?: { MEDIA_BUCKET?: R2Bucket } }).__env__?.MEDIA_BUCKET
+    const bucket = globalThis.__env__?.MEDIA_BUCKET
     const keys = spam.flatMap(m => [m.rawKey, ...(m.attachments ?? []).map(a => a.key)]).filter((k): k is string => !!k)
     if (bucket && keys.length) {
       // R2's bulk delete takes up to 1000 keys per call.

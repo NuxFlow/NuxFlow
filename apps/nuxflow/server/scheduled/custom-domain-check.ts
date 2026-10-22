@@ -12,6 +12,6 @@ import { checkPendingCustomDomains } from '../utils/hosting-domains'
 export const checkCustomDomains = async () => {
   const primary = await useDb().query.sites.findFirst({ where: eq(sites.isPrimary, true), columns: { id: true, domain: true } })
   if (!primary) return { checked: 0, live: 0 }
-  const event = createSystemEvent({ env: (globalThis as { __env__?: unknown }).__env__, siteId: primary.id, host: primary.domain })
+  const event = createSystemEvent({ env: globalThis.__env__, siteId: primary.id, host: primary.domain })
   return checkPendingCustomDomains(event)
 }

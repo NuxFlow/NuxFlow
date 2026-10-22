@@ -237,7 +237,7 @@ export async function requireSuperAdmin(event: H3Event): Promise<{ userId: strin
   const session = await requireSession(event)
   const db = useDb(event)
 
-  if (!(await isSuperAdminOnSite(db, session.user.id, (event.context.siteId ?? undefined)))) {
+  if (!(await isSuperAdminOnSite(db, session.user.id, event.context.siteId ?? undefined))) {
     throw forbidden('Super admin required')
   }
   return { userId: session.user.id }

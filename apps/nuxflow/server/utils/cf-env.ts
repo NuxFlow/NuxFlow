@@ -78,7 +78,7 @@ export function getEmailBinding(event: H3Event): SendEmail | null {
   // Falls back to the Worker's own env (populated by Nitro), like useDb() does for DB: an
   // event that outlived its request — or a synthetic one — may no longer carry bindings.
   const fromEvent = event?.context?.cloudflare?.env?.EMAIL as SendEmail | undefined
-  return fromEvent ?? ((globalThis as { __env__?: { EMAIL?: SendEmail } }).__env__?.EMAIL ?? null)
+  return fromEvent ?? (globalThis.__env__?.EMAIL ?? null)
 }
 
 /**

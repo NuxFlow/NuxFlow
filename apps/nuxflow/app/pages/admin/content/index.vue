@@ -144,8 +144,8 @@ async function doDelete() {
     deleteId.value = null
     await refresh()
     toast.add({ title: 'Content deleted', color: 'success' })
-  } catch {
-    toast.add({ title: 'Failed to delete', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Failed to delete', description: getErrorMessage(e, ''), color: 'error' })
   } finally {
     deleting.value = false
   }

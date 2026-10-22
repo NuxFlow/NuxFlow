@@ -51,8 +51,8 @@ async function createMenu() {
     newName.value = ''
     newLocation.value = null
     await navigateTo(`/admin/menus/${result.id}`)
-  } catch {
-    toast.add({ title: 'Failed to create menu', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Failed to create menu', description: getErrorMessage(e, ''), color: 'error' })
   } finally {
     creating.value = false
   }
@@ -81,8 +81,8 @@ async function doDelete() {
     deleteId.value = null
     await refresh()
     toast.add({ title: 'Menu deleted', color: 'success' })
-  } catch {
-    toast.add({ title: 'Failed to delete', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Failed to delete', description: getErrorMessage(e, ''), color: 'error' })
   } finally {
     deleting.value = false
   }

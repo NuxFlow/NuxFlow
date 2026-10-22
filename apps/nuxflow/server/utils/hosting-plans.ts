@@ -197,7 +197,7 @@ export class PlanLimitError extends Error {
  * Throws a 403 (`data.code: 'plan_limit'`) when adding `amount` would take the site over a
  * hard limit. `amount` is bytes for storage, otherwise a count.
  */
-export async function assertWithinPlan(event: H3Event, key: PlanLimitKey, amount = 1, siteId = (event.context.siteId ?? undefined)): Promise<void> {
+export async function assertWithinPlan(event: H3Event, key: PlanLimitKey, amount = 1, siteId = event.context.siteId ?? undefined): Promise<void> {
   if (!siteId) return
   if (planLimit(key).kind !== 'hard') return
   const check = await checkPlanLimit(useDb(event), siteId, key, amount)

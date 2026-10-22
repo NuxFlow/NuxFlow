@@ -263,8 +263,7 @@ async function seedDemo(db: Db) {
 // Nitro sets globalThis.__env__ = env before running scheduled tasks, so we check that.
 function isDemoInstance(): boolean {
   return useRuntimeConfig().isDemo === true
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    || (globalThis as any).__env__?.NUXT_IS_DEMO === 'true'
+    || globalThis.__env__?.NUXT_IS_DEMO === 'true'
 }
 
 // Runs on every * * * * * tick — seeds the DB on first boot only, then does nothing.

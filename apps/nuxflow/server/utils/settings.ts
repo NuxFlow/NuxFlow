@@ -148,7 +148,7 @@ export async function isEnvFallbackWithheld(db: Db, key: string, isPrimary: bool
  */
 export async function isOllamaAvailable(event: H3Event): Promise<boolean> {
   if (!(await isHostingPlatform(useDb(event)))) return true
-  return isPrimarySite(event, (event.context.siteId ?? undefined))
+  return isPrimarySite(event, event.context.siteId ?? undefined)
 }
 
 export const SERVER_MANAGED_SETTING_KEYS: ReadonlySet<string> = new Set([
@@ -171,7 +171,7 @@ export const SERVER_MANAGED_SETTING_KEYS: ReadonlySet<string> = new Set([
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function resolveSetting(event: H3Event, key: string, envKey?: string): Promise<any> {
-  const siteId = (event.context.siteId ?? undefined)
+  const siteId = event.context.siteId
   const rc = useRuntimeConfig()
 
   if (siteId) {

@@ -352,7 +352,7 @@ export async function loadImageBytesForAi(event: H3Event, url: string, fallbackM
   }
 
   if (url.startsWith(WORKER_MEDIA_PREFIX)) {
-    const siteId = (event.context.siteId ?? undefined)
+    const siteId = event.context.siteId
     const key = siteId ? workerMediaKey(url, siteId) : null
     if (!key) throw new Error('Image is not stored under this site')
     const { r2 } = getCfBindings(event)

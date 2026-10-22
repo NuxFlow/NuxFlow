@@ -338,7 +338,7 @@ export async function loadEmailConfig(event: H3Event): Promise<EmailConfig> {
   if (host === '127.0.0.1' || host === '::1') {
     host = 'localhost'
   }
-  const siteId = (event.context.siteId ?? undefined)
+  const siteId = event.context.siteId ?? undefined
   // Independent settings lookups — parallelized so a cache-miss (first call per isolate
   // per 30s window) costs one round trip's worth of latency instead of several serialized
   // ones. Fires on every email send (password resets, invites, form notifications), so

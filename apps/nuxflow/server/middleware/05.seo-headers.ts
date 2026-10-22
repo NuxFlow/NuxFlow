@@ -24,7 +24,7 @@ const SKIP_PREFIXES = ['/_nuxt/', '/_nuxflow/', '/api/', '/__nuxt']
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1'])
 
 export default defineEventHandler(async (event) => {
-  const siteId = (event.context.siteId ?? null)
+  const siteId = event.context.siteId
   if (!siteId) return
   if (event.method !== 'GET' && event.method !== 'HEAD') return
 

@@ -93,7 +93,7 @@ export function getCacheVersion(event: H3Event, siteId: string): Promise<string>
 
 /** The current version for the request's own site (the fallback when no site resolved). */
 export function currentCacheVersion(event: H3Event): Promise<string> {
-  const siteId = (event.context.siteId ?? undefined)
+  const siteId = event.context.siteId
   return siteId ? getCacheVersion(event, siteId) : Promise.resolve(FALLBACK_CACHE_VERSION)
 }
 

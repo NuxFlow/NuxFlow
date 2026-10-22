@@ -19,7 +19,7 @@ export class NuxflowPluginHost extends WorkerEntrypoint<Record<string, unknown>,
     // Same as Nitro's own handlers: utilities that read the env without an event (e.g.
     // useRuntimeConfig's env overrides) find it here even in an isolate that hasn't served
     // a request yet.
-    ;(globalThis as { __env__?: unknown }).__env__ = this.env
+    globalThis.__env__ = this.env as NuxFlowCloudflareEnv
     const props = this.ctx.props
     const ctx: PluginCallContext = {
       event: createSystemEvent({ env: this.env, ctx: this.ctx, siteId: props.siteId, host: props.host }),

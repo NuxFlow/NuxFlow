@@ -17,7 +17,7 @@ export default defineNitroPlugin((nitro) => {
   // Inlining avoids an extra HTTP round-trip and means the correct styles are present
   // on first paint with no flash of the default theme.
   nitro.hooks.hook('render:html', async (html, { event }) => {
-    const siteId = (event.context.siteId ?? null)
+    const siteId = event.context.siteId
     if (!siteId) return
 
     // Theme CSS is for the public site only — never inject into the admin UI.

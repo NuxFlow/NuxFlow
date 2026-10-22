@@ -17,7 +17,7 @@ async function loadAndVerifyBundle(event: H3Event, pluginId: string): Promise<st
   const db = useDb(event)
   // The site 02.multi-site.ts resolved — same as every other /_nuxflow route, so the
   // single-site/preview fallbacks and suspension apply here too.
-  const siteId = (event.context.siteId ?? null)
+  const siteId = event.context.siteId
   if (!siteId) throw notFound('Site not found')
   const site = { id: siteId }
 
