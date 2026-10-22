@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasSecret, parsePoolFlags, poolConfigFile, poolNames,
+  addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasSecret, parsePoolFlags, poolConfigFile, poolNames, serviceBindingBlock,
 } from '../../scripts/pools/lib'
 
 const base = {
@@ -75,6 +75,15 @@ describe('buildPoolConfig', () => {
     const file = poolConfigFile(pool, { poolId: 'clientx', from: 'wrangler.cloud.toml' })
     expect(file.startsWith('// Member pool "clientx"')).toBe(true)
     expect(JSON.parse(file.split('\n').filter(l => !l.startsWith('//')).join('\n')).name).toBe('nuxflow-pool-clientx')
+  })
+})
+
+describe('serviceBindingBlock', () => {
+  it('connects the control plane to the pool\'s private admin entrypoint', () => {
+    expect(serviceBindingBlock('eu-1')).toBe(`[[services]]
+binding = "POOL_EU_1"
+service = "nuxflow-pool-eu-1"
+entrypoint = "NuxflowPoolAdmin"`)
   })
 })
 

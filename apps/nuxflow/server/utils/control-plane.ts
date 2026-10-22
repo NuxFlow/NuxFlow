@@ -52,24 +52,25 @@ export function requireControlPlane(_event: H3Event): void {
  * keeps the copy its control plane sends in `platform_settings`. Anything platform-wide
  * that pool sites must read goes through getPlatformSetting() and is listed here.
  */
-export const POOL_PLATFORM_SETTINGS = {
+export type PlatformSettingKey = 'platform.ai_daily_credit_cap' | 'analytics.cf_api_token' | 'cloudflare.account_id'
+
+export const POOL_PLATFORM_SETTINGS: Record<PlatformSettingKey, { sensitive: boolean; envKey?: string }> = {
   'platform.ai_daily_credit_cap': { sensitive: false },
   'analytics.cf_api_token': { sensitive: true },
-  'cloudflare.account_id': { sensitive: false },
-} as const
-
-export type PlatformSettingKey = keyof typeof POOL_PLATFORM_SETTINGS
+  // The deployment's NUXT_CLOUDFLARE_ACCOUNT_ID when none is saved, as resolveSetting() does.
+  'cloudflare.account_id': { sensitive: false, envKey: 'cloudflareAccountId' },
+}
 
 function isPlatformSettingKey(key: string): key is PlatformSettingKey {
   return Object.hasOwn(POOL_PLATFORM_SETTINGS, key)
 }
 
 /**
- * A platform setting as a string, or null when unset. `envKey` names a runtimeConfig
- * fallback, as resolveSetting() takes — the deployment's own variable, used only when
- * nothing is stored.
+ * A platform setting as a string, or null when unset (falling back to the deployment's
+ * own variable for a key with an `envKey`).
  */
-export async function getPlatformSetting(db: Db, key: PlatformSettingKey, envKey?: string): Promise<string | null> {
+export async function getPlatformSetting(db: Db, key: PlatformSettingKey): Promise<string | null> {
+  const { sensitive, envKey } = POOL_PLATFORM_SETTINGS[key]
   let raw: string | null
   if (isMemberPool()) {
     const [row] = await db.select({ value: platformSettings.value }).from(platformSettings)
@@ -87,7 +88,7 @@ export async function getPlatformSetting(db: Db, key: PlatformSettingKey, envKey
   }
 
   if (raw === null || raw === '') return envKey ? envFallback(envKey) : null
-  if (!POOL_PLATFORM_SETTINGS[key].sensitive) return raw
+  if (!sensitive) return raw
   try {
     return await decryptText(raw, String(useRuntimeConfig().betterAuthSecret))
   } catch {
