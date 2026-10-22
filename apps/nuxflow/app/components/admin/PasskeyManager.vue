@@ -183,6 +183,7 @@ onMounted(() => {
               icon="i-lucide-trash-2" 
               size="sm"
               class="hover:bg-red-50 dark:hover:bg-red-950/30"
+              aria-label="Delete passkey"
               @click="deletePasskey(pk.id)"
             />
           </div>
