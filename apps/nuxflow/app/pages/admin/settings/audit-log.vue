@@ -66,7 +66,7 @@ const columns = [
           <code v-if="row.original.resourceId" class="text-xs text-gray-400">{{ row.original.resourceId.slice(0, 12) }}…</code>
         </template>
         <template #createdAt-cell="{ row }">
-          <span class="text-xs text-gray-400">{{ new Date(row.original.createdAt).toLocaleString() }}</span>
+          <span class="text-xs text-gray-400">{{ formatLocalDateTime(row.original.createdAt) }}</span>
         </template>
       </UTable>
       <div v-if="hasMore" class="flex justify-center pt-3">

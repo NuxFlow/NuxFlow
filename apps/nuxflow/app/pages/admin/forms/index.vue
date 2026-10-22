@@ -51,7 +51,7 @@ const columns = [
           </NuxtLink>
         </template>
         <template #updatedAt-cell="{ row }">
-          <span class="text-sm text-gray-400">{{ new Date(row.original.updatedAt).toLocaleDateString() }}</span>
+          <span class="text-sm text-gray-400">{{ formatLocalDate(row.original.updatedAt) }}</span>
         </template>
         <template #actions-cell="{ row }">
           <div class="flex gap-1 justify-end">

@@ -262,14 +262,7 @@ onBeforeUnmount(() => {
   if (listenAudioUrl.value) URL.revokeObjectURL(listenAudioUrl.value)
 })
 
-const formattedDate = computed(() => {
-  if (!page.value?.publishedAt) return null
-  // timeZone: 'UTC' pins this to the same calendar date on both the Worker (which runs
-  // in UTC) and the visitor's browser (which may be in any timezone) — without it, a
-  // publish date near a local midnight boundary can format to a different day on each
-  // side, producing a real SSR hydration mismatch on every affected page load.
-  return new Date(page.value.publishedAt).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
-})
+const formattedDate = computed(() => formatDate(page.value?.publishedAt, '') || null)
 </script>
 
 <template>

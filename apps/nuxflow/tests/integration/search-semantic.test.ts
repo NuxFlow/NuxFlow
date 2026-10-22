@@ -76,14 +76,14 @@ describe('GET /api/v1/search/semantic', () => {
     expect(mockSemanticSearch).not.toHaveBeenCalled()
   })
 
-  it('resolves slugs for matched content items', async () => {
+  it('resolves public paths for matched content items', async () => {
     mockSemanticSearch.mockResolvedValueOnce([{ contentItemId: itemA, score: 0.9, title: 'Growing Tomatoes' }])
     const result = await (semanticSearchHandler as HandlerFn)(publicEvent('tomatoes')) as {
       available: boolean
-      results: { id: string; slug: string | null; title: string }[]
+      results: { id: string; path: string | null; title: string }[]
     }
     expect(result.available).toBe(true)
-    expect(result.results).toEqual([{ id: itemA, title: 'Growing Tomatoes', score: 0.9, slug: 'growing-tomatoes' }])
+    expect(result.results).toEqual([{ id: itemA, title: 'Growing Tomatoes', score: 0.9, path: '/growing-tomatoes' }])
   })
 
   it('drops a match whose content item no longer exists (deleted since embedding)', async () => {
@@ -103,7 +103,7 @@ describe('GET /api/v1/search/semantic', () => {
     ])
     const result = await (semanticSearchHandler as HandlerFn)(publicEvent('secret')) as { results: { id: string; title: string }[] }
     // Title comes from the row, not the vector metadata.
-    expect(result.results).toEqual([{ id: itemB, title: 'Companion Planting', score: 0.7, slug: 'companion-planting' }])
+    expect(result.results).toEqual([{ id: itemB, title: 'Companion Planting', score: 0.7, path: '/companion-planting' }])
   })
 })
 

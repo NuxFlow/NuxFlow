@@ -3,61 +3,10 @@ import { useReplicaDb } from '../utils/db'
 import { getFeedSite, getPublishedPostsForFeed } from '@nuxflow/db/queries'
 import { withEdgeCache } from '../utils/edge-cache'
 import { escXml, cdataSafe } from '../utils/xml'
+import { withPublicPaths } from '../utils/seo'
+import { renderTipTap } from '../../shared/lib/render-tiptap'
 import { absoluteUrl, absolutizeHtmlUrls } from '../utils/media-url'
 import { resolvePublicTermFilter, termArchivePath, termFeedPath } from '../utils/taxonomy'
-
-function escHtml(s: string) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
-// Blocks javascript:/vbscript:/data: URIs in href/src — escHtml() only escapes HTML
-// metacharacters, it doesn't stop a scheme that executes on click (link) or load (image).
-// Mirrors app/utils/render-tiptap.ts's escUrl(); duplicated here since that file is
-// scoped to the Vue app bundle and can't be imported from Nitro server routes.
-function escUrl(s: string) {
-  const trimmed = s.trim()
-  if (/^(?:javascript|vbscript|data):/i.test(trimmed)) return ''
-  return escHtml(s)
-}
-
-function tiptapToHtml(node: unknown): string {
-  if (!node || typeof node !== 'object') return ''
-  const n = node as Record<string, unknown>
-  const children = (n.content as unknown[] | undefined)?.map(tiptapToHtml).join('') ?? ''
-  const rawText = n.text as string | undefined
-
-  let result = rawText ? escHtml(rawText) : children
-
-  if (rawText && Array.isArray(n.marks)) {
-    for (const mark of n.marks as Record<string, unknown>[]) {
-      const attrs = (mark.attrs as Record<string, string>) ?? {}
-      switch (mark.type) {
-        case 'bold': result = `<strong>${result}</strong>`; break
-        case 'italic': result = `<em>${result}</em>`; break
-        case 'code': result = `<code>${result}</code>`; break
-        case 'underline': result = `<u>${result}</u>`; break
-        case 'strike': result = `<s>${result}</s>`; break
-        case 'link': result = `<a href="${escUrl(attrs.href ?? '')}">${result}</a>`; break
-      }
-    }
-  }
-
-  const attrs = (n.attrs as Record<string, unknown>) ?? {}
-  switch (n.type) {
-    case 'doc': return result
-    case 'paragraph': return `<p>${result}</p>`
-    case 'heading': return `<h${attrs.level}>${result}</h${attrs.level}>`
-    case 'bulletList': return `<ul>${result}</ul>`
-    case 'orderedList': return `<ol>${result}</ol>`
-    case 'listItem': return `<li>${result}</li>`
-    case 'blockquote': return `<blockquote>${result}</blockquote>`
-    case 'codeBlock': return `<pre><code>${result}</code></pre>`
-    case 'hardBreak': return '<br>'
-    case 'horizontalRule': return '<hr>'
-    case 'image': return `<img src="${escUrl(String(attrs.src ?? ''))}" alt="${escHtml(String(attrs.alt ?? ''))}">`
-    default: return result
-  }
-}
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Content-Type', 'application/rss+xml; charset=UTF-8')
@@ -93,14 +42,14 @@ async function buildFeed(event: H3Event) {
   const channelLink = termFilter ? `${baseUrl}${escXml(termArchivePath(taxonomySlug, termSlug))}` : baseUrl
   const selfLink = termFilter ? `${baseUrl}${escXml(termFeedPath(taxonomySlug, termSlug))}` : `${baseUrl}/feed.xml`
 
-  const items = posts.map((p) => {
+  const items = (await withPublicPaths(db, siteId, posts)).map((p) => {
     const contentObj = p.content as Record<string, unknown> | null
     const isCanvas = contentObj?.type === 'canvas'
     // Worker-served media (/_nuxflow/media/...) is site-relative; feed readers need absolute URLs.
-    const fullHtml = !isCanvas && contentObj ? absolutizeHtmlUrls(tiptapToHtml(contentObj), rawBaseUrl) : ''
+    const fullHtml = !isCanvas && contentObj ? absolutizeHtmlUrls(renderTipTap(contentObj), rawBaseUrl) : ''
     const image = p.ogImage ? absoluteUrl(p.ogImage, rawBaseUrl) : null
     const summary = p.excerpt ?? ''
-    const itemUrl = `${baseUrl}/${escXml(p.slug)}`
+    const itemUrl = `${baseUrl}${escXml(p.path)}`
     return `
     <item>
       <title><![CDATA[${cdataSafe(p.title)}]]></title>

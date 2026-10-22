@@ -8,9 +8,6 @@
  * tenant regardless of which zone/plan their domain sits on. (If a zone does have it
  * enabled, Cloudflare converts the HTML response instead; both paths emit the site's own
  * Content-Signal, so they agree.)
- *
- * Kept independent of app/utils/render-tiptap.ts for the same reason tiptap-text.ts is:
- * that file is scoped to the Vue bundle and can't be imported from Nitro.
  */
 
 // ── Text helpers ─────────────────────────────────────────────────────────────

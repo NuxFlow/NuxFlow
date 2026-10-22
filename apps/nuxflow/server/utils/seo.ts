@@ -1,5 +1,5 @@
-import { siteSettings } from '@nuxflow/db/schema'
-import { and, eq, like } from 'drizzle-orm'
+import { contentItems, siteSettings, sites } from '@nuxflow/db/schema'
+import { and, eq, inArray, like } from 'drizzle-orm'
 import type { Db } from './db'
 import { createIsolateCache } from './isolate-cache'
 
@@ -322,6 +322,29 @@ export function publicPathForItem(
     return item.sourceSlug === 'home' ? `/${item.locale}` : `/${item.locale}/${item.sourceSlug}`
   }
   return item.slug === 'home' ? '/' : `/${item.slug}`
+}
+
+/**
+ * Adds each row's public `path` (via publicPathForItem), looking up the site's default
+ * locale and the slugs of any originals the rows translate. `sourceItemId` is consumed.
+ */
+export async function withPublicPaths<T extends { slug: string, locale: string | null, sourceItemId: string | null }>(
+  db: Db,
+  siteId: string,
+  rows: T[],
+): Promise<(Omit<T, 'sourceItemId'> & { path: string })[]> {
+  const sourceIds = [...new Set(rows.map(r => r.sourceItemId).filter((id): id is string => Boolean(id)))]
+  const [site, sources] = await Promise.all([
+    db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true } }),
+    sourceIds.length
+      ? db.select({ id: contentItems.id, slug: contentItems.slug }).from(contentItems).where(and(eq(contentItems.siteId, siteId), inArray(contentItems.id, sourceIds)))
+      : Promise.resolve([]),
+  ])
+  const sourceSlug = new Map(sources.map(s => [s.id, s.slug]))
+  return rows.map(({ sourceItemId, ...rest }) => ({
+    ...rest,
+    path: publicPathForItem({ slug: rest.slug, locale: rest.locale, sourceSlug: sourceItemId ? sourceSlug.get(sourceItemId) ?? null : null }, site?.locale || 'en'),
+  }))
 }
 
 const SQLITE_DATETIME = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/

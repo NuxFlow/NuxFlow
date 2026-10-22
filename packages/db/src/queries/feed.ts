@@ -14,6 +14,8 @@ export async function getPublishedPostsForFeed(db: Db, siteId: string, limit = 2
       id: contentItems.id,
       title: contentItems.title,
       slug: contentItems.slug,
+      locale: contentItems.locale,
+      sourceItemId: contentItems.sourceItemId,
       excerpt: contentItems.excerpt,
       content: contentItems.content,
       ogImage: contentItems.ogImage,

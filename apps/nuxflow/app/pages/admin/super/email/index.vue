@@ -108,7 +108,7 @@ const columns = [
           <li v-for="f in data.recentFailures" :key="f.id" class="py-3 space-y-1">
             <div class="flex flex-wrap items-baseline justify-between gap-2 text-sm">
               <p class="font-medium text-gray-900 dark:text-white break-all">{{ f.subject }}</p>
-              <span class="text-xs text-gray-400">{{ parseDbDate(f.createdAt).toLocaleString() }}</span>
+              <span class="text-xs text-gray-400">{{ formatLocalDateTime(f.createdAt) }}</span>
             </div>
             <p class="text-xs text-gray-500 break-all">{{ f.siteName ?? 'Deleted site' }} · {{ f.category }} · {{ f.provider }} · to {{ f.toAddress }}</p>
             <p class="text-xs text-red-600 dark:text-red-400 break-words">{{ f.error }}</p>

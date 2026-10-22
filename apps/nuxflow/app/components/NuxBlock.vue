@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isCanvasContent } from '@nuxflow/canvas'
+import { renderTipTap } from '#shared/lib/render-tiptap'
 import { isBlocksContent } from '~/types/blocks'
 import type { NuxBlockData } from '~/types/blocks'
 

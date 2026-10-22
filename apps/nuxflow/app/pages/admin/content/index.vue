@@ -214,7 +214,7 @@ async function doDelete() {
 
         <template #updatedAt-cell="{ row }">
           <span class="text-sm text-gray-400">
-            {{ new Date(row.original.updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) }}
+            {{ formatLocalDate(row.original.updatedAt) }}
           </span>
         </template>
 

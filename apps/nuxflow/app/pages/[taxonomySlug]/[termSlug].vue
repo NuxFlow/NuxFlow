@@ -131,11 +131,6 @@ function goToPage(p: number) {
   router.push({ query: { ...route.query, page: p > 1 ? p : undefined } })
 }
 
-// timeZone: 'UTC' keeps this identical on server (UTC) and client (any timezone) — see
-// the matching comment in [...slug].vue for the hydration-mismatch this avoids.
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
-}
 </script>
 
 <template>

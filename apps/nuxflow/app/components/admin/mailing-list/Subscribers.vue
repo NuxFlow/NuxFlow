@@ -75,11 +75,6 @@ const columns = [
   { id: 'actions', header: actionsHeader },
 ]
 
-function formatDate(value: string | null) {
-  const iso = toIsoDate(value)
-  return iso ? new Date(iso).toLocaleDateString() : ''
-}
-
 const exportUrl = computed(() => `/api/v1/mailing-list/export${status.value === 'all' ? '' : `?status=${status.value}`}`)
 
 const busyId = ref<string | null>(null)
@@ -214,7 +209,7 @@ function rowActions(row: Subscriber) {
           <span v-if="row.original.sourcePath" class="text-xs text-gray-500 block truncate">{{ row.original.sourcePath }}</span>
         </template>
         <template #createdAt-cell="{ row }">
-          {{ formatDate(row.original.createdAt) }}
+          {{ formatLocalDate(row.original.createdAt) }}
         </template>
         <template #actions-cell="{ row }">
           <div class="flex justify-end">

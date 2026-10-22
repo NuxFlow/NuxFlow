@@ -1,3 +1,7 @@
+// TipTap/ProseMirror JSON → HTML. The one renderer for stored prose content: public pages
+// (NuxBlock.vue), the editor's readability input, and the RSS/Atom feeds all use it, so
+// they can't drift apart on what's escaped or which nodes render.
+
 interface TipTapNode {
   type: string
   attrs?: Record<string, unknown>
@@ -46,6 +50,12 @@ function safeCssColor(value: string): string {
 function safeFontFamily(value: string): string {
   const trimmed = value.trim()
   return CSS_FONT_FAMILY_RE.test(trimmed) ? trimmed : ''
+}
+
+function spanAttrs(node: TipTapNode): string {
+  const cs = Math.floor(Number(node.attrs?.colspan ?? 1))
+  const rs = Math.floor(Number(node.attrs?.rowspan ?? 1))
+  return (cs > 1 ? ` colspan="${cs}"` : '') + (rs > 1 ? ` rowspan="${rs}"` : '')
 }
 
 function children(node: TipTapNode): string {
@@ -118,8 +128,8 @@ function renderNode(node: TipTapNode): string {
       return `<ul>${children(node)}</ul>`
 
     case 'orderedList': {
-      const start = Number(node.attrs?.start ?? 1)
-      const attr = start !== 1 ? ` start="${start}"` : ''
+      const start = Math.floor(Number(node.attrs?.start ?? 1))
+      const attr = Number.isFinite(start) && start !== 1 ? ` start="${start}"` : ''
       return `<ol${attr}>${children(node)}</ol>`
     }
 
@@ -153,15 +163,11 @@ function renderNode(node: TipTapNode): string {
       return `<tr>${children(node)}</tr>`
 
     case 'tableCell': {
-      const cs = Number(node.attrs?.colspan ?? 1) > 1 ? ` colspan="${node.attrs!.colspan}"` : ''
-      const rs = Number(node.attrs?.rowspan ?? 1) > 1 ? ` rowspan="${node.attrs!.rowspan}"` : ''
-      return `<td${cs}${rs}>${children(node)}</td>`
+      return `<td${spanAttrs(node)}>${children(node)}</td>`
     }
 
     case 'tableHeader': {
-      const cs = Number(node.attrs?.colspan ?? 1) > 1 ? ` colspan="${node.attrs!.colspan}"` : ''
-      const rs = Number(node.attrs?.rowspan ?? 1) > 1 ? ` rowspan="${node.attrs!.rowspan}"` : ''
-      return `<th${cs}${rs}>${children(node)}</th>`
+      return `<th${spanAttrs(node)}>${children(node)}</th>`
     }
 
     case 'taskList':

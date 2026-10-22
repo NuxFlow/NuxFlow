@@ -1,5 +1,5 @@
 // Converts WordPress `content:encoded` HTML into the TipTap JSON document shape the
-// rest of NuxFlow stores in `content_items.content` (see app/utils/render-tiptap.ts for
+// rest of NuxFlow stores in `content_items.content` (see shared/lib/render-tiptap.ts for
 // the inverse — TipTap JSON back to HTML — which this mirrors node-for-node so imported
 // content renders exactly like natively-authored content).
 //

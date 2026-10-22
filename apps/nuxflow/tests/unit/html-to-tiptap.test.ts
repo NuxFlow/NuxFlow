@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { htmlToTipTap, decodeHtmlEntities, stripHtmlToPlainText } from '../../server/utils/html-to-tiptap'
-import { renderTipTap } from '../../app/utils/render-tiptap'
+import { renderTipTap } from '../../shared/lib/render-tiptap'
 
 // Round-trips HTML through the importer's parser and the app's own TipTap-to-HTML
 // renderer — the two are meant to be exact inverses, so this is the strongest possible

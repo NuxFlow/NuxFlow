@@ -45,3 +45,32 @@ export function formatDuration(seconds: number | null): string {
 export function parseDbDate(value: string): Date {
   return new Date(/z|[+-]\d\d:?\d\d$/i.test(value) ? value : `${value.replace(' ', 'T')}Z`)
 }
+
+type DateInput = string | Date | null | undefined
+
+function toValidDate(value: DateInput): Date | null {
+  if (!value) return null
+  const d = value instanceof Date ? value : parseDbDate(value)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+/**
+ * "October 22, 2026" — a fixed locale and UTC, so the server and the visitor's browser
+ * render the same text (any difference is a hydration mismatch). For public and account pages.
+ */
+export function formatDate(value: DateInput, fallback = '—'): string {
+  const d = toValidDate(value)
+  return d ? d.toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) : fallback
+}
+
+/** A date in the viewer's own locale and timezone — for admin screens. */
+export function formatLocalDate(value: DateInput, fallback = '—'): string {
+  const d = toValidDate(value)
+  return d ? d.toLocaleDateString(undefined, { dateStyle: 'medium' }) : fallback
+}
+
+/** A date and time in the viewer's own locale and timezone — for admin screens. */
+export function formatLocalDateTime(value: DateInput, fallback = '—'): string {
+  const d = toValidDate(value)
+  return d ? d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : fallback
+}

@@ -3,41 +3,9 @@ import { useReplicaDb } from '../utils/db'
 import { getFeedSite, getPublishedPostsForFeed } from '@nuxflow/db/queries'
 import { withEdgeCache } from '../utils/edge-cache'
 import { escXml, cdataSafe } from '../utils/xml'
+import { withPublicPaths } from '../utils/seo'
+import { renderTipTap } from '../../shared/lib/render-tiptap'
 import { absolutizeHtmlUrls } from '../utils/media-url'
-
-function tiptapToHtml(node: unknown): string {
-  if (!node || typeof node !== 'object') return ''
-  const n = node as Record<string, unknown>
-  const children = (n.content as unknown[] | undefined)?.map(tiptapToHtml).join('') ?? ''
-  const rawText = n.text as string | undefined
-  let result = rawText ? escXml(rawText) : children
-  if (rawText && Array.isArray(n.marks)) {
-    for (const mark of n.marks as Record<string, unknown>[]) {
-      const attrs = (mark.attrs as Record<string, string>) ?? {}
-      switch (mark.type) {
-        case 'bold': result = `<strong>${result}</strong>`; break
-        case 'italic': result = `<em>${result}</em>`; break
-        case 'code': result = `<code>${result}</code>`; break
-        case 'link': result = `<a href="${escXml(attrs.href ?? '')}">${result}</a>`; break
-      }
-    }
-  }
-  const attrs = (n.attrs as Record<string, unknown>) ?? {}
-  switch (n.type) {
-    case 'doc': return result
-    case 'paragraph': return `<p>${result}</p>`
-    case 'heading': return `<h${attrs.level}>${result}</h${attrs.level}>`
-    case 'bulletList': return `<ul>${result}</ul>`
-    case 'orderedList': return `<ol>${result}</ol>`
-    case 'listItem': return `<li>${result}</li>`
-    case 'blockquote': return `<blockquote>${result}</blockquote>`
-    case 'codeBlock': return `<pre><code>${result}</code></pre>`
-    case 'hardBreak': return '<br>'
-    case 'horizontalRule': return '<hr>'
-    case 'image': return `<img src="${escXml(String(attrs.src ?? ''))}" alt="${escXml(String(attrs.alt ?? ''))}">`
-    default: return result
-  }
-}
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Content-Type', 'application/atom+xml; charset=UTF-8')
@@ -61,11 +29,11 @@ async function buildAtomFeed(event: H3Event) {
 
   const updated = posts[0]?.updatedAt ?? new Date().toISOString()
 
-  const entries = posts.map((p) => {
+  const entries = (await withPublicPaths(db, siteId, posts)).map((p) => {
     const contentObj = p.content as Record<string, unknown> | null
     const isCanvas = contentObj?.type === 'canvas'
-    const html = !isCanvas && contentObj ? absolutizeHtmlUrls(tiptapToHtml(contentObj), baseUrl) : ''
-    const url = `${baseUrl}/${p.slug}`
+    const html = !isCanvas && contentObj ? absolutizeHtmlUrls(renderTipTap(contentObj), baseUrl) : ''
+    const url = `${baseUrl}${p.path}`
     const pub = new Date(p.publishedAt ?? p.updatedAt).toISOString()
     const mod = new Date(p.updatedAt).toISOString()
     return `  <entry>

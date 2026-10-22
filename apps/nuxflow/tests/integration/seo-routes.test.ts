@@ -272,7 +272,7 @@ describe('GET /feed.xml', () => {
     const result = await (feedHandler as HandlerFn)(mkEvent()) as string
     expect(result).not.toContain('javascript:alert')
     expect(result).toContain('<a href="">Click</a>')
-    expect(result).toContain('<img src="" alt="evil">')
+    expect(result).toContain('<img src="" alt="evil" loading="lazy">')
   })
 
   it('lists posts only, not the pages of the site', async () => {
@@ -327,6 +327,30 @@ describe('GET /atom.xml', () => {
     const result = await (atomHandler as HandlerFn)(mkEvent()) as string
     expect(result).not.toContain('Draft Post')
     expect(result).not.toContain('Members Post')
+  })
+
+  it('neutralizes javascript: URLs in link marks and image nodes', async () => {
+    const result = await (atomHandler as HandlerFn)(mkEvent()) as string
+    expect(result).toContain('XSS Post')
+    expect(result).not.toContain('javascript:')
+  })
+})
+
+describe('feed item links', () => {
+  it('link a translation at /{locale}/{source slug} in both feeds', async () => {
+    const db = getCurrentTestDb()
+    const site = 'site-seo-routes-translations'
+    await seedSite(db, { id: site, domain: 'translations.localhost' })
+    const postType = await seedContentType(db, site, { slug: 'post', name: 'Post', singularName: 'Post' })
+    const original = await seedContentItem(db, site, postType, { slug: 'harvest', title: 'Harvest' })
+    await seedContentItem(db, site, postType, { slug: 'harvest-es', title: 'Cosecha', locale: 'es', sourceItemId: original })
+
+    const event = () => createMockEvent({ siteId: site }) as unknown as H3Event
+    for (const handler of [feedHandler, atomHandler]) {
+      const xml = await (handler as HandlerFn)(event()) as string
+      expect(xml).toContain('https://translations.localhost/es/harvest')
+      expect(xml).not.toContain('harvest-es')
+    }
   })
 })
 

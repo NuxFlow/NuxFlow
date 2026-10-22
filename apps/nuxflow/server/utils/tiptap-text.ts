@@ -1,12 +1,7 @@
 /**
- * Extracts plain text from a TipTap/ProseMirror JSON document — a minimal, server-owned
- * equivalent of app/utils/render-tiptap.ts's HTML rendering, kept separate rather than
- * imported because that file is scoped to the Vue app bundle and cannot be imported from
- * Nitro server routes (see CLAUDE.md's "App utilities" section). Used by
- * api/public/listen/[slug].post.ts, which needs the article's spoken-word text server-side,
- * not HTML markup — a much smaller surface than full HTML rendering (no need to reproduce
- * heading levels, lists-as-markup, etc., just the words in reading order with paragraph
- * breaks preserved as sentence breaks for the TTS model to pace naturally).
+ * Extracts plain text from a TipTap/ProseMirror JSON document — the words in reading order,
+ * with paragraph breaks kept as sentence breaks so the TTS model paces naturally. Used by
+ * api/public/listen/[slug].post.ts.
  */
 interface TiptapNode {
   type?: string

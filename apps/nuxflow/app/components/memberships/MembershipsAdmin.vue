@@ -194,11 +194,6 @@ function syncTitle(tier: Tier) {
   return parts.length ? `Synced to: ${parts.join(', ')}` : 'Not synced to any payment provider'
 }
 
-function formatDate(iso: string | null) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' })
-}
-
 const tabs = [
   { key: 'tiers', label: 'Tiers', icon: 'i-lucide-credit-card' },
   { key: 'subscribers', label: 'Subscribers', icon: 'i-lucide-users' },
@@ -313,8 +308,8 @@ const tabs = [
               <td class="py-2 px-3">
                 <UBadge :color="statusColor[sub.status] ?? 'neutral'" variant="soft" size="xs" class="capitalize">{{ sub.status }}</UBadge>
               </td>
-              <td class="py-2 px-3 text-gray-500">{{ formatDate(sub.currentPeriodEnd) }}</td>
-              <td class="py-2 px-3 text-gray-500">{{ formatDate(sub.createdAt) }}</td>
+              <td class="py-2 px-3 text-gray-500">{{ formatLocalDate(sub.currentPeriodEnd) }}</td>
+              <td class="py-2 px-3 text-gray-500">{{ formatLocalDate(sub.createdAt) }}</td>
             </tr>
           </tbody>
         </table>

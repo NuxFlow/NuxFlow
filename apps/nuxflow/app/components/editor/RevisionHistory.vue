@@ -40,7 +40,7 @@ async function restore(revisionId: string) {
       >
         <div class="min-w-0">
           <p class="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{{ rev.title }}</p>
-          <p class="text-xs text-gray-400">{{ new Date(rev.createdAt).toLocaleString() }}</p>
+          <p class="text-xs text-gray-400">{{ formatLocalDateTime(rev.createdAt) }}</p>
         </div>
         <UButton
           size="xs"

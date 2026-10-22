@@ -131,7 +131,7 @@ async function deleteSite() {
           <span class="text-sm" :class="row.original.hostingPlanId ? 'text-gray-900 dark:text-white' : 'text-gray-400'">{{ planName(row.original.hostingPlanId) }}</span>
         </template>
         <template #createdAt-cell="{ row }">
-          <span class="text-sm text-gray-400">{{ new Date(row.original.createdAt).toLocaleDateString() }}</span>
+          <span class="text-sm text-gray-400">{{ formatLocalDate(row.original.createdAt) }}</span>
         </template>
         <template #actions-cell="{ row }">
           <div class="flex items-center gap-1.5">

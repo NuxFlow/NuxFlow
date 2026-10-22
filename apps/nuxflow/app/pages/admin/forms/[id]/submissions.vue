@@ -145,9 +145,6 @@ async function downloadCsv() {
   }
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
 </script>
 
 <template>
@@ -215,7 +212,7 @@ function formatDate(iso: string) {
             </div>
             <div class="flex flex-col items-end gap-1 shrink-0">
               <UBadge :color="statusColor[sub.status]" variant="soft" size="xs">{{ statusLabel[sub.status] }}</UBadge>
-              <span class="text-xs text-gray-400">{{ formatDate(sub.createdAt) }}</span>
+              <span class="text-xs text-gray-400">{{ formatLocalDateTime(sub.createdAt) }}</span>
             </div>
           </div>
         </button>
@@ -235,7 +232,7 @@ function formatDate(iso: string) {
       <UCard v-if="selected" class="lg:col-span-3 lg:sticky lg:top-4">
         <div class="space-y-4">
           <div class="flex items-center justify-between gap-2">
-            <span class="text-sm text-gray-500">Received {{ formatDate(selected.createdAt) }}</span>
+            <span class="text-sm text-gray-500">Received {{ formatLocalDateTime(selected.createdAt) }}</span>
             <UBadge :color="statusColor[selected.status]" variant="soft" size="sm">{{ statusLabel[selected.status] }}</UBadge>
           </div>
           <dl class="space-y-3">

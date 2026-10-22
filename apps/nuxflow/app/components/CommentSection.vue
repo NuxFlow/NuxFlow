@@ -113,7 +113,7 @@ async function submitComment(form: FormState, parentId: string | null = null) {
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline gap-2 mb-1">
               <span class="text-sm font-medium text-gray-900 dark:text-white">{{ displayName(root) }}</span>
-              <span class="text-xs text-gray-400">{{ new Date(root.createdAt).toLocaleDateString() }}</span>
+              <span class="text-xs text-gray-400">{{ formatDate(root.createdAt) }}</span>
             </div>
             <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">{{ root.body }}</p>
             <button
@@ -132,7 +132,7 @@ async function submitComment(form: FormState, parentId: string | null = null) {
                 <div class="flex-1 min-w-0">
                   <div class="flex items-baseline gap-2 mb-1">
                     <span class="text-sm font-medium text-gray-900 dark:text-white">{{ displayName(reply) }}</span>
-                    <span class="text-xs text-gray-400">{{ new Date(reply.createdAt).toLocaleDateString() }}</span>
+                    <span class="text-xs text-gray-400">{{ formatDate(reply.createdAt) }}</span>
                   </div>
                   <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">{{ reply.body }}</p>
                 </div>

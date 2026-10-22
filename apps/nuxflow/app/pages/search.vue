@@ -12,14 +12,14 @@ interface SearchResult {
   id: string
   title: string
   excerptSegments: SearchExcerptSegment[]
-  slug: string | null
+  path: string | null
 }
 
 interface SearchResponse {
   results: SearchResult[]
 }
 
-interface SemanticResult { id: string; title: string; score: number; slug: string | null }
+interface SemanticResult { id: string; title: string; score: number; path: string | null }
 interface SemanticResponse { available: boolean; results: SemanticResult[] }
 
 const { data, pending, error, execute } = await useLazyFetch<SearchResponse>('/api/v1/search', {
@@ -95,7 +95,7 @@ function search() {
           <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">You might be looking for</p>
           <ul class="space-y-4">
             <li v-for="result in semanticResults" :key="result.id">
-              <NuxtLink v-if="result.slug" :to="`/${result.slug}`" class="text-sm font-medium text-gray-900 dark:text-white hover:text-primary-500 transition-colors">
+              <NuxtLink v-if="result.path" :to="result.path" class="text-sm font-medium text-gray-900 dark:text-white hover:text-primary-500 transition-colors">
                 {{ result.title }}
               </NuxtLink>
             </li>
@@ -110,8 +110,8 @@ function search() {
           class="border-b border-gray-100 dark:border-gray-800 pb-6 last:border-0"
         >
           <NuxtLink
-            v-if="result.slug"
-            :to="`/${result.slug}`"
+            v-if="result.path"
+            :to="result.path"
             class="group"
           >
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-primary-500 transition-colors">
