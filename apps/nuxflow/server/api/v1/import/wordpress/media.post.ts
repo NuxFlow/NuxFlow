@@ -9,7 +9,7 @@ import { getActiveProvider } from '../../../../utils/media-providers/index'
 import { checkPlanLimit, planLimitMessage } from '../../../../utils/hosting-plans'
 import { isSafeUrl, safeFetch } from '../../../../utils/ssrf'
 import { sanitizeSvg } from '../../../../utils/sanitize-css-svg'
-import { bufferToHex } from '../../../../utils/buffer'
+import { sha256Hex } from '../../../../utils/buffer'
 import { errorMessage } from '../../../../utils/errors'
 
 // Small batches: each file is held in memory while it uploads, and the batch runs in
@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
 
       const rawName = decodeURIComponentSafe(remoteUrl.split('/').pop()?.split('?')[0] ?? '') || 'image.jpg'
       const ext = (rawName.includes('.') ? rawName.split('.').pop()! : 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'jpg'
-      const hash = bufferToHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(remoteUrl))).slice(0, 24)
+      const hash = (await sha256Hex(remoteUrl)).slice(0, 24)
       const storageKey = `${siteId}/wp-${hash}.${ext}`
 
       const existing = await db.query.media.findFirst({

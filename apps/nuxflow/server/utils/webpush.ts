@@ -3,6 +3,7 @@ import { useDb } from './db'
 import { pushSubscriptions, sites } from '@nuxflow/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { resolveSetting } from './settings'
+import { base64ToBytes, bytesToBase64Url } from '../../shared/lib/base64'
 
 // ─── Push services ────────────────────────────────────────────────────────────
 // A subscription's endpoint comes from the browser, so it's attacker-controlled: any
@@ -33,21 +34,8 @@ export function isKnownPushService(endpoint: string): boolean {
 
 // ─── Base64url ────────────────────────────────────────────────────────────────
 
-function toBase64Url(buf: ArrayBuffer): string {
-  let str = ''
-  for (const b of new Uint8Array(buf)) str += String.fromCharCode(b)
-  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
-}
-
-// Returns Uint8Array<ArrayBuffer> which satisfies Web Crypto's BufferSource requirement.
-function fromBase64Url(str: string): Uint8Array<ArrayBuffer> {
-  const base64 = str.replace(/-/g, '+').replace(/_/g, '/')
-  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
-  const binary = atob(padded)
-  const out = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i)
-  return out
-}
+const toBase64Url = bytesToBase64Url
+const fromBase64Url = base64ToBytes
 
 function concat(...parts: Uint8Array<ArrayBuffer>[]): Uint8Array<ArrayBuffer> {
   const total = parts.reduce((sum, p) => sum + p.length, 0)

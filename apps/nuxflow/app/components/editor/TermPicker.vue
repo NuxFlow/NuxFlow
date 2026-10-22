@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { slugify } from '#shared/lib/slug'
 // Categories/tags for the item being edited. Controlled: the selection is part of the
 // editor's form and is saved with the post (POST/PATCH /api/v1/content `termIds`), so
 // tagging a brand-new item works before its first save and follows the same
@@ -81,7 +82,7 @@ const creating = ref<Record<string, boolean>>({})
 async function createTerm(taxonomyId: string, nameArg?: string) {
   const name = (nameArg ?? newTermName.value[taxonomyId] ?? '').trim()
   if (!name) return
-  if (!slugifyTermName(name)) {
+  if (!slugify(name)) {
     toast.add({ title: 'Add this term from Admin → Taxonomies', description: 'The name has no letters or digits to build a URL slug from, so it needs a slug typed in.', color: 'warning' })
     return
   }

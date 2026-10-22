@@ -1,11 +1,4 @@
-function fromBase64Url(str: string): Uint8Array<ArrayBuffer> {
-  const base64 = str.replace(/-/g, '+').replace(/_/g, '/')
-  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
-  const binary = atob(padded)
-  const out = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i)
-  return out
-}
+import { base64ToBytes as fromBase64Url } from '#shared/lib/base64'
 
 function sameKey(a: ArrayBuffer | null, b: Uint8Array): boolean {
   if (!a || a.byteLength !== b.length) return false

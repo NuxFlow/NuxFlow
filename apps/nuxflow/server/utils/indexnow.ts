@@ -2,6 +2,7 @@ import { contentItems, contentTypes, rateLimits, sites } from '@nuxflow/db/schem
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Db } from './db'
 import { getSeoSettings, isItemIndexable, publicPathForItem, siteBaseUrl } from './seo'
+import { bufferToHex } from './buffer'
 
 /**
  * IndexNow (https://www.indexnow.org) — tells participating search engines (Bing, Yandex,
@@ -24,9 +25,7 @@ const THROTTLE_MINUTES = 10
 
 /** 32 hex chars — IndexNow requires 8–128 of [a-zA-Z0-9-]. */
 export function generateIndexNowKey(): string {
-  const bytes = new Uint8Array(16)
-  globalThis.crypto.getRandomValues(bytes)
-  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+  return bufferToHex(globalThis.crypto.getRandomValues(new Uint8Array(16)))
 }
 
 /**

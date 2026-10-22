@@ -82,14 +82,3 @@ export function termWithDescendantIds(terms: TreeTerm[], id: string): Set<string
   }
   return out
 }
-
-/** Same rule as the server's slugify() (server/utils/taxonomy.ts), for live slug previews. */
-export function slugifyTermName(input: string): string {
-  return input
-    .normalize('NFKD')
-    .replace(/\p{M}+/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 100)
-}

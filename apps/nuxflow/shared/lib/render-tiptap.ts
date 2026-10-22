@@ -2,6 +2,8 @@
 // (NuxBlock.vue), the editor's readability input, and the RSS/Atom feeds all use it, so
 // they can't drift apart on what's escaped or which nodes render.
 
+import { escapeHtml } from './html-text'
+
 interface TipTapNode {
   type: string
   attrs?: Record<string, unknown>
@@ -15,25 +17,21 @@ interface TipTapMark {
   attrs?: Record<string, unknown>
 }
 
-function esc(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+const esc = escapeHtml
+
+/**
+ * False for javascript:/vbscript:/data: URLs, which run code on click (link) or load (image).
+ * Browsers strip every ASCII C0 control character (U+0000-U+001F) from a URL before reading
+ * its scheme, so "\x01javascript:..." is the same as "javascript:..." — strip them first.
+ */
+export function isSafeLinkUrl(url: string): boolean {
+  // eslint-disable-next-line no-control-regex -- stripping C0 controls is the point of this check
+  return !/^(?:javascript|vbscript|data):/i.test(url.replace(/[\x00-\x1F]/g, '').trim())
 }
 
-// Blocks javascript:/vbscript:/data: URIs in href/src — esc() only escapes HTML metacharacters,
-// it doesn't stop a scheme that executes on click (link) or load (image).
+// esc() only escapes HTML metacharacters; it doesn't stop a scheme that executes.
 function escUrl(str: string): string {
-  // Browsers strip every ASCII C0 control character (U+0000-U+001F, which includes but isn't
-  // limited to tab/newline/carriage-return) from a URL during parsing before evaluating its
-  // scheme, so "\x01javascript:..." parses identically to "javascript:...". Strip the whole
-  // C0 range before the scheme test, not just whitespace-like characters.
-  // eslint-disable-next-line no-control-regex -- stripping C0 controls is the point of this check
-  const trimmed = str.replace(/[\x00-\x1F]/g, '').trim()
-  if (/^(?:javascript|vbscript|data):/i.test(trimmed)) return ''
-  return esc(str)
+  return isSafeLinkUrl(str) ? esc(str) : ''
 }
 
 // Allowlist for CSS color/font-family values written into an inline style="" attribute —

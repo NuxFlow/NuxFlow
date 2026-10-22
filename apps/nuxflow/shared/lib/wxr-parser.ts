@@ -6,6 +6,7 @@
 // see tests/unit/wordpress-import.test.ts.
 import { ulid } from 'ulid'
 import { decodeHtmlEntities, stripHtmlToPlainText } from './html-text'
+import { slugify } from './slug'
 
 export interface WpItem {
   title: string
@@ -68,8 +69,8 @@ function cdataOrTag(block: string, tag: string): string | null {
   return pm ? pm[1]!.trim() : null
 }
 
-function slugify(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || ulid().toLowerCase()
+function slugForTitle(title: string): string {
+  return slugify(title) || ulid().toLowerCase()
 }
 
 export function parseWxr(xml: string): ParsedWxr {
@@ -100,7 +101,7 @@ export function parseWxr(xml: string): ParsedWxr {
 
     if (postType === 'attachment') {
       const title = cdataOrTag(block, 'title') ?? ''
-      const slug = cdataOrTag(block, 'wp:post_name') ?? slugify(title)
+      const slug = cdataOrTag(block, 'wp:post_name') ?? slugForTitle(title)
       const url = cdataOrTag(block, 'wp:attachment_url')
       const postId = cdataOrTag(block, 'wp:post_id')
       if (url) attachments.push({ title: decodeHtmlEntities(title), slug, url, postId })
@@ -110,7 +111,7 @@ export function parseWxr(xml: string): ParsedWxr {
     if (postType !== 'post' && postType !== 'page') continue
 
     const title = cdataOrTag(block, 'title') ?? ''
-    const slug = cdataOrTag(block, 'wp:post_name') ?? slugify(title)
+    const slug = cdataOrTag(block, 'wp:post_name') ?? slugForTitle(title)
     const rawStatus = cdataOrTag(block, 'wp:status') ?? 'draft'
     const status = rawStatus === 'publish' ? 'published' : 'draft'
     const content = cdataOrTag(block, 'content:encoded') ?? ''

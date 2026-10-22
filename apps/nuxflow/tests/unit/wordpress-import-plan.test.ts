@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { batchItems, buildTermSlugMap, categoryParentLinks, chunk, collectImageUrls } from '../../shared/lib/wordpress-import'
+import { batchItems, buildTermSlugMap, categoryParentLinks, collectImageUrls } from '../../shared/lib/wordpress-import'
+import { chunk } from '../../shared/lib/array'
 import type { WpCategory } from '../../shared/lib/wxr-parser'
 
 // Run in the browser before the export is sent to the server in batches.

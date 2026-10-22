@@ -7,7 +7,8 @@ import { useDb } from '../../../../utils/db'
 import { assertWithinPlan } from '../../../../utils/hosting-plans'
 import { writeAuditLog } from '../../../../utils/audit'
 import { htmlToTipTap } from '../../../../utils/html-to-tiptap'
-import { chunked, getImportContentTypes, IN_LIST_CHUNK } from '../../../../utils/wordpress-import'
+import { getImportContentTypes, IN_LIST_CHUNK } from '../../../../utils/wordpress-import'
+import { chunk } from '../../../../../shared/lib/array'
 
 // Content is already rewritten in the browser to point at the imported media, and
 // termIds come from the terms step's responses.
@@ -44,7 +45,7 @@ export default defineEventHandler(async (event) => {
   // Only this site's terms may be attached — the ids come from the browser.
   const wantedTermIds = [...new Set(body.items.flatMap(i => i.termIds))]
   const validTermIds = new Set<string>()
-  for (const part of chunked(wantedTermIds, IN_LIST_CHUNK)) {
+  for (const part of chunk(wantedTermIds, IN_LIST_CHUNK)) {
     const rows = await db.select({ id: taxonomyTerms.id })
       .from(taxonomyTerms)
       .innerJoin(taxonomies, eq(taxonomyTerms.taxonomyId, taxonomies.id))

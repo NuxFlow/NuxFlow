@@ -1,6 +1,7 @@
 import { useDb } from '../utils/db'
 import { aiGenerationJobs, auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits, siteUsageDaily, siteInvitations, siteAuthCodes, siteSessions, pluginStorage } from '@nuxflow/db/schema'
 import { and, count, eq, inArray, lt, ne, notInArray, sql, isNotNull, or } from 'drizzle-orm'
+import { chunk } from '../../shared/lib/array'
 
 // Bounds how many overflowing content items get their excess revisions pruned in a
 // single scheduled run. Each item needs its own `findMany` (Drizzle/D1 has no
@@ -18,14 +19,6 @@ const MAX_OVERFLOW_ITEMS_PER_RUN = 100
 // batch — chunking keeps each round trip small and bounded regardless of how many
 // items overflowed this run.
 const DELETE_BATCH_CHUNK_SIZE = 50
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = []
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size))
-  }
-  return chunks
-}
 
 export const pruneOldData = async () => {
   const db = useDb()

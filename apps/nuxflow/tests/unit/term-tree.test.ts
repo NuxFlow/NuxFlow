@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { flattenTermTree, slugifyTermName, termWithDescendantIds } from '../../app/utils/term-tree'
+import { flattenTermTree, termWithDescendantIds } from '../../app/utils/term-tree'
 import { slugify, TAXONOMY_SLUG_RE } from '../../server/utils/taxonomy'
 
 const t = (id: string, parentId: string | null, sortOrder = 0, name = id) => ({ id, parentId, sortOrder, name })
@@ -24,7 +24,7 @@ describe('termWithDescendantIds', () => {
   })
 })
 
-describe('slugify (server) and slugifyTermName (client) agree', () => {
+describe('slugify', () => {
   it.each([
     ['Café Society', 'cafe-society'],
     ['  Hello,  World!  ', 'hello-world'],
@@ -32,7 +32,6 @@ describe('slugify (server) and slugifyTermName (client) agree', () => {
     ['日本語', ''],
   ])('%s → %s', (input, expected) => {
     expect(slugify(input)).toBe(expected)
-    expect(slugifyTermName(input)).toBe(expected)
     if (expected) expect(TAXONOMY_SLUG_RE.test(expected)).toBe(true)
   })
 })

@@ -7,6 +7,7 @@ import { workerMediaKey } from './media-url'
 import { isSafeUrl, safeFetch } from './ssrf'
 import { findPublishedPage, parseLocalePath } from './public-page'
 import { checkContentAccess } from './content-access'
+import { base64ToBytes } from '../../shared/lib/base64'
 
 /**
  * Downloads for a Gallery block that has "Allow downloads" switched on (client galleries):
@@ -140,7 +141,7 @@ export async function openGalleryFile(event: H3Event, siteId: string, file: Gall
     const comma = file.url.indexOf(',')
     if (comma < 0 || !file.url.slice(0, comma).endsWith(';base64')) return null
     try {
-      return bytesStream(Uint8Array.from(atob(file.url.slice(comma + 1)), c => c.charCodeAt(0)))
+      return bytesStream(base64ToBytes(file.url.slice(comma + 1)))
     }
     catch {
       return null

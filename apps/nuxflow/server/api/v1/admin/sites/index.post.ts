@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { bufferToHex } from '../../../../utils/buffer'
+import { sha256Hex } from '../../../../utils/buffer'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
 import { clearSiteCache } from '../../../../middleware/02.multi-site'
@@ -9,6 +9,7 @@ import { created } from '../../../../utils/response'
 import { sites, siteDomains, auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { eq } from 'drizzle-orm'
+import { randomToken } from '../../../../../shared/lib/base64'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -42,9 +43,8 @@ export default defineEventHandler(async (event) => {
 
   // One-time token required to complete /setup for this site — only the hash is persisted,
   // so this is the only chance to hand the raw token to the caller.
-  const rawBytes = crypto.getRandomValues(new Uint8Array(32))
-  const setupToken = btoa(String.fromCharCode(...rawBytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
-  const setupTokenHash = bufferToHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(setupToken)))
+  const setupToken = randomToken()
+  const setupTokenHash = await sha256Hex(setupToken)
 
   await db.insert(sites).values({ id, ...body, setupCompleted: false, setupTokenHash })
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { parseWxr, replaceKnownUrls } from '#shared/lib/wxr-parser'
-import { batchItems, buildTermSlugMap, categoryParentLinks, chunk, collectImageUrls } from '#shared/lib/wordpress-import'
+import { batchItems, buildTermSlugMap, categoryParentLinks, collectImageUrls } from '#shared/lib/wordpress-import'
+import { chunk } from '#shared/lib/array'
 import { slugify } from '#shared/lib/slug'
 
 // The export is parsed here in the browser and sent to the server in small batches — terms,

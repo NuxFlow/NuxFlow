@@ -2,7 +2,8 @@
 // Uses the Web Crypto API (globalThis.crypto.subtle) — native in Cloudflare Workers and Node 18+.
 // Never imports node:crypto.
 
-import { bufferToHex } from './buffer'
+import { sha256Hex } from './buffer'
+import { base64ToBytes } from '../../shared/lib/base64'
 
 export interface SigningPayload {
   id: string
@@ -18,14 +19,6 @@ export interface SigningPayload {
 
 // ── Encoding helpers ──────────────────────────────────────────────────────────
 
-function fromBase64Url(s: string): ArrayBuffer {
-  const base64 = s.replace(/-/g, '+').replace(/_/g, '/')
-  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
-  const binary = atob(padded)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes.buffer
-}
 
 // ── Canonical signing input ───────────────────────────────────────────────────
 
@@ -45,8 +38,7 @@ function canonicalInput(payload: SigningPayload): ArrayBuffer {
 // ── SHA-256 integrity ─────────────────────────────────────────────────────────
 
 export async function computeSha256(data: string): Promise<string> {
-  const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(data))
-  return bufferToHex(buffer)
+  return sha256Hex(data)
 }
 
 /**
@@ -72,7 +64,7 @@ export async function verifyPluginSignature(
 ): Promise<boolean> {
   const publicKey = await crypto.subtle.importKey(
     'spki',
-    fromBase64Url(publicKeyB64Url),
+    base64ToBytes(publicKeyB64Url),
     { name: 'Ed25519' },
     false,
     ['verify'],
@@ -80,7 +72,7 @@ export async function verifyPluginSignature(
   return crypto.subtle.verify(
     { name: 'Ed25519' },
     publicKey,
-    fromBase64Url(signatureB64Url),
+    base64ToBytes(signatureB64Url),
     canonicalInput(payload),
   )
 }

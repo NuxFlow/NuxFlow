@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { slugify } from '#shared/lib/slug'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Taxonomies' })
 
@@ -121,7 +122,7 @@ async function quickAdd() {
   const tax = activeTaxonomy.value
   const name = quickName.value.trim()
   if (!tax || !name) return
-  if (!slugifyTermName(name)) {
+  if (!slugify(name)) {
     // No Latin letters/digits to build a slug from — the full form lets them type one.
     openTermModal(null)
     return

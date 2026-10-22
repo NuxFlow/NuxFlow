@@ -1,4 +1,4 @@
-import { bufferToHex } from '../utils/buffer'
+import { sha256Hex } from '../utils/buffer'
 import { useDb } from '../utils/db'
 import { waitUntil } from '../utils/cf-env'
 import { apiKeys, userSiteRoles } from '@nuxflow/db/schema'
@@ -18,11 +18,7 @@ export default defineEventHandler(async (event) => {
   const rawKey = authHeader.slice(7)
   const db = useDb(event)
 
-  // Hash the raw key with SHA-256 for comparison
-  const encoder = new TextEncoder()
-  const data = encoder.encode(rawKey)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const keyHash = bufferToHex(hashBuffer)
+  const keyHash = await sha256Hex(rawKey)
 
   // Scope lookup to the current site so a key from Site A cannot authenticate on Site B
   const apiKey = await db.query.apiKeys.findFirst({

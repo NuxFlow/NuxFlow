@@ -1,3 +1,4 @@
+import { base64ToBytes, bytesToBase64Url } from '../../shared/lib/base64'
 // Edge-native AES-GCM encryption and decryption utilities.
 // Uses native Web Crypto API (globalThis.crypto.subtle) — compatible with Cloudflare Workers.
 // Never imports node:crypto.
@@ -44,14 +45,8 @@ export async function encryptText(cleartext: string, secret: string): Promise<st
     ENCODER.encode(cleartext)
   )
 
-  // Encode the IV and ciphertext as base64url so they are URL-safe and compact
-  const ivB64 = btoa(String.fromCharCode(...iv))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-  const encryptedBytes = new Uint8Array(encrypted)
-  const cipherB64 = btoa(String.fromCharCode(...encryptedBytes))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-
-  return `${ivB64}:${cipherB64}`
+  // base64url so the stored value is URL-safe and compact
+  return `${bytesToBase64Url(iv)}:${bytesToBase64Url(encrypted)}`
 }
 
 /**
@@ -66,19 +61,8 @@ export async function decryptText(ciphertextWithIv: string, secret: string): Pro
 
   const [ivB64, cipherB64] = parts as [string, string]
 
-  const fromBase64Url = (s: string): Uint8Array => {
-    const base64 = s.replace(/-/g, '+').replace(/_/g, '/')
-    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
-    const binary = atob(padded)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i)
-    }
-    return bytes
-  }
-
-  const iv = fromBase64Url(ivB64)
-  const ciphertext = fromBase64Url(cipherB64)
+  const iv = base64ToBytes(ivB64)
+  const ciphertext = base64ToBytes(cipherB64)
 
   /* eslint-disable @typescript-eslint/no-explicit-any */
   // AES-GCM's authentication tag makes decrypting under the wrong key fail loudly rather

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { slugify } from '#shared/lib/slug'
 // Create/edit one term of `taxonomy`. `term` null = create; `defaultParentId` pre-selects
 // a parent for "Add sub-term".
 const props = defineProps<{
@@ -40,7 +41,7 @@ watch(open, (isOpen) => {
 }, { immediate: true })
 
 watch(() => form.name, (name) => {
-  if (!slugTouched.value) form.slug = slugifyTermName(name)
+  if (!slugTouched.value) form.slug = slugify(name)
 })
 
 // A term can't be nested under itself or anything already nested under it.

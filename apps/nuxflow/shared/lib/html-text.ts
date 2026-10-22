@@ -24,8 +24,15 @@ export function decodeHtmlEntities(str: string): string {
         return whole
       }
     }
-    return NAMED_ENTITIES[ent] ?? whole
+    return NAMED_ENTITIES[ent] ?? NAMED_ENTITIES[ent.toLowerCase()] ?? whole
   })
+}
+
+const HTML_ESCAPE_MAP: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }
+
+/** Escapes text for HTML element content and quoted attribute values. */
+export function escapeHtml(str: string): string {
+  return str.replace(/[&<>"']/g, c => HTML_ESCAPE_MAP[c]!)
 }
 
 export function stripHtmlToPlainText(html: string): string {
