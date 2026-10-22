@@ -1,15 +1,8 @@
 /**
  * Integration tests for the MCP JSON-RPC endpoint (server/api/v1/mcp.ts).
  *
- * Focused coverage for the two bugs fixed here:
- *   1. Content mutations via MCP tools (`create_content`) now write an audit log row,
- *      matching every other content-mutation route in the codebase.
- *   2. A POST carrying a `sessionId` that isn't bound to this isolate's `activeStreams`
- *      map now returns a clear, distinct JSON-RPC error (and 404 status) instead of
- *      silently executing the request with no way to signal the dropped SSE delivery.
- *
- * This is not a comprehensive test suite for the whole MCP endpoint (out of scope) —
- * just enough to pin down the two fixes above.
+ * Covers the Streamable HTTP transport (version negotiation, notifications, refusals),
+ * API-key scopes, audit logging and cache/embedding side effects of the content tools.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
@@ -63,7 +56,6 @@ afterAll(teardownTestDb)
 
 function mkMcpEvent(opts: {
   body: unknown
-  query?: Record<string, string>
   apiKeyUserId?: string
   apiKeyRole?: string
   apiKeyScopes?: string[]
@@ -72,7 +64,6 @@ function mkMcpEvent(opts: {
     method: 'POST',
     siteId: SITE,
     body: opts.body,
-    query: opts.query ?? {},
     apiKeyUserId: opts.apiKeyUserId ?? authorUserId,
     apiKeyRole: opts.apiKeyRole ?? 'author',
     // Defaults to both scopes so existing tests keep exercising read AND write tools —
@@ -188,48 +179,41 @@ describe('POST /api/v1/mcp — API key scope enforcement', () => {
   })
 })
 
-describe('POST /api/v1/mcp — unknown/mismatched sessionId', () => {
-  it('returns a distinct JSON-RPC error and 404 instead of silently succeeding', async () => {
-    const event = mkMcpEvent({
-      query: { sessionId: 'session-that-does-not-exist-on-this-isolate' },
-      body: { jsonrpc: '2.0', id: 42, method: 'tools/list' },
-    })
+describe('/api/v1/mcp — Streamable HTTP transport', () => {
+  it('negotiates the protocol version on initialize', async () => {
+    const res = await (mcpHandler as HandlerFn)(mkMcpEvent({
+      body: { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26' } },
+    })) as { result: { protocolVersion: string; serverInfo: { name: string } } }
+    expect(res.result.protocolVersion).toBe('2025-03-26')
+    expect(res.result.serverInfo.name).toBe('nuxflow')
 
-    const response = await (mcpHandler as HandlerFn)(event) as {
-      jsonrpc: string
-      id: number | null
-      error?: { code: number; message: string }
-      result?: unknown
-    }
-
-    expect(response.error).toBeTruthy()
-    expect(response.error!.code).toBe(-32001)
-    expect(response.error!.message).toMatch(/not bound to this Worker isolate/i)
-    expect(response.result).toBeUndefined()
-    expect((event as unknown as { _status: number })._status).toBe(404)
+    const unknown = await (mcpHandler as HandlerFn)(mkMcpEvent({
+      body: { jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '1999-01-01' } },
+    })) as { result: { protocolVersion: string } }
+    expect(unknown.result.protocolVersion).toBe('2025-06-18')
   })
 
-  it('does not execute the underlying tool call when the session is unbound', async () => {
-    const event = mkMcpEvent({
-      query: { sessionId: 'another-unbound-session' },
-      body: {
-        jsonrpc: '2.0',
-        id: 2,
-        method: 'tools/call',
-        params: {
-          name: 'create_content',
-          arguments: { title: 'Should Not Exist', slug: 'should-not-exist' },
-        },
-      },
-    })
+  it('answers a notification with 202 and no body', async () => {
+    const event = mkMcpEvent({ body: { jsonrpc: '2.0', method: 'notifications/initialized' } })
+    expect(await (mcpHandler as HandlerFn)(event)).toBeNull()
+    expect((event as unknown as { _status: number })._status).toBe(202)
+  })
 
-    await (mcpHandler as HandlerFn)(event)
+  it('answers ping', async () => {
+    const res = await (mcpHandler as HandlerFn)(mkMcpEvent({ body: { jsonrpc: '2.0', id: 'p', method: 'ping' } }))
+    expect(res).toEqual({ jsonrpc: '2.0', result: {}, id: 'p' })
+  })
 
-    const db = getCurrentTestDb()
-    const item = await db.query.contentItems.findFirst({
-      where: eq(contentItems.slug, 'should-not-exist'),
-    })
-    expect(item).toBeUndefined()
+  it('refuses a batch with a JSON-RPC Invalid Request error', async () => {
+    const event = mkMcpEvent({ body: [{ jsonrpc: '2.0', id: 1, method: 'ping' }] })
+    const res = await (mcpHandler as HandlerFn)(event) as { error: { code: number } }
+    expect(res.error.code).toBe(-32600)
+    expect((event as unknown as { _status: number })._status).toBe(400)
+  })
+
+  it('refuses GET, since the server never opens an SSE stream', async () => {
+    const event = createMockEvent({ method: 'GET', siteId: SITE, apiKeyUserId: authorUserId, apiKeyRole: 'author' }) as unknown as H3Event
+    await expect((mcpHandler as HandlerFn)(event)).rejects.toMatchObject({ statusCode: 405 })
   })
 })
 

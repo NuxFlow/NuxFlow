@@ -5,9 +5,8 @@
  * canvas pages are fully server-side rendered. Only add components here that
  * are SSR-safe (pure render components with no browser-only APIs).
  *
- * Admin/editor-only components (CanvasAdmin, CanvasContentEditor, etc.) are
- * registered separately in nuxflow-plugin-components.client.ts — they are
- * never needed during public-page SSR.
+ * The Canvas editor is registered separately, client-only, in
+ * nuxflow-admin-components.client.ts — it's never needed during public-page SSR.
  */
 
 import { CANVAS_BLOCKS, BUILTIN_BLOCK_COMPONENTS } from '@nuxflow/canvas'

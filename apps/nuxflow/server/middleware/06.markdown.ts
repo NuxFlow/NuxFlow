@@ -35,7 +35,7 @@ function prefersMarkdown(accept: string | undefined): boolean {
 }
 
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string | null
+  const siteId = event.context.siteId
   if (!siteId) return
   if (event.method !== 'GET' && event.method !== 'HEAD') return
 
@@ -76,7 +76,7 @@ export default defineEventHandler(async (event) => {
   // fall through so the HTML route answers exactly as it would for a browser (402/404).
   if (!page || page.visibility !== 'public') return explicit ? notFoundResponse() : undefined
 
-  const site = event.context.siteDomain as string | null
+  const site = event.context.siteDomain
   const base = siteBaseUrl(seo, site, url.origin)
   const htmlPath = await itemPublicPath(db, siteId, page)
   const htmlUrl = `${base}${htmlPath}`

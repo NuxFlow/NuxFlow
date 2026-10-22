@@ -40,10 +40,17 @@ export function useUserSession() {
     user.value = null
   }
 
+  /** Signs out, then leaves for the sign-in page (or the home page under central sign-in, where a site has none). */
+  async function signOutAndLeave() {
+    await signOut()
+    await navigateTo(onSiteDomain ? '/' : '/login')
+  }
+
   return {
     user: computed(() => user.value ?? null),
     loggedIn,
     signOut,
+    signOutAndLeave,
     fetchSession,
   }
 }

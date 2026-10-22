@@ -3,6 +3,7 @@ import { resolveSetting } from '../../../../utils/settings'
 import { isHttpError } from '../../../../utils/errors'
 import { parseBody } from '../../../../utils/validate'
 import { z } from 'zod'
+import { requireSiteId } from '../../../../utils/site-context'
 
 // The body is optional — the client may request an upload URL before naming the video.
 const bodySchema = z.object({
@@ -11,7 +12,7 @@ const bodySchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const accountId = await resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
   const streamToken = await resolveSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')

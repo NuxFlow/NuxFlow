@@ -12,6 +12,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { clearActiveThemeCache } from '../../../../utils/theme-cache'
 import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 import { purgeAllPublicPages } from '../../../../utils/edge-cache'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   // A theme's demo.json can also ship redirect rules (e.g. from an older site's URLs).
@@ -22,7 +23,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const themeId = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 

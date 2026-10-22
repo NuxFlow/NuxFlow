@@ -14,17 +14,6 @@ const loading = ref(true)
 const registering = ref(false)
 const passkeyName = ref('')
 
-function formatDate(dateStr?: Date | string) {
-  if (!dateStr) return 'N/A'
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return 'N/A'
-  try {
-    return date.toLocaleDateString(undefined, { dateStyle: 'medium' })
-  } catch {
-    return date.toLocaleDateString()
-  }
-}
-
 const loadFailed = ref(false)
 
 async function fetchPasskeys() {
@@ -118,8 +107,8 @@ async function deletePasskey(id: string) {
 
     toast.add({ title: 'Passkey deleted successfully', color: 'success' })
     await fetchPasskeys()
-  } catch {
-    toast.add({ title: 'Failed to delete passkey', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Failed to delete passkey', description: getErrorMessage(e, ''), color: 'error' })
   }
 }
 
@@ -179,7 +168,7 @@ onMounted(() => {
               <div>
                 <p class="text-sm font-medium text-gray-900 dark:text-white">{{ pk.name || 'Unnamed Passkey' }}</p>
                 <div class="flex items-center gap-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  <span>Created {{ formatDate(pk.createdAt) }}</span>
+                  <span>Created {{ formatLocalDate(pk.createdAt) }}</span>
                   <span>•</span>
                   <UBadge size="sm" variant="soft" :color="pk.deviceType === 'platform' ? 'info' : 'orange'">
                     {{ pk.deviceType === 'platform' ? 'Device Biometrics' : 'Security Key' }}
@@ -194,6 +183,7 @@ onMounted(() => {
               icon="i-lucide-trash-2" 
               size="sm"
               class="hover:bg-red-50 dark:hover:bg-red-950/30"
+              aria-label="Delete passkey"
               @click="deletePasskey(pk.id)"
             />
           </div>

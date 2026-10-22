@@ -13,6 +13,7 @@ import { created } from '../../../../utils/response'
 import { waitUntil } from '../../../../utils/cf-env'
 import { moderateText } from '../../../../utils/moderation'
 import { dispatchPluginHook } from '../../../../utils/plugin-hooks'
+import { requireSiteId } from '../../../../utils/site-context'
 
 interface FormNotificationsConfig {
   enabled?: boolean
@@ -65,7 +66,7 @@ export default defineEventHandler(async (event) => {
   await rateLimit(event, { limit: 10, windowMs: 60_000, keyPrefix: 'form-submit' })
 
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const formIdentifier = getRouterParam(event, 'formIdentifier')!
   const body = await parseBody(event, bodySchema)
 

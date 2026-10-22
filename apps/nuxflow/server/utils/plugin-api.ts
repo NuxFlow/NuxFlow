@@ -5,12 +5,12 @@
 // `PluginCallContext` and treats every *argument* as hostile input: validated, size-capped,
 // and scoped to the calling plugin's own site and id.
 import type { H3Event } from 'h3'
-import { and, asc, count, eq, gt, inArray, isNull, or, sql, sum } from 'drizzle-orm'
+import { and, asc, count, eq, gt, isNull, or, sql, sum } from 'drizzle-orm'
 import { generateText } from 'ai'
 import { ulid } from 'ulid'
 import { contentItems, contentTypes, dynamicPlugins, pluginStorage, sites } from '@nuxflow/db/schema'
 import { useDb } from './db'
-import { publicPathForItem } from './seo'
+import { withPublicPaths } from './seo'
 import { contentToMarkdown } from './markdown'
 import { htmlToTipTap, type TTNode } from './html-to-tiptap'
 import { uniqueContentSlug } from './content-queries'
@@ -181,22 +181,6 @@ function publicScope(siteId: string) {
   return and(eq(contentItems.siteId, siteId), eq(contentItems.status, 'published'), eq(contentItems.visibility, 'public'))
 }
 
-async function withPaths<T extends { slug: string, locale: string | null, sourceItemId: string | null }>(ctx: PluginCallContext, rows: T[]) {
-  const db = useDb(ctx.event)
-  const sourceIds = [...new Set(rows.map(r => r.sourceItemId).filter((id): id is string => Boolean(id)))]
-  const [site, sources] = await Promise.all([
-    db.query.sites.findFirst({ where: eq(sites.id, ctx.siteId), columns: { locale: true } }),
-    sourceIds.length
-      ? db.select({ id: contentItems.id, slug: contentItems.slug }).from(contentItems).where(and(eq(contentItems.siteId, ctx.siteId), inArray(contentItems.id, sourceIds)))
-      : Promise.resolve([]),
-  ])
-  const sourceSlug = new Map(sources.map(s => [s.id, s.slug]))
-  return rows.map(({ sourceItemId, ...rest }) => ({
-    ...rest,
-    path: publicPathForItem({ slug: rest.slug, locale: rest.locale, sourceSlug: sourceItemId ? sourceSlug.get(sourceItemId) ?? null : null }, site?.locale || 'en'),
-  }))
-}
-
 export async function listContent(ctx: PluginCallContext, options?: unknown) {
   requirePermission(ctx, 'content:read')
   const opts = isRecord(options) ? options : {}
@@ -215,7 +199,7 @@ export async function listContent(ctx: PluginCallContext, options?: unknown) {
     .orderBy(sql`${contentItems.publishedAt} DESC`, asc(contentItems.id))
     .limit(limit)
     .offset(offset)
-  return { items: await withPaths(ctx, rows) }
+  return { items: await withPublicPaths(useDb(ctx.event), ctx.siteId, rows) }
 }
 
 export async function getContent(ctx: PluginCallContext, options?: unknown) {
@@ -231,7 +215,7 @@ export async function getContent(ctx: PluginCallContext, options?: unknown) {
     .limit(1)
   if (!row) return null
   const { content, ...meta } = row
-  const [withPath] = await withPaths(ctx, [meta])
+  const [withPath] = await withPublicPaths(useDb(ctx.event), ctx.siteId, [meta])
   return { ...withPath, content, markdown: contentToMarkdown(content) }
 }
 

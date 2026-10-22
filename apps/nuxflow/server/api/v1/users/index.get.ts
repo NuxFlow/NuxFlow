@@ -2,11 +2,12 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { userSiteRoles, sessions, siteInvitations } from '@nuxflow/db/schema'
 import { eq, inArray } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const roles = await db.query.userSiteRoles.findMany({
     where: eq(userSiteRoles.siteId, siteId),

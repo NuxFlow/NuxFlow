@@ -4,6 +4,7 @@ import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { rateLimit } from '../../../../utils/rate-limit'
 import { sendConfirmationEmail } from '../../../../utils/mailing-list'
+import { requireSiteId } from '../../../../utils/site-context'
 
 // Resends the double opt-in email to someone still pending — e.g. after the site's email
 // provider was fixed.
@@ -11,7 +12,7 @@ export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
   await rateLimit(event, { limit: 20, windowMs: 60_000, keyPrefix: 'mailing-list-resend' })
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   const row = await db.query.mailingListSubscribers.findFirst({

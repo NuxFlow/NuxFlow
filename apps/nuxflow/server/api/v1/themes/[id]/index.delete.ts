@@ -10,11 +10,12 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { scopedById } from '../../../../utils/db-helpers'
 import type { NuxFlowBackup } from '../../../../utils/backup'
 import { purgeAllPublicPages } from '../../../../utils/edge-cache'
+import { requireSiteId } from '../../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const query = getQuery(event)
   const deleteDemo = query.deleteDemo === 'true'

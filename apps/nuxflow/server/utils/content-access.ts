@@ -36,7 +36,7 @@ export async function checkContentAccess(
     if (access === 'public') return null
 
     const session = await getAuthSession(event).catch(() => null)
-    const apiKeyUserId = event.context.apiKeyUserId as string | undefined
+    const apiKeyUserId = event.context.apiKeyUserId
     const userId = (session?.user?.id as string | undefined) ?? apiKeyUserId
 
     if (!userId) {

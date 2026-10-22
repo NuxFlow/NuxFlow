@@ -6,6 +6,7 @@ import { useDb } from '../../../../utils/db'
 import { requireSiteUser } from '../../../../utils/permissions'
 import { parseBody } from '../../../../utils/validate'
 import { NOTIFICATION_TYPES } from '../../../../utils/notify'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   preferences: z.array(z.object({
@@ -18,7 +19,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSiteUser(event)
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
 
   const writes = body.preferences

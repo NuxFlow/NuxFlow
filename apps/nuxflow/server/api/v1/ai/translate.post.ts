@@ -12,6 +12,7 @@ import { buildAuditLogInsert } from '../../../utils/audit'
 import { getContentItemOrThrow } from '../../../utils/content-queries'
 import { applyCanvasTranslations, collectCanvasStrings } from '@nuxflow/canvas/ai'
 import type { CanvasBlockData } from '@nuxflow/canvas'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   contentItemId: z.string(),
@@ -89,7 +90,7 @@ export default defineEventHandler(async (event) => {
   const model = await requireAiSdkModel(event, 'smart', { userId })
 
   const { contentItemId, targetLocale, targetSlugSuffix } = await parseBody(event, bodySchema)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
 
   const source = await getContentItemOrThrow(db, siteId, contentItemId, 'Content item not found')

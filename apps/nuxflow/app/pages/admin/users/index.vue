@@ -177,7 +177,7 @@ const columns = [
             <UBadge color="warning" variant="subtle" size="sm" icon="i-lucide-mail" class="w-fit">Invited</UBadge>
             <span class="text-xs text-gray-400">
               {{ row.original.invitationExpiresAt
-                ? `Invitation open until ${new Date(row.original.invitationExpiresAt).toLocaleDateString()}`
+                ? `Invitation open until ${formatLocalDate(row.original.invitationExpiresAt)}`
                 : "Hasn't accepted yet" }}
             </span>
           </div>
@@ -185,7 +185,7 @@ const columns = [
         </template>
 
         <template #createdAt-cell="{ row }">
-          <span class="text-sm text-gray-400">{{ new Date(row.original.createdAt).toLocaleDateString() }}</span>
+          <span class="text-sm text-gray-400">{{ formatLocalDate(row.original.createdAt) }}</span>
         </template>
 
         <template #actions-cell="{ row }">

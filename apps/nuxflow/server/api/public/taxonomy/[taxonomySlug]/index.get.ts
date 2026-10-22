@@ -3,6 +3,7 @@ import { taxonomies } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { withEdgeCache } from '../../../../utils/edge-cache'
 import { getPublicTermCounts } from '../../../../utils/taxonomy'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const CACHE_MAX_AGE = 300
 
@@ -12,7 +13,7 @@ const CACHE_MAX_AGE = 300
 // is the flat-file-beside-folder pattern CLAUDE.md warns trips Nitro's $fetch typing.
 export default defineEventHandler(async (event) => {
   const db = useReplicaDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const taxonomySlug = getRouterParam(event, 'taxonomySlug')!
 
   setHeader(event, 'Cache-Control', `public, max-age=${CACHE_MAX_AGE}, stale-while-revalidate=3600`)

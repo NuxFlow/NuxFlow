@@ -30,6 +30,7 @@ const props = withDefaults(defineProps<{
   focalX: 50,
   focalY: 50,
   lightbox: false,
+  padding: undefined,
 })
 
 const widthClass = computed(() => ({

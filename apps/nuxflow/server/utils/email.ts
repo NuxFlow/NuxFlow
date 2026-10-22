@@ -9,14 +9,9 @@ import { getSiteInfo, isPrimarySite } from './site-info'
 import { countUsage } from './usage'
 import { checkPlanLimit, PlanLimitError } from './hosting-plans'
 
-const HTML_ESCAPE_MAP: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
-
-export function escapeHtml(str: string): string {
-  return str.replace(/[&<>"']/g, c => HTML_ESCAPE_MAP[c]!)
-}
+export { escapeHtml } from '../../shared/lib/html-text'
 
 export type EmailProvider = 'console' | 'cloudflare' | 'resend' | 'brevo' | 'zepto'
-export const EMAIL_PROVIDERS: readonly EmailProvider[] = ['console', 'cloudflare', 'resend', 'brevo', 'zepto']
 
 export interface EmailMessage {
   to: string | string[]
@@ -343,7 +338,7 @@ export async function loadEmailConfig(event: H3Event): Promise<EmailConfig> {
   if (host === '127.0.0.1' || host === '::1') {
     host = 'localhost'
   }
-  const siteId = event.context.siteId as string | undefined
+  const siteId = event.context.siteId ?? undefined
   // Independent settings lookups — parallelized so a cache-miss (first call per isolate
   // per 30s window) costs one round trip's worth of latency instead of several serialized
   // ones. Fires on every email send (password resets, invites, form notifications), so

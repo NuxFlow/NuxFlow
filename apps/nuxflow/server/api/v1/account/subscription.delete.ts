@@ -5,6 +5,7 @@ import { getConfiguredPaymentProvider } from '../../../utils/payments/resolve'
 import { rethrowAsProviderError } from '../../../utils/errors'
 import { writeAuditLog } from '../../../utils/audit'
 import { rateLimit } from '../../../utils/rate-limit'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   // Calls out to the payment provider's cancellation API for non-free subscriptions —
@@ -12,7 +13,7 @@ export default defineEventHandler(async (event) => {
   // themselves for the same reason.
   await rateLimit(event, { limit: 10, windowMs: 60_000, keyPrefix: 'membership-cancel' })
   const session = await requireSession(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const userId = session.user.id as string
   const db = useDb(event)
 

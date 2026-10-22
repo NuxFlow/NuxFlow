@@ -5,10 +5,11 @@ import { writeAuditLog } from '../../../utils/audit'
 import { useDb } from '../../../utils/db'
 import { pushSubscriptions } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
 
   const { publicKey, privateKey } = await generateVapidKeys()

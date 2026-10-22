@@ -16,6 +16,7 @@ import { purgeAllPublicPages } from '../../utils/edge-cache'
 import { waitUntil } from '../../utils/cf-env'
 import { writeAuditLog } from '../../utils/audit'
 import { rateLimit } from '../../utils/rate-limit'
+import { requireSiteId } from '../../utils/site-context'
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB
 
@@ -36,7 +37,7 @@ export default defineEventHandler(async (event) => {
   // names (up to MAX_BACKUP_USERS) — bound how often that can be repeated.
   await rateLimit(event, { limit: 5, windowMs: 60 * 60_000, keyPrefix: 'restore' })
   const { userId } = await requireRole(event, 'admin')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
   const query = await parseQuery(event, querySchema)
 

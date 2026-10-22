@@ -10,6 +10,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { media } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { created } from '../../../utils/response'
+import { requireSiteId } from '../../../utils/site-context'
 
 const MAX_SIZE = 20 * 1024 * 1024
 
@@ -26,7 +27,7 @@ function isAllowedMediaMimeType(mime: string): boolean {
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   // Reject an oversized body before readFormData() buffers the entire multipart payload
   // into memory — the MAX_SIZE/provider-specific checks below only run after that buffering
@@ -97,9 +98,8 @@ export default defineEventHandler(async (event) => {
 
   // Pixel dimensions, read straight from the format's own header (see
   // image-dimensions.ts for why — sharp/ipx cannot run in the Workers runtime, so there's
-  // no decode-the-image fallback available). Populates the width/height columns that were
-  // previously always null, letting block-rendering code reserve real layout space instead
-  // of causing layout shift. Best-effort, same as EXIF above — a format this doesn't
+  // no decode-the-image fallback available). Fills the width/height columns so block
+  // rendering can reserve layout space instead of causing layout shift. Best-effort, same as EXIF above — a format this doesn't
   // recognize (or corrupt bytes) just leaves the columns null, never fails the upload.
   let dimensions: { width: number; height: number } | null = null
   if (mimeType === 'image/png' || mimeType === 'image/gif' || mimeType === 'image/jpeg' || mimeType === 'image/webp') {

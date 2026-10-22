@@ -8,11 +8,12 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { purgeContentCache } from '../../../utils/edge-cache'
 import { scopedById } from '../../../utils/db-helpers'
 import type { BatchItem } from 'drizzle-orm/batch'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const type = await getContentTypeBySlugOrThrow(db, siteId, 'page', 'Page content type not found', { id: true })
 

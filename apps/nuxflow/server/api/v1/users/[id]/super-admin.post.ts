@@ -12,9 +12,8 @@ import { alertRoleChanged } from '../../../../utils/security-alerts'
 // is the whole mechanism — there's no separate global flag to set. Deliberately its own
 // endpoint rather than a branch of PATCH /api/v1/users/:id: that route is usable by any
 // site 'admin' and explicitly blocks the super_admin role value, since granting it is
-// meaningfully more sensitive than a normal role change and previously had no path at
-// all outside the setup wizard (which also reseeds the site's content — too heavy a
-// side effect just to promote someone).
+// meaningfully more sensitive than a normal role change. The setup wizard is the only
+// other way to create one, and it also reseeds the site's content.
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSuperAdmin(event)
   const siteId = event.context.siteId!

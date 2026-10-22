@@ -9,6 +9,7 @@ import { resolveSetting } from '../../../utils/settings'
 import { StripeProvider } from '../../../utils/payments/stripe'
 import { LemonSqueezyProvider } from '../../../utils/payments/lemonsqueezy'
 import { syncPaymentProvider } from '../../../utils/payments/sync'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -28,7 +29,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 

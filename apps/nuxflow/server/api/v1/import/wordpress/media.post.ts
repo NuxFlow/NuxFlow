@@ -9,8 +9,9 @@ import { getActiveProvider } from '../../../../utils/media-providers/index'
 import { checkPlanLimit, planLimitMessage } from '../../../../utils/hosting-plans'
 import { isSafeUrl, safeFetch } from '../../../../utils/ssrf'
 import { sanitizeSvg } from '../../../../utils/sanitize-css-svg'
-import { bufferToHex } from '../../../../utils/buffer'
+import { sha256Hex } from '../../../../utils/buffer'
 import { errorMessage } from '../../../../utils/errors'
+import { requireSiteId } from '../../../../utils/site-context'
 
 // Small batches: each file is held in memory while it uploads, and the batch runs in
 // parallel — a handful of multi-MB images at once stays well inside a Worker's 128 MB.
@@ -28,7 +29,7 @@ type MediaResult = { url: string; localUrl: string } | { url: string; error: str
 // uploading a duplicate.
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
   const body = await parseBody(event, bodySchema)
   const provider = await getActiveProvider(event)
@@ -40,7 +41,7 @@ export default defineEventHandler(async (event) => {
 
       const rawName = decodeURIComponentSafe(remoteUrl.split('/').pop()?.split('?')[0] ?? '') || 'image.jpg'
       const ext = (rawName.includes('.') ? rawName.split('.').pop()! : 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'jpg'
-      const hash = bufferToHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(remoteUrl))).slice(0, 24)
+      const hash = (await sha256Hex(remoteUrl)).slice(0, 24)
       const storageKey = `${siteId}/wp-${hash}.${ext}`
 
       const existing = await db.query.media.findFirst({

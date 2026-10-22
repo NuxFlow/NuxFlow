@@ -5,11 +5,12 @@ import { getDynamicPluginByIdOrThrow } from '../../../../utils/resource-queries'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { scopedById } from '../../../../utils/db-helpers'
 import { purgeEdgeCache } from '../../../../utils/edge-cache'
+import { requireSiteId } from '../../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   await getDynamicPluginByIdOrThrow(db, siteId, id)

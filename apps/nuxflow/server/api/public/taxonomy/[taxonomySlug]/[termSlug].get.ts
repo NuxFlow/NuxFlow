@@ -4,6 +4,7 @@ import { asc, eq } from 'drizzle-orm'
 import { withEdgeCache } from '../../../../utils/edge-cache'
 import { parsePagination } from '../../../../utils/pagination'
 import { getPublicItemsForTerms, getTermAncestors, resolvePublicTermFilter } from '../../../../utils/taxonomy'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const CACHE_MAX_AGE = 300
 
@@ -11,7 +12,7 @@ export default defineEventHandler(async (event) => {
   // Anonymous, read-only, already edge-cached — safe to read from a D1 read replica when
   // one is enabled (see the "D1 read replication" note on useReplicaDb in server/utils/db.ts).
   const db = useReplicaDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const taxonomySlug = getRouterParam(event, 'taxonomySlug')!
   const termSlug = getRouterParam(event, 'termSlug')!
   const query = getQuery(event)

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { slugify } from '#shared/lib/slug'
 // Create/edit a taxonomy. `taxonomy` null = create.
 const props = defineProps<{ taxonomy: AdminTaxonomy | null }>()
 const open = defineModel<boolean>('open', { required: true })
@@ -27,7 +28,7 @@ watch(open, (isOpen) => {
 }, { immediate: true })
 
 watch(() => form.name, (name) => {
-  if (!slugTouched.value) form.slug = slugifyTermName(name)
+  if (!slugTouched.value) form.slug = slugify(name)
 })
 
 const slugChanged = computed(() => Boolean(props.taxonomy) && form.slug !== props.taxonomy!.slug)

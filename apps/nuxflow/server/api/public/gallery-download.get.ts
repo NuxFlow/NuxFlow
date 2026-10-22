@@ -8,6 +8,7 @@ import {
   openGalleryFile,
   prepareGalleryDownload,
 } from '../../utils/gallery-download'
+import { requireSiteId } from '../../utils/site-context'
 
 // Download a Gallery block's photos ("Allow downloads" on): the whole gallery as a zip, or
 // one photo with ?index=. Access, block lookup and the library-only rule live in
@@ -24,7 +25,7 @@ function contentDisposition(name: string) {
 }
 
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const query = parseQuery(event, querySchema)
   const single = query.index !== undefined
 

@@ -6,6 +6,7 @@ import { withEdgeCache } from '../utils/edge-cache'
 import { pageToMarkdown } from '../utils/markdown'
 import { getSeoSettings, siteBaseUrl, toIsoDateTime } from '../utils/seo'
 import { getIndexableEntries } from '../utils/sitemap-entries'
+import { requireSiteId } from '../utils/site-context'
 
 // The whole site's readable content as one Markdown file (the llms-full.txt convention),
 // newest first. Bounded two ways so a large site can't produce an unbounded response or an
@@ -16,7 +17,7 @@ const MAX_BYTES = 2_000_000
 const CHUNK = 20
 
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const seo = await getSeoSettings(useReplicaDb(event), siteId)
   if (!seo.llmsEnabled || seo.aiCrawlers === 'disallow') {
     throw createError({ statusCode: 404, statusMessage: 'Not found' })
@@ -30,7 +31,7 @@ export default defineEventHandler(async (event) => {
 
 async function buildLlmsFull(event: H3Event) {
   const db = useReplicaDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const [site, seo] = await Promise.all([
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { name: true, domain: true } }),

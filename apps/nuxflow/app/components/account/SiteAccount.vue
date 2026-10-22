@@ -123,10 +123,6 @@ async function cancelSubscription() {
   }
 }
 
-function formatDate(dateStr: string | null) {
-  if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' })
-}
 </script>
 
 <template>

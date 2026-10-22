@@ -51,6 +51,11 @@ export function isAccountsHost(event: H3Event): boolean {
   return !accountsHost.includes(':') ? false : host === accountsHost.split(':')[0]
 }
 
+/** 404 unless this request arrived on the accounts origin — for routes that exist only there. */
+export function requireAccountsHost(event: H3Event): void {
+  if (!isAccountsHost(event)) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+}
+
 /**
  * True for a request on a site's own domain while central sign-in is on — where
  * account-wide actions and Better Auth endpoints must never be reachable.

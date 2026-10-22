@@ -3,6 +3,7 @@ import { requireAiSdkModel } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { canvasGenerationBodySchema, generateCanvasPage, loadGenerationContext } from '../../../utils/canvas-generation'
+import { requireSiteId } from '../../../utils/site-context'
 
 // The canvas editor's "Generate page" modal. Returns the content only — the editor applies
 // it in place as an undoable preview the editor can keep or discard (see
@@ -14,7 +15,7 @@ export default defineEventHandler(async (event) => {
   const model = await requireAiSdkModel(event, 'smart', { userId })
 
   const { description, tone, pageGoal } = await parseBody(event, canvasGenerationBodySchema)
-  const ctx = await loadGenerationContext(event, useDb(event), event.context.siteId as string)
+  const ctx = await loadGenerationContext(event, useDb(event), requireSiteId(event))
 
   const page = await generateCanvasPage(model, ctx, { description, tone, pageGoal })
   return page.content

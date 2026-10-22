@@ -5,6 +5,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { purgeContentCache } from '../../../../utils/edge-cache'
 import { getContentTermIds, getTermRefsWithAncestors, replaceContentTermsStatements, validateSiteTermIds } from '../../../../utils/taxonomy'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   termIds: z.array(z.string()).max(200),
@@ -16,7 +17,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId, role } = await requireRole(event, 'author')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const itemId = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 

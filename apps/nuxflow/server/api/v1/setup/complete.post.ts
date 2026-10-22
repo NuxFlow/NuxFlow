@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { H3Event } from 'h3'
-import { bufferToHex } from '../../../utils/buffer'
+import { sha256Hex } from '../../../utils/buffer'
 import { useDb } from '../../../utils/db'
 import { sites, users, accounts, userSiteRoles, contentTypes, contentItems, taxonomies, siteSettings, auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
@@ -31,10 +31,7 @@ const bodySchema = z.object({
   setupToken: z.string().optional(),
 })
 
-async function hashSetupToken(token: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))
-  return bufferToHex(digest)
-}
+const hashSetupToken = sha256Hex
 
 export default defineEventHandler(async (event) => {
   try {

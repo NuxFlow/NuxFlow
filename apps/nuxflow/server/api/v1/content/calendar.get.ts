@@ -4,6 +4,7 @@ import { parseQuery } from '../../../utils/validate'
 import { contentItems, contentTypes } from '@nuxflow/db/schema'
 import { and, eq, or, gte, lte } from 'drizzle-orm'
 import { z } from 'zod'
+import { requireSiteId } from '../../../utils/site-context'
 
 const querySchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD'),
@@ -14,7 +15,7 @@ export default defineEventHandler(async (event) => {
   await requireRole(event, 'viewer')
 
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const { from, to } = parseQuery(event, querySchema)
 
   const fromTs = `${from}T00:00:00.000Z`

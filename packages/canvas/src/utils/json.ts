@@ -1,10 +1,7 @@
 /**
  * Parses `json` and returns the result, or `fallback` when `json` is falsy or parsing
- * throws. Centralizes the "JSON.parse a stored prop string, swallow errors, fall back
- * to a default" pattern that used to be reimplemented independently across block
- * components and the editor's field renderer — each one hand-rolling its own
- * try/catch around a block prop that's always stored as an opaque JSON string
- * (images, list fields, footer link columns, etc.).
+ * throws — for block props stored as a JSON string (images, list fields, footer link
+ * columns, etc.), read by block components and the editor's field renderer.
  */
 export function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
   if (!json) return fallback

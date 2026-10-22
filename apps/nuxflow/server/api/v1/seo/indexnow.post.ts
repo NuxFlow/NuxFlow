@@ -5,6 +5,7 @@ import { rateLimit } from '../../../utils/rate-limit'
 import { getSeoSettings } from '../../../utils/seo'
 import { submitToIndexNow } from '../../../utils/indexnow'
 import { getIndexableEntries } from '../../../utils/sitemap-entries'
+import { requireSiteId } from '../../../utils/site-context'
 
 /**
  * Admin → SEO → Indexing → "Submit all URLs now": sends every indexable URL (the sitemap's
@@ -16,7 +17,7 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   await rateLimit(event, { limit: 3, windowMs: 60 * 60_000, keyPrefix: 'indexnow-submit-all' })
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const seo = await getSeoSettings(db, siteId)
   if (!seo.indexnowEnabled) validationError('Turn IndexNow on and save before submitting URLs')

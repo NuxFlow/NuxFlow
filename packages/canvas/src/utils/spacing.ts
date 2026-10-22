@@ -1,11 +1,8 @@
 import type { SpacingValue } from '../types'
 
 /**
- * Converts a block's `spacing`-type prop value into a CSS `padding` shorthand string.
- * Was previously copy-pasted verbatim (differing only in the fallback string) across every
- * block component that has a `padding` prop — a future change to spacing semantics (e.g. a
- * 5th unit, or negative-value support) would otherwise need updating every call site
- * identically with nothing enforcing they stay in sync.
+ * Converts a block's `spacing`-type prop value into a CSS `padding` shorthand string, for
+ * every block component with a `padding` prop.
  */
 export function spacingToCss(padding: SpacingValue | null | undefined, fallback: string): string {
   if (!padding) return fallback

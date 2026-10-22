@@ -16,6 +16,7 @@
 // every ~10ms so it doesn't stall other concurrent requests on the isolate.
 
 import { argon2idAsync } from '@noble/hashes/argon2.js'
+import { base64ToBytes, bytesToBase64 } from '../../shared/lib/base64'
 
 const ARGON2_VERSION = 0x13 // 19
 const T_COST = 2
@@ -27,18 +28,10 @@ const SALT_LEN = 16 // 128-bit random salt per hash
 // ── Base64 (no padding) — PHC strings use unpadded standard-alphabet base64 ────
 
 function b64Encode(bytes: Uint8Array): string {
-  let binary = ''
-  for (const b of bytes) binary += String.fromCharCode(b)
-  return btoa(binary).replace(/=+$/, '')
+  return bytesToBase64(bytes).replace(/=+$/, '')
 }
 
-function b64Decode(str: string): Uint8Array {
-  const pad = str.length % 4 === 0 ? '' : '='.repeat(4 - (str.length % 4))
-  const binary = atob(str + pad)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes
-}
+const b64Decode = base64ToBytes
 
 // ── PHC string encode/decode ────────────────────────────────────────────────
 

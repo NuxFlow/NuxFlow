@@ -11,6 +11,7 @@ import { taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { scopedById } from '../../../utils/db-helpers'
 import type { BatchItem } from 'drizzle-orm/batch'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -25,7 +26,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 

@@ -32,8 +32,8 @@ async function activate(id: string) {
     await $fetch(`/api/v1/themes/${id}/activate`, { method: 'POST' })
     await refresh()
     toast.add({ title: 'Theme activated', color: 'success' })
-  } catch {
-    toast.add({ title: 'Failed to activate theme', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Failed to activate theme', description: getErrorMessage(e, ''), color: 'error' })
   } finally {
     activatingId.value = null
   }
@@ -44,8 +44,8 @@ async function preview(id: string) {
   try {
     const result = await $fetch<{ previewUrl: string }>(`/api/v1/themes/${id}/preview`, { method: 'POST' })
     window.open(result.previewUrl, '_blank', 'noopener')
-  } catch {
-    toast.add({ title: 'Failed to generate preview', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Failed to generate preview', description: getErrorMessage(e, ''), color: 'error' })
   } finally {
     previewingId.value = null
   }
@@ -57,8 +57,8 @@ async function resetToDefault() {
     await $fetch('/api/v1/themes/reset', { method: 'POST' })
     await refresh()
     toast.add({ title: 'Reverted to default theme', color: 'success' })
-  } catch {
-    toast.add({ title: 'Failed to reset theme', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Failed to reset theme', description: getErrorMessage(e, ''), color: 'error' })
   } finally {
     resetting.value = false
   }

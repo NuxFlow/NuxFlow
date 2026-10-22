@@ -2,7 +2,7 @@
 defineProps<{ collapsed?: boolean }>()
 const emit = defineEmits<{ toggleCollapse: [] }>()
 
-const auth = useAuthStore()
+const { user, signOutAndLeave } = useUserSession()
 const route = useRoute()
 
 await fetchAdminAccess()
@@ -89,16 +89,16 @@ function isActive(to: string) {
     <!-- User footer -->
     <div class="shrink-0 p-3" style="border-top: 1px solid var(--glass-xl-border);">
       <div v-if="collapsed" class="flex flex-col items-center gap-2">
-        <UAvatar :alt="auth.user?.name" size="sm" />
-        <UButton variant="ghost" size="xs" icon="i-lucide-log-out" aria-label="Sign out" @click="auth.signOut()" />
+        <UAvatar :alt="user?.name" size="sm" />
+        <UButton variant="ghost" size="xs" icon="i-lucide-log-out" aria-label="Sign out" @click="signOutAndLeave()" />
       </div>
       <div v-else class="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-        <UAvatar :alt="auth.user?.name" size="sm" />
+        <UAvatar :alt="user?.name" size="sm" />
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ auth.user?.name }}</p>
-          <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ auth.user?.email }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ user?.name }}</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ user?.email }}</p>
         </div>
-        <UButton variant="ghost" size="xs" icon="i-lucide-log-out" aria-label="Sign out" @click="auth.signOut()" />
+        <UButton variant="ghost" size="xs" icon="i-lucide-log-out" aria-label="Sign out" @click="signOutAndLeave()" />
       </div>
     </div>
   </div>

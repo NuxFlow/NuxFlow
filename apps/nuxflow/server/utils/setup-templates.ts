@@ -13,7 +13,7 @@ export type SetupTemplate = 'landing' | 'blog' | 'portfolio' | 'blank'
 
 /**
  * Returns the seeded homepage Canvas blocks for the given template, with `siteName`
- * interpolated into the copy exactly as each template previously did inline.
+ * interpolated into the copy.
  */
 export function getTemplateBlocks(template: SetupTemplate, siteName: string): Record<string, unknown>[] {
   if (template === 'landing') {

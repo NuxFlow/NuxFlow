@@ -8,6 +8,7 @@ import { parseBody } from '../../../utils/validate'
 import { isValidMailboxLocalPart } from '../../../utils/inbox'
 import { writeAuditLog } from '../../../utils/audit'
 import { created, conflict } from '../../../utils/response'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   localPart: z.string().trim().toLowerCase().min(1).max(64),
@@ -19,7 +20,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
 
   if (!isValidMailboxLocalPart(body.localPart)) {

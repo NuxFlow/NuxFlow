@@ -132,7 +132,7 @@ const statusColors: Record<string, UColor> = {
             </div>
             <div class="flex items-center gap-2 shrink-0">
               <UBadge :color="statusColors[comment.status]" :label="comment.status" variant="soft" size="xs" />
-              <span class="text-xs text-gray-400">{{ new Date(comment.createdAt).toLocaleDateString() }}</span>
+              <span class="text-xs text-gray-400">{{ formatLocalDate(comment.createdAt) }}</span>
             </div>
           </div>
 

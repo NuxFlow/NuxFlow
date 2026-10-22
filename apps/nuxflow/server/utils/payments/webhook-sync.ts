@@ -7,6 +7,7 @@ import { resolveSetting } from '../settings'
 import { sendNotification } from '../notify'
 import { writeAuditLog } from '../audit'
 import type { PaymentProviderName, SubscriptionStatus } from './types'
+import { requireSiteId } from '../site-context'
 
 // The column each provider's webhook payload actually resolves a membership tier by.
 const TIER_LOOKUP_COLUMN = {
@@ -65,7 +66,7 @@ export interface SubscriptionCancellation {
  * a different Host. Call this before every DB write these handlers make.
  */
 export function assertWebhookSiteMatch(event: H3Event, payloadSiteId: string | undefined | null): void {
-  const contextSiteId = event.context.siteId as string | undefined
+  const contextSiteId = event.context.siteId ?? undefined
   if (!payloadSiteId || !contextSiteId || payloadSiteId !== contextSiteId) {
     throw new WebhookForOtherSite(`Webhook event belongs to site ${payloadSiteId ?? '(none)'}, not ${contextSiteId ?? '(none)'}`)
   }
@@ -85,8 +86,7 @@ export class WebhookForOtherSite extends Error {}
  * standard 503 when it's empty — never verify a signature against an empty secret, since
  * Stripe's SDK (and a bare HMAC, for LemonSqueezy/Paddle) both accept a zero-length key
  * without error, which would make the signature check trivially forgeable by anyone.
- * Centralizes what used to be an identical guard copy-pasted across
- * handleStripeWebhook/handleLemonSqueezyWebhook/handlePaddleWebhook in [provider].post.ts.
+ * Shared by every provider's handler in [provider].post.ts.
  */
 export async function requireWebhookSecret(event: H3Event, settingKey: string, envKey: string, providerLabel: string): Promise<string> {
   const secret = await resolveSetting(event, settingKey, envKey)
@@ -118,7 +118,7 @@ async function maybeSendPaymentPush(event: H3Event, siteId: string, userId: stri
  */
 export async function upsertSubscriptionFromWebhook(event: H3Event, evt: SubscriptionUpsert): Promise<void> {
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const tier = evt.tierLookupId
     ? await db.query.membershipTiers.findFirst({
@@ -192,7 +192,7 @@ export async function upsertSubscriptionFromWebhook(event: H3Event, evt: Subscri
 /** Marks a subscription cancelled from a verified webhook event. */
 export async function cancelSubscriptionFromWebhook(event: H3Event, evt: SubscriptionCancellation): Promise<void> {
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const [row] = await db.update(subscriptions)
     .set({
       status: 'cancelled',

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
-import { seedSite, seedUser, seedRole } from '../helpers/seed'
+import { seedSite, seedUser, seedRole, seedSetting } from '../helpers/seed'
 import { forms, formSubmissions } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -27,6 +27,11 @@ vi.mock('../../server/utils/rate-limit', () => ({
 const mockModerateText = vi.fn().mockResolvedValue(null)
 vi.mock('../../server/utils/moderation', () => ({
   moderateText: (...args: unknown[]) => mockModerateText(...args),
+}))
+
+const mockSendNotification = vi.fn().mockResolvedValue(undefined)
+vi.mock('../../server/utils/notify', () => ({
+  sendNotification: (...args: unknown[]) => mockSendNotification(...args),
 }))
 
 const { default: submitHandler } = await import('../../server/api/v1/contact/submit.post')
@@ -166,6 +171,25 @@ describe('POST /api/v1/contact/submit', () => {
       await new Promise(resolve => setTimeout(resolve, 10))
     }
     expect(submission?.status).toBe('spam')
+  })
+
+  it('sends a signed-in visitor a "message received" notification when that push event is on', async () => {
+    await seedSetting(getCurrentTestDb(), SITE, 'push.events.form_submission', 'true')
+    mockSendNotification.mockClear()
+
+    await (submitHandler as Handler)(publicEvent({ name: 'Member', email: 'member@example.com', message: 'Hello there' }, '203.0.113.77'))
+    expect(mockSendNotification).not.toHaveBeenCalled()
+
+    await (submitHandler as Handler)(createMockEvent({
+      siteId: SITE,
+      session: { user: { id: authorId, name: 'Author', email: 'author@contact.test' } },
+      body: { name: 'Author', email: 'author@contact.test', message: 'Hello again' },
+      headers: { 'cf-connecting-ip': '203.0.113.78' },
+    }) as unknown as H3Event)
+    expect(mockSendNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ siteId: SITE, userId: authorId, type: 'form_submission' }),
+      expect.anything(),
+    )
   })
 })
 

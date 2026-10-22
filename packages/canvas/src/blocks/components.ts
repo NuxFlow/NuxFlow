@@ -12,12 +12,10 @@ import { defineAsyncComponent, type Component } from 'vue'
  * (`src/blocks.json`) is readable synchronously with no live component required, and
  * its actual component only has to exist once an instance of it is rendered.
  *
- * Previously this id -> component association was hand-duplicated in independent
- * places (this package's own `CanvasBlock.vue` editor renderer, and the host app's
- * `nuxflow-plugin-components.ts` SSR registration) that had to be kept in sync by
- * hand. Both now read from this single map — see `getBuiltinComponentIds()`/its
- * consumers if a future built-in needs excluding from one of those without a second
- * hand-maintained list.
+ * The single id -> component map, read by both this package's `CanvasBlock.vue` editor
+ * renderer and the host app's SSR registration (`nuxflow-blocks.ts`) — see
+ * `getBuiltinComponentIds()`/its consumers if a future built-in needs excluding from one
+ * of those.
  *
  * Every entry is wrapped in `defineAsyncComponent(() => import(...))` rather than a
  * static top-of-file import. Without this, every one of these ~19 block components

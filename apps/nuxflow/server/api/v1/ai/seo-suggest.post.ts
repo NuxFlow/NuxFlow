@@ -9,6 +9,7 @@ import { useDb } from '../../../utils/db'
 import { getContentItemOrThrow } from '../../../utils/content-queries'
 import { contentToMarkdown } from '../../../utils/markdown'
 import { clampToWords } from '../../../utils/seo'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   title: z.string().max(300).default(''),
@@ -39,7 +40,7 @@ export default defineEventHandler(async (event) => {
 
   const input = await parseBody(event, bodySchema)
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   let title = input.title
   let content = input.body ?? ''

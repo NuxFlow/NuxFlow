@@ -6,7 +6,7 @@ import { eq, and, gte, desc } from 'drizzle-orm'
 import { withEdgeCache } from '../utils/edge-cache'
 
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string
+  const siteId = event.context.siteId
   if (!siteId) throw createError({ statusCode: 404 })
 
   setHeader(event, 'Content-Type', 'text/calendar; charset=utf-8')

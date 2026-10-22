@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { slugify } from '#shared/lib/slug'
 // Hosting sign-up, on the accounts origin: choose a plan, a name and an address, then pay
 // through Stripe Checkout. Someone without an account creates one here first (the only
 // place passwords are typed), signs in, and comes straight back to this form.
@@ -92,11 +93,11 @@ const TEMPLATES = [
   { value: 'blank', label: 'Blank', icon: 'i-lucide-file', description: 'Start from an empty page' },
 ] as const
 
-function slugify(value: string): string {
-  return value.toLowerCase().normalize('NFKD').replace(/\p{M}/gu, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32).replace(/-+$/, '')
+function subdomainFor(name: string): string {
+  return slugify(name).slice(0, 32).replace(/-+$/, '')
 }
 watch(siteName, (name) => {
-  if (!subdomainTouched.value) subdomain.value = slugify(name)
+  if (!subdomainTouched.value) subdomain.value = subdomainFor(name)
 })
 
 interface SubdomainCheck { available: boolean; domain: string; reason?: string }

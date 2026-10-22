@@ -25,18 +25,6 @@ const unlinking = ref<string | null>(null)
 const linkedProviderIds = computed(() => new Set(accounts.value.map(a => a.providerId)))
 const hasPasswordAccount = computed(() => linkedProviderIds.value.has('credential'))
 
-function formatDate(dateStr?: Date | string) {
-  if (!dateStr) return 'N/A'
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return 'N/A'
-  try {
-    return date.toLocaleDateString(undefined, { dateStyle: 'medium' })
-  }
-  catch {
-    return date.toLocaleDateString()
-  }
-}
-
 async function fetchAccounts() {
   loading.value = true
   loadFailed.value = false
@@ -190,7 +178,7 @@ onMounted(async () => {
             <div>
               <p class="text-sm font-medium text-gray-900 dark:text-white">{{ provider.label }}</p>
               <p v-if="linkedProviderIds.has(provider.id)" class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Connected {{ formatDate(accounts.find(a => a.providerId === provider.id)?.createdAt) }}
+                Connected {{ formatLocalDate(accounts.find(a => a.providerId === provider.id)?.createdAt) }}
               </p>
               <p v-else class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Not connected</p>
             </div>

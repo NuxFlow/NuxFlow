@@ -1,18 +1,25 @@
 import type { H3Event } from 'h3'
-import { useDb } from '../../utils/db'
+import { z } from 'zod'
+import { useReplicaDb } from '../../utils/db'
+import { parseQuery } from '../../utils/validate'
 import { getContentTypeBySlug } from '../../utils/content-queries'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, gte, lte, asc } from 'drizzle-orm'
 import { notFound } from '../../utils/response'
 import { withEdgeCache } from '../../utils/edge-cache'
 
+// Out-of-range numbers are clamped rather than refused, so a block with an odd setting still renders.
+const querySchema = z.object({
+  from: z.string().max(40).optional(),
+  to: z.string().max(40).optional(),
+  limit: z.coerce.number().int().catch(20).transform(n => Math.min(100, Math.max(1, n))),
+  offset: z.coerce.number().int().catch(0).transform(n => Math.max(0, n)),
+})
+
 async function loadEvents(event: H3Event, siteId: string) {
-  const db = useDb(event)
-  const query = getQuery(event)
-  const from = (query.from as string) || new Date().toISOString()
-  const to = query.to as string | undefined
-  const limit = Math.min(100, Math.max(1, parseInt(query.limit as string) || 20))
-  const offset = Math.max(0, parseInt(query.offset as string) || 0)
+  // Anonymous, read-only and edge-cached — fine to read from a D1 replica.
+  const db = useReplicaDb(event)
+  const { from = new Date().toISOString(), to, limit, offset } = parseQuery(event, querySchema)
 
   // Find the event content type ID
   const type = await getContentTypeBySlug(db, siteId, 'event', { id: true })
@@ -58,7 +65,7 @@ async function loadEvents(event: H3Event, siteId: string) {
 }
 
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string
+  const siteId = event.context.siteId
   if (!siteId) notFound()
 
   setHeader(event, 'Cache-Control', 'public, max-age=300, stale-while-revalidate=3600')

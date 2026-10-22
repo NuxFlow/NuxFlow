@@ -55,8 +55,8 @@ async function saveLayout() {
     })
     toast.add({ title: 'Layout regions saved', color: 'success' })
     await refreshSettings()
-  } catch {
-    toast.add({ title: 'Failed to save layout regions', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Failed to save layout regions', description: getErrorMessage(e, ''), color: 'error' })
   } finally {
     savingLayout.value = false
   }

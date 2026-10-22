@@ -71,6 +71,9 @@ const props = withDefaults(defineProps<{
   plan3BtnLabel: 'Contact sales',
   plan3BtnUrl: '#',
   plan3Popular: false,
+  bgColor: undefined,
+  textColor: undefined,
+  padding: undefined,
 })
 
 function parseFeatures(val?: string) {

@@ -2,11 +2,12 @@ import { useDb } from '../../../../utils/db'
 import { requireSiteUser } from '../../../../utils/permissions'
 import { notifications } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
+import { requireSiteId } from '../../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSiteUser(event)
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   // userId alone isn't enough scoping here — user accounts are global across this

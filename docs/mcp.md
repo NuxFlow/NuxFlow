@@ -11,9 +11,9 @@ With the MCP integration, you can ask your AI assistant to:
 
 ## 🚀 How it Works
 
-The MCP server runs natively on NuxFlow's edge runtime (Cloudflare Workers / D1) at the endpoint `/api/v1/mcp`. It supports:
-1. **GET (SSE Handshake)**: Establishes a Server-Sent Events (SSE) stream, returning a unique `sessionId` mapped to `/api/v1/mcp?sessionId=...`.
-2. **POST (JSON-RPC 2.0)**: Processes JSON-RPC 2.0 message payloads (containing methods like `initialize`, `tools/list`, and `tools/call`) and pushes results back through the SSE stream.
+The MCP server lives at `/api/v1/mcp` on each site and speaks the **Streamable HTTP** transport (protocol versions `2025-06-18`, `2025-03-26` and `2024-11-05`). Each JSON-RPC message (`initialize`, `tools/list`, `tools/call`, `ping`) is one `POST`, answered in that request's JSON body. The server keeps no session between requests, so it works on every Cloudflare location. `GET` returns `405`: the server never opens a server-to-client stream.
+
+The older HTTP+SSE transport (a `GET` stream plus `POST ?sessionId=`) is no longer supported. Point your client at the same URL using its "HTTP" or "Streamable HTTP" option.
 
 ---
 
@@ -35,68 +35,41 @@ All MCP requests must be authenticated.
 
 ## 🛠️ Supported Tools
 
-The MCP server exposes five high-performance content manipulation tools:
+| Tool | Scope | What it does |
+|---|---|---|
+| `list_content` | `read:content` | Lists pages or posts, filtered by type and status. |
+| `get_content` | `read:content` | Gets one item by `id` or `slug`, with its body and taxonomy terms. |
+| `search_content` | `read:content` | Finds published content by topic or keyword (semantic search when Vectorize is set up, keyword search otherwise). |
+| `list_taxonomies` | `read:content` | Lists the site's taxonomies and their terms as `taxonomy/term` paths. |
+| `create_content` | `write:content` | Creates a page or post. |
+| `update_content` | `write:content` | Changes an item's title, slug, content or status. |
+| `set_content_terms` | `write:content` | Replaces an item's categories/tags, given as `taxonomy/term` paths. |
+| `delete_content` | `write:content` | Permanently deletes an item. |
 
-### 1. `list_content`
-List pages or posts in the NuxFlow CMS.
-* **Arguments**:
-  - `type` (string, optional): Filter by content type slug (`page` or `post`, default: `page`).
-  - `status` (string, optional): Filter by publish status (`draft`, `review`, `published`, `scheduled`, `archived`).
-  - `limit` (number, optional): Maximum number of items to return (default: `20`, max: `50`).
-
-### 2. `get_content`
-Get full details (including body content, slug, and metadata) of a specific page or post.
-* **Arguments** (must provide at least one):
-  - `id` (string): The unique 26-character ULID of the content item.
-  - `slug` (string): The URL slug of the content item.
-
-### 3. `create_content`
-Create a new page or post drafted by the AI assistant.
-* **Arguments**:
-  - `title` (string, required): The title of the page/post.
-  - `slug` (string, required): The URL slug for the page/post.
-  - `content` (string, optional): The text or HTML body content.
-  - `type` (string, optional): The content type slug (`page` or `post`, default: `page`).
-  - `status` (string, optional): The status (`draft` or `published`, default: `draft`).
-
-### 4. `update_content`
-Update the title, content, slug, or status of an existing page or post.
-* **Arguments**:
-  - `id` (string, required): The 26-character ULID of the content item to update.
-  - `title` (string, optional): The new title.
-  - `slug` (string, optional): The new slug.
-  - `content` (string, optional): The new content text or HTML.
-  - `status` (string, optional): The new status (`draft`, `review`, `published`, `scheduled`, `archived`).
-
-### 5. `delete_content`
-Permanently delete a page or post.
-* **Arguments**:
-  - `id` (string, required): The unique 26-character ULID of the content item to delete.
-* **Security Note**: This tool requires the authenticated API key to be associated with an `editor`, `admin`, or `super_admin` role.
+Each tool also checks the key owner's role on the site, the same as the admin API: an `author` can only edit their own drafts and can't publish, and deleting needs `editor` or above. `tools/list` returns every tool's exact input schema.
 
 ---
 
-## 💻 Claude Desktop Configuration Example
+## 💻 Connecting a Client
 
-To connect your **Claude Desktop** application to the NuxFlow MCP server, add an entry to your Claude Desktop configuration file (typically located at `%APPDATA%\Claude\claude_desktop_config.json` on Windows or `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+**Claude Code:**
+
+```bash
+claude mcp add --transport http nuxflow https://your-site.com/api/v1/mcp   --header "Authorization: Bearer <your_nuxflow_api_key>"
+```
+
+**Claude Desktop** (which starts local servers only) goes through the `mcp-remote` bridge. Add this to `claude_desktop_config.json` (`%APPDATA%\Claude\` on Windows, `~/Library/Application Support/Claude/` on macOS):
 
 ```json
 {
   "mcpServers": {
-    "nuxflow-cms": {
+    "nuxflow": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/client-cli",
-        "sse",
-        "https://your-nuxflow-domain.com/api/v1/mcp"
-      ],
-      "env": {
-        "Authorization": "Bearer <your_nuxflow_api_key>"
-      }
+      "args": ["-y", "mcp-remote", "https://your-site.com/api/v1/mcp", "--header", "Authorization:${NUXFLOW_AUTH}"],
+      "env": { "NUXFLOW_AUTH": "Bearer <your_nuxflow_api_key>" }
     }
   }
 }
 ```
 
-Replace `https://your-nuxflow-domain.com` with your live edge site domain and `<your_nuxflow_api_key>` with the API token generated in your dashboard. Restart Claude Desktop, and your AI assistant will immediately see the NuxFlow content tools!
+Other clients (Cursor, custom agents) take the same URL and `Authorization` header in their HTTP transport settings. Replace `https://your-site.com` with your site's domain and restart the client.

@@ -3,6 +3,7 @@ import { ulid } from 'ulid'
 import { contentTypes, taxonomies, taxonomyContentTypes, taxonomyTerms } from '@nuxflow/db/schema'
 import type { Db } from './db'
 import { validationError } from './response'
+import { chunk } from '../../shared/lib/array'
 
 // Server half of the WordPress import. The admin page parses the export in the browser
 // (shared/lib/wxr-parser.ts) and drives these routes one small batch at a time —
@@ -19,12 +20,6 @@ export const WORDPRESS_TAXONOMIES = {
   tag: { slug: 'tag', name: 'Tags', isHierarchical: false },
 } as const
 export type WordPressTaxonomy = keyof typeof WORDPRESS_TAXONOMIES
-
-export function chunked<T>(list: T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size))
-  return out
-}
 
 /** The site's built-in page and post content types; an import needs both. */
 export async function getImportContentTypes(db: Db, siteId: string): Promise<{ pageTypeId: string; postTypeId: string }> {
@@ -56,7 +51,7 @@ export async function ensureImportTaxonomy(db: Db, siteId: string, which: WordPr
 /** slug → id for the given slugs in one taxonomy. */
 export async function termIdsBySlug(db: Db, taxonomyId: string, slugs: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>()
-  for (const part of chunked([...new Set(slugs)], IN_LIST_CHUNK)) {
+  for (const part of chunk([...new Set(slugs)], IN_LIST_CHUNK)) {
     const rows = await db.query.taxonomyTerms.findMany({
       where: and(eq(taxonomyTerms.taxonomyId, taxonomyId), inArray(taxonomyTerms.slug, part)),
       columns: { id: true, slug: true },

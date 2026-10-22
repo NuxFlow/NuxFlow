@@ -8,10 +8,10 @@
  * tenant regardless of which zone/plan their domain sits on. (If a zone does have it
  * enabled, Cloudflare converts the HTML response instead; both paths emit the site's own
  * Content-Signal, so they agree.)
- *
- * Kept independent of app/utils/render-tiptap.ts for the same reason tiptap-text.ts is:
- * that file is scoped to the Vue bundle and can't be imported from Nitro.
  */
+
+import { decodeHtmlEntities } from '../../shared/lib/html-text'
+import { isSafeLinkUrl } from '../../shared/lib/render-tiptap'
 
 // ── Text helpers ─────────────────────────────────────────────────────────────
 
@@ -20,29 +20,15 @@ export function escapeMarkdown(text: string): string {
   return text.replace(/[\\`*_[\]]/g, ch => `\\${ch}`)
 }
 
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&', lt: '<', gt: '>', quot: '"', apos: '\'', nbsp: ' ', hellip: '…', mdash: '—', ndash: '–',
-  lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', copy: '©', reg: '®', trade: '™',
-}
-
+/** HTML entities decoded, with non-breaking spaces as plain spaces (Markdown has no use for them). */
 export function decodeEntities(s: string): string {
-  return s.replace(/&(#x[0-9a-f]{1,6}|#\d{1,7}|[a-z]{2,8});/gi, (m, body: string) => {
-    if (body[0] === '#') {
-      const code = body[1] === 'x' || body[1] === 'X' ? Number.parseInt(body.slice(2), 16) : Number.parseInt(body.slice(1), 10)
-      try {
-        return Number.isFinite(code) ? String.fromCodePoint(code) : m
-      } catch {
-        return m
-      }
-    }
-    return NAMED_ENTITIES[body.toLowerCase()] ?? m
-  })
+  return decodeHtmlEntities(s).replace(/\xA0/g, ' ')
 }
 
-/** Blocks script-executing link targets the same way feed.xml's escUrl() does. */
+/** Drops script-executing link targets (same rule as the HTML renderer). */
 function safeUrl(url: string): string {
+  if (!isSafeLinkUrl(url)) return ''
   const trimmed = url.trim()
-  if (/^(?:javascript|vbscript|data):/i.test(trimmed)) return ''
   return trimmed.replace(/\s/g, '%20').replace(/\)/g, '%29')
 }
 

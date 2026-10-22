@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../utils/db'
 import { getSiteBranding } from '../../utils/accounts-sites'
 import { getUserSiteRole } from '../../utils/permissions'
-import { isAccountsHost } from '../../utils/accounts-origin'
+import { requireAccountsHost } from '../../utils/accounts-origin'
 
 const querySchema = z.object({ site: z.string().min(1).max(64) })
 
@@ -12,7 +12,7 @@ const querySchema = z.object({ site: z.string().min(1).max(64) })
  * of that site. See POST /api/accounts/authorize for the handoff itself.
  */
 export default defineEventHandler(async (event) => {
-  if (!isAccountsHost(event)) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  requireAccountsHost(event)
   const { site: siteId } = parseQuery(event, querySchema)
 
   const site = await getSiteBranding(event, siteId)

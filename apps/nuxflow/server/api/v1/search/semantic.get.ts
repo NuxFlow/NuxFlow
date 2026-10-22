@@ -1,8 +1,14 @@
 import { useReplicaDb } from '../../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
+import { z } from 'zod'
 import { rateLimit } from '../../../utils/rate-limit'
 import { semanticSearch } from '../../../utils/embeddings'
+import { parseQuery } from '../../../utils/validate'
+import { withPublicPaths } from '../../../utils/seo'
+import { requireSiteId } from '../../../utils/site-context'
+
+const querySchema = z.object({ q: z.string().optional() })
 
 /**
  * Semantic (vector) search — a supplement to FTS5 keyword search (search.get.ts), not a
@@ -17,9 +23,8 @@ import { semanticSearch } from '../../../utils/embeddings'
 export default defineEventHandler(async (event) => {
   await rateLimit(event, { limit: 60, windowMs: 60_000, keyPrefix: 'search-semantic' })
 
-  const siteId = event.context.siteId as string
-  const query = getQuery(event)
-  const q = (query.q as string)?.trim()
+  const siteId = requireSiteId(event)
+  const q = parseQuery(event, querySchema).q?.trim()
 
   if (!q || q.length < 2 || q.length > 500) return { available: true, results: [] }
 
@@ -34,7 +39,7 @@ export default defineEventHandler(async (event) => {
   // members-only item can still match for a while. Title comes from the row, not the
   // vector's metadata, for the same reason.
   const items = await db
-    .select({ id: contentItems.id, slug: contentItems.slug, title: contentItems.title })
+    .select({ id: contentItems.id, slug: contentItems.slug, title: contentItems.title, locale: contentItems.locale, sourceItemId: contentItems.sourceItemId })
     .from(contentItems)
     .where(and(
       inArray(contentItems.id, ids),
@@ -42,7 +47,7 @@ export default defineEventHandler(async (event) => {
       eq(contentItems.status, 'published'),
       eq(contentItems.visibility, 'public'),
     ))
-  const itemMap = new Map(items.map(i => [i.id, i]))
+  const itemMap = new Map((await withPublicPaths(db, siteId, items)).map(i => [i.id, i]))
 
   const results = matches
     .filter(m => itemMap.has(m.contentItemId))
@@ -50,7 +55,7 @@ export default defineEventHandler(async (event) => {
       id: m.contentItemId,
       title: itemMap.get(m.contentItemId)!.title,
       score: m.score,
-      slug: itemMap.get(m.contentItemId)!.slug,
+      path: itemMap.get(m.contentItemId)!.path,
     }))
 
   return { available: true, results }

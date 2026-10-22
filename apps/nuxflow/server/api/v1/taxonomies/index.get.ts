@@ -3,11 +3,12 @@ import { requireAuth } from '../../../utils/permissions'
 import { getTaxonomyContentTypeSlugs } from '../../../utils/taxonomy'
 import { taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { asc, eq, sql } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const rows = await db.select({
     id: taxonomies.id,

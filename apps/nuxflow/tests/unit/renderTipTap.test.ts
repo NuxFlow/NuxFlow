@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { renderTipTap } from '../../app/utils/render-tiptap'
+import { renderTipTap } from '../../shared/lib/render-tiptap'
 
 // Helpers to build TipTap nodes concisely
 const text = (t: string, ...marks: object[]) => ({

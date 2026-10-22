@@ -62,10 +62,6 @@ const registryByCategory = computed(() => {
 
 const totalHits = computed(() => (activity.value?.bots ?? []).reduce((n, b) => n + b.hits, 0))
 
-function formatDate(d: string) {
-  const iso = d.includes('T') ? d : `${d.replace(' ', 'T')}Z`
-  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
 </script>
 
 <template>
@@ -180,7 +176,7 @@ function formatDate(d: string) {
             </td>
             <td class="py-2 pr-3 text-xs text-gray-500">{{ CATEGORY_LABELS[b.category] ?? b.category }}</td>
             <td class="py-2 pr-3 text-right tabular-nums">{{ b.hits.toLocaleString() }}</td>
-            <td class="py-2 pr-3 text-xs text-gray-500 whitespace-nowrap">{{ formatDate(b.lastSeenAt) }}</td>
+            <td class="py-2 pr-3 text-xs text-gray-500 whitespace-nowrap">{{ formatLocalDateTime(b.lastSeenAt) }}</td>
             <td class="py-2 text-xs text-gray-500 font-mono truncate max-w-[16rem]">{{ b.lastPath }}</td>
           </tr>
         </tbody>

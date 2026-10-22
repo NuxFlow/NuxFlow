@@ -5,6 +5,7 @@ import { requireRole } from '../../../../utils/permissions'
 import { useDb } from '../../../../utils/db'
 import { TAXONOMY_SLUG_RE } from '../../../../utils/taxonomy'
 import { ensureImportTaxonomy, getImportContentTypes, termIdsBySlug } from '../../../../utils/wordpress-import'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   importId: z.string().min(1).max(64),
@@ -21,7 +22,7 @@ const bodySchema = z.object({
 // (taxonomyTerms.parentId has no FK — see packages/db/src/schema/content.ts).
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
   const body = await parseBody(event, bodySchema)
 

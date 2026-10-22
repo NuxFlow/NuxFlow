@@ -7,11 +7,12 @@ import { getRedirectByIdOrThrow } from '../../../utils/resource-queries'
 import { scopedById } from '../../../utils/db-helpers'
 import { clearRedirectCache, normalizeRedirectPath } from '../../../utils/redirect-cache'
 import { redirectRuleSchema, saveRedirect } from '../../../utils/redirects'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, redirectRuleSchema)
 

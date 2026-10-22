@@ -1,14 +1,18 @@
+import { z } from 'zod'
 import { useDb } from '../../../utils/db'
+import { parseQuery } from '../../../utils/validate'
 import { requireRole } from '../../../utils/permissions'
 import { contentItems } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
+
+const querySchema = z.object({ format: z.enum(['json', 'csv']).default('json') })
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
-  const query = getQuery(event)
-  const format = (query.format as string) ?? 'json'
+  const siteId = requireSiteId(event)
+  const { format } = parseQuery(event, querySchema)
 
   // Capped rather than paginated — this is a "download everything" export, so silently
   // paging would drop content. The cap exists only to keep the response within the

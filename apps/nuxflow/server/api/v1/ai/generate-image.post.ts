@@ -9,6 +9,8 @@ import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { media } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
+import { base64ToBytes } from '../../../../shared/lib/base64'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   prompt: z.string().min(5).max(1000),
@@ -27,7 +29,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { prompt, shape, quality, saveToLibrary } = await parseBody(event, bodySchema)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   // Only images the platform pays for are limited; the site's own key is never refused.
   if (imageProvider.payer === 'platform') await assertAiAllowance(event, AI_CREDITS.image)
@@ -49,7 +51,7 @@ export default defineEventHandler(async (event) => {
     // Every provider returns a data: URL (image-providers/index.ts).
     const commaIdx = imageUrl.indexOf(',')
     const mime = imageUrl.slice(5, commaIdx).replace(';base64', '') || 'image/png'
-    const bytes = Uint8Array.from(atob(imageUrl.slice(commaIdx + 1)), c => c.charCodeAt(0))
+    const bytes = base64ToBytes(imageUrl.slice(commaIdx + 1))
     const imageBlob = new Blob([bytes], { type: mime })
 
     const ext = imageBlob.type.includes('png') ? 'png' : imageBlob.type.includes('webp') ? 'webp' : 'jpg'

@@ -24,7 +24,7 @@ const SKIP_PREFIXES = ['/_nuxt/', '/_nuxflow/', '/api/', '/__nuxt']
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1'])
 
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string | null
+  const siteId = event.context.siteId
   if (!siteId) return
   if (event.method !== 'GET' && event.method !== 'HEAD') return
 
@@ -42,7 +42,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const host = (getHeader(event, 'host') ?? '').split(':')[0]!.toLowerCase()
-  const siteDomain = (event.context.siteDomain as string | null | undefined)?.toLowerCase() ?? ''
+  const siteDomain = (event.context.siteDomain)?.toLowerCase() ?? ''
   const base = siteBaseUrl(seo, siteDomain)
   let canonicalHost = ''
   try {

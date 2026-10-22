@@ -5,6 +5,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { parseBody } from '../../../utils/validate'
 import { writeAuditLog } from '../../../utils/audit'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -18,7 +19,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 

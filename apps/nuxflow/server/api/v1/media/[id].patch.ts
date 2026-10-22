@@ -6,6 +6,7 @@ import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
 import { media, mediaFolders } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { scopedById } from '../../../utils/db-helpers'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   altText: z.string().max(500).nullable().optional(),
@@ -18,7 +19,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 

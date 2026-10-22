@@ -7,6 +7,7 @@ import { useDb } from '../../../utils/db'
 import { taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 import { getTaxonomyContentTypeSlugs } from '../../../utils/taxonomy'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   title: z.string().min(1),
@@ -40,7 +41,7 @@ export default defineEventHandler(async (event) => {
   const model = await requireAiSdkModel(event, 'fast', { userId })
 
   const { title, body, contentType } = await parseBody(event, bodySchema)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
 
   const allTaxonomies = await db.query.taxonomies.findMany({ where: eq(taxonomies.siteId, siteId) })

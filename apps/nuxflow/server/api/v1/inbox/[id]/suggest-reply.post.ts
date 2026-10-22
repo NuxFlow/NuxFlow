@@ -6,6 +6,7 @@ import { requireRole } from '../../../../utils/permissions'
 import { getEmailMessageOrThrow } from '../../../../utils/inbox'
 import { requireAiSdkModel, callAiOrThrow } from '../../../../utils/ai-sdk'
 import { rateLimit } from '../../../../utils/rate-limit'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const SYSTEM = `You draft email replies for the team behind a website. Write a concise, friendly, professional reply to the customer's latest message, using the conversation so far for context.
 - Reply in the customer's language.
@@ -21,7 +22,7 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   await rateLimit(event, { keyPrefix: `inbox-suggest:${userId}`, limit: 30, windowMs: 3_600_000 })
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   const message = await getEmailMessageOrThrow(db, siteId, id)

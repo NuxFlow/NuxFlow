@@ -83,7 +83,7 @@ const emit = defineEmits<{
           {{ video.title }}
         </h3>
         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          {{ formatBytes(video.size) }} · {{ new Date(video.createdAt).toLocaleDateString() }}
+          {{ formatBytes(video.size) }} · {{ formatLocalDate(video.createdAt) }}
         </p>
       </div>
 

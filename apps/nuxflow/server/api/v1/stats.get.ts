@@ -2,11 +2,12 @@ import { useDb } from '../../utils/db'
 import { requireAuth } from '../../utils/permissions'
 import { contentItems, media, formSubmissions, userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq, count } from 'drizzle-orm'
+import { requireSiteId } from '../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const [[pages], [mediaFiles], [submissions], [users]] = await Promise.all([
     db.select({ value: count() }).from(contentItems)

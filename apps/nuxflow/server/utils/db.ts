@@ -63,8 +63,7 @@ function resolveD1Binding(event?: H3Event): unknown {
   // eslint-disable-next-line no-empty
   try { eventD1 = (event ?? useEvent())?.context?.cloudflare?.env?.DB } catch {}
 
-  const cfGlobal = globalThis as { __env__?: { DB?: unknown } }
-  const d1 = eventD1 ?? cfGlobal.__env__?.DB ?? _d1
+  const d1 = eventD1 ?? globalThis.__env__?.DB ?? _d1
 
   if (!d1) {
     throw createError({

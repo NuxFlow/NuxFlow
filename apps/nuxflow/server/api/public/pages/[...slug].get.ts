@@ -8,6 +8,7 @@ import { findPublishedPage, parseLocalePath } from '../../../utils/public-page'
 import { effectiveItemRobots, getSeoSettings, publicPathForItem } from '../../../utils/seo'
 import { getPublicItemTerms, termArchivePath } from '../../../utils/taxonomy'
 import { checkContentAccess } from '../../../utils/content-access'
+import { requireSiteId } from '../../../utils/site-context'
 
 type ContentItemRow = typeof contentItems.$inferSelect
 
@@ -19,7 +20,7 @@ export default defineEventHandler(async (event) => {
   // deliberately resolves its own primary-DB instance below rather than reusing this one,
   // since membership access needs read-after-write freshness a replica can't guarantee.
   const db = useReplicaDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const slug = getRouterParam(event, 'slug')!
 
   // Check redirects first

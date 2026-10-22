@@ -53,8 +53,8 @@ async function saveAppearance() {
     })
     toast.add({ title: 'Appearance saved', color: 'success' })
     await refreshSettings()
-  } catch {
-    toast.add({ title: 'Failed to save appearance', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Failed to save appearance', description: getErrorMessage(e, ''), color: 'error' })
   } finally {
     savingAppearance.value = false
   }

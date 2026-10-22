@@ -11,6 +11,7 @@ import { getSeoSettings, type SeoSettings } from './seo'
 import { loadEmailConfig } from './email'
 import { getAccountsOrigin } from './accounts-origin'
 import { isPrimarySite } from './site-info'
+import { requireSiteId } from './site-context'
 
 /**
  * The admin dashboard's "Finish setting up your site" card (GET /api/v1/site-checklist,
@@ -296,7 +297,7 @@ export const CHECKLIST_HIDDEN_KEY = 'dashboard.checklist_hidden'
 
 export async function gatherSetupChecklistInputs(event: H3Event, userId: string): Promise<ChecklistInputs> {
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const [provider, emailProvider, aiProviderSetting, turnstileSiteKey, seo, aiModel, site, localMedia, formRows, lastEmail, passkeyRows, lastBackup, siteCountRow] = await Promise.all([
     getActiveProvider(event),
@@ -349,7 +350,7 @@ export async function gatherSetupChecklistInputs(event: H3Event, userId: string)
 /** The per-site "skip" list and "hide the card" flag (dashboard.* settings). */
 export async function getChecklistPreferences(event: H3Event): Promise<{ skipped: string[]; hidden: boolean }> {
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const rows = await db.query.siteSettings.findMany({
     where: and(eq(siteSettings.siteId, siteId), inArray(siteSettings.key, [CHECKLIST_SKIPPED_KEY, CHECKLIST_HIDDEN_KEY])),
     columns: { key: true, value: true },

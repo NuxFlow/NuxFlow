@@ -37,6 +37,7 @@ const props = withDefaults(defineProps<{
   copyrightText: '© 2026 My Site. All rights reserved.',
   bgColor: '#0f172a',
   textColor: '#9ca3af',
+  padding: undefined,
 })
 
 interface SitePublic {

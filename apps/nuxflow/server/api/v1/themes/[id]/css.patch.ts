@@ -7,11 +7,12 @@ import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
 import { themes } from '@nuxflow/db/schema'
 import { scopedById } from '../../../../utils/db-helpers'
 import { purgeAllPublicPages } from '../../../../utils/edge-cache'
+import { requireSiteId } from '../../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRoleOrApiKey(event, 'admin', 'manage:themes')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const { css, version } = await readBody<{ css: string; version?: string }>(event)
 

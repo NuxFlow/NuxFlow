@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { bufferToHex } from '../../../utils/buffer'
+import { sha256Hex } from '../../../utils/buffer'
 import { useDb } from '../../../utils/db'
 import { requireRole, API_KEY_SCOPES } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
@@ -7,6 +7,8 @@ import { created } from '../../../utils/response'
 import { apiKeys } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { alertInBackground } from '../../../utils/security-alerts'
+import { randomToken } from '../../../../shared/lib/base64'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -19,15 +21,12 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
 
   // Generate a cryptographically random API key using Web Crypto API (Cloudflare Workers compatible)
-  const rawBytes = crypto.getRandomValues(new Uint8Array(32))
-  const rawKey = `nf_${btoa(String.fromCharCode(...rawBytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')}`
-
-  const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawKey))
-  const keyHash = bufferToHex(hashBuffer)
+  const rawKey = `nf_${randomToken()}`
+  const keyHash = await sha256Hex(rawKey)
 
   const id = ulid()
 

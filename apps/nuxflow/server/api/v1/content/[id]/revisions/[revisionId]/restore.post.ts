@@ -5,11 +5,12 @@ import { getContentItemOrThrow } from '../../../../../../utils/content-queries'
 import { contentRevisions, contentItems } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { scopedById } from '../../../../../../utils/db-helpers'
+import { requireSiteId } from '../../../../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const revisionId = getRouterParam(event, 'revisionId')!
 

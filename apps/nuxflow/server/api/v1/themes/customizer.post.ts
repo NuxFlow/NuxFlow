@@ -10,6 +10,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { clearActiveThemeCache } from '../../../utils/theme-cache'
 import { useDb } from '../../../utils/db'
 import { purgeAllPublicPages } from '../../../utils/edge-cache'
+import { requireSiteId } from '../../../utils/site-context'
 
 interface CustomizerValues {
   colorMode: 'auto' | 'light' | 'dark'
@@ -26,7 +27,7 @@ interface CustomizerValues {
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const { values, css } = await readBody<{ values: CustomizerValues; css: string }>(event)
   if (!css?.trim()) throw badRequest('css is required')

@@ -50,10 +50,6 @@ onMounted(() => {
 })
 onBeforeUnmount(() => clearInterval(timer))
 
-function formatDate(value: string | null): string {
-  return value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : ''
-}
-
 type BadgeColor = 'success' | 'warning' | 'error' | 'neutral' | 'info'
 function statusOf(s: HostedSite): { label: string; color: BadgeColor; note: string } {
   if (s.paused || s.site?.status === 'maintenance') {

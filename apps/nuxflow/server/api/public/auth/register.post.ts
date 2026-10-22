@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { rateLimit } from '../../../utils/rate-limit'
 import { registerAccountForSite } from '../../../utils/registration'
 import { isTenantHostInCentralMode } from '../../../utils/accounts-origin'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -17,7 +18,7 @@ export default defineEventHandler(async (event) => {
   // Same 5/hour-per-IP limit as the accounts-origin route: this is an unauthenticated
   // account-creation door and would otherwise be an unthrottled enumeration oracle.
   await rateLimit(event, { limit: 5, windowMs: 60 * 60_000, keyPrefix: 'public-register' })
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
   await registerAccountForSite(event, siteId, body)
   return { success: true }

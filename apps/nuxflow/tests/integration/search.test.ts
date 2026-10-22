@@ -151,4 +151,41 @@ describe('GET /api/v1/search', () => {
     const joined = segments.map(s => s.text).join('')
     expect(joined).toContain('<img src=x onerror=alert(1)>')
   })
+
+  it('answers a query with no Latin letters instead of failing', async () => {
+    const db = getCurrentTestDb()
+    await seedContentItem(db, SITE, typeId, { title: 'Привет из сада' })
+
+    expect((await (handler as HandlerFn)(mkEvent('Привет'))).results).toHaveLength(1)
+    expect((await (handler as HandlerFn)(mkEvent('日本語'))).results).toEqual([])
+  })
+
+  it('matches regardless of accents and case', async () => {
+    const db = getCurrentTestDb()
+    await seedContentItem(db, SITE, typeId, { title: 'Crème brûlée basics' })
+
+    expect((await (handler as HandlerFn)(mkEvent('creme'))).results).toHaveLength(1)
+    expect((await (handler as HandlerFn)(mkEvent('CRÈME'))).results).toHaveLength(1)
+  })
+
+  it('treats FTS5 syntax typed by a visitor as plain words', async () => {
+    for (const q of ['"unbalanced', 'NEAR(', 'AND OR NOT', '***', 'title:x']) {
+      await expect((handler as HandlerFn)(mkEvent(q))).resolves.toHaveProperty('results')
+    }
+  })
+
+  it('links translations and the homepage at their public paths', async () => {
+    const db = getCurrentTestDb()
+    const original = await seedContentItem(db, SITE, typeId, { title: 'Orchard diary', slug: 'orchard' })
+    await seedContentItem(db, SITE, typeId, { title: 'Diario del huerto orchard', slug: 'orchard-es', locale: 'es', sourceItemId: original })
+    await seedContentItem(db, SITE, typeId, { title: 'Welcome orchard', slug: 'home' })
+
+    const result = await (handler as HandlerFn)(mkEvent('orchard')) as { results: { title: string; path: string | null }[] }
+    const paths = Object.fromEntries(result.results.map(r => [r.title, r.path]))
+    expect(paths).toEqual({
+      'Orchard diary': '/orchard',
+      'Diario del huerto orchard': '/es/orchard',
+      'Welcome orchard': '/',
+    })
+  })
 })

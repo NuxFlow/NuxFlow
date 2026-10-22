@@ -16,6 +16,7 @@ import { contentItems, sites } from '@nuxflow/db/schema'
 import { PAGE_PASSWORD_MAX_LENGTH, resolvePageSettings } from '../../../utils/page-password'
 import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   title: z.string().min(1).max(500),
@@ -42,7 +43,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId, role } = await requireRole(event, 'author')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const { pagePassword, ...body } = await parseBody(event, bodySchema)
   body.settings = await resolvePageSettings(body.settings, null, pagePassword)
 

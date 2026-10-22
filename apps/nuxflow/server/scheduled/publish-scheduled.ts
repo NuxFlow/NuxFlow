@@ -41,7 +41,7 @@ export const publishScheduled = async (cloudflare?: ScheduledCloudflareContext) 
     // archives — start a new cache version per affected site so those show them within
     // about a minute, not after the cache's hour-long lifetime. Tasks run without a
     // request, so the KV binding comes from the env Nitro sets on globalThis.
-    const kv = (globalThis as { __env__?: { PLUGIN_KV?: KVNamespace } }).__env__?.PLUGIN_KV ?? null
+    const kv = globalThis.__env__?.PLUGIN_KV ?? null
     for (const siteId of new Set(due.map(item => item.siteId))) {
       await bumpCacheVersionInKv(kv, siteId)
     }
@@ -59,7 +59,7 @@ export const publishScheduled = async (cloudflare?: ScheduledCloudflareContext) 
       } catch (err) {
         console.error(`[publish-scheduled] IndexNow notification failed for site ${siteId}:`, err)
       }
-      const env = cloudflare?.env ?? (globalThis as { __env__?: unknown }).__env__
+      const env = cloudflare?.env ?? globalThis.__env__
       const event = createSystemEvent({ env, ctx: cloudflare?.context, siteId })
       const publishedAt = new Date().toISOString()
       for (const item of items) {

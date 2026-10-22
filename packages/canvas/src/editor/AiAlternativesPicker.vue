@@ -1,8 +1,6 @@
 <script setup lang="ts">
 // Shared "pick one of these AI-generated alternatives" list + dismiss button, used by
-// FieldRenderer.vue's text and textarea branches — previously near-verbatim duplicated
-// in both (the only real difference being the textarea variant's alternative buttons
-// not line-clamping to 2 lines the way the single-line text variant's do).
+// FieldRenderer.vue's text and textarea branches (only the text variant line-clamps).
 defineProps<{
   alternatives: string[]
   error?: string | null

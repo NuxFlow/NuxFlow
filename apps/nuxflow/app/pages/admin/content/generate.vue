@@ -434,7 +434,7 @@ const statusLabel: Record<GenerationJob['status'], string> = {
             <p class="text-sm truncate">{{ h.prompt }}</p>
             <p class="text-xs text-gray-400">
               {{ h.type === 'site' ? 'Site' : 'Page' }} · {{ statusLabel[h.status] }}<template v-if="h.totalCount"> · {{ h.generatedCount }}/{{ h.totalCount }} pages</template>
-              · {{ new Date(h.createdAt.replace(' ', 'T') + 'Z').toLocaleString() }}
+              · {{ formatLocalDateTime(h.createdAt) }}
             </p>
           </div>
           <UButton

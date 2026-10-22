@@ -6,6 +6,7 @@ import { videoAssets } from '@nuxflow/db/schema'
 import { scopedById } from '../../../../utils/db-helpers'
 import { parseBody } from '../../../../utils/validate'
 import { z } from 'zod'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   title: z.string().trim().min(1, 'Title is required').max(500),
@@ -13,7 +14,7 @@ const bodySchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const db = useDb(event)
 

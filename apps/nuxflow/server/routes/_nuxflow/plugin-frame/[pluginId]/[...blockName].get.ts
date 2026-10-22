@@ -1,6 +1,7 @@
 import { useDb } from '../../../../utils/db'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { bytesToBase64 } from '../../../../../shared/lib/base64'
 
 // Serves the document that loads inside each dynamic-plugin block's sandboxed
 // <iframe sandbox="allow-scripts"> (see app/components/PluginBlockFrame.vue). This is
@@ -16,7 +17,7 @@ import { and, eq } from 'drizzle-orm'
 // trying to pack a "/"-containing id into one URL segment.
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
-  const siteId = event.context.siteId as string | null
+  const siteId = event.context.siteId
   const pluginId = getRouterParam(event, 'pluginId')!
   const blockName = (getRouterParam(event, 'blockName') ?? '').replace(/^\/+/, '')
   const blockId = `${pluginId}/${blockName}`
@@ -60,8 +61,7 @@ export default defineEventHandler(async (event) => {
 })
 
 async function sha256Base64(text: string): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))
-  return btoa(String.fromCharCode(...digest))
+  return bytesToBase64(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))
 }
 
 // JSON.stringify leaves `<` alone, so a value containing `</script>` would end the inline

@@ -8,11 +8,12 @@ import { eq } from 'drizzle-orm'
 import { scopedById } from '../../../../utils/db-helpers'
 import { purgeAllPublicPages } from '../../../../utils/edge-cache'
 import { waitUntil } from '../../../../utils/cf-env'
+import { requireSiteId } from '../../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   await getThemeByIdOrThrow(db, siteId, id)

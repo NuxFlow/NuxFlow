@@ -47,6 +47,7 @@ const props = withDefaults(defineProps<{
   rounded: false,
   lightbox: true,
   allowDownload: false,
+  padding: undefined,
 })
 
 const parsedImages = computed<ImageListItem[]>(() => parseImageList(props.images))

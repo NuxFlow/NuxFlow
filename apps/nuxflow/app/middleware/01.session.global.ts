@@ -24,9 +24,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
     }
   }
 
-  // Previously provided by @onmax/nuxt-better-auth's `auth.redirects.guest`
-  // config: bounce an already-authenticated visitor away from the sign-in/
-  // sign-up pages. Deliberately scoped to just these two — /setup and
+  // Bounce an already-authenticated visitor away from the sign-in/sign-up
+  // pages. Deliberately scoped to just these two — /setup and
   // /reset-password/forgot-password have legitimate authenticated use cases
   // (secondary-site setup, changing a password while signed in).
   // On the accounts origin the sign-in pages continue to `next` themselves (a signed-in

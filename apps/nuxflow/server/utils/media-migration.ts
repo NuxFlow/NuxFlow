@@ -2,11 +2,13 @@ import type { H3Event } from 'h3'
 import { and, asc, count, eq, gt, inArray, like, or, sql } from 'drizzle-orm'
 import { contentItems, contentRevisions, media, menus, siteSettings, themes, userSiteRoles, users } from '@nuxflow/db/schema'
 import { useDb } from './db'
-import { bufferToHex } from './buffer'
+import { sha256Hex } from './buffer'
 import { getActiveProvider, type MediaProvider } from './media-providers/index'
 import { sanitizeSvg } from './sanitize-css-svg'
 import { saveSetting } from './settings'
 import { purgeAllPublicPages, purgeEdgeCache } from './edge-cache'
+import { base64ToBytes } from '../../shared/lib/base64'
+import { requireSiteId } from './site-context'
 
 /**
  * Moves media out of the database-storage fallback (base64 `data:` URIs in D1 — see the
@@ -111,10 +113,7 @@ export function decodeDataUri(uri: string): { mime: string; bytes: Uint8Array<Ar
   const mime = match[1]!.toLowerCase()
   if (!EXTENSION_FOR_MIME[mime] && !mime.startsWith('image/') && !mime.startsWith('video/') && !mime.startsWith('audio/') && mime !== 'application/pdf') return null
   try {
-    const binary = atob(match[2]!)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-    return { mime, bytes }
+    return { mime, bytes: base64ToBytes(match[2]!) }
   } catch {
     return null
   }
@@ -400,7 +399,7 @@ export async function migrateLocalMediaBatch(
   event: H3Event,
   opts: { cursor?: string | null; limit?: number; budget?: WorkBudget } = {},
 ): Promise<MigrationBatchResult> {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const provider = await requireRealProvider(event)
   const db = useDb(event)
   const budget = opts.budget ?? new WorkBudget()
@@ -505,8 +504,7 @@ async function nextInlineTarget(event: H3Event, siteId: string, cursor: string |
  * get the same long-lived caching as normal uploads (routes/_nuxflow/media/).
  */
 async function stableMediaIdFor(uri: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(uri))
-  return bufferToHex(digest).slice(0, 26).toUpperCase()
+  return (await sha256Hex(uri)).slice(0, 26).toUpperCase()
 }
 
 /** Phase `inline`: images embedded as data: URIs with no media-library row. One item per call. */
@@ -515,7 +513,7 @@ export async function migrateInlineImagesBatch(
   userId: string,
   opts: { cursor?: string | null; budget?: WorkBudget } = {},
 ): Promise<MigrationBatchResult> {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const provider = await requireRealProvider(event)
   const db = useDb(event)
   const budget = opts.budget ?? new WorkBudget()
@@ -570,7 +568,7 @@ export async function migrateInlineImagesBatch(
 }
 
 export async function getMigrationStatus(event: H3Event): Promise<MigrationStatus> {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
   const provider = await getActiveProvider(event)
 

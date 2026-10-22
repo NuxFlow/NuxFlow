@@ -31,7 +31,7 @@ export function useBlockRegistry(): CanvasBlockRegistry & {
     // Promise.allSettled() load order. Reject the second registration instead.
     //
     // This relies on every built-in block registering synchronously at app boot
-    // (nuxflow-plugin-components.ts, on both server and client) strictly before any
+    // (nuxflow-blocks.ts, on both server and client) strictly before any
     // dynamic plugin's async client bundle has loaded far enough to call register()
     // itself — so a built-in's own bootstrap registration always wins the "already
     // registered" race, and a plugin colliding with a built-in id is the one that

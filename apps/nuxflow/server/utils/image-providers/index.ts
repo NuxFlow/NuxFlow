@@ -3,6 +3,7 @@ import { generateImage, type ImageModel } from 'ai'
 import { getWorkersAiBinding } from '../cf-env'
 import { gatewayBaseUrl, gatewayRequestHeaders, resolveAiKey, resolveGatewaySettings } from '../ai-sdk'
 import type { AiPayer } from '../ai-allowance'
+import { bytesToBase64 } from '../../../shared/lib/base64'
 
 export type ImageShape = 'square' | 'landscape' | 'portrait'
 
@@ -37,20 +38,6 @@ const WORKERS_AI_IMAGE_MODEL = '@cf/black-forest-labs/flux-1-schnell'
 const OPENAI_SIZES: Record<ImageShape, `${number}x${number}`> = { square: '1024x1024', landscape: '1536x1024', portrait: '1024x1536' }
 const ASPECT_RATIOS: Record<ImageShape, `${number}:${number}`> = { square: '1:1', landscape: '16:9', portrait: '9:16' }
 const WORKERS_AI_SIZES: Record<ImageShape, `${number}x${number}`> = { square: '1024x1024', landscape: '1024x576', portrait: '576x1024' }
-
-/**
- * Converts raw image bytes to base64 without blowing the call stack — spreading a large
- * Uint8Array straight into String.fromCharCode(...arr) overflows once it reaches the
- * hundreds of KB a real image easily is.
- */
-export function bytesToBase64(bytes: Uint8Array): string {
-  const CHUNK_SIZE = 8192
-  let binary = ''
-  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK_SIZE))
-  }
-  return btoa(binary)
-}
 
 class AiSdkImageProvider implements ImageProvider {
   constructor(

@@ -9,6 +9,7 @@ import { ulid } from 'ulid'
 import { notifySiteRole } from '../../../utils/notify'
 import { waitUntil } from '../../../utils/cf-env'
 import { assertWithinPlan } from '../../../utils/hosting-plans'
+import { requireSiteId } from '../../../utils/site-context'
 
 // Installs a signed plugin package. Every artifact is checksum-verified and the Ed25519
 // signature must cover them all, capabilities included (see plugin-package.ts). Installed
@@ -17,7 +18,7 @@ import { assertWithinPlan } from '../../../utils/hosting-plans'
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRoleOrApiKey(event, 'admin', 'manage:plugins')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, pluginPackageSchema)
 
   const existing = await db.query.dynamicPlugins.findFirst({

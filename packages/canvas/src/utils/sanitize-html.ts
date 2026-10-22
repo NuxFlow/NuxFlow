@@ -54,7 +54,7 @@ export function sanitizeCustomHtml(html: string | null | undefined): string {
 // is stored as opaque, unvalidated JSON (block `props` have no server-side shape/scheme
 // validation), so a `javascript:` URL in any of these fields would otherwise execute on
 // click. Only the URI scheme needs blocking here, matching the same javascript:/vbscript:/
-// data: blocklist used for TipTap links/images in app/utils/render-tiptap.ts.
+// data: blocklist used for TipTap links/images in apps/nuxflow/shared/lib/render-tiptap.ts.
 export function safeHref(url: string | null | undefined): string {
   // Browsers strip every ASCII C0 control character (U+0000-U+001F — a broader range than
   // just tab/newline/carriage-return) from a URL during parsing (per the WHATWG URL spec)

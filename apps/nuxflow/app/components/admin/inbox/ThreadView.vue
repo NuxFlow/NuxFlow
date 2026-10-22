@@ -155,7 +155,7 @@ async function sendReply() {
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <UBadge v-if="m.category" :label="m.category" variant="soft" size="xs" :color="m.category === 'lead' ? 'success' : m.category === 'support' ? 'info' : 'neutral'" />
-          <span class="text-xs text-gray-400">{{ parseDbDate(m.createdAt).toLocaleString() }}</span>
+          <span class="text-xs text-gray-400">{{ formatLocalDateTime(m.createdAt) }}</span>
         </div>
       </div>
 

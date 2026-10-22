@@ -4,6 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 import { semanticSearch } from '../../../utils/embeddings'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   description: z.string().min(5).max(500),
@@ -42,7 +43,7 @@ export default defineEventHandler(async (event) => {
   // deliberately lightweight (titles only, not full text) — enough to steer the model away
   // from an obvious duplicate without spending tokens re-grounding every generation in full
   // page bodies.
-  const related = await semanticSearch(event, event.context.siteId as string, description, 3)
+  const related = await semanticSearch(event, requireSiteId(event), description, 3)
   const groundingNote = related?.length
     ? `\n\nFor context, this site already has related content titled: ${related.map(r => `"${r.title}"`).join(', ')}. Write new, non-duplicate content — don't just restate these.`
     : ''

@@ -46,6 +46,11 @@ const props = withDefaults(defineProps<{
   align: 'center',
   blockStyle: 'plain',
   gap: 32,
+  sectionLabel: undefined,
+  sectionTitle: undefined,
+  sectionDesc: undefined,
+  bgColor: undefined,
+  padding: undefined,
 })
 
 interface Feature { icon: string; title: string; desc: string }

@@ -104,7 +104,7 @@ async function buildPayload(event: H3Event, siteId: string) {
 }
 
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string | null
+  const siteId = event.context.siteId
   if (!siteId) notFound()
 
   // Fetched on effectively every client-side page navigation for header/footer chrome.

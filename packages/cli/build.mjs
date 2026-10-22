@@ -31,4 +31,5 @@ await build({
 // Make executable on Unix-like systems — no-op on Windows.
 await chmod('bin/nuxflow.cjs', 0o755).catch(() => {})
 
+// eslint-disable-next-line no-console -- build script output
 console.log('Built → bin/nuxflow.cjs')

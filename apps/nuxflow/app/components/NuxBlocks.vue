@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { NuxBlockData } from '~/types/blocks'
+import type { CanvasBlockData } from '@nuxflow/canvas'
 
-defineProps<{ blocks: NuxBlockData[] }>()
+defineProps<{ blocks: CanvasBlockData[] }>()
 
 const { resolve } = useBlockRegistry()
 </script>

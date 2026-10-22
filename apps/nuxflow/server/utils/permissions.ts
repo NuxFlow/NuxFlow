@@ -39,7 +39,7 @@ export type ApiKeyScope = typeof API_KEY_SCOPES[number]
  * `event.context.apiKeyUserId` being present.
  */
 export function hasApiKeyScope(event: H3Event, scope: ApiKeyScope): boolean {
-  const scopes = event.context.apiKeyScopes as string[] | undefined
+  const scopes = event.context.apiKeyScopes
   return Boolean(scopes?.includes(scope))
 }
 
@@ -153,12 +153,12 @@ export async function requireRole(event: H3Event, minimum: Role) {
  * through to requireRole() unchanged.
  */
 export async function requireRoleOrApiKey(event: H3Event, minimum: Role, scope: ApiKeyScope): Promise<{ userId: string; role: Role }> {
-  const apiKeyUserId = event.context.apiKeyUserId as string | undefined
+  const apiKeyUserId = event.context.apiKeyUserId
   if (!apiKeyUserId) return requireRole(event, minimum)
 
   if (!hasApiKeyScope(event, scope)) throw forbidden(`This API key doesn't have the ${scope} permission`)
-  const role = event.context.apiKeyRole as Role
-  if (!roleAtLeast(role, minimum)) throw forbidden()
+  const role = event.context.apiKeyRole
+  if (!role || !roleAtLeast(role, minimum)) throw forbidden()
   return { userId: apiKeyUserId, role }
 }
 
@@ -237,7 +237,7 @@ export async function requireSuperAdmin(event: H3Event): Promise<{ userId: strin
   const session = await requireSession(event)
   const db = useDb(event)
 
-  if (!(await isSuperAdminOnSite(db, session.user.id, event.context.siteId as string | undefined))) {
+  if (!(await isSuperAdminOnSite(db, session.user.id, event.context.siteId ?? undefined))) {
     throw forbidden('Super admin required')
   }
   return { userId: session.user.id }

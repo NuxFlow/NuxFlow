@@ -5,11 +5,12 @@ import { getCommentByIdOrThrow } from '../../../utils/resource-queries'
 import { comments } from '@nuxflow/db/schema'
 import { scopedById } from '../../../utils/db-helpers'
 import { and, eq } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   const existing = await getCommentByIdOrThrow(db, siteId, id)

@@ -7,6 +7,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { created } from '../../../../utils/response'
 import { parseBody } from '../../../../utils/validate'
 import { z } from 'zod'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   // Cloudflare Stream video UIDs are 32 hex characters; anything else is never a real
@@ -18,7 +19,7 @@ const bodySchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const body = await parseBody(event, bodySchema)
   const uid = body.uid
@@ -36,10 +37,9 @@ export default defineEventHandler(async (event) => {
   }
 
   // The `uid` is client-supplied and never verified against what token.post.ts actually
-  // issued. Requiring this lookup to succeed before inserting anything is the whole
-  // fix here: previously any failure (bad uid, network error, non-2xx) fell through
-  // silently and still inserted a video_assets row stuck at status:'processing'
-  // forever, since nothing ever revisits it. Fail the request instead.
+  // issued, so this lookup must succeed before anything is inserted. Any failure (bad uid,
+  // network error, non-2xx) fails the request: a row inserted anyway would sit at
+  // status:'processing' until the stuck-video sweep marks it failed.
   interface CloudflareStreamDetailsResponse {
     success: boolean
     result?: {

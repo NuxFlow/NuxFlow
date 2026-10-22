@@ -5,6 +5,7 @@ import { getCfBindings, getWorkersAiBinding } from './cf-env'
 import { WORKER_MEDIA_PREFIX, workerMediaKey } from './media-url'
 import { safeFetch } from './ssrf'
 import { AiAllowanceError, assertAiAllowance, checkAiAllowance, recordAiCall, textCredits, type AiPayer, type AiTrigger } from './ai-allowance'
+import { base64ToBytes } from '../../shared/lib/base64'
 
 /**
  * 'vision' is for routes that send image bytes to the model (alt-text.post.ts,
@@ -346,14 +347,12 @@ export async function loadImageBytesForAi(event: H3Event, url: string, fallbackM
     const isBase64 = header.endsWith(';base64')
     const mediaType = header.replace(/;base64$/, '') || fallbackMediaType
     const payload = url.slice(commaIndex + 1)
-    const binary = isBase64 ? atob(payload) : decodeURIComponent(payload)
-    const data = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) data[i] = binary.charCodeAt(i)
+    const data = isBase64 ? base64ToBytes(payload) : new TextEncoder().encode(decodeURIComponent(payload))
     return { data, mediaType }
   }
 
   if (url.startsWith(WORKER_MEDIA_PREFIX)) {
-    const siteId = event.context.siteId as string | undefined
+    const siteId = event.context.siteId
     const key = siteId ? workerMediaKey(url, siteId) : null
     if (!key) throw new Error('Image is not stored under this site')
     const { r2 } = getCfBindings(event)

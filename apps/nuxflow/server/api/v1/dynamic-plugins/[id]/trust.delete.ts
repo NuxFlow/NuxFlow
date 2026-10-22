@@ -3,6 +3,7 @@ import { requireSuperAdmin } from '../../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { dynamicPluginTrust } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { requireSiteId } from '../../../../utils/site-context'
 
 // Clears a plugin's pinned publisher key so the next install can register a new one —
 // the deliberate escape hatch for legitimate key rotation (see index.post.ts). Requires
@@ -13,7 +14,7 @@ import { and, eq } from 'drizzle-orm'
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSuperAdmin(event)
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   const trust = await db.query.dynamicPluginTrust.findFirst({

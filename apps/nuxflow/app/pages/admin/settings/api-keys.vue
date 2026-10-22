@@ -108,7 +108,7 @@ const columns = [
           </div>
         </template>
         <template #lastUsedAt-cell="{ row }">
-          <span class="text-sm text-gray-400">{{ row.original.lastUsedAt ? new Date(row.original.lastUsedAt).toLocaleDateString() : 'Never' }}</span>
+          <span class="text-sm text-gray-400">{{ formatLocalDate(row.original.lastUsedAt, 'Never') }}</span>
         </template>
         <template #actions-cell="{ row }">
           <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" @click="revoke(row.original.id)" />

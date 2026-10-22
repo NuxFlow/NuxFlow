@@ -165,8 +165,8 @@ async function save() {
     })
     await refresh()
     toast.add({ title: 'Menu saved', color: 'success' })
-  } catch {
-    toast.add({ title: 'Failed to save', color: 'error' })
+  } catch (e: unknown) {
+    toast.add({ title: 'Failed to save', description: getErrorMessage(e, ''), color: 'error' })
   } finally {
     saving.value = false
   }

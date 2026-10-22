@@ -4,7 +4,7 @@ import { ulid } from 'ulid'
 import { userSiteRoles } from '@nuxflow/db/schema'
 import { getSiteBranding } from '../../utils/accounts-sites'
 import { getUserSiteRole, hasSuperAdminRole } from '../../utils/permissions'
-import { isAccountsHost } from '../../utils/accounts-origin'
+import { requireAccountsHost } from '../../utils/accounts-origin'
 import { issueSiteAuthCode, siteCallbackUrl } from '../../utils/site-auth'
 import { rateLimit } from '../../utils/rate-limit'
 import { clearCachedRole } from '../../utils/role-cache'
@@ -33,7 +33,7 @@ const bodySchema = z.object({
  * an explicit "Continue" click first (see pages/authorize.vue).
  */
 export default defineEventHandler(async (event) => {
-  if (!isAccountsHost(event)) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  requireAccountsHost(event)
   await rateLimit(event, { limit: 30, windowMs: 60_000, keyPrefix: 'accounts-authorize' })
   const session = await requireSession(event)
   const body = await parseBody(event, bodySchema)

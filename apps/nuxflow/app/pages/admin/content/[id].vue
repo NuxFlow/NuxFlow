@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { renderTipTap } from '#shared/lib/render-tiptap'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const route = useRoute()

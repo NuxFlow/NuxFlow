@@ -136,7 +136,7 @@ watch(() => props.file?.id, () => { copied.value = false })
             <p class="text-gray-500 dark:text-gray-400 truncate">{{ file.originalName }}</p>
             <p class="text-gray-400 text-xs">{{ file.mimeType }} · {{ formatBytes(file.size) }}</p>
             <p v-if="file.width && file.height" class="text-gray-400 text-xs">{{ file.width }} × {{ file.height }} px</p>
-            <p class="text-gray-400 text-xs">{{ new Date(file.createdAt).toLocaleDateString() }}</p>
+            <p class="text-gray-400 text-xs">{{ formatLocalDate(file.createdAt) }}</p>
             <UButton
               size="xs"
               variant="outline"

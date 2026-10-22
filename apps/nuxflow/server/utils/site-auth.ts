@@ -3,8 +3,9 @@ import { and, eq, gt, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { siteAuthCodes, siteSessions, sessions, users } from '@nuxflow/db/schema'
 import { useDb } from './db'
-import { bufferToHex } from './buffer'
+import { sha256Hex } from './buffer'
 import { getAccountsOrigin } from './accounts-origin'
+import { randomToken } from '../../shared/lib/base64'
 
 // ── Site sessions: a login that is valid on one site's own domain only ─────────────────
 //
@@ -34,14 +35,6 @@ const AUTH_CODE_TTL_MS = 60_000
 export const AUTH_STATE_COOKIE = 'nuxflow_auth_state'
 const AUTH_STATE_TTL_SECONDS = 600
 
-function randomToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32))
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-async function sha256Hex(value: string): Promise<string> {
-  return bufferToHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))
-}
 
 function isSecureDeployment(): boolean {
   return (getAccountsOrigin() ?? '').startsWith('https:')
@@ -173,7 +166,7 @@ export interface SiteSessionResult {
  * removes the parent `sessions` row, which cascades to every site session it created.
  */
 export async function getSiteSession(event: H3Event): Promise<SiteSessionResult | null> {
-  const siteId = event.context.siteId as string | null | undefined
+  const siteId = event.context.siteId
   const token = getCookie(event, siteSessionCookieName())
   if (!siteId || !token) return null
 

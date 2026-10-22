@@ -7,6 +7,7 @@ import { ulid } from 'ulid'
 import { created, validationError } from '../../../utils/response'
 import { rateLimit } from '../../../utils/rate-limit'
 import { isKnownPushService } from '../../../utils/webpush'
+import { requireSiteId } from '../../../utils/site-context'
 
 // One row per browser/device. Ten is far more than anyone uses; past it the oldest go,
 // so a bulk registration can't grow the broadcast list without bound.
@@ -22,7 +23,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSiteUser(event)
   await rateLimit(event, { limit: 20, windowMs: 60 * 60_000, keyPrefix: 'push-subscribe' })
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
   const db = useDb(event)
 

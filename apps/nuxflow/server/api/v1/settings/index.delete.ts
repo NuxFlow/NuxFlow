@@ -1,10 +1,11 @@
 import { requireRole } from '../../../utils/permissions'
 import { deleteSiteCompletely } from '../../../utils/site-deletion'
 import { useDb } from '../../../utils/db'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'super_admin')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
 
   const siteCount = (await db.query.sites.findMany({ columns: { id: true } })).length

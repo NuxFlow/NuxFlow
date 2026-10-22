@@ -13,6 +13,7 @@ import { sendNotification } from '../../../utils/notify'
 import { dispatchPluginHook } from '../../../utils/plugin-hooks'
 import { waitUntil } from '../../../utils/cf-env'
 import { moderateText } from '../../../utils/moderation'
+import { requireSiteId } from '../../../utils/site-context'
 
 const CONTACT_SLUG = 'contact'
 
@@ -53,8 +54,9 @@ async function getOrCreateContactForm(db: ReturnType<typeof useDb>, siteId: stri
 export default defineEventHandler(async (event) => {
   await rateLimit(event, { limit: 5, windowMs: 60_000, keyPrefix: 'contact-submit' })
 
-  const siteId = event.context.siteId as string
-  const submitterUserId = (event.context.user as { id?: string } | undefined)?.id ?? null
+  const siteId = requireSiteId(event)
+  // A signed-in visitor gets a "message received" push (below); anyone else is anonymous.
+  const submitterUserId = (await getAuthSession(event).catch(() => null))?.user.id ?? null
   const body = await parseBody(event, bodySchema)
 
   const ip = getHeader(event, 'cf-connecting-ip') ?? getHeader(event, 'x-forwarded-for') ?? undefined

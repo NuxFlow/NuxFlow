@@ -7,6 +7,7 @@ import { parseCapabilitiesText } from '../../../../utils/plugin-package'
 import { buildStoredPluginSettings, maskPluginSettings } from '../../../../utils/plugin-settings'
 import { scopedById } from '../../../../utils/db-helpers'
 import { dynamicPlugins } from '@nuxflow/db/schema'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   values: z.record(z.string(), z.unknown()),
@@ -15,7 +16,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 

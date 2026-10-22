@@ -7,7 +7,7 @@ import { notFound } from '../../../utils/response'
 const CACHE_MAX_AGE = 300
 
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string | null
+  const siteId = event.context.siteId
   if (!siteId) notFound()
 
   const db = useDb(event)

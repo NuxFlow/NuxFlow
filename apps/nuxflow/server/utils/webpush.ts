@@ -3,6 +3,8 @@ import { useDb } from './db'
 import { pushSubscriptions, sites } from '@nuxflow/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { resolveSetting } from './settings'
+import { base64ToBytes, bytesToBase64Url } from '../../shared/lib/base64'
+import { requireSiteId } from './site-context'
 
 // ─── Push services ────────────────────────────────────────────────────────────
 // A subscription's endpoint comes from the browser, so it's attacker-controlled: any
@@ -33,21 +35,8 @@ export function isKnownPushService(endpoint: string): boolean {
 
 // ─── Base64url ────────────────────────────────────────────────────────────────
 
-function toBase64Url(buf: ArrayBuffer): string {
-  let str = ''
-  for (const b of new Uint8Array(buf)) str += String.fromCharCode(b)
-  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
-}
-
-// Returns Uint8Array<ArrayBuffer> which satisfies Web Crypto's BufferSource requirement.
-function fromBase64Url(str: string): Uint8Array<ArrayBuffer> {
-  const base64 = str.replace(/-/g, '+').replace(/_/g, '/')
-  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
-  const binary = atob(padded)
-  const out = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i)
-  return out
-}
+const toBase64Url = bytesToBase64Url
+const fromBase64Url = base64ToBytes
 
 function concat(...parts: Uint8Array<ArrayBuffer>[]): Uint8Array<ArrayBuffer> {
   const total = parts.reduce((sum, p) => sum + p.length, 0)
@@ -218,7 +207,7 @@ async function dispatchPush(
 interface VapidConfig { pub: string; priv: string; subject: string }
 
 async function getVapidKeys(event: H3Event): Promise<VapidConfig | null> {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const [pub, priv, site] = await Promise.all([
     resolveSetting(event, 'push.vapid_public_key'),
     resolveSetting(event, 'push.vapid_private_key'),
@@ -242,7 +231,7 @@ export interface PushResult {
 }
 
 async function deliver(event: H3Event, vapid: VapidConfig, subs: (typeof pushSubscriptions.$inferSelect)[], payload: PushPayload): Promise<PushResult> {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
   const result: PushResult = { total: subs.length, delivered: 0, removed: 0 }
   await Promise.allSettled(subs.map(sub =>
@@ -269,7 +258,7 @@ export async function sendPushToUser(event: H3Event, userId: string, payload: Pu
   const vapid = await getVapidKeys(event)
   if (!vapid) return NOTHING_SENT
 
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const subs = await useDb(event).select().from(pushSubscriptions)
     .where(and(eq(pushSubscriptions.siteId, siteId), eq(pushSubscriptions.userId, userId)))
   return deliver(event, vapid, subs, payload)
@@ -279,7 +268,7 @@ export async function broadcastPushToSite(event: H3Event, payload: PushPayload):
   const vapid = await getVapidKeys(event)
   if (!vapid) return NOTHING_SENT
 
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const subs = await useDb(event).select().from(pushSubscriptions)
     .where(eq(pushSubscriptions.siteId, siteId))
   return deliver(event, vapid, subs, payload)

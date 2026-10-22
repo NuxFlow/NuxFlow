@@ -6,11 +6,12 @@ import { purgeContentCache } from '../../../../../utils/edge-cache'
 import { getTermRefsWithAncestors, purgeTaxonomyCache } from '../../../../../utils/taxonomy'
 import { contentItems, contentTaxonomyTerms, taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { requireSiteId } from '../../../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const taxonomyId = getRouterParam(event, 'id')!
   const termId = getRouterParam(event, 'termId')!
 

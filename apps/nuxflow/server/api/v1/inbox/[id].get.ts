@@ -4,6 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { getEmailMessageOrThrow } from '../../../utils/inbox'
 import { emailMessages, users } from '@nuxflow/db/schema'
 import { and, asc, eq } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 /**
  * One message plus its whole thread (both directions, oldest first). Opening a 'new'
@@ -14,7 +15,7 @@ import { and, asc, eq } from 'drizzle-orm'
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   const message = await getEmailMessageOrThrow(db, siteId, id)

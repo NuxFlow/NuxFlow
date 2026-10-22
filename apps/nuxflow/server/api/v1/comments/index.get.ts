@@ -4,6 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { parseQuery } from '../../../utils/validate'
 import { comments, contentItems, users } from '@nuxflow/db/schema'
 import { and, eq, desc } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 const querySchema = z.object({
   status: z.enum(['all', 'pending', 'approved', 'spam', 'trash']).default('pending'),
@@ -12,7 +13,7 @@ const querySchema = z.object({
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const { status } = parseQuery(event, querySchema)
 
   const conditions = [eq(comments.siteId, siteId)]

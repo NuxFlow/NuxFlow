@@ -18,6 +18,7 @@ import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexno
 import { queueContentHook } from '../../../utils/plugin-hooks'
 import { PAGE_PASSWORD_MAX_LENGTH, resolvePageSettings } from '../../../utils/page-password'
 import type { BatchItem } from 'drizzle-orm/batch'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   title: z.string().min(1).max(500).optional(),
@@ -55,7 +56,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId, role } = await requireRole(event, 'author')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 

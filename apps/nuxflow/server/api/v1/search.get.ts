@@ -1,12 +1,18 @@
+import { z } from 'zod'
 import { useReplicaDb } from '../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { rateLimit } from '../../utils/rate-limit'
+import { parseQuery } from '../../utils/validate'
+import { withPublicPaths } from '../../utils/seo'
+import { requireSiteId } from '../../utils/site-context'
 
 export interface SearchExcerptSegment {
   text: string
   highlighted: boolean
 }
+
+const querySchema = z.object({ q: z.string().optional() })
 
 // Splits an FTS5 snippet() result on the literal <mark>/</mark> delimiters we
 // asked it to insert, so the frontend can render each piece as plain text
@@ -25,60 +31,62 @@ function parseSnippet(snippet: string): SearchExcerptSegment[] {
   return segments
 }
 
+/**
+ * Builds an FTS5 MATCH expression from free text: every run of letters/digits (any
+ * script) becomes a quoted prefix term, and the terms are ANDed. Quoting keeps FTS5
+ * syntax (AND, NEAR, *, quotes) typed by a visitor from ever reaching the parser.
+ * Returns null when the text has no searchable characters.
+ */
+export function toFtsQuery(text: string): string | null {
+  const terms = text.match(/[\p{L}\p{N}]+/gu)?.slice(0, 10)
+  if (!terms?.length) return null
+  return terms.map(t => `"${t}"*`).join(' ')
+}
+
 export default defineEventHandler(async (event) => {
   // Unauthenticated and hits D1 directly on every request (no edge cache, since results
-  // are query-dependent) — unlike every other public endpoint in this codebase, this had
-  // no throttle at all. 60/minute per IP is generous for real interactive typing/search
-  // usage while still bounding a scripted flood against D1.
+  // are query-dependent). 60/minute per IP is generous for real interactive search usage
+  // while still bounding a scripted flood against D1.
   await rateLimit(event, { limit: 60, windowMs: 60_000, keyPrefix: 'search' })
 
-  const siteId = event.context.siteId as string
-  const query = getQuery(event)
-  const q = (query.q as string)?.trim()
+  const siteId = requireSiteId(event)
+  const q = parseQuery(event, querySchema).q?.trim()
 
   if (!q || q.length < 2 || q.length > 200) return { results: [] }
+  const match = toFtsQuery(q)
+  if (!match) return { results: [] }
 
-  // Unauthenticated, read-only, and uncached (results are query-dependent) — the ideal
-  // case for a D1 read replica when one is enabled (see the "D1 read replication" note on
-  // useReplicaDb in server/utils/db.ts): every search hits D1 directly, so this is where
-  // replica routing has the most to save.
+  // Unauthenticated, read-only and uncached — the ideal case for a D1 read replica when
+  // one is enabled (see useReplicaDb in server/utils/db.ts).
   const db = useReplicaDb(event)
-
-  // FTS5 query — sanitise input by stripping special chars
-  const safe = q.replace(/[^a-z0-9 ]/gi, '') + '*'
 
   const rawResults = await db.run(sql`
     SELECT content_item_id, title, snippet(search_index, 3, '<mark>', '</mark>', '…', 20) AS excerpt
     FROM search_index
-    WHERE search_index MATCH ${safe}
+    WHERE search_index MATCH ${match}
       AND site_id = ${siteId}
     ORDER BY rank
     LIMIT 20
   `)
 
-  // D1 returns { results: [{...}] }, LibSQL returns { rows: [[...]] }
+  // D1 returns { results: [{...}] }; the libSQL driver the integration tests use returns { rows }.
   const raw = rawResults as unknown as { rows?: unknown[]; results?: unknown[] }
   const rows = (raw.rows ?? raw.results ?? []) as Record<string, unknown>[]
 
   if (!rows.length) return { results: [] }
 
-  // Resolve slugs for all matched content items
   const ids = rows.map(r => String(r.content_item_id ?? ''))
-  const slugMap = new Map<string, string>()
-
-  if (ids.length > 0) {
-    const items = await db
-      .select({ id: contentItems.id, slug: contentItems.slug })
-      .from(contentItems)
-      .where(and(eq(contentItems.siteId, siteId), inArray(contentItems.id, ids)))
-    for (const item of items) slugMap.set(item.id, item.slug)
-  }
+  const items = await db
+    .select({ id: contentItems.id, slug: contentItems.slug, locale: contentItems.locale, sourceItemId: contentItems.sourceItemId })
+    .from(contentItems)
+    .where(and(eq(contentItems.siteId, siteId), inArray(contentItems.id, ids)))
+  const pathById = new Map((await withPublicPaths(db, siteId, items)).map(i => [i.id, i.path]))
 
   const results = rows.map(r => ({
     id: String(r.content_item_id ?? ''),
     title: String(r.title ?? ''),
     excerptSegments: parseSnippet(String(r.excerpt ?? '')),
-    slug: slugMap.get(String(r.content_item_id ?? '')) ?? null,
+    path: pathById.get(String(r.content_item_id ?? '')) ?? null,
   }))
 
   return { results }

@@ -5,6 +5,7 @@ import { useDb } from '../../../../../utils/db'
 import { dedupePlanSlugs, jobResponse, MAX_PLAN_PAGES, planPageSchema } from '../../../../../utils/site-generation'
 import { aiGenerationJobs } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
+import { requireSiteId } from '../../../../../utils/site-context'
 
 const bodySchema = z.object({
   // The plan as the editor left it on the review screen (pages renamed, removed, added,
@@ -21,7 +22,7 @@ export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
   await rateLimit(event, { limit: 10, windowMs: 60_000, keyPrefix: 'ai-generate-approve' })
 
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const jobId = getRouterParam(event, 'jobId')!
   const db = useDb(event)
   const { pages } = await parseBody(event, bodySchema)
