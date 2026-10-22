@@ -1,11 +1,12 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { getThemeByIdOrThrow } from '../../../../utils/resource-queries'
+import { requireSiteId } from '../../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   await getThemeByIdOrThrow(db, siteId, id, 'Theme not found', { id: true, packageName: true })

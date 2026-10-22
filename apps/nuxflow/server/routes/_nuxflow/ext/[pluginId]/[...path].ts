@@ -58,7 +58,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = useDb(event)
-  const siteId = event.context.siteId as string | null
+  const siteId = (event.context.siteId ?? null)
   const pluginId = getRouterParam(event, 'pluginId')!
 
   if (!siteId) throw badRequest('Unknown site')

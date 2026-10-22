@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 405, message: 'Method not allowed' })
   }
 
-  const siteId = event.context.siteId as string | null
+  const siteId = (event.context.siteId ?? null)
   const key = decodeKey(getRouterParam(event, 'key') ?? '')
   // Tenant isolation: a site's domain only ever serves that site's own objects, and no
   // path-traversal-shaped key is ever handed to the bucket.

@@ -3,11 +3,12 @@ import { requireRole } from '../../utils/permissions'
 import { parsePagination } from '../../utils/pagination'
 import { auditLogs } from '@nuxflow/db/schema'
 import { eq, desc } from 'drizzle-orm'
+import { requireSiteId } from '../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const { page, limit, offset } = parsePagination(getQuery(event), 200)
 
   // No COUNT(*) here (unlike content/index.get.ts) — the audit log has no natural

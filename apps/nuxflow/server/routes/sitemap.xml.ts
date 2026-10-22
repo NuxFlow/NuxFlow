@@ -7,6 +7,7 @@ import { escXml } from '../utils/xml'
 import { absoluteUrl } from '../utils/media-url'
 import { getSeoSettings, siteBaseUrl, toIsoDateTime } from '../utils/seo'
 import { alternateGroups, getIndexableEntries, getTaxonomyArchiveEntries } from '../utils/sitemap-entries'
+import { requireSiteId } from '../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Content-Type', 'application/xml; charset=utf-8')
@@ -24,7 +25,7 @@ async function buildSitemap(event: H3Event) {
   // Anonymous, read-only, edge-cached — safe to read from a D1 read replica when one is
   // enabled (see the "D1 read replication" note on useReplicaDb in server/utils/db.ts).
   const db = useReplicaDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const [site, seo] = await Promise.all([
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } }),

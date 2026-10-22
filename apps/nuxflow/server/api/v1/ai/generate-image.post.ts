@@ -10,6 +10,7 @@ import { useDb } from '../../../utils/db'
 import { media } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { base64ToBytes } from '../../../../shared/lib/base64'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   prompt: z.string().min(5).max(1000),
@@ -28,7 +29,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { prompt, shape, quality, saveToLibrary } = await parseBody(event, bodySchema)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   // Only images the platform pays for are limited; the site's own key is never refused.
   if (imageProvider.payer === 'platform') await assertAiAllowance(event, AI_CREDITS.image)

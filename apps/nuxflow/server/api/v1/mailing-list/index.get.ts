@@ -8,6 +8,7 @@ import { parsePagination } from '../../../utils/pagination'
 import { loadEmailConfig } from '../../../utils/email'
 import { usageDay } from '../../../utils/usage'
 import { canSendListEmail, subscriberCounts } from '../../../utils/mailing-list'
+import { requireSiteId } from '../../../utils/site-context'
 
 const querySchema = z.object({
   status: z.enum(['pending', 'subscribed', 'unsubscribed']).optional(),
@@ -21,7 +22,7 @@ const STATS_DAYS = 30
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const query = parseQuery(event, querySchema)
   const { page, perPage, limit, offset } = parsePagination(query)
 

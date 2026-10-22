@@ -11,6 +11,7 @@ import { conflict } from '../../../utils/response'
 import { rethrowAsProviderError } from '../../../utils/errors'
 import { rateLimit } from '../../../utils/rate-limit'
 import { writeAuditLog } from '../../../utils/audit'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   tierId: z.string(),
@@ -24,7 +25,7 @@ export default defineEventHandler(async (event) => {
   // in this codebase (ai-*, user-invite), which all rate-limit themselves.
   await rateLimit(event, { limit: 10, windowMs: 60_000, keyPrefix: 'membership-checkout' })
   const session = await requireSession(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
   assertSameHostReturnUrl(event, body.returnUrl)
 

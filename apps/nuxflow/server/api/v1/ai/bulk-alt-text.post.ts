@@ -7,6 +7,7 @@ import { useDb } from '../../../utils/db'
 import { writeAuditLog } from '../../../utils/audit'
 import { media } from '@nuxflow/db/schema'
 import { and, eq, inArray, isNull, like, notInArray, or } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   // Specific images to (re)generate alt text for; omitted = images that have none yet.
@@ -33,7 +34,7 @@ export default defineEventHandler(async (event) => {
   const model = await requireAiSdkModel(event, 'vision', { userId })
 
   const { mediaIds, skipIds } = await parseBody(event, bodySchema)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
 
   const where = and(

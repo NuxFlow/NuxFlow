@@ -7,6 +7,7 @@ import { withPublicPaths } from '../utils/seo'
 import { renderTipTap } from '../../shared/lib/render-tiptap'
 import { absoluteUrl, absolutizeHtmlUrls } from '../utils/media-url'
 import { resolvePublicTermFilter, termArchivePath, termFeedPath } from '../utils/taxonomy'
+import { requireSiteId } from '../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Content-Type', 'application/rss+xml; charset=UTF-8')
@@ -19,7 +20,7 @@ async function buildFeed(event: H3Event) {
   // Anonymous, read-only, edge-cached — safe to read from a D1 read replica when one is
   // enabled (see the "D1 read replication" note on useReplicaDb in server/utils/db.ts).
   const db = useReplicaDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const config = useRuntimeConfig()
 
   // `?taxonomy=category&term=news` → a per-term feed (sub-terms included), linked from

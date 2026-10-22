@@ -3,6 +3,7 @@ import { useDb } from '../../utils/db'
 import { rateLimit } from '../../utils/rate-limit'
 import { findPublishedPage, parseLocalePath } from '../../utils/public-page'
 import { PAGE_PASSWORD_MAX_LENGTH, unlockPage } from '../../utils/page-password'
+import { requireSiteId } from '../../utils/site-context'
 
 // The password form on a protected page (client galleries). `path` is the page's slug path
 // as the public page API takes it ("smith-wedding", "es/smith-wedding"). A right password
@@ -13,7 +14,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
 
   // Guessing is slowed per visitor across all of the site's pages, and per page. Each check

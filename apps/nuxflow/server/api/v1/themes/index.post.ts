@@ -13,6 +13,7 @@ import type { NuxFlowBackup } from '../../../utils/backup'
 import { validateZipArchive } from '../../../utils/zip-validate'
 import { isHttpError } from '../../../utils/errors'
 import { purgeAllPublicPages } from '../../../utils/edge-cache'
+import { requireSiteId } from '../../../utils/site-context'
 
 const MAX_ZIP_BYTES = 50 * 1024 * 1024 // 50 MB
 const IMAGE_EXT = /\.(?:jpg|jpeg|png|webp|gif|svg|avif|ico)$/i
@@ -36,7 +37,7 @@ function parseDemoSummary(backup: NuxFlowBackup) {
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRoleOrApiKey(event, 'admin', 'manage:themes')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const contentType = getHeader(event, 'content-type') ?? ''
   const isMultipart = contentType.includes('multipart/form-data')

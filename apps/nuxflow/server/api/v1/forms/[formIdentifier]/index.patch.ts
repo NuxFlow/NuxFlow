@@ -7,6 +7,7 @@ import type { FormField } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { getFormByIdOrThrow } from '../../../../utils/resource-queries'
 import { purgeEdgeCache } from '../../../../utils/edge-cache'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -23,7 +24,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const formIdentifier = getRouterParam(event, 'formIdentifier')!
   const body = await parseBody(event, bodySchema)
 

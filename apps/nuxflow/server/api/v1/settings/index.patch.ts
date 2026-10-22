@@ -15,6 +15,7 @@ import { normalizeSeoSettings } from '../../../utils/seo-settings-schema'
 import { generateIndexNowKey } from '../../../utils/indexnow'
 import { isPrimarySite } from '../../../utils/site-info'
 import { planIncludes } from '../../../utils/hosting-plans'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   // Site columns
@@ -66,7 +67,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
 
   const reserved = Object.keys(body.settings ?? {}).filter(k => SERVER_MANAGED_SETTING_KEYS.has(k))

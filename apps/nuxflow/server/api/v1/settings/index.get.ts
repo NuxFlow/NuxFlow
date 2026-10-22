@@ -4,11 +4,12 @@ import { sites, siteSettings } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { SENSITIVE_SETTING_KEYS, SECRET_MASK, isEnvFallbackWithheld, isOllamaAvailable } from '../../../utils/settings'
 import { planIncludes } from '../../../utils/hosting-plans'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const site = await db.query.sites.findFirst({
     where: eq(sites.id, siteId),

@@ -3,6 +3,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
 import { parseRedirectCsv, redirectRuleSchema, saveRedirect } from '../../../utils/redirects'
+import { requireSiteId } from '../../../utils/site-context'
 
 const MAX_RULES = 2000
 
@@ -19,7 +20,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const { csv, overwrite } = await parseBody(event, bodySchema)
 
   const { rules, lineErrors } = parseRedirectCsv(csv)

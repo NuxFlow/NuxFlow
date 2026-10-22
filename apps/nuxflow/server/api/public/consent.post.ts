@@ -20,7 +20,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   await rateLimit(event, { limit: 30, windowMs: 60 * 60_000, keyPrefix: 'public-consent' })
 
-  const siteId = event.context.siteId as string | null
+  const siteId = (event.context.siteId ?? null)
   if (!siteId) return noContent(event)
 
   const body = await parseBody(event, bodySchema)

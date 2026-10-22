@@ -3,6 +3,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { getCrawlerActivity } from '../../../utils/crawler-tracking'
 import { blockedCrawlerTokens, getSeoSettings, KNOWN_CRAWLERS } from '../../../utils/seo'
+import { requireSiteId } from '../../../utils/site-context'
 
 const querySchema = z.object({ days: z.coerce.number().int().min(1).max(90).default(30) })
 
@@ -11,7 +12,7 @@ export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
   const { days } = await parseQuery(event, querySchema)
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const [seo, activity] = await Promise.all([getSeoSettings(db, siteId), getCrawlerActivity(db, siteId, days)])
   const blocked = new Set(blockedCrawlerTokens(seo.aiCrawlers))

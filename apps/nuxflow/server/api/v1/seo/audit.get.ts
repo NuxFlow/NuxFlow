@@ -4,6 +4,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { getSeoSettings, publicPathForItem, robotsSaysNoindex } from '../../../utils/seo'
 import { buildSeoAudit, type AuditItemInput } from '../../../utils/seo-audit'
+import { requireSiteId } from '../../../utils/site-context'
 
 // Newest published items checked per run — enough for any realistic editorial backlog
 // while keeping one request's D1 read bounded (content bodies are never selected).
@@ -16,7 +17,7 @@ const AUDIT_ITEM_CAP = 2000
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const [seo, site, types, rows] = await Promise.all([
     getSeoSettings(db, siteId),

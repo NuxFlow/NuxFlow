@@ -4,11 +4,12 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getApiKeyByIdOrThrow } from '../../../utils/resource-queries'
 import { apiKeys } from '@nuxflow/db/schema'
 import { scopedById } from '../../../utils/db-helpers'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   const existing = await getApiKeyByIdOrThrow(db, siteId, id, 'API key not found', { id: true, name: true, scopes: true })

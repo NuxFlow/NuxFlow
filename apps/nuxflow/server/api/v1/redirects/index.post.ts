@@ -3,11 +3,12 @@ import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
 import { created } from '../../../utils/response'
 import { redirectRuleSchema, saveRedirect } from '../../../utils/redirects'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, redirectRuleSchema)
 
   const saved = await saveRedirect(db, siteId, body, { overwrite: false })

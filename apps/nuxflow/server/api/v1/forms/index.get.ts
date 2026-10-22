@@ -2,11 +2,12 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { forms, formSubmissions } from '@nuxflow/db/schema'
 import { and, eq, desc, ne, sql } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const items = await db.query.forms.findMany({
     where: eq(forms.siteId, siteId),
     orderBy: [desc(forms.updatedAt)],

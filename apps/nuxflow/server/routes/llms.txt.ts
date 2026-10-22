@@ -6,13 +6,14 @@ import { withEdgeCache } from '../utils/edge-cache'
 import { escapeMarkdown } from '../utils/markdown'
 import { getSeoSettings, siteBaseUrl } from '../utils/seo'
 import { getIndexableEntries, type IndexableEntry } from '../utils/sitemap-entries'
+import { requireSiteId } from '../utils/site-context'
 
 // Newest items listed per content type. llms.txt is meant to be a concise map for an
 // LLM's context window, not a full index — the sitemap and llms-full.txt cover the rest.
 const PER_SECTION_LIMIT = 100
 
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useReplicaDb(event)
   const seo = await getSeoSettings(db, siteId)
   // Off when the site opts out, or when it blocks every AI crawler — offering an
@@ -35,7 +36,7 @@ function llmsLink(entry: Pick<IndexableEntry, 'title' | 'description'>, url: str
 
 async function buildLlmsTxt(event: H3Event) {
   const db = useReplicaDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const [site, seo] = await Promise.all([
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { name: true, domain: true } }),

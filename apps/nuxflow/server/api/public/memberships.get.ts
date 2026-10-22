@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { useDb } from '../../utils/db'
 import { resolveSetting } from '../../utils/settings'
 import { withEdgeCache } from '../../utils/edge-cache'
+import { requireSiteId } from '../../utils/site-context'
 
 const CACHE_MAX_AGE = 300
 
@@ -11,7 +12,7 @@ export default defineEventHandler(async (event) => {
 
   return withEdgeCache(event, CACHE_MAX_AGE, async () => {
     const db = useDb(event)
-    const siteId = event.context.siteId as string
+    const siteId = requireSiteId(event)
 
     const [tiers, signupsDisabledRaw, signupsDisabledMessage] = await Promise.all([
       db.query.membershipTiers.findMany({

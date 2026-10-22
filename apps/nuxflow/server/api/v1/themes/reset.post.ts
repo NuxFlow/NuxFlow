@@ -6,11 +6,12 @@ import { themes } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { purgeAllPublicPages } from '../../../utils/edge-cache'
 import { waitUntil } from '../../../utils/cf-env'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const deactivateAll = db.update(themes).set({ isActive: false }).where(eq(themes.siteId, siteId))
 

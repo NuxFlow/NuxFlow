@@ -4,6 +4,7 @@ import { sites } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { withEdgeCache } from '../utils/edge-cache'
 import { blockedCrawlerTokens, contentSignal, getSeoSettings, NOINDEX_PATHS, siteBaseUrl } from '../utils/seo'
+import { requireSiteId } from '../utils/site-context'
 
 /**
  * Builds a site's robots.txt from its SEO settings (Admin → SEO):
@@ -60,7 +61,7 @@ async function buildRobotsTxt(event: H3Event, siteId: string): Promise<string> {
 }
 
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   setHeader(event, 'Content-Type', 'text/plain; charset=UTF-8')
   setHeader(event, 'Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')

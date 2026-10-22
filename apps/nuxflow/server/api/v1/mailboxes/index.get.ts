@@ -5,6 +5,7 @@ import { getEmailBinding } from '../../../utils/cf-env'
 import { resolveSetting } from '../../../utils/settings'
 import { mailboxes, sites } from '@nuxflow/db/schema'
 import { and, asc, eq } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 /**
  * Inbox mailboxes plus everything the setup panel needs to explain how mail reaches them:
@@ -14,7 +15,7 @@ import { and, asc, eq } from 'drizzle-orm'
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const [site, rows, handle, provider] = await Promise.all([
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } }),

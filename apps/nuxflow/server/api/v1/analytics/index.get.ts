@@ -4,6 +4,7 @@ import { getAnalyticsEngine } from '../../../utils/cf-env'
 import { eventForSite, getPrimarySite } from '../../../utils/site-info'
 import { resolveSetting } from '../../../utils/settings'
 import { ANALYTICS_RANGES, ANALYTICS_TOKEN_KEY, AnalyticsQueryError, querySiteAnalytics, type AnalyticsRange, type SiteAnalytics } from '../../../utils/analytics'
+import { requireSiteId } from '../../../utils/site-context'
 
 const querySchema = z.object({
   days: z.coerce.number().int().refine((d): d is AnalyticsRange => (ANALYTICS_RANGES as readonly number[]).includes(d)).default(30),
@@ -21,7 +22,7 @@ export interface AnalyticsResponse {
 /** Admin → Analytics: this site's page views, from Analytics Engine (utils/analytics.ts). */
 export default defineEventHandler(async (event): Promise<AnalyticsResponse> => {
   await requireRole(event, 'editor')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const { days } = await parseQuery(event, querySchema)
 
   // The dataset is the operator's, so are the credentials to read it: stored on the

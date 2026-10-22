@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { requireRole } from '../../../utils/permissions'
 import { resolveSetting } from '../../../utils/settings'
 import { useDb } from '../../../utils/db'
+import { requireSiteId } from '../../../utils/site-context'
 
 interface CustomizerValues {
   colorMode: 'auto' | 'light' | 'dark'
@@ -39,7 +40,7 @@ const DEFAULTS: CustomizerValues = {
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   // Try to load saved customizer values
   const storedJson = await resolveSetting(event, 'theme.customizer_values')

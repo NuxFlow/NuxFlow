@@ -7,6 +7,7 @@ import { writeAuditLog } from '../../../../utils/audit'
 import { TAXONOMY_SLUG_RE } from '../../../../utils/taxonomy'
 import { ensureImportTaxonomy, getImportContentTypes, termIdsBySlug } from '../../../../utils/wordpress-import'
 import { chunk } from '../../../../../shared/lib/array'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   importId: z.string().min(1).max(64),
@@ -30,7 +31,7 @@ const INSERT_CHUNK = 8
 // is uploaded.
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
   const body = await parseBody(event, bodySchema)
 

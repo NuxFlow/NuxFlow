@@ -3,6 +3,7 @@ import { requireSiteUser } from '../../../utils/permissions'
 import { useDb } from '../../../utils/db'
 import { pushSubscriptions } from '@nuxflow/db/schema'
 import { and, eq, count } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 const querySchema = z.object({
   // The asking browser's own subscription endpoint. With it, the answer is about this
@@ -13,7 +14,7 @@ const querySchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSiteUser(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const { endpoint } = await parseQuery(event, querySchema)
   const db = useDb(event)
 

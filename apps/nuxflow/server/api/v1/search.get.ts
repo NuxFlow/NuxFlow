@@ -5,6 +5,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { rateLimit } from '../../utils/rate-limit'
 import { parseQuery } from '../../utils/validate'
 import { withPublicPaths } from '../../utils/seo'
+import { requireSiteId } from '../../utils/site-context'
 
 export interface SearchExcerptSegment {
   text: string
@@ -48,7 +49,7 @@ export default defineEventHandler(async (event) => {
   // while still bounding a scripted flood against D1.
   await rateLimit(event, { limit: 60, windowMs: 60_000, keyPrefix: 'search' })
 
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const q = parseQuery(event, querySchema).q?.trim()
 
   if (!q || q.length < 2 || q.length > 200) return { results: [] }

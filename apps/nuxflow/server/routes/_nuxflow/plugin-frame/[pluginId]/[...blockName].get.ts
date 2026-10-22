@@ -17,7 +17,7 @@ import { bytesToBase64 } from '../../../../../shared/lib/base64'
 // trying to pack a "/"-containing id into one URL segment.
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
-  const siteId = event.context.siteId as string | null
+  const siteId = (event.context.siteId ?? null)
   const pluginId = getRouterParam(event, 'pluginId')!
   const blockName = (getRouterParam(event, 'blockName') ?? '').replace(/^\/+/, '')
   const blockId = `${pluginId}/${blockName}`

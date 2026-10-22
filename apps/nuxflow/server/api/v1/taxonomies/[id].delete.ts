@@ -7,11 +7,12 @@ import { purgeContentCache } from '../../../utils/edge-cache'
 import { contentItems, contentTaxonomyTerms, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { scopedById } from '../../../utils/db-helpers'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   const existing = await getTaxonomyByIdOrThrow(db, siteId, id)

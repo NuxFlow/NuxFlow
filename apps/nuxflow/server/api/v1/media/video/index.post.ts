@@ -7,6 +7,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { created } from '../../../../utils/response'
 import { parseBody } from '../../../../utils/validate'
 import { z } from 'zod'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   // Cloudflare Stream video UIDs are 32 hex characters; anything else is never a real
@@ -18,7 +19,7 @@ const bodySchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const body = await parseBody(event, bodySchema)
   const uid = body.uid

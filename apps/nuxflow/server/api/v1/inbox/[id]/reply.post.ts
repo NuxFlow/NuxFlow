@@ -13,6 +13,7 @@ import { writeAuditLog } from '../../../../utils/audit'
 import { rateLimit } from '../../../../utils/rate-limit'
 import { errorMessage } from '../../../../utils/errors'
 import { created } from '../../../../utils/response'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   body: z.string().trim().min(1).max(50_000),
@@ -46,7 +47,7 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   await rateLimit(event, { keyPrefix: `inbox-reply:${userId}`, limit: 60, windowMs: 3_600_000 })
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 

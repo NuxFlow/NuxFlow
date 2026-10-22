@@ -8,6 +8,7 @@ import { apiKeys } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { alertInBackground } from '../../../utils/security-alerts'
 import { randomToken } from '../../../../shared/lib/base64'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -20,7 +21,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
 
   // Generate a cryptographically random API key using Web Crypto API (Cloudflare Workers compatible)

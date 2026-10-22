@@ -3,6 +3,7 @@ import { requireAuth } from '../../../../utils/permissions'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { contentRevisions } from '@nuxflow/db/schema'
 import { eq, desc } from 'drizzle-orm'
+import { requireSiteId } from '../../../../utils/site-context'
 
 // The nightly prune-old-data task caps stored revisions at 20/item, but that only runs
 // once a day — a single active editing session (autosave every 10s idle) can put far more
@@ -13,7 +14,7 @@ const MAX_REVISIONS_RETURNED = 50
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   await getContentItemOrThrow(db, siteId, id, 'Not found', { id: true })

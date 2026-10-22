@@ -4,11 +4,12 @@ import { parsePagination } from '../../../utils/pagination'
 import { paginate, countRows } from '@nuxflow/db/queries'
 import { media } from '@nuxflow/db/schema'
 import { and, asc, eq, isNull, desc } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const query = getQuery(event)
 
   const folderFilter = query.folderId !== undefined

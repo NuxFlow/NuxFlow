@@ -11,7 +11,7 @@ const CACHE_MAX_AGE = 60
 // never returns checksums, signature, or publisherPublicKey — those stay behind
 // the admin-only GET /api/v1/dynamic-plugins used by the plugin management page.
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string | null
+  const siteId = (event.context.siteId ?? null)
   if (!siteId) return { plugins: [] }
 
   setHeader(event, 'Cache-Control', `public, max-age=${CACHE_MAX_AGE}, stale-while-revalidate=300`)

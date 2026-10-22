@@ -4,6 +4,7 @@ import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { semanticSearch } from '../../../../utils/embeddings'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
+import { requireSiteId } from '../../../../utils/site-context'
 
 /**
  * Semantic "related content" suggestions for the editor sidebar — internal linking and
@@ -16,7 +17,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   const item = await getContentItemOrThrow(db, siteId, id, 'Not found', { title: true, excerpt: true, seoDescription: true })

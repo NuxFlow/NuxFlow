@@ -29,7 +29,7 @@ export default defineNitroPlugin((nitro) => {
       const cf = event.context.cloudflare
       if (!cf?.request) return
       // Set by the read side (07.page-cache.ts) before rendering began; see the note there.
-      const version = event.context.pageCacheVersion as string | undefined
+      const version = event.context.pageCacheVersion
       if (version === undefined) return
 
       let cacheBody: string | ReadableStream

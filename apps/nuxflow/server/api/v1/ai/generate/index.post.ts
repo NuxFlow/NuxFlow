@@ -9,6 +9,7 @@ import { jobResponse } from '../../../../utils/site-generation'
 import { aiGenerationJobs } from '@nuxflow/db/schema'
 import { created } from '../../../../utils/response'
 import { and, eq } from 'drizzle-orm'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   prompt: z.string().trim().min(10).max(2000),
@@ -29,7 +30,7 @@ export default defineEventHandler(async (event) => {
   await requireAiSdkModel(event, 'smart', { userId })
 
   const { prompt, type, tone } = await parseBody(event, bodySchema)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
 
   const id = ulid()

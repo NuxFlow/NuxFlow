@@ -5,6 +5,7 @@ import { useDb } from '../../../../../utils/db'
 import { requireRole } from '../../../../../utils/permissions'
 import { getFormByIdOrThrow } from '../../../../../utils/resource-queries'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../../utils/audit'
+import { requireSiteId } from '../../../../../utils/site-context'
 
 // Sets a submission's inbox status (Admin → Forms → Submissions). Works for every form,
 // including the built-in contact form; the submission must belong to the form in the URL.
@@ -15,7 +16,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const formIdentifier = getRouterParam(event, 'formIdentifier')!
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)

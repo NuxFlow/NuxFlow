@@ -58,7 +58,7 @@ async function loadEvents(event: H3Event, siteId: string) {
 }
 
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string
+  const siteId = event.context.siteId
   if (!siteId) notFound()
 
   setHeader(event, 'Cache-Control', 'public, max-age=300, stale-while-revalidate=3600')

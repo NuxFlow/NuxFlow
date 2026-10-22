@@ -8,6 +8,7 @@ import { samePermissions } from '../../../../../shared/lib/plugin-permissions'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { scopedById } from '../../../../utils/db-helpers'
 import { purgeEdgeCache } from '../../../../utils/edge-cache'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   // The exact permissions the admin was shown and approved. Must equal what the plugin
@@ -22,7 +23,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 

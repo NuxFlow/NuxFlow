@@ -5,6 +5,7 @@ import { requireAiSdkModel, callAiOrThrow, loadImageBytesForAi } from '../../../
 import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({ mediaId: z.string() })
 
@@ -19,7 +20,7 @@ export default defineEventHandler(async (event) => {
   const model = await requireAiSdkModel(event, 'vision', { userId })
 
   const { mediaId } = await parseBody(event, bodySchema)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
 
   const file = await getMediaByIdOrThrow(db, siteId, mediaId, 'Media not found', { originalName: true, url: true, mimeType: true })

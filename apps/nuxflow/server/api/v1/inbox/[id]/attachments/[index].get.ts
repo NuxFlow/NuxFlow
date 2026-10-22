@@ -2,6 +2,7 @@ import { useDb } from '../../../../../utils/db'
 import { requireRole } from '../../../../../utils/permissions'
 import { getEmailMessageOrThrow } from '../../../../../utils/inbox'
 import { getCfBindings } from '../../../../../utils/cf-env'
+import { requireSiteId } from '../../../../../utils/site-context'
 
 /**
  * Downloads one attachment of a received message. Always served as a download
@@ -12,7 +13,7 @@ import { getCfBindings } from '../../../../../utils/cf-env'
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const index = Number(getRouterParam(event, 'index'))
 

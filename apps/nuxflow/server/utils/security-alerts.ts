@@ -35,7 +35,7 @@ export async function resolveSiteIdForHost(db: Db, host: string): Promise<string
 /** A system event for the site the given request's Host belongs to, or null. */
 export async function siteEventForRequest(event: H3Event): Promise<H3Event | null> {
   const host = getHeader(event, 'host') ?? ''
-  const siteId = (event.context.siteId as string | undefined) ?? await resolveSiteIdForHost(useDb(event), host)
+  const siteId = ((event.context.siteId ?? undefined)) ?? await resolveSiteIdForHost(useDb(event), host)
   if (!siteId) return null
   // The site's own domain, not the request's — on the accounts origin those differ, and
   // email defaults (sender address, absolute links) are derived from this host.

@@ -166,7 +166,7 @@ export interface SiteSessionResult {
  * removes the parent `sessions` row, which cascades to every site session it created.
  */
 export async function getSiteSession(event: H3Event): Promise<SiteSessionResult | null> {
-  const siteId = event.context.siteId as string | null | undefined
+  const siteId = event.context.siteId
   const token = getCookie(event, siteSessionCookieName())
   if (!siteId || !token) return null
 

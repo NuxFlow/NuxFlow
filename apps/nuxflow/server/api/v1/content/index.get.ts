@@ -6,6 +6,7 @@ import { isSiteTeamMember } from '../../../utils/permissions'
 import { paginate, countRows } from '@nuxflow/db/queries'
 import { contentItems, contentTaxonomyTerms, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq, desc, gt, inArray } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 // updatedAfter round-trips contentItems.updatedAt, which is always written as SQLite's
 // datetime('now') — space-separated "YYYY-MM-DD HH:MM:SS", not ISO-8601 — so an offline/
@@ -29,7 +30,7 @@ const querySchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   // Parsed once and reused for both schema validation and pagination — the Zod schema
   // only covers the fields this route branches on (type/status/locale/updatedAfter) and
   // strips unrecognized keys, so page/limit are read from this same raw object via
@@ -48,7 +49,7 @@ export default defineEventHandler(async (event) => {
   // with an account on ANY site list another tenant's drafts. API-key requests are
   // already scoped: 03.api-key-auth.ts only sets apiKeyUserId for a live team role on
   // this exact site.
-  const apiKeyUserId = event.context.apiKeyUserId as string | undefined
+  const apiKeyUserId = event.context.apiKeyUserId
   const isTeam = Boolean(apiKeyUserId) || (await isSiteTeamMember(event))
 
   const type = await getContentTypeBySlugOrThrow(db, siteId, typeSlug, `Content type "${typeSlug}" not found`)

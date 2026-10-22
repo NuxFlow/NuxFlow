@@ -5,6 +5,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getCommentByIdOrThrow } from '../../../utils/resource-queries'
 import { comments } from '@nuxflow/db/schema'
 import { scopedById } from '../../../utils/db-helpers'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   status: z.enum(['pending', 'approved', 'spam', 'trash']),
@@ -13,7 +14,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 

@@ -16,7 +16,7 @@ import { getUserSiteRole, hasSuperAdminRole, roleAtLeast, type Role } from '../u
 // `redirectTo` is set when the host is one of the site's extra addresses (site_domains —
 // a customer's own domain, or the original subdomain after the site moved to its own
 // domain): requests there redirect to the main address.
-type SiteLookup = { id: string; status: string; setupCompleted: boolean; domain?: string; redirectTo?: string }
+type SiteLookup = { id: string; status: 'active' | 'maintenance' | 'suspended'; setupCompleted: boolean; domain?: string; redirectTo?: string }
 
 // Per-isolate cache: domain -> site rarely changes (only admin site
 // create/update/delete, or the self-healing domain migration below), but

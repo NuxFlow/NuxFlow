@@ -6,6 +6,7 @@ import { getFormByIdOrThrow } from '../../../../utils/resource-queries'
 import { paginate, countRows } from '@nuxflow/db/queries'
 import { formSubmissions } from '@nuxflow/db/schema'
 import { and, eq, desc, inArray, sql } from 'drizzle-orm'
+import { requireSiteId } from '../../../../utils/site-context'
 
 // `status` filters the list: `inbox` = new + read (what the admin shows by default, so
 // spam the moderation pass flagged and archived items stay out of the way); a single
@@ -26,7 +27,7 @@ const querySchema = z.object({
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const formIdentifier = getRouterParam(event, 'formIdentifier')!
   const query = getQuery(event)
   const { status } = parseQuery(event, querySchema)

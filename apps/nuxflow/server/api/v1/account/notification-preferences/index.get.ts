@@ -3,12 +3,13 @@ import { notificationPreferences } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
 import { requireSiteUser, roleAtLeast } from '../../../../utils/permissions'
 import { NOTIFICATION_TYPES } from '../../../../utils/notify'
+import { requireSiteId } from '../../../../utils/site-context'
 
 /** The caller's delivery preferences on this site, one entry per type relevant to their role. */
 export default defineEventHandler(async (event) => {
   const { userId, role } = await requireSiteUser(event)
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const rows = await db.query.notificationPreferences.findMany({
     where: and(eq(notificationPreferences.userId, userId), eq(notificationPreferences.siteId, siteId)),

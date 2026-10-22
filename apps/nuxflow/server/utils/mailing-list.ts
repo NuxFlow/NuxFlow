@@ -9,6 +9,7 @@ import { renderEmailTemplate } from './email-template'
 import { hmacSha256Hex, constantTimeEqualHex } from './webhook-crypto'
 import { waitUntil } from './cf-env'
 import { parseSignupSettings, signupReward, type SignupReward, type SignupSettings } from '../../shared/lib/signup-prompt'
+import { requireSiteId } from './site-context'
 
 /**
  * The site's mailing list (`mailing_list_subscribers`): signups from the popup and the
@@ -105,7 +106,7 @@ export interface SignupOutcome {
  */
 export async function signUp(event: H3Event, input: SignupInput): Promise<SignupOutcome> {
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const settings = await getSignupSettings(event)
   const email = normalizeEmail(input.email)
   const name = input.name?.trim().slice(0, 100) || null
@@ -200,7 +201,7 @@ export async function sendConfirmationEmail(event: H3Event, siteId: string, id: 
 
 /** Finishes a double opt-in. Returns null for an unknown row or a bad token. */
 export async function confirmSubscriber(event: H3Event, id: string, token: string): Promise<{ reward: SignupReward | null; settings: SignupSettings } | null> {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   if (!(await verifySubscriberToken('confirm', siteId, id, token))) return null
   const db = useDb(event)
   const row = await db.query.mailingListSubscribers.findFirst({
@@ -224,7 +225,7 @@ export async function confirmSubscriber(event: H3Event, id: string, token: strin
 
 /** Takes an address off the list. Returns false for an unknown row or a bad token. */
 export async function unsubscribe(event: H3Event, id: string, token: string): Promise<boolean> {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   if (!(await verifySubscriberToken('unsubscribe', siteId, id, token))) return false
   return markUnsubscribed(event, siteId, id)
 }

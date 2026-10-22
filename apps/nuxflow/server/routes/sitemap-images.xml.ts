@@ -7,6 +7,7 @@ import { escXml } from '../utils/xml'
 import { absoluteUrl } from '../utils/media-url'
 import { getSeoSettings, siteBaseUrl } from '../utils/seo'
 import { getIndexableEntries, imagesForEntries } from '../utils/sitemap-entries'
+import { requireSiteId } from '../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Content-Type', 'application/xml; charset=utf-8')
@@ -29,7 +30,7 @@ const IMAGE_SITEMAP_PAGE_CAP = 1000
  */
 async function buildImageSitemap(event: H3Event) {
   const db = useReplicaDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const [site, seo] = await Promise.all([
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } }),

@@ -3,6 +3,7 @@ import { requireSiteUser } from '../../../utils/permissions'
 import { useDb } from '../../../utils/db'
 import { pushSubscriptions } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   endpoint: z.string().url(),
@@ -10,7 +11,7 @@ const bodySchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSiteUser(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
   const db = useDb(event)
 

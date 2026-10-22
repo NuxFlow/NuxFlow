@@ -2,6 +2,7 @@ import { requireRole } from '../../../../utils/permissions'
 import { useDb } from '../../../../utils/db'
 import { aiGenerationJobs } from '@nuxflow/db/schema'
 import { eq, desc } from 'drizzle-orm'
+import { requireSiteId } from '../../../../utils/site-context'
 
 /**
  * Recent generation jobs on this site (the Generate with AI page's history, which is also
@@ -9,7 +10,7 @@ import { eq, desc } from 'drizzle-orm'
  */
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
 
   const jobs = await db.query.aiGenerationJobs.findMany({

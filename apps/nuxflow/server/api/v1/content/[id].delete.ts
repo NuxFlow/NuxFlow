@@ -10,11 +10,12 @@ import { waitUntil } from '../../../utils/cf-env'
 import { deleteContentEmbedding } from '../../../utils/embeddings'
 import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexnow'
 import { queueContentHook } from '../../../utils/plugin-hooks'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   const existing = await getContentItemOrThrow(db, siteId, id, 'Not found', {

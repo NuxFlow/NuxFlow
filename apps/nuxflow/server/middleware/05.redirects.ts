@@ -2,7 +2,7 @@ import { useDb } from '../utils/db'
 import { findRedirect, redirectTarget } from '../utils/redirect-cache'
 
 export default defineEventHandler(async (event) => {
-  const siteId = event.context.siteId as string | null
+  const siteId = (event.context.siteId ?? null)
   if (!siteId) return
 
   // Only check non-API, non-admin paths. Matching uses the pathname only — `event.path`

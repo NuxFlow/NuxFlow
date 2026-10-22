@@ -6,6 +6,7 @@ import { rateLimit } from '../../../utils/rate-limit'
 import { semanticSearch } from '../../../utils/embeddings'
 import { parseQuery } from '../../../utils/validate'
 import { withPublicPaths } from '../../../utils/seo'
+import { requireSiteId } from '../../../utils/site-context'
 
 const querySchema = z.object({ q: z.string().optional() })
 
@@ -22,7 +23,7 @@ const querySchema = z.object({ q: z.string().optional() })
 export default defineEventHandler(async (event) => {
   await rateLimit(event, { limit: 60, windowMs: 60_000, keyPrefix: 'search-semantic' })
 
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const q = parseQuery(event, querySchema).q?.trim()
 
   if (!q || q.length < 2 || q.length > 500) return { available: true, results: [] }

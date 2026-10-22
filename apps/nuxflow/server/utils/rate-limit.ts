@@ -50,7 +50,7 @@ function ensureCleanup() {
 export async function rateLimit(event: H3Event, opts: RateLimitOptions): Promise<void> {
   ensureCleanup()
   const ip = getHeader(event, 'cf-connecting-ip') ?? getHeader(event, 'x-forwarded-for') ?? 'unknown'
-  const siteId = (event.context.siteId as string | undefined) ?? 'global'
+  const siteId = ((event.context.siteId ?? undefined)) ?? 'global'
   const key = `${opts.keyPrefix ?? 'rl'}:${siteId}:${ip}`
   const now = Date.now()
 

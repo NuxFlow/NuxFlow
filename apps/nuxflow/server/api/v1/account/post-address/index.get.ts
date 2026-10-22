@@ -3,12 +3,13 @@ import { requireRole } from '../../../../utils/permissions'
 import { getPostMailbox, describePostAddress } from '../../../../utils/post-address'
 import { users } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
+import { requireSiteId } from '../../../../utils/site-context'
 
 /** The caller's secret post-by-email address on this site, or `{ address: null }`. */
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const [mailbox, user] = await Promise.all([
     getPostMailbox(db, siteId, userId),

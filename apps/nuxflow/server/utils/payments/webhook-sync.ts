@@ -7,6 +7,7 @@ import { resolveSetting } from '../settings'
 import { sendNotification } from '../notify'
 import { writeAuditLog } from '../audit'
 import type { PaymentProviderName, SubscriptionStatus } from './types'
+import { requireSiteId } from '../site-context'
 
 // The column each provider's webhook payload actually resolves a membership tier by.
 const TIER_LOOKUP_COLUMN = {
@@ -65,7 +66,7 @@ export interface SubscriptionCancellation {
  * a different Host. Call this before every DB write these handlers make.
  */
 export function assertWebhookSiteMatch(event: H3Event, payloadSiteId: string | undefined | null): void {
-  const contextSiteId = event.context.siteId as string | undefined
+  const contextSiteId = (event.context.siteId ?? undefined)
   if (!payloadSiteId || !contextSiteId || payloadSiteId !== contextSiteId) {
     throw new WebhookForOtherSite(`Webhook event belongs to site ${payloadSiteId ?? '(none)'}, not ${contextSiteId ?? '(none)'}`)
   }
@@ -118,7 +119,7 @@ async function maybeSendPaymentPush(event: H3Event, siteId: string, userId: stri
  */
 export async function upsertSubscriptionFromWebhook(event: H3Event, evt: SubscriptionUpsert): Promise<void> {
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const tier = evt.tierLookupId
     ? await db.query.membershipTiers.findFirst({
@@ -192,7 +193,7 @@ export async function upsertSubscriptionFromWebhook(event: H3Event, evt: Subscri
 /** Marks a subscription cancelled from a verified webhook event. */
 export async function cancelSubscriptionFromWebhook(event: H3Event, evt: SubscriptionCancellation): Promise<void> {
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const [row] = await db.update(subscriptions)
     .set({
       status: 'cancelled',

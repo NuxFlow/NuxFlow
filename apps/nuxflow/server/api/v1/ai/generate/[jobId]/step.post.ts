@@ -4,6 +4,7 @@ import { useDb } from '../../../../../utils/db'
 import { advanceJob, claimJob, jobResponse, releaseJob } from '../../../../../utils/site-generation'
 import { aiGenerationJobs } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { requireSiteId } from '../../../../../utils/site-context'
 
 /**
  * Does the job's next unit of work inline — the plan, or one page — and returns the
@@ -17,7 +18,7 @@ export default defineEventHandler(async (event) => {
   // ceiling on a runaway client loop.
   await rateLimit(event, { limit: 30, windowMs: 60_000, keyPrefix: 'ai-generate-step' })
 
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const jobId = getRouterParam(event, 'jobId')!
   const db = useDb(event)
 

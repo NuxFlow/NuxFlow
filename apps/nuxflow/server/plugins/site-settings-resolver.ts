@@ -118,7 +118,7 @@ export default defineNitroPlugin((nitro) => {
   // The --nuxflow-primary variable IS injected everywhere so .nav-active and
   // custom CSS in the admin can reference it.
   nitro.hooks.hook('render:html', async (html, { event }) => {
-    const siteId = event.context.siteId as string | null
+    const siteId = (event.context.siteId ?? null)
     if (!siteId) return
 
     try {

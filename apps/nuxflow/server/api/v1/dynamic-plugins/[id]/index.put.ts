@@ -12,6 +12,7 @@ import { waitUntil } from '../../../../utils/cf-env'
 import { permissionsCovered } from '../../../../../shared/lib/plugin-permissions'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { sql } from 'drizzle-orm'
+import { requireSiteId } from '../../../../utils/site-context'
 
 // Updates an installed plugin in place — same verification as a fresh install, plus the
 // package must be signed by the key this plugin id is pinned to. Unlike the old
@@ -21,7 +22,7 @@ import { sql } from 'drizzle-orm'
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRoleOrApiKey(event, 'admin', 'manage:plugins')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, pluginPackageSchema)
   if (body.id !== id) throw badRequest(`Package id "${body.id}" does not match the plugin being updated ("${id}")`)

@@ -5,6 +5,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
 import { csvField } from '../../../utils/mailing-list'
+import { requireSiteId } from '../../../utils/site-context'
 
 const querySchema = z.object({
   status: z.enum(['pending', 'subscribed', 'unsubscribed']).optional(),
@@ -17,7 +18,7 @@ const PAGE = 1000
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const { status } = parseQuery(event, querySchema)
 
   await writeAuditLog(event, userId, { action: 'export', resource: 'mailing_list', after: { status: status ?? 'all' } })

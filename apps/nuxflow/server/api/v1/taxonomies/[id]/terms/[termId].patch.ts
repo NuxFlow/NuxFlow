@@ -9,6 +9,7 @@ import {
 } from '../../../../../utils/taxonomy'
 import { taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq, ne } from 'drizzle-orm'
+import { requireSiteId } from '../../../../../utils/site-context'
 
 const bodySchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
@@ -27,7 +28,7 @@ const NULLABLE_TEXT = ['description', 'seoTitle', 'seoDescription', 'ogImage'] a
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const taxonomyId = getRouterParam(event, 'id')!
   const termId = getRouterParam(event, 'termId')!
   const body = await parseBody(event, bodySchema)

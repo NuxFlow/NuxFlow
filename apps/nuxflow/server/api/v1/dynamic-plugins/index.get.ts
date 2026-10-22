@@ -8,7 +8,7 @@ import { eq } from 'drizzle-orm'
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = event.context.siteId
   if (!siteId) return { plugins: [] }
 
   const rows = await db.query.dynamicPlugins.findMany({

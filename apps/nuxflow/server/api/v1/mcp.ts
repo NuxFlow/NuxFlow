@@ -29,9 +29,9 @@ export default defineEventHandler(async (event) => {
 
   // 1. Authenticate Request
   // Authenticated context fields (apiKeyUserId, apiKeyRole, siteId) are pre-populated by global api-key-auth.ts middleware
-  const apiKeyUserId = event.context.apiKeyUserId as string | undefined
-  const apiKeyRole = event.context.apiKeyRole as string | undefined
-  const siteId = event.context.siteId as string | undefined
+  const apiKeyUserId = event.context.apiKeyUserId
+  const apiKeyRole = event.context.apiKeyRole
+  const siteId = (event.context.siteId ?? undefined)
 
   if (!apiKeyUserId || !siteId) {
     throw unauthorized('Unauthorized: A valid API Key in the Authorization header is required.')

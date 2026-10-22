@@ -3,6 +3,7 @@ import { requireSuperAdmin } from '../../../utils/permissions'
 import { prepareD1Dump, streamD1TableData } from '../../../utils/d1-export'
 import { writeAuditLog } from '../../../utils/audit'
 import { notifySiteRole } from '../../../utils/notify'
+import { requireSiteId } from '../../../utils/site-context'
 
 // Whole-D1-instance raw SQL export — every site's data in one file. Gated on
 // requireSuperAdmin (cross-site), not the site-scoped requireRole() the per-site
@@ -59,7 +60,7 @@ export default defineEventHandler(async (event) => {
       })
       // A whole-platform export contains every tenant's data — tell the other super admins.
       await notifySiteRole(event, {
-        siteId: event.context.siteId as string,
+        siteId: requireSiteId(event),
         minRole: 'super_admin',
         excludeUserId: userId,
         type: 'system.db_export',

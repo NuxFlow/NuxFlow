@@ -17,7 +17,7 @@ export default defineNitroPlugin((nitro) => {
   // Inlining avoids an extra HTTP round-trip and means the correct styles are present
   // on first paint with no flash of the default theme.
   nitro.hooks.hook('render:html', async (html, { event }) => {
-    const siteId = event.context.siteId as string | null
+    const siteId = (event.context.siteId ?? null)
     if (!siteId) return
 
     // Theme CSS is for the public site only — never inject into the admin UI.
@@ -37,7 +37,7 @@ export default defineNitroPlugin((nitro) => {
       // read by every visitor, so caching a preview under that key would leak
       // one admin's in-progress preview to every other visitor of the site for
       // the rest of the 60s TTL window. A preview lookup always hits the DB.
-      const previewId = event.context.themePreviewId as string | undefined
+      const previewId = event.context.themePreviewId
       if (previewId) {
         const db = useDb(event)
         const row = await db.query.themes.findFirst({

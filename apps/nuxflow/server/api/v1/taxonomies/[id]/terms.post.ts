@@ -8,6 +8,7 @@ import { TAXONOMY_SLUG_RE, assertValidTermParent, slugify } from '../../../../ut
 import { taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -24,7 +25,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const taxonomyId = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
 

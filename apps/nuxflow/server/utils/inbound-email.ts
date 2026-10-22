@@ -8,6 +8,7 @@ import {
   contentItems, contentTypes, emailMessages, mailboxes, media, sites, siteSettings, users,
   type EmailAttachmentMeta, type EmailAuthResults,
 } from '@nuxflow/db/schema'
+import { requireSiteId } from './site-context'
 import { useDb, type Db } from './db'
 import { createSystemEvent } from './system-event'
 import { getAiSdkModel, callAiOrThrow } from './ai-sdk'
@@ -501,7 +502,7 @@ async function triageMessage(event: H3Event, id: string, msg: { subject: string;
     const spam = object.category === 'spam'
     await useDb(event).update(emailMessages)
       .set({ category: object.category, aiSummary: object.summary, ...(spam ? { status: 'spam' as const } : {}) })
-      .where(and(eq(emailMessages.id, id), eq(emailMessages.siteId, event.context.siteId as string)))
+      .where(and(eq(emailMessages.id, id), eq(emailMessages.siteId, requireSiteId(event))))
     return spam
   }
   catch (err) {

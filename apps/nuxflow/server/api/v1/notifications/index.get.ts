@@ -2,11 +2,12 @@ import { useDb } from '../../../utils/db'
 import { requireSiteUser } from '../../../utils/permissions'
 import { notifications } from '@nuxflow/db/schema'
 import { and, eq, desc } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSiteUser(event)
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const items = await db.query.notifications.findMany({
     where: and(eq(notifications.userId, userId), eq(notifications.siteId, siteId)),

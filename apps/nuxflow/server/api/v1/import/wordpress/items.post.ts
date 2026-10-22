@@ -9,6 +9,7 @@ import { writeAuditLog } from '../../../../utils/audit'
 import { htmlToTipTap } from '../../../../utils/html-to-tiptap'
 import { getImportContentTypes, IN_LIST_CHUNK } from '../../../../utils/wordpress-import'
 import { chunk } from '../../../../../shared/lib/array'
+import { requireSiteId } from '../../../../utils/site-context'
 
 // Content is already rewritten in the browser to point at the imported media, and
 // termIds come from the terms step's responses.
@@ -31,7 +32,7 @@ const bodySchema = z.object({
 // already uses is skipped — which also makes a retried batch safe.
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
   const body = await parseBody(event, bodySchema)
 

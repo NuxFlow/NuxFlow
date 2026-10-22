@@ -6,6 +6,7 @@ import { assertSameHostReturnUrl } from '../../../utils/validate'
 import { getStripeProvider, getLemonSqueezyProvider, getPaddleProvider } from '../../../utils/payments/resolve'
 import { rethrowAsProviderError } from '../../../utils/errors'
 import { rateLimit } from '../../../utils/rate-limit'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   returnUrl: z.url(),
@@ -17,7 +18,7 @@ export default defineEventHandler(async (event) => {
   // checkout.post.ts, which rate-limits itself for the same reason.
   await rateLimit(event, { limit: 20, windowMs: 60_000, keyPrefix: 'membership-billing-portal' })
   const session = await requireSession(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
   assertSameHostReturnUrl(event, body.returnUrl)
 

@@ -6,6 +6,7 @@ import { parsePagination } from '../../../utils/pagination'
 import { countUnreadInbox } from '../../../utils/inbox'
 import { emailMessages, mailboxes } from '@nuxflow/db/schema'
 import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 const querySchema = z.object({
   // 'inbox' = everything not yet archived or marked spam.
@@ -26,7 +27,7 @@ const querySchema = z.object({
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const query = parseQuery(event, querySchema)
   const { limit, offset, page } = parsePagination(query, 50, 100)
 

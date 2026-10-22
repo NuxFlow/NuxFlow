@@ -10,6 +10,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { media } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { created } from '../../../utils/response'
+import { requireSiteId } from '../../../utils/site-context'
 
 const MAX_SIZE = 20 * 1024 * 1024
 
@@ -26,7 +27,7 @@ function isAllowedMediaMimeType(mime: string): boolean {
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   // Reject an oversized body before readFormData() buffers the entire multipart payload
   // into memory — the MAX_SIZE/provider-specific checks below only run after that buffering

@@ -6,6 +6,7 @@ import { isSafeUrl, safeFetch } from '../../utils/ssrf'
 import { writeAuditLog } from '../../utils/audit'
 import { getCfBindings } from '../../utils/cf-env'
 import { workerMediaKey } from '../../utils/media-url'
+import { requireSiteId } from '../../utils/site-context'
 
 // Matches restore.post.ts's upload limit — a bigger backup couldn't be restored.
 const MAX_RAW_MEDIA_BYTES = 100 * 1024 * 1024
@@ -17,7 +18,7 @@ const MAX_RAW_MEDIA_BYTES = 100 * 1024 * 1024
 // (very compressible) is the one entry that's deflated.
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const backup = await buildBackup(event, siteId)
 

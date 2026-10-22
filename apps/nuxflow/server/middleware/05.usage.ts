@@ -9,7 +9,7 @@ const FILE_PATH = /\.[a-z0-9]{1,8}$/i
 // later, and a cached view is still a view. Requests with no site (the accounts origin,
 // /api/auth, setup) aren't counted — 02.multi-site.ts leaves siteId unset for them.
 export default defineEventHandler((event) => {
-  const siteId = event.context.siteId as string | undefined
+  const siteId = (event.context.siteId ?? undefined)
   if (!siteId || event.context.isAccountsHost) return
 
   const path = getRequestURL(event).pathname

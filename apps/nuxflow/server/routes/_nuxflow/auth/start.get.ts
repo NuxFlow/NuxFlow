@@ -4,7 +4,7 @@ import { beginSiteSignIn, safeReturnPath } from '../../../utils/site-auth'
 // Step 1 of signing in on a site's own domain (see utils/site-auth.ts): remember where to
 // come back to, bind this browser with a `state` cookie, and go to the accounts origin.
 export default defineEventHandler((event) => {
-  const siteId = event.context.siteId as string | null
+  const siteId = (event.context.siteId ?? null)
   if (!siteId) throw createError({ statusCode: 404, statusMessage: 'Unknown site' })
   const query = getQuery(event)
   const returnTo = safeReturnPath(query.return_to)

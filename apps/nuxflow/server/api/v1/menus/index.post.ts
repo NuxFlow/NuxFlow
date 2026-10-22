@@ -6,6 +6,7 @@ import { menus } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { purgeEdgeCache, purgeAllPublicPages } from '../../../utils/edge-cache'
 import { waitUntil } from '../../../utils/cf-env'
+import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -15,7 +16,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
 
   const id = ulid()

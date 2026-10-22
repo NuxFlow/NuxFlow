@@ -7,6 +7,7 @@ import { requireAiSdkModel, callAiOrThrow, loadImageBytesForAi } from '../../../
 import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
+import { requireSiteId } from '../../../utils/site-context'
 
 // Either the media item's id, or the image URL a canvas block stores (the image field
 // keeps `{ url, width, height }`, not the library id). A URL only resolves to an item in
@@ -35,7 +36,7 @@ export default defineEventHandler(async (event) => {
   const model = await requireAiSdkModel(event, 'vision', { userId })
 
   const { mediaId, url } = await parseBody(event, bodySchema)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
 
   const file = mediaId

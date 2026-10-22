@@ -7,6 +7,7 @@ import { extractPlainText } from '../../../utils/tiptap-text'
 import { rateLimit } from '../../../utils/rate-limit'
 import { contentItems } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { requireSiteId } from '../../../utils/site-context'
 
 // Deepgram Aura-2 (like every TTS model) has a real per-request input-length ceiling — this
 // also just keeps a single "Listen" click to a reasonable, fast-to-generate chunk rather
@@ -29,7 +30,7 @@ export default defineEventHandler(async (event) => {
   const ai = getWorkersAiBinding(event)
   if (!ai) throw createError({ statusCode: 503, message: 'Text-to-speech requires the Workers AI binding.' })
 
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const slug = getRouterParam(event, 'slug')!
 
   const db = useReplicaDb(event)

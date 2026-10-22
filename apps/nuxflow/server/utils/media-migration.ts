@@ -8,6 +8,7 @@ import { sanitizeSvg } from './sanitize-css-svg'
 import { saveSetting } from './settings'
 import { purgeAllPublicPages, purgeEdgeCache } from './edge-cache'
 import { base64ToBytes } from '../../shared/lib/base64'
+import { requireSiteId } from './site-context'
 
 /**
  * Moves media out of the database-storage fallback (base64 `data:` URIs in D1 — see the
@@ -398,7 +399,7 @@ export async function migrateLocalMediaBatch(
   event: H3Event,
   opts: { cursor?: string | null; limit?: number; budget?: WorkBudget } = {},
 ): Promise<MigrationBatchResult> {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const provider = await requireRealProvider(event)
   const db = useDb(event)
   const budget = opts.budget ?? new WorkBudget()
@@ -512,7 +513,7 @@ export async function migrateInlineImagesBatch(
   userId: string,
   opts: { cursor?: string | null; budget?: WorkBudget } = {},
 ): Promise<MigrationBatchResult> {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const provider = await requireRealProvider(event)
   const db = useDb(event)
   const budget = opts.budget ?? new WorkBudget()
@@ -567,7 +568,7 @@ export async function migrateInlineImagesBatch(
 }
 
 export async function getMigrationStatus(event: H3Event): Promise<MigrationStatus> {
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const db = useDb(event)
   const provider = await getActiveProvider(event)
 

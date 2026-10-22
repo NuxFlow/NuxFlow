@@ -5,6 +5,7 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { created } from '../../../../utils/response'
 import { mediaFolders } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
+import { requireSiteId } from '../../../../utils/site-context'
 
 const bodySchema = z.object({
   // trim() must come first — Zod runs checks in order, so min(1) before trim() lets a
@@ -15,7 +16,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
 
   const id = ulid()

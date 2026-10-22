@@ -5,7 +5,7 @@ import { isHostingPlatform } from '../../../utils/hosting-platform'
 export default defineEventHandler(async (event) => {
   const session = await requireSession(event)
   const db = useDb(event)
-  const siteId = event.context.siteId as string | null
+  const siteId = (event.context.siteId ?? null)
 
   const [siteRole, hasAnySuperAdminGrant, hostingPlatform] = await Promise.all([
     siteId ? getUserSiteRole(db, session.user.id, siteId) : Promise.resolve(null),

@@ -6,6 +6,7 @@ import { useDb } from '../../../../../utils/db'
 import { claimJob, jobResponse, regeneratePlanPage, releaseJob } from '../../../../../utils/site-generation'
 import { aiGenerationJobs } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { requireSiteId } from '../../../../../utils/site-context'
 
 const bodySchema = z.object({ index: z.number().int().min(0) })
 
@@ -15,7 +16,7 @@ export default defineEventHandler(async (event) => {
   await rateLimit(event, { limit: 10, windowMs: 60_000, keyPrefix: 'ai-generate-regenerate' })
   await requireAiSdkModel(event, 'smart', { userId })
 
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const jobId = getRouterParam(event, 'jobId')!
   const db = useDb(event)
   const { index } = await parseBody(event, bodySchema)

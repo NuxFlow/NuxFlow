@@ -3,11 +3,12 @@ import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../utils/db'
 import { requireRole } from '../../utils/permissions'
 import { getContentTypeBySlug } from '../../utils/content-queries'
+import { requireSiteId } from '../../utils/site-context'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
 
   const type = await getContentTypeBySlug(db, siteId, 'page', { id: true })
 

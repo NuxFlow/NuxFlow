@@ -3,13 +3,14 @@ import { mailingListSubscribers } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { writeAuditLog } from '../../../../utils/audit'
+import { requireSiteId } from '../../../../utils/site-context'
 
 // Erase someone from the list entirely (a GDPR erasure request). To stop mailing someone
 // but remember that they left, mark them unsubscribed instead (PATCH).
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
-  const siteId = event.context.siteId as string
+  const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
 
   const deleted = await db.delete(mailingListSubscribers)
