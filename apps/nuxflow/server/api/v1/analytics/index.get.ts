@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { requireRole } from '../../../utils/permissions'
 import { getAnalyticsEngine } from '../../../utils/cf-env'
-import { eventForSite, getPrimarySite } from '../../../utils/site-info'
-import { resolveSetting } from '../../../utils/settings'
+import { useDb } from '../../../utils/db'
+import { getPlatformSetting } from '../../../utils/control-plane'
 import { ANALYTICS_RANGES, ANALYTICS_TOKEN_KEY, AnalyticsQueryError, querySiteAnalytics, type AnalyticsRange, type SiteAnalytics } from '../../../utils/analytics'
 import { requireSiteId } from '../../../utils/site-context'
 
@@ -25,16 +25,13 @@ export default defineEventHandler(async (event): Promise<AnalyticsResponse> => {
   const siteId = requireSiteId(event)
   const { days } = await parseQuery(event, querySchema)
 
-  // The dataset is the operator's, so are the credentials to read it: stored on the
-  // primary site (Super Admin → Platform) and used for every site's report.
-  const primary = await getPrimarySite(event)
-  const primaryEvent = primary ? eventForSite(event, primary.id) : null
-  const [token, accountId] = primaryEvent
-    ? await Promise.all([
-        resolveSetting(primaryEvent, ANALYTICS_TOKEN_KEY) as Promise<string | null>,
-        resolveSetting(primaryEvent, 'cloudflare.account_id', 'cloudflareAccountId') as Promise<string | null>,
-      ])
-    : [null, null]
+  // The dataset is the operator's, so are the credentials to read it: platform settings
+  // (Super Admin → Platform, sent on to member pools) used for every site's report.
+  const db = useDb(event)
+  const [token, accountId] = await Promise.all([
+    getPlatformSetting(db, ANALYTICS_TOKEN_KEY),
+    getPlatformSetting(db, 'cloudflare.account_id', 'cloudflareAccountId'),
+  ])
 
   const recording = getAnalyticsEngine(event) !== null
   const readable = !!token && !!accountId && /^[a-f0-9]{32}$/i.test(accountId)

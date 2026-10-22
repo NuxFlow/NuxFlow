@@ -12,6 +12,7 @@ import { isHttpError } from '../../../utils/errors'
 import { clearSiteCache } from '../../../middleware/02.multi-site'
 import { clearSetupStatusCache } from './status.get'
 import { seedNewSite } from '../../../utils/site-seeding'
+import { requireControlPlane } from '../../../utils/control-plane'
 
 const bodySchema = z.object({
   site: z.object({
@@ -49,6 +50,9 @@ export default defineEventHandler(async (event) => {
 })
 
 async function _handleSetup(event: H3Event) {
+  // Never in a member pool, whose database starts empty: the "first install" path below
+  // would make whoever got there first its super admin. Its sites come from the control plane.
+  requireControlPlane(event)
   // Unauthenticated and now checks an existing account's password (below) — throttle it
   // like the other credential-checking endpoints in 04.auth-override.ts.
   await rateLimit(event, { limit: 10, windowMs: 10 * 60_000, keyPrefix: 'setup-complete' })

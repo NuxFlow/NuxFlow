@@ -9,6 +9,7 @@ import { customDomainTarget, SAAS_TOKEN_KEY, SAAS_ZONE_KEY } from '../../../../u
 import { getAiDailyCap, platformAiCreditsToday } from '../../../../utils/ai-allowance'
 import { ANALYTICS_TOKEN_KEY } from '../../../../utils/analytics'
 import { getAnalyticsEngine } from '../../../../utils/cf-env'
+import { getPlatformSetting, getPoolId } from '../../../../utils/control-plane'
 
 /** Super Admin → Platform: the hosting switch, and what selling sites still needs. */
 export default defineEventHandler(async (event) => {
@@ -25,8 +26,8 @@ export default defineEventHandler(async (event) => {
     primaryEvent ? customDomainTarget(primaryEvent) : '',
     getAiDailyCap(db),
     platformAiCreditsToday(db, primary?.id ?? null),
-    primaryEvent ? resolveSetting(primaryEvent, ANALYTICS_TOKEN_KEY) : '',
-    primaryEvent ? resolveSetting(primaryEvent, 'cloudflare.account_id', 'cloudflareAccountId') : '',
+    getPlatformSetting(db, ANALYTICS_TOKEN_KEY),
+    getPlatformSetting(db, 'cloudflare.account_id', 'cloudflareAccountId'),
   ])
   const central = isCentralAuth()
   const config = useRuntimeConfig()
@@ -35,6 +36,8 @@ export default defineEventHandler(async (event) => {
     build: {
       commit: config.buildCommit ? String(config.buildCommit) : null,
       release: config.buildRelease ? String(config.buildRelease) : null,
+      // Set on a hosting platform's member pools only (control-plane.ts).
+      pool: getPoolId(),
     },
     hostingEnabled,
     primarySite: primary ? { id: primary.id, name: primary.name, domain: primary.domain } : null,

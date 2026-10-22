@@ -16,6 +16,7 @@ import { generateIndexNowKey } from '../../../utils/indexnow'
 import { isPrimarySite } from '../../../utils/site-info'
 import { planIncludes } from '../../../utils/hosting-plans'
 import { requireSiteId } from '../../../utils/site-context'
+import { requireControlPlane } from '../../../utils/control-plane'
 
 const bodySchema = z.object({
   // Site columns
@@ -86,6 +87,9 @@ export default defineEventHandler(async (event) => {
     if (normalized === current?.domain) {
       body.domain = undefined
     } else {
+      // In a member pool the control plane's site directory decides which site an address
+      // reaches; a change here would leave it routing the old one.
+      requireControlPlane(event)
       if (!(await isSuperAdminOnSite(db, userId, siteId))) {
         throw forbidden('Only the platform operator can change a site\'s domain')
       }

@@ -16,7 +16,8 @@
     "release": "turbo build --filter=@nuxflow/cli --filter=create-nuxflow-app && changeset publish",
     "ring:canary": "pnpm -C apps/nuxflow ring:canary",
     "ring:promote": "pnpm -C apps/nuxflow ring:promote",
-    "ring:status": "pnpm -C apps/nuxflow ring:status"
+    "ring:status": "pnpm -C apps/nuxflow ring:status",
+    "pool:create": "pnpm -C apps/nuxflow pool:create"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
+import { requireControlPlane } from '../../../../utils/control-plane'
 import { clearSiteCache } from '../../../../middleware/02.multi-site'
 import { normalizeDomain } from '../../../../utils/domain'
 import { sites, siteDomains, auditLogs, hostingPlans } from '@nuxflow/db/schema'
@@ -20,6 +21,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  requireControlPlane(event)
   const { userId } = await requireSuperAdmin(event)
   const db = useDb(event)
   const id = getRouterParam(event, 'id')!

@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { siteSettings, sites } from '@nuxflow/db/schema'
 import { useDb, type Db } from './db'
 import { createIsolateCache } from './isolate-cache'
+import { isMemberPool } from './control-plane'
 
 /**
  * "Run this install as a hosting platform" — one switch, off by default, stored as a
@@ -27,6 +28,8 @@ export function clearHostingPlatformCache(): void {
 }
 
 export async function isHostingPlatform(db: Db): Promise<boolean> {
+  // Pools only exist on a hosting platform, and a pool has no primary site to hold the switch.
+  if (isMemberPool()) return true
   const cached = cache.get('enabled')
   if (cached !== undefined) return cached
   const [row] = await db.select({ value: siteSettings.value })

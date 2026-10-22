@@ -3,6 +3,7 @@ import { sites, users } from '@nuxflow/db/schema'
 import { count, eq } from 'drizzle-orm'
 import { createIsolateCache } from '../../../utils/isolate-cache'
 import { getCfBindings } from '../../../utils/cf-env'
+import { isMemberPool } from '../../../utils/control-plane'
 
 type SetupStatus = {
   hasSite: boolean
@@ -34,6 +35,12 @@ export function clearSetupStatusCache(host?: string): void {
 }
 
 export default defineEventHandler(async (event) => {
+  // A member pool is never set up through the wizard: its sites are created by the
+  // control plane (utils/control-plane.ts), and an empty pool must not look like a fresh install.
+  if (isMemberPool()) {
+    return { hasSite: false, hasAdmin: false, setupCompleted: true, needsSetup: false, site: null, mediaStorage: getCfBindings(event).r2 ? 'r2' : 'none' } satisfies SetupStatus
+  }
+
   let cacheHost = getHeader(event, 'host')?.split(':')[0] ?? ''
   if (cacheHost === '127.0.0.1' || cacheHost === '::1') cacheHost = 'localhost'
 

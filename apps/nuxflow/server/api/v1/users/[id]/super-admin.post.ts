@@ -3,6 +3,7 @@ import { users, userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { requireSuperAdmin, getUserSiteRole } from '../../../../utils/permissions'
+import { requireControlPlane } from '../../../../utils/control-plane'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { clearCachedRole } from '../../../../utils/role-cache'
 import { alertRoleChanged } from '../../../../utils/security-alerts'
@@ -15,6 +16,7 @@ import { alertRoleChanged } from '../../../../utils/security-alerts'
 // meaningfully more sensitive than a normal role change. The setup wizard is the only
 // other way to create one, and it also reseeds the site's content.
 export default defineEventHandler(async (event) => {
+  requireControlPlane(event)
   const { userId } = await requireSuperAdmin(event)
   const siteId = event.context.siteId!
   const targetId = getRouterParam(event, 'id')!
