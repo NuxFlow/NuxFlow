@@ -5,6 +5,9 @@ import { useDb, type Db } from './db'
 import { getPlatformSetting, POOL_PLATFORM_SETTINGS, type PlatformSettingKey } from './control-plane'
 import { POOL_PROTOCOL, assertCompatibleProtocol, type PoolSite, type PoolStatus, type PushedSettings } from './pool-admin'
 import { errorMessage } from './errors'
+import { poolBindingName } from '../../shared/lib/pool-id'
+import type { PoolSignInUser } from './pool-sign-in'
+import type { AccountSiteListing, PoolAccountsSite } from './accounts-sites'
 
 /**
  * The control plane's view of its member pools (control-plane.ts). A pool is connected by
@@ -23,10 +26,24 @@ import { errorMessage } from './errors'
 
 export const POOL_BINDING_RE = /^POOL_[A-Z0-9_]+$/
 
-interface PoolAdminStub {
+export interface PoolAdminStub {
   status(): Promise<PoolStatus>
   listSites(): Promise<PoolSite[]>
   pushPlatformSettings(payload: PushedSettings): Promise<{ stored: number }>
+  // Sign-in across pools (accounts-sites.ts): what the accounts origin shows and does for a pool's site.
+  siteForAccounts(input: { protocol: number; siteId: string; userId: string | null }): Promise<PoolAccountsSite | null>
+  joinSite(input: { protocol: number; siteId: string; user: PoolSignInUser; platformOperator: boolean }): Promise<{ joined: boolean }>
+  userSites(input: { protocol: number; userId: string }): Promise<AccountSiteListing[]>
+}
+
+/** The admin stub of the pool with this id, if this Worker has a binding to it. */
+export function poolAdminStub(event: H3Event, poolId: string): PoolAdminStub | null {
+  return poolBindings(event).find(p => p.binding === poolBindingName(poolId))?.stub ?? null
+}
+
+/** Pool calls must not hang a page: rejects after 10 s. */
+export function callPool<T>(promise: Promise<T>, what: string): Promise<T> {
+  return withTimeout(promise, what)
 }
 
 /** Every pool binding on this Worker, in name order. */

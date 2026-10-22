@@ -1,6 +1,9 @@
 import type { H3Event } from 'h3'
 import { consumeSiteAuthCode, createSiteSession, readSiteSignInState, siteCallbackUrl } from '../../../utils/site-auth'
 import { getSiteInfo } from '../../../utils/site-info'
+import { useDb } from '../../../utils/db'
+import { isMemberPool } from '../../../utils/control-plane'
+import { signInThroughControlPlane } from '../../../utils/pool-session'
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`)
 
@@ -37,7 +40,12 @@ export default defineEventHandler(async (event) => {
   const site = await getSiteInfo(event, siteId)
   if (!site) throw createError({ statusCode: 404, statusMessage: 'Unknown site' })
 
-  const grant = await consumeSiteAuthCode(event, code, siteId, siteCallbackUrl(site.domain))
+  // In a member pool the code was issued by — and is used up on — the control plane
+  // (utils/pool-session.ts); everywhere else it's in this database.
+  const redirectUri = siteCallbackUrl(site.domain)
+  const grant = isMemberPool()
+    ? await signInThroughControlPlane(event, { code, siteId, redirectUri })
+    : await consumeSiteAuthCode(useDb(event), code, siteId, redirectUri)
   if (!grant) return signInFailed(event, 'code unknown, already used, expired, or for another site', returnTo)
 
   await createSiteSession(event, { userId: grant.userId, siteId, parentSessionId: grant.parentSessionId })

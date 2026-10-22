@@ -55,12 +55,19 @@ export function buildPoolConfig(base: Config, input: { poolId: string; databaseI
   // Per-environment overrides could bring routes or bindings back.
   delete config.env
 
+  // The control plane's own bindings to its pools stay with it (a pool talks only to its
+  // control plane); the pool gets one back to the control plane, for sign-in.
+  const otherServices = (Array.isArray(config.services) ? config.services as Config[] : [])
+    .filter(s => typeof s.binding !== 'string' || (!s.binding.startsWith('POOL_') && s.binding !== 'CONTROL_PLANE'))
+  if (typeof base.name !== 'string' || !base.name) throw new Error('The control plane\'s config has no Worker name.')
+
   return {
     ...config,
     name: names.worker,
     workers_dev: false,
     preview_urls: false,
     vars,
+    services: [...otherServices, { binding: 'CONTROL_PLANE', service: base.name, entrypoint: 'NuxflowControlPlane' }],
     d1_databases: d1.map(db => db.binding === 'DB'
       ? { binding: 'DB', database_name: names.database, database_id: input.databaseId }
       : db),
