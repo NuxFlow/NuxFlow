@@ -101,7 +101,7 @@ describe('07.page-cache middleware (read side)', () => {
 
     await (pageCacheMiddleware as MiddlewareFn)(mkEvent({ path: '/about?utm_source=fb&page=2&fbclid=IwAR123' }))
 
-    expect((match.mock.calls[0]![0] as Request).url).toMatch(/\/\/example\.com\/about\?page=2&__nfv=u&__nfc=0$/)
+    expect((match.mock.calls[0]![0] as Request).url).toMatch(/\/\/example\.com\/about\?page=2&__nfv=u&__nfc=cp\.[^.&]+\.0$/)
   })
 
   it('looks up the region-specific variant for a visitor in a consent-required region', async () => {
@@ -110,7 +110,7 @@ describe('07.page-cache middleware (read side)', () => {
 
     await (pageCacheMiddleware as MiddlewareFn)(mkEvent({ headers: { 'cf-ipcountry': 'NL' } }))
 
-    expect((match.mock.calls[0]![0] as Request).url).toMatch(/\/\/example\.com\/about\?__nfv=r&__nfc=0$/)
+    expect((match.mock.calls[0]![0] as Request).url).toMatch(/\/\/example\.com\/about\?__nfv=r&__nfc=cp\.[^.&]+\.0$/)
   })
 
   it('still serves the cache to a visitor carrying only analytics/consent cookies', async () => {

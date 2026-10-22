@@ -1,0 +1,36 @@
+# NuxFlow front-door router — copy to wrangler.toml (gitignored) and fill in. See README.md.
+name = "nuxflow-router"
+main = "src/index.ts"
+compatibility_date = "2026-04-01"
+
+# The router is only ever reached on your customer addresses, never on its own.
+workers_dev = false
+preview_urls = false
+
+# Every address on your customer sites zone — subdomain sites and, through Cloudflare for
+# SaaS, customers' own domains. Move this route here from the control plane's config.
+# [[routes]]
+# pattern = "*/*"
+# zone_name = "example.site"
+
+# The control plane's PLUGIN_KV namespace (same id as in its wrangler config): the control
+# plane writes the site directory there, the router only reads it. For `wrangler dev`,
+# also copy its preview_id — local dev uses the preview namespace.
+[[kv_namespaces]]
+binding = "DIRECTORY"
+id = "the-control-planes-plugin-kv-id"
+# preview_id = "the-control-planes-plugin-kv-preview-id"
+
+# The control plane Worker: every address the directory doesn't list.
+[[services]]
+binding = "CONTROL_PLANE"
+service = "nuxflow"
+
+# One per member pool — `pnpm pool:create` prints it. No `entrypoint`: requests go to the
+# pool's normal fetch handler, unlike the control plane's binding to the same pool.
+# [[services]]
+# binding = "POOL_CLIENTX"
+# service = "nuxflow-pool-clientx"
+
+[observability]
+enabled = true

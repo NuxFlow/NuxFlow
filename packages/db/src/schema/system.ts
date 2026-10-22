@@ -97,6 +97,18 @@ export const platformSettings = sqliteTable('platform_settings', {
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 })
 
+// Only used by a control plane with member pools (apps/nuxflow/server/utils/site-directory.ts):
+// every address a member pool serves, so the front-door router (packages/router) sends it
+// there — it reads a KV copy of these rows. Addresses not listed go to the control plane.
+// `pool_site_id` is the site's id in the pool's own D1: no FK, and deliberately not named
+// `site_id` (the site isn't in this database, and this isn't tenant data).
+export const siteDirectory = sqliteTable('site_directory', {
+  hostname: text('hostname').primaryKey(),
+  poolId: text('pool_id').notNull(),
+  poolSiteId: text('pool_site_id').notNull(),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+})
+
 // Keyed by (site_id, id), not id alone: `id` is the publisher's manifest id, and a global
 // primary key meant only one site in the whole deployment could ever install a given
 // plugin — the second tenant got a raw constraint error, and any tenant could squat a

@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { getCfBindings } from './cf-env'
+import { getPoolId } from './control-plane'
 
 // KVNamespace is a global ambient type from worker-configuration.d.ts — no import needed.
 
@@ -87,14 +88,25 @@ export async function bumpCacheVersionInKv(kv: KVNamespace | null, siteId: strin
   return false
 }
 
-export function getCacheVersion(event: H3Event, siteId: string): Promise<string> {
-  return readCacheVersion(getCfBindings(event).kv, siteId)
+/**
+ * The version as it goes into a cache key: also naming the site and the Worker that wrote
+ * the entry. The Cache API is shared by every Worker on a zone, so with member pools
+ * (control-plane.ts) the control plane and a pool can both answer the same address — e.g.
+ * before a site's route reaches the router, or after the site moves pool — and must never
+ * read each other's entries, whose versions live in different KV namespaces.
+ */
+function scopedVersion(siteId: string | null, version: string): string {
+  return `${getPoolId() ?? 'cp'}.${siteId ?? '-'}.${version}`
+}
+
+export async function getCacheVersion(event: H3Event, siteId: string): Promise<string> {
+  return scopedVersion(siteId, await readCacheVersion(getCfBindings(event).kv, siteId))
 }
 
 /** The current version for the request's own site (the fallback when no site resolved). */
 export function currentCacheVersion(event: H3Event): Promise<string> {
   const siteId = event.context.siteId
-  return siteId ? getCacheVersion(event, siteId) : Promise.resolve(FALLBACK_CACHE_VERSION)
+  return siteId ? getCacheVersion(event, siteId) : Promise.resolve(scopedVersion(null, FALLBACK_CACHE_VERSION))
 }
 
 export function bumpCacheVersion(event: H3Event, siteId: string): Promise<boolean> {
