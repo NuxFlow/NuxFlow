@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { sendTemplatedEmail } from '../../../utils/email-template'
-import { emailLogTimestamp, lastEmailOutcome } from '../../../utils/email'
+import { emailLogTimestamp, lastEmailOutcome, type EmailDeliveryOutcome } from '../../../utils/email'
 import { rateLimit } from '../../../utils/rate-limit'
 import { created } from '../../../utils/response'
 import { findOrCreateUserAccount, sendSetPasswordEmail } from '../../../utils/user-provisioning'
@@ -57,8 +57,9 @@ export default defineEventHandler(async (event) => {
   if (status === 'unclaimed') {
     await batchWithAudit(db, [pendingInvitationInsert(db, { siteId, userId: newUserId, role: body.role, invitedBy: userId })], auditInsert)
     const since = emailLogTimestamp()
-    await sendSetPasswordEmail(event, body.email.toLowerCase(), siteId)
-    const emailDelivery = await lastEmailOutcome(event, siteId, body.email, since)
+    // In a member pool the control plane sends it and reports back (user-provisioning.ts).
+    const emailDelivery = await sendSetPasswordEmail(event, body.email.toLowerCase(), siteId)
+      ?? await lastEmailOutcome(event, siteId, body.email, since)
     return created(event, { id: newUserId, name: body.name, email: body.email, role: body.role, pending: true, emailDelivery })
   }
 
@@ -80,12 +81,14 @@ export default defineEventHandler(async (event) => {
   // The role is granted either way; the response also says whether the email went out, so
   // the admin isn't told "invited" for an invite nobody receives (see lastEmailOutcome).
   const since = emailLogTimestamp()
+  // Set when the control plane sent the email and reported back (member pools, user-provisioning.ts).
+  let sentElsewhere: EmailDeliveryOutcome | null = null
   if (status === 'new') {
     // A brand-new invitee has no password they can actually use (findOrCreateUserAccount
     // gives it an unusable random one) — sending them a "sign in" email would be a dead
     // end. The set-password link is the ONE email a new invitee receives; it's worded as
     // an invitation to this site and returns them here once their password is set.
-    await sendSetPasswordEmail(event, body.email.toLowerCase(), siteId)
+    sentElsewhere = await sendSetPasswordEmail(event, body.email.toLowerCase(), siteId)
   }
   else {
     // Existing user already has working credentials for their account — being
@@ -104,6 +107,6 @@ export default defineEventHandler(async (event) => {
     }).catch(err => console.error('[invite] Email delivery failed:', err))
   }
 
-  const emailDelivery = await lastEmailOutcome(event, siteId, body.email, since)
+  const emailDelivery = sentElsewhere ?? await lastEmailOutcome(event, siteId, body.email, since)
   return created(event, { id: newUserId, name: body.name, email: body.email, role: body.role, emailDelivery })
 })

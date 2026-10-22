@@ -1,13 +1,11 @@
-import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
-import { subscriptions, sites, users, userSiteRoles } from '@nuxflow/db/schema'
-import { buildGdprRedactionStatements } from '@nuxflow/db/queries'
 import { hasSuperAdminRole } from '../../../utils/permissions'
-import { getConfiguredPaymentProvider } from '../../../utils/payments/resolve'
-import { eventForSite } from '../../../utils/site-info'
 import { getOrCreateBetterAuth } from '../../../utils/better-auth'
-import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
-import { errorMessage, rethrowAsProviderError } from '../../../utils/errors'
+import { buildAuditLogInsert } from '../../../utils/audit'
+import { errorMessage } from '../../../utils/errors'
+import {
+  cancelActiveSubscriptions, deleteAccountInPools, eraseUser, soleAdminDomains, soleAdminDomainsInPools,
+} from '../../../utils/account-data'
 
 // Article 17 (right to erasure) self-service account deletion. `users` is a single
 // global account shared across every site in this D1 instance (no siteId column — see
@@ -64,52 +62,26 @@ export default defineEventHandler(async (event) => {
   // Accounts are global, so this deletion reaches every site the user belongs to — not
   // just the one they're on. Removing the last admin of some other site would leave that
   // site with nobody able to manage it (short of the platform operator stepping in), so
-  // block it and name the sites that need another admin first.
-  const adminSites = await db.select({ siteId: userSiteRoles.siteId, domain: sites.domain })
-    .from(userSiteRoles)
-    .innerJoin(sites, eq(sites.id, userSiteRoles.siteId))
-    .where(and(eq(userSiteRoles.userId, userId), eq(userSiteRoles.role, 'admin')))
-  const soleAdminDomains: string[] = []
-  for (const s of adminSites) {
-    const [other] = await db.select({ n: sql<number>`count(*)` }).from(userSiteRoles).where(and(
-      eq(userSiteRoles.siteId, s.siteId),
-      ne(userSiteRoles.userId, userId),
-      inArray(userSiteRoles.role, ['admin', 'super_admin']),
-    ))
-    if (!other?.n) soleAdminDomains.push(s.domain)
-  }
-  if (soleAdminDomains.length > 0) {
+  // block it and name the sites that need another admin first. On a hosting platform
+  // with member pools, their sites count too (utils/account-data.ts); a pool that can't
+  // be reached stops the deletion rather than leaving the person's data behind there.
+  const blocking = [...await soleAdminDomains(db, userId), ...await soleAdminDomainsInPools(event, userId)]
+  if (blocking.length > 0) {
     throw conflict(
-      `You are the only admin of ${soleAdminDomains.join(', ')}. Make someone else an admin there before deleting your account.`,
-      { domains: soleAdminDomains },
+      `You are the only admin of ${blocking.join(', ')}. Make someone else an admin there before deleting your account.`,
+      { domains: blocking },
     )
   }
-
-  const activeSubs = await db.select({
-    id: subscriptions.id,
-    siteId: subscriptions.siteId,
-    provider: subscriptions.provider,
-    providerSubscriptionId: subscriptions.providerSubscriptionId,
-    domain: sites.domain,
-  }).from(subscriptions)
-    .innerJoin(sites, eq(sites.id, subscriptions.siteId))
-    .where(and(eq(subscriptions.userId, userId), inArray(subscriptions.status, ['active', 'trialing'])))
 
   // Users are global, but each site's billing relationship is site-scoped: every
   // subscription is cancelled with the credentials of the site it belongs to (resolved
   // through eventForSite, since resolveSetting() reads the site from the event), so the
   // provider stops charging a customer whose account no longer exists. Any failure aborts
-  // the whole deletion before anything is removed, naming the site involved.
-  for (const sub of activeSubs) {
-    if (sub.providerSubscriptionId.startsWith('free_')) continue // no real provider behind a free-tier row
-    try {
-      const provider = await getConfiguredPaymentProvider(eventForSite(event, sub.siteId), sub.provider)
-      await provider.cancelSubscription(sub.providerSubscriptionId)
-    }
-    catch (err) {
-      rethrowAsProviderError(err, `cancellation (${sub.domain})`)
-    }
-  }
+  // the whole deletion before anything is removed, naming the site involved. Each member
+  // pool does the same for its sites and then erases its copy of the person — first, so
+  // a failure there leaves the account in place to try again (account-data.ts).
+  await deleteAccountInPools(event, userId)
+  await cancelActiveSubscriptions(event, userId)
 
   // Best-effort — clears the session cookie via Better Auth's own sign-out so the
   // browser doesn't keep presenting a cookie for a session row that's about to be
@@ -145,11 +117,7 @@ export default defineEventHandler(async (event) => {
     before: { email: session.user.email, self: true },
   })
 
-  await batchWithAudit(
-    db,
-    [...buildGdprRedactionStatements(db, userId), db.delete(users).where(eq(users.id, userId))],
-    auditInsert,
-  )
+  await eraseUser(db, userId, auditInsert)
 
   return noContent(event)
 })

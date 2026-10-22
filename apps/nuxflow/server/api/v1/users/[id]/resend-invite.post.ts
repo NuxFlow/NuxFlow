@@ -45,8 +45,9 @@ export default defineEventHandler(async (event) => {
     await pendingInvitationInsert(db, { siteId, userId: targetId, role: invitation.role, invitedBy: userId })
   }
   const since = emailLogTimestamp()
-  await sendSetPasswordEmail(event, target.email, siteId)
-  const emailDelivery = await lastEmailOutcome(event, siteId, target.email, since)
+  // In a member pool the control plane sends it and reports back (user-provisioning.ts).
+  const sentElsewhere = await sendSetPasswordEmail(event, target.email, siteId)
+  const emailDelivery = sentElsewhere ?? await lastEmailOutcome(event, siteId, target.email, since)
 
   await writeAuditLog(event, userId, { action: 'resend_invite', resource: 'user', resourceId: targetId })
 
