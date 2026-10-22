@@ -10,21 +10,13 @@ interface Revision {
 
 const { data } = await useFetch<{ revisions?: Revision[] }>(() => `/api/v1/content/${props.contentId}/revisions`)
 const revisions = computed(() => data.value?.revisions ?? [])
-const restoring = ref<string | null>(null)
-
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 
 async function restore(revisionId: string) {
-  restoring.value = revisionId
-  try {
-    await $fetch(`/api/v1/content/${props.contentId}/revisions/${revisionId}/restore`, { method: 'POST' })
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/content/${props.contentId}/revisions/${revisionId}/restore`, { method: 'POST' })
     emit('restored')
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Failed to restore revision')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    restoring.value = null
-  }
+  }, { errorTitle: "Couldn't restore revision", key: revisionId })
 }
 </script>
 
@@ -46,7 +38,7 @@ async function restore(revisionId: string) {
           size="xs"
           variant="ghost"
           class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0"
-          :loading="restoring === rev.id"
+          :loading="isRunning(rev.id)"
           @click="restore(rev.id)"
         >
           Restore

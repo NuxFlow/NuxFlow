@@ -31,18 +31,17 @@ interface JobSummary {
 const MAX_PLAN_PAGES = 10
 const MAX_PROMPT = 2000
 
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 const { confirm } = useConfirm()
 
 const prompt = ref('')
 const genType = ref<'page' | 'site'>('site')
 const tone = ref('professional')
 const job = ref<GenerationJob | null>(null)
-const starting = ref(false)
-const approving = ref(false)
+const starting = computed(() => isRunning('start'))
+const approving = computed(() => isRunning('approve'))
 const planDraft = ref<PlanPageDraft[]>([])
 const driveError = ref('')
-const pageBusy = ref<Record<number, boolean>>({})
 const bulkBusy = ref(false)
 
 const typeOptions = [
@@ -103,35 +102,23 @@ async function generate() {
     toast.add({ title: 'Describe what you want in a bit more detail', color: 'warning' })
     return
   }
-  starting.value = true
-  try {
-    const res = await $fetch<{ jobId: string; job: GenerationJob }>('/api/v1/ai/generate', {
-      method: 'POST',
-      body: { prompt: prompt.value.trim(), type: genType.value, tone: tone.value },
-    })
-    job.value = res.job
-  }
-  catch (e: unknown) {
-    toast.add({ title: 'Failed to start generation', description: getErrorMessage(e, ''), color: 'error' })
-    return
-  }
-  finally {
-    starting.value = false
-  }
+  const res = await run(() => $fetch<{ jobId: string; job: GenerationJob }>('/api/v1/ai/generate', {
+    method: 'POST',
+    body: { prompt: prompt.value.trim(), type: genType.value, tone: tone.value },
+  }), { errorTitle: "Couldn't start generation", key: 'start' })
+  if (!res) return
+  job.value = res.job
   void drive()
 }
 
 async function openJob(id: string) {
   const url: string = `/api/v1/ai/generate/${id}`
-  try {
-    job.value = await $fetch<GenerationJob>(url)
-    prompt.value = job.value.prompt
-    genType.value = job.value.type
-    void drive()
-  }
-  catch (e: unknown) {
-    toast.add({ title: 'Could not open that generation', description: getErrorMessage(e, ''), color: 'error' })
-  }
+  const opened = await run(() => $fetch<GenerationJob>(url), { errorTitle: "Couldn't open that generation" })
+  if (!opened) return
+  job.value = opened
+  prompt.value = opened.prompt
+  genType.value = opened.type
+  void drive()
 }
 
 async function reloadJob() {
@@ -147,18 +134,10 @@ async function approve() {
     toast.add({ title: 'Every page needs a title and a description', color: 'warning' })
     return
   }
-  approving.value = true
   const url: string = `/api/v1/ai/generate/${job.value.id}/approve`
-  try {
-    job.value = await $fetch<GenerationJob>(url, { method: 'POST', body: { pages } })
-  }
-  catch (e: unknown) {
-    toast.add({ title: 'Failed to approve plan', description: getErrorMessage(e, ''), color: 'error' })
-    return
-  }
-  finally {
-    approving.value = false
-  }
+  const approved = await run(() => $fetch<GenerationJob>(url, { method: 'POST', body: { pages } }), { errorTitle: "Couldn't approve plan", key: 'approve' })
+  if (!approved) return
+  job.value = approved
   void drive()
 }
 
@@ -182,17 +161,9 @@ const draftItems = computed(() => reviewPages.value.flatMap(p => (p.item?.status
 
 async function regenerate(index: number) {
   if (!job.value) return
-  pageBusy.value = { ...pageBusy.value, [index]: true }
   const url: string = `/api/v1/ai/generate/${job.value.id}/regenerate`
-  try {
-    job.value = await $fetch<GenerationJob>(url, { method: 'POST', body: { index } })
-  }
-  catch (e: unknown) {
-    toast.add({ title: 'Regeneration failed', description: getErrorMessage(e, ''), color: 'error' })
-  }
-  finally {
-    pageBusy.value = { ...pageBusy.value, [index]: false }
-  }
+  const next = await run(() => $fetch<GenerationJob>(url, { method: 'POST', body: { index } }), { errorTitle: "Couldn't regenerate page", key: `page:${index}` })
+  if (next) job.value = next
 }
 
 async function openPreview(page: GeneratedPage) {
@@ -200,33 +171,21 @@ async function openPreview(page: GeneratedPage) {
   // Opened synchronously (before the await) so popup blockers treat it as user-initiated.
   const win = window.open('about:blank', '_blank')
   const url: string = `/api/v1/content/${page.item.id}/preview-link`
-  try {
-    const res = await $fetch<{ url: string }>(url, { method: 'POST' })
-    if (win) win.location.href = res.url
-    else window.open(res.url, '_blank')
-  }
-  catch (e: unknown) {
-    win?.close()
-    toast.add({ title: 'Could not open a preview', description: getErrorMessage(e, ''), color: 'error' })
-  }
+  const res = await run(() => $fetch<{ url: string }>(url, { method: 'POST' }), { errorTitle: "Couldn't open a preview" })
+  if (!res) win?.close()
+  else if (win) win.location.href = res.url
+  else window.open(res.url, '_blank')
 }
 
 async function discard(page: GeneratedPage) {
   if (!page.item) return
   const ok = await confirm({ title: `Discard "${page.item.title}"?`, description: 'The draft page is deleted.', confirmLabel: 'Discard', color: 'error' })
   if (!ok) return
-  pageBusy.value = { ...pageBusy.value, [page.index]: true }
   const url: string = `/api/v1/content/${page.item.id}`
-  try {
+  await run(async () => {
     await $fetch<unknown>(url, { method: 'DELETE' })
     await reloadJob()
-  }
-  catch (e: unknown) {
-    toast.add({ title: 'Could not discard the page', description: getErrorMessage(e, ''), color: 'error' })
-  }
-  finally {
-    pageBusy.value = { ...pageBusy.value, [page.index]: false }
-  }
+  }, { errorTitle: "Couldn't discard the page", key: `page:${page.index}` })
 }
 
 async function forEachDraft(action: 'publish' | 'discard') {
@@ -406,7 +365,7 @@ const statusLabel: Record<GenerationJob['status'], string> = {
           v-for="page in reviewPages"
           :key="page.index"
           :page="page"
-          :busy="pageBusy[page.index] || bulkBusy"
+          :busy="isRunning(`page:${page.index}`) || bulkBusy"
           @regenerate="regenerate(page.index)"
           @discard="discard(page)"
           @preview="openPreview(page)"

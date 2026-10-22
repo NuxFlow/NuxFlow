@@ -10,7 +10,7 @@ const props = defineProps<{
 }>()
 const open = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ saved: [] }>()
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 
 const NO_PARENT = '__none__'
 
@@ -24,7 +24,7 @@ const form = reactive({
   ogImage: '',
 })
 const slugTouched = ref(false)
-const saving = ref(false)
+const saving = computed(() => isRunning('save'))
 const showImagePicker = ref(false)
 
 watch(open, (isOpen) => {
@@ -60,8 +60,7 @@ const archivePath = computed(() => `/${props.taxonomy.slug}/${form.slug || 'slug
 
 async function save() {
   if (!form.name.trim()) return
-  saving.value = true
-  try {
+  await run(async () => {
     const body = {
       name: form.name.trim(),
       slug: form.slug.trim() || undefined,
@@ -73,19 +72,14 @@ async function save() {
     }
     if (props.term) {
       const url: string = `/api/v1/taxonomies/${props.taxonomy.id}/terms/${props.term.id}`
-      await $fetch(url, { method: 'PATCH', body })
+      await $fetch<unknown>(url, { method: 'PATCH', body })
     } else {
       const url: string = `/api/v1/taxonomies/${props.taxonomy.id}/terms`
-      await $fetch(url, { method: 'POST', body })
+      await $fetch<unknown>(url, { method: 'POST', body })
     }
-    toast.add({ title: props.term ? 'Term updated' : 'Term added', color: 'success' })
     open.value = false
     emit('saved')
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not save the term'), color: 'error' })
-  } finally {
-    saving.value = false
-  }
+  }, { successTitle: props.term ? 'Term updated' : 'Term added', errorTitle: "Couldn't save the term", key: 'save' })
 }
 </script>
 

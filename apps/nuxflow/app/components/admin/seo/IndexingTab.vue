@@ -1,28 +1,26 @@
 <script setup lang="ts">
 const { form, saving, save, siteDomain } = inject(SEO_FORM_KEY)!
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 
 const { data: typesData } = await useFetch<{ types: { slug: string; name: string }[] }>('/api/v1/seo/content-types', {
   default: () => ({ types: [] }),
 })
 const typeItems = computed(() => (typesData.value?.types ?? []).map(t => ({ label: t.name, value: t.slug })))
 
-const submitting = ref(false)
+const submitting = computed(() => isRunning('submit'))
 async function submitAll() {
-  submitting.value = true
-  try {
-    const res = await $fetch<{ submitted: number; status: number | null; skipped: string | null }>('/api/v1/seo/indexnow', { method: 'POST' })
-    if (res.skipped) {
-      toast.add({ title: `Nothing submitted (${res.skipped})`, color: 'warning' })
-    } else if (res.status && res.status >= 400) {
-      toast.add({ title: `IndexNow rejected the submission (HTTP ${res.status})`, description: 'Search engines must be able to fetch /indexnow-key.txt on the canonical domain.', color: 'error' })
-    } else {
-      toast.add({ title: `Submitted ${res.submitted} URL${res.submitted === 1 ? '' : 's'} to IndexNow`, color: 'success' })
-    }
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'IndexNow submission failed'), color: 'error' })
-  } finally {
-    submitting.value = false
+  const res = await run(
+    () => $fetch<{ submitted: number; status: number | null; skipped: string | null }>('/api/v1/seo/indexnow', { method: 'POST' }),
+    { errorTitle: "Couldn't submit to IndexNow", key: 'submit' },
+  )
+  // The request can succeed while IndexNow itself skips or rejects it — report each case.
+  if (!res) return
+  if (res.skipped) {
+    toast.add({ title: `Nothing submitted (${res.skipped})`, color: 'warning' })
+  } else if (res.status && res.status >= 400) {
+    toast.add({ title: `IndexNow rejected the submission (HTTP ${res.status})`, description: 'Search engines must be able to fetch /indexnow-key.txt on the canonical domain.', color: 'error' })
+  } else {
+    toast.add({ title: `Submitted ${res.submitted} URL${res.submitted === 1 ? '' : 's'} to IndexNow`, color: 'success' })
   }
 }
 </script>

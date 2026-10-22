@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 
 type StatusCode = 301 | 302 | 307 | 308 | 410
 
@@ -87,29 +87,22 @@ async function submit() {
   }
 }
 
-const deletingId = ref<string | null>(null)
-
 async function deleteRedirect(id: string) {
-  deletingId.value = id
-  try {
-    const url: string = `/api/v1/redirects/${id}`
-    await $fetch(url, { method: 'DELETE' })
+  const url: string = `/api/v1/redirects/${id}`
+  await run(async () => {
+    await $fetch<unknown>(url, { method: 'DELETE' })
     if (editing.value === id) resetForm()
     await refreshRedirects()
-    toast.add({ title: 'Redirect deleted', color: 'success' })
-  } catch (e: unknown) {
-    toast.add({ title: 'Failed to delete redirect', description: getErrorMessage(e, ''), color: 'error' })
-  } finally {
-    deletingId.value = null
-  }
+  }, { successTitle: 'Redirect deleted', errorTitle: "Couldn't delete redirect", key: `delete:${id}` })
 }
 
 // ── Import ───────────────────────────────────────────────────────────────────
 const showImport = ref(false)
 const importText = ref('')
 const importOverwrite = ref(false)
-const importing = ref(false)
-const importResult = ref<{ created: number; updated: number; skipped: number; errors: { line: number; message: string }[] } | null>(null)
+const importing = computed(() => isRunning('import'))
+interface ImportResult { created: number; updated: number; skipped: number; errors: { line: number; message: string }[] }
+const importResult = ref<ImportResult | null>(null)
 
 async function onImportFile(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
@@ -117,21 +110,16 @@ async function onImportFile(e: Event) {
 }
 
 async function runImport() {
-  importing.value = true
   importResult.value = null
-  try {
-    const result = await $fetch('/api/v1/redirects/import', {
+  await run(async () => {
+    const result = await $fetch<ImportResult>('/api/v1/redirects/import', {
       method: 'POST',
       body: { csv: importText.value, overwrite: importOverwrite.value },
     })
     importResult.value = result
     await refreshRedirects()
-    toast.add({ title: `Imported ${result.created} new, ${result.updated} updated`, color: 'success' })
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Import failed'), color: 'error' })
-  } finally {
-    importing.value = false
-  }
+    return result
+  }, { successTitle: r => `Imported ${r.created} new, ${r.updated} updated`, errorTitle: "Couldn't import redirects", key: 'import' })
 }
 
 const columns = [
@@ -237,7 +225,7 @@ const columns = [
               size="xs"
               icon="i-lucide-trash-2"
               aria-label="Delete redirect"
-              :loading="deletingId === row.original.id"
+              :loading="isRunning(`delete:${row.original.id}`)"
               @click="deleteRedirect(row.original.id)"
             />
           </div>

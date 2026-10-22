@@ -297,7 +297,7 @@ async function save() {
       },
     })
     await refresh()
-  }, { successTitle: 'Settings saved', errorTitle: 'Failed to save settings' })
+  }, { successTitle: 'Settings saved', errorTitle: "Couldn't save settings" })
 }
 </script>
 

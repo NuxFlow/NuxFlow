@@ -3,7 +3,7 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const route = useRoute()
 const id = route.params.id as string
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 
 interface ChildItem {
   id: string
@@ -154,22 +154,16 @@ function moveItem(index: number, direction: -1 | 1, parentId?: string) {
 }
 
 // ── Save ──────────────────────────────────────────────────────────────────────
-const saving = ref(false)
+const saving = computed(() => isRunning('save'))
 
 async function save() {
-  saving.value = true
-  try {
-    await $fetch(`/api/v1/menus/${id}`, {
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/menus/${id}`, {
       method: 'PATCH',
       body: { name: name.value, location: location.value, items: items.value },
     })
     await refresh()
-    toast.add({ title: 'Menu saved', color: 'success' })
-  } catch (e: unknown) {
-    toast.add({ title: 'Failed to save', description: getErrorMessage(e, ''), color: 'error' })
-  } finally {
-    saving.value = false
-  }
+  }, { successTitle: 'Menu saved', errorTitle: "Couldn't save menu", key: 'save' })
 }
 
 function itemHref(item: MenuItem | ChildItem) {

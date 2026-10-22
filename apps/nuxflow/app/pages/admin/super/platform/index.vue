@@ -21,25 +21,19 @@ const WEBHOOK_EVENTS = ['checkout.session.completed', 'customer.subscription.cre
 
 const { data, error, refresh } = await useFetch<PlatformState>('/api/v1/admin/platform')
 const access = useAdminAccessState()
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 
-const saving = ref(false)
+const saving = computed(() => isRunning('save'))
 const confirmOpen = ref(false)
 const webhookSecret = ref('')
 
 async function save(body: Record<string, unknown>, message: string): Promise<boolean> {
-  saving.value = true
-  try {
+  const done = await run(async () => {
     await $fetch<unknown>('/api/v1/admin/platform', { method: 'PUT', body })
     await refresh()
-    toast.add({ title: message, color: 'success' })
     return true
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not save'), color: 'error' })
-    return false
-  } finally {
-    saving.value = false
-  }
+  }, { successTitle: message, errorTitle: "Couldn't save", key: 'save' })
+  return done === true
 }
 
 async function setHosting(enabled: boolean) {

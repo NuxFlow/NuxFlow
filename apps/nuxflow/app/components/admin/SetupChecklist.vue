@@ -32,8 +32,8 @@ const { data, refresh } = await useFetch<ChecklistResponse>('/api/v1/site-checkl
   headers: useRequestHeaders(['cookie', 'host']),
 })
 
-const toast = useToast()
-const busy = ref(false)
+const { run, isRunning } = useAdminAction()
+const busy = computed(() => isRunning('update'))
 const showDone = ref(false)
 const showSkipped = ref(false)
 
@@ -62,15 +62,10 @@ const STATUS_ICON: Record<ChecklistItem['status'], { icon: string; cls: string; 
 }
 
 async function update(body: { skip?: string; unskip?: string; hidden?: boolean }) {
-  busy.value = true
-  try {
+  await run(async () => {
     await $fetch<unknown>('/api/v1/site-checklist', { method: 'PATCH', body })
     await refresh()
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not update the checklist'), color: 'error' })
-  } finally {
-    busy.value = false
-  }
+  }, { errorTitle: "Couldn't update the checklist", key: 'update' })
 }
 </script>
 

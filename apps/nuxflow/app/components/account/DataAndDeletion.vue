@@ -2,20 +2,20 @@
 // Account-wide actions: download everything the platform holds about you (every site),
 // and delete the account. The server only accepts these with a session on the accounts
 // origin (or on a single-site install) — see requireAccountSession.
-const toast = useToast()
+const { run } = useAdminAction()
 const confirmOpen = ref(false)
 const confirmText = ref('')
+// Not isRunning(): stays set on success, because the browser is about to leave.
 const deleting = ref(false)
 
 async function deleteAccount() {
   deleting.value = true
-  try {
-    await $fetch('/api/v1/account', { method: 'DELETE' })
-    window.location.href = '/login'
-  } catch (e: unknown) {
-    toast.add({ title: 'Your account wasn\'t deleted', description: getErrorMessage(e, 'Please try again.'), color: 'error' })
-    deleting.value = false
-  }
+  const done = await run(async () => {
+    await $fetch<unknown>('/api/v1/account', { method: 'DELETE' })
+    return true
+  }, { errorTitle: "Your account wasn't deleted" })
+  if (done) window.location.href = '/login'
+  else deleting.value = false
 }
 </script>
 

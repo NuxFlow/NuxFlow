@@ -6,25 +6,21 @@ import type { PluginSettingField } from '#shared/lib/plugin-permissions'
 const props = defineProps<{ pluginId: string, pluginName: string }>()
 const open = defineModel<boolean>('open', { default: false })
 
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 const fields = ref<PluginSettingField[]>([])
 const values = ref<Record<string, unknown>>({})
-const loading = ref(false)
-const saving = ref(false)
+const loading = computed(() => isRunning('load'))
+const saving = computed(() => isRunning('save'))
 
 async function load() {
-  loading.value = true
-  try {
-    const url: string = `/api/v1/dynamic-plugins/${props.pluginId}/settings`
-    const res = await $fetch<{ fields: PluginSettingField[], values: Record<string, unknown> }>(url)
-    fields.value = res.fields
-    values.value = { ...res.values }
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not load settings'), color: 'error' })
+  const url: string = `/api/v1/dynamic-plugins/${props.pluginId}/settings`
+  const res = await run(() => $fetch<{ fields: PluginSettingField[], values: Record<string, unknown> }>(url), { errorTitle: "Couldn't load settings", key: 'load' })
+  if (!res) {
     open.value = false
-  } finally {
-    loading.value = false
+    return
   }
+  fields.value = res.fields
+  values.value = { ...res.values }
 }
 
 watch(open, (isOpen) => {
@@ -32,23 +28,17 @@ watch(open, (isOpen) => {
 }, { immediate: true })
 
 async function save() {
-  saving.value = true
-  try {
-    const url: string = `/api/v1/dynamic-plugins/${props.pluginId}/settings`
-    const payload: Record<string, unknown> = {}
-    for (const field of fields.value) {
-      const v = values.value[field.key]
-      payload[field.key] = field.type === 'number' && v !== '' && v !== null && v !== undefined ? Number(v) : v
-    }
+  const url: string = `/api/v1/dynamic-plugins/${props.pluginId}/settings`
+  const payload: Record<string, unknown> = {}
+  for (const field of fields.value) {
+    const v = values.value[field.key]
+    payload[field.key] = field.type === 'number' && v !== '' && v !== null && v !== undefined ? Number(v) : v
+  }
+  await run(async () => {
     const res = await $fetch<{ values: Record<string, unknown> }>(url, { method: 'PATCH', body: { values: payload } })
     values.value = { ...res.values }
-    toast.add({ title: 'Plugin settings saved', color: 'success' })
     open.value = false
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not save settings'), color: 'error' })
-  } finally {
-    saving.value = false
-  }
+  }, { successTitle: 'Plugin settings saved', errorTitle: "Couldn't save settings", key: 'save' })
 }
 </script>
 

@@ -72,7 +72,9 @@ async function refresh() {
 }
 
 // ── Upload ────────────────────────────────────────────────────────────────────
-const { loading: uploading, run: runUpload } = useAdminAction()
+// One instance for the whole page; each action has its own key for its spinner.
+const { run, isRunning, toast } = useAdminAction()
+const uploading = computed(() => isRunning('upload'))
 const fileInput = ref<HTMLInputElement>()
 
 // ── AI image generation ───────────────────────────────────────────────────────
@@ -93,19 +95,17 @@ function onAiImageGenerated(url: string) {
 // AI-provider calls.
 const BULK_ALT_MAX_BATCHES = 200 // x 5 images = up to 1000 images per click
 type BulkAltTextResponse = { processed: number; skipped: number; updated: Array<{ id: string; altText: string }>; failed: string[]; hasMore: boolean }
-const bulkAltLoading = ref(false)
+const bulkAltLoading = computed(() => isRunning('bulkAlt'))
 const bulkAltProgress = ref({ done: 0, failed: 0 })
 let bulkAltCancelled = false
-const toast = useToast()
 
 onBeforeUnmount(() => { bulkAltCancelled = true })
 
 async function runBulkAltText() {
-  bulkAltLoading.value = true
   bulkAltCancelled = false
   bulkAltProgress.value = { done: 0, failed: 0 }
   const skipIds: string[] = []
-  try {
+  const finished = await run(async () => {
     for (let batch = 0; batch < BULK_ALT_MAX_BATCHES && !bulkAltCancelled; batch++) {
       const res = await $fetch<BulkAltTextResponse>('/api/v1/ai/bulk-alt-text', {
         method: 'POST',
@@ -119,6 +119,10 @@ async function runBulkAltText() {
       }
       if (!res.hasMore) break
     }
+    return true
+  }, { errorTitle: "Couldn't generate alt text", key: 'bulkAlt' })
+  await refresh()
+  if (finished) {
     const { done, failed } = bulkAltProgress.value
     if (!done && !failed) {
       toast.add({ title: 'Every image already has alt text', color: 'info' })
@@ -131,17 +135,10 @@ async function runBulkAltText() {
       })
     }
   }
-  catch (e: unknown) {
-    toast.add({ title: 'Failed to generate alt text', description: getErrorMessage(e, ''), color: 'error' })
-  }
-  finally {
-    bulkAltLoading.value = false
-    await refresh()
-  }
 }
 
 async function uploadFiles(fileList: File[]) {
-  await runUpload(async () => {
+  await run(async () => {
     for (const file of fileList) {
       const fd = new FormData()
       fd.append('file', file)
@@ -154,7 +151,7 @@ async function uploadFiles(fileList: File[]) {
       }
     }
     await refresh()
-  }, { errorTitle: 'Failed to upload file' })
+  }, { errorTitle: "Couldn't upload file", key: 'upload' })
 }
 
 async function handleUpload(e: Event) {
@@ -175,18 +172,16 @@ async function onDrop(e: DragEvent) {
 const creatingFolder = ref(false)
 const newFolderName = ref('')
 const folderSidebar = ref<{ focusInput: () => void } | null>(null)
-const { run: runCreateFolder } = useAdminAction()
-const { run: runDeleteFolder } = useAdminAction()
 
 async function createFolder() {
   const name = newFolderName.value.trim()
   if (!name) return
-  await runCreateFolder(async () => {
+  await run(async () => {
     await $fetch<unknown>('/api/v1/media/folders', { method: 'POST', body: { name } })
     newFolderName.value = ''
     creatingFolder.value = false
     await refreshFolders()
-  }, { errorTitle: 'Failed to create folder' })
+  }, { errorTitle: "Couldn't create folder", key: 'createFolder' })
 }
 
 function startCreatingFolder() {
@@ -206,36 +201,30 @@ async function deleteFolder(id: string) {
     confirmLabel: 'Delete',
   })
   if (!ok) return
-  await runDeleteFolder(async () => {
+  await run(async () => {
     await $fetch<unknown>(`/api/v1/media/folders/${id}`, { method: 'DELETE' })
     if (selectedFolderId.value === id) selectedFolderId.value = undefined
     await refresh()
-  }, { errorTitle: 'Failed to delete folder' })
+  }, { errorTitle: "Couldn't delete folder", key: `deleteFolder:${id}` })
 }
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
 const showDetail = ref(false)
 const detail = ref<MediaFile | null>(null)
 const detailForm = ref<MediaDetailForm>({ altText: '', caption: '', folderId: null, focalX: null, focalY: null })
-const { loading: savingDetail, run: runSaveDetail } = useAdminAction()
-const { loading: deletingDetail, run: runDeleteFile } = useAdminAction()
-const detailAiLoading = ref(false)
+const savingDetail = computed(() => isRunning('saveDetail'))
+const deletingDetail = computed(() => isRunning('deleteFile'))
+const detailAiLoading = computed(() => isRunning('detailAlt'))
 const detailLoading = ref(false)
 
 async function generateDetailAltText() {
   if (!detail.value) return
-  detailAiLoading.value = true
-  try {
-    const res = await $fetch<{ altText: string }>('/api/v1/ai/alt-text', {
-      method: 'POST',
-      body: { mediaId: detail.value.id },
-    })
-    detailForm.value = { ...detailForm.value, altText: res.altText }
-  } catch (e: unknown) {
-    toast.add({ title: "Couldn't generate alt text", description: getErrorMessage(e, 'Check the AI provider in Settings → AI.'), color: 'error' })
-  } finally {
-    detailAiLoading.value = false
-  }
+  const mediaId = detail.value.id
+  const res = await run(() => $fetch<{ altText: string }>('/api/v1/ai/alt-text', {
+    method: 'POST',
+    body: { mediaId },
+  }), { errorTitle: "Couldn't generate alt text", key: 'detailAlt' })
+  if (res) detailForm.value = { ...detailForm.value, altText: res.altText }
 }
 
 async function openDetail(file: MediaFile) {
@@ -270,7 +259,7 @@ async function saveDetail() {
   if (!detail.value) return
   const target = detail.value
   const form = detailForm.value
-  await runSaveDetail(async () => {
+  await run(async () => {
     await $fetch<unknown>(`/api/v1/media/${target.id}`, {
       method: 'PATCH',
       body: {
@@ -283,7 +272,7 @@ async function saveDetail() {
     })
     await refresh()
     showDetail.value = false
-  }, { errorTitle: 'Failed to save changes' })
+  }, { errorTitle: "Couldn't save changes", key: 'saveDetail' })
 }
 
 async function deleteFile() {
@@ -295,11 +284,11 @@ async function deleteFile() {
     confirmLabel: 'Delete',
   })
   if (!ok) return
-  await runDeleteFile(async () => {
+  await run(async () => {
     await $fetch<unknown>(`/api/v1/media/${target.id}`, { method: 'DELETE' })
     showDetail.value = false
     await refresh()
-  }, { errorTitle: 'Failed to delete file' })
+  }, { errorTitle: "Couldn't delete file", key: 'deleteFile' })
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

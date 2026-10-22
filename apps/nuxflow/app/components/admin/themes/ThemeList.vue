@@ -4,7 +4,7 @@
 // they all read/write the same theme list state. Appearance and layout regions are
 // separate, unrelated settings (own component, own fetch) — see AppearanceSection.vue
 // and LayoutRegionsSection.vue.
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 
 interface Theme {
   id: string
@@ -21,47 +21,26 @@ const installedThemes = computed(() => data.value?.themes ?? [])
 const anyDbThemeActive = computed(() => installedThemes.value.some(t => t.isActive))
 const defaultIsActive = computed(() => !anyDbThemeActive.value)
 
-const activatingId = ref<string | null>(null)
-const previewingId = ref<string | null>(null)
-const deletingId = ref<string | null>(null)
-const resetting = ref(false)
-
 async function activate(id: string) {
-  activatingId.value = id
-  try {
-    await $fetch(`/api/v1/themes/${id}/activate`, { method: 'POST' })
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/themes/${id}/activate`, { method: 'POST' })
     await refresh()
-    toast.add({ title: 'Theme activated', color: 'success' })
-  } catch (e: unknown) {
-    toast.add({ title: 'Failed to activate theme', description: getErrorMessage(e, ''), color: 'error' })
-  } finally {
-    activatingId.value = null
-  }
+  }, { successTitle: 'Theme activated', errorTitle: "Couldn't activate theme", key: `activate:${id}` })
 }
 
 async function preview(id: string) {
-  previewingId.value = id
-  try {
-    const result = await $fetch<{ previewUrl: string }>(`/api/v1/themes/${id}/preview`, { method: 'POST' })
-    window.open(result.previewUrl, '_blank', 'noopener')
-  } catch (e: unknown) {
-    toast.add({ title: 'Failed to generate preview', description: getErrorMessage(e, ''), color: 'error' })
-  } finally {
-    previewingId.value = null
-  }
+  const result = await run(
+    () => $fetch<{ previewUrl: string }>(`/api/v1/themes/${id}/preview`, { method: 'POST' }),
+    { errorTitle: "Couldn't generate preview", key: `preview:${id}` },
+  )
+  if (result) window.open(result.previewUrl, '_blank', 'noopener')
 }
 
 async function resetToDefault() {
-  resetting.value = true
-  try {
-    await $fetch('/api/v1/themes/reset', { method: 'POST' })
+  await run(async () => {
+    await $fetch<unknown>('/api/v1/themes/reset', { method: 'POST' })
     await refresh()
-    toast.add({ title: 'Reverted to default theme', color: 'success' })
-  } catch (e: unknown) {
-    toast.add({ title: 'Failed to reset theme', description: getErrorMessage(e, ''), color: 'error' })
-  } finally {
-    resetting.value = false
-  }
+  }, { successTitle: 'Reverted to default theme', errorTitle: "Couldn't reset theme", key: 'reset' })
 }
 
 // A single declarative modal (below), not two sequential useConfirm()-created overlay
@@ -86,24 +65,18 @@ async function confirmDeleteTheme() {
   const deleteDemo = deleteAlsoDemo.value
 
   deleteModalOpen.value = false
-  deletingId.value = theme.id
-  try {
-    await $fetch(`/api/v1/themes/${theme.id}`, {
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/themes/${theme.id}`, {
       method: 'DELETE',
       query: { deleteDemo: deleteDemo ? 'true' : 'false' },
     })
     await refresh()
-    toast.add({
-      title: deleteDemo ? 'Theme and demo content deleted' : 'Theme deleted (content kept)',
-      color: 'success',
-    })
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Delete failed')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    deletingId.value = null
-    deleteTarget.value = null
-  }
+  }, {
+    successTitle: deleteDemo ? 'Theme and demo content deleted' : 'Theme deleted (content kept)',
+    errorTitle: "Couldn't delete theme",
+    key: `delete:${theme.id}`,
+  })
+  deleteTarget.value = null
 }
 
 // ── Theme upload (CSS paste or zip file) ─────────────────────────────────────
@@ -112,12 +85,10 @@ const uploadModal = ref(false)
 const uploadMode = ref<'css' | 'zip'>('zip')
 const uploadForm = reactive({ name: '', version: '1.0.0', css: '' })
 const zipFile = ref<File | null>(null)
-const uploading = ref(false)
 
 // After zip install: show demo import offer
 const demoOfferThemeId = ref<string | null>(null)
 const demoOfferSummary = ref<{ pages: number; posts: number; menus: number; forms: number } | null>(null)
-const importingDemo = ref(false)
 
 function onZipFile(e: Event) {
   const input = e.target as HTMLInputElement
@@ -125,8 +96,7 @@ function onZipFile(e: Event) {
 }
 
 async function uploadTheme() {
-  uploading.value = true
-  try {
+  await run(async () => {
     type UploadResult = { id: string; hasDemoContent: boolean; demoSummary: { pages: number; posts: number; menus: number; forms: number } | null; failedImages?: string[] }
     let result: UploadResult
     if (uploadMode.value === 'zip' && zipFile.value) {
@@ -155,36 +125,26 @@ async function uploadTheme() {
     if (result.hasDemoContent && result.demoSummary) {
       demoOfferThemeId.value = result.id
       demoOfferSummary.value = result.demoSummary
-    } else if (!result.failedImages?.length) {
-      toast.add({ title: 'Theme installed', color: 'success' })
     }
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Upload failed')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    uploading.value = false
-  }
+    return result
+  }, {
+    // The demo offer and the failed-images warning stand in for the plain success toast.
+    successTitle: r => (r.hasDemoContent && r.demoSummary) || r.failedImages?.length ? undefined : 'Theme installed',
+    errorTitle: "Couldn't install theme",
+    key: 'upload',
+  })
 }
 
 async function importDemoContent(themeId: string) {
-  importingDemo.value = true
-  try {
-    await $fetch(`/api/v1/themes/${themeId}/demo-import`, {
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/themes/${themeId}/demo-import`, {
       method: 'POST',
       body: { what: ['content', 'taxonomies', 'menus', 'forms', 'settings', 'redirects'], conflictMode: 'archive' },
     })
-
     await refresh()
-
     demoOfferThemeId.value = null
     demoOfferSummary.value = null
-    toast.add({ title: `Theme activated and demo content imported successfully!`, color: 'success' })
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Import failed')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    importingDemo.value = false
-  }
+  }, { successTitle: 'Theme activated and demo content imported', errorTitle: "Couldn't import demo content", key: 'demo' })
 }
 
 // ── CSS theme editor ──────────────────────────────────────────────────────────
@@ -192,7 +152,6 @@ async function importDemoContent(themeId: string) {
 const editModal = ref(false)
 const editingTheme = ref<Theme | null>(null)
 const editCss = ref('')
-const saving = ref(false)
 
 function openEdit(theme: Theme) {
   editingTheme.value = theme
@@ -202,20 +161,14 @@ function openEdit(theme: Theme) {
 
 async function saveCSS() {
   if (!editingTheme.value) return
-  saving.value = true
-  try {
-    await $fetch(`/api/v1/themes/${editingTheme.value.id}/css`, {
+  const id = editingTheme.value.id
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/themes/${id}/css`, {
       method: 'PATCH',
       body: { css: editCss.value },
     })
-    toast.add({ title: 'CSS updated — active on next page load', color: 'success' })
     editModal.value = false
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Save failed')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    saving.value = false
-  }
+  }, { successTitle: 'CSS updated — active on next page load', errorTitle: "Couldn't save CSS", key: 'css' })
 }
 </script>
 
@@ -256,7 +209,7 @@ async function saveCSS() {
             v-else
             size="xs"
             variant="outline"
-            :loading="resetting"
+            :loading="isRunning('reset')"
             @click="resetToDefault"
           >
             Use default
@@ -308,7 +261,7 @@ async function saveCSS() {
               color="neutral"
               class="!text-gray-700 dark:!text-gray-300 hover:!bg-gray-100 dark:hover:!bg-gray-800"
               icon="i-lucide-eye"
-              :loading="previewingId === theme.id"
+              :loading="isRunning(`preview:${theme.id}`)"
               title="Preview"
               @click="preview(theme.id)"
             />
@@ -338,7 +291,7 @@ async function saveCSS() {
               variant="outline"
               color="neutral"
               class="!text-gray-700 dark:!text-gray-300 hover:!bg-gray-50 dark:hover:!bg-gray-800 border border-gray-200 dark:border-gray-700 transition-colors"
-              :loading="activatingId === theme.id"
+              :loading="isRunning(`activate:${theme.id}`)"
               @click="activate(theme.id)"
             >
               Activate
@@ -350,7 +303,7 @@ async function saveCSS() {
               variant="ghost"
               icon="i-lucide-trash-2"
               class="!text-red-500 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-950/20"
-              :loading="deletingId === theme.id"
+              :loading="isRunning(`delete:${theme.id}`)"
               @click="deleteTheme(theme)"
             />
           </div>
@@ -456,7 +409,7 @@ async function saveCSS() {
 
           <div class="flex justify-end gap-2">
             <UButton color="neutral" variant="ghost" @click="uploadModal = false">Cancel</UButton>
-            <UButton :loading="uploading" icon="i-lucide-upload" @click="uploadTheme">Install</UButton>
+            <UButton :loading="isRunning('upload')" icon="i-lucide-upload" @click="uploadTheme">Install</UButton>
           </div>
         </div>
       </template>
@@ -502,7 +455,7 @@ async function saveCSS() {
           Skip for now
         </UButton>
         <UButton
-          :loading="importingDemo"
+          :loading="isRunning('demo')"
           icon="i-lucide-sparkles"
           @click="demoOfferThemeId && importDemoContent(demoOfferThemeId)"
         >
@@ -532,7 +485,7 @@ async function saveCSS() {
         <UButton variant="ghost" color="neutral" @click="deleteModalOpen = false">Cancel</UButton>
         <UButton
           color="error"
-          :loading="deletingId === deleteTarget?.id"
+          :loading="!!deleteTarget && isRunning(`delete:${deleteTarget.id}`)"
           @click="confirmDeleteTheme"
         >
           Delete
@@ -611,7 +564,7 @@ async function saveCSS() {
 
           <div class="flex justify-end gap-2">
             <UButton color="neutral" variant="ghost" @click="editModal = false">Cancel</UButton>
-            <UButton :loading="saving" icon="i-lucide-save" @click="saveCSS">Save CSS</UButton>
+            <UButton :loading="isRunning('css')" icon="i-lucide-save" @click="saveCSS">Save CSS</UButton>
           </div>
         </div>
       </template>

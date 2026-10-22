@@ -5,7 +5,7 @@ useHead({ title: 'Taxonomies' })
 
 const route = useRoute()
 const router = useRouter()
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 
 const access = await fetchAdminAccess()
 const canDeleteTaxonomy = computed(() => Boolean(access?.role && roleAtLeast(access.role, 'admin')))
@@ -23,7 +23,7 @@ function selectTaxonomy(tax: AdminTaxonomy | null) {
 }
 
 const terms = ref<AdminTerm[]>([])
-const loadingTerms = ref(false)
+const loadingTerms = computed(() => isRunning('loadTerms'))
 
 async function loadTerms() {
   const tax = activeTaxonomy.value
@@ -31,17 +31,10 @@ async function loadTerms() {
     terms.value = []
     return
   }
-  loadingTerms.value = true
-  try {
-    const url: string = `/api/v1/taxonomies/${tax.id}/terms`
-    const res = await $fetch<{ terms: AdminTerm[] }>(url)
-    // Ignore a response for a taxonomy the user has since navigated away from.
-    if (activeTaxonomy.value?.id === tax.id) terms.value = res.terms
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not load terms'), color: 'error' })
-  } finally {
-    loadingTerms.value = false
-  }
+  const url: string = `/api/v1/taxonomies/${tax.id}/terms`
+  const res = await run(() => $fetch<{ terms: AdminTerm[] }>(url), { errorTitle: "Couldn't load terms", key: 'loadTerms' })
+  // Ignore a response for a taxonomy the user has since navigated away from.
+  if (res && activeTaxonomy.value?.id === tax.id) terms.value = res.terms
 }
 watch(() => activeTaxonomy.value?.id, loadTerms, { immediate: true })
 
@@ -85,24 +78,18 @@ const deleteTaxonomyOpen = computed({
   get: () => deleteTaxonomyTarget.value !== null,
   set: (v) => { if (!v) deleteTaxonomyTarget.value = null },
 })
-const deletingTaxonomy = ref(false)
+const deletingTaxonomy = computed(() => isRunning('deleteTaxonomy'))
 
 async function deleteTaxonomy() {
   const target = deleteTaxonomyTarget.value
   if (!target) return
-  deletingTaxonomy.value = true
-  try {
-    const url: string = `/api/v1/taxonomies/${target.id}`
-    await $fetch(url, { method: 'DELETE' })
+  const url: string = `/api/v1/taxonomies/${target.id}`
+  await run(async () => {
+    await $fetch<unknown>(url, { method: 'DELETE' })
     if (activeId.value === target.id) selectTaxonomy(null)
     deleteTaxonomyTarget.value = null
-    toast.add({ title: `${target.name} deleted`, color: 'success' })
     await refresh()
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not delete the taxonomy'), color: 'error' })
-  } finally {
-    deletingTaxonomy.value = false
-  }
+  }, { successTitle: `${target.name} deleted`, errorTitle: "Couldn't delete the taxonomy", key: 'deleteTaxonomy' })
 }
 
 // ── Term modals ───────────────────────────────────────────────────────────────
@@ -117,7 +104,7 @@ function openTermModal(term: AdminTerm | null, parentId: string | null = null) {
 
 // Quick add (name only) from the panel footer.
 const quickName = ref('')
-const quickAdding = ref(false)
+const quickAdding = computed(() => isRunning('quickAdd'))
 async function quickAdd() {
   const tax = activeTaxonomy.value
   const name = quickName.value.trim()
@@ -127,17 +114,12 @@ async function quickAdd() {
     openTermModal(null)
     return
   }
-  quickAdding.value = true
-  try {
-    const url: string = `/api/v1/taxonomies/${tax.id}/terms`
-    await $fetch(url, { method: 'POST', body: { name } })
+  const url: string = `/api/v1/taxonomies/${tax.id}/terms`
+  await run(async () => {
+    await $fetch<unknown>(url, { method: 'POST', body: { name } })
     quickName.value = ''
     await refreshAll()
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not add the term'), color: 'error' })
-  } finally {
-    quickAdding.value = false
-  }
+  }, { errorTitle: "Couldn't add the term", key: 'quickAdd' })
 }
 
 const deleteTermTarget = ref<AdminTerm | null>(null)
@@ -145,29 +127,23 @@ const deleteTermOpen = computed({
   get: () => deleteTermTarget.value !== null,
   set: (v) => { if (!v) deleteTermTarget.value = null },
 })
-const deletingTerm = ref(false)
+const deletingTerm = computed(() => isRunning('deleteTerm'))
 const deleteTermChildren = computed(() => terms.value.filter(t => t.parentId === deleteTermTarget.value?.id).length)
 
 async function deleteTerm() {
   const tax = activeTaxonomy.value
   const target = deleteTermTarget.value
   if (!tax || !target) return
-  deletingTerm.value = true
-  try {
-    const url: string = `/api/v1/taxonomies/${tax.id}/terms/${target.id}`
-    await $fetch(url, { method: 'DELETE' })
+  const url: string = `/api/v1/taxonomies/${tax.id}/terms/${target.id}`
+  await run(async () => {
+    await $fetch<unknown>(url, { method: 'DELETE' })
     deleteTermTarget.value = null
-    toast.add({ title: `${target.name} deleted`, color: 'success' })
     await refreshAll()
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not delete the term'), color: 'error' })
-  } finally {
-    deletingTerm.value = false
-  }
+  }, { successTitle: `${target.name} deleted`, errorTitle: "Couldn't delete the term", key: 'deleteTerm' })
 }
 
 // ── Manual ordering (among siblings) ──────────────────────────────────────────
-const reordering = ref(false)
+const reordering = computed(() => isRunning('reorder'))
 function siblingsOf(term: AdminTerm) {
   return treeTerms.value.filter(t => (t.parentId ?? null) === (term.parentId ?? null))
 }
@@ -181,21 +157,16 @@ async function move(term: AdminTerm, direction: -1 | 1) {
   if (index < 0 || swapWith < 0 || swapWith >= siblings.length) return
   const ordered = [...siblings]
   ;[ordered[index], ordered[swapWith]] = [ordered[swapWith]!, ordered[index]!]
-  reordering.value = true
-  try {
+  await run(async () => {
     // Renumber the whole sibling group — equal sortOrders (e.g. all 0 from an import)
     // otherwise can't be swapped.
     await Promise.all(ordered.map((t, i) => {
       if (t.sortOrder === i) return Promise.resolve()
       const url: string = `/api/v1/taxonomies/${tax.id}/terms/${t.id}`
-      return $fetch(url, { method: 'PATCH', body: { sortOrder: i } })
+      return $fetch<unknown>(url, { method: 'PATCH', body: { sortOrder: i } })
     }))
     await loadTerms()
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not reorder'), color: 'error' })
-  } finally {
-    reordering.value = false
-  }
+  }, { errorTitle: "Couldn't reorder", key: 'reorder' })
 }
 
 function canMove(term: AdminTerm, direction: -1 | 1) {

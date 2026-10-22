@@ -21,11 +21,11 @@ const LOCATION_LABELS: Record<string, string> = {
   sidebar: 'Sidebar',
 }
 
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 
 // ── Create ────────────────────────────────────────────────────────────────────
 const showCreate = ref(false)
-const creating = ref(false)
+const creating = computed(() => isRunning('create'))
 const newName = ref('')
 const newLocation = ref<'header' | 'footer' | 'sidebar' | null>(null)
 const newLocationModel = computed({
@@ -41,26 +41,20 @@ const locationOptions = [
 
 async function createMenu() {
   if (!newName.value.trim()) return
-  creating.value = true
-  try {
-    const result = await $fetch<{ id: string }>('/api/v1/menus', {
-      method: 'POST',
-      body: { name: newName.value.trim(), location: newLocation.value },
-    })
-    showCreate.value = false
-    newName.value = ''
-    newLocation.value = null
-    await navigateTo(`/admin/menus/${result.id}`)
-  } catch (e: unknown) {
-    toast.add({ title: 'Failed to create menu', description: getErrorMessage(e, ''), color: 'error' })
-  } finally {
-    creating.value = false
-  }
+  const result = await run(() => $fetch<{ id: string }>('/api/v1/menus', {
+    method: 'POST',
+    body: { name: newName.value.trim(), location: newLocation.value },
+  }), { errorTitle: "Couldn't create menu", key: 'create' })
+  if (!result) return
+  showCreate.value = false
+  newName.value = ''
+  newLocation.value = null
+  await navigateTo(`/admin/menus/${result.id}`)
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
 const deleteId = ref<string | null>(null)
-const deleting = ref(false)
+const deleting = computed(() => isRunning('delete'))
 const deleteConfirmInput = ref('')
 
 const isDeleteOpen = computed({
@@ -75,17 +69,12 @@ const isDeleteOpen = computed({
 
 async function doDelete() {
   if (!deleteId.value) return
-  deleting.value = true
-  try {
-    await $fetch(`/api/v1/menus/${deleteId.value}`, { method: 'DELETE' })
+  const id = deleteId.value
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/menus/${id}`, { method: 'DELETE' })
     deleteId.value = null
     await refresh()
-    toast.add({ title: 'Menu deleted', color: 'success' })
-  } catch (e: unknown) {
-    toast.add({ title: 'Failed to delete', description: getErrorMessage(e, ''), color: 'error' })
-  } finally {
-    deleting.value = false
-  }
+  }, { successTitle: 'Menu deleted', errorTitle: "Couldn't delete menu", key: 'delete' })
 }
 
 onMounted(() => { if (!data.value) refresh() })

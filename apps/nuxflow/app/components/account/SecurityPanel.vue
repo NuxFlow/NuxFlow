@@ -5,8 +5,7 @@
 const security = ref({ currentPassword: '', newPassword: '', confirmPassword: '' })
 
 const { signOutAndLeave } = useUserSession()
-const toast = useToast()
-const { loading: changingPassword, run: runChangePassword } = useAdminAction()
+const { loading: changingPassword, run: runChangePassword, toast } = useAdminAction()
 const passwordChangedSuccess = ref(false)
 const redirectCountdown = ref(3)
 
@@ -50,7 +49,7 @@ async function changePassword() {
         signOutAndLeave()
       }
     }, 1000)
-  }, { successTitle: 'Password updated successfully!', errorTitle: 'Failed to update password. Verify your current password.' })
+  }, { successTitle: 'Password updated', errorTitle: "Couldn't update password" })
 }
 </script>
 

@@ -25,7 +25,7 @@ async function uploadLogo(e: Event) {
     const result = await $fetch<{ url: string }>('/api/v1/media/upload', { method: 'POST', body: fd })
     appearance.value.logoUrl = result.url
     await props.onSave()
-  }, { errorTitle: 'Failed to upload logo' })
+  }, { errorTitle: "Couldn't upload logo" })
   ;(e.target as HTMLInputElement).value = ''
 }
 
@@ -43,7 +43,7 @@ async function uploadFavicon(e: Event) {
     const result = await $fetch<{ url: string }>('/api/v1/media/upload', { method: 'POST', body: fd })
     appearance.value.faviconUrl = result.url
     await props.onSave()
-  }, { errorTitle: 'Failed to upload favicon' })
+  }, { errorTitle: "Couldn't upload favicon" })
   ;(e.target as HTMLInputElement).value = ''
 }
 

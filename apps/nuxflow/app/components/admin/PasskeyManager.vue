@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const client = useAuthClient()
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 
 interface Passkey {
   id: string
@@ -10,38 +10,30 @@ interface Passkey {
 }
 
 const passkeys = ref<Passkey[]>([])
+// Starts true (not isRunning('load')) so the first render shows the spinner, not an empty list.
 const loading = ref(true)
-const registering = ref(false)
 const passkeyName = ref('')
 
 const loadFailed = ref(false)
 
 async function fetchPasskeys() {
-  loading.value = true
   loadFailed.value = false
-  try {
-    if (!client?.passkey) {
-      console.warn('Better Auth Passkey client is not initialized.')
-      passkeys.value = []
-      loadFailed.value = true
-      return
-    }
-    const res = await client.passkey.listUserPasskeys()
-    if (res?.error) {
-      console.error('Failed to load passkeys:', res.error)
-      passkeys.value = []
-      loadFailed.value = true
-      toast.add({ title: 'Failed to load passkeys', description: res.error.message, color: 'error' })
-      return
-    }
-    passkeys.value = (res?.data || []) as Passkey[]
-  } catch (err) {
-    console.error('Failed to load passkeys:', err)
+  if (!client?.passkey) {
+    console.warn('Better Auth Passkey client is not initialized.')
+    passkeys.value = []
     loadFailed.value = true
-    toast.add({ title: 'Failed to load passkeys', color: 'error' })
-  } finally {
     loading.value = false
+    return
   }
+  const passkeyClient = client.passkey
+  const list = await run(async () => {
+    const res = await passkeyClient.listUserPasskeys()
+    throwIfAuthError(res)
+    return (res?.data || []) as Passkey[]
+  }, { errorTitle: "Couldn't load passkeys", key: 'load' })
+  passkeys.value = list ?? []
+  loadFailed.value = !list
+  loading.value = false
 }
 
 async function registerPasskey() {
@@ -55,26 +47,12 @@ async function registerPasskey() {
     return
   }
 
-  registering.value = true
-  try {
-    const result = await client.passkey.addPasskey({
-      name: passkeyName.value.trim()
-    })
-    
-    if (result?.error) {
-      toast.add({ title: result.error.message || 'Failed to register passkey', color: 'error' })
-      return
-    }
-
-    toast.add({ title: 'Passkey registered successfully!', color: 'success' })
+  const passkeyClient = client.passkey
+  await run(async () => {
+    throwIfAuthError(await passkeyClient.addPasskey({ name: passkeyName.value.trim() }))
     passkeyName.value = ''
     await fetchPasskeys()
-  } catch (err: unknown) {
-    const errMsg = (err as { message?: string })?.message || 'Biometric registration cancelled or failed.'
-    toast.add({ title: errMsg, color: 'error' })
-  } finally {
-    registering.value = false
-  }
+  }, { successTitle: 'Passkey registered', errorTitle: "Couldn't register passkey", key: 'register' })
 }
 
 async function deletePasskey(id: string) {
@@ -98,18 +76,11 @@ async function deletePasskey(id: string) {
   })
   if (!ok) return
 
-  try {
-    const result = await client.passkey.deletePasskey({ id })
-    if (result?.error) {
-      toast.add({ title: result.error.message || 'Failed to delete passkey', color: 'error' })
-      return
-    }
-
-    toast.add({ title: 'Passkey deleted successfully', color: 'success' })
+  const passkeyClient = client.passkey
+  await run(async () => {
+    throwIfAuthError(await passkeyClient.deletePasskey({ id }))
     await fetchPasskeys()
-  } catch (e: unknown) {
-    toast.add({ title: 'Failed to delete passkey', description: getErrorMessage(e, ''), color: 'error' })
-  }
+  }, { successTitle: 'Passkey deleted', errorTitle: "Couldn't delete passkey", key: `delete:${id}` })
 }
 
 onMounted(() => {
@@ -201,14 +172,14 @@ onMounted(() => {
                 placeholder="e.g. Work MacBook TouchID" 
                 class="w-full" 
                 icon="i-lucide-tag"
-                :disabled="registering"
+                :disabled="isRunning('register')"
               />
             </UFormField>
             <div class="flex items-end">
               <UButton 
                 class="w-full sm:w-auto h-9" 
                 icon="i-lucide-plus"
-                :loading="registering"
+                :loading="isRunning('register')"
                 @click="registerPasskey"
               >
                 Register Passkey

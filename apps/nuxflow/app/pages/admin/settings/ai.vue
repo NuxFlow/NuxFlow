@@ -27,8 +27,8 @@ const form = reactive({
 // rather than sending the admin to a different page to find it.
 const cloudflareAccountId = ref('')
 
-const toast = useToast()
-const saving = ref(false)
+const { run, isRunning } = useAdminAction()
+const saving = computed(() => isRunning('save'))
 const testing = ref(false)
 const testResult = ref<'ok' | 'error' | null>(null)
 
@@ -58,19 +58,13 @@ watch(data, (d) => {
 }, { immediate: true })
 
 async function save() {
-  saving.value = true
-  try {
-    await $fetch('/api/v1/settings', {
+  await run(async () => {
+    await $fetch<unknown>('/api/v1/settings', {
       method: 'PATCH',
       body: { ai: form, cloudflare: { accountId: cloudflareAccountId.value } },
     })
-    toast.add({ title: 'AI Settings saved successfully', color: 'success' })
     await refresh()
-  } catch (e: unknown) {
-    toast.add({ title: 'Failed to save AI Settings', description: getErrorMessage(e, ''), color: 'error' })
-  } finally {
-    saving.value = false
-  }
+  }, { successTitle: 'AI settings saved', errorTitle: "Couldn't save AI settings", key: 'save' })
 }
 
 async function test() {

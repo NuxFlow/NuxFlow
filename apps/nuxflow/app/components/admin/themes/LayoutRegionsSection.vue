@@ -2,7 +2,7 @@
 // Structural theming: CSS themes can restyle fixed markup but can't replace it — a
 // dynamic plugin can register a block (same registry Canvas blocks use) and be
 // designated here to own the header/footer chrome instead. See app/layouts/default.vue.
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 
 interface SettingsData {
   site: { id: string }
@@ -39,12 +39,11 @@ const layoutBlockOptions = computed(() => [
   ...dynamicBlocks().map(b => ({ label: b.name, value: b.id })),
 ])
 
-const savingLayout = ref(false)
+const savingLayout = computed(() => isRunning('save'))
 
 async function saveLayout() {
-  savingLayout.value = true
-  try {
-    await $fetch('/api/v1/settings', {
+  await run(async () => {
+    await $fetch<unknown>('/api/v1/settings', {
       method: 'PATCH',
       body: {
         settings: {
@@ -53,13 +52,8 @@ async function saveLayout() {
         },
       },
     })
-    toast.add({ title: 'Layout regions saved', color: 'success' })
     await refreshSettings()
-  } catch (e: unknown) {
-    toast.add({ title: 'Failed to save layout regions', description: getErrorMessage(e, ''), color: 'error' })
-  } finally {
-    savingLayout.value = false
-  }
+  }, { successTitle: 'Layout regions saved', errorTitle: "Couldn't save layout regions", key: 'save' })
 }
 </script>
 

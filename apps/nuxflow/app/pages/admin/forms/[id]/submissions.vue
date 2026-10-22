@@ -15,7 +15,7 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 // The inbox for one form's submissions — every form, including the built-in contact form.
 
 const route = useRoute()
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 const id = route.params.id as string
 
 type Filter = 'inbox' | 'new' | 'archived' | 'spam' | 'all'
@@ -59,20 +59,11 @@ const filters = computed<Array<{ value: Filter; label: string; count?: number }>
   { value: 'all', label: 'All' },
 ])
 
-const loadingMore = ref(false)
+const loadingMore = computed(() => isRunning('more'))
 async function loadMore() {
-  loadingMore.value = true
-  try {
-    const page = Math.floor(submissions.value.length / PAGE_SIZE) + 1
-    const res = await $fetch<Payload>(listUrl, { query: { status: filter.value, limit: PAGE_SIZE, page } })
-    extra.value = [...extra.value, ...res.submissions]
-  }
-  catch (e) {
-    toast.add({ title: getErrorMessage(e, 'Could not load more submissions'), color: 'error' })
-  }
-  finally {
-    loadingMore.value = false
-  }
+  const page = Math.floor(submissions.value.length / PAGE_SIZE) + 1
+  const res = await run(() => $fetch<Payload>(listUrl, { query: { status: filter.value, limit: PAGE_SIZE, page } }), { errorTitle: "Couldn't load more submissions", key: 'more' })
+  if (res) extra.value = [...extra.value, ...res.submissions]
 }
 
 // ── Selection + status ──────────────────────────────────────────────────────
@@ -92,21 +83,17 @@ const statusDone: Record<SubmissionStatus, string> = { new: 'Marked as unread', 
 
 async function setStatus(sub: InboxSubmission, status: SubmissionStatus, opts: { quiet?: boolean } = {}): Promise<boolean> {
   const url: string = `/api/v1/forms/${id}/submissions/${sub.id}`
-  try {
+  const done = await run(async () => {
     await $fetch<{ success: boolean }>(url, { method: 'PATCH', body: { status } })
     sub.status = status
     if (!opts.quiet) {
-      toast.add({ title: statusDone[status], color: 'success' })
       // The row may no longer belong to this filter; reload the list and the counts.
       extra.value = []
       await refresh()
     }
     return true
-  }
-  catch (e) {
-    toast.add({ title: getErrorMessage(e, 'Could not update the submission'), color: 'error' })
-    return false
-  }
+  }, { successTitle: opts.quiet ? undefined : statusDone[status], errorTitle: "Couldn't update the submission" })
+  return done === true
 }
 
 // Opening an unread submission marks it read, like an email inbox (it stays in view).
@@ -119,10 +106,9 @@ async function open(sub: InboxSubmission) {
 }
 
 // ── CSV export (every submission in the current filter, not just the loaded page) ──
-const exporting = ref(false)
+const exporting = computed(() => isRunning('export'))
 async function downloadCsv() {
-  exporting.value = true
-  try {
+  await run(async () => {
     const all: InboxSubmission[] = []
     for (let page = 1; page < 1000; page++) {
       const res = await $fetch<Payload>(listUrl, { query: { status: filter.value, limit: 500, page } })
@@ -135,13 +121,7 @@ async function downloadCsv() {
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
     a.download = `${form.value?.name ?? 'submissions'}.csv`
     a.click()
-  }
-  catch (e) {
-    toast.add({ title: getErrorMessage(e, 'Export failed'), color: 'error' })
-  }
-  finally {
-    exporting.value = false
-  }
+  }, { errorTitle: "Couldn't export submissions", key: 'export' })
 }
 
 </script>

@@ -12,7 +12,7 @@ interface VideoAsset {
   createdAt: string
 }
 
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 const fileInput = ref<HTMLInputElement>()
 
 // Check Stream credentials before showing upload controls
@@ -63,8 +63,8 @@ async function handleUpload(e: Event) {
 const showDetailModal = ref(false)
 const selectedVideo = ref<VideoAsset | null>(null)
 const editTitle = ref('')
-const savingDetail = ref(false)
-const deletingDetail = ref(false)
+const savingDetail = computed(() => isRunning('save'))
+const deletingDetail = computed(() => isRunning('delete'))
 
 function openDetail(video: VideoAsset) {
   selectedVideo.value = video
@@ -74,21 +74,15 @@ function openDetail(video: VideoAsset) {
 
 async function saveDetail() {
   if (!selectedVideo.value) return
-  savingDetail.value = true
-  try {
-    await $fetch(`/api/v1/media/video/${selectedVideo.value.id}`, {
+  const id = selectedVideo.value.id
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/media/video/${id}`, {
       method: 'PATCH',
       body: { title: editTitle.value },
     })
-    toast.add({ title: 'Video details updated', color: 'success' })
     await refresh()
     showDetailModal.value = false
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : 'Unknown error'
-    toast.add({ title: 'Failed to save details', color: 'error', description: errMsg })
-  } finally {
-    savingDetail.value = false
-  }
+  }, { successTitle: 'Video details updated', errorTitle: "Couldn't save details", key: 'save' })
 }
 
 async function deleteVideo() {
@@ -99,18 +93,12 @@ async function deleteVideo() {
     confirmLabel: 'Delete',
   })
   if (!ok) return
-  deletingDetail.value = true
-  try {
-    await $fetch(`/api/v1/media/video/${selectedVideo.value.id}`, { method: 'DELETE' })
-    toast.add({ title: 'Video deleted', color: 'success' })
+  const id = selectedVideo.value.id
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/media/video/${id}`, { method: 'DELETE' })
     await refresh()
     showDetailModal.value = false
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : 'Unknown error'
-    toast.add({ title: 'Failed to delete video', color: 'error', description: errMsg })
-  } finally {
-    deletingDetail.value = false
-  }
+  }, { successTitle: 'Video deleted', errorTitle: "Couldn't delete video", key: 'delete' })
 }
 
 // Video Player Modal

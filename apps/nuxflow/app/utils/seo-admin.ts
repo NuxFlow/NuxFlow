@@ -28,7 +28,7 @@ export interface SeoSettingsForm {
 
 export interface SeoFormContext {
   form: SeoSettingsForm
-  saving: Ref<boolean>
+  saving: Readonly<Ref<boolean>>
   save: () => Promise<void>
   siteName: Ref<string>
   siteDomain: Ref<string>

@@ -25,7 +25,7 @@ interface ThreadResponse {
 const props = defineProps<{ messageId: string; canDelete: boolean }>()
 const emit = defineEmits<{ changed: []; deleted: [] }>()
 
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 const { confirm } = useConfirm()
 
 // Plain string-typed URLs: /api/v1/inbox/:id has sibling routes under an [id]/ folder, the
@@ -35,9 +35,9 @@ const { data, pending, refresh } = await useFetch<ThreadResponse>(messageUrl, { 
 
 const reply = ref('')
 const includeQuote = ref(true)
-const sending = ref(false)
-const suggesting = ref(false)
-const busy = ref(false)
+const sending = computed(() => isRunning('send'))
+const suggesting = computed(() => isRunning('suggest'))
+const busy = computed(() => isRunning('message'))
 
 watch(() => props.messageId, () => { reply.value = '' })
 
@@ -56,19 +56,12 @@ function authWarning(m: ThreadMessage): string | null {
 }
 
 async function setStatus(status: ThreadMessage['status']) {
-  busy.value = true
-  try {
-    const url: string = messageUrl.value
+  const url: string = messageUrl.value
+  await run(async () => {
     await $fetch<unknown>(url, { method: 'PATCH', body: { status } })
     await refresh()
     emit('changed')
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Failed to update message'), color: 'error' })
-  }
-  finally {
-    busy.value = false
-  }
+  }, { errorTitle: "Couldn't update message", key: 'message' })
 }
 
 async function remove() {
@@ -78,52 +71,28 @@ async function remove() {
     confirmLabel: 'Delete',
   })
   if (!ok) return
-  busy.value = true
-  try {
-    const url: string = messageUrl.value
+  const url: string = messageUrl.value
+  await run(async () => {
     await $fetch<unknown>(url, { method: 'DELETE' })
     emit('deleted')
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Failed to delete message'), color: 'error' })
-  }
-  finally {
-    busy.value = false
-  }
+  }, { errorTitle: "Couldn't delete message", key: 'message' })
 }
 
 async function suggestReply() {
-  suggesting.value = true
-  try {
-    const url: string = `${messageUrl.value}/suggest-reply`
-    const res = await $fetch<{ suggestion: string }>(url, { method: 'POST' })
-    reply.value = res.suggestion
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not draft a reply'), color: 'error' })
-  }
-  finally {
-    suggesting.value = false
-  }
+  const url: string = `${messageUrl.value}/suggest-reply`
+  const res = await run(() => $fetch<{ suggestion: string }>(url, { method: 'POST' }), { errorTitle: "Couldn't draft a reply", key: 'suggest' })
+  if (res) reply.value = res.suggestion
 }
 
 async function sendReply() {
   if (!reply.value.trim() || !latestInbound.value) return
-  sending.value = true
-  try {
-    const url: string = `/api/v1/inbox/${latestInbound.value.id}/reply`
+  const url: string = `/api/v1/inbox/${latestInbound.value.id}/reply`
+  await run(async () => {
     await $fetch<{ id: string }>(url, { method: 'POST', body: { body: reply.value, quote: includeQuote.value } })
     reply.value = ''
-    toast.add({ title: 'Reply sent', color: 'success' })
     await refresh()
     emit('changed')
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Reply failed'), color: 'error' })
-  }
-  finally {
-    sending.value = false
-  }
+  }, { successTitle: 'Reply sent', errorTitle: "Couldn't send reply", key: 'send' })
 }
 </script>
 

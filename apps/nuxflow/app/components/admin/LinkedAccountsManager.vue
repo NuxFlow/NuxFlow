@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const { isAccountsHost } = useAccounts()
 const client = useAuthClient()
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 const route = useRoute()
 
 interface LinkedAccount {
@@ -19,8 +19,8 @@ const PROVIDERS = [
 const accounts = ref<LinkedAccount[]>([])
 const loading = ref(true)
 const loadFailed = ref(false)
+// Not isRunning(): stays set on success, because the browser is about to leave for OAuth.
 const linking = ref<string | null>(null)
-const unlinking = ref<string | null>(null)
 
 const linkedProviderIds = computed(() => new Set(accounts.value.map(a => a.providerId)))
 const hasPasswordAccount = computed(() => linkedProviderIds.value.has('credential'))
@@ -28,44 +28,28 @@ const hasPasswordAccount = computed(() => linkedProviderIds.value.has('credentia
 async function fetchAccounts() {
   loading.value = true
   loadFailed.value = false
-  try {
+  const list = await run(async () => {
     const res = await client.listAccounts()
-    if (res?.error) {
-      console.error('Failed to load linked accounts:', res.error)
-      accounts.value = []
-      loadFailed.value = true
-      toast.add({ title: 'Failed to load linked accounts', description: res.error.message, color: 'error' })
-      return
-    }
-    accounts.value = (res?.data ?? []) as LinkedAccount[]
-  }
-  catch (err) {
-    console.error('Failed to load linked accounts:', err)
-    accounts.value = []
-    loadFailed.value = true
-    toast.add({ title: 'Failed to load linked accounts', color: 'error' })
-  }
-  finally {
-    loading.value = false
-  }
+    throwIfAuthError(res)
+    return (res?.data ?? []) as LinkedAccount[]
+  }, { errorTitle: "Couldn't load linked accounts", key: 'load' })
+  accounts.value = list ?? []
+  loadFailed.value = !list
+  loading.value = false
 }
 
 async function linkProvider(providerId: string) {
   linking.value = providerId
-  try {
-    await client.linkSocial({
+  const started = await run(async () => {
+    throwIfAuthError(await client.linkSocial({
       provider: providerId,
       // Back to wherever this panel is shown: the account page on the accounts origin, or the
       // admin Security tab on a single-site install.
       callbackURL: `${window.location.origin}${isAccountsHost ? '/account' : '/admin/settings?tab=Security'}`,
-    })
-    // Browser redirects to OAuth — execution stops here
-  }
-  catch (err: unknown) {
-    const msg = (err as { message?: string })?.message ?? 'Failed to connect provider'
-    toast.add({ title: msg, color: 'error' })
-    linking.value = null
-  }
+    }))
+    return true
+  }, { errorTitle: "Couldn't connect provider" })
+  if (!started) linking.value = null
 }
 
 async function unlinkProvider(providerId: string) {
@@ -86,23 +70,10 @@ async function unlinkProvider(providerId: string) {
   const account = accounts.value.find(a => a.providerId === providerId)
   if (!account) return
 
-  unlinking.value = providerId
-  try {
-    const res = await client.unlinkAccount({ accountId: account.accountId })
-    if (res?.error) {
-      toast.add({ title: res.error.message ?? 'Failed to disconnect provider', color: 'error' })
-      return
-    }
-    toast.add({ title: 'Provider disconnected successfully', color: 'success' })
+  await run(async () => {
+    throwIfAuthError(await client.unlinkAccount({ accountId: account.accountId }))
     await fetchAccounts()
-  }
-  catch (err: unknown) {
-    const msg = (err as { message?: string })?.message ?? 'Failed to disconnect provider'
-    toast.add({ title: msg, color: 'error' })
-  }
-  finally {
-    unlinking.value = null
-  }
+  }, { successTitle: 'Provider disconnected', errorTitle: "Couldn't disconnect provider", key: `unlink:${providerId}` })
 }
 
 // Show a toast if Better Auth redirected back with a linking error
@@ -200,7 +171,7 @@ onMounted(async () => {
               size="sm"
               color="error"
               variant="ghost"
-              :loading="unlinking === provider.id"
+              :loading="isRunning(`unlink:${provider.id}`)"
               icon="i-lucide-unlink"
               :disabled="accounts.filter(a => a.providerId !== provider.id).length === 0"
               :title="accounts.filter(a => a.providerId !== provider.id).length === 0

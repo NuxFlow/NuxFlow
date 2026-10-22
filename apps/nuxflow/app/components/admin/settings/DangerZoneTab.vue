@@ -74,7 +74,7 @@ async function deleteSite() {
         await navigateTo(res.wasLastSite ? '/setup' : (onSiteDomain ? '/' : '/login'), { external: true })
       }
     }, 1000)
-  }, { successTitle: 'Site deleted — you will be signed out shortly', errorTitle: 'Failed to delete site' })
+  }, { successTitle: 'Site deleted — you will be signed out shortly', errorTitle: "Couldn't delete site" })
 }
 </script>
 
