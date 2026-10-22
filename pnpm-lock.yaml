@@ -290,6 +290,8 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/router: {}
+
 packages:
 
   '@ai-sdk/anthropic@4.0.79':

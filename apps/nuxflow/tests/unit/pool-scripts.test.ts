@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasSecret, parsePoolFlags, poolConfigFile, poolNames, serviceBindingBlock,
+  addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasSecret, parsePoolFlags, poolConfigFile, poolNames, routerBindingBlock, serviceBindingBlock,
 } from '../../scripts/pools/lib'
 
 const base = {
@@ -84,6 +84,14 @@ describe('serviceBindingBlock', () => {
 binding = "POOL_EU_1"
 service = "nuxflow-pool-eu-1"
 entrypoint = "NuxflowPoolAdmin"`)
+  })
+})
+
+describe('routerBindingBlock', () => {
+  it('points the router at the pool\'s normal fetch handler', () => {
+    expect(routerBindingBlock('clientx')).toBe(`[[services]]
+binding = "POOL_CLIENTX"
+service = "nuxflow-pool-clientx"`)
   })
 })
 

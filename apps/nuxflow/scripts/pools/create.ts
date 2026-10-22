@@ -25,7 +25,7 @@ import {
   wranglerCapture,
   wranglerLive,
 } from '../release/shell'
-import { addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasSecret, parsePoolFlags, poolConfigFile, poolNames, serviceBindingBlock } from './lib'
+import { addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasSecret, parsePoolFlags, poolConfigFile, poolNames, routerBindingBlock, serviceBindingBlock } from './lib'
 
 const HELP = `pnpm pool:create <name> [--from wrangler.cloud.toml] [--ring 1|2] [--location weur] [--dry-run] [--yes]
 
@@ -161,4 +161,6 @@ runMain(async () => {
   console.log(serviceBindingBlock(poolId))
   console.log(`\n2. Deploy the control panel (the Worker in ${flags.from}).`)
   console.log('3. Super Admin → Pools: the pool appears. Press "Send platform settings".')
+  console.log('4. If the front-door router is set up (packages/router), add this to packages/router/wrangler.toml and deploy it:\n')
+  console.log(routerBindingBlock(poolId))
 })

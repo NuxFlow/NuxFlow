@@ -58,6 +58,8 @@ apps/nuxflow/wrangler.cloud.toml
 apps/nuxflow/release-targets.json
 # Member pools' wrangler configs (pnpm pool:create)
 apps/nuxflow/wrangler.pool-*.jsonc
+# Front-door router's config (packages/router/wrangler.toml.example)
+packages/router/wrangler.toml
 
 # AI agent context and locally installed agent skills — per-developer, never shipped
 # (create-nuxflow-app downloads this repo, so anything tracked lands in every new project)

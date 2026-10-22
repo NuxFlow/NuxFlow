@@ -87,6 +87,16 @@ service = "${poolNames(poolId).worker}"
 entrypoint = "NuxflowPoolAdmin"`
 }
 
+/**
+ * What lets the front-door router (packages/router) send the pool's addresses to it: a
+ * service binding to the pool's normal fetch handler, so no entrypoint.
+ */
+export function routerBindingBlock(poolId: string): string {
+  return `[[services]]
+binding = "${poolBindingName(poolId)}"
+service = "${poolNames(poolId).worker}"`
+}
+
 /** The id of a D1 database by name, from `wrangler d1 list --json`. */
 export function findD1Id(listJson: string, name: string): string | null {
   const list = parseList(listJson, 'wrangler d1 list')

@@ -14,6 +14,10 @@ vi.mock('../../server/utils/db', () => ({
   }),
 }))
 
+// Cache keys name the Worker that wrote them (cache-version.ts); no NUXT_POOL_ID here,
+// as on an ordinary install. Re-stubbed after every vi.unstubAllGlobals() below.
+const stubRuntimeConfig = () => vi.stubGlobal('useRuntimeConfig', () => ({ poolId: '', public: {} }))
+
 const { withEdgeCache, purgeContentCache, purgeAllPublicPages } = await import('../../server/utils/edge-cache')
 const { resetCacheVersionState } = await import('../../server/utils/cache-version')
 
@@ -52,6 +56,7 @@ function mkEvent(overrides: { noCloudflareContext?: boolean; waitUntil?: ((p: Pr
 describe('withEdgeCache', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
+    stubRuntimeConfig()
   })
 
   it('computes directly when event.context.cloudflare is absent (test/non-Workers environment)', async () => {
@@ -175,6 +180,7 @@ describe('withEdgeCache', () => {
 describe('purgeContentCache', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
+    stubRuntimeConfig()
   })
 
   it('purges both the JSON path and the rendered page path for each slug', async () => {
@@ -198,11 +204,11 @@ describe('purgeContentCache', () => {
     await purgeContentCache(mkEvent(), { slugs: ['about'] })
 
     const urls = del.mock.calls.map(([req]: [Request]) => req.url)
-    expect(urls).toContain('https://example.com/about?__nfv=u&__nfc=0')
-    expect(urls).toContain('https://example.com/about?__nfv=r&__nfc=0')
+    expect(urls).toContain('https://example.com/about?__nfv=u&__nfc=cp.-.0')
+    expect(urls).toContain('https://example.com/about?__nfv=r&__nfc=cp.-.0')
     expect(urls).not.toContain('https://example.com/about')
-    expect(urls).toContain('https://example.com/api/public/pages/about?__nfc=0')
-    expect(urls).toContain('https://example.com/feed.xml?__nfc=0')
+    expect(urls).toContain('https://example.com/api/public/pages/about?__nfc=cp.-.0')
+    expect(urls).toContain('https://example.com/feed.xml?__nfc=cp.-.0')
   })
 
   // The homepage content item's slug is literally 'home', but app/pages/index.vue
@@ -240,6 +246,7 @@ describe('purgeContentCache', () => {
 describe('purgeAllPublicPages', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
+    stubRuntimeConfig()
     findManyMock.mockReset()
   })
 
@@ -312,6 +319,7 @@ describe('purging with a KV cache version', () => {
 
   beforeEach(() => {
     vi.unstubAllGlobals()
+    stubRuntimeConfig()
     findManyMock.mockReset()
     resetCacheVersionState()
   })
@@ -325,8 +333,8 @@ describe('purging with a KV cache version', () => {
 
     expect(kv.store.get('cache-version:site-1')).not.toBe('old')
     const urls = del.mock.calls.map(([req]: [Request]) => req.url)
-    expect(urls).toContain('https://example.com/about?__nfv=u&__nfc=old')
-    expect(urls).toContain('https://example.com/api/public/pages/about?__nfc=old')
+    expect(urls).toContain('https://example.com/about?__nfv=u&__nfc=cp.site-1.old')
+    expect(urls).toContain('https://example.com/api/public/pages/about?__nfc=cp.site-1.old')
   })
 
   it('does nothing for a draft that was never published', async () => {
@@ -361,6 +369,19 @@ describe('purging with a KV cache version', () => {
 
     await withEdgeCache(event, 60, async () => ({ ok: true }))
 
-    expect((match.mock.calls[0]![0] as Request).url).toBe('https://example.com/api/public/site?__nfc=old')
+    expect((match.mock.calls[0]![0] as Request).url).toBe('https://example.com/api/public/site?__nfc=cp.site-1.old')
+  })
+
+  // The Cache API is shared by every Worker on a zone: a member pool and the control plane
+  // answering the same address must never read each other's entries (cache-version.ts).
+  it('keys a member pool\'s entries apart from the control plane\'s for the same URL', async () => {
+    const match = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('caches', { default: { match, put: vi.fn().mockResolvedValue(undefined) } })
+    vi.stubGlobal('useRuntimeConfig', () => ({ poolId: 'clientx', public: {} }))
+    const { event } = kvEvent('https://example.com/api/public/site')
+
+    await withEdgeCache(event, 60, async () => ({ ok: true }))
+
+    expect((match.mock.calls[0]![0] as Request).url).toBe('https://example.com/api/public/site?__nfc=clientx.site-1.old')
   })
 })

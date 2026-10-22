@@ -1,5 +1,5 @@
 import { asc, count, desc, eq, sql } from 'drizzle-orm'
-import { platformSettings, sites } from '@nuxflow/db/schema'
+import { platformSettings, siteDomains, sites } from '@nuxflow/db/schema'
 import type { Db } from './db'
 import { getPoolId, isMemberPool, POOL_PLATFORM_SETTINGS, storePlatformSettings } from './control-plane'
 import { clearAiDailyCapCache } from './ai-allowance'
@@ -43,6 +43,11 @@ export interface PoolSite {
   domain: string
   status: string
   createdAt: string
+  /**
+   * The site's extra addresses (site_domains), which redirect to `domain`. Optional:
+   * a pool on an older release doesn't send it.
+   */
+  aliases?: string[]
 }
 
 export async function poolStatus(db: Db): Promise<PoolStatus> {
@@ -73,9 +78,13 @@ async function newestMigration(db: Db): Promise<string | null> {
 }
 
 export async function poolSites(db: Db): Promise<PoolSite[]> {
-  return db.select({ id: sites.id, name: sites.name, domain: sites.domain, status: sites.status, createdAt: sites.createdAt })
-    .from(sites)
-    .orderBy(desc(sites.isPrimary), asc(sites.createdAt))
+  const [rows, extra] = await Promise.all([
+    db.select({ id: sites.id, name: sites.name, domain: sites.domain, status: sites.status, createdAt: sites.createdAt })
+      .from(sites)
+      .orderBy(desc(sites.isPrimary), asc(sites.createdAt)),
+    db.select({ siteId: siteDomains.siteId, hostname: siteDomains.hostname }).from(siteDomains),
+  ])
+  return rows.map(site => ({ ...site, aliases: extra.filter(d => d.siteId === site.id).map(d => d.hostname) }))
 }
 
 const RECEIVED_AT_KEY = '_received_at'

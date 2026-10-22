@@ -134,6 +134,16 @@ export const ALLOWLIST: AllowlistEntry[] = [
     reason: "Platform-wide daily AI cap: today's AI credits summed across every customer site.",
   },
   {
+    file: 'server/utils/site-directory.ts',
+    tables: ['site_domains'],
+    reason: "Router directory sync (control plane): an address any of this control plane's own sites uses must never be routed to a pool.",
+  },
+  {
+    file: 'server/pool-host/entrypoint.ts',
+    tables: ['site_domains'],
+    reason: "A member pool's private admin RPC lists every site in the pool, with its extra addresses, for its control plane.",
+  },
+  {
     file: 'server/api/v1/admin/platform/index.get.ts',
     tables: ['site_usage_daily'],
     reason: "Super Admin → Platform shows today's AI credits across every customer site (requireSuperAdmin).",

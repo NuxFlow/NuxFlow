@@ -20,6 +20,15 @@ interface PoolsState {
   controlPlane: { commit: string | null; release: string | null; siteCount: number }
   pools: PoolReport[]
   newestRelease: string | null
+  /** Addresses the front-door router sends to each pool, by pool id. */
+  routed: Record<string, number>
+}
+interface DirectorySyncResult {
+  routed: number
+  added: string[]
+  removed: string[]
+  conflicts: { hostname: string; reason: string }[]
+  unreachable: string[]
 }
 
 const { data, error, refresh, status } = await useFetch<PoolsState>('/api/v1/admin/pools')
@@ -51,6 +60,26 @@ async function sendSettings() {
   })
 }
 
+// Problems from the last "Update routing", shown until the next one.
+const routingProblems = ref<string[]>([])
+
+async function updateRouting() {
+  await run(async () => {
+    const result = await $fetch<DirectorySyncResult>('/api/v1/admin/pools/directory', { method: 'POST' })
+    await refresh()
+    routingProblems.value = [
+      ...result.conflicts.map(c => `${c.hostname}: ${c.reason}`),
+      ...result.unreachable.map(b => `${b} didn't answer, so its addresses were left as they were`),
+    ]
+    return result
+  }, {
+    successTitle: (r: DirectorySyncResult) => `Routing updated: ${r.routed} address${r.routed === 1 ? '' : 'es'} go to pools`
+      + (r.added.length || r.removed.length ? ` (${r.added.length} added, ${r.removed.length} removed)` : ''),
+    errorTitle: 'Couldn\'t update routing',
+    key: 'routing',
+  })
+}
+
 const bindingExample = `[[services]]
 binding = "POOL_CLIENTX"
 service = "nuxflow-pool-clientx"
@@ -67,6 +96,15 @@ entrypoint = "NuxflowPoolAdmin"`
       <div class="flex gap-2">
         <UButton variant="ghost" icon="i-lucide-refresh-cw" :loading="status === 'pending'" @click="refresh()">Refresh</UButton>
         <UButton
+          variant="outline"
+          icon="i-lucide-route"
+          :loading="isRunning('routing')"
+          :disabled="!data?.pools.length"
+          @click="updateRouting"
+        >
+          Update routing
+        </UButton>
+        <UButton
           icon="i-lucide-send"
           :loading="isRunning('send')"
           :disabled="!data?.pools.length"
@@ -80,6 +118,20 @@ entrypoint = "NuxflowPoolAdmin"`
     <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-circle-alert" :description="getErrorMessage(error, 'Could not load pools')" />
 
     <template v-else-if="data">
+      <UAlert
+        v-if="routingProblems.length"
+        color="warning"
+        variant="soft"
+        icon="i-lucide-triangle-alert"
+        title="Some addresses weren't routed"
+      >
+        <template #description>
+          <ul class="list-disc pl-5 space-y-1">
+            <li v-for="problem in routingProblems" :key="problem">{{ problem }}</li>
+          </ul>
+        </template>
+      </UAlert>
+
       <UCard>
         <div class="flex items-start justify-between gap-4 text-sm">
           <div class="space-y-1">
@@ -144,6 +196,13 @@ entrypoint = "NuxflowPoolAdmin"`
             <div>
               <dt class="text-gray-400">Sites</dt>
               <dd class="text-gray-700 dark:text-gray-200">{{ pool.status.siteCount }}</dd>
+            </div>
+            <div>
+              <dt class="text-gray-400">Addresses routed here</dt>
+              <dd class="text-gray-700 dark:text-gray-200">
+                {{ data.routed[pool.status.poolId ?? ''] ?? 0 }}
+                <span v-if="pool.status.siteCount && !data.routed[pool.status.poolId ?? '']" class="text-amber-600">: press Update routing</span>
+              </dd>
             </div>
           </dl>
 
