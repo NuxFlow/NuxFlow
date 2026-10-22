@@ -4,6 +4,9 @@
  * register the resulting video in NuxFlow. Extracted from videos.vue so the upload
  * state machine (progress/status/quota-error) is independently testable and separate
  * from the page's grid/modal orchestration.
+ *
+ * Not built on useAdminAction(): a 402 (no Stream minutes) is shown inline as
+ * `streamError` instead of a toast, and progress/status need their own state.
  */
 export function useVideoUpload(onUploaded?: () => Promise<void> | void) {
   const toast = useToast()

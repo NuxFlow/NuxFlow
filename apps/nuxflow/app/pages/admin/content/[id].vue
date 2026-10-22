@@ -249,15 +249,13 @@ async function publish() {
   await save('published')
 }
 
+const { run: runAction } = useAdminAction()
+
 async function generatePreviewLink() {
-  try {
+  await runAction(async () => {
     const result = await $fetch<{ url: string }>(`/api/v1/content/${id.value}/preview-link`, { method: 'POST' })
     await navigator.clipboard.writeText(result.url)
-    useToast().add({ title: 'Preview link copied', description: 'Valid for 48 hours', color: 'success' })
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Failed to generate preview link')
-    useToast().add({ title: msg, color: 'error' })
-  }
+  }, { successTitle: 'Preview link copied — valid for 48 hours', errorTitle: "Couldn't create preview link" })
 }
 
 // Belt-and-suspenders: if the fetch hasn't fired yet when the component mounts

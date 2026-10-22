@@ -8,10 +8,10 @@ const emit = defineEmits<{ transcribed: [text: string] }>()
 // Stops on its own well under the route's 20 MB limit.
 const MAX_RECORDING_MS = 5 * 60_000
 
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 const supported = ref(false)
 const recording = ref(false)
-const transcribing = ref(false)
+const transcribing = computed(() => isRunning('transcribe'))
 let recorder: MediaRecorder | null = null
 let chunks: Blob[] = []
 let stopTimer: ReturnType<typeof setTimeout> | undefined
@@ -59,8 +59,7 @@ function stop() {
 
 async function transcribe(audio: Blob) {
   if (!audio.size) return
-  transcribing.value = true
-  try {
+  await run(async () => {
     const form = new FormData()
     // The route checks for an audio/* type; strip codec parameters from the file type.
     const type = audio.type.split(';')[0] || 'audio/webm'
@@ -68,13 +67,7 @@ async function transcribe(audio: Blob) {
     const { text } = await $fetch<{ text: string }>('/api/v1/ai/transcribe', { method: 'POST', body: form })
     if (text.trim()) emit('transcribed', text.trim())
     else toast.add({ title: 'No speech detected', color: 'warning' })
-  }
-  catch (e: unknown) {
-    toast.add({ title: 'Dictation failed', description: getErrorMessage(e, 'Voice-to-text needs the Workers AI binding.'), color: 'error' })
-  }
-  finally {
-    transcribing.value = false
-  }
+  }, { errorTitle: "Couldn't transcribe dictation", key: 'transcribe' })
 }
 </script>
 

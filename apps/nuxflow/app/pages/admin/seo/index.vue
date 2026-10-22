@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 
 // Editors can reach this page for Redirects and the Audit; the settings tabs write
 // through PATCH /api/v1/settings, which is admin-only, so they're hidden for editors.
@@ -41,18 +41,12 @@ watch(settingsData, (d) => {
   if (d) Object.assign(form, seoFormFromSettings(d.settings))
 }, { immediate: true })
 
-const saving = ref(false)
+const saving = computed(() => isRunning('save'))
 async function save() {
-  saving.value = true
-  try {
-    await $fetch('/api/v1/settings', { method: 'PATCH', body: { settings: seoFormToSettings(form) } })
-    toast.add({ title: 'SEO settings saved', color: 'success' })
+  await run(async () => {
+    await $fetch<unknown>('/api/v1/settings', { method: 'PATCH', body: { settings: seoFormToSettings(form) } })
     await refreshSettings()
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Failed to save settings'), color: 'error' })
-  } finally {
-    saving.value = false
-  }
+  }, { successTitle: 'SEO settings saved', errorTitle: "Couldn't save settings", key: 'save' })
 }
 
 provide(SEO_FORM_KEY, {

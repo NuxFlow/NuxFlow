@@ -3,7 +3,7 @@ import { describePermission } from '#shared/lib/plugin-permissions'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 
 // Dynamic plugins
 interface DynamicPlugin {
@@ -41,7 +41,6 @@ const installForm = reactive({
   publisherPublicKey: '',
   signature: '',
 })
-const installLoading = ref(false)
 
 const jsonPayloadText = ref('')
 
@@ -77,9 +76,8 @@ function handlePasteJson() {
 }
 
 async function dynInstall() {
-  installLoading.value = true
-  try {
-    await $fetch('/api/v1/dynamic-plugins', {
+  await run(async () => {
+    await $fetch<unknown>('/api/v1/dynamic-plugins', {
       method: 'POST',
       body: {
         id: installForm.id,
@@ -117,34 +115,20 @@ async function dynInstall() {
       signature: '',
     })
     jsonPayloadText.value = ''
-    toast.add({ title: 'Plugin installed successfully!', color: 'success' })
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Install failed')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    installLoading.value = false
-  }
+  }, { successTitle: 'Plugin installed', errorTitle: "Couldn't install plugin", key: 'install' })
 }
 
 // Enabling a plugin that asks for permissions goes through the review modal first; the
 // approved list is sent with the request (the server refuses a list that doesn't match).
 const reviewPlugin = ref<DynamicPlugin | null>(null)
 const reviewOpen = ref(false)
-const enabling = ref(false)
-
 async function enablePlugin(plugin: DynamicPlugin, approvedPermissions: string[]) {
-  enabling.value = true
-  try {
-    const url: string = `/api/v1/dynamic-plugins/${plugin.id}/enable`
-    await $fetch(url, { method: 'POST', body: { approvedPermissions } })
+  const url: string = `/api/v1/dynamic-plugins/${plugin.id}/enable`
+  await run(async () => {
+    await $fetch<unknown>(url, { method: 'POST', body: { approvedPermissions } })
     await refreshDyn()
     reviewOpen.value = false
-    toast.add({ title: `${plugin.name} enabled`, color: 'success' })
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not enable plugin'), color: 'error' })
-  } finally {
-    enabling.value = false
-  }
+  }, { successTitle: `${plugin.name} enabled`, errorTitle: "Couldn't enable plugin", key: 'enable' })
 }
 
 async function dynToggle(plugin: DynamicPlugin) {
@@ -157,15 +141,11 @@ async function dynToggle(plugin: DynamicPlugin) {
     await enablePlugin(plugin, [])
     return
   }
-  try {
-    const url: string = `/api/v1/dynamic-plugins/${plugin.id}/disable`
-    await $fetch(url, { method: 'POST' })
+  const url: string = `/api/v1/dynamic-plugins/${plugin.id}/disable`
+  await run(async () => {
+    await $fetch<unknown>(url, { method: 'POST' })
     await refreshDyn()
-    toast.add({ title: 'Plugin disabled', color: 'success' })
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Action failed')
-    toast.add({ title: msg, color: 'error' })
-  }
+  }, { successTitle: 'Plugin disabled', errorTitle: "Couldn't disable plugin" })
 }
 
 const settingsPlugin = ref<DynamicPlugin | null>(null)
@@ -182,14 +162,10 @@ async function dynUninstall(id: string, name: string) {
     confirmLabel: 'Uninstall',
   })
   if (!ok) return
-  try {
-    await $fetch(`/api/v1/dynamic-plugins/${id}`, { method: 'DELETE' })
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/dynamic-plugins/${id}`, { method: 'DELETE' })
     await refreshDyn()
-    toast.add({ title: 'Plugin uninstalled', color: 'success' })
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Uninstall failed')
-    toast.add({ title: msg, color: 'error' })
-  }
+  }, { successTitle: 'Plugin uninstalled', errorTitle: "Couldn't uninstall plugin" })
 }
 
 </script>
@@ -321,7 +297,7 @@ async function dynUninstall(id: string, name: string) {
       v-model:open="reviewOpen"
       :plugin-name="reviewPlugin.name"
       :permissions="reviewPlugin.permissions"
-      :loading="enabling"
+      :loading="isRunning('enable')"
       @approve="enablePlugin(reviewPlugin!, $event)"
     />
 
@@ -411,7 +387,7 @@ async function dynUninstall(id: string, name: string) {
 
           <div class="flex justify-end gap-2 border-t border-gray-100 dark:border-gray-800 pt-3">
             <UButton color="neutral" variant="ghost" @click="installModal = false">Cancel</UButton>
-            <UButton :loading="installLoading" icon="i-lucide-upload" @click="dynInstall">Install plugin</UButton>
+            <UButton :loading="isRunning('install')" icon="i-lucide-upload" @click="dynInstall">Install plugin</UButton>
           </div>
         </div>
       </template>

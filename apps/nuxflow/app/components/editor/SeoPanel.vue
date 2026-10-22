@@ -45,26 +45,19 @@ watch(() => props.modelValue, (v) => {
 }, { deep: true })
 
 const showPassword = ref(false)
-const aiLoading = ref(false)
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
+const aiLoading = computed(() => isRunning('suggest'))
 
 async function suggestSeo() {
-  aiLoading.value = true
-  try {
-    const res = await $fetch<{ seoTitle: string; seoDescription: string }>('/api/v1/ai/seo-suggest', {
-      method: 'POST',
-      // contentId lets the server read the page's actual body (Canvas pages included),
-      // rather than guessing from the title alone. Unsaved new items send the title only.
-      body: { title: props.title || local.seoTitle, contentId: props.contentId || undefined },
-    })
-    local.seoTitle = res.seoTitle
-    local.seoDescription = res.seoDescription
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Failed to generate SEO suggestions')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    aiLoading.value = false
-  }
+  const res = await run(() => $fetch<{ seoTitle: string; seoDescription: string }>('/api/v1/ai/seo-suggest', {
+    method: 'POST',
+    // contentId lets the server read the page's actual body (Canvas pages included),
+    // rather than guessing from the title alone. Unsaved new items send the title only.
+    body: { title: props.title || local.seoTitle, contentId: props.contentId || undefined },
+  }), { errorTitle: "Couldn't generate SEO suggestions", key: 'suggest' })
+  if (!res) return
+  local.seoTitle = res.seoTitle
+  local.seoDescription = res.seoDescription
 }
 
 const titleLength = computed(() => local.seoTitle.length)
@@ -120,24 +113,16 @@ const metaRobotsSelectValue = computed({
 interface ReadabilityIssue { type: string; excerpt: string; suggestion: string }
 interface ReadabilityResult { score: number; gradeLevel: string; issues: ReadabilityIssue[]; summary: string }
 
-const readabilityLoading = ref(false)
+const readabilityLoading = computed(() => isRunning('readability'))
 const readability = ref<ReadabilityResult | null>(null)
 
 async function checkReadability() {
   if (!props.bodyHtml) return
-  readabilityLoading.value = true
   readability.value = null
-  try {
-    readability.value = await $fetch<ReadabilityResult>('/api/v1/ai/readability', {
-      method: 'POST',
-      body: { html: props.bodyHtml },
-    })
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Failed to check readability')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    readabilityLoading.value = false
-  }
+  readability.value = await run(() => $fetch<ReadabilityResult>('/api/v1/ai/readability', {
+    method: 'POST',
+    body: { html: props.bodyHtml },
+  }), { errorTitle: "Couldn't check readability", key: 'readability' }) ?? null
 }
 
 const readabilityColor = computed(() => {

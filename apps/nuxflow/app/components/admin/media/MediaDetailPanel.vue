@@ -71,24 +71,18 @@ function resetFocalPoint() {
 
 // Vision-model focal point (POST /api/v1/ai/suggest-focal-point) — fills the form like a
 // click on the preview would; nothing is saved until the editor clicks Save.
-const toast = useToast()
-const focalAiLoading = ref(false)
+const { run, isRunning } = useAdminAction()
+const focalAiLoading = computed(() => isRunning('focal'))
 async function suggestFocalPoint() {
   if (!props.file) return
-  focalAiLoading.value = true
-  try {
+  const mediaId = props.file.id
+  await run(async () => {
     const res = await $fetch<{ focalX: number; focalY: number }>('/api/v1/ai/suggest-focal-point', {
       method: 'POST',
-      body: { mediaId: props.file.id },
+      body: { mediaId },
     })
     form.value = { ...form.value, focalX: res.focalX, focalY: res.focalY }
-  }
-  catch (e: unknown) {
-    toast.add({ title: "Couldn't suggest a focal point", description: getErrorMessage(e, ''), color: 'error' })
-  }
-  finally {
-    focalAiLoading.value = false
-  }
+  }, { errorTitle: "Couldn't suggest a focal point", key: 'focal' })
 }
 
 const detailExif = computed<ExifInfo | null>(() => {

@@ -23,7 +23,7 @@ const { isAccountsHost, accountsLink } = useAccounts()
 if (!isAccountsHost) await navigateTo(accountsLink('/account/hosting'), { external: true })
 
 const route = useRoute()
-const toast = useToast()
+const { run } = useAdminAction()
 const headers = useRequestHeaders(['cookie'])
 const { data, refresh } = await useFetch<{ subscriptions: HostedSite[] }>('/api/accounts/hosting/subscriptions', {
   headers,
@@ -70,16 +70,13 @@ function adminLink(domain: string): string {
   return `https://${domain}/_nuxflow/auth/start?${new URLSearchParams({ return_to: '/admin' })}`
 }
 
+// Not isRunning(): stays set on success, because the browser is about to leave for Stripe.
 const opening = ref<string | null>(null)
 async function openBilling(id: string) {
   opening.value = id
-  try {
-    const { url } = await $fetch<{ url: string }>('/api/accounts/hosting/billing-portal', { method: 'POST', body: { id } })
-    window.location.href = url
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not open billing'), color: 'error' })
-    opening.value = null
-  }
+  const res = await run(() => $fetch<{ url: string }>('/api/accounts/hosting/billing-portal', { method: 'POST', body: { id } }), { errorTitle: "Couldn't open billing" })
+  if (res) window.location.href = res.url
+  else opening.value = null
 }
 </script>
 

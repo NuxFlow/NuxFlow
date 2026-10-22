@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 
 interface SettingsData {
   site: { id: string }
@@ -36,12 +36,11 @@ watch(settingsData, (d) => {
   appearance.fontSans = (s['theme.font_sans'] as string) ?? 'system'
 }, { immediate: true })
 
-const savingAppearance = ref(false)
+const savingAppearance = computed(() => isRunning('save'))
 
 async function saveAppearance() {
-  savingAppearance.value = true
-  try {
-    await $fetch('/api/v1/settings', {
+  await run(async () => {
+    await $fetch<unknown>('/api/v1/settings', {
       method: 'PATCH',
       body: {
         settings: {
@@ -51,13 +50,8 @@ async function saveAppearance() {
         },
       },
     })
-    toast.add({ title: 'Appearance saved', color: 'success' })
     await refreshSettings()
-  } catch (e: unknown) {
-    toast.add({ title: 'Failed to save appearance', description: getErrorMessage(e, ''), color: 'error' })
-  } finally {
-    savingAppearance.value = false
-  }
+  }, { successTitle: 'Appearance saved', errorTitle: "Couldn't save appearance", key: 'save' })
 }
 
 const swatches = [

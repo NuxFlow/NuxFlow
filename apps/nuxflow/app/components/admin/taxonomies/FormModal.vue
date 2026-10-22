@@ -4,7 +4,7 @@ import { slugify } from '#shared/lib/slug'
 const props = defineProps<{ taxonomy: AdminTaxonomy | null }>()
 const open = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ saved: [] }>()
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 
 const { data: typesData } = await useFetch<{ types: { slug: string; name: string }[] }>('/api/v1/seo/content-types', {
   default: () => ({ types: [] }),
@@ -13,7 +13,7 @@ const typeItems = computed(() => (typesData.value?.types ?? []).map(t => ({ labe
 
 const form = reactive({ name: '', slug: '', description: '', isHierarchical: false, noindex: false, contentTypes: [] as string[] })
 const slugTouched = ref(false)
-const saving = ref(false)
+const saving = computed(() => isRunning('save'))
 
 watch(open, (isOpen) => {
   if (!isOpen) return
@@ -36,8 +36,7 @@ const flattening = computed(() => Boolean(props.taxonomy?.isHierarchical) && !fo
 
 async function save() {
   if (!form.name.trim()) return
-  saving.value = true
-  try {
+  await run(async () => {
     const body = {
       name: form.name.trim(),
       slug: form.slug.trim() || undefined,
@@ -48,18 +47,13 @@ async function save() {
     }
     if (props.taxonomy) {
       const url: string = `/api/v1/taxonomies/${props.taxonomy.id}`
-      await $fetch(url, { method: 'PATCH', body })
+      await $fetch<unknown>(url, { method: 'PATCH', body })
     } else {
-      await $fetch('/api/v1/taxonomies', { method: 'POST', body })
+      await $fetch<unknown>('/api/v1/taxonomies', { method: 'POST', body })
     }
-    toast.add({ title: props.taxonomy ? 'Taxonomy updated' : 'Taxonomy created', color: 'success' })
     open.value = false
     emit('saved')
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not save the taxonomy'), color: 'error' })
-  } finally {
-    saving.value = false
-  }
+  }, { successTitle: props.taxonomy ? 'Taxonomy updated' : 'Taxonomy created', errorTitle: "Couldn't save the taxonomy", key: 'save' })
 }
 </script>
 

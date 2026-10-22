@@ -13,7 +13,7 @@ const props = defineProps<{
   bodyText?: string
 }>()
 const selected = defineModel<string[]>({ required: true })
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 
 const access = await fetchAdminAccess()
 // Creating terms is an editor action (POST /taxonomies/:id/terms); authors can only pick.
@@ -30,13 +30,9 @@ const applicable = computed(() => taxData.value.taxonomies.filter(t =>
 // names for terms in panels that were never opened.
 const termsByTaxonomy = ref<Record<string, AdminTerm[]>>({})
 async function loadTerms(taxonomyId: string) {
-  try {
-    const url: string = `/api/v1/taxonomies/${taxonomyId}/terms`
-    const res = await $fetch<{ terms: AdminTerm[] }>(url)
-    termsByTaxonomy.value[taxonomyId] = res.terms
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not load terms'), color: 'error' })
-  }
+  const url: string = `/api/v1/taxonomies/${taxonomyId}/terms`
+  const res = await run(() => $fetch<{ terms: AdminTerm[] }>(url), { errorTitle: "Couldn't load terms", key: `load:${taxonomyId}` })
+  if (res) termsByTaxonomy.value[taxonomyId] = res.terms
 }
 watch(applicable, (list) => {
   for (const t of list) if (!termsByTaxonomy.value[t.id]) loadTerms(t.id)
@@ -77,7 +73,6 @@ function selectedCount(tax: AdminTaxonomy) {
 
 // ── Inline creation (editor+) ─────────────────────────────────────────────────
 const newTermName = ref<Record<string, string>>({})
-const creating = ref<Record<string, boolean>>({})
 
 async function createTerm(taxonomyId: string, nameArg?: string) {
   const name = (nameArg ?? newTermName.value[taxonomyId] ?? '').trim()
@@ -86,18 +81,13 @@ async function createTerm(taxonomyId: string, nameArg?: string) {
     toast.add({ title: 'Add this term from Admin → Taxonomies', description: 'The name has no letters or digits to build a URL slug from, so it needs a slug typed in.', color: 'warning' })
     return
   }
-  creating.value[taxonomyId] = true
-  try {
-    const url: string = `/api/v1/taxonomies/${taxonomyId}/terms`
+  const url: string = `/api/v1/taxonomies/${taxonomyId}/terms`
+  await run(async () => {
     const res = await $fetch<{ id: string }>(url, { method: 'POST', body: { name } })
     await loadTerms(taxonomyId)
     if (!nameArg) newTermName.value[taxonomyId] = ''
     if (!selectedSet.value.has(res.id)) selected.value = [...selected.value, res.id]
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not add the term'), color: 'error' })
-  } finally {
-    creating.value[taxonomyId] = false
-  }
+  }, { errorTitle: "Couldn't add the term", key: `create:${taxonomyId}` })
 }
 
 // ── AI suggestions ────────────────────────────────────────────────────────────
@@ -106,26 +96,20 @@ interface Suggestions {
   newTermSuggestions: { taxonomySlug: string; name: string }[]
 }
 const suggestions = ref<Suggestions | null>(null)
-const suggesting = ref(false)
+const suggesting = computed(() => isRunning('suggest'))
 
 async function suggest() {
   if (!props.title?.trim()) {
     toast.add({ title: 'Add a title first', color: 'warning' })
     return
   }
-  suggesting.value = true
-  try {
-    suggestions.value = await $fetch<Suggestions>('/api/v1/ai/suggest-terms', {
-      method: 'POST',
-      body: { title: props.title, body: props.bodyText?.slice(0, 8000), contentType: props.contentType },
-    })
-    const s = suggestions.value
-    if (!s.matchedTerms.length && !s.newTermSuggestions.length) toast.add({ title: 'No suggestions for this content', color: 'neutral' })
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not get suggestions'), color: 'error' })
-  } finally {
-    suggesting.value = false
-  }
+  const s = await run(() => $fetch<Suggestions>('/api/v1/ai/suggest-terms', {
+    method: 'POST',
+    body: { title: props.title, body: props.bodyText?.slice(0, 8000), contentType: props.contentType },
+  }), { errorTitle: "Couldn't get suggestions", key: 'suggest' })
+  if (!s) return
+  suggestions.value = s
+  if (!s.matchedTerms.length && !s.newTermSuggestions.length) toast.add({ title: 'No suggestions for this content', color: 'neutral' })
 }
 
 const pendingMatched = computed(() => (suggestions.value?.matchedTerms ?? []).filter(t => !selectedSet.value.has(t.id)))
@@ -259,7 +243,7 @@ const pendingNew = computed(() => (suggestions.value?.newTermSuggestions ?? []).
               placeholder="Add new term…"
               class="flex-1"
             />
-            <UButton type="submit" size="xs" icon="i-lucide-plus" :loading="creating[taxonomy.id]" aria-label="Add term" />
+            <UButton type="submit" size="xs" icon="i-lucide-plus" :loading="isRunning(`create:${taxonomy.id}`)" aria-label="Add term" />
           </form>
         </div>
       </div>

@@ -21,14 +21,13 @@ interface Panel {
   domains: DomainRow[]
 }
 
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 const { data } = await useFetch<Panel>('/api/accounts/hosting/domains', {
   query: { id: props.subscriptionId },
   headers: useRequestHeaders(['cookie']),
 })
 
 const newDomain = ref('')
-const busy = ref<string | null>(null)
 const confirmRemove = ref<string | null>(null)
 
 const canAdd = computed(() => {
@@ -46,19 +45,9 @@ const limitNote = computed(() => {
 })
 
 async function act(key: string, url: string, method: 'POST' | 'DELETE', body: Record<string, string>, done: string) {
-  busy.value = key
-  try {
-    data.value = await $fetch<Panel>(url, { method, body: { id: props.subscriptionId, ...body } })
-    toast.add({ title: done, color: 'success' })
-    return true
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Something went wrong'), color: 'error' })
-    return false
-  }
-  finally {
-    busy.value = null
-  }
+  const res = await run(() => $fetch<Panel>(url, { method, body: { id: props.subscriptionId, ...body } }), { successTitle: done, errorTitle: "Couldn't update your domain", key })
+  if (res) data.value = res
+  return Boolean(res)
 }
 
 async function connect() {
@@ -93,9 +82,9 @@ function stateOf(d: DomainRow): { label: string; color: 'success' | 'warning' | 
             <UBadge :color="stateOf(d).color" variant="subtle" size="sm">{{ stateOf(d).label }}</UBadge>
           </div>
           <div v-if="!d.main" class="flex flex-wrap gap-1.5">
-            <UButton v-if="d.kind === 'custom' && !d.live" size="xs" variant="soft" icon="i-lucide-refresh-cw" :loading="busy === `check:${d.hostname}`" @click="check(d.hostname)">Check now</UButton>
-            <UButton v-if="d.live" size="xs" variant="soft" :loading="busy === `main:${d.hostname}`" @click="makeMain(d.hostname)">Make main address</UButton>
-            <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" :aria-label="`Remove ${d.hostname}`" :loading="busy === `remove:${d.hostname}`" @click="confirmRemove = d.hostname" />
+            <UButton v-if="d.kind === 'custom' && !d.live" size="xs" variant="soft" icon="i-lucide-refresh-cw" :loading="isRunning(`check:${d.hostname}`)" @click="check(d.hostname)">Check now</UButton>
+            <UButton v-if="d.live" size="xs" variant="soft" :loading="isRunning(`main:${d.hostname}`)" @click="makeMain(d.hostname)">Make main address</UButton>
+            <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" :aria-label="`Remove ${d.hostname}`" :loading="isRunning(`remove:${d.hostname}`)" @click="confirmRemove = d.hostname" />
           </div>
         </div>
         <p v-if="!d.main && d.live && d.kind === 'platform'" class="text-xs text-gray-500">Visitors here are sent to your main address.</p>
@@ -118,7 +107,7 @@ function stateOf(d: DomainRow): { label: string; color: 'success' | 'warning' | 
 
     <form v-if="canAdd" class="flex flex-wrap gap-2" @submit.prevent="connect">
       <UInput v-model="newDomain" placeholder="www.yourbusiness.co.uk" class="flex-1 min-w-[200px]" aria-label="Your own domain" autocomplete="off" />
-      <UButton type="submit" :loading="busy === 'add'" :disabled="!newDomain.trim()">Connect your own domain</UButton>
+      <UButton type="submit" :loading="isRunning('add')" :disabled="!newDomain.trim()">Connect your own domain</UButton>
     </form>
     <p v-else-if="limitNote" class="text-xs text-gray-500">{{ limitNote }}</p>
     <p v-if="canAdd" class="text-xs text-gray-500">

@@ -23,14 +23,13 @@ interface MailboxResponse {
   }
 }
 
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 const { confirm } = useConfirm()
 
 const { data, refresh } = await useFetch<MailboxResponse>('/api/v1/mailboxes')
 
 const form = reactive({ localPart: '', name: '', forwardTo: '', notify: true })
-const creating = ref(false)
-const busyId = ref<string | null>(null)
+const creating = computed(() => isRunning('create'))
 
 const suggestions = [
   { localPart: 'contact', name: 'Contact' },
@@ -46,36 +45,22 @@ function useSuggestion(s: { localPart: string; name: string }) {
 }
 
 async function create() {
-  creating.value = true
-  try {
-    await $fetch('/api/v1/mailboxes', {
+  await run(async () => {
+    await $fetch<unknown>('/api/v1/mailboxes', {
       method: 'POST',
       body: { localPart: form.localPart, name: form.name, forwardTo: form.forwardTo || null, notify: form.notify },
     })
     Object.assign(form, { localPart: '', name: '', forwardTo: '', notify: true })
     await refresh()
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not create the address'), color: 'error' })
-  }
-  finally {
-    creating.value = false
-  }
+  }, { errorTitle: "Couldn't create the address", key: 'create' })
 }
 
 async function update(m: Mailbox, patch: Partial<Pick<Mailbox, 'name' | 'forwardTo' | 'notify' | 'enabled'>>) {
-  busyId.value = m.id
-  try {
-    const url: string = `/api/v1/mailboxes/${m.id}`
-    await $fetch(url, { method: 'PATCH', body: patch })
+  const url: string = `/api/v1/mailboxes/${m.id}`
+  await run(async () => {
+    await $fetch<unknown>(url, { method: 'PATCH', body: patch })
     await refresh()
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Update failed'), color: 'error' })
-  }
-  finally {
-    busyId.value = null
-  }
+  }, { errorTitle: "Couldn't update the address", key: m.id })
 }
 
 const editingForwardId = ref<string | null>(null)
@@ -98,18 +83,11 @@ async function remove(m: Mailbox) {
     confirmLabel: 'Delete',
   })
   if (!ok) return
-  busyId.value = m.id
-  try {
-    const url: string = `/api/v1/mailboxes/${m.id}`
-    await $fetch(url, { method: 'DELETE' })
+  const url: string = `/api/v1/mailboxes/${m.id}`
+  await run(async () => {
+    await $fetch<unknown>(url, { method: 'DELETE' })
     await refresh()
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Delete failed'), color: 'error' })
-  }
-  finally {
-    busyId.value = null
-  }
+  }, { errorTitle: "Couldn't delete the address", key: m.id })
 }
 
 async function copy(text: string) {
@@ -139,7 +117,7 @@ async function copy(text: string) {
             </p>
             <div v-if="editingForwardId === m.id" class="flex flex-wrap items-center gap-2 pt-1">
               <UInput v-model="forwardDraft" type="email" size="xs" placeholder="you@gmail.com (empty = none)" class="w-64" />
-              <UButton size="xs" :loading="busyId === m.id" @click="saveForward(m)">Save</UButton>
+              <UButton size="xs" :loading="isRunning(m.id)" @click="saveForward(m)">Save</UButton>
               <UButton size="xs" variant="ghost" @click="editingForwardId = null">Cancel</UButton>
             </div>
             <p v-else class="text-xs text-gray-400">
@@ -148,9 +126,9 @@ async function copy(text: string) {
             </p>
           </div>
           <div class="flex items-center gap-4 shrink-0">
-            <USwitch :model-value="m.notify" label="Notify team" :disabled="busyId === m.id" @update:model-value="update(m, { notify: $event })" />
-            <USwitch :model-value="m.enabled" label="On" :disabled="busyId === m.id" @update:model-value="update(m, { enabled: $event })" />
-            <UButton size="xs" color="error" variant="ghost" icon="i-lucide-trash-2" :loading="busyId === m.id" @click="remove(m)" />
+            <USwitch :model-value="m.notify" label="Notify team" :disabled="isRunning(m.id)" @update:model-value="update(m, { notify: $event })" />
+            <USwitch :model-value="m.enabled" label="On" :disabled="isRunning(m.id)" @update:model-value="update(m, { enabled: $event })" />
+            <UButton size="xs" color="error" variant="ghost" icon="i-lucide-trash-2" :loading="isRunning(m.id)" @click="remove(m)" />
           </div>
         </li>
       </ul>

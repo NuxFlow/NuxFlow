@@ -47,7 +47,7 @@ interface AccountData {
 
 const { user } = useUserSession()
 const { onSiteDomain, accountsLink } = useAccounts()
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 
 const { data, refresh: refreshSubscription } = await useFetch<AccountData>('/api/v1/account/subscription', {
   headers: useRequestHeaders(['cookie']),
@@ -56,8 +56,8 @@ const { data, refresh: refreshSubscription } = await useFetch<AccountData>('/api
 const subscription = computed(() => data.value?.subscription ?? null)
 const tier = computed(() => data.value?.tier ?? null)
 
-const managingBilling = ref(false)
-const cancellingSubscription = ref(false)
+const managingBilling = computed(() => isRunning('billing'))
+const cancellingSubscription = computed(() => isRunning('cancel'))
 const showCancelConfirm = ref(false)
 
 const statusColor = computed(() => {
@@ -88,38 +88,28 @@ const canCancel = computed(() =>
 )
 
 async function manageBilling() {
-  managingBilling.value = true
-  try {
-    const { url } = await $fetch<{ url: string }>('/api/v1/memberships/billing-portal', {
-      method: 'POST',
-      body: { returnUrl: window.location.href },
-    })
-    window.location.href = url
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Could not open billing portal')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    managingBilling.value = false
-  }
+  const res = await run(() => $fetch<{ url: string }>('/api/v1/memberships/billing-portal', {
+    method: 'POST',
+    body: { returnUrl: window.location.href },
+  }), { errorTitle: "Couldn't open billing portal", key: 'billing' })
+  if (res) window.location.href = res.url
 }
 
 async function cancelSubscription() {
-  cancellingSubscription.value = true
   showCancelConfirm.value = false
-  try {
-    const wasFree = subscription.value?.isFree ?? false
-    await $fetch('/api/v1/account/subscription', { method: 'DELETE' })
+  const wasFree = subscription.value?.isFree ?? false
+  const done = await run(async () => {
+    await $fetch<unknown>('/api/v1/account/subscription', { method: 'DELETE' })
+    await refreshSubscription()
+    return true
+  }, { errorTitle: "Couldn't cancel subscription", key: 'cancel' })
+  // Own success toast: the paid case needs a description, which successTitle can't carry.
+  if (done) {
     toast.add({
       title: wasFree ? 'Subscription cancelled' : 'Cancellation scheduled',
-      description: wasFree ? undefined : 'You\'ll keep access until the end of your current billing period.',
+      description: wasFree ? undefined : "You'll keep access until the end of your current billing period.",
       color: 'success',
     })
-    await refreshSubscription()
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Could not cancel subscription')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    cancellingSubscription.value = false
   }
 }
 

@@ -19,7 +19,7 @@ const broadcastUrl = ref('')
 async function generateVapidKeys() {
   const result = await runGenerateVapid(
     () => $fetch<{ publicKey: string }>('/api/v1/push/vapid-keys', { method: 'POST' }),
-    { successTitle: 'VAPID keys generated', errorTitle: 'Failed to generate VAPID keys' },
+    { successTitle: 'VAPID keys generated', errorTitle: "Couldn't generate VAPID keys" },
   )
   if (result) push.value.vapidPublicKey = result.publicKey
 }
@@ -27,7 +27,7 @@ async function generateVapidKeys() {
 async function sendTestPush() {
   await runTestPush(() => $fetch<unknown>('/api/v1/push/test', { method: 'POST' }), {
     successTitle: 'Test notification sent',
-    errorTitle: 'Test notification not sent',
+    errorTitle: "Couldn't send test notification",
   })
 }
 
@@ -40,7 +40,7 @@ async function sendBroadcast() {
       body: broadcastBody.value,
       url: broadcastUrl.value || undefined,
     },
-  }), { errorTitle: 'Broadcast failed' })
+  }), { errorTitle: "Couldn't send broadcast" })
   if (result) {
     toast.add(result.total === 0
       ? { title: 'Nobody to send to yet', description: 'No browsers are subscribed to notifications on this site.', color: 'warning' }

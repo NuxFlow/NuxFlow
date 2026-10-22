@@ -25,7 +25,7 @@ interface ListResponse {
   stats: { days: number; shown: number; dismissed: number; signups: number }
 }
 
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 const status = ref<Status | 'all'>('all')
 const q = ref('')
 const search = ref('')
@@ -77,38 +77,21 @@ const columns = [
 
 const exportUrl = computed(() => `/api/v1/mailing-list/export${status.value === 'all' ? '' : `?status=${status.value}`}`)
 
-const busyId = ref<string | null>(null)
-
+// Runs are keyed by subscriber id, so each row's menu button shows its own spinner.
 async function resend(row: Subscriber) {
-  busyId.value = row.id
-  try {
-    const url: string = `/api/v1/mailing-list/${row.id}/resend`
-    await $fetch(url, { method: 'POST' })
-    toast.add({ title: `Confirmation email sent to ${row.email}`, color: 'success' })
+  const url: string = `/api/v1/mailing-list/${row.id}/resend`
+  await run(async () => {
+    await $fetch<unknown>(url, { method: 'POST' })
     await refresh()
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not send the email'), color: 'error' })
-  }
-  finally {
-    busyId.value = null
-  }
+  }, { successTitle: `Confirmation email sent to ${row.email}`, errorTitle: "Couldn't send the email", key: row.id })
 }
 
 async function markUnsubscribed(row: Subscriber) {
-  busyId.value = row.id
-  try {
-    const url: string = `/api/v1/mailing-list/${row.id}`
-    await $fetch(url, { method: 'PATCH', body: { status: 'unsubscribed' } })
-    toast.add({ title: `${row.email} unsubscribed`, color: 'success' })
+  const url: string = `/api/v1/mailing-list/${row.id}`
+  await run(async () => {
+    await $fetch<unknown>(url, { method: 'PATCH', body: { status: 'unsubscribed' } })
     await refresh()
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not unsubscribe'), color: 'error' })
-  }
-  finally {
-    busyId.value = null
-  }
+  }, { successTitle: `${row.email} unsubscribed`, errorTitle: "Couldn't unsubscribe", key: row.id })
 }
 
 const confirmDelete = ref<Subscriber | null>(null)
@@ -116,20 +99,12 @@ const confirmDelete = ref<Subscriber | null>(null)
 async function remove() {
   const row = confirmDelete.value
   if (!row) return
-  busyId.value = row.id
-  try {
-    const url: string = `/api/v1/mailing-list/${row.id}`
-    await $fetch(url, { method: 'DELETE' })
-    toast.add({ title: `${row.email} deleted`, color: 'success' })
+  const url: string = `/api/v1/mailing-list/${row.id}`
+  await run(async () => {
+    await $fetch<unknown>(url, { method: 'DELETE' })
     confirmDelete.value = null
     await refresh()
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not delete'), color: 'error' })
-  }
-  finally {
-    busyId.value = null
-  }
+  }, { successTitle: `${row.email} deleted`, errorTitle: "Couldn't delete subscriber", key: row.id })
 }
 
 function rowActions(row: Subscriber) {
@@ -214,7 +189,7 @@ function rowActions(row: Subscriber) {
         <template #actions-cell="{ row }">
           <div class="flex justify-end">
             <UDropdownMenu :items="rowActions(row.original)">
-              <UButton icon="i-lucide-ellipsis" variant="ghost" color="neutral" size="sm" :loading="busyId === row.original.id" aria-label="Actions" />
+              <UButton icon="i-lucide-ellipsis" variant="ghost" color="neutral" size="sm" :loading="isRunning(row.original.id)" aria-label="Actions" />
             </UDropdownMenu>
           </div>
         </template>
@@ -235,7 +210,7 @@ function rowActions(row: Subscriber) {
       <template #footer>
         <div class="flex justify-end gap-2 w-full">
           <UButton variant="ghost" @click="confirmDelete = null">Cancel</UButton>
-          <UButton color="error" :loading="busyId === confirmDelete?.id" @click="remove">Delete</UButton>
+          <UButton color="error" :loading="!!confirmDelete && isRunning(confirmDelete.id)" @click="remove">Delete</UButton>
         </div>
       </template>
     </UModal>

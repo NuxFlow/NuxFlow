@@ -5,7 +5,7 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 const props = defineProps<{ editor: Editor | undefined }>()
 const emit = defineEmits<{ close: [] }>()
 
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 
 interface Correction {
   original: string
@@ -31,7 +31,7 @@ interface IndexedCorrection extends Correction {
   occurrenceIndex: number
 }
 
-const grammarLoading = ref(false)
+const grammarLoading = computed(() => isRunning('grammar'))
 const corrections = ref<IndexedCorrection[]>([])
 const grammarChecked = ref(false)
 
@@ -52,22 +52,15 @@ function withOccurrenceIndex(list: Correction[]): IndexedCorrection[] {
 async function checkGrammar() {
   const text = extractPlainText()
   if (!text.trim()) return
-  grammarLoading.value = true
   corrections.value = []
   grammarChecked.value = false
-  try {
-    const res = await $fetch<{ corrections: Correction[] }>('/api/v1/ai/grammar', {
-      method: 'POST',
-      body: { text },
-    })
-    corrections.value = withOccurrenceIndex(res.corrections)
-    grammarChecked.value = true
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Grammar check failed')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    grammarLoading.value = false
-  }
+  const res = await run(() => $fetch<{ corrections: Correction[] }>('/api/v1/ai/grammar', {
+    method: 'POST',
+    body: { text },
+  }), { errorTitle: "Couldn't check grammar", key: 'grammar' })
+  if (!res) return
+  corrections.value = withOccurrenceIndex(res.corrections)
+  grammarChecked.value = true
 }
 
 // Extracted to a plain function (rather than a `let` reassigned from inside the

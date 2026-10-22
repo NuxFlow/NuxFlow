@@ -112,9 +112,9 @@ const columns = [
   { id: 'actions', header: actionsHeader },
 ]
 
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 const deleteId = ref<string | null>(null)
-const deleting = ref(false)
+const deleting = computed(() => isRunning('delete'))
 const deleteConfirmInput = ref('')
 
 const isDeleteOpen = computed({
@@ -134,21 +134,15 @@ function confirmDelete(id: string) {
 
 async function doDelete() {
   if (!deleteId.value) return
-  deleting.value = true
-  try {
-    // See the matching comment in admin/content/[id].vue's save() — plain
-    // `string` widening works around a Nitro $fetch type-inference bug for
-    // this specific route (unrelated to any auth module).
-    const contentUrl: string = `/api/v1/content/${deleteId.value}`
-    await $fetch(contentUrl, { method: 'DELETE' })
+  // See the matching comment in admin/content/[id].vue's save() — plain
+  // `string` widening works around a Nitro $fetch type-inference bug for
+  // this specific route (unrelated to any auth module).
+  const contentUrl: string = `/api/v1/content/${deleteId.value}`
+  await run(async () => {
+    await $fetch<unknown>(contentUrl, { method: 'DELETE' })
     deleteId.value = null
     await refresh()
-    toast.add({ title: 'Content deleted', color: 'success' })
-  } catch (e: unknown) {
-    toast.add({ title: 'Failed to delete', description: getErrorMessage(e, ''), color: 'error' })
-  } finally {
-    deleting.value = false
-  }
+  }, { successTitle: 'Content deleted', errorTitle: "Couldn't delete content", key: 'delete' })
 }
 </script>
 

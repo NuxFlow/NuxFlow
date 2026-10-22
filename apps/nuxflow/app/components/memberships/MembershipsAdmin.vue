@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,7 +45,7 @@ const subscribers = computed(() => subsData.value?.subscribers ?? [])
 
 const showTierModal = ref(false)
 const editingTier = ref<Tier | null>(null)
-const tierLoading = ref(false)
+const tierLoading = computed(() => isRunning('save'))
 const showAdvanced = ref(false)
 
 const tierForm = reactive({
@@ -116,8 +116,8 @@ function removeFeature(idx: number) {
 }
 
 async function saveTier() {
-  tierLoading.value = true
-  try {
+  const isEdit = Boolean(editingTier.value)
+  await run(async () => {
     const body = {
       name: tierForm.name,
       description: tierForm.description || undefined,
@@ -133,20 +133,13 @@ async function saveTier() {
       paddleProductId: tierForm.paddleProductId || undefined,
     }
     if (editingTier.value) {
-      await $fetch(`/api/v1/memberships/${editingTier.value.id}`, { method: 'PATCH', body })
-      toast.add({ title: 'Tier updated', color: 'success' })
+      await $fetch<unknown>(`/api/v1/memberships/${editingTier.value.id}`, { method: 'PATCH', body })
     } else {
-      await $fetch('/api/v1/memberships', { method: 'POST', body })
-      toast.add({ title: 'Tier created', color: 'success' })
+      await $fetch<unknown>('/api/v1/memberships', { method: 'POST', body })
     }
     await refreshTiers()
     showTierModal.value = false
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Save failed')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    tierLoading.value = false
-  }
+  }, { successTitle: isEdit ? 'Tier updated' : 'Tier created', errorTitle: "Couldn't save tier", key: 'save' })
 }
 
 async function deleteTier(tier: Tier) {
@@ -156,14 +149,10 @@ async function deleteTier(tier: Tier) {
     confirmLabel: 'Delete',
   })
   if (!ok) return
-  try {
-    await $fetch(`/api/v1/memberships/${tier.id}`, { method: 'DELETE' })
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/memberships/${tier.id}`, { method: 'DELETE' })
     await refreshTiers()
-    toast.add({ title: 'Tier deleted', color: 'success' })
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Delete failed')
-    toast.add({ title: msg, color: 'error' })
-  }
+  }, { successTitle: 'Tier deleted', errorTitle: "Couldn't delete tier" })
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

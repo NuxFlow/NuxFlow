@@ -8,27 +8,19 @@ interface Preference {
   emailLocked: boolean
 }
 
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 const { data, error } = await useFetch<{ preferences: Preference[] }>('/api/v1/account/notification-preferences')
 const prefs = ref<Preference[]>([])
 watch(data, (d) => { prefs.value = d ? d.preferences.map(p => ({ ...p })) : [] }, { immediate: true })
 
-const saving = ref(false)
+const saving = computed(() => isRunning('save'))
 async function save() {
-  saving.value = true
-  try {
-    await $fetch('/api/v1/account/notification-preferences', {
+  await run(async () => {
+    await $fetch<unknown>('/api/v1/account/notification-preferences', {
       method: 'PUT',
       body: { preferences: prefs.value.map(p => ({ type: p.type, email: p.email, push: p.push })) },
     })
-    toast.add({ title: 'Notification preferences saved', color: 'success' })
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not save preferences'), color: 'error' })
-  }
-  finally {
-    saving.value = false
-  }
+  }, { successTitle: 'Notification preferences saved', errorTitle: "Couldn't save preferences", key: 'save' })
 }
 </script>
 

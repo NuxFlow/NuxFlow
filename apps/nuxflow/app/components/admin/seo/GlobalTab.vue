@@ -1,11 +1,10 @@
 <script setup lang="ts">
 const { form, saving, save, siteName, siteDomain } = inject(SEO_FORM_KEY)!
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
 
-const aiLoading = ref(false)
+const aiLoading = computed(() => isRunning('suggest'))
 async function aiSuggest() {
-  aiLoading.value = true
-  try {
+  await run(async () => {
     // scope 'site' → the server builds context from the site's own published content.
     const res = await $fetch<{ seoTitle: string; seoDescription: string }>('/api/v1/ai/seo-suggest', {
       method: 'POST',
@@ -13,11 +12,7 @@ async function aiSuggest() {
     })
     if (res.seoTitle) form.title = res.seoTitle
     if (res.seoDescription) form.description = res.seoDescription
-  } catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'AI suggestion failed — check Settings → AI'), color: 'error' })
-  } finally {
-    aiLoading.value = false
-  }
+  }, { errorTitle: "Couldn't get an AI suggestion", key: 'suggest' })
 }
 
 const showImagePicker = ref(false)

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 const downloading = ref(false)
 const toast = useToast()
+// Not useAdminAction(): a raw fetch() (streamed download), whose interrupted-download
+// error needs its own wording rather than the browser's "Failed to fetch".
 async function downloadBackup() {
   downloading.value = true
   try {

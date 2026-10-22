@@ -4,11 +4,10 @@ interface PostAddress {
   senderEmail: string | null
 }
 
-const toast = useToast()
+const { run, loading: busy, toast } = useAdminAction()
 const { confirm } = useConfirm()
 // 403 for anyone below author — the card just doesn't render.
 const { data, error, refresh } = await useFetch<PostAddress>('/api/v1/account/post-address')
-const busy = ref(false)
 
 async function generate(rotate: boolean) {
   if (rotate) {
@@ -19,31 +18,17 @@ async function generate(rotate: boolean) {
     })
     if (!ok) return
   }
-  busy.value = true
-  try {
-    await $fetch('/api/v1/account/post-address', { method: 'POST' })
+  await run(async () => {
+    await $fetch<unknown>('/api/v1/account/post-address', { method: 'POST' })
     await refresh()
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not create the address'), color: 'error' })
-  }
-  finally {
-    busy.value = false
-  }
+  }, { errorTitle: "Couldn't create the address" })
 }
 
 async function disable() {
-  busy.value = true
-  try {
-    await $fetch('/api/v1/account/post-address', { method: 'DELETE' })
+  await run(async () => {
+    await $fetch<unknown>('/api/v1/account/post-address', { method: 'DELETE' })
     await refresh()
-  }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not turn it off'), color: 'error' })
-  }
-  finally {
-    busy.value = false
-  }
+  }, { errorTitle: "Couldn't turn it off" })
 }
 
 async function copy(text: string) {

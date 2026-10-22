@@ -30,21 +30,14 @@ const { data, refresh, pending } = await useFetch<{ comments: Comment[] }>('/api
   default: () => ({ comments: [] }),
 })
 
-const toast = useToast()
+const { run, isRunning, loading: anyBusy } = useAdminAction()
 const { confirm } = useConfirm()
-const busyId = ref<string | null>(null)
 
 async function setStatus(id: string, status: Comment['status']) {
-  busyId.value = id
-  try {
-    await $fetch(`/api/v1/comments/${id}`, { method: 'PATCH', body: { status } })
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/comments/${id}`, { method: 'PATCH', body: { status } })
     await refresh()
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Failed to update comment status')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    busyId.value = null
-  }
+  }, { errorTitle: "Couldn't update comment status", key: id })
 }
 
 async function deleteComment(id: string) {
@@ -54,16 +47,10 @@ async function deleteComment(id: string) {
     confirmLabel: 'Delete',
   })
   if (!ok) return
-  busyId.value = id
-  try {
-    await $fetch(`/api/v1/comments/${id}`, { method: 'DELETE' })
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/comments/${id}`, { method: 'DELETE' })
     await refresh()
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Failed to delete comment')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    busyId.value = null
-  }
+  }, { errorTitle: "Couldn't delete comment", key: id })
 }
 
 function authorLabel(c: Comment) {
@@ -147,26 +134,26 @@ const statusColors: Record<string, UColor> = {
           <!-- Actions -->
           <div class="flex items-center gap-2 pt-1">
             <template v-if="comment.status !== 'approved'">
-              <UButton size="xs" color="success" variant="soft" icon="i-lucide-check" :loading="busyId === comment.id" :disabled="busyId !== null && busyId !== comment.id" @click="setStatus(comment.id, 'approved')">
+              <UButton size="xs" color="success" variant="soft" icon="i-lucide-check" :loading="isRunning(comment.id)" :disabled="anyBusy && !isRunning(comment.id)" @click="setStatus(comment.id, 'approved')">
                 Approve
               </UButton>
             </template>
             <template v-if="comment.status !== 'pending'">
-              <UButton size="xs" variant="soft" icon="i-lucide-clock" :loading="busyId === comment.id" :disabled="busyId !== null && busyId !== comment.id" @click="setStatus(comment.id, 'pending')">
+              <UButton size="xs" variant="soft" icon="i-lucide-clock" :loading="isRunning(comment.id)" :disabled="anyBusy && !isRunning(comment.id)" @click="setStatus(comment.id, 'pending')">
                 Pending
               </UButton>
             </template>
             <template v-if="comment.status !== 'spam'">
-              <UButton size="xs" color="orange" variant="soft" icon="i-lucide-shield-x" :loading="busyId === comment.id" :disabled="busyId !== null && busyId !== comment.id" @click="setStatus(comment.id, 'spam')">
+              <UButton size="xs" color="orange" variant="soft" icon="i-lucide-shield-x" :loading="isRunning(comment.id)" :disabled="anyBusy && !isRunning(comment.id)" @click="setStatus(comment.id, 'spam')">
                 Spam
               </UButton>
             </template>
             <template v-if="comment.status !== 'trash'">
-              <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-trash-2" :loading="busyId === comment.id" :disabled="busyId !== null && busyId !== comment.id" @click="setStatus(comment.id, 'trash')">
+              <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-trash-2" :loading="isRunning(comment.id)" :disabled="anyBusy && !isRunning(comment.id)" @click="setStatus(comment.id, 'trash')">
                 Trash
               </UButton>
             </template>
-            <UButton size="xs" color="error" variant="ghost" icon="i-lucide-x" :loading="busyId === comment.id" :disabled="busyId !== null && busyId !== comment.id" @click="deleteComment(comment.id)">
+            <UButton size="xs" color="error" variant="ghost" icon="i-lucide-x" :loading="isRunning(comment.id)" :disabled="anyBusy && !isRunning(comment.id)" @click="deleteComment(comment.id)">
               Delete
             </UButton>
           </div>

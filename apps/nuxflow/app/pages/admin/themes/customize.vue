@@ -168,8 +168,8 @@ const values = reactive<CustomizerValues>({ ...DEFAULTS })
 const savedValues = ref<CustomizerValues>({ ...DEFAULTS })
 const customizerThemeId = ref<string | null>(null)
 const device = ref<'desktop' | 'tablet' | 'mobile'>('desktop')
-const saving = ref(false)
-const toast = useToast()
+const { run, isRunning } = useAdminAction()
+const saving = computed(() => isRunning('save'))
 
 // ── Load saved customizer state ───────────────────────────────────────────────
 
@@ -197,21 +197,14 @@ const hasChanges = computed(() => JSON.stringify(values) !== JSON.stringify(save
 // ── Save ──────────────────────────────────────────────────────────────────────
 
 async function save() {
-  saving.value = true
-  try {
+  await run(async () => {
     const result = await $fetch<{ themeId: string }>('/api/v1/themes/customizer', {
       method: 'POST',
       body: { values: toRaw(values), css: currentCSS.value },
     })
     customizerThemeId.value = result.themeId
     savedValues.value = { ...toRaw(values) }
-    toast.add({ title: 'Changes published!', icon: 'i-lucide-check-circle', color: 'success' })
-  } catch (e) {
-    const msg = getErrorMessage(e, 'Failed to publish')
-    toast.add({ title: msg, color: 'error' })
-  } finally {
-    saving.value = false
-  }
+  }, { successTitle: 'Changes published', errorTitle: "Couldn't publish changes", key: 'save' })
 }
 </script>
 

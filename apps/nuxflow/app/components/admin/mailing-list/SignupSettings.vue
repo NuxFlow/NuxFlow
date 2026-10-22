@@ -6,14 +6,14 @@ interface SettingsResponse {
   email: { provider: string; canSendListEmail: boolean; brevoKeyConfigured: boolean }
 }
 
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 const { data } = await useFetch<SettingsResponse>('/api/v1/mailing-list/settings')
 
 const form = reactive<SignupSettings>({ ...DEFAULT_SIGNUP_SETTINGS, ...(data.value?.settings ?? {}) })
 // Edited as one path per line.
 const excludeText = ref(form.excludePaths.join('\n'))
 const brevoListText = ref(form.brevoListId ? String(form.brevoListId) : '')
-const saving = ref(false)
+const saving = computed(() => isRunning('save'))
 const showImagePicker = ref(false)
 
 const canSend = computed(() => data.value?.email.canSendListEmail ?? false)
@@ -34,23 +34,16 @@ const triggerOptions = [
 ]
 
 async function save() {
-  saving.value = true
-  try {
-    const body: SignupSettings = {
-      ...form,
-      excludePaths: excludeText.value.split('\n').map(s => s.trim()).filter(Boolean),
-      brevoListId: brevoListText.value.trim() ? Number(brevoListText.value.trim()) : null,
-    }
-    const res = await $fetch<{ settings: SignupSettings }>('/api/v1/mailing-list/settings', { method: 'PUT', body })
-    Object.assign(form, res.settings)
-    toast.add({ title: 'Signup settings saved', description: 'Visitors see the change within a few minutes.', color: 'success' })
+  const body: SignupSettings = {
+    ...form,
+    excludePaths: excludeText.value.split('\n').map(s => s.trim()).filter(Boolean),
+    brevoListId: brevoListText.value.trim() ? Number(brevoListText.value.trim()) : null,
   }
-  catch (e: unknown) {
-    toast.add({ title: getErrorMessage(e, 'Could not save'), color: 'error' })
-  }
-  finally {
-    saving.value = false
-  }
+  const res = await run(() => $fetch<{ settings: SignupSettings }>('/api/v1/mailing-list/settings', { method: 'PUT', body }), { errorTitle: "Couldn't save signup settings", key: 'save' })
+  if (!res) return
+  Object.assign(form, res.settings)
+  // Own success toast: it needs a description, which successTitle can't carry.
+  toast.add({ title: 'Signup settings saved', description: 'Visitors see the change within a few minutes.', color: 'success' })
 }
 </script>
 
