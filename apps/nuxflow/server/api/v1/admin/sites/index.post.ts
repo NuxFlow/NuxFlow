@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { sha256Hex } from '../../../../utils/buffer'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
+import { requireControlPlane } from '../../../../utils/control-plane'
 import { clearSiteCache } from '../../../../middleware/02.multi-site'
 import { normalizeDomain } from '../../../../utils/domain'
 import { isCentralAuth } from '../../../../utils/accounts-origin'
@@ -19,6 +20,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  requireControlPlane(event)
   const { userId } = await requireSuperAdmin(event)
   // A second site means a second admin team who can add their own scripts to their own
   // pages — sign-in must move off site domains first (see utils/accounts-origin.ts).

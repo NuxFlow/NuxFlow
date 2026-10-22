@@ -47,31 +47,45 @@ export function heading(text: string): void {
 
 // ── Commands ──────────────────────────────────────────────────────────────────────────
 
-function capture(cmd: string, args: string[], cwd = REPO_ROOT): { ok: boolean; out: string; err: string } {
-  const res = spawnSync(cmd, args, { cwd, encoding: 'utf8' })
-  if (res.error) fail(`Couldn't run ${cmd}: ${res.error.message}`)
-  return { ok: res.status === 0, out: res.stdout.trim(), err: res.stderr.trim() }
-}
-
 // Every argument these scripts pass: flags, file names, tag names, commit hashes.
 const PLAIN_ARG_RE = /^[\w.:@/=-]+$/
 
 /**
- * Runs a command with its output shown live. pnpm is a .cmd shim on Windows, which Node
- * only starts through a shell, so there the command line is built by hand — from
- * arguments checked to need no quoting.
+ * pnpm is a .cmd shim on Windows, which Node only starts through a shell, so there the
+ * command line is built by hand — from arguments checked to need no quoting.
  */
-function live(cmd: string, args: string[], cwd: string): boolean {
+function spawn(cmd: string, args: string[], cwd: string, mode: 'live' | 'capture') {
   const viaShell = isWindows && cmd === 'pnpm'
   if (viaShell) {
     const unsafe = args.find(a => !PLAIN_ARG_RE.test(a))
     if (unsafe !== undefined) fail(`Refusing to pass "${unsafe}" to ${cmd} through the shell.`)
   }
+  const options = mode === 'live' ? { cwd, stdio: 'inherit' as const } : { cwd, encoding: 'utf8' as const }
   const res = viaShell
-    ? spawnSync([cmd, ...args].join(' '), { cwd, stdio: 'inherit', shell: true })
-    : spawnSync(cmd, args, { cwd, stdio: 'inherit' })
+    ? spawnSync([cmd, ...args].join(' '), { ...options, shell: true })
+    : spawnSync(cmd, args, options)
   if (res.error) fail(`Couldn't run ${cmd}: ${res.error.message}`)
-  return res.status === 0
+  return res
+}
+
+function capture(cmd: string, args: string[], cwd = REPO_ROOT): { ok: boolean; out: string; err: string } {
+  const res = spawn(cmd, args, cwd, 'capture')
+  return { ok: res.status === 0, out: String(res.stdout ?? '').trim(), err: String(res.stderr ?? '').trim() }
+}
+
+/** Runs a command with its output shown live. */
+function live(cmd: string, args: string[], cwd: string): boolean {
+  return spawn(cmd, args, cwd, 'live').status === 0
+}
+
+/** `wrangler …` in apps/nuxflow, output captured (for its --json listings). */
+export function wranglerCapture(args: string[]): { ok: boolean; out: string; err: string } {
+  return capture('pnpm', ['exec', 'wrangler', ...args], APP_DIR)
+}
+
+/** `wrangler …` in apps/nuxflow, output shown live. */
+export function wranglerLive(args: string[]): boolean {
+  return live('pnpm', ['exec', 'wrangler', ...args], APP_DIR)
 }
 
 export function git(args: string[]): string {
@@ -173,16 +187,17 @@ export function describeTargets(targets: readonly ReleaseTarget[]): string {
  * `wrangler deploy` for one target, recording the release in the Worker (shown on Super
  * Admin → Platform) and on the Cloudflare version (tag + message, seen when rolling back).
  */
-export function deployTarget(target: ReleaseTarget, release: { tag: string; commit: string }): boolean {
+export function deployTarget(target: ReleaseTarget, release: { tag: string; commit: string }, extraArgs: string[] = []): boolean {
   heading(`Deploying ${target.name}`)
-  return live('pnpm', [
-    'exec', 'wrangler', 'deploy',
+  return wranglerLive([
+    'deploy',
     '--config', target.config,
     '--var', `NUXT_BUILD_COMMIT:${release.commit}`,
     '--var', `NUXT_BUILD_RELEASE:${release.tag}`,
     '--tag', release.tag,
     '--message', `${release.tag}@${shortSha(release.commit)}`,
-  ], APP_DIR)
+    ...extraArgs,
+  ])
 }
 
 export function pnpmInstall(what: string, onFailure: string): void {

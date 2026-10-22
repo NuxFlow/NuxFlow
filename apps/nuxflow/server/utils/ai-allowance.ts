@@ -1,12 +1,13 @@
 import type { H3Event } from 'h3'
-import { and, eq, gte, inArray, ne, sql } from 'drizzle-orm'
-import { siteSettings, sites, siteUsageDaily } from '@nuxflow/db/schema'
+import { and, gte, inArray, ne, sql } from 'drizzle-orm'
+import { siteUsageDaily } from '@nuxflow/db/schema'
 import { useDb, type Db } from './db'
 import { createIsolateCache } from './isolate-cache'
 import { isHostingPlatform } from './hosting-platform'
 import { checkPlanLimit, planLimitMessage, type PlanCheck } from './hosting-plans'
 import { countUsage, pendingUsage, usageDay } from './usage'
 import { getPrimarySite } from './site-info'
+import { getPlatformSetting } from './control-plane'
 
 /**
  * AI the platform pays for, and how much of it a site may use.
@@ -89,13 +90,10 @@ export function clearAiDailyCapCache(): void {
 export async function getAiDailyCap(db: Db): Promise<number | null> {
   const cached = capCache.get('cap')
   if (cached !== undefined) return cached
-  const [row] = await db.select({ value: siteSettings.value })
-    .from(siteSettings)
-    .innerJoin(sites, eq(sites.id, siteSettings.siteId))
-    .where(and(eq(sites.isPrimary, true), eq(siteSettings.key, AI_DAILY_CAP_SETTING_KEY)))
-    .limit(1)
-  const n = Number(row?.value)
-  const cap = row?.value != null && row.value !== '' && Number.isFinite(n) && n >= 0 ? Math.floor(n) : null
+  // The primary site's setting, or the copy a member pool was sent (control-plane.ts).
+  const value = await getPlatformSetting(db, AI_DAILY_CAP_SETTING_KEY)
+  const n = Number(value)
+  const cap = value != null && Number.isFinite(n) && n >= 0 ? Math.floor(n) : null
   capCache.set('cap', cap)
   return cap
 }

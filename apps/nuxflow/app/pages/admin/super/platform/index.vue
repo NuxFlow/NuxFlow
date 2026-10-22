@@ -3,7 +3,7 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Platform' })
 
 interface PlatformState {
-  build: { commit: string | null; release: string | null }
+  build: { commit: string | null; release: string | null; pool: string | null }
   hostingEnabled: boolean
   primarySite: { id: string; name: string; domain: string } | null
   centralAuth: boolean
@@ -327,6 +327,9 @@ async function copy(text: string) {
           <p class="text-gray-500">
             <template v-if="data.build.release"><strong>{{ data.build.release }}</strong>, </template>commit
             <a :href="`https://github.com/NuxFlow/NuxFlow/commit/${data.build.commit}`" target="_blank" rel="noopener" class="font-mono underline">{{ data.build.commit.slice(0, 7) }}</a>
+          </p>
+          <p v-if="data.build.pool" class="text-gray-500">
+            Pool <strong>{{ data.build.pool }}</strong> of a hosting platform: accounts, billing and platform settings are managed from its control panel.
           </p>
         </div>
       </UCard>

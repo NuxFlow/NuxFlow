@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import { isMemberPool } from './control-plane'
 
 /**
  * Where people sign in.
@@ -41,8 +42,13 @@ export function getAccountsHost(): string | null {
   return origin ? new URL(origin).host : null
 }
 
-/** True when this request arrived on the accounts origin (central mode only). */
+/**
+ * True when this request arrived on the accounts origin (central mode only). Never in a
+ * member pool: sign-in lives on the control plane, so a pool reached on that hostname
+ * (a routing mistake) must not serve Better Auth or the account pages from its own D1.
+ */
 export function isAccountsHost(event: H3Event): boolean {
+  if (isMemberPool()) return false
   const accountsHost = getAccountsHost()
   if (!accountsHost) return false
   const host = (getHeader(event, 'host') ?? '').toLowerCase()

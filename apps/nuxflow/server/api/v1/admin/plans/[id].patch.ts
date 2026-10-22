@@ -3,6 +3,7 @@ import { hostingPlans, sites } from '@nuxflow/db/schema'
 import { PLAN_FEATURES } from '../../../../../shared/lib/hosting-plan-limits'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
+import { requireControlPlane } from '../../../../utils/control-plane'
 import { requireHostingPlatform } from '../../../../utils/hosting-platform'
 import { writeAuditLog } from '../../../../utils/audit'
 import { notFound } from '../../../../utils/response'
@@ -12,6 +13,7 @@ import { syncPlanToStripe } from '../../../../utils/hosting-billing'
 
 /** Changes take effect within a minute on every isolate (the plan cache's lifetime). */
 export default defineEventHandler(async (event) => {
+  requireControlPlane(event)
   const { userId } = await requireSuperAdmin(event)
   await requireHostingPlatform(event)
   const id = getRouterParam(event, 'id')!

@@ -2,6 +2,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { hostingPlans, hostingSubscriptions, sites } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
+import { requireControlPlane } from '../../../../utils/control-plane'
 import { requireHostingPlatform } from '../../../../utils/hosting-platform'
 import { writeAuditLog } from '../../../../utils/audit'
 import { conflict, noContent, notFound } from '../../../../utils/response'
@@ -12,6 +13,7 @@ import { refreshSitesAfterPlanChange } from '../../../../utils/hosting-plans'
  * `sites.hosting_plan_id` has no database-level foreign key (see the comment on `sites`).
  */
 export default defineEventHandler(async (event) => {
+  requireControlPlane(event)
   const { userId } = await requireSuperAdmin(event)
   await requireHostingPlatform(event)
   const id = getRouterParam(event, 'id')!

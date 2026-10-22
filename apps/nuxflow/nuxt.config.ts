@@ -135,6 +135,9 @@ export default defineNuxtConfig({
     // visitor, and the exact commit tells an attacker which fixes a deployment lacks.
     buildCommit: '',
     buildRelease: '',
+    // NUXT_POOL_ID — set only on a hosting platform's member pools (a Worker + D1 holding
+    // some of its sites); unset on every ordinary install. See server/utils/control-plane.ts.
+    poolId: '',
     cloudflareStreamToken: '',
     cloudflareImagesDeliveryUrl: '',
     // Cloudflare R2 media storage — env-var fallback for resolveSetting(); requires the

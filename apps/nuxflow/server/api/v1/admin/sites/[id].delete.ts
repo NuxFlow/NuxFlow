@@ -1,7 +1,9 @@
 import { requireSuperAdmin } from '../../../../utils/permissions'
+import { requireControlPlane } from '../../../../utils/control-plane'
 import { deleteSiteCompletely } from '../../../../utils/site-deletion'
 
 export default defineEventHandler(async (event) => {
+  requireControlPlane(event)
   const { userId } = await requireSuperAdmin(event)
   const id = getRouterParam(event, 'id')!
 

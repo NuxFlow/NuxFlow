@@ -87,6 +87,16 @@ export const rateLimits = sqliteTable('rate_limits', {
   resetAt: text('reset_at').notNull(),
 })
 
+// Only used by a member pool (NUXT_POOL_ID set — see apps/nuxflow/server/utils/control-plane.ts):
+// the platform settings its control plane sends it, since a pool has no primary site to
+// hold them. Empty on every other install. Sensitive keys are stored encrypted with this
+// pool's own secret, like site settings.
+export const platformSettings = sqliteTable('platform_settings', {
+  key: text('key').primaryKey(),
+  value: text('value'),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+})
+
 // Keyed by (site_id, id), not id alone: `id` is the publisher's manifest id, and a global
 // primary key meant only one site in the whole deployment could ever install a given
 // plugin — the second tenant got a raw constraint error, and any tenant could squat a

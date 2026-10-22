@@ -2,6 +2,7 @@ import { ulid } from 'ulid'
 import { hostingPlans } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
+import { requireControlPlane } from '../../../../utils/control-plane'
 import { requireHostingPlatform } from '../../../../utils/hosting-platform'
 import { writeAuditLog } from '../../../../utils/audit'
 import { created } from '../../../../utils/response'
@@ -9,6 +10,7 @@ import { planBodySchema } from '../../../../utils/hosting-plan-schema'
 import { syncPlanToStripe } from '../../../../utils/hosting-billing'
 
 export default defineEventHandler(async (event) => {
+  requireControlPlane(event)
   const { userId } = await requireSuperAdmin(event)
   await requireHostingPlatform(event)
   const body = await parseBody(event, planBodySchema)

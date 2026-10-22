@@ -2,6 +2,7 @@ import { useDb } from '../../../../utils/db'
 import { userSiteRoles } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { requireSuperAdmin, getUserSiteRole } from '../../../../utils/permissions'
+import { requireControlPlane } from '../../../../utils/control-plane'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { clearCachedRole } from '../../../../utils/role-cache'
 import { alertRoleChanged } from '../../../../utils/security-alerts'
@@ -14,6 +15,7 @@ import { alertRoleChanged } from '../../../../utils/security-alerts'
 // which is correct — each site's grant is independent, same as PATCH/[id].delete.ts
 // already treat every other role.
 export default defineEventHandler(async (event) => {
+  requireControlPlane(event)
   const { userId } = await requireSuperAdmin(event)
   const siteId = event.context.siteId!
   const targetId = getRouterParam(event, 'id')!

@@ -4,6 +4,7 @@ import { eq, sql } from 'drizzle-orm'
 import { createIsolateCache } from '../utils/isolate-cache'
 import { clearSiteInfoCache } from '../utils/site-info'
 import { isAccountsHost } from '../utils/accounts-origin'
+import { isMemberPool } from '../utils/control-plane'
 import { getUserSiteRole, hasSuperAdminRole, roleAtLeast, type Role } from '../utils/permissions'
 
 // getAuthSession is deliberately called as a Nitro auto-import (not an explicit import
@@ -94,10 +95,16 @@ export default defineEventHandler(async (event) => {
         if (alias) site = { ...alias, redirectTo: alias.domain }
       }
 
-      // Resilient Fallback: If no site matches the request domain but there is
-      // exactly one site in D1, use that site. This prevents locking the user
-      // out of their admin dashboard when migrating from localhost/.workers.dev to a custom domain.
-      if (!site) {
+      // A member pool only ever serves the addresses its sites own (utils/control-plane.ts):
+      // none of the fallbacks below. A pool holding a single client's site would otherwise
+      // answer any stray hostname as that site — and its admin's visit would even rewrite
+      // the site's stored domain — while an empty pool would offer the setup wizard.
+      if (!site && isMemberPool()) {
+        unknownHost = true
+      } else if (!site) {
+        // Resilient Fallback: If no site matches the request domain but there is
+        // exactly one site in D1, use that site. This prevents locking the user
+        // out of their admin dashboard when migrating from localhost/.workers.dev to a custom domain.
         const allSites = await db.query.sites.findMany({
           columns: { id: true, status: true, setupCompleted: true, domain: true },
           // Primary (operator's) site first, then oldest — so the preview fallback below

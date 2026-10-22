@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { requireSuperAdmin } from '../../../../utils/permissions'
+import { requireControlPlane } from '../../../../utils/control-plane'
 import { clearHostingPlatformCache, HOSTING_PLATFORM_SETTING_KEY } from '../../../../utils/hosting-platform'
 import { clearHostingPlanCache } from '../../../../utils/hosting-plans'
 import { HOSTING_WEBHOOK_SECRET_KEY } from '../../../../utils/hosting-billing'
@@ -33,6 +34,7 @@ const bodySchema = z.object({
  * turning it on again restores them.
  */
 export default defineEventHandler(async (event) => {
+  requireControlPlane(event)
   const { userId } = await requireSuperAdmin(event)
   const body = await parseBody(event, bodySchema)
   const primary = await getPrimarySite(event)

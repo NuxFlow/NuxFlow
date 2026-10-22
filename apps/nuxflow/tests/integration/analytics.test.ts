@@ -163,7 +163,7 @@ describe('GET /api/v1/analytics', () => {
     expect(await (platformGet as Handler)(asUser(operatorId, { siteId: PRIMARY }))).toMatchObject({
       analytics: { recording: true, dataset: 'nuxflow_analytics', tokenSet: true, accountId: ACCOUNT_ID },
       // Deployed without the release scripts (no NUXT_BUILD_* vars).
-      build: { commit: null, release: null },
+      build: { commit: null, release: null, pool: null },
     })
   })
 
