@@ -4,7 +4,7 @@
 // under central sign-in, or the site itself on a single-site install (see useAccounts).
 const security = ref({ currentPassword: '', newPassword: '', confirmPassword: '' })
 
-const auth = useAuthStore()
+const { signOutAndLeave } = useUserSession()
 const toast = useToast()
 const { loading: changingPassword, run: runChangePassword } = useAdminAction()
 const passwordChangedSuccess = ref(false)
@@ -47,7 +47,7 @@ async function changePassword() {
       redirectCountdown.value--
       if (redirectCountdown.value <= 0) {
         clearInterval(interval)
-        auth.signOut()
+        signOutAndLeave()
       }
     }, 1000)
   }, { successTitle: 'Password updated successfully!', errorTitle: 'Failed to update password. Verify your current password.' })

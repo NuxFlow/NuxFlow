@@ -20,7 +20,6 @@ export default defineNuxtConfig({
   modules: [
     '@nuxt/ui',
     '@nuxtjs/turnstile',
-    '@pinia/nuxt',
   ],
 
   // Deliberately NOT using @nuxt/image: confirmed via its own provider contract
@@ -51,6 +50,8 @@ export default defineNuxtConfig({
     experimental: {
       tasks: true,
     },
+    // Passkeys (@better-auth/passkey → @simplewebauthn → @peculiar/x509) use tsyringe,
+    // which needs the Reflect.metadata polyfill loaded before any of that code runs.
     rollupConfig: {
       output: {
         intro: 'import "reflect-metadata";',

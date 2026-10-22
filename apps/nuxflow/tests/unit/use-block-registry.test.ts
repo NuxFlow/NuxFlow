@@ -20,7 +20,7 @@ describe('useBlockRegistry — register() collision handling', () => {
   })
 
   it('a plugin registering a block id that collides with an already-registered built-in is refused', () => {
-    // Simulates the real sequence: the built-in bootstrap (nuxflow-plugin-components.ts)
+    // Simulates the real sequence: the built-in bootstrap (nuxflow-blocks.ts)
     // registers 'canvas-hero' synchronously at app boot, strictly before any dynamic
     // plugin's async client bundle could call register() itself — so the built-in
     // always wins this race and a colliding plugin hits the generic "already

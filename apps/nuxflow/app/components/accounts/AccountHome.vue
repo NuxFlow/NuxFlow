@@ -3,7 +3,7 @@
 // belong to, and everything account-wide — password, passkeys, connected sign-in methods,
 // your data, deleting the account. Nothing here is specific to one site.
 const { user } = useUserSession()
-const auth = useAuthStore()
+const { signOutAndLeave } = useUserSession()
 
 interface UserSite { id: string; name: string; domain: string; role: string; origin: string }
 const { data } = await useFetch<{ sites: UserSite[] }>('/api/accounts/sites', {
@@ -61,7 +61,7 @@ function siteLink(site: UserSite): string {
     <AccountSecurityPanel />
     <AccountDataAndDeletion />
 
-    <UButton block variant="ghost" color="neutral" icon="i-lucide-log-out" @click="auth.signOut()">
+    <UButton block variant="ghost" color="neutral" icon="i-lucide-log-out" @click="signOutAndLeave()">
       Sign out of every site
     </UButton>
   </div>

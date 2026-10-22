@@ -22,8 +22,6 @@ import { parseSignupSettings, signupReward, type SignupReward, type SignupSettin
 
 export const SIGNUP_SETTING_KEY = 'mailing_list.signup'
 
-export const THIRD_PARTY_EMAIL_PROVIDERS: ReadonlySet<string> = new Set(['resend', 'brevo', 'zepto'])
-
 /** A confirmation email isn't resent to the same address more often than this. */
 const CONFIRM_RESEND_INTERVAL_MS = 10 * 60_000
 
@@ -74,7 +72,11 @@ export async function subscriberLink(event: H3Event, purpose: LinkPurpose, siteI
   return `${getRequestURL(event).origin}/mailing-list/${purpose}?${params}`
 }
 
-/** RFC 8058 one-click target — mail clients POST here directly, with no page in between. */
+/**
+ * RFC 8058 one-click target — mail clients POST here directly, with no page in between.
+ * Not called yet: it's for the List-Unsubscribe header of newsletters (docs/roadmap.md,
+ * "Mailing list: what's next"). Confirmation emails aren't list mail and don't need it.
+ */
 export async function oneClickUnsubscribeUrl(event: H3Event, siteId: string, id: string): Promise<string> {
   const token = await subscriberToken('unsubscribe', siteId, id)
   const params = new URLSearchParams({ id, token })

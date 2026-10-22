@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import type { H3Event } from 'h3'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'

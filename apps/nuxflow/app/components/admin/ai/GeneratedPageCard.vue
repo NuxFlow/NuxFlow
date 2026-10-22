@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { NuxBlockData } from '~/types/blocks'
+import type { CanvasBlockData } from '@nuxflow/canvas'
 
 // One generated page on the Generate with AI review screen: its status, an inline
 // preview of the blocks (rendered with the same NuxBlocks renderer the public site uses —
@@ -10,7 +10,7 @@ export interface GeneratedPage {
   title: string
   slug: string
   error?: string
-  item?: { id: string; title: string; slug: string; status: string; content: { blocks?: NuxBlockData[] } | null }
+  item?: { id: string; title: string; slug: string; status: string; content: { blocks?: CanvasBlockData[] } | null }
   /** The plan entry had a draft that's since been deleted. */
   missing?: boolean
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
-const auth = useAuthStore()
+const { user } = useUserSession()
 
 // Computed from the viewer's local clock, which is unknowable during SSR (a Worker's
 // own clock/timezone has no relation to the visitor's) — computing this eagerly here
@@ -71,7 +71,7 @@ const statCards = computed(() => [
     <!-- Greeting -->
     <div>
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-        {{ greeting }}, {{ auth.user?.name?.split(' ')[0] }}
+        {{ greeting }}, {{ user?.name?.split(' ')[0] }}
       </h1>
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Here's what's happening on your site.</p>
     </div>

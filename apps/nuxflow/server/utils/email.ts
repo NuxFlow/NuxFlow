@@ -16,7 +16,6 @@ export function escapeHtml(str: string): string {
 }
 
 export type EmailProvider = 'console' | 'cloudflare' | 'resend' | 'brevo' | 'zepto'
-export const EMAIL_PROVIDERS: readonly EmailProvider[] = ['console', 'cloudflare', 'resend', 'brevo', 'zepto']
 
 export interface EmailMessage {
   to: string | string[]

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { blockIdKey, resolveDefinition, toComponentProps } from '@nuxflow/canvas'
-import type { NuxBlockData } from '~/types/blocks'
+import type { CanvasBlockData } from '@nuxflow/canvas'
 
-const props = defineProps<{ block: NuxBlockData }>()
+const props = defineProps<{ block: CanvasBlockData }>()
 
 // Lets a block refer to itself (e.g. the Gallery's download links) — see blockIdKey.
 provide(blockIdKey, props.block.id)
@@ -16,7 +16,7 @@ function slotsFor(type: string) {
   return resolveDefinition(type, { getDefinition })?.slots ?? []
 }
 
-function childrenFor(slotId: string): NuxBlockData[] {
+function childrenFor(slotId: string): CanvasBlockData[] {
   return props.block.children?.[slotId] ?? []
 }
 </script>

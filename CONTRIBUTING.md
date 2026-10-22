@@ -146,36 +146,49 @@ feat!: rename NUXT_STRIPE_SECRET_KEY env var to NUXT_STRIPE_SECRET
 
 ## Writing Tests
 
+All tests live under `apps/nuxflow/tests/`, including the ones for `packages/*`.
+
 ### Unit tests (Vitest)
 
-Unit test files live next to their source files and are named `*.test.ts`.
+`tests/unit/**/*.test.ts` — pure functions and small modules, no database.
 
 ```bash
-pnpm test              # run all
-pnpm test:watch        # watch mode
-pnpm --filter @nuxflow/db test   # single package
+pnpm test                                   # all unit tests
+pnpm --filter @nuxflow/app test:watch       # watch mode
 ```
 
-### Integration / API tests
+### Integration tests (Vitest + a real SQLite database)
 
-Use `@nuxt/test-utils` for Nitro handler tests. Mount the Nitro app, hit endpoints, and assert responses.
+`tests/integration/**/*.test.ts` — server route handlers called directly with a mock H3 event,
+against a fresh SQLite database that has every migration applied. Helpers live in
+`tests/helpers/` (`initTestDb()`, `createMockEvent()`, the `seed*()` functions).
 
 ```ts
-import { setup, $fetch } from '@nuxt/test-utils/e2e'
+import handler from '../../server/api/v1/search.get'
 
-describe('content API', async () => {
-  await setup({ rootDir: '../../apps/nuxflow' })
+vi.mock('../../server/utils/db', () => ({
+  useDb: () => getCurrentTestDb(),
+  useReplicaDb: () => getCurrentTestDb(),
+}))
 
-  it('returns 401 without auth', async () => {
-    const res = await $fetch('/api/v1/content', { method: 'GET' })
-    expect(res.status).toBe(401)
-  })
+it('finds a published post', async () => {
+  await seedContentItem(getCurrentTestDb(), SITE, typeId, { title: 'Growing tomatoes' })
+  const res = await handler(createMockEvent({ siteId: SITE, query: { q: 'tomatoes' } }))
+  expect(res.results).toHaveLength(1)
 })
 ```
 
+```bash
+pnpm --filter @nuxflow/app test:integration
+```
+
+Server code must scope every query on a tenant table by `site_id` — the test database fails
+any test whose server code doesn't (see `tests/helpers/tenant-query-guard.ts`).
+
 ### E2E tests (Playwright)
 
-E2E tests live in `tests/e2e/` and require the dev server to be running:
+`apps/nuxflow/tests/e2e/` — run against `wrangler dev`. CI starts the server itself; locally,
+start it first:
 
 ```bash
 pnpm dev &

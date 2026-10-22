@@ -4,7 +4,7 @@ const props = defineProps<{
   siteName: string
 }>()
 
-const auth = useAuthStore()
+const { signOut } = useUserSession()
 const { onSiteDomain } = useAccounts()
 const toast = useToast()
 
@@ -62,14 +62,14 @@ async function deleteSite() {
 
     // The domain this site lived on no longer has any site at all — a session
     // cookie here is meaningless either way, so always sign out. Deliberately
-    // NOT using auth.signOut() (which redirects straight to /login) — a
+    // NOT using signOutAndLeave() (which redirects straight to /login) — a
     // wasLastSite delete needs to land on /setup instead, so this counts down
     // first and picks the right destination once it fires.
     const interval = setInterval(async () => {
       deleteCountdown.value--
       if (deleteCountdown.value <= 0) {
         clearInterval(interval)
-        await auth.signOutSilently()
+        await signOut()
         // No sign-in page on a site's domain under central sign-in (and this site is gone).
         await navigateTo(res.wasLastSite ? '/setup' : (onSiteDomain ? '/' : '/login'), { external: true })
       }

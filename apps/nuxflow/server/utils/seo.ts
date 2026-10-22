@@ -120,27 +120,6 @@ export interface SeoSettings {
   redirectToPrimary: boolean
 }
 
-export const SEO_DEFAULTS: SeoSettings = {
-  title: '',
-  description: '',
-  canonicalUrl: '',
-  ogImage: '',
-  noindex: false,
-  aiCrawlers: 'allow',
-  robotsCustom: '',
-  twitterHandle: '',
-  socialProfiles: [],
-  verification: { google: '', bing: '', yandex: '', pinterest: '' },
-  noindexTaxonomies: false,
-  noindexContentTypes: [],
-  llmsEnabled: true,
-  llmsIntro: '',
-  markdownEnabled: true,
-  indexnowEnabled: false,
-  indexnowKey: '',
-  redirectToPrimary: false,
-}
-
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : ''
 }
