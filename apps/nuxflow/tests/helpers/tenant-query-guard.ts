@@ -90,6 +90,21 @@ export const ALLOWLIST: AllowlistEntry[] = [
     reason: 'Sign-in codes and site sessions are looked up by the hash of a secret only their holder has; the site is checked on the row found.',
   },
   {
+    file: 'server/routes/_nuxflow/auth/callback.get.ts',
+    tables: ['site_auth_codes'],
+    reason: 'Sign-in callback: consumeSiteAuthCode() looks the code up by the hash of a secret only its holder has, then checks the site on the row found.',
+  },
+  {
+    file: 'server/pool-host/control-plane-entrypoint.ts',
+    tables: ['site_auth_codes'],
+    reason: 'A member pool redeeming a sign-in code (pool-sign-in.ts): looked up by the hash of the secret, then the site and the calling pool are checked on the row found.',
+  },
+  {
+    file: 'server/utils/pool-session.ts',
+    tables: ['user_site_roles'],
+    reason: "Member pool: a person who lost the platform's super-admin role loses it on every site in the pool (pool-session.ts syncPlatformSuperAdmin).",
+  },
+  {
     file: 'server/utils/inbound-email.ts',
     match: /from "site_settings" "siteSettings" where \("siteSettings"\."key" = \? and "siteSettings"\."value" = \?\)/,
     tables: ['site_settings'],

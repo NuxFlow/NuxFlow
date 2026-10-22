@@ -1,14 +1,8 @@
 import { z } from 'zod'
-import { useDb } from '../../utils/db'
-import { ulid } from 'ulid'
-import { userSiteRoles } from '@nuxflow/db/schema'
-import { getSiteBranding } from '../../utils/accounts-sites'
-import { getUserSiteRole, hasSuperAdminRole } from '../../utils/permissions'
+import { findSiteForAccounts, joinSiteAsMember } from '../../utils/accounts-sites'
 import { requireAccountsHost } from '../../utils/accounts-origin'
 import { issueSiteAuthCode, siteCallbackUrl } from '../../utils/site-auth'
 import { rateLimit } from '../../utils/rate-limit'
-import { clearCachedRole } from '../../utils/role-cache'
-import { assertWithinPlan } from '../../utils/hosting-plans'
 
 const bodySchema = z.object({
   site: z.string().min(1).max(64),
@@ -38,18 +32,23 @@ export default defineEventHandler(async (event) => {
   const session = await requireSession(event)
   const body = await parseBody(event, bodySchema)
 
-  const site = await getSiteBranding(event, body.site)
-  if (!site) throw notFound('This site isn\'t available')
-
-  const db = useDb(event)
+  // One of this Worker's own sites, or one in a member pool (utils/accounts-sites.ts).
   const userId = session.user.id
-  if (body.join && !(await getUserSiteRole(db, userId, site.id)) && !(await hasSuperAdminRole(db, userId))) {
-    if (!site.allowRegistration) throw forbidden('This site isn\'t accepting new members')
-    await assertWithinPlan(event, 'members', 1, site.id)
-    await db.insert(userSiteRoles).values({ id: ulid(), userId, siteId: site.id, role: 'member' }).onConflictDoNothing()
-    clearCachedRole(userId, site.id)
+  const found = await findSiteForAccounts(event, body.site, userId)
+  if (!found) throw notFound('This site isn\'t available')
+  const { site } = found
+
+  if (body.join) {
+    await joinSiteAsMember(event, found, {
+      id: userId,
+      name: session.user.name,
+      email: session.user.email,
+      emailVerified: Boolean(session.user.emailVerified),
+      image: session.user.image ?? null,
+    })
   }
 
+  // The domain comes from the site's own record (its pool's, for a pool site) — never the request.
   const redirectUri = siteCallbackUrl(site.domain)
   const code = await issueSiteAuthCode(event, {
     userId,

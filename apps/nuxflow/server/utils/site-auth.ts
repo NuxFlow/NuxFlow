@@ -2,10 +2,12 @@ import type { H3Event } from 'h3'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { siteAuthCodes, siteSessions, sessions, users } from '@nuxflow/db/schema'
-import { useDb } from './db'
+import { useDb, type Db } from './db'
 import { sha256Hex } from './buffer'
 import { getAccountsOrigin } from './accounts-origin'
 import { randomToken } from '../../shared/lib/base64'
+import { isMemberPool } from './control-plane'
+import { endParentSession, parentSessionAlive } from './pool-session'
 
 // ── Site sessions: a login that is valid on one site's own domain only ─────────────────
 //
@@ -125,8 +127,7 @@ export async function issueSiteAuthCode(event: H3Event, input: {
  * who it was issued for, or null if it's unknown, expired, for another site, or for a
  * different callback URL.
  */
-export async function consumeSiteAuthCode(event: H3Event, code: string, siteId: string, redirectUri: string) {
-  const db = useDb(event)
+export async function consumeSiteAuthCode(db: Db, code: string, siteId: string, redirectUri: string) {
   const [row] = await db.delete(siteAuthCodes)
     .where(eq(siteAuthCodes.codeHash, await sha256Hex(code)))
     .returning()
@@ -205,7 +206,18 @@ export async function getSiteSession(event: H3Event): Promise<SiteSessionResult 
   // with it, so someone who only ever works in a site's admin isn't signed out of the
   // accounts origin (and so of every site) a week after they last visited it.
   const lastRefresh = new Date(row.session.updatedAt.replace(' ', 'T') + (row.session.updatedAt.includes('T') ? '' : 'Z')).getTime()
-  if (Number.isFinite(lastRefresh) && Date.now() - lastRefresh > SITE_SESSION_REFRESH_MS) {
+  const slide = Number.isFinite(lastRefresh) && Date.now() - lastRefresh > SITE_SESSION_REFRESH_MS
+
+  // In a member pool the sign-in itself lives on the control plane: check it's still valid
+  // (at most once a minute) and slide it there (utils/pool-session.ts).
+  if (isMemberPool()) {
+    const expiresAt = slide ? new Date(Date.now() + SITE_SESSION_TTL_MS).toISOString() : undefined
+    if (!(await parentSessionAlive(event, { parentSessionId: row.session.parentSessionId, userId: row.user.id, extendTo: expiresAt }))) return null
+    if (expiresAt) {
+      await db.update(siteSessions).set({ expiresAt, updatedAt: sql`(datetime('now'))` }).where(eq(siteSessions.id, row.session.id))
+      row.session.expiresAt = expiresAt
+    }
+  } else if (slide) {
     const expiresAt = new Date(Date.now() + SITE_SESSION_TTL_MS).toISOString()
     await db.batch([
       db.update(siteSessions).set({ expiresAt, updatedAt: sql`(datetime('now'))` }).where(eq(siteSessions.id, row.session.id)),
@@ -236,7 +248,8 @@ export async function destroySiteAndParentSession(event: H3Event): Promise<void>
   if (token) {
     const db = useDb(event)
     const row = await db.query.siteSessions.findFirst({ where: eq(siteSessions.tokenHash, await sha256Hex(token)), columns: { parentSessionId: true } })
-    if (row) await db.delete(sessions).where(eq(sessions.id, row.parentSessionId))
+    if (row && isMemberPool()) await endParentSession(event, row.parentSessionId)
+    else if (row) await db.delete(sessions).where(eq(sessions.id, row.parentSessionId))
   }
   await destroySiteSession(event)
 }

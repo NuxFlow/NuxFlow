@@ -161,7 +161,9 @@ export const siteSessions = sqliteTable('site_sessions', {
 export const siteAuthCodes = sqliteTable('site_auth_codes', {
   codeHash: text('code_hash').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  // No FK: on a hosting platform with member pools the site can live in a pool's own D1
+  // (apps/nuxflow/server/utils/pool-sign-in.ts), not in this database. Codes live 60 s.
+  siteId: text('site_id').notNull(),
   parentSessionId: text('parent_session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
   redirectUri: text('redirect_uri').notNull(),
   expiresAt: text('expires_at').notNull(),

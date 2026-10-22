@@ -44,6 +44,18 @@ describe('buildPoolConfig', () => {
     expect(pool.vars).toEqual({ NUXT_PUBLIC_ACCOUNTS_URL: 'https://accounts.nuxflow.cloud', NUXT_ANALYTICS_DATASET: 'nuxflow_analytics', NUXT_POOL_ID: 'clientx' })
   })
 
+  it('connects it back to its control plane for sign-in, without the control plane\'s own pool bindings', () => {
+    const withPools = { ...base, services: [
+      { binding: 'POOL_OTHER', service: 'nuxflow-pool-other', entrypoint: 'NuxflowPoolAdmin' },
+      { binding: 'SEARCH', service: 'search-worker' },
+    ] }
+    expect(buildPoolConfig(withPools, { poolId: 'clientx', databaseId: 'd', kvId: 'k' }).services).toEqual([
+      { binding: 'SEARCH', service: 'search-worker' },
+      { binding: 'CONTROL_PLANE', service: 'nuxflow-cloud', entrypoint: 'NuxflowControlPlane' },
+    ])
+    expect(pool.services).toEqual([{ binding: 'CONTROL_PLANE', service: 'nuxflow-cloud', entrypoint: 'NuxflowControlPlane' }])
+  })
+
   it('leaves it unreachable except through the platform\'s router', () => {
     expect(pool.routes).toBeUndefined()
     expect(pool.env).toBeUndefined()
