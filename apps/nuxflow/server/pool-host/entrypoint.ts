@@ -14,6 +14,8 @@ import { poolJoinSite, poolSiteForAccounts, poolUserSites } from '../utils/accou
 import { poolAccountDeletionCheck, poolDeleteAccount, poolExportUserData } from '../utils/account-data'
 import { poolCreateSite, poolDeleteSite, poolGetSite, poolSetPlans, poolUpdateSite } from '../utils/pool-sites'
 import { poolMonthlyUsage, poolSiteUsage } from '../utils/usage-report'
+import { poolInboundRecipient, poolReceiveEmail } from '../utils/inbound-email'
+import { poolPendingDomains, poolSiteDomains } from '../utils/hosting-domains'
 
 type Input<F> = F extends (event: H3Event, input: infer I) => unknown ? I : never
 
@@ -50,4 +52,8 @@ export class NuxflowPoolAdmin extends WorkerEntrypoint<Record<string, unknown>> 
   getSite(input: Input<typeof poolGetSite>) { return this.run('getSite', e => poolGetSite(e, input)) }
   monthlyUsage(input: Input<typeof poolMonthlyUsage>) { return this.run('monthlyUsage', e => poolMonthlyUsage(e, input)) }
   siteUsage(input: Input<typeof poolSiteUsage>) { return this.run('siteUsage', e => poolSiteUsage(e, input)) }
+  inboundRecipient(input: Input<typeof poolInboundRecipient>) { return this.run('inboundRecipient', e => poolInboundRecipient(e, input)) }
+  receiveEmail(input: Input<typeof poolReceiveEmail>) { return this.run('receiveEmail', e => poolReceiveEmail(e, input)) }
+  siteDomains(input: Input<typeof poolSiteDomains>) { return this.run('siteDomains', e => poolSiteDomains(e, input), input?.siteId) }
+  pendingDomains(input: Input<typeof poolPendingDomains>) { return this.run('pendingDomains', e => poolPendingDomains(e, input)) }
 }

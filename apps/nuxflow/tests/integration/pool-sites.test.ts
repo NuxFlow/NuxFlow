@@ -196,6 +196,7 @@ function fakePool(poolId: string) {
       return { deleted: true, failedMediaDeletes: [] }
     },
     setPlans: async (input: unknown) => { calls.setPlans!.push(input); return { stored: 0 } },
+    siteDomains: async () => ({ ok: true, value: [] }),
   }
   return { stub, calls, state }
 }

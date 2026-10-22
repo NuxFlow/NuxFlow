@@ -5,6 +5,7 @@ import type { Db } from './db'
 import { getCfBindings } from './cf-env'
 import { resolveSetting, saveSetting } from './settings'
 import { CATCH_ALL_LOCAL_PART, INBOUND_HANDLE_SETTING } from './inbound-email'
+import { getPoolId } from './control-plane'
 
 export type EmailMessageRow = typeof emailMessages.$inferSelect
 
@@ -69,20 +70,27 @@ export function isValidMailboxLocalPart(local: string): boolean {
  * The site's handle on the shared platform domain (`<handle>+contact@in.platform.com`),
  * created on first use from the site's domain — `acme.com` → `acme`, with a numeric
  * suffix if another site already has it. Null when no platform domain is configured.
+ *
+ * In a member pool the handle ends in `.<pool id>` (`acme.clientx`): the shared domain's
+ * mail all reaches the control plane, which can tell from that which pool to hand it to,
+ * and handles stay unique across pools, each of which only checks its own.
  */
 export async function ensureInboundHandle(event: H3Event, db: Db, siteId: string): Promise<string | null> {
   const platform = String(useRuntimeConfig().inboundEmailDomain ?? '').trim()
   if (!platform) return null
+  const poolId = getPoolId()
+  const suffix = poolId ? `.${poolId}` : ''
   const existing = await resolveSetting(event, INBOUND_HANDLE_SETTING)
-  if (typeof existing === 'string' && existing) return existing
+  if (typeof existing === 'string' && existing && existing.endsWith(suffix)) return existing
 
   const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } })
-  const base = (site?.domain ?? 'site').replace(/^www\./, '').split('.')[0]!.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30) || 'site'
+  // Shorter in a pool, so `<handle>.<pool id>+<mailbox>` stays a sensible length.
+  const base = (site?.domain ?? 'site').replace(/^www\./, '').split('.')[0]!.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, poolId ? 20 : 30) || 'site'
   // The unique index on handle values (idx_site_settings_inbound_handle) is the real guard: two sites
   // claiming the same free handle at once both pass the lookup, and the loser's insert
   // fails — it just moves on to the next suffix.
   for (let n = 1; n < 1000; n++) {
-    const handle = n === 1 ? base : `${base}${n}`
+    const handle = `${base}${n === 1 ? '' : n}${suffix}`
     const taken = await db.query.siteSettings.findFirst({
       where: and(eq(siteSettings.key, INBOUND_HANDLE_SETTING), eq(siteSettings.value, handle)),
       columns: { id: true },

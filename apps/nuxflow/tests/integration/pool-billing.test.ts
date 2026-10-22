@@ -78,6 +78,7 @@ function fakePool(poolId: string) {
         return { deleted: sitesHere.delete(input.siteId), failedMediaDeletes: [] }
       },
       monthlyUsage: async () => ({ from: '2026-10-01', to: '2026-10-31', sites: [...sitesHere.values()].map(s => ({ ...s, isPrimary: false, usage: { views: 42 }, snapshotDay: null })) }),
+      siteDomains: async () => ({ ok: true, value: [] }),
       siteUsage: async ({ siteId }: { siteId: string }) => sitesHere.has(siteId) ? { site: { id: siteId, name: 'In pool', domain: 'x' }, days: ['2026-10-22'], series: { views: [7] } } : null,
     },
   }
