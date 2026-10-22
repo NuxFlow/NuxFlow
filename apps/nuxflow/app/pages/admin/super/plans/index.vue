@@ -16,11 +16,19 @@ type Plan = {
   priceYearly: number | null
   currency: string
   trialDays: number
+  defaultPoolId: string | null
   stripePriceMonthlyId: string | null
   stripePriceYearlyId: string | null
 } & Record<PlanLimitColumn, number | null> & Record<PlanFeatureColumn, boolean>
 
 const { data, pending, error, refresh } = await useFetch<{ plans: Plan[] }>('/api/v1/admin/plans')
+// Member pools a plan's sign-ups can get their site in (Super Admin → Pools).
+const { data: siteData } = await useFetch<{ pools: string[] }>('/api/v1/admin/sites')
+const HERE = '__control_panel__'
+const poolItems = computed(() => [
+  { label: 'This control panel', value: HERE },
+  ...(siteData.value?.pools ?? []).map(id => ({ label: `Pool: ${id}`, value: id })),
+])
 const plans = computed(() => data.value?.plans ?? [])
 
 const HARD = PLAN_LIMITS.filter(l => l.kind === 'hard')
@@ -66,6 +74,7 @@ const form = reactive({
   priceYearly: '',
   currency: 'gbp',
   trialDays: '0',
+  defaultPool: '__control_panel__',
   // Every limit as text, so an empty box can mean "unlimited".
   limits: {} as Record<PlanLimitColumn, string>,
   // MB or GB, for each limit measured in bytes.
@@ -84,6 +93,7 @@ function openEditor(plan?: Plan) {
   form.priceYearly = plan?.priceYearly != null ? String(plan.priceYearly) : ''
   form.currency = plan?.currency ?? 'gbp'
   form.trialDays = String(plan?.trialDays ?? 0)
+  form.defaultPool = plan?.defaultPoolId ?? HERE
   for (const l of PLAN_LIMITS) {
     const value = plan?.[l.column] ?? null
     if (l.unit === 'bytes') form.units[l.column] = value !== null && value < GB ? 'MB' : 'GB'
@@ -159,6 +169,7 @@ async function savePlan() {
       priceYearly,
       currency: form.currency,
       trialDays,
+      defaultPoolId: form.defaultPool === HERE ? null : form.defaultPool,
       ...limits,
       ...form.features,
     }
@@ -291,6 +302,13 @@ async function deletePlan() {
               </UFormField>
             </div>
             <UCheckbox v-model="form.isPublic" label="Offer on the sign-up page" description="Customers can choose this plan themselves. Untick to keep it for sites you set up by hand." />
+            <UFormField
+              v-if="poolItems.length > 1"
+              label="Sign-ups get their site in"
+              help="Where a customer who signs up on this plan gets their site. If that pool isn't connected, they get it here and you're told."
+            >
+              <USelect v-model="form.defaultPool" :items="poolItems" class="w-full" />
+            </UFormField>
           </div>
 
           <div class="space-y-3">

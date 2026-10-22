@@ -39,6 +39,8 @@ export interface NewPoolSite {
   locale: string
   timezone: string
   template: SiteTemplate
+  /** Optional: a hosting sign-up's plan (the pool must have it — pushPlansToPools first). */
+  hostingPlanId?: string | null
 }
 
 // ── The pool's side ──────────────────────────────────────────────────────────────────
@@ -63,6 +65,9 @@ export async function poolCreateSite(event: H3Event, input: {
 
   // The owner's copy first: the seeded homepage and the role point at it.
   await upsertUserCopy(db, owner)
+  if (site.hostingPlanId && !(await db.query.hostingPlans.findFirst({ where: eq(hostingPlans.id, site.hostingPlanId), columns: { id: true } }))) {
+    throw validationError('That hosting plan isn\'t in this pool yet — send the plans first.')
+  }
   const [inserted] = await db.insert(sites).values({
     id: site.id,
     name: site.name,
@@ -71,6 +76,7 @@ export async function poolCreateSite(event: H3Event, input: {
     timezone: site.timezone,
     status: 'active',
     setupCompleted: true,
+    hostingPlanId: site.hostingPlanId ?? null,
   }).onConflictDoNothing().returning({ id: sites.id })
   const [seeded] = await db.select({ id: contentTypes.id }).from(contentTypes).where(eq(contentTypes.siteId, site.id)).limit(1)
   if (!seeded) await seedNewSite(db, { siteId: site.id, siteName: site.name, authorId: owner.id, template: site.template })
@@ -96,9 +102,24 @@ export async function poolCreateSite(event: H3Event, input: {
   return { created: !!inserted, pending: !claimed }
 }
 
-export async function poolUpdateSite(event: H3Event, input: { protocol: number; siteId: string; changes: SiteChanges; actorUserId: string | null }): Promise<{ updated: boolean }> {
+export async function poolUpdateSite(event: H3Event, input: { protocol: number; siteId: string; changes: SiteChanges; actorUserId: string | null; quiet?: boolean }): Promise<{ updated: boolean }> {
   assertCompatibleProtocol(input.protocol)
-  return { updated: await updateSiteRecord(event, input.siteId, input.changes, input.actorUserId) }
+  return { updated: await updateSiteRecord(event, input.siteId, input.changes, input.actorUserId, { quiet: input.quiet }) }
+}
+
+export interface SiteSummary {
+  id: string
+  name: string
+  domain: string
+  status: string
+  hostingPlanId: string | null
+}
+
+export async function poolGetSite(event: H3Event, input: { protocol: number; siteId: string }): Promise<SiteSummary | null> {
+  assertCompatibleProtocol(input.protocol)
+  const [site] = await useDb(event).select({ id: sites.id, name: sites.name, domain: sites.domain, status: sites.status, hostingPlanId: sites.hostingPlanId })
+    .from(sites).where(eq(sites.id, input.siteId)).limit(1)
+  return site ?? null
 }
 
 export async function poolDeleteSite(event: H3Event, input: { protocol: number; siteId: string; actorUserId: string | null }): Promise<{ deleted: boolean; failedMediaDeletes: string[] }> {
@@ -166,6 +187,68 @@ export async function pushPlansToPools(event: H3Event, onlyBindings?: string[]):
   }
 }
 
+/**
+ * Has a pool create a site for an owner whose account exists here, then routes its
+ * address there — no emails (callers send their own). Used by Super Admin → Sites and by
+ * hosting sign-ups (hosting-billing.ts provisionHostedSite).
+ */
+export async function placeSiteInPool(event: H3Event, input: {
+  poolId: string
+  site: NewPoolSite
+  ownerUserId: string
+  ownerStatus: AccountProvisioningStatus
+  actorUserId: string | null
+}): Promise<{ pending: boolean; owner: PoolSignInUser }> {
+  const stub = poolAdminStub(event, input.poolId)
+  if (!stub) throw validationError(`There's no pool "${input.poolId}" connected to this control panel.`)
+  const [row] = await useDb(event).select({ id: users.id, name: users.name, email: users.email, emailVerified: users.emailVerified, image: users.image })
+    .from(users).where(eq(users.id, input.ownerUserId)).limit(1)
+  if (!row) throw new Error('The owner\'s account wasn\'t found.')
+  const owner = { ...row, image: row.image ?? null }
+
+  // Plans first, so the site can be given one straight away.
+  await pushPlansToPools(event, [poolBindingName(input.poolId)])
+  const { pending } = await callPool(stub.createSite({
+    protocol: POOL_PROTOCOL,
+    site: input.site,
+    owner,
+    ownerStatus: input.ownerStatus,
+    actorUserId: input.actorUserId,
+  }), `pool ${input.poolId}`)
+
+  // The router sends the new address to the pool from now on (within about a minute).
+  await syncSiteDirectory(event)
+  return { pending, owner }
+}
+
+// ── Any site, wherever it lives (hosting billing) ─────────────────────────────────────
+
+/** A site on this control plane or in a member pool, with the pool it's in (null = here). */
+export async function findSite(event: H3Event, siteId: string): Promise<(SiteSummary & { poolId: string | null }) | null> {
+  const [local] = await useDb(event).select({ id: sites.id, name: sites.name, domain: sites.domain, status: sites.status, hostingPlanId: sites.hostingPlanId })
+    .from(sites).where(eq(sites.id, siteId)).limit(1)
+  if (local) return { ...local, poolId: null }
+  const pool = await sitePool(event, siteId)
+  if (!pool) return null
+  const site = await callPool(pool.stub.getSite({ protocol: POOL_PROTOCOL, siteId }), `pool ${pool.poolId}`)
+  return site ? { ...site, poolId: pool.poolId } : null
+}
+
+/**
+ * Changes a site's status or plan wherever it lives, quietly (no "your site was put into
+ * maintenance" notice to its admins — billing emails the owner itself).
+ */
+export async function changeSite(event: H3Event, site: { id: string; poolId: string | null }, changes: Pick<SiteChanges, 'status' | 'hostingPlanId'>): Promise<void> {
+  if (!site.poolId) {
+    await updateSiteRecord(event, site.id, changes, null, { quiet: true })
+    return
+  }
+  const stub = poolAdminStub(event, site.poolId)
+  if (!stub) throw createError({ statusCode: 503, message: `Pool "${site.poolId}" isn't connected to this control panel.` })
+  if (changes.hostingPlanId) await pushPlansToPools(event, [poolBindingName(site.poolId)])
+  await callPool(stub.updateSite({ protocol: POOL_PROTOCOL, siteId: site.id, changes, actorUserId: null, quiet: true }), `pool ${site.poolId}`)
+}
+
 export interface CreateInPoolInput {
   poolId: string
   name: string
@@ -187,23 +270,14 @@ export async function createSiteInPool(event: H3Event, input: CreateInPoolInput,
   const domain = await assertDomainAvailable(db, input.domain, null)
 
   const { userId, status } = await findOrCreateLocalAccount(event, { name: input.owner.name, email: input.owner.email })
-  const [owner] = await db.select({ id: users.id, name: users.name, email: users.email, emailVerified: users.emailVerified, image: users.image })
-    .from(users).where(eq(users.id, userId)).limit(1)
-  if (!owner) throw new Error('The owner\'s account wasn\'t found after creating it.')
-
   const id = ulid()
-  // Plans first, so the site can be given one straight away.
-  await pushPlansToPools(event, [poolBindingName(input.poolId)])
-  const { pending } = await callPool(stub.createSite({
-    protocol: POOL_PROTOCOL,
+  const { pending, owner } = await placeSiteInPool(event, {
+    poolId: input.poolId,
     site: { id, name: input.name, domain, locale: input.locale, timezone: input.timezone, template: 'landing' },
-    owner: { ...owner, image: owner.image ?? null },
+    ownerUserId: userId,
     ownerStatus: status,
     actorUserId,
-  }), `pool ${input.poolId}`)
-
-  // The router sends the new address to the pool from now on (within about a minute).
-  await syncSiteDirectory(event)
+  })
 
   let emailDelivery: EmailDeliveryOutcome
   if (status === 'existing') {

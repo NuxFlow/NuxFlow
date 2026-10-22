@@ -42,19 +42,34 @@ export async function knownUserId(db: Db, userId: string | null): Promise<string
 export async function assertDomainAvailable(db: Db, rawDomain: string, siteId: string | null): Promise<string> {
   const domain = normalizeDomain(rawDomain)
   if (!domain) throw validationError('Enter a valid domain, e.g. example.com')
-  const taken = await db.query.sites.findFirst({ where: eq(sites.domain, domain), columns: { id: true } })
-  if (taken && taken.id !== siteId) throw conflict('Another site already uses that domain')
-  const alias = await db.query.siteDomains.findFirst({ where: eq(siteDomains.hostname, domain), columns: { siteId: true } })
-  if (alias && alias.siteId !== siteId) throw conflict('That domain is already connected to another site')
-  const routed = await db.select({ poolId: siteDirectory.poolId }).from(siteDirectory)
-    .where(siteId ? and(eq(siteDirectory.hostname, domain), ne(siteDirectory.poolSiteId, siteId)) : eq(siteDirectory.hostname, domain))
-    .limit(1)
-  if (routed.length) throw conflict('Another site already uses that domain (in a pool)')
+  const problem = await domainUse(db, domain, siteId)
+  if (problem) throw conflict(problem)
   return domain
 }
 
-/** Applies Super Admin's changes to a site in this database. False when the site isn't here. */
-export async function updateSiteRecord(event: H3Event, siteId: string, changes: SiteChanges, actorUserId: string | null): Promise<boolean> {
+/** Whether an (already normalized) domain is used by any site other than `siteId`, anywhere — hosting sign-ups ask this. */
+export async function domainTaken(db: Db, domain: string, siteId: string | null = null): Promise<boolean> {
+  return (await domainUse(db, domain, siteId)) !== null
+}
+
+async function domainUse(db: Db, domain: string, siteId: string | null): Promise<string | null> {
+  const taken = await db.query.sites.findFirst({ where: eq(sites.domain, domain), columns: { id: true } })
+  if (taken && taken.id !== siteId) return 'Another site already uses that domain'
+  const alias = await db.query.siteDomains.findFirst({ where: eq(siteDomains.hostname, domain), columns: { siteId: true } })
+  if (alias && alias.siteId !== siteId) return 'That domain is already connected to another site'
+  const routed = await db.select({ poolId: siteDirectory.poolId }).from(siteDirectory)
+    .where(siteId ? and(eq(siteDirectory.hostname, domain), ne(siteDirectory.poolSiteId, siteId)) : eq(siteDirectory.hostname, domain))
+    .limit(1)
+  if (routed.length) return 'Another site already uses that domain (in a pool)'
+  return null
+}
+
+/**
+ * Applies Super Admin's changes to a site in this database. False when the site isn't
+ * here. `quiet` skips telling the site's admins about a status change — hosting billing
+ * pausing an unpaid site already emails its owner (hosting-billing.ts).
+ */
+export async function updateSiteRecord(event: H3Event, siteId: string, changes: SiteChanges, actorUserId: string | null, opts: { quiet?: boolean } = {}): Promise<boolean> {
   const db = useDb(event)
   const body = { ...changes }
   const existing = await db.query.sites.findFirst({
@@ -95,7 +110,7 @@ export async function updateSiteRecord(event: H3Event, siteId: string, changes: 
   // tracking the old domain key, since a rename means the old key is now stale too.
   clearSiteCache()
 
-  if (body.status && body.status !== existing.status) {
+  if (body.status && body.status !== existing.status && !opts.quiet) {
     const described = { active: 'reactivated', maintenance: 'put into maintenance mode', suspended: 'suspended by the platform operator' }[body.status]
     waitUntil(event, notifySiteRole(event, {
       siteId,

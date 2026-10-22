@@ -15,6 +15,9 @@ import { seedNewSite, type SiteTemplate } from './site-seeding'
 import { notifySiteRole } from './notify'
 import { sendTemplatedEmail } from './email-template'
 import { clearSiteCache } from '../middleware/02.multi-site'
+import { domainTaken } from './site-admin'
+import { changeSite, findSite, placeSiteInPool } from './pool-sites'
+import { poolAdminStub } from './pools'
 
 /**
  * The hosting platform's shop: a customer picks a plan and a subdomain on the accounts
@@ -115,8 +118,8 @@ export async function checkSubdomain(db: Db, rawName: string, forUserId?: string
   const domain = `${name}.${base}`
   const problem = subdomainProblem(name)
   if (problem) return { available: false, domain, reason: problem }
-  const taken = await db.query.sites.findFirst({ where: eq(sites.domain, domain), columns: { id: true } })
-  if (taken) return { available: false, domain, reason: 'That address is already taken.' }
+  // Any site's address — here or in a member pool (site-admin.ts).
+  if (await domainTaken(db, domain)) return { available: false, domain, reason: 'That address is already taken.' }
   const since = new Date(Date.now() - RESERVATION_MS).toISOString().replace('T', ' ').slice(0, 19)
   const held = await db.select({ ownerUserId: hostingSubscriptions.ownerUserId })
     .from(hostingSubscriptions)
@@ -340,12 +343,17 @@ export async function syncHostingSubscription(ctx: HostingContext, sub: Stripe.S
   let current: HostingSubscription = { ...row, ...update }
 
   if (current.hostedSiteId && planId !== row.planId) {
-    await db.update(sites).set({ hostingPlanId: planId, updatedAt: sql`(datetime('now'))` }).where(eq(sites.id, current.hostedSiteId))
-    await refreshSitesAfterPlanChange(ctx.primaryEvent, [current.hostedSiteId])
+    const site = await findSite(ctx.primaryEvent, current.hostedSiteId)
+    if (site?.poolId) {
+      await changeSite(ctx.primaryEvent, site, { hostingPlanId: planId })
+    } else {
+      await db.update(sites).set({ hostingPlanId: planId, updatedAt: sql`(datetime('now'))` }).where(eq(sites.id, current.hostedSiteId))
+      await refreshSitesAfterPlanChange(ctx.primaryEvent, [current.hostedSiteId])
+    }
   }
 
   if (live) {
-    if (!(await siteExists(db, current.hostedSiteId))) current = await provisionHostedSite(ctx, current)
+    if (!(await siteExists(ctx, current.hostedSiteId))) current = await provisionHostedSite(ctx, current)
     else if (current.pausedForNonPayment) await reopenSite(ctx, current)
   }
   else if (startedFailing) {
@@ -357,9 +365,10 @@ export async function syncHostingSubscription(ctx: HostingContext, sub: Stripe.S
   return current
 }
 
-async function siteExists(db: Db, siteId: string | null): Promise<boolean> {
+/** Here or in a member pool (pool-sites.ts). */
+async function siteExists(ctx: HostingContext, siteId: string | null): Promise<boolean> {
   if (!siteId) return false
-  return !!(await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { id: true } }))
+  return !!(await findSite(ctx.primaryEvent, siteId))
 }
 
 /**
@@ -382,10 +391,51 @@ export async function provisionHostedSite(ctx: HostingContext, row: HostingSubsc
 
   const base = hostingSitesDomain()
   let domain = `${row.requestedSubdomain}.${base}`
-  if (await db.query.sites.findFirst({ where: eq(sites.domain, domain), columns: { id: true } })) {
+  // Taken by another site anywhere — here or in a member pool (this site's own retry is fine).
+  if (await domainTaken(db, domain, siteId)) {
     domain = `${row.requestedSubdomain}-${ulid().slice(-4).toLowerCase()}.${base}`
   }
 
+  // The plan's default pool (pool-sites.ts), when it's connected; otherwise here. A paying
+  // customer always gets a site — a missing pool is the operator's to fix, not theirs.
+  const plan = row.planId ? await db.query.hostingPlans.findFirst({ where: eq(hostingPlans.id, row.planId), columns: { defaultPoolId: true } }) : null
+  const poolId = plan?.defaultPoolId ?? null
+  if (poolId && !poolAdminStub(ctx.primaryEvent, poolId)) {
+    await tellOperator(ctx, `Pool "${poolId}" isn't connected`, `A sign-up on a plan whose default pool is "${poolId}" got its site on this control panel instead, because that pool isn't connected. It can be moved later.`)
+  }
+  if (poolId && poolAdminStub(ctx.primaryEvent, poolId)) {
+    await placeSiteInPool(ctx.primaryEvent, {
+      poolId,
+      site: { id: siteId, name: row.requestedSiteName, domain, locale: 'en', timezone: 'UTC', template: row.template as SiteTemplate, hostingPlanId: row.planId },
+      ownerUserId: row.ownerUserId,
+      // A paying customer, signed in on the accounts origin to sign up — as the local path below.
+      ownerStatus: 'existing',
+      actorUserId: row.ownerUserId,
+    })
+  } else {
+    await createLocalHostedSite(ctx, row, siteId, domain)
+  }
+
+  const owner = await db.query.users.findFirst({ where: eq(users.id, row.ownerUserId), columns: { email: true, name: true } })
+  const adminUrl = `https://${domain}/_nuxflow/auth/start?${new URLSearchParams({ return_to: '/admin' })}`
+  if (owner) {
+    await sendQuietly(ctx, owner.email, `Your site ${row.requestedSiteName} is ready`, {
+      heading: 'Your new site is ready',
+      paragraphs: [
+        `${row.requestedSiteName} is live at ${domain}.`,
+        'Open the admin to choose a design, add your pages, or let the AI draft a first version for you.',
+        'Billing, invoices and your plan are under My hosting in your account, any time.',
+      ],
+      action: { label: 'Open your site', url: adminUrl },
+    })
+  }
+  await tellOperator(ctx, `New site: ${row.requestedSiteName}`, `${owner?.email ?? 'A customer'} signed up and ${domain} was created.`, `https://${domain}`)
+  return { ...row, hostedSiteId: siteId }
+}
+
+/** A hosting sign-up's site on this control plane: the site, its starter content, the owner as admin. */
+async function createLocalHostedSite(ctx: HostingContext, row: HostingSubscription, siteId: string, domain: string): Promise<void> {
+  const { db } = ctx
   await db.insert(sites).values({
     id: siteId,
     name: row.requestedSiteName,
@@ -412,31 +462,20 @@ export async function provisionHostedSite(ctx: HostingContext, row: HostingSubsc
     after: { domain, name: row.requestedSiteName, via: 'hosting_signup', hostingSubscriptionId: row.id },
   })
   clearSiteCache(domain)
-
-  const owner = await db.query.users.findFirst({ where: eq(users.id, row.ownerUserId), columns: { email: true, name: true } })
-  const adminUrl = `https://${domain}/_nuxflow/auth/start?${new URLSearchParams({ return_to: '/admin' })}`
-  if (owner) {
-    await sendQuietly(ctx, owner.email, `Your site ${row.requestedSiteName} is ready`, {
-      heading: 'Your new site is ready',
-      paragraphs: [
-        `${row.requestedSiteName} is live at ${domain}.`,
-        'Open the admin to choose a design, add your pages, or let the AI draft a first version for you.',
-        'Billing, invoices and your plan are under My hosting in your account, any time.',
-      ],
-      action: { label: 'Open your site', url: adminUrl },
-    })
-  }
-  await tellOperator(ctx, `New site: ${row.requestedSiteName}`, `${owner?.email ?? 'A customer'} signed up and ${domain} was created.`, `https://${domain}`)
-  return { ...row, hostedSiteId: siteId }
 }
 
 async function pauseSite(ctx: HostingContext, row: HostingSubscription) {
   const { db } = ctx
-  const site = await db.query.sites.findFirst({ where: eq(sites.id, row.hostedSiteId!), columns: { status: true, domain: true, name: true } })
+  const site = await findSite(ctx.primaryEvent, row.hostedSiteId!)
   if (!site) return
   // A site the operator already put into maintenance or suspended stays as it is, and
   // isn't reopened automatically later.
-  if (site.status === 'active') {
+  if (site.status === 'active' && site.poolId) {
+    // In a member pool: the pool changes it (quietly — the owner gets the email below).
+    await changeSite(ctx.primaryEvent, site, { status: 'maintenance' })
+    await db.update(hostingSubscriptions).set({ pausedForNonPayment: true }).where(eq(hostingSubscriptions.id, row.id))
+  }
+  else if (site.status === 'active') {
     await db.batch([
       db.update(sites).set({ status: 'maintenance', updatedAt: sql`(datetime('now'))` }).where(eq(sites.id, row.hostedSiteId!)),
       db.update(hostingSubscriptions).set({ pausedForNonPayment: true }).where(eq(hostingSubscriptions.id, row.id)),
@@ -464,10 +503,15 @@ async function pauseSite(ctx: HostingContext, row: HostingSubscription) {
 
 async function reopenSite(ctx: HostingContext, row: HostingSubscription) {
   const { db } = ctx
-  const site = await db.query.sites.findFirst({ where: eq(sites.id, row.hostedSiteId!), columns: { status: true, domain: true, name: true } })
+  const site = await findSite(ctx.primaryEvent, row.hostedSiteId!)
   if (!site) return
   const writes = [db.update(hostingSubscriptions).set({ pausedForNonPayment: false }).where(eq(hostingSubscriptions.id, row.id))] as const
-  if (site.status === 'maintenance') {
+  if (site.status === 'maintenance' && site.poolId) {
+    await changeSite(ctx.primaryEvent, site, { status: 'active' })
+    await db.batch(writes)
+    await tellOperator(ctx, `Site reopened: ${site.name}`, `${site.domain} is paid up again and was taken out of maintenance mode.`)
+  }
+  else if (site.status === 'maintenance') {
     await db.batch([...writes, db.update(sites).set({ status: 'active', updatedAt: sql`(datetime('now'))` }).where(eq(sites.id, row.hostedSiteId!))])
     clearSiteCache(site.domain)
     await tellOperator(ctx, `Site reopened: ${site.name}`, `${site.domain} is paid up again and was taken out of maintenance mode.`)
@@ -479,7 +523,7 @@ async function reopenSite(ctx: HostingContext, row: HostingSubscription) {
 
 async function tellPaymentFailing(ctx: HostingContext, row: HostingSubscription) {
   const { db } = ctx
-  const site = row.hostedSiteId ? await db.query.sites.findFirst({ where: eq(sites.id, row.hostedSiteId), columns: { domain: true, name: true } }) : null
+  const site = row.hostedSiteId ? await findSite(ctx.primaryEvent, row.hostedSiteId).catch(() => null) : null
   const label = site ? `${site.name} (${site.domain})` : row.requestedSiteName
   const owner = await db.query.users.findFirst({ where: eq(users.id, row.ownerUserId), columns: { email: true } })
   if (owner) {
@@ -525,7 +569,7 @@ async function tellOperator(ctx: HostingContext, title: string, body: string, pu
 // ── Customer area ────────────────────────────────────────────────────────────
 
 /** A customer's sign-ups with their sites, newest first — the "My hosting" page. */
-export async function listCustomerHosting(db: Db, userId: string) {
+export async function listCustomerHosting(db: Db, userId: string, event?: H3Event) {
   const rows = await db.select({
     sub: hostingSubscriptions,
     site: { id: sites.id, name: sites.name, domain: sites.domain, status: sites.status },
@@ -536,12 +580,21 @@ export async function listCustomerHosting(db: Db, userId: string) {
     .leftJoin(hostingPlans, eq(hostingPlans.id, hostingSubscriptions.planId))
     .where(and(eq(hostingSubscriptions.ownerUserId, userId), or(ne(hostingSubscriptions.status, 'checkout'), isNotNull(hostingSubscriptions.hostedSiteId))))
     .orderBy(sql`${hostingSubscriptions.createdAt} desc`)
+  // A site in a member pool isn't in this database: ask its pool (pool-sites.ts).
+  const inPools = new Map<string, { id: string; name: string; domain: string; status: string }>()
+  if (event) {
+    for (const { sub, site } of rows) {
+      if (!sub.hostedSiteId || site?.id) continue
+      const found = await findSite(event, sub.hostedSiteId).catch(() => null)
+      if (found) inPools.set(sub.hostedSiteId, { id: found.id, name: found.name, domain: found.domain, status: found.status })
+    }
+  }
   return rows.map(({ sub, site, plan }) => ({
     id: sub.id,
     status: sub.status,
     interval: sub.interval,
     plan: plan?.id ? plan : null,
-    site: site?.id ? site : null,
+    site: site?.id ? site : (sub.hostedSiteId && inPools.get(sub.hostedSiteId)) || null,
     requestedSiteName: sub.requestedSiteName,
     currentPeriodEnd: sub.currentPeriodEnd,
     cancelAtPeriodEnd: sub.cancelAtPeriodEnd,

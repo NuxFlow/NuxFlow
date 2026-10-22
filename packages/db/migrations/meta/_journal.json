@@ -99,6 +99,13 @@
       "when": 1792676355048,
       "tag": "0013_site_auth_codes_any_site",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1792687582863,
+      "tag": "0014_plan_default_pool",
+      "breakpoints": true
     }
   ]
 }

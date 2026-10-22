@@ -12,7 +12,8 @@ import { ensureMigrations } from '../middleware/00.migrate'
 import { poolSites, poolStatus, receivePlatformSettings, type PushedSettings } from '../utils/pool-admin'
 import { poolJoinSite, poolSiteForAccounts, poolUserSites } from '../utils/accounts-sites'
 import { poolAccountDeletionCheck, poolDeleteAccount, poolExportUserData } from '../utils/account-data'
-import { poolCreateSite, poolDeleteSite, poolSetPlans, poolUpdateSite } from '../utils/pool-sites'
+import { poolCreateSite, poolDeleteSite, poolGetSite, poolSetPlans, poolUpdateSite } from '../utils/pool-sites'
+import { poolMonthlyUsage, poolSiteUsage } from '../utils/usage-report'
 
 type Input<F> = F extends (event: H3Event, input: infer I) => unknown ? I : never
 
@@ -46,4 +47,7 @@ export class NuxflowPoolAdmin extends WorkerEntrypoint<Record<string, unknown>> 
   updateSite(input: Input<typeof poolUpdateSite>) { return this.run('updateSite', e => poolUpdateSite(e, input)) }
   deleteSite(input: Input<typeof poolDeleteSite>) { return this.run('deleteSite', e => poolDeleteSite(e, input)) }
   setPlans(input: Input<typeof poolSetPlans>) { return this.run('setPlans', e => poolSetPlans(e, input)) }
+  getSite(input: Input<typeof poolGetSite>) { return this.run('getSite', e => poolGetSite(e, input)) }
+  monthlyUsage(input: Input<typeof poolMonthlyUsage>) { return this.run('monthlyUsage', e => poolMonthlyUsage(e, input)) }
+  siteUsage(input: Input<typeof poolSiteUsage>) { return this.run('siteUsage', e => poolSiteUsage(e, input)) }
 }

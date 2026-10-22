@@ -49,6 +49,11 @@ export const hostingPlans = sqliteTable('hosting_plans', {
   stripeProductId: text('stripe_product_id'),
   stripePriceMonthlyId: text('stripe_price_monthly_id'),
   stripePriceYearlyId: text('stripe_price_yearly_id'),
+  /**
+   * The member pool a sign-up on this plan gets its site in (apps/nuxflow/server/utils/
+   * pool-sites.ts); null = the control plane itself. A pool id, not a FK: pools aren't rows.
+   */
+  defaultPoolId: text('default_pool_id'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 })

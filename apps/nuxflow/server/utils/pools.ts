@@ -9,7 +9,8 @@ import { poolBindingName } from '../../shared/lib/pool-id'
 import type { PoolSignInUser } from './pool-sign-in'
 import type { AccountSiteListing, PoolAccountsSite } from './accounts-sites'
 import type { UserData } from './account-data'
-import type { HostingPlanRow, NewPoolSite } from './pool-sites'
+import type { HostingPlanRow, NewPoolSite, SiteSummary } from './pool-sites'
+import type { MonthlySiteUsage, SiteUsageSeries } from './usage-report'
 import type { SiteChanges } from './site-admin'
 import type { AccountProvisioningStatus } from './user-provisioning'
 
@@ -44,7 +45,11 @@ export interface PoolAdminStub {
   exportUserData(input: { protocol: number; userId: string }): Promise<UserData>
   // Super Admin → Sites for a pool's sites, and the plans their limits come from (pool-sites.ts).
   createSite(input: { protocol: number; site: NewPoolSite; owner: PoolSignInUser; ownerStatus: AccountProvisioningStatus; actorUserId: string | null }): Promise<{ created: boolean; pending: boolean }>
-  updateSite(input: { protocol: number; siteId: string; changes: SiteChanges; actorUserId: string | null }): Promise<{ updated: boolean }>
+  updateSite(input: { protocol: number; siteId: string; changes: SiteChanges; actorUserId: string | null; quiet?: boolean }): Promise<{ updated: boolean }>
+  getSite(input: { protocol: number; siteId: string }): Promise<SiteSummary | null>
+  // Super Admin → Usage (usage-report.ts).
+  monthlyUsage(input: { protocol: number; month: string }): Promise<{ from: string; to: string; sites: Omit<MonthlySiteUsage, 'poolId'>[] }>
+  siteUsage(input: { protocol: number; siteId: string; days: number }): Promise<SiteUsageSeries | null>
   deleteSite(input: { protocol: number; siteId: string; actorUserId: string | null }): Promise<{ deleted: boolean; failedMediaDeletes: string[] }>
   setPlans(input: { protocol: number; plans: HostingPlanRow[] }): Promise<{ stored: number }>
 }

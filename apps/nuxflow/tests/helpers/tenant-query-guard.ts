@@ -121,6 +121,11 @@ export const ALLOWLIST: AllowlistEntry[] = [
     tables: ['site_usage_daily'],
     reason: 'Super Admin → Usage: one month of usage for every site (requireSuperAdmin).',
   },
+  {
+    file: 'server/utils/usage-report.ts',
+    tables: ['site_usage_daily'],
+    reason: "Super Admin → Usage's monthly report (usage-report.ts), on the control plane or in a member pool asked by it: every site's month at once.",
+  },
 
   // ── Scheduled jobs that run once for the whole installation ──────────────────────
   {
