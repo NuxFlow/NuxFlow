@@ -8,7 +8,7 @@ import { normalizeDomain } from './domain'
 import { notifySiteRole } from './notify'
 import { waitUntil } from './cf-env'
 import { refreshSitesAfterPlanChange } from './hosting-plans'
-import { clearSiteCache } from '../middleware/02.multi-site'
+import { clearSiteCache } from './site-resolution'
 import { getClientIp } from './client-ip'
 
 /**

@@ -18,7 +18,7 @@ import { findSite } from './pool-sites'
 import { syncSiteDirectory } from './site-directory'
 import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
 import { callPool, poolAdminStub, poolBindings } from './pools'
-import { clearSiteCache } from '../middleware/02.multi-site'
+import { clearSiteCache } from './site-resolution'
 import { getClientIp } from './client-ip'
 
 /**

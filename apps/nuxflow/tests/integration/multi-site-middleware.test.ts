@@ -10,7 +10,8 @@ import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole } from '../helpers/seed'
 import { sites } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
-import multiSiteMiddleware, { clearSiteCache } from '../../server/middleware/02.multi-site'
+import multiSiteMiddleware from '../../server/middleware/02.multi-site'
+import { clearSiteCache } from '../../server/utils/site-resolution'
 import setupStatusHandler from '../../server/api/v1/setup/status.get'
 
 vi.mock('../../server/utils/db', () => ({

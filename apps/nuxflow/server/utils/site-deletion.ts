@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { useDb } from './db'
-import { clearSiteCache } from '../middleware/02.multi-site'
+import { clearSiteCache } from './site-resolution'
 import { deleteStoredMedia } from './media-providers/storage-delete'
 import { writeAuditLog } from './audit'
 import { deletePluginAssets } from './cf-plugin-kv'

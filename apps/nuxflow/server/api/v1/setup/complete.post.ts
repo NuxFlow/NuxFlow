@@ -1,17 +1,23 @@
 import { z } from 'zod'
 import type { H3Event } from 'h3'
-import { sha256Hex } from '../../../utils/buffer'
 import { useDb } from '../../../utils/db'
-import { sites, users, accounts, userSiteRoles, contentTypes, contentItems, taxonomies, siteSettings, auditLogs } from '@nuxflow/db/schema'
+import { auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
-import { count, eq, and, ne } from 'drizzle-orm'
-import { nuxflowPasswordHasher } from '../../../utils/pw'
 import { created } from '../../../utils/response'
 import { rateLimit } from '../../../utils/rate-limit'
 import { isHttpError } from '../../../utils/errors'
-import { clearSiteCache } from '../../../middleware/02.multi-site'
-import { clearSetupStatusCache } from './status.get'
+import { clearSiteCache } from '../../../utils/site-resolution'
+import { clearSetupStatusCache } from '../../../utils/setup-status'
 import { seedNewSite } from '../../../utils/site-seeding'
+import {
+  authenticateSetupAdmin,
+  claimSecondarySite,
+  createSetupAdminAccount,
+  grantSetupRole,
+  isInitialInstall,
+  prepareInitialSite,
+  saveSetupSettings,
+} from '../../../utils/setup-wizard'
 import { requireControlPlane } from '../../../utils/control-plane'
 import { getClientIp } from '../../../utils/client-ip'
 
@@ -32,8 +38,6 @@ const bodySchema = z.object({
   template: z.enum(['landing', 'blog', 'portfolio', 'blank']).default('landing'),
   setupToken: z.string().optional(),
 })
-
-const hashSetupToken = sha256Hex
 
 export default defineEventHandler(async (event) => {
   try {
@@ -67,130 +71,15 @@ async function _handleSetup(event: H3Event) {
 
   // Resolve (and, for an existing account, authenticate) the completing admin BEFORE
   // anything below writes — the secondary-site path burns its one-time token, so a
-  // rejected password must not be able to consume it. An existing account's password is
-  // required rather than trusted by email alone: accounts are global, and granting this
-  // site's top role to whatever account already holds an email would hand it to anyone
-  // who registered that address first.
-  const adminEmail = body.admin.email.toLowerCase()
-  const existingUser = await db.query.users.findFirst({
-    where: eq(users.email, adminEmail),
-    columns: { id: true },
-  })
-  if (existingUser) {
-    const credential = await db.query.accounts.findFirst({
-      where: and(eq(accounts.userId, existingUser.id), eq(accounts.providerId, 'credential')),
-      columns: { password: true },
-    })
-    const passwordOk = Boolean(credential?.password && body.admin.password)
-      && await nuxflowPasswordHasher.verify({ hash: credential!.password!, password: body.admin.password })
-    if (!passwordOk) {
-      throw forbidden('An account with this email already exists. Enter that account\'s current password to continue, or use "Forgot password" on the login page first.')
-    }
-  } else if (!body.admin.name || !body.admin.password || body.admin.password.length < 8) {
-    throw badRequest('A name and password of at least 8 characters are required for new accounts.')
-  }
+  // rejected password must not be able to consume it.
+  const admin = { ...body.admin, email: body.admin.email.toLowerCase() }
+  const existingUserId = await authenticateSetupAdmin(db, admin)
 
-  // Check if we are running initial setup or setting up a pre-created secondary site
-  const [siteCount] = await db.select({ value: count() }).from(sites)
-  const [userCount] = await db.select({ value: count() }).from(users)
-  const isInitialSetup = (siteCount?.value ?? 0) === 0 || (userCount?.value ?? 0) === 0
-
-  let siteId: string
-
-  if (isInitialSetup) {
-    const existingSite = await db.query.sites.findFirst({
-      where: eq(sites.domain, host),
-    })
-
-    if (existingSite) {
-      siteId = existingSite.id
-      // Clear any stale seeded data associated with this site to avoid duplicates/integrity errors
-      // Delete child/referencing tables first to respect foreign key constraints
-      await db.delete(contentItems).where(eq(contentItems.siteId, siteId))
-      await db.delete(contentTypes).where(eq(contentTypes.siteId, siteId))
-      await db.delete(taxonomies).where(eq(taxonomies.siteId, siteId))
-      await db.delete(siteSettings).where(eq(siteSettings.siteId, siteId))
-      await db.delete(userSiteRoles).where(eq(userSiteRoles.siteId, siteId))
-
-      // The first-ever install's site is the operator's own (sites.is_primary). Clear any
-      // stale flag first — the unique index allows only one.
-      await db.update(sites).set({ isPrimary: false }).where(ne(sites.id, siteId))
-      await db.update(sites)
-        .set({
-          name: body.site.name,
-          locale: body.site.locale,
-          timezone: body.site.timezone,
-          status: 'active',
-          setupCompleted: true,
-          isPrimary: true,
-        })
-        .where(eq(sites.id, siteId))
-    } else {
-      siteId = ulid()
-      await db.insert(sites).values({
-        id: siteId,
-        name: body.site.name,
-        domain: host,
-        locale: body.site.locale,
-        timezone: body.site.timezone,
-        status: 'active',
-        setupCompleted: true,
-        // The first-ever install's site is the operator's own (sites.is_primary).
-        isPrimary: !(await db.query.sites.findFirst({ where: eq(sites.isPrimary, true), columns: { id: true } })),
-      })
-    }
-  } else {
-    // Pre-created secondary site — find by the request host (the domain was set when super
-    // admin created the site record, not from the setup form).
-    const site = await db.query.sites.findFirst({
-      where: eq(sites.domain, host),
-    })
-
-    if (!site) {
-      throw notFound(`Site for domain ${host} not found.`)
-    }
-
-    if (site.setupCompleted) {
-      throw conflict('Setup already completed for this site.')
-    }
-
-    // Secondary sites can only be claimed with the one-time token issued when the super
-    // admin created the site record — completing setup grants super_admin, so this must
-    // never be reachable by an unauthenticated request that merely knows the domain.
-    if (!site.setupTokenHash) {
-      throw forbidden('This site has no setup link. Ask a super admin to generate one.')
-    }
-    if (!body.setupToken) {
-      throw forbidden('Invalid or missing setup token.')
-    }
-
-    siteId = site.id
-    const providedTokenHash = await hashSetupToken(body.setupToken)
-
-    // Claim the token and burn it in one atomic, conditional statement — the WHERE clause
-    // re-checks setupTokenHash against the *current* row, not the value read a moment ago.
-    // Two concurrent requests both carrying a valid (e.g. leaked/observed) token would
-    // otherwise both pass the earlier read-based check and both proceed to seed content
-    // and grant super_admin, before either write landed. D1 serialises this single UPDATE,
-    // so only one request's WHERE clause can match — `.returning()` (portable across the
-    // D1 and libSQL/better-sqlite3 drivers, unlike D1's own `.meta.changes`) comes back
-    // empty for the request that lost the race, which is rejected exactly like a token
-    // that was already burned.
-    const claimed = await db.update(sites)
-      .set({
-        name: body.site.name,
-        locale: body.site.locale,
-        timezone: body.site.timezone,
-        setupCompleted: true,
-        setupTokenHash: null,
-      })
-      .where(and(eq(sites.id, siteId), eq(sites.setupTokenHash, providedTokenHash)))
-      .returning({ id: sites.id })
-
-    if (claimed.length === 0) {
-      throw forbidden('Invalid or missing setup token.')
-    }
-  }
+  // Initial setup, or a secondary site pre-created by a super admin
+  const isInitialSetup = await isInitialInstall(db)
+  const siteId = isInitialSetup
+    ? await prepareInitialSite(db, host, body.site)
+    : await claimSecondarySite(db, host, body.site, body.setupToken)
 
   // 02.multi-site.ts caches a "no site for this host" null result for 30s per isolate —
   // if anything (a health check, a crawler, even this Worker's own cold-start) resolved
@@ -202,65 +91,23 @@ async function _handleSetup(event: H3Event) {
   clearSiteCache(host)
   clearSetupStatusCache(host)
 
-  // Seed initial site settings from setup choices
-  await db.insert(siteSettings).values([
-    {
-      id: ulid(),
-      siteId,
-      key: 'email.provider',
-      value: body.email?.provider ?? 'console',
-    },
-    {
-      id: ulid(),
-      siteId,
-      key: 'frontend.show_header',
-      value: false,
-    },
-  ])
+  await saveSetupSettings(db, siteId, body.email?.provider ?? 'console')
 
-  let adminUserId: string
-
-  if (existingUser) {
-    // Already authenticated against its own password above.
-    adminUserId = existingUser.id
-  } else {
-    // Create admin user directly
-    adminUserId = ulid()
-    const passwordHash = await nuxflowPasswordHasher.hash(body.admin.password)
-
-    await db.insert(users).values({
-      id: adminUserId,
-      name: body.admin.name,
-      email: adminEmail,
-      emailVerified: true,
-    })
-
-    await db.insert(accounts).values({
-      id: ulid(),
-      accountId: adminUserId,
-      providerId: 'credential',
-      // Must match Better Auth's own createLocalAccountIssuer('credential') —
-      // sign-in looks accounts up by (issuer, accountId), not providerId.
-      issuer: 'local:credential',
-      userId: adminUserId,
-      password: passwordHash,
-    })
-  }
-
-  const adminUser = { id: adminUserId }
+  // An existing account was already authenticated against its own password above.
+  const adminUserId = existingUserId ?? await createSetupAdminAccount(db, admin)
 
   if (!isInitialSetup) {
     // The secondary-site path has a real actor to attribute this to (the person completing
-    // setup, just resolved above as adminUser.id) — unlike the fresh-install path, which
-    // has no admin account yet and is deliberately left unlogged. writeAuditLog() scopes
-    // to event.context.siteId, which is unset here — /api/v1/setup bypasses
-    // 02.multi-site.ts entirely (see that middleware's early-return for setup/auth
-    // paths) — so this inserts directly, scoped to the site just completed, mirroring the
-    // explicit-siteId pattern admin/sites/index.post.ts uses for the same reason.
+    // setup, just resolved above) — unlike the fresh-install path, which has no admin
+    // account yet and is deliberately left unlogged. writeAuditLog() scopes to
+    // event.context.siteId, which is unset here — /api/v1/setup bypasses 02.multi-site.ts
+    // entirely (see that middleware's early-return for setup/auth paths) — so this
+    // inserts directly, scoped to the site just completed, mirroring the explicit-siteId
+    // pattern admin/sites/index.post.ts uses for the same reason.
     await db.insert(auditLogs).values({
       id: ulid(),
       siteId,
-      userId: adminUser.id,
+      userId: adminUserId,
       action: 'setup_complete',
       resource: 'site',
       resourceId: siteId,
@@ -270,7 +117,7 @@ async function _handleSetup(event: H3Event) {
     })
   }
 
-  await seedNewSite(db, { siteId, siteName: body.site.name, authorId: adminUser.id, template: body.template })
+  await seedNewSite(db, { siteId, siteName: body.site.name, authorId: adminUserId, template: body.template })
 
   // The very first install's owner is the platform operator and gets super_admin.
   // A secondary site is a tenant: its owner gets 'admin' — full control of THIS site
@@ -278,22 +125,7 @@ async function _handleSetup(event: H3Event) {
   // suspension), so handing it to whoever completes a tenant's setup link would give
   // every tenant owner control over every other tenant. An existing super admin can
   // still grant it deliberately via POST /api/v1/users/:id/super-admin.
-  const grantedRole = isInitialSetup ? 'super_admin' : 'admin'
-  const existingRole = await db.query.userSiteRoles.findFirst({
-    where: and(
-      eq(userSiteRoles.userId, adminUser.id),
-      eq(userSiteRoles.siteId, siteId)
-    ),
-  })
-
-  if (!existingRole) {
-    await db.insert(userSiteRoles).values({
-      id: ulid(),
-      userId: adminUser.id,
-      siteId,
-      role: grantedRole,
-    })
-  }
+  await grantSetupRole(db, adminUserId, siteId, isInitialSetup ? 'super_admin' : 'admin')
 
   return created(event, { success: true, siteId })
 }

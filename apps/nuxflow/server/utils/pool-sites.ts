@@ -19,7 +19,7 @@ import { isServedCopy } from './move-state'
 import { sendTemplatedEmail } from './email-template'
 import { emailLogTimestamp, lastEmailOutcome, type EmailDeliveryOutcome } from './email'
 import { eventForSite, getPrimarySite } from './site-info'
-import { clearSiteCache } from '../middleware/02.multi-site'
+import { clearSiteCache } from './site-resolution'
 import { poolBindingName } from '../../shared/lib/pool-id'
 
 /**
