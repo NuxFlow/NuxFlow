@@ -91,6 +91,20 @@ export async function getSiteMove(db: Db, id: string): Promise<SiteMove> {
   return move
 }
 
+/**
+ * Refuses (409) while the site has an unfinished move — including a failed one, which
+ * still has a partial copy to remove, and one being cleaned up, whose old copy is still
+ * in the database it left. Deleting then would remove one copy and orphan the other.
+ */
+export async function assertSiteNotMoving(db: Db, siteId: string): Promise<void> {
+  const [move] = await db.select({ phase: siteMoves.phase }).from(siteMoves)
+    .where(and(eq(siteMoves.movedSiteId, siteId), sql`${siteMoves.phase} not in ('done', 'cancelled')`)).limit(1)
+  if (!move) return
+  conflict(move.phase === 'failed'
+    ? 'This site has a failed move. Cancel it in Super Admin → Sites first, then delete the site.'
+    : 'This site is being moved. Let the move finish (or cancel it) in Super Admin → Sites first, then delete the site.')
+}
+
 /** Recent moves, newest first, for Super Admin → Sites. */
 export async function listSiteMoves(db: Db): Promise<SiteMove[]> {
   return db.select().from(siteMoves).orderBy(desc(siteMoves.createdAt)).limit(20)

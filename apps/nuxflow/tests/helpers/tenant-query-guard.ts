@@ -77,8 +77,8 @@ export const ALLOWLIST: AllowlistEntry[] = [
   },
   {
     file: 'server/utils/site-deletion.ts',
-    tables: ['user_site_roles'],
-    reason: "Finds which of a deleted site's users still belong to other sites, so their accounts are kept.",
+    tables: ['user_site_roles', 'site_invitations'],
+    reason: "Finds which of a deleted site's users still belong to (or are invited to) other sites, so their accounts are kept.",
   },
   {
     file: 'server/api/v1/account/data-export.get.ts',

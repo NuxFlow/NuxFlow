@@ -54,6 +54,8 @@ export interface PoolAdminStub {
   monthlyUsage(input: { protocol: number; month: string }): Promise<{ from: string; to: string; sites: Omit<MonthlySiteUsage, 'poolId'>[] }>
   siteUsage(input: { protocol: number; siteId: string; days: number }): Promise<SiteUsageSeries | null>
   deleteSite(input: { protocol: number; siteId: string; actorUserId: string | null }): Promise<{ deleted: boolean; failedMediaDeletes: string[] }>
+  // Before the control plane deletes a deleted site's accounts (site-deletion.ts): who still belongs to a site here.
+  usersInUse(input: { protocol: number; userIds: string[] }): Promise<{ inUse: string[] }>
   setPlans(input: { protocol: number; plans: HostingPlanRow[] }): Promise<{ stored: number }>
   // Mail for a pool's sites, which Email Routing delivers to the control plane (inbound-email.ts).
   inboundRecipient(input: { protocol: number; to: string }): Promise<{ forwardTo: string | null } | null>
