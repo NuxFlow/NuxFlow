@@ -211,11 +211,7 @@ export default defineEventHandler(async (event) => {
   if (settingEntries.some(([k, v]) => k === 'media.enable_image_transformations' && v === true)
     && !(await resolveBooleanSetting(event, 'media.enable_image_transformations'))
     && !(await planIncludes(db, siteId, 'imageTransformations'))) {
-    throw createError({
-      statusCode: 403,
-      message: 'Image resizing is not included in this site\'s plan.',
-      data: { code: 'plan_feature', feature: 'imageTransformations' },
-    })
+    throw forbidden('Image resizing is not included in this site\'s plan.', { code: 'plan_feature', feature: 'imageTransformations' })
   }
 
   await batchSaveSettings(event, settingEntries)

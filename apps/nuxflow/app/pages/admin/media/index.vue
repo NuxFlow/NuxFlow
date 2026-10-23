@@ -41,7 +41,7 @@ function folderQuery(): Record<string, string> {
   return q
 }
 
-const { data, refresh: refreshMedia } = await useFetch<{ files: MediaFile[] }>('/api/v1/media', {
+const { data, error: mediaError, refresh: refreshMedia } = await useFetch<{ files: MediaFile[] }>('/api/v1/media', {
   query: computed(() => folderQuery()),
   watch: [selectedFolderId],
 })
@@ -308,6 +308,8 @@ function copyUrl(url: string) {
   <div class="space-y-4">
     <AdminMediaFallbackWarning />
 
+    <UAlert v-if="mediaError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="getErrorMessage(mediaError, 'Could not load the media library')" />
+
     <div class="flex items-center justify-between">
       <h1 class="text-xl font-bold text-gray-900 dark:text-white">Media library</h1>
       <div class="flex items-center gap-2">
@@ -407,7 +409,7 @@ function copyUrl(url: string) {
           </UButton>
         </div>
 
-        <div v-else-if="!files.length" class="text-center py-12 text-gray-400">
+        <div v-else-if="!files.length && !mediaError" class="text-center py-12 text-gray-400">
           <UIcon name="i-lucide-image" class="w-10 h-10 mx-auto mb-2 opacity-50" />
           <p class="text-sm">{{ selectedFolderId !== undefined ? 'No files in this folder' : 'No media uploaded yet' }}</p>
         </div>

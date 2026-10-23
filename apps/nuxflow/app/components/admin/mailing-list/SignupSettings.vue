@@ -7,7 +7,7 @@ interface SettingsResponse {
 }
 
 const { run, isRunning, toast } = useAdminAction()
-const { data } = await useFetch<SettingsResponse>('/api/v1/mailing-list/settings')
+const { data, error: loadError } = await useFetch<SettingsResponse>('/api/v1/mailing-list/settings')
 
 const form = reactive<SignupSettings>({ ...DEFAULT_SIGNUP_SETTINGS, ...(data.value?.settings ?? {}) })
 // Edited as one path per line.
@@ -49,6 +49,9 @@ async function save() {
 
 <template>
   <div class="space-y-4">
+    <!-- The form below falls back to defaults; saving them after a failed load would replace the real settings. -->
+    <UAlert v-if="loadError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="getErrorMessage(loadError, 'Could not load the signup settings — reload the page before saving')" />
+
     <UCard>
       <template #header>
         <div class="flex items-center justify-between gap-4">
@@ -170,7 +173,7 @@ async function save() {
     </UCard>
 
     <div class="flex justify-end">
-      <UButton :loading="saving" @click="save">Save changes</UButton>
+      <UButton :loading="saving" :disabled="!!loadError" @click="save">Save changes</UButton>
     </div>
 
     <UModal v-model:open="showImagePicker" title="Choose an image">

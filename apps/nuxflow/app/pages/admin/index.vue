@@ -16,7 +16,7 @@ onMounted(() => {
   greeting.value = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 })
 
-const { data: stats } = await useFetch<{
+const { data: stats, error: statsError } = await useFetch<{
   publishedPages: number
   mediaFiles: number
   newSubmissions: number
@@ -75,6 +75,8 @@ const statCards = computed(() => [
       </h1>
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Here's what's happening on your site.</p>
     </div>
+
+    <UAlert v-if="statsError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="getErrorMessage(statsError, 'Could not load the dashboard numbers')" />
 
     <!-- Covers file storage along with email, domain, SEO, etc. (the media library keeps
          its own storage-only AdminMediaFallbackWarning). -->

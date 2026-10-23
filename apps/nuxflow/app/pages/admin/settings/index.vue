@@ -22,7 +22,7 @@ interface SiteData {
   imageTransformationsAvailable?: boolean
 }
 
-const { data, refresh } = await useFetch<SiteData>('/api/v1/settings')
+const { data, error: loadError, refresh } = await useFetch<SiteData>('/api/v1/settings')
 
 const tabs = [
   { label: 'General', icon: 'i-lucide-settings' },
@@ -225,6 +225,8 @@ watch(data, (d) => {
 // expects: whatever's currently in these reactive objects, regardless of which tab is
 // visible, saves together in one call.
 async function save() {
+  // Every field is sent; after a failed load they're all blank defaults.
+  if (loadError.value) return
   await runSave(async () => {
     const settingsMap: Record<string, unknown> = {
       'email.provider': email.provider,
@@ -304,6 +306,8 @@ async function save() {
 <template>
   <div class="space-y-4">
     <h1 class="text-xl font-bold text-gray-900 dark:text-white">Settings</h1>
+
+    <UAlert v-if="loadError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="getErrorMessage(loadError, 'Could not load your settings — reload the page before saving')" />
 
     <div class="flex gap-6">
       <!-- Sidebar nav -->

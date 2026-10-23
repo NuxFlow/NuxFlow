@@ -20,6 +20,8 @@ export function usePushNotifications() {
   const permission = ref<NotificationPermission>('default')
   const isSubscribed = ref(false)
   const isLoading = ref(false)
+  /** Why the last subscribe/unsubscribe didn't work, for the UI to show; null when it did. */
+  const error = ref<string | null>(null)
 
   if (import.meta.client) {
     permission.value = Notification.permission
@@ -49,13 +51,20 @@ export function usePushNotifications() {
   async function subscribe(): Promise<boolean> {
     if (!isSupported.value || isLoading.value) return false
     isLoading.value = true
+    error.value = null
     try {
       const result = await Notification.requestPermission()
       permission.value = result
-      if (result !== 'granted') return false
+      if (result !== 'granted') {
+        if (result === 'denied') error.value = 'Notifications are blocked for this site in your browser settings.'
+        return false
+      }
 
       const { publicKey } = await $fetch<{ publicKey: string | null }>('/api/v1/push/vapid-public-key')
-      if (!publicKey) return false
+      if (!publicKey) {
+        error.value = "Push notifications aren't set up on this site yet."
+        return false
+      }
 
       const applicationServerKey = fromBase64Url(publicKey)
       const reg = await ensureServiceWorker()
@@ -85,6 +94,7 @@ export function usePushNotifications() {
       return true
     } catch (err) {
       console.error('[push] Subscribe failed:', err)
+      error.value = getErrorMessage(err, "Couldn't turn on notifications. Please try again.")
       return false
     } finally {
       isLoading.value = false
@@ -94,6 +104,7 @@ export function usePushNotifications() {
   async function unsubscribe(): Promise<void> {
     if (!isSupported.value || isLoading.value) return
     isLoading.value = true
+    error.value = null
     try {
       const sub = await currentSubscription()
 
@@ -108,10 +119,11 @@ export function usePushNotifications() {
       isSubscribed.value = false
     } catch (err) {
       console.error('[push] Unsubscribe failed:', err)
+      error.value = getErrorMessage(err, "Couldn't turn off notifications. Please try again.")
     } finally {
       isLoading.value = false
     }
   }
 
-  return { isSupported, permission, isSubscribed, isLoading, subscribe, unsubscribe, refreshStatus }
+  return { isSupported, permission, isSubscribed, isLoading, error, subscribe, unsubscribe, refreshStatus }
 }

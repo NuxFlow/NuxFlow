@@ -9,10 +9,10 @@ import { getSeoSettings } from '../utils/seo'
  */
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId
-  if (!siteId) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  if (!siteId) throw notFound()
 
   const seo = await getSeoSettings(useDb(event), siteId)
-  if (!seo.indexnowEnabled || !seo.indexnowKey) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  if (!seo.indexnowEnabled || !seo.indexnowKey) throw notFound()
 
   setHeader(event, 'Content-Type', 'text/plain; charset=UTF-8')
   setHeader(event, 'Cache-Control', 'public, max-age=300')

@@ -3,6 +3,8 @@ import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedVideoAsset } from '../helpers/seed'
+import { auditLogs, videoAssets } from '@nuxflow/db/schema'
+import { and, eq } from 'drizzle-orm'
 import listHandler from '../../server/api/v1/media/video/index.get'
 import registerHandler from '../../server/api/v1/media/video/index.post'
 import getHandler from '../../server/api/v1/media/video/[id].get'
@@ -492,7 +494,7 @@ describe('DELETE /api/v1/media/video/:id', () => {
     ).rejects.toMatchObject({ statusCode: 404 })
   })
 
-  it('deletes the video from DB without CF config', async () => {
+  it('deletes the video from DB without CF config, recording the Stream video left behind', async () => {
     const id = await seedVideoAsset(getCurrentTestDb(), SITE, { title: 'To Delete' })
     const result = await (deleteHandler as HandlerFn)(
       mkEvent({ params: { id } }),
@@ -504,34 +506,77 @@ describe('DELETE /api/v1/media/video/:id', () => {
     await expect(
       (getHandler as HandlerFn)(mkEvent({ params: { id } })),
     ).rejects.toMatchObject({ statusCode: 404 })
+
+    const log = await getCurrentTestDb().query.auditLogs.findFirst({
+      where: and(eq(auditLogs.siteId, SITE), eq(auditLogs.resource, 'video_assets'), eq(auditLogs.resourceId, id)),
+    })
+    expect(log?.before).toMatchObject({ orphanedOn: 'stream' })
   })
 
-  it('deletes from DB even when CF Stream deletion fails gracefully', async () => {
-    const id = await seedVideoAsset(getCurrentTestDb(), SITE, {
-      title: 'CF Fail Delete',
-      cloudflareStreamId: 'ffffffffffffffffffffffffffffffff',
-    })
-
+  async function withStreamConfig(mockFetch: ReturnType<typeof vi.fn>, fn: () => Promise<void>) {
     const originalConfig = globalThis.useRuntimeConfig
     globalThis.useRuntimeConfig = () => ({
       ...originalConfig(),
       cloudflareAccountId: 'acct-del',
       cloudflareStreamToken: 'tok-del',
     })
-
-    const mockFetch = vi.fn().mockResolvedValue({ ok: false, text: async () => 'CF Error' })
     vi.stubGlobal('fetch', mockFetch)
-
     try {
-      const result = await (deleteHandler as HandlerFn)(
-        mkEvent({ params: { id } }),
-      )
-
-      expect(result).toBeNull()
+      await fn()
     } finally {
       globalThis.useRuntimeConfig = originalConfig
       vi.unstubAllGlobals()
     }
+  }
+
+  it('keeps the row and returns 502 when Cloudflare Stream refuses the delete', async () => {
+    const id = await seedVideoAsset(getCurrentTestDb(), SITE, {
+      title: 'CF Fail Delete',
+      cloudflareStreamId: 'ffffffffffffffffffffffffffffffff',
+    })
+    const mockFetch = vi.fn().mockResolvedValue({ ok: false, status: 403, text: async () => 'CF Error' })
+
+    await withStreamConfig(mockFetch, async () => {
+      await expect(
+        (deleteHandler as HandlerFn)(mkEvent({ params: { id } })),
+      ).rejects.toMatchObject({ statusCode: 502 })
+    })
+
+    const row = await getCurrentTestDb().query.videoAssets.findFirst({ where: eq(videoAssets.id, id) })
+    expect(row).toBeDefined()
+  })
+
+  it('keeps the row and returns 502 when Cloudflare Stream is unreachable', async () => {
+    const id = await seedVideoAsset(getCurrentTestDb(), SITE, {
+      title: 'CF Down Delete',
+      cloudflareStreamId: 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    })
+    const mockFetch = vi.fn().mockRejectedValue(new Error('network down'))
+
+    await withStreamConfig(mockFetch, async () => {
+      await expect(
+        (deleteHandler as HandlerFn)(mkEvent({ params: { id } })),
+      ).rejects.toMatchObject({ statusCode: 502 })
+    })
+
+    const row = await getCurrentTestDb().query.videoAssets.findFirst({ where: eq(videoAssets.id, id) })
+    expect(row).toBeDefined()
+  })
+
+  it('deletes the row when Stream says the video is already gone (404)', async () => {
+    const id = await seedVideoAsset(getCurrentTestDb(), SITE, {
+      title: 'CF Gone Delete',
+      cloudflareStreamId: 'dddddddddddddddddddddddddddddddd',
+    })
+    const mockFetch = vi.fn().mockResolvedValue({ ok: false, status: 404, text: async () => 'Not found' })
+
+    await withStreamConfig(mockFetch, async () => {
+      const result = await (deleteHandler as HandlerFn)(mkEvent({ params: { id } }))
+      expect(result).toBeNull()
+    })
+
+    const row = await getCurrentTestDb().query.videoAssets.findFirst({ where: eq(videoAssets.id, id) })
+    expect(row).toBeUndefined()
   })
 })
 

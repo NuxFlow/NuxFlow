@@ -6,6 +6,7 @@ import { withEdgeCache } from '../../utils/edge-cache'
 import { parsePagination } from '../../utils/pagination'
 import { getPublicItemsForTerms, listPublicItems, resolvePublicTermFilter } from '../../utils/taxonomy'
 import { requireSiteId } from '../../utils/site-context'
+import { parseQuery } from '../../utils/validate'
 
 const CACHE_MAX_AGE = 300
 
@@ -22,11 +23,8 @@ export default defineEventHandler(async (event) => {
   // one is enabled (see the "D1 read replication" note on useReplicaDb in server/utils/db.ts).
   const db = useReplicaDb(event)
   const siteId = requireSiteId(event)
-  const rawQuery = getQuery(event)
-  const { page, perPage: limit, offset } = parsePagination(rawQuery, 10, 50)
-  const parsed = querySchema.safeParse(rawQuery)
-  if (!parsed.success) validationError('Validation error', parsed.error.flatten())
-  const query = parsed.data
+  const { page, perPage: limit, offset } = parsePagination(getQuery(event), 10, 50)
+  const query = parseQuery(event, querySchema)
 
   // Cached at the edge (Cloudflare Cache API) — content writes purge the unparameterized
   // URL; filtered/paginated variants ride out this short TTL.

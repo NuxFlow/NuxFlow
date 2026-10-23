@@ -29,11 +29,11 @@ export default defineEventHandler(async (event) => {
   // Tenant isolation: a site's domain only ever serves that site's own objects, and no
   // path-traversal-shaped key is ever handed to the bucket.
   if (!siteId || !key || !key.startsWith(`${siteId}/`) || key.split('/').some(seg => seg === '' || seg === '.' || seg === '..')) {
-    throw notFound('Not found')
+    throw notFound()
   }
 
   const { r2 } = getCfBindings(event)
-  if (!r2) throw notFound('Not found')
+  if (!r2) throw notFound()
 
   const requestHeaders = new Headers()
   for (const [name, value] of Object.entries(getHeaders(event))) {
@@ -43,7 +43,7 @@ export default defineEventHandler(async (event) => {
   // onlyIf honours If-None-Match/If-Modified-Since (a failed precondition returns the
   // object without a body → 304); range honours Range for audio/video seeking.
   const object = await r2.get(key, { onlyIf: requestHeaders, range: requestHeaders })
-  if (!object) throw notFound('Not found')
+  if (!object) throw notFound()
 
   const headers = new Headers()
   object.writeHttpMetadata(headers)

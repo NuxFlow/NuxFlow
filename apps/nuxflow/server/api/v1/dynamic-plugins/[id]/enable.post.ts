@@ -31,11 +31,7 @@ export default defineEventHandler(async (event) => {
   const requested = parseCapabilitiesText(plugin.capabilities).permissions
   const approved = [...new Set(body?.approvedPermissions ?? [])].sort()
   if (!samePermissions(requested, approved)) {
-    throw createError({
-      statusCode: 409,
-      message: 'Review this plugin’s permissions before enabling it — the approved list must match what the plugin asks for.',
-      data: { code: 'permissions_mismatch', requested },
-    })
+    throw conflict('Review this plugin’s permissions before enabling it — the approved list must match what the plugin asks for.', { code: 'permissions_mismatch', requested })
   }
 
   const update = db.update(dynamicPlugins)

@@ -5,7 +5,7 @@ import { beginSiteSignIn, safeReturnPath } from '../../../utils/site-auth'
 // come back to, bind this browser with a `state` cookie, and go to the accounts origin.
 export default defineEventHandler((event) => {
   const siteId = event.context.siteId
-  if (!siteId) throw createError({ statusCode: 404, statusMessage: 'Unknown site' })
+  if (!siteId) throw notFound('Unknown site')
   const query = getQuery(event)
   const returnTo = safeReturnPath(query.return_to)
 

@@ -1,3 +1,5 @@
+import { badRequest } from './response'
+
 /**
  * Parses the Central Directory of a ZIP archive in memory (without decompressing the files)
  * to validate file path traversals (Zip Slip) and total uncompressed size (Zip Bomb).
@@ -23,10 +25,7 @@ export function validateZipArchive(
   }
 
   if (eocdOffset === -1) {
-    throw createError({
-      statusCode: 400,
-      message: 'Invalid zip file: EOCD record not found',
-    })
+    throw badRequest('Invalid zip file: EOCD record not found')
   }
 
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
@@ -39,10 +38,7 @@ export function validateZipArchive(
   const cdOffset = view.getUint32(eocdOffset + 16, true)
 
   if (cdOffset + cdSize > len) {
-    throw createError({
-      statusCode: 400,
-      message: 'Invalid zip file: central directory out of bounds',
-    })
+    throw badRequest('Invalid zip file: central directory out of bounds')
   }
 
   let currentOffset = cdOffset
@@ -52,18 +48,12 @@ export function validateZipArchive(
   // 2. Iterate through each Central Directory entry
   for (let r = 0; r < totalRecords; r++) {
     if (currentOffset + 46 > len) {
-      throw createError({
-        statusCode: 400,
-        message: 'Invalid zip file: truncated central directory header',
-      })
+      throw badRequest('Invalid zip file: truncated central directory header')
     }
 
     const sig = view.getUint32(currentOffset, true)
     if (sig !== 0x02014B50) {
-      throw createError({
-        statusCode: 400,
-        message: `Invalid zip file: incorrect central directory signature at offset ${currentOffset}`,
-      })
+      throw badRequest(`Invalid zip file: incorrect central directory signature at offset ${currentOffset}`)
     }
 
     const uncompressedSize = view.getUint32(currentOffset + 24, true)
@@ -73,10 +63,7 @@ export function validateZipArchive(
 
     const recordSize = 46 + nameLen + extraLen + commentLen
     if (currentOffset + recordSize > len) {
-      throw createError({
-        statusCode: 400,
-        message: 'Invalid zip file: central directory record out of bounds',
-      })
+      throw badRequest('Invalid zip file: central directory record out of bounds')
     }
 
     // Extract filename and check for path traversal
@@ -89,10 +76,7 @@ export function validateZipArchive(
       fileName.startsWith('\\') ||
       /^[a-z]:/i.test(fileName) // Block Windows drive letters (e.g. C:)
     ) {
-      throw createError({
-        statusCode: 400,
-        message: `Directory traversal detected in zip entry: ${fileName}`,
-      })
+      throw badRequest(`Directory traversal detected in zip entry: ${fileName}`)
     }
 
     totalUncompressedSize += uncompressedSize

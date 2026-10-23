@@ -30,7 +30,7 @@ const toDate = computed(() => {
   return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`
 })
 
-const { data } = await useFetch<{ items: CalendarItem[] }>(
+const { data, error } = await useFetch<{ items: CalendarItem[] }>(
   () => `/api/v1/content/calendar?from=${fromDate.value}&to=${toDate.value}`,
 )
 
@@ -100,6 +100,8 @@ const statusClass: Record<string, string> = {
         <UButton icon="i-lucide-chevron-right" size="sm" variant="ghost" aria-label="Next month" @click="nextMonth" />
       </div>
     </div>
+
+    <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-circle-alert" class="mb-6" :description="getErrorMessage(error, 'Could not load the calendar')" />
 
     <!-- Day-of-week headers -->
     <div class="grid grid-cols-7 gap-1 mb-1">

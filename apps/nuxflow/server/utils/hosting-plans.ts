@@ -8,6 +8,7 @@ import { pendingUsage, type UsageEventMetric } from './usage'
 import { isHostingPlatform } from './hosting-platform'
 import { bumpCacheVersion } from './cache-version'
 import { utcDay } from './utc-day'
+import { forbidden } from './response'
 
 /**
  * Hosting plans: what the operator sells a site, and the limits that come with it
@@ -203,11 +204,7 @@ export async function assertWithinPlan(event: H3Event, key: PlanLimitKey, amount
   if (planLimit(key).kind !== 'hard') return
   const check = await checkPlanLimit(useDb(event), siteId, key, amount)
   if (check.allowed) return
-  throw createError({
-    statusCode: 403,
-    message: planLimitMessage(key, check.max ?? 0),
-    data: { code: 'plan_limit', limit: key, used: check.used, max: check.max },
-  })
+  throw forbidden(planLimitMessage(key, check.max ?? 0), { code: 'plan_limit', limit: key, used: check.used, max: check.max })
 }
 
 /** Every limit on the site's plan with current usage — for the site owner's usage card. */

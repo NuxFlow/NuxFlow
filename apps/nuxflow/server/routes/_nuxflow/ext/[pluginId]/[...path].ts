@@ -78,7 +78,7 @@ export default defineEventHandler(async (event) => {
   const pluginPath = url.pathname.replace(/^\/_nuxflow\/ext\/[^/]+/, '') || '/'
   // Reserved for NuxFlow's own calls (event hooks) — a visitor can't forge a hook delivery.
   if (pluginPath === RESERVED_PLUGIN_PATH_PREFIX || pluginPath.startsWith(`${RESERVED_PLUGIN_PATH_PREFIX}/`)) {
-    throw notFound('Not found')
+    throw notFound()
   }
   const forwardUrl = new URL(pluginPath + (url.search || ''), 'https://plugin.internal')
 

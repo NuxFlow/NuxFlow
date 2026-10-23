@@ -18,16 +18,16 @@ export function badRequest(message = 'Bad request', data?: unknown): never {
   throw createError({ statusCode: 400, message, data })
 }
 
-export function notFound(message = 'Not found'): never {
-  throw createError({ statusCode: 404, message })
+export function notFound(message = 'Not found', data?: unknown): never {
+  throw createError({ statusCode: 404, message, data })
 }
 
-export function unauthorized(message = 'Unauthorized'): never {
-  throw createError({ statusCode: 401, message })
+export function unauthorized(message = 'Unauthorized', data?: unknown): never {
+  throw createError({ statusCode: 401, message, data })
 }
 
-export function forbidden(message = 'Forbidden'): never {
-  throw createError({ statusCode: 403, message })
+export function forbidden(message = 'Forbidden', data?: unknown): never {
+  throw createError({ statusCode: 403, message, data })
 }
 
 export function conflict(message = 'Conflict', data?: unknown): never {

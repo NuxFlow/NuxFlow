@@ -49,12 +49,12 @@ export default defineEventHandler((event) => {
     if (path === '/') return sendRedirect(event, '/account', 302)
     if (path === '/api/v1/account' && event.method === 'DELETE') return
     if (isAccountsPage(path) || ACCOUNTS_API_PREFIXES.some(p => path === p.replace(/\/$/, '') || path.startsWith(p))) return
-    throw createError({ statusCode: 404, statusMessage: 'Not found' })
+    throw notFound()
   }
 
   // A site's own domain.
   if (path.startsWith('/api/auth/') || path === '/api/auth') {
-    throw createError({ statusCode: 404, statusMessage: 'Sign-in happens on the accounts site' })
+    throw notFound('Sign-in happens on the accounts site')
   }
   if (event.method !== 'GET') return
   const query = url.search

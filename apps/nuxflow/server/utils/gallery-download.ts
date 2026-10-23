@@ -93,13 +93,13 @@ export async function prepareGalleryDownload(event: H3Event, siteId: string, pat
   const slugPath = path.replace(/^\/+|\/+$/g, '') || 'home'
   const { locale, slug } = await parseLocalePath(db, siteId, slugPath)
   const page = await findPublishedPage(db, siteId, slug || 'home', locale)
-  if (!page) throw notFound('Not found')
+  if (!page) throw notFound()
 
   const gate = await checkContentAccess(event, { id: page.id, sourceItemId: page.sourceItemId, visibility: page.visibility, settings: page.settings as Record<string, unknown> | null }, siteId)
-  if (gate?.blocked) throw notFound('Not found')
+  if (gate?.blocked) throw notFound()
 
   const block = findGalleryBlock(page.content, blockId)
-  if (!block || block.props?.allowDownload !== true) throw notFound('Not found')
+  if (!block || block.props?.allowDownload !== true) throw notFound()
 
   const urls = galleryImageUrls(block)
   const linkUrls = [...new Set(urls.filter(u => !u.startsWith('data:')))]
