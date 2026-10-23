@@ -10,7 +10,7 @@ const isNew = computed(() => id.value === 'new')
 // browser session cookie, so requireUserSession(event) throws and Nuxt marks the
 // key as "handled" (with null data), silently preventing any client-side re-fetch.
 // Skipping the server fetch entirely lets the client always fetch with its cookie.
-const { data: item, refresh } = await useAsyncData(
+const { data: item, error: loadError, refresh } = await useAsyncData(
   `content-${id.value}`,
   () => isNew.value ? Promise.resolve(null) : $fetch<{
     title: string; slug: string; status: string; scheduledAt?: string
@@ -177,7 +177,11 @@ watch(form, () => {
 // triggered mid-keystroke doesn't otherwise ship stale content.
 const canvasEditorRef = ref<{ flushPendingProps?: () => void } | null>(null)
 
+// Not useAdminAction(): autosave reports its state inline next to the back button
+// (saving / saved at / the error), not as a toast every 10 seconds.
 async function save(overrideStatus?: string) {
+  // An item that didn't load leaves the form empty; never save that over it.
+  if (!isNew.value && !item.value) return
   if (editorMode.value === 'canvas') {
     canvasEditorRef.value?.flushPendingProps?.()
     await nextTick()
@@ -271,6 +275,15 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
 
 <template>
   <div class="max-w-7xl mx-auto space-y-4">
+    <UAlert
+      v-if="loadError"
+      color="error"
+      variant="soft"
+      icon="i-lucide-circle-alert"
+      title="This item didn't load"
+      :description="getErrorMessage(loadError, 'Could not load this item')"
+      :actions="[{ label: 'Try again', color: 'error', variant: 'outline', onClick: () => refresh() }]"
+    />
     <UAlert
       v-if="!canEdit"
       color="warning"

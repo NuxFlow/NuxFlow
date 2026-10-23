@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   // Off when the site opts out, or when it blocks every AI crawler — offering an
   // AI-specific index while telling AI crawlers to stay away would be contradictory.
   if (!seo.llmsEnabled || seo.aiCrawlers === 'disallow') {
-    throw createError({ statusCode: 404, statusMessage: 'Not found' })
+    throw notFound()
   }
 
   setHeader(event, 'Content-Type', 'text/plain; charset=UTF-8')

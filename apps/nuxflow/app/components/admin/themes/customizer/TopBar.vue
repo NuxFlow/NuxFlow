@@ -3,6 +3,8 @@ defineProps<{
   hasChanges: boolean
   saving: boolean
   customizerThemeId: string | null
+  /** The saved state didn't load — publishing would overwrite it with defaults. */
+  loadFailed?: boolean
   onSave: () => Promise<void> | void
 }>()
 
@@ -63,7 +65,7 @@ const deviceOptions = [
         size="sm"
         icon="i-lucide-upload-cloud"
         :loading="saving"
-        :disabled="!hasChanges && !!customizerThemeId"
+        :disabled="loadFailed || (!hasChanges && !!customizerThemeId)"
         @click="onSave"
       >
         Publish

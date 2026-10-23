@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
   // Check redirects first
   const redirect = await findRedirect(db, siteId, `/${slug}`)
   if (redirect) {
-    if (redirect.statusCode === 410) throw createError({ statusCode: 410, statusMessage: 'Gone' })
+    if (redirect.statusCode === 410) throw createError({ statusCode: 410, message: 'Gone' })
     return sendRedirect(event, redirect.to, redirect.statusCode)
   }
 
@@ -50,7 +50,7 @@ export default defineEventHandler(async (event) => {
 
   const page = await findPublishedPage(db, siteId, actualSlug, requestedLocale)
 
-  if (!page) throw notFound('Not found')
+  if (!page) throw notFound()
 
   const gate = await checkContentAccess(event, { id: page.id, sourceItemId: page.sourceItemId, visibility: page.visibility, settings: page.settings as Record<string, unknown> | null }, siteId)
   // Password-protected page (client gallery): 401 with just enough to render the password
@@ -58,10 +58,7 @@ export default defineEventHandler(async (event) => {
   if (gate?.blocked && gate.reason === 'password') {
     setHeader(event, 'Cache-Control', 'private, no-store')
     setHeader(event, 'X-Robots-Tag', 'noindex, nofollow')
-    throw createError({
-      statusCode: 401,
-      data: { passwordRequired: true, title: page.title },
-    })
+    throw unauthorized('This page is password protected', { passwordRequired: true, title: page.title })
   }
   if (gate?.blocked) {
     throw createError({

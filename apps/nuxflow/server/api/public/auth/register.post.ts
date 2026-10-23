@@ -14,7 +14,7 @@ const bodySchema = z.object({
 // never taken on a site's domain (see utils/accounts-origin.ts) — registration happens on
 // the accounts origin via POST /api/accounts/register instead.
 export default defineEventHandler(async (event) => {
-  if (isTenantHostInCentralMode(event)) throw createError({ statusCode: 404, statusMessage: 'Register on the accounts site' })
+  if (isTenantHostInCentralMode(event)) throw notFound('Register on the accounts site')
   // Same 5/hour-per-IP limit as the accounts-origin route: this is an unauthenticated
   // account-creation door and would otherwise be an unthrottled enumeration oracle.
   await rateLimit(event, { limit: 5, windowMs: 60 * 60_000, keyPrefix: 'public-register' })

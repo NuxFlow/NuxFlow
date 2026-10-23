@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { getSiteSession } from './site-auth'
 import { accountsUrl, isTenantHostInCentralMode } from './accounts-origin'
+import { forbidden, unauthorized } from './response'
 
 // The single source of truth for server-side session validation.
 //
@@ -12,7 +13,7 @@ import { accountsUrl, isTenantHostInCentralMode } from './accounts-origin'
 export async function requireSession(event: H3Event) {
   const session = await getAuthSession(event)
   if (!session) {
-    throw createError({ statusCode: 401, statusMessage: 'Authentication required' })
+    throw unauthorized('Authentication required')
   }
   return session
 }
@@ -53,11 +54,7 @@ export function hasBetterAuthSessionCookie(event: H3Event): boolean {
  */
 export async function requireAccountSession(event: H3Event) {
   if (isTenantHostInCentralMode(event)) {
-    throw createError({
-      statusCode: 403,
-      statusMessage: 'Account settings are managed on the accounts site',
-      data: { accountsUrl: accountsUrl('/account') },
-    })
+    throw forbidden('Account settings are managed on the accounts site', { accountsUrl: accountsUrl('/account') })
   }
   return requireSession(event)
 }

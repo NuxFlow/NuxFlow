@@ -7,7 +7,7 @@ import { destroySiteAndParentSession } from '../../../utils/site-auth'
 // meaningful under central sign-in; a same-origin install signs out through Better Auth's
 // own /api/auth/sign-out.
 export default defineEventHandler(async (event) => {
-  if (!isTenantHostInCentralMode(event)) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  if (!isTenantHostInCentralMode(event)) throw notFound()
   await destroySiteAndParentSession(event)
   return { success: true }
 })

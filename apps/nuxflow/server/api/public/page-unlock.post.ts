@@ -26,10 +26,10 @@ export default defineEventHandler(async (event) => {
   const slugPath = body.path.replace(/^\/+|\/+$/g, '')
   const { locale, slug } = await parseLocalePath(db, siteId, slugPath)
   const page = await findPublishedPage(db, siteId, slug, locale)
-  if (!page || page.visibility !== 'password') throw notFound('Not found')
+  if (!page || page.visibility !== 'password') throw notFound()
 
   const ok = await unlockPage(event, siteId, page, body.password)
-  if (!ok) throw createError({ statusCode: 401, message: 'That password isn\'t right' })
+  if (!ok) throw unauthorized('That password isn\'t right')
 
   setHeader(event, 'Cache-Control', 'no-store')
   return { ok: true }

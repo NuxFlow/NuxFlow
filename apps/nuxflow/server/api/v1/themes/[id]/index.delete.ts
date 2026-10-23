@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { writeAuditLog } from '../../../../utils/audit'
@@ -11,55 +12,63 @@ import { scopedById } from '../../../../utils/db-helpers'
 import type { NuxFlowBackup } from '../../../../utils/backup'
 import { purgeAllPublicPages } from '../../../../utils/edge-cache'
 import { requireSiteId } from '../../../../utils/site-context'
+import { parseQuery } from '../../../../utils/validate'
+
+const querySchema = z.object({
+  deleteDemo: z.enum(['true', 'false']).optional().transform(v => v === 'true'),
+})
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
-  const query = getQuery(event)
-  const deleteDemo = query.deleteDemo === 'true'
+  const { deleteDemo } = parseQuery(event, querySchema)
 
   const theme = await getThemeByIdOrThrow(db, siteId, id, 'Theme not found', { id: true, hasCss: true, isActive: true })
   if (!theme.hasCss) throw badRequest('Only CSS themes can be deleted. Bundled themes are removed by redeploying without the package.')
 
   if (deleteDemo) {
     const demoJson = await getThemeDemo(event, siteId, id)
+    // Only a corrupt demo file is skipped (there's nothing to match against). A failed
+    // delete must surface: the theme is still there, so the admin can retry.
+    let backup: NuxFlowBackup | null = null
     if (demoJson) {
       try {
-        const backup = JSON.parse(demoJson) as NuxFlowBackup
-
-        // 1. Delete imported pages by slug
-        if (backup.content?.length) {
-          const slugs = backup.content.map(c => c.slug).filter(Boolean)
-          if (slugs.length) {
-            await db.delete(contentItems).where(
-              and(eq(contentItems.siteId, siteId), inArray(contentItems.slug, slugs))
-            )
-          }
+        backup = JSON.parse(demoJson) as NuxFlowBackup
+      } catch (err) {
+        console.warn(`[themes] Demo content for theme ${id} is not valid JSON — skipping its removal:`, err)
+      }
+    }
+    if (backup) {
+      // 1. Delete imported pages by slug
+      if (backup.content?.length) {
+        const slugs = backup.content.map(c => c.slug).filter(Boolean)
+        if (slugs.length) {
+          await db.delete(contentItems).where(
+            and(eq(contentItems.siteId, siteId), inArray(contentItems.slug, slugs))
+          )
         }
+      }
 
-        // 2. Delete imported menus by name
-        if (backup.menus?.length) {
-          const names = backup.menus.map(m => m.name).filter(Boolean)
-          if (names.length) {
-            await db.delete(menus).where(
-              and(eq(menus.siteId, siteId), inArray(menus.name, names))
-            )
-          }
+      // 2. Delete imported menus by name
+      if (backup.menus?.length) {
+        const names = backup.menus.map(m => m.name).filter(Boolean)
+        if (names.length) {
+          await db.delete(menus).where(
+            and(eq(menus.siteId, siteId), inArray(menus.name, names))
+          )
         }
+      }
 
-        // 3. Delete imported forms by slug
-        if (backup.forms?.length) {
-          const slugs = backup.forms.map(f => f.slug).filter(Boolean)
-          if (slugs.length) {
-            await db.delete(forms).where(
-              and(eq(forms.siteId, siteId), inArray(forms.slug, slugs))
-            )
-          }
+      // 3. Delete imported forms by slug
+      if (backup.forms?.length) {
+        const slugs = backup.forms.map(f => f.slug).filter(Boolean)
+        if (slugs.length) {
+          await db.delete(forms).where(
+            and(eq(forms.siteId, siteId), inArray(forms.slug, slugs))
+          )
         }
-      } catch {
-        // ignore JSON parse or query execution errors on corrupted demo JSON
       }
     }
   }

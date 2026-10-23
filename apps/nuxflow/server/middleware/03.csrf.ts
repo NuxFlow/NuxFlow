@@ -6,6 +6,6 @@ import { isCrossOriginUnsafeRequest } from '../utils/csrf'
 export default defineEventHandler((event) => {
   if (!event.path.startsWith('/api/')) return
   if (isCrossOriginUnsafeRequest(event)) {
-    throw createError({ statusCode: 403, message: 'Cross-origin request blocked' })
+    throw forbidden('Cross-origin request blocked')
   }
 })

@@ -158,16 +158,16 @@ globalThis.badRequest = (message = 'Bad request', data?: unknown) => {
   throw globalThis.createError({ statusCode: 400, message, data })
 }
 
-globalThis.notFound = (message = 'Not found') => {
-  throw globalThis.createError({ statusCode: 404, message })
+globalThis.notFound = (message = 'Not found', data?: unknown) => {
+  throw globalThis.createError({ statusCode: 404, message, data })
 }
 
-globalThis.unauthorized = (message = 'Unauthorized') => {
-  throw globalThis.createError({ statusCode: 401, message })
+globalThis.unauthorized = (message = 'Unauthorized', data?: unknown) => {
+  throw globalThis.createError({ statusCode: 401, message, data })
 }
 
-globalThis.forbidden = (message = 'Forbidden') => {
-  throw globalThis.createError({ statusCode: 403, message })
+globalThis.forbidden = (message = 'Forbidden', data?: unknown) => {
+  throw globalThis.createError({ statusCode: 403, message, data })
 }
 
 globalThis.conflict = (message = 'Conflict', data?: unknown) => {

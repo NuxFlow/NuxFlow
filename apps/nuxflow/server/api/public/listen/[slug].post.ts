@@ -47,10 +47,10 @@ export default defineEventHandler(async (event) => {
 
   // Canvas pages are a block layout, not prose — there's no single "article text" to read.
   const isCanvas = (item.content as { type?: string } | null)?.type === 'canvas'
-  if (isCanvas) throw createError({ statusCode: 422, message: 'This page has no readable article text.' })
+  if (isCanvas) throw validationError('This page has no readable article text.')
 
   const text = extractPlainText(item.content).slice(0, MAX_TEXT_LENGTH)
-  if (!text) throw createError({ statusCode: 422, message: 'This page has no readable article text.' })
+  if (!text) throw validationError('This page has no readable article text.')
 
   const workersai = createWorkersAI({ binding: ai })
   // Workers AI, so platform-paid; charged by length (speech has no tokens). Visitors set

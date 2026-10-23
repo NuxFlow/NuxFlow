@@ -47,7 +47,7 @@ export default defineEventHandler(async (event) => {
   // let anyone pre-register an email address before its real owner was invited — the
   // invite would then attach its role to the attacker-controlled account.
   if (pathname === '/api/auth/sign-up/email') {
-    throw createError({ statusCode: 404, message: 'Not found' })
+    throw notFound()
   }
 
   const limitOpts = AUTH_RATE_LIMITS[pathname]

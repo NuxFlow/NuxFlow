@@ -32,7 +32,7 @@ interface SettingsData {
   settings: Record<string, unknown>
 }
 
-const { data: settingsData, refresh: refreshSettings } = await useFetch<SettingsData>('/api/v1/settings', {
+const { data: settingsData, error: loadError, refresh: refreshSettings } = await useFetch<SettingsData>('/api/v1/settings', {
   immediate: isAdmin.value,
 })
 
@@ -43,6 +43,8 @@ watch(settingsData, (d) => {
 
 const saving = computed(() => isRunning('save'))
 async function save() {
+  // The form holds defaults until the settings load — saving those would overwrite every SEO setting.
+  if (loadError.value) return
   await run(async () => {
     await $fetch<unknown>('/api/v1/settings', { method: 'PATCH', body: { settings: seoFormToSettings(form) } })
     await refreshSettings()
@@ -61,6 +63,8 @@ provide(SEO_FORM_KEY, {
 <template>
   <div class="space-y-4">
     <h1 class="text-xl font-bold text-gray-900 dark:text-white">SEO</h1>
+
+    <UAlert v-if="loadError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="getErrorMessage(loadError, 'Could not load the SEO settings — reload the page before saving')" />
 
     <div class="flex flex-col md:flex-row gap-6">
       <!-- Sidebar nav -->

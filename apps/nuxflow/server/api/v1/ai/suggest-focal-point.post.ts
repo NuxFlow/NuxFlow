@@ -47,7 +47,7 @@ export default defineEventHandler(async (event) => {
       })
   if (!file) throw notFound('This image isn\'t in the media library — focal points can only be suggested for library images')
   if (!file.mimeType.startsWith('image/')) {
-    throw createError({ statusCode: 422, message: 'Focal point suggestion only applies to images' })
+    throw validationError('Focal point suggestion only applies to images')
   }
 
   const { data, mediaType } = await callAiOrThrow(() => loadImageBytesForAi(event, file.url, file.mimeType))

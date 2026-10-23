@@ -4,7 +4,7 @@ import { resolveStringSetting } from '../../../../utils/settings'
 import { videoAssets } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
-import { created } from '../../../../utils/response'
+import { created, forbidden } from '../../../../utils/response'
 import { parseBody } from '../../../../utils/validate'
 import { z } from 'zod'
 import { requireSiteId } from '../../../../utils/site-context'
@@ -92,7 +92,7 @@ export default defineEventHandler(async (event) => {
   // whose recorded siteId doesn't match this request's site — including uploads made
   // before this check existed, whose meta has no siteId at all.
   if (res.meta?.siteId !== siteId) {
-    throw createError({ statusCode: 403, message: 'This upload does not belong to the current site.' })
+    throw forbidden('This upload does not belong to the current site.')
   }
   if (!title && res.meta?.name) title = res.meta.name
   const duration = res.duration ? Math.round(res.duration) : null

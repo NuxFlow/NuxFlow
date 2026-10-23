@@ -28,7 +28,7 @@ function signInFailed(event: H3Event, reason: string, returnTo: string): string 
 // account on this site. The code is exchanged server-side and deleted as it's read.
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId
-  if (!siteId) throw createError({ statusCode: 404, statusMessage: 'Unknown site' })
+  if (!siteId) throw notFound('Unknown site')
 
   const query = getQuery(event)
   const saved = readSiteSignInState(event)
@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
   if (!code || query.state !== saved.state) return signInFailed(event, 'state does not match this browser', returnTo)
 
   const site = await getSiteInfo(event, siteId)
-  if (!site) throw createError({ statusCode: 404, statusMessage: 'Unknown site' })
+  if (!site) throw notFound('Unknown site')
 
   // In a member pool the code was issued by — and is used up on — the control plane
   // (utils/pool-session.ts); everywhere else it's in this database.

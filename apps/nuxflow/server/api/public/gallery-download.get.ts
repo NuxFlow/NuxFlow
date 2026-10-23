@@ -43,7 +43,7 @@ export default defineEventHandler(async (event) => {
   if (single) {
     const file = files[query.index!]
     const body = file ? await openGalleryFile(event, siteId, file) : null
-    if (!file || !body) throw notFound('Not found')
+    if (!file || !body) throw notFound()
     setHeader(event, 'Content-Type', file.mimeType || 'application/octet-stream')
     setHeader(event, 'Content-Disposition', contentDisposition(file.name))
     if (file.size) setHeader(event, 'Content-Length', file.size)
@@ -51,7 +51,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // ── Whole gallery as a zip ──────────────────────────────────────────────────
-  if (!files.length) throw notFound('Not found')
+  if (!files.length) throw notFound()
   if (files.length > MAX_GALLERY_ZIP_FILES) {
     throw createError({ statusCode: 413, message: `Galleries over ${MAX_GALLERY_ZIP_FILES} photos can't be downloaded in one go.` })
   }

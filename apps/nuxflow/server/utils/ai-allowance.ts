@@ -9,6 +9,7 @@ import { countUsage, pendingUsage } from './usage'
 import { getPrimarySite } from './site-info'
 import { getPlatformSetting } from './control-plane'
 import { utcDay } from './utc-day'
+import { forbidden } from './response'
 
 /**
  * AI the platform pays for, and how much of it a site may use.
@@ -160,13 +161,9 @@ export class AiAllowanceError extends Error {
 export async function assertAiAllowance(event: H3Event, credits = 1, trigger: AiTrigger = 'team'): Promise<void> {
   const check = await checkAiAllowance(event, credits, trigger)
   if (check.allowed) return
-  throw createError({
-    statusCode: 403,
-    message: aiAllowanceMessage(check),
-    data: check.reason === 'plan'
-      ? { code: 'plan_limit', limit: check.plan.key, used: check.plan.used, max: check.plan.max }
-      : { code: 'platform_ai_cap', used: check.used, max: check.max },
-  })
+  throw forbidden(aiAllowanceMessage(check), check.reason === 'plan'
+    ? { code: 'plan_limit', limit: check.plan.key, used: check.plan.used, max: check.plan.max }
+    : { code: 'platform_ai_cap', used: check.used, max: check.max })
 }
 
 /**

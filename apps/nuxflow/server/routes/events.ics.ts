@@ -7,7 +7,7 @@ import { withEdgeCache } from '../utils/edge-cache'
 
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId
-  if (!siteId) throw createError({ statusCode: 404 })
+  if (!siteId) throw notFound()
 
   setHeader(event, 'Content-Type', 'text/calendar; charset=utf-8')
   setHeader(event, 'Cache-Control', 'public, max-age=3600')
@@ -27,7 +27,7 @@ async function buildEventsIcs(event: H3Event, siteId: string) {
     }),
     getContentTypeBySlug(db, siteId, 'event', { id: true }),
   ])
-  if (!site) throw createError({ statusCode: 404 })
+  if (!site) throw notFound()
 
   if (!type) {
     return `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//NuxFlow//NuxFlow Events//EN\r\nEND:VCALENDAR\r\n`

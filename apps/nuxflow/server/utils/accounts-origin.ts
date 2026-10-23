@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { isMemberPool } from './control-plane'
+import { notFound } from './response'
 
 /**
  * Where people sign in.
@@ -59,7 +60,7 @@ export function isAccountsHost(event: H3Event): boolean {
 
 /** 404 unless this request arrived on the accounts origin — for routes that exist only there. */
 export function requireAccountsHost(event: H3Event): void {
-  if (!isAccountsHost(event)) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  if (!isAccountsHost(event)) throw notFound()
 }
 
 /**

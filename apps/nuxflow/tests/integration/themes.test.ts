@@ -326,6 +326,30 @@ describe('DELETE /api/v1/themes/:id', () => {
     })
     expect(remaining).toBeUndefined()
   })
+
+  it('still deletes the theme when its demo file is not valid JSON', async () => {
+    const id = await seedTheme({ hasCss: true })
+    getThemeDemoMock.mockResolvedValueOnce('{ not json')
+
+    await (deleteHandler as Handler)(adminEvent({ params: { id }, query: { deleteDemo: 'true' } }))
+
+    const row = await getCurrentTestDb().query.themes.findFirst({ where: eq(themes.id, id) })
+    expect(row).toBeUndefined()
+  })
+
+  it('surfaces a failure while removing demo content and keeps the theme for a retry', async () => {
+    const id = await seedTheme({ hasCss: true })
+    // Parses, but `content` isn't a list — removing it throws. This used to be swallowed,
+    // reporting success with the demo content still in place.
+    getThemeDemoMock.mockResolvedValueOnce(JSON.stringify({ ...MINIMAL_BACKUP, content: 'oops' }))
+
+    await expect(
+      (deleteHandler as Handler)(adminEvent({ params: { id }, query: { deleteDemo: 'true' } })),
+    ).rejects.toThrow()
+
+    const row = await getCurrentTestDb().query.themes.findFirst({ where: eq(themes.id, id) })
+    expect(row).toBeDefined()
+  })
 })
 
 describe('POST /api/v1/themes/:id/preview', () => {

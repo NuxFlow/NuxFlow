@@ -7,6 +7,7 @@ import { paginate, countRows } from '@nuxflow/db/queries'
 import { contentItems, contentTaxonomyTerms, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq, desc, gt, inArray } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
+import { parseQuery } from '../../../utils/validate'
 
 // updatedAfter round-trips contentItems.updatedAt, which is always written as SQLite's
 // datetime('now') — space-separated "YYYY-MM-DD HH:MM:SS", not ISO-8601 — so an offline/
@@ -31,15 +32,11 @@ const querySchema = z.object({
 export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = requireSiteId(event)
-  // Parsed once and reused for both schema validation and pagination — the Zod schema
-  // only covers the fields this route branches on (type/status/locale/updatedAfter) and
-  // strips unrecognized keys, so page/limit are read from this same raw object via
-  // parsePagination, which already has its own lenient Number()-coercion + default/clamp
-  // logic and doesn't need Zod validation on top of it.
-  const rawQuery = getQuery(event)
-  const parsed = querySchema.safeParse(rawQuery)
-  if (!parsed.success) validationError('Validation error', parsed.error.flatten())
-  const query = parsed.data
+  // The Zod schema only covers the fields this route branches on (type/status/locale/
+  // updatedAfter) and strips unrecognized keys, so page/limit are read from the raw query
+  // via parsePagination, which already has its own lenient Number()-coercion + default/
+  // clamp logic and doesn't need Zod validation on top of it.
+  const query = parseQuery(event, querySchema)
   const typeSlug = query.type || 'page'
 
   // A caller may only see non-published content (or filter by status at all) if they
@@ -89,7 +86,7 @@ export default defineEventHandler(async (event) => {
   // Delta sync clients (updatedAfter) rely on getting every changed row back
   // in one response, so pagination — and the total count that goes with it —
   // only applies to the normal listing case.
-  const { page, limit, offset } = parsePagination(rawQuery, 50)
+  const { page, limit, offset } = parsePagination(getQuery(event), 50)
   const where = and(...conditions)
   const columns = {
     id: true, title: true, slug: true, status: true, publishedAt: true, updatedAt: true, authorId: true, version: true, locale: true, sourceItemId: true,

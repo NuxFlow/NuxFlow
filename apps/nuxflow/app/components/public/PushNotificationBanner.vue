@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { user } = useUserSession()
-const { isSupported, isSubscribed, isLoading, subscribe, refreshStatus } = usePushNotifications()
+const { isSupported, isSubscribed, isLoading, error: pushError, subscribe, refreshStatus } = usePushNotifications()
 
 // Cookie persists the "maybe later" dismissal for 30 days
 const dismissed = useCookie('nuxflow_push_dismissed', { maxAge: 60 * 60 * 24 * 30 })
@@ -47,6 +47,7 @@ function dismiss() {
         <UIcon name="i-lucide-bell" class="w-5 h-5 text-primary-500 shrink-0" />
         <p class="flex-1 text-sm text-gray-600 dark:text-gray-400 min-w-0">
           Stay up to date — enable browser notifications to get alerts when new content is published.
+          <span v-if="pushError" class="block text-red-500 mt-1">{{ pushError }}</span>
         </p>
         <div class="flex gap-2 shrink-0">
           <UButton size="sm" variant="outline" :disabled="isLoading" @click="dismiss">Maybe later</UButton>

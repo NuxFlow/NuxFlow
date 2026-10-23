@@ -45,7 +45,7 @@ const selectedId = computed<string | null>(() => (typeof route.query.message ===
 const access = await fetchAdminAccess()
 const isAdmin = computed(() => roleAtLeast(access?.role, 'admin') || !!access?.isSuperAdmin)
 
-const { data, pending, refresh } = await useFetch<{ messages: InboxMessage[]; total: number; unread: number; limit: number }>('/api/v1/inbox', {
+const { data, pending, error, refresh } = await useFetch<{ messages: InboxMessage[]; total: number; unread: number; limit: number }>('/api/v1/inbox', {
   query: computed(() => ({ folder: folder.value, category: category.value, q: debouncedSearch.value || undefined, page: page.value })),
   watch: [folder, category, debouncedSearch, page],
   default: () => ({ messages: [], total: 0, unread: 0, limit: 50 }),
@@ -112,6 +112,8 @@ const totalPages = computed(() => Math.max(1, Math.ceil(data.value.total / data.
       </div>
       <UButton v-if="isAdmin" to="/admin/inbox/mailboxes" variant="outline" icon="i-lucide-at-sign">Addresses</UButton>
     </div>
+
+    <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-circle-alert" :description="getErrorMessage(error, 'Could not load the inbox')" />
 
     <UAlert
       v-if="noMailboxes"

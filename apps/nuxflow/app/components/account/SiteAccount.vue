@@ -2,7 +2,7 @@
 // This site's side of "My account": membership, notifications and post-by-email for the
 // site you're on. The account's own sign-in settings are at the bottom — on a site's
 // own domain under central sign-in, only a link to the accounts origin (see useAccounts).
-const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe, refreshStatus } = usePushNotifications()
+const { isSupported, isSubscribed, isLoading, error: pushError, subscribe, unsubscribe, refreshStatus } = usePushNotifications()
 const vapidConfigured = ref(false)
 
 onMounted(async () => {
@@ -268,6 +268,7 @@ async function cancelSubscription() {
               <template v-else-if="isSubscribed">You'll receive notifications even when not on this site.</template>
               <template v-else>Get notified about new content and updates.</template>
             </p>
+            <p v-if="pushError" class="text-xs text-red-500 mt-1">{{ pushError }}</p>
           </div>
           <USwitch
             :model-value="isSubscribed"

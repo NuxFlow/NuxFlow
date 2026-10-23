@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
   const siteId = requireSiteId(event)
   const seo = await getSeoSettings(useReplicaDb(event), siteId)
   if (!seo.llmsEnabled || seo.aiCrawlers === 'disallow') {
-    throw createError({ statusCode: 404, statusMessage: 'Not found' })
+    throw notFound()
   }
 
   setHeader(event, 'Content-Type', 'text/plain; charset=UTF-8')

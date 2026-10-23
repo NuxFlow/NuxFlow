@@ -173,7 +173,7 @@ const saving = computed(() => isRunning('save'))
 
 // ── Load saved customizer state ───────────────────────────────────────────────
 
-const { data: customizerData } = await useFetch<{ values: CustomizerValues; customizerThemeId: string | null }>(
+const { data: customizerData, error: loadError } = await useFetch<{ values: CustomizerValues; customizerThemeId: string | null }>(
   '/api/v1/themes/customizer',
 )
 
@@ -197,6 +197,7 @@ const hasChanges = computed(() => JSON.stringify(values) !== JSON.stringify(save
 // ── Save ──────────────────────────────────────────────────────────────────────
 
 async function save() {
+  if (loadError.value) return
   await run(async () => {
     const result = await $fetch<{ themeId: string }>('/api/v1/themes/customizer', {
       method: 'POST',
@@ -215,8 +216,11 @@ async function save() {
       :has-changes="hasChanges"
       :saving="saving"
       :customizer-theme-id="customizerThemeId"
+      :load-failed="!!loadError"
       :on-save="save"
     />
+
+    <UAlert v-if="loadError" color="error" variant="soft" icon="i-lucide-circle-alert" class="rounded-none" :description="getErrorMessage(loadError, 'Could not load your saved customizer settings — reload the page before publishing, or these defaults will replace them')" />
 
     <div class="flex flex-1 overflow-hidden">
       <AdminThemesCustomizerControlsPanel v-model:values="values" />

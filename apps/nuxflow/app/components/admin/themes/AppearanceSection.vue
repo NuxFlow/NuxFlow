@@ -6,7 +6,7 @@ interface SettingsData {
   settings: Record<string, unknown>
 }
 
-const { data: settingsData, refresh: refreshSettings } = await useFetch<SettingsData>('/api/v1/settings')
+const { data: settingsData, error: loadError, refresh: refreshSettings } = await useFetch<SettingsData>('/api/v1/settings')
 
 const appearance = reactive({
   darkMode: 'auto' as 'auto' | 'light' | 'dark',
@@ -113,6 +113,9 @@ const swatches = [
         <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Controls the visual style applied across your site</p>
       </template>
 
+      <!-- Saving after a failed load would write these defaults over the real values. -->
+      <UAlert v-if="loadError" color="error" variant="soft" icon="i-lucide-circle-alert" class="mb-5" :description="getErrorMessage(loadError, 'Could not load the current appearance settings — reload the page before saving')" />
+
       <div class="space-y-5">
         <UFormField label="Colour scheme">
           <USelect v-model="appearance.darkMode" :items="darkModeOptions" class="w-full max-w-xs" />
@@ -152,7 +155,7 @@ const swatches = [
 
       <template #footer>
         <div class="flex justify-end">
-          <UButton :loading="savingAppearance" @click="saveAppearance">Save appearance</UButton>
+          <UButton :loading="savingAppearance" :disabled="!!loadError" @click="saveAppearance">Save appearance</UButton>
         </div>
       </template>
     </UCard>
