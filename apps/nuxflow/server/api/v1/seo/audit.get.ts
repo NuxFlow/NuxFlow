@@ -1,10 +1,11 @@
-import { contentItems, contentTypes, sites } from '@nuxflow/db/schema'
+import { contentItems, contentTypes } from '@nuxflow/db/schema'
 import { and, desc, eq } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { getSeoSettings, publicPathForItem, robotsSaysNoindex } from '../../../utils/seo'
 import { buildSeoAudit, type AuditItemInput } from '../../../utils/seo-audit'
 import { requireSiteId } from '../../../utils/site-context'
+import { getSiteInfo } from '../../../utils/site-info'
 
 // Newest published items checked per run — enough for any realistic editorial backlog
 // while keeping one request's D1 read bounded (content bodies are never selected).
@@ -21,7 +22,7 @@ export default defineEventHandler(async (event) => {
 
   const [seo, site, types, rows] = await Promise.all([
     getSeoSettings(db, siteId),
-    db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true } }),
+    getSiteInfo(event, siteId),
     db.query.contentTypes.findMany({ where: eq(contentTypes.siteId, siteId), columns: { id: true, slug: true, singularName: true } }),
     db.query.contentItems.findMany({
       where: and(eq(contentItems.siteId, siteId), eq(contentItems.status, 'published')),

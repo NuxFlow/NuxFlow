@@ -1,10 +1,9 @@
 import { z } from 'zod'
 import { pendingInvitationInsert } from '../../../utils/invitations'
 import { useDb } from '../../../utils/db'
-import { userSiteRoles, sites } from '@nuxflow/db/schema'
+import { userSiteRoles } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { ASSIGNABLE_ROLES } from '@nuxflow/db/roles'
-import { eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { sendTemplatedEmail } from '../../../utils/email-template'
@@ -14,6 +13,7 @@ import { created } from '../../../utils/response'
 import { findOrCreateUserAccount, sendSetPasswordEmail } from '../../../utils/user-provisioning'
 import { clearCachedRole } from '../../../utils/role-cache'
 import { assertWithinPlan, limitForRole } from '../../../utils/hosting-plans'
+import { getSiteInfo } from '../../../utils/site-info'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -94,7 +94,7 @@ export default defineEventHandler(async (event) => {
   else {
     // Existing user already has working credentials for their account — being
     // added to this site just needs a pointer to sign in.
-    const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { name: true, domain: true } })
+    const site = await getSiteInfo(event, siteId)
     const siteName = site?.name ?? 'NuxFlow'
     await sendTemplatedEmail(event, {
       to: body.email,

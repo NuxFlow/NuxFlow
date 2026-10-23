@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { generateObject } from 'ai'
-import { contentItems, sites } from '@nuxflow/db/schema'
+import { contentItems } from '@nuxflow/db/schema'
 import { and, desc, eq } from 'drizzle-orm'
 import { requireRole } from '../../../utils/permissions'
 import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
@@ -10,6 +10,7 @@ import { getContentItemOrThrow } from '../../../utils/content-queries'
 import { contentToMarkdown } from '../../../utils/markdown'
 import { clampToWords } from '../../../utils/seo'
 import { requireSiteId } from '../../../utils/site-context'
+import { getSiteInfo } from '../../../utils/site-info'
 
 const bodySchema = z.object({
   title: z.string().max(300).default(''),
@@ -47,7 +48,7 @@ export default defineEventHandler(async (event) => {
 
   if (input.scope === 'site') {
     const [site, recent] = await Promise.all([
-      db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { name: true } }),
+      getSiteInfo(event, siteId),
       db.query.contentItems.findMany({
         where: and(eq(contentItems.siteId, siteId), eq(contentItems.status, 'published'), eq(contentItems.visibility, 'public')),
         orderBy: [desc(contentItems.publishedAt)],

@@ -12,8 +12,9 @@ import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedContentType, seedContentItem } from '../helpers/seed'
-import { contentItems, auditLogs } from '@nuxflow/db/schema'
+import { contentItems, auditLogs, taxonomies } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { ulid } from 'ulid'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -154,6 +155,14 @@ describe('POST /api/v1/ai/translate', () => {
     const src = await seedContentItem(db, SITE, typeId, { slug: 'pricing', title: 'Pricing' })
     await seedContentItem(db, SITE, typeId, { slug: 'pricing-it', title: 'Unrelated page' })
     await expect((translateHandler as Handler)(ev(editorId, { contentItemId: src, targetLocale: 'it' }))).rejects.toMatchObject({ statusCode: 409 })
+    expect(mockGenerateObject).not.toHaveBeenCalled()
+  })
+
+  it('409s before calling the model when the translation slug is a taxonomy overview URL', async () => {
+    const db = getCurrentTestDb()
+    const src = await seedContentItem(db, SITE, typeId, { slug: 'regions', title: 'Regions' })
+    await db.insert(taxonomies).values({ id: ulid(), siteId: SITE, slug: 'regions-fr', name: 'Régions' })
+    await expect((translateHandler as Handler)(ev(editorId, { contentItemId: src, targetLocale: 'fr' }))).rejects.toMatchObject({ statusCode: 409 })
     expect(mockGenerateObject).not.toHaveBeenCalled()
   })
 

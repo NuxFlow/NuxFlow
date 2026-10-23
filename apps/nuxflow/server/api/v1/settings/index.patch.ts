@@ -111,8 +111,9 @@ export default defineEventHandler(async (event) => {
     await db.update(sites)
       .set({ ...siteUpdate, updatedAt: sql`(datetime('now'))` })
       .where(eq(sites.id, siteId))
-    // Domain/status are cached per host for site resolution.
-    if (siteUpdate.domain || siteUpdate.status) clearSiteCache()
+    // Domain/status are cached per host for site resolution, and name/domain/locale/status
+    // by id in getSiteInfo() — both cleared by clearSiteCache().
+    if (siteUpdate.name || siteUpdate.domain || siteUpdate.locale || siteUpdate.status) clearSiteCache()
   }
 
   // Collected across all sections below and written as a single atomic db.batch() at

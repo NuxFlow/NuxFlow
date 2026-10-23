@@ -376,4 +376,23 @@ describe('MCP taxonomy tools', () => {
     const bad = await callTool('set_content_terms', { id: item, terms: ['mcp-tags/nope'] }, mcpCtx() as never)
     expect(bad.content[0]!.text).toContain('Unknown term')
   })
+
+  it('create_content and update_content refuse a slug another item or a taxonomy already uses', async () => {
+    const db = getCurrentTestDb()
+    await newTaxonomy({ name: 'Mcp regions', slug: 'mcp-regions' })
+    await seedContentItem(db, SITE, pageTypeId, { slug: 'mcp-taken' })
+    const item = await seedContentItem(db, SITE, pageTypeId, { slug: 'mcp-mine' })
+
+    const created = await callTool('create_content', { title: 'Regions', slug: 'mcp-regions' }, mcpCtx() as never)
+    expect(created.content[0]!.text).toContain('taxonomy')
+
+    const toTaxonomy = await callTool('update_content', { id: item, slug: 'mcp-regions' }, mcpCtx() as never)
+    expect(toTaxonomy.content[0]!.text).toContain('taxonomy')
+    const toTaken = await callTool('update_content', { id: item, slug: 'mcp-taken' }, mcpCtx() as never)
+    expect(toTaken.content[0]!.text).toContain('already exists')
+
+    // Re-sending its own slug is not a clash.
+    const same = await callTool('update_content', { id: item, slug: 'mcp-mine', title: 'Mine' }, mcpCtx() as never)
+    expect(same.content[0]!.text).toMatch(/^Success/)
+  })
 })

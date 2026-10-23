@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { ulid } from 'ulid'
-import { eq } from 'drizzle-orm'
-import { emailMessages, mailboxes, sites } from '@nuxflow/db/schema'
+import { emailMessages, mailboxes } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
 import { scopedById } from '../../../../utils/db-helpers'
 import { requireRole } from '../../../../utils/permissions'
@@ -14,6 +13,7 @@ import { rateLimit } from '../../../../utils/rate-limit'
 import { errorMessage } from '../../../../utils/errors'
 import { created } from '../../../../utils/response'
 import { requireSiteId } from '../../../../utils/site-context'
+import { getSiteInfo } from '../../../../utils/site-info'
 
 const bodySchema = z.object({
   body: z.string().trim().min(1).max(50_000),
@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
 
   const [mailbox, site] = await Promise.all([
     original.mailboxId ? db.query.mailboxes.findFirst({ where: scopedById(mailboxes.id, original.mailboxId, mailboxes.siteId, siteId) }) : Promise.resolve(undefined),
-    db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } }),
+    getSiteInfo(event, siteId),
   ])
   const config = await loadEmailConfig(event)
 
