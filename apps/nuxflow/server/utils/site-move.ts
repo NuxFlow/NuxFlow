@@ -10,7 +10,7 @@ import type { PoolSignInUser } from './pool-sign-in'
 import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
 import { callPool, poolAdminStub } from './pools'
 import { clearHostingPlanCache } from './hosting-plans'
-import { clearSiteCache } from '../middleware/02.multi-site'
+import { clearSiteCache } from './site-resolution'
 
 /**
  * Moving a site between a hosting platform's control plane and its member pools: the

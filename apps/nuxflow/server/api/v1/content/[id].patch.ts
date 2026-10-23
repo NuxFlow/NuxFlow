@@ -5,11 +5,11 @@ import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { queueContentPublishedPush } from '../../../utils/push-content'
 import { getContentItemOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
 import { contentItems, contentRevisions } from '@nuxflow/db/schema'
-import { and, eq, ne, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { scopedById } from '../../../utils/db-helpers'
 import { purgeContentCache } from '../../../utils/edge-cache'
-import { assertContentSlugNotTaxonomy, getContentTermIds, getTermRefsWithAncestors, replaceContentTermsStatements, validateSiteTermIds } from '../../../utils/taxonomy'
+import { assertContentSlugAvailable, getContentTermIds, getTermRefsWithAncestors, replaceContentTermsStatements, validateSiteTermIds } from '../../../utils/taxonomy'
 import { waitUntil } from '../../../utils/cf-env'
 import { upsertContentEmbedding } from '../../../utils/embeddings'
 import { itemPublicPath } from '../../../utils/public-page'
@@ -87,12 +87,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (updateFields.slug !== undefined && updateFields.slug !== existing.slug) {
-    const slugConflict = await db.query.contentItems.findFirst({
-      where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, updateFields.slug), ne(contentItems.id, id)),
-      columns: { id: true },
-    })
-    if (slugConflict) conflict(`A content item with the slug "${updateFields.slug}" already exists`)
-    await assertContentSlugNotTaxonomy(db, siteId, updateFields.slug)
+    await assertContentSlugAvailable(db, siteId, updateFields.slug, id)
   }
 
   const previousTermIds = await getContentTermIds(db, id)

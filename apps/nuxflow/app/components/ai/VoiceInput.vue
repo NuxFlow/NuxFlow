@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // Dictation button for AI prompt fields: records from the microphone and sends the audio
-// to POST /api/v1/ai/transcribe (Workers AI Whisper), emitting the text. Resolved by name
-// from @nuxflow/canvas's AiGenerateModal too, so keep the component name (AiVoiceInput)
-// and its single `transcribed` event stable.
+// to POST /api/v1/ai/transcribe (Workers AI Whisper), emitting the text. Also handed to
+// @nuxflow/canvas's AiGenerateModal as the CanvasHost's `voiceInput`
+// (app/plugins/canvas-host.ts), so keep its single `transcribed` event stable.
 const emit = defineEmits<{ transcribed: [text: string] }>()
 
 // Stops on its own well under the route's 20 MB limit.

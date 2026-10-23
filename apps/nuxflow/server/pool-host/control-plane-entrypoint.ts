@@ -8,7 +8,7 @@ import { WorkerEntrypoint } from 'cloudflare:workers'
 import { createSystemEvent } from '../utils/system-event'
 import { useDb, type Db } from '../utils/db'
 import { isMemberPool } from '../utils/control-plane'
-import { ensureMigrations } from '../middleware/00.migrate'
+import { ensureMigrations } from '../utils/migrations'
 import { endSession, provisionAccount, redeemSignInCode, sendSetPasswordEmailForPool, sessionStatus } from '../utils/pool-sign-in'
 
 type DbInput<F> = F extends (db: Db, input: infer I) => unknown ? I : never

@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import type { SpacingValue } from '../types'
 import { safeHref } from '../utils/sanitize-html'
 import { spacingToCss } from '../utils/spacing'
+import { useCanvasHost, type CanvasEventItem } from '../host'
 
 const props = withDefaults(defineProps<{
   title?: string
@@ -31,20 +32,8 @@ const containerStyle = computed(() => {
   }
 })
 
-// Shape returned by GET /api/public/events — kept local since this package has no
-// shared type module with the app (see the escapeIcsText comment below for the same
-// duplication rationale).
-interface CalendarEvent {
-  id: string
-  slug?: string
-  title: string
-  excerpt?: string
-  eventStartAt: string
-  eventEndAt?: string
-  eventAllDay?: boolean
-  eventLocation?: string
-  eventUrl?: string
-}
+type CalendarEvent = CanvasEventItem
+const host = useCanvasHost()
 
 // Fetch events
 const events = ref<CalendarEvent[]>([])
@@ -52,11 +41,7 @@ const loading = ref(true)
 
 async function loadEvents() {
   try {
-    const res = await fetch(`/api/public/events?limit=${props.limit}`)
-    if (res.ok) {
-      const data = await res.json() as { events?: CalendarEvent[] }
-      events.value = data.events || []
-    }
+    events.value = await host.listEvents(props.limit)
   } catch (err) {
     console.error('Failed to load events:', err)
   } finally {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, resolveComponent } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { AiGenerateRequest, CanvasContent } from '../types'
+import { useCanvasHost } from '../host'
 
 const props = defineProps<{ hasBlocks: boolean; initial?: AiGenerateRequest | null }>()
 const emit = defineEmits<{
@@ -36,10 +37,9 @@ const mode = ref<AiGenerateRequest['mode']>(props.initial?.mode ?? 'replace')
 const loading = ref(false)
 const error = ref('')
 
-// Voice dictation lives in the host app (it needs the app's auth'd API and Nuxt UI), so
-// it's resolved by name like EditorMediaPicker — absent outside the NuxFlow admin.
-const resolvedVoice = resolveComponent('AiVoiceInput')
-const voiceInput = typeof resolvedVoice === 'string' ? null : resolvedVoice
+const host = useCanvasHost()
+// Voice dictation lives in the host app (it needs the app's auth'd API and Nuxt UI).
+const voiceInput = host.voiceInput ?? null
 
 function appendDictation(text: string) {
   description.value = description.value ? `${description.value.trimEnd()} ${text}` : text
@@ -72,16 +72,7 @@ async function generate() {
   loading.value = true
   error.value = ''
   try {
-    const res = await fetch('/api/v1/ai/generate-canvas', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description: description.value.trim(), tone: tone.value, pageGoal: pageGoal.value }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({})) as { message?: string }
-      throw new Error(err.message || 'Generation failed')
-    }
-    const result = await res.json() as CanvasContent
+    const result: CanvasContent = await host.generatePage({ description: description.value.trim(), tone: tone.value, pageGoal: pageGoal.value })
     emit('generate', result, {
       description: description.value.trim(),
       tone: tone.value,

@@ -3,20 +3,21 @@ import { useDb } from '../../../utils/db'
 import { requireRole, roleAtLeast, AUTHOR_SETTABLE_STATUSES } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getContentTypeBySlugOrThrow, getContentItemOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
-import { created, conflict } from '../../../utils/response'
+import { created } from '../../../utils/response'
 import { assertWithinPlan } from '../../../utils/hosting-plans'
 import { purgeContentCache } from '../../../utils/edge-cache'
 import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexnow'
 import { waitUntil } from '../../../utils/cf-env'
 import { upsertContentEmbedding } from '../../../utils/embeddings'
-import { assertContentSlugNotTaxonomy, getTermRefsWithAncestors, replaceContentTermsStatements, validateSiteTermIds } from '../../../utils/taxonomy'
+import { assertContentSlugAvailable, getTermRefsWithAncestors, replaceContentTermsStatements, validateSiteTermIds } from '../../../utils/taxonomy'
 import { queueContentHook } from '../../../utils/plugin-hooks'
 import { queueContentPublishedPush } from '../../../utils/push-content'
-import { contentItems, sites } from '@nuxflow/db/schema'
+import { contentItems } from '@nuxflow/db/schema'
 import { PAGE_PASSWORD_MAX_LENGTH, resolvePageSettings } from '../../../utils/page-password'
-import { and, eq, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { requireSiteId } from '../../../utils/site-context'
+import { getSiteInfo } from '../../../utils/site-info'
 
 const bodySchema = z.object({
   title: z.string().min(1).max(500),
@@ -62,20 +63,12 @@ export default defineEventHandler(async (event) => {
     await getContentItemOrThrow(db, siteId, body.sourceItemId, 'Source item not found', { id: true })
   }
 
-  const slugConflict = await db.query.contentItems.findFirst({
-    where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, body.slug)),
-    columns: { id: true },
-  })
-  if (slugConflict) conflict(`A content item with the slug "${body.slug}" already exists`)
-  await assertContentSlugNotTaxonomy(db, siteId, body.slug)
+  await assertContentSlugAvailable(db, siteId, body.slug)
 
   const termIds = await validateSiteTermIds(db, siteId, body.termIds ?? [])
 
   // Resolve default site locale
-  const site = await db.query.sites.findFirst({
-    where: eq(sites.id, siteId),
-    columns: { locale: true },
-  })
+  const site = await getSiteInfo(event, siteId)
   const siteLocale = site?.locale || 'en'
 
   await assertWithinPlan(event, 'content')

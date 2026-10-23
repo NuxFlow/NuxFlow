@@ -16,7 +16,7 @@ import { waitUntil } from './cf-env'
 import { itemPublicPath } from './public-page'
 import { queueContentHook } from './plugin-hooks'
 import { queueContentPublishedPush } from './push-content'
-import { getContentTermIds, getPublicItemTerms, getTaxonomyContentTypeSlugs, getTermRefsWithAncestors, replaceContentTermsStatements } from './taxonomy'
+import { contentSlugProblem, getContentTermIds, getPublicItemTerms, getTaxonomyContentTypeSlugs, getTermRefsWithAncestors, replaceContentTermsStatements } from './taxonomy'
 
 // Tool implementations for the MCP server (server/api/v1/mcp.ts). Extracted out of that
 // file so it stays protocol/session plumbing (SSE handshake, JSON-RPC dispatch) while the
@@ -333,13 +333,8 @@ async function createContent(args: unknown, ctx: McpToolContext): Promise<McpToo
     return textResult(`Error: Content type "${typeSlug}" not found.`)
   }
 
-  // Check if slug already exists
-  const existing = await ctx.db.query.contentItems.findFirst({
-    where: and(eq(contentItems.siteId, ctx.siteId), eq(contentItems.slug, slugVal)),
-  })
-  if (existing) {
-    return textResult(`Error: Slug "${slugVal}" is already in use.`)
-  }
+  const slugProblem = await contentSlugProblem(ctx.db, ctx.siteId, slugVal)
+  if (slugProblem) return textResult(`Error: ${slugProblem}.`)
 
   const room = await checkPlanLimit(ctx.db, ctx.siteId, 'content')
   if (!room.allowed) return textResult(`Error: ${planLimitMessage('content', room.max ?? 0)}`)
@@ -394,7 +389,11 @@ async function updateContent(args: unknown, ctx: McpToolContext): Promise<McpToo
     updatedAt: new Date().toISOString(),
   }
   if (parsedUpdate.data.title !== undefined) updates.title = parsedUpdate.data.title
-  if (parsedUpdate.data.slug !== undefined) updates.slug = parsedUpdate.data.slug
+  if (parsedUpdate.data.slug !== undefined && parsedUpdate.data.slug !== existing.slug) {
+    const slugProblem = await contentSlugProblem(ctx.db, ctx.siteId, parsedUpdate.data.slug, id)
+    if (slugProblem) return textResult(`Error: ${slugProblem}.`)
+    updates.slug = parsedUpdate.data.slug
+  }
   if (parsedUpdate.data.content !== undefined) updates.content = parsedUpdate.data.content
   if (parsedUpdate.data.status !== undefined) {
     if (!AUTHOR_SETTABLE_STATUSES.has(parsedUpdate.data.status) && !apiKeyRoleAtLeast(ctx.apiKeyRole, 'editor')) {

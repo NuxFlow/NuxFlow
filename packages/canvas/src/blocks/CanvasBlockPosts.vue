@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import type { SpacingValue } from '../types'
 import { spacingToCss } from '../utils/spacing'
 import NuxImage from './NuxImage.vue'
+import { useCanvasHost, type CanvasPostItem, type CanvasPostsQuery } from '../host'
 
 const props = withDefaults(defineProps<{
   title?: string
@@ -42,39 +43,28 @@ const containerStyle = computed(() => ({
   padding: spacingToCss(props.padding, '60px 24px'),
 }))
 
-// Shape returned by GET /api/public/posts — kept local since this package has no shared
-// type module with the app (same reason CanvasBlockCalendar declares its own).
-interface PostItem {
-  id: string
-  title: string
-  path: string
-  excerpt: string | null
-  ogImage: string | null
-  publishedAt: string | null
-}
+type PostItem = CanvasPostItem
+const host = useCanvasHost()
 
 const posts = ref<PostItem[]>([])
 const loading = ref(true)
 const failed = ref(false)
 
 const query = computed(() => {
-  const q = new URLSearchParams({ limit: String(Math.min(Math.max(props.limit || 6, 1), 50)) })
-  if (props.contentType?.trim()) q.set('type', props.contentType.trim())
+  const q: CanvasPostsQuery = { limit: Math.min(Math.max(props.limit || 6, 1), 50) }
+  if (props.contentType?.trim()) q.type = props.contentType.trim()
   if (props.taxonomy?.trim() && props.term?.trim()) {
-    q.set('taxonomy', props.taxonomy.trim())
-    q.set('term', props.term.trim())
+    q.taxonomy = props.taxonomy.trim()
+    q.term = props.term.trim()
   }
-  return q.toString()
+  return q
 })
 
 async function load() {
   loading.value = true
   failed.value = false
   try {
-    const res = await fetch(`/api/public/posts?${query.value}`)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = await res.json() as { posts?: PostItem[] }
-    posts.value = data.posts ?? []
+    posts.value = await host.listPosts(query.value)
   } catch (err) {
     console.error('Failed to load posts:', err)
     failed.value = true
@@ -86,7 +76,7 @@ async function load() {
 
 onMounted(load)
 // Re-query live while the block's filters are edited in the Canvas editor.
-watch(query, load)
+watch(() => JSON.stringify(query.value), load)
 
 // timeZone: 'UTC' keeps the date identical wherever it renders.
 function formatDate(d: string) {

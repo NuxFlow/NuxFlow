@@ -3,9 +3,10 @@ import { requireRole } from '../../../utils/permissions'
 import { ensureInboundHandle, mailboxAddresses } from '../../../utils/inbox'
 import { getEmailBinding } from '../../../utils/cf-env'
 import { resolveStringSetting } from '../../../utils/settings'
-import { mailboxes, sites } from '@nuxflow/db/schema'
+import { mailboxes } from '@nuxflow/db/schema'
 import { and, asc, eq } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
+import { getSiteInfo } from '../../../utils/site-info'
 
 /**
  * Inbox mailboxes plus everything the setup panel needs to explain how mail reaches them:
@@ -18,7 +19,7 @@ export default defineEventHandler(async (event) => {
   const siteId = requireSiteId(event)
 
   const [site, rows, handle, provider] = await Promise.all([
-    db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } }),
+    getSiteInfo(event, siteId),
     db.query.mailboxes.findMany({
       where: and(eq(mailboxes.siteId, siteId), eq(mailboxes.kind, 'inbox')),
       orderBy: [asc(mailboxes.createdAt)],

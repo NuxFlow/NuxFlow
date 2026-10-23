@@ -5,7 +5,7 @@ import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { resolveStringSetting, resolveBooleanSetting, batchSaveSettings, isOllamaAvailable, SERVER_MANAGED_SETTING_KEYS } from '../../../utils/settings'
 import { normalizeDomain } from '../../../utils/domain'
-import { clearSiteCache } from '../../../middleware/02.multi-site'
+import { clearSiteCache } from '../../../utils/site-resolution'
 import { clearAppearanceCache } from '../../../utils/appearance-cache'
 import { writeAuditLog } from '../../../utils/audit'
 import { purgeEdgeCache, purgeAllPublicPages } from '../../../utils/edge-cache'
@@ -111,8 +111,9 @@ export default defineEventHandler(async (event) => {
     await db.update(sites)
       .set({ ...siteUpdate, updatedAt: sql`(datetime('now'))` })
       .where(eq(sites.id, siteId))
-    // Domain/status are cached per host for site resolution.
-    if (siteUpdate.domain || siteUpdate.status) clearSiteCache()
+    // Domain/status are cached per host for site resolution, and name/domain/locale/status
+    // by id in getSiteInfo() — both cleared by clearSiteCache().
+    if (siteUpdate.name || siteUpdate.domain || siteUpdate.locale || siteUpdate.status) clearSiteCache()
   }
 
   // Collected across all sections below and written as a single atomic db.batch() at

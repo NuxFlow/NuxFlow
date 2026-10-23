@@ -41,7 +41,8 @@ const { poolSiteMove, moveTables, localMoveStore } = await import('../../server/
 const { poolSites } = await import('../../server/utils/pool-admin')
 const { poolGetSite, poolSetPlans, listAllSites } = await import('../../server/utils/pool-sites')
 const { POOL_PROTOCOL } = await import('../../server/utils/pool-admin')
-const { default: multiSite, clearSiteCache } = await import('../../server/middleware/02.multi-site')
+const { default: multiSite } = await import('../../server/middleware/02.multi-site')
+const { clearSiteCache } = await import('../../server/utils/site-resolution')
 
 type Handler = (e: H3Event) => Promise<unknown>
 type MockEvent = ReturnType<typeof createMockEvent> & { context: Record<string, unknown> }

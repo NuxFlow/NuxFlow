@@ -1,15 +1,12 @@
 <script setup lang="ts">
 // Opens the host app's media library picker from inside a Canvas field editor. This
-// package cannot statically import `EditorMediaPicker` — it lives in
-// apps/nuxflow/app/components/editor/MediaPicker.vue, a different workspace package —
-// so it's resolved by its Nuxt-auto-registered global name instead, the same
-// `resolveComponent()`-by-string-name mechanism app/pages/admin/content/[id].vue already
-// uses to mount CanvasContentEditor itself from this package. Falls back to a disabled
-// hint (rather than throwing) when the host hasn't registered it — e.g. this package's
-// own isolated tests/dev, which don't boot the full Nuxt app.
-import { nextTick, onMounted, onUnmounted, ref, resolveComponent } from 'vue'
+// package cannot import `EditorMediaPicker` (it lives in apps/nuxflow), so the app hands
+// it over as `mediaPicker` on the CanvasHost (host.ts). Falls back to a disabled hint
+// (rather than throwing) when the host provides none.
+import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { PickedMedia } from '../utils/gallery'
+import { useCanvasHost } from '../host'
 
 // `multiple` puts the picker in multi-select mode (Gallery/Carousel image lists) and
 // emits `selectMany` once with every chosen file; otherwise `select` with one file.
@@ -25,10 +22,8 @@ const emit = defineEmits<{
 
 const open = ref(false)
 
-const resolved = resolveComponent('EditorMediaPicker')
-// Vue's resolveComponent() returns the bare string name back (not undefined/null) when
-// nothing is registered under it — that's the "not available" signal here.
-const pickerComponent = typeof resolved === 'string' ? null : resolved
+// The app's media library dialog — absent where the app provides none.
+const pickerComponent = useCanvasHost().mediaPicker ?? null
 
 // Same dialog semantics as AiGenerateModal.vue/BlockPicker.vue elsewhere in this package:
 // Escape-to-close, initial focus, focus restore on close.

@@ -1,12 +1,13 @@
 import { generateText } from 'ai'
 import { and, asc, eq } from 'drizzle-orm'
-import { emailMessages, sites } from '@nuxflow/db/schema'
+import { emailMessages } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { getEmailMessageOrThrow } from '../../../../utils/inbox'
 import { requireAiSdkModel, callAiOrThrow } from '../../../../utils/ai-sdk'
 import { rateLimit } from '../../../../utils/rate-limit'
 import { requireSiteId } from '../../../../utils/site-context'
+import { getSiteInfo } from '../../../../utils/site-info'
 
 const SYSTEM = `You draft email replies for the team behind a website. Write a concise, friendly, professional reply to the customer's latest message, using the conversation so far for context.
 - Reply in the customer's language.
@@ -33,7 +34,7 @@ export default defineEventHandler(async (event) => {
       orderBy: [asc(emailMessages.createdAt)],
       limit: 20,
     }),
-    db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { name: true } }),
+    getSiteInfo(event, siteId),
   ])
 
   const conversation = thread.map(m =>

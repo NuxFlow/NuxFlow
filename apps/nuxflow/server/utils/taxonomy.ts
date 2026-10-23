@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { alias } from 'drizzle-orm/sqlite-core'
-import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm'
+import { and, asc, eq, inArray, ne, sql, type SQL } from 'drizzle-orm'
 import type { BatchItem } from 'drizzle-orm/batch'
 import {
   contentItems, contentTaxonomyTerms, contentTypes, sites, taxonomies, taxonomyContentTypes, taxonomyTerms,
@@ -66,6 +66,31 @@ export async function assertContentSlugNotTaxonomy(db: Db, siteId: string, slug:
     columns: { id: true },
   })
   if (tax) conflict(`"${slug}" is the URL of a taxonomy's overview page — choose a different slug`)
+}
+
+/**
+ * Why a content item can't use `slug` on this site (another item has it, or it's a
+ * taxonomy's overview URL), or null when it's free. `exceptId` is the item being renamed.
+ * For callers that report errors as values (MCP); routes use assertContentSlugAvailable().
+ */
+export async function contentSlugProblem(db: Db, siteId: string, slug: string, exceptId?: string): Promise<string | null> {
+  const taken = await db.query.contentItems.findFirst({
+    where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, slug), exceptId ? ne(contentItems.id, exceptId) : undefined),
+    columns: { id: true },
+  })
+  if (taken) return `A content item with the slug "${slug}" already exists`
+  const tax = await db.query.taxonomies.findFirst({
+    where: and(eq(taxonomies.siteId, siteId), eq(taxonomies.slug, slug)),
+    columns: { id: true },
+  })
+  if (tax) return `"${slug}" is the URL of a taxonomy's overview page — choose a different slug`
+  return null
+}
+
+/** 409 unless `slug` is free for a content item on this site — see contentSlugProblem(). */
+export async function assertContentSlugAvailable(db: Db, siteId: string, slug: string, exceptId?: string): Promise<void> {
+  const problem = await contentSlugProblem(db, siteId, slug, exceptId)
+  if (problem) conflict(problem)
 }
 
 // ── Paths ────────────────────────────────────────────────────────────────────

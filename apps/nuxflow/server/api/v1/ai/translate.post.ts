@@ -10,6 +10,7 @@ import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { buildAuditLogInsert } from '../../../utils/audit'
 import { getContentItemOrThrow } from '../../../utils/content-queries'
+import { contentSlugProblem } from '../../../utils/taxonomy'
 import { applyCanvasTranslations, collectCanvasStrings } from '@nuxflow/canvas/ai'
 import type { CanvasBlockData } from '@nuxflow/canvas'
 import { requireSiteId } from '../../../utils/site-context'
@@ -127,11 +128,8 @@ export default defineEventHandler(async (event) => {
   // unrelated item already using the translation's slug would otherwise surface as a raw
   // constraint error only after the translation had been generated.
   if (!existing) {
-    const slugTaken = await db.query.contentItems.findFirst({
-      where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, newSlug)),
-      columns: { id: true },
-    })
-    if (slugTaken) throw conflict(`The slug "${newSlug}" is already in use — choose a different slug suffix`)
+    const problem = await contentSlugProblem(db, siteId, newSlug)
+    if (problem) conflict(`${problem}. Choose a different slug suffix.`)
   }
 
   const chunks = chunkBundle(strings)

@@ -1,5 +1,5 @@
 /**
- * Integration tests for the cross-isolate migration lock in server/middleware/00.migrate.ts.
+ * Integration tests for the cross-isolate migration lock in server/utils/migrations.ts.
  * Exercises the lock functions directly against a real SQLite DB — the module-level
  * _migrationsDone/_migrationPromise flags in the middleware only dedupe requests within
  * a single isolate, so they aren't what's being tested here; acquireMigrationLock /
@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { initTestDb, teardownTestDb, getCurrentTestDb, type TestDb } from '../helpers/db'
-import { acquireMigrationLock, releaseMigrationLock } from '../../server/middleware/00.migrate'
+import { acquireMigrationLock, releaseMigrationLock } from '../../server/utils/migrations'
 
 beforeAll(initTestDb)
 afterAll(teardownTestDb)

@@ -1,38 +1,9 @@
 import { useDb } from '../../../utils/db'
 import { sites, users } from '@nuxflow/db/schema'
 import { count, eq } from 'drizzle-orm'
-import { createIsolateCache } from '../../../utils/isolate-cache'
+import { cacheSetupStatus, getCachedSetupStatus, type SetupStatus } from '../../../utils/setup-status'
 import { getCfBindings } from '../../../utils/cf-env'
 import { isMemberPool } from '../../../utils/control-plane'
-
-type SetupStatus = {
-  hasSite: boolean
-  hasAdmin: boolean
-  setupCompleted: boolean
-  needsSetup: boolean
-  site: { name: string; domain: string; locale: string; timezone: string } | null
-  /**
-   * Whether the MEDIA_BUCKET R2 binding is present — shown in the setup wizard as a plain
-   * status line so an operator learns about file storage at install time rather than
-   * months later. Deployment-wide (a binding, not a per-site setting); per-site providers
-   * configured later in Settings → Media still take effect as normal.
-   */
-  mediaStorage: 'r2' | 'none'
-}
-
-// app/middleware/00.setup-guard.global.ts calls this route once per SSR render (its own
-// useState cache resets every request) — uncached, that's 2 count() scans plus a site
-// lookup on every page view of every site, for an answer that almost never changes once
-// setup completes. Only the "fully set up" result is cached (a fresh/in-progress install still gets a live check on every
-// request, since that flow is low-traffic and needs to react immediately as it
-// progresses); setup/complete.post.ts clears the entry for its host so the wizard's own
-// redirect away from /setup isn't stuck behind the TTL.
-const _statusCache = createIsolateCache<SetupStatus>(60_000)
-
-export function clearSetupStatusCache(host?: string): void {
-  if (host) _statusCache.delete(host)
-  else _statusCache.clear()
-}
 
 export default defineEventHandler(async (event) => {
   // A member pool is never set up through the wizard: its sites are created by the
@@ -44,7 +15,7 @@ export default defineEventHandler(async (event) => {
   let cacheHost = getHeader(event, 'host')?.split(':')[0] ?? ''
   if (cacheHost === '127.0.0.1' || cacheHost === '::1') cacheHost = 'localhost'
 
-  const cached = _statusCache.get(cacheHost)
+  const cached = getCachedSetupStatus(cacheHost)
   if (cached) return cached
 
   const db = useDb(event)
@@ -100,7 +71,7 @@ export default defineEventHandler(async (event) => {
     }
     // Never cache an unknown host: a site can be created for it at any moment, and its
     // setup link must work straight away on every isolate.
-    if (!result.needsSetup && !unknownHost) _statusCache.set(cacheHost, result)
+    if (!result.needsSetup && !unknownHost) cacheSetupStatus(cacheHost, result)
     return result
   } catch {
     // DB schema not yet migrated — report as needing setup.
