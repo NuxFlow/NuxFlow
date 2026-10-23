@@ -1,7 +1,7 @@
 import { membershipTiers } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { useDb } from '../../utils/db'
-import { resolveSetting } from '../../utils/settings'
+import { resolveStringSetting, resolveBooleanSetting } from '../../utils/settings'
 import { withEdgeCache } from '../../utils/edge-cache'
 import { requireSiteId } from '../../utils/site-context'
 
@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     const db = useDb(event)
     const siteId = requireSiteId(event)
 
-    const [tiers, signupsDisabledRaw, signupsDisabledMessage] = await Promise.all([
+    const [tiers, signupsDisabled, signupsDisabledMessage] = await Promise.all([
       db.query.membershipTiers.findMany({
         where: eq(membershipTiers.siteId, siteId),
         orderBy: (t, { asc }) => [asc(t.price)],
@@ -29,11 +29,9 @@ export default defineEventHandler(async (event) => {
           isActive: true,
         },
       }),
-      resolveSetting(event, 'payments.signups_disabled'),
-      resolveSetting(event, 'payments.signups_disabled_message'),
+      resolveBooleanSetting(event, 'payments.signups_disabled'),
+      resolveStringSetting(event, 'payments.signups_disabled_message'),
     ])
-
-    const signupsDisabled = signupsDisabledRaw === 'true'
 
     return {
       tiers: tiers.filter(t => t.isActive),

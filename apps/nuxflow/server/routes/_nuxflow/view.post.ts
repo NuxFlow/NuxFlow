@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { recordPageView } from '../../utils/analytics'
 import { createIsolateCache } from '../../utils/isolate-cache'
+import { getClientIp } from '../../utils/client-ip'
 
 const bodySchema = z.object({
   path: z.string().max(2048),
@@ -27,7 +28,7 @@ export default defineEventHandler(async (event) => {
   const fetchSite = getRequestHeader(event, 'sec-fetch-site')
   if (fetchSite && fetchSite !== 'same-origin') return noContent(event)
 
-  const ip = getRequestHeader(event, 'cf-connecting-ip') ?? 'unknown'
+  const ip = getClientIp(event) ?? 'unknown'
   const key = `${siteId}:${ip}`
   const seen = recentViews.get(key) ?? 0
   if (seen >= MAX_VIEWS_PER_MINUTE) return noContent(event)

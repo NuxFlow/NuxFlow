@@ -12,6 +12,7 @@ import { seedSite, seedUser, seedRole, seedContentType, seedSetting } from '../h
 import { contentItems, emailMessages, hostingPlans, mailboxes, media, notifications, sites, siteUsageDaily } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { utcDay } from '../../server/utils/utc-day'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -54,7 +55,7 @@ vi.mock('../../server/utils/media-providers/index', () => ({
 const { handleInboundEmail } = await import('../../server/utils/inbound-email')
 const { clearHostingPlanCache } = await import('../../server/utils/hosting-plans')
 const { clearHostingPlatformCache } = await import('../../server/utils/hosting-platform')
-const { flushUsage, resetUsageBuffer, usageDay } = await import('../../server/utils/usage')
+const { flushUsage, resetUsageBuffer } = await import('../../server/utils/usage')
 
 const SITE = 'site-inbound-01'
 const PLATFORM = 'in.platform.test'
@@ -419,7 +420,7 @@ describe('hosting plan limits', () => {
 
   it("stops keeping mail once the month's allowance is used — still forwarding it — and tells the admins once", async () => {
     await useLimits({ maxInboundEmailsPerMonth: 1 })
-    await flushUsage(getCurrentTestDb(), [{ siteId: SITE, day: usageDay(), metric: 'inbound_emails', value: 1 }])
+    await flushUsage(getCurrentTestDb(), [{ siteId: SITE, day: utcDay(), metric: 'inbound_emails', value: 1 }])
 
     const m = message(mime({ subject: 'Over the limit' }))
     await receive(m)

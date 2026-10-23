@@ -3,8 +3,8 @@ import { and, eq, gte, sql } from 'drizzle-orm'
 import { notifications } from '@nuxflow/db/schema'
 import { useDb } from './db'
 import { notifySiteRole } from './notify'
-import { usageDay } from './usage'
 import type { PlanLimitKey } from '../../shared/lib/hosting-plan-limits'
+import { utcDay } from './utc-day'
 
 /**
  * Tells a site's admins, once per limit per month, that something was held back by their
@@ -14,7 +14,7 @@ import type { PlanLimitKey } from '../../shared/lib/hosting-plan-limits'
  */
 export async function noticePlanLimitOnce(event: H3Event, siteId: string, limit: PlanLimitKey, title: string, body: string): Promise<void> {
   try {
-    const month = usageDay().slice(0, 7)
+    const month = utcDay().slice(0, 7)
     const db = useDb(event)
     const [sent] = await db.select({ id: notifications.id })
       .from(notifications)

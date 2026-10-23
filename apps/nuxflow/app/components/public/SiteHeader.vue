@@ -94,7 +94,7 @@ function onDropdownFocusOut(e: FocusEvent, id: string) {
 }
 
 // ── Language Switcher State ──────────────────────────────────────────────────
-const availableLocales = useState<Array<{ locale: string; slug: string; rawSlug?: string }>>('active-locales', () => [])
+const availableLocales = useActiveLocales()
 const showLangMenu = ref(false)
 const langDropdown = ref<HTMLElement | null>(null)
 

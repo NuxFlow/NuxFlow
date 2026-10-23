@@ -7,7 +7,7 @@ import { aiBlockDefinitions, buildBlockCatalog, normalizeAiBlocks, type AiCapabi
 import type { CanvasBlockData, CanvasBlockDefinition } from '@nuxflow/canvas'
 import { contentItems, contentTypes, forms, media, membershipTiers, sites } from '@nuxflow/db/schema'
 import { callAiOrThrow } from './ai-sdk'
-import { resolveSetting } from './settings'
+import { resolveStringSetting } from './settings'
 import type { Db } from './db'
 
 // Shared by generate-canvas.post.ts (the canvas editor's "Generate page" modal) and
@@ -47,8 +47,8 @@ const MAX_MEDIA_IN_PROMPT = 30
 export async function loadGenerationContext(event: H3Event, db: Db, siteId: string): Promise<GenerationContext> {
   const [site, primaryColor, darkMode, siteForms, siteMedia, tier, post, event_] = await Promise.all([
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { name: true } }),
-    resolveSetting(event, 'theme.primary_color') as Promise<string | undefined>,
-    resolveSetting(event, 'theme.dark_mode') as Promise<string | undefined>,
+    resolveStringSetting(event, 'theme.primary_color'),
+    resolveStringSetting(event, 'theme.dark_mode'),
     db.query.forms.findMany({
       where: and(eq(forms.siteId, siteId), eq(forms.status, 'active')),
       columns: { slug: true, name: true },

@@ -1,11 +1,12 @@
 import { z } from 'zod'
 import { useReplicaDb } from '../../utils/db'
 import { contentItems } from '@nuxflow/db/schema'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { rateLimit } from '../../utils/rate-limit'
 import { parseQuery } from '../../utils/validate'
 import { withPublicPaths } from '../../utils/seo'
 import { requireSiteId } from '../../utils/site-context'
+import { searchIndex } from '../../utils/search'
 
 export interface SearchExcerptSegment {
   text: string
@@ -31,18 +32,6 @@ function parseSnippet(snippet: string): SearchExcerptSegment[] {
   return segments
 }
 
-/**
- * Builds an FTS5 MATCH expression from free text: every run of letters/digits (any
- * script) becomes a quoted prefix term, and the terms are ANDed. Quoting keeps FTS5
- * syntax (AND, NEAR, *, quotes) typed by a visitor from ever reaching the parser.
- * Returns null when the text has no searchable characters.
- */
-export function toFtsQuery(text: string): string | null {
-  const terms = text.match(/[\p{L}\p{N}]+/gu)?.slice(0, 10)
-  if (!terms?.length) return null
-  return terms.map(t => `"${t}"*`).join(' ')
-}
-
 export default defineEventHandler(async (event) => {
   // Unauthenticated and hits D1 directly on every request (no edge cache, since results
   // are query-dependent). 60/minute per IP is generous for real interactive search usage
@@ -53,40 +42,26 @@ export default defineEventHandler(async (event) => {
   const q = parseQuery(event, querySchema).q?.trim()
 
   if (!q || q.length < 2 || q.length > 200) return { results: [] }
-  const match = toFtsQuery(q)
-  if (!match) return { results: [] }
 
   // Unauthenticated, read-only and uncached — the ideal case for a D1 read replica when
   // one is enabled (see useReplicaDb in server/utils/db.ts).
   const db = useReplicaDb(event)
 
-  const rawResults = await db.run(sql`
-    SELECT content_item_id, title, snippet(search_index, 3, '<mark>', '</mark>', '…', 20) AS excerpt
-    FROM search_index
-    WHERE search_index MATCH ${match}
-      AND site_id = ${siteId}
-    ORDER BY rank
-    LIMIT 20
-  `)
+  const hits = await searchIndex(db, siteId, q, 20)
+  if (!hits.length) return { results: [] }
 
-  // D1 returns { results: [{...}] }; the libSQL driver the integration tests use returns { rows }.
-  const raw = rawResults as unknown as { rows?: unknown[]; results?: unknown[] }
-  const rows = (raw.rows ?? raw.results ?? []) as Record<string, unknown>[]
-
-  if (!rows.length) return { results: [] }
-
-  const ids = rows.map(r => String(r.content_item_id ?? ''))
+  const ids = hits.map(h => h.contentItemId)
   const items = await db
     .select({ id: contentItems.id, slug: contentItems.slug, locale: contentItems.locale, sourceItemId: contentItems.sourceItemId })
     .from(contentItems)
     .where(and(eq(contentItems.siteId, siteId), inArray(contentItems.id, ids)))
   const pathById = new Map((await withPublicPaths(db, siteId, items)).map(i => [i.id, i.path]))
 
-  const results = rows.map(r => ({
-    id: String(r.content_item_id ?? ''),
-    title: String(r.title ?? ''),
-    excerptSegments: parseSnippet(String(r.excerpt ?? '')),
-    path: pathById.get(String(r.content_item_id ?? '')) ?? null,
+  const results = hits.map(h => ({
+    id: h.contentItemId,
+    title: h.title,
+    excerptSegments: parseSnippet(h.excerpt),
+    path: pathById.get(h.contentItemId) ?? null,
   }))
 
   return { results }

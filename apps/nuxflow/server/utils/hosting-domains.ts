@@ -4,7 +4,7 @@ import { ulid } from 'ulid'
 import { auditLogs, hostingPlans, hostingSubscriptions, siteDomains, sites, users } from '@nuxflow/db/schema'
 import { useDb, type Db } from './db'
 import { normalizeDomain } from './domain'
-import { resolveSetting } from './settings'
+import { resolveStringSetting } from './settings'
 import { getAccountsHost } from './accounts-origin'
 import { assertWithinPlan, getSitePlan, planMax, type HostingPlan } from './hosting-plans'
 import { isHostingPlatform } from './hosting-platform'
@@ -19,6 +19,7 @@ import { syncSiteDirectory } from './site-directory'
 import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
 import { callPool, poolAdminStub, poolBindings } from './pools'
 import { clearSiteCache } from '../middleware/02.multi-site'
+import { getClientIp } from './client-ip'
 
 /**
  * Customers' own domains on a hosting platform (Cloudflare for SaaS). A customer connects
@@ -47,7 +48,7 @@ export type SiteDomain = typeof siteDomains.$inferSelect
 
 /** The CNAME target customers point their domain at (default `customers.<sites domain>`). */
 export async function customDomainTarget(primaryEvent: H3Event): Promise<string> {
-  const stored = String(await resolveSetting(primaryEvent, SAAS_TARGET_KEY) || '').trim().toLowerCase()
+  const stored = String(await resolveStringSetting(primaryEvent, SAAS_TARGET_KEY) || '').trim().toLowerCase()
   const base = hostingSitesDomain()
   return stored || (base ? `customers.${base}` : '')
 }
@@ -55,8 +56,8 @@ export async function customDomainTarget(primaryEvent: H3Event): Promise<string>
 /** The Cloudflare details, or null while they aren't set on Super Admin → Platform. */
 export async function saasConfig(primaryEvent: H3Event): Promise<SaasConfig | null> {
   const [zoneId, apiToken] = await Promise.all([
-    resolveSetting(primaryEvent, SAAS_ZONE_KEY),
-    resolveSetting(primaryEvent, SAAS_TOKEN_KEY),
+    resolveStringSetting(primaryEvent, SAAS_ZONE_KEY),
+    resolveStringSetting(primaryEvent, SAAS_TOKEN_KEY),
   ])
   return zoneId && apiToken ? { zoneId: String(zoneId).trim(), apiToken: String(apiToken).trim() } : null
 }
@@ -573,7 +574,7 @@ export async function logDomainChange(ctx: HostingContext, event: H3Event, site:
     resource: 'site_domain',
     resourceId: hostname,
     after: { hostname, ...(site.poolId ? { siteId: site.id, poolId: site.poolId } : {}) },
-    ipAddress: getHeader(event, 'cf-connecting-ip') ?? getHeader(event, 'x-forwarded-for') ?? null,
+    ipAddress: getClientIp(event) ?? null,
     userAgent: getHeader(event, 'user-agent') ?? null,
   })
 }

@@ -11,6 +11,7 @@ import { activatePendingInvitations } from './invitations'
 import type { PoolSignInGrant, PoolSignInUser, SessionStatus } from './pool-sign-in'
 import type { AccountProvisioningStatus } from './user-provisioning'
 import type { EmailDeliveryOutcome } from './email'
+import { withTimeout } from './timeout'
 
 /**
  * A member pool's side of signing in (the control plane's is pool-sign-in.ts). Accounts and
@@ -40,11 +41,11 @@ interface ControlPlaneStub {
 
 /** A call to the control plane over this pool's CONTROL_PLANE binding, with a timeout. */
 export function callControlPlane<T>(event: H3Event, call: (cp: ControlPlaneStub) => Promise<T>): Promise<T> {
-  return withTimeout(call(controlPlane(event)))
+  return controlPlaneCall(call(controlPlane(event)))
 }
 
 function controlPlane(event: H3Event): ControlPlaneStub {
-  const stub = (event.context.cloudflare?.env as unknown as Record<string, unknown> | undefined)?.CONTROL_PLANE
+  const stub = event.context.cloudflare?.env.CONTROL_PLANE
   if (!stub || typeof stub !== 'object') {
     throw createError({ statusCode: 503, message: 'Signing in is unavailable: this pool has no CONTROL_PLANE binding to its control panel.' })
   }
@@ -53,12 +54,8 @@ function controlPlane(event: H3Event): ControlPlaneStub {
 
 const CALL_TIMEOUT_MS = 10_000
 
-function withTimeout<T>(promise: Promise<T>): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`The control panel didn't answer within ${CALL_TIMEOUT_MS / 1000} s`)), CALL_TIMEOUT_MS)
-  })
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+function controlPlaneCall<T>(promise: Promise<T>): Promise<T> {
+  return withTimeout(promise, CALL_TIMEOUT_MS, `The control panel didn't answer within ${CALL_TIMEOUT_MS / 1000} s`)
 }
 
 // ── Sign-in ───────────────────────────────────────────────────────────────────────────
@@ -68,7 +65,7 @@ function withTimeout<T>(promise: Promise<T>): Promise<T> {
  * uses it up, and sets up this pool's copies. Null when the code is refused.
  */
 export async function signInThroughControlPlane(event: H3Event, input: { code: string; siteId: string; redirectUri: string }): Promise<{ userId: string; parentSessionId: string } | null> {
-  const grant = await withTimeout(controlPlane(event).redeemSignInCode({ protocol: POOL_PROTOCOL, poolId: getPoolId()!, ...input }))
+  const grant = await controlPlaneCall(controlPlane(event).redeemSignInCode({ protocol: POOL_PROTOCOL, poolId: getPoolId()!, ...input }))
   if (!grant) return null
   const db = useDb(event)
   await upsertUserCopy(db, grant.user)
@@ -142,7 +139,7 @@ export async function parentSessionAlive(event: H3Event, input: { parentSessionI
 
   let status: SessionStatus
   try {
-    status = await withTimeout(controlPlane(event).sessionStatus({ protocol: POOL_PROTOCOL, ...input }))
+    status = await controlPlaneCall(controlPlane(event).sessionStatus({ protocol: POOL_PROTOCOL, ...input }))
   } catch (err) {
     console.error('[pool-session] Couldn\'t check a sign-in with the control panel:', err)
     return !!checkedAt && Date.now() - checkedAt < OUTAGE_GRACE_MS
@@ -163,7 +160,7 @@ export async function endParentSession(event: H3Event, parentSessionId: string):
   remember(parentSessionId, false)
   if (row) {
     try {
-      await withTimeout(controlPlane(event).endSession({ protocol: POOL_PROTOCOL, parentSessionId, userId: row.userId }))
+      await controlPlaneCall(controlPlane(event).endSession({ protocol: POOL_PROTOCOL, parentSessionId, userId: row.userId }))
     } catch (err) {
       // Still signed out here; the control plane's sign-in lapses on its own, and every
       // other pool stops honouring it once it does.

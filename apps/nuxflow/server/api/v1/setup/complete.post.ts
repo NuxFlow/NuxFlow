@@ -13,6 +13,7 @@ import { clearSiteCache } from '../../../middleware/02.multi-site'
 import { clearSetupStatusCache } from './status.get'
 import { seedNewSite } from '../../../utils/site-seeding'
 import { requireControlPlane } from '../../../utils/control-plane'
+import { getClientIp } from '../../../utils/client-ip'
 
 const bodySchema = z.object({
   site: z.object({
@@ -264,7 +265,7 @@ async function _handleSetup(event: H3Event) {
       resource: 'site',
       resourceId: siteId,
       after: { domain: host, name: body.site.name },
-      ipAddress: getHeader(event, 'cf-connecting-ip') ?? getHeader(event, 'x-forwarded-for') ?? null,
+      ipAddress: getClientIp(event) ?? null,
       userAgent: getHeader(event, 'user-agent') ?? null,
     })
   }

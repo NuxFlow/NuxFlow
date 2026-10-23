@@ -1,6 +1,6 @@
 import { requireRole } from '../../../utils/permissions'
 import { loadEmailConfig } from '../../../utils/email'
-import { resolveSetting } from '../../../utils/settings'
+import { resolveStringSetting } from '../../../utils/settings'
 import { canSendListEmail, getSignupSettings } from '../../../utils/mailing-list'
 
 // Admin → Mailing list → Signup popup. Also reports whether the site can send list mail,
@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   const [settings, emailConfig, brevoKey] = await Promise.all([
     getSignupSettings(event),
     loadEmailConfig(event),
-    resolveSetting(event, 'email.brevo_api_key', 'brevoApiKey'),
+    resolveStringSetting(event, 'email.brevo_api_key', 'brevoApiKey'),
   ])
   return {
     settings,

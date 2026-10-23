@@ -1,6 +1,6 @@
 import { requireRole } from '../../../utils/permissions'
 import { loadEmailConfig } from '../../../utils/email'
-import { resolveSetting, saveSetting } from '../../../utils/settings'
+import { resolveStringSetting, saveSetting } from '../../../utils/settings'
 import { writeAuditLog } from '../../../utils/audit'
 import { purgeEdgeCache } from '../../../utils/edge-cache'
 import { canSendListEmail, SIGNUP_SETTING_KEY } from '../../../utils/mailing-list'
@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   if (settings.doubleOptIn && !canSendListEmail(await loadEmailConfig(event))) {
     validationError('Double opt-in sends a confirmation email, which needs a third-party email provider (Resend, Brevo or ZeptoMail) in Settings → Email. Set one up first, or turn double opt-in off.')
   }
-  if (settings.brevoListId && !(await resolveSetting(event, 'email.brevo_api_key', 'brevoApiKey'))) {
+  if (settings.brevoListId && !(await resolveStringSetting(event, 'email.brevo_api_key', 'brevoApiKey'))) {
     validationError('Copying subscribers to a Brevo list needs a Brevo API key in Settings → Email.')
   }
 

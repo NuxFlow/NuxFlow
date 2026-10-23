@@ -5,7 +5,7 @@ import { scopedById } from '../../../utils/db-helpers'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
-import { resolveSetting } from '../../../utils/settings'
+import { resolveStringSetting } from '../../../utils/settings'
 import { StripeProvider } from '../../../utils/payments/stripe'
 import { LemonSqueezyProvider } from '../../../utils/payments/lemonsqueezy'
 import { syncPaymentProvider } from '../../../utils/payments/sync'
@@ -48,7 +48,7 @@ export default defineEventHandler(async (event) => {
 
   if (targetPrice > 0) {
     // ── Stripe sync ────────────────────────────────────────────────────────
-    const stripeSecretKey = await resolveSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
+    const stripeSecretKey = await resolveStringSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
     if (stripeSecretKey) {
       await syncPaymentProvider('Stripe', 'tier update', async () => {
         const stripe = new StripeProvider(stripeSecretKey)
@@ -73,8 +73,8 @@ export default defineEventHandler(async (event) => {
     }
 
     // ── Lemon Squeezy sync ────────────────────────────────────────────────
-    const lsApiKey = await resolveSetting(event, 'payments.ls_api_key', 'lsApiKey')
-    const lsStoreId = await resolveSetting(event, 'payments.ls_store_id', 'lsStoreId')
+    const lsApiKey = await resolveStringSetting(event, 'payments.ls_api_key', 'lsApiKey')
+    const lsStoreId = await resolveStringSetting(event, 'payments.ls_store_id', 'lsStoreId')
     if (lsApiKey && lsStoreId) {
       await syncPaymentProvider('Lemon Squeezy', 'tier update', async () => {
         const ls = new LemonSqueezyProvider(lsApiKey, lsStoreId)

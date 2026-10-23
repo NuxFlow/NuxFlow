@@ -9,6 +9,7 @@ import { dynamicPluginTrust } from '@nuxflow/db/schema'
 import type { Db } from './db'
 import { computeSha256, verifyPluginSignature } from './plugin-signing'
 import { parsePluginCapabilities, type PluginCapabilities } from '../../shared/lib/plugin-permissions'
+import { base64ToBytes } from '../../shared/lib/base64'
 
 // Letters, digits, dot, underscore, hyphen — never ':' or '/', which would break the KV key
 // (`plugin:{site}:{id}:…`) and the /_nuxflow/ext/{id}/ path.
@@ -80,7 +81,11 @@ export interface VerifiedPluginPackage {
 }
 
 function decodeBase64(encoded: string): string {
-  return Buffer.from(encoded, 'base64').toString('utf-8')
+  try {
+    return new TextDecoder().decode(base64ToBytes(encoded))
+  } catch {
+    throw badRequest('Plugin code must be base64-encoded')
+  }
 }
 
 async function assertChecksum(text: string, expected: string, label: string): Promise<void> {

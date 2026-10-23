@@ -41,7 +41,7 @@ const steps = [
 
 const signInEmail = useSignIn('email')
 const { onSiteDomain } = useAccounts()
-const needsSetup = useState<boolean | null>('setup:needs-setup')
+const needsSetup = useNeedsSetup()
 
 function next() {
   if (step.value < totalSteps) step.value++

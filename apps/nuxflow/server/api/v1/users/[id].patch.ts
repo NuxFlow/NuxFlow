@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { userSiteRoles, siteInvitations } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { ASSIGNABLE_ROLES } from '@nuxflow/db/roles'
 import { requireRole, getUserSiteRole, assertNotSelfTarget, assertTargetNotSuperAdmin } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { clearCachedRole } from '../../../utils/role-cache'
@@ -9,7 +10,7 @@ import { alertRoleChanged } from '../../../utils/security-alerts'
 import { assertWithinPlan, limitForRole } from '../../../utils/hosting-plans'
 
 const bodySchema = z.object({
-  role: z.enum(['admin', 'editor', 'author', 'viewer', 'member']).optional(),
+  role: z.enum(ASSIGNABLE_ROLES).optional(),
 })
 
 export default defineEventHandler(async (event) => {

@@ -3,6 +3,7 @@ import { pendingInvitationInsert } from '../../../utils/invitations'
 import { useDb } from '../../../utils/db'
 import { userSiteRoles, sites } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
+import { ASSIGNABLE_ROLES } from '@nuxflow/db/roles'
 import { eq } from 'drizzle-orm'
 import { requireRole, getUserSiteRole } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
@@ -17,7 +18,7 @@ import { assertWithinPlan, limitForRole } from '../../../utils/hosting-plans'
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
   email: z.email(),
-  role: z.enum(['admin', 'editor', 'author', 'viewer', 'member']).default('viewer'),
+  role: z.enum(ASSIGNABLE_ROLES).default('viewer'),
 })
 
 export default defineEventHandler(async (event) => {

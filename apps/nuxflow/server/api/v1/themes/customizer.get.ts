@@ -1,7 +1,7 @@
 import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { requireRole } from '../../../utils/permissions'
-import { resolveSetting } from '../../../utils/settings'
+import { resolveSetting, resolveStringSetting } from '../../../utils/settings'
 import { useDb } from '../../../utils/db'
 import { requireSiteId } from '../../../utils/site-context'
 
@@ -52,9 +52,9 @@ export default defineEventHandler(async (event) => {
     } catch { /* use defaults on malformed JSON */ }
   } else {
     // First visit — migrate from existing 3-knob appearance settings
-    const darkMode = ((await resolveSetting(event, 'theme.dark_mode')) as string) || 'auto'
-    const primaryColor = ((await resolveSetting(event, 'theme.primary_color')) as string) || '#00dc82'
-    const fontSans = ((await resolveSetting(event, 'theme.font_sans')) as string) || 'system'
+    const darkMode = ((await resolveStringSetting(event, 'theme.dark_mode'))) || 'auto'
+    const primaryColor = ((await resolveStringSetting(event, 'theme.primary_color'))) || '#00dc82'
+    const fontSans = ((await resolveStringSetting(event, 'theme.font_sans'))) || 'system'
     values = {
       ...DEFAULTS,
       colorMode: darkMode as CustomizerValues['colorMode'],
@@ -64,7 +64,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Resolve the ID of the theme that the customizer manages
-  const storedThemeId = ((await resolveSetting(event, 'theme.customizer_theme_id')) as string) || null
+  const storedThemeId = ((await resolveStringSetting(event, 'theme.customizer_theme_id'))) || null
   let customizerThemeId: string | null = null
 
   if (storedThemeId) {

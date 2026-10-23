@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseRecipient, parseAuthResults, isSenderAuthenticated, normalizeSubject,
-  textToTipTap, makeSnippet, privateEmailKey,
+  makeSnippet, privateEmailKey,
 } from '../../server/utils/inbound-email'
 import { isValidMailboxLocalPart } from '../../server/utils/inbox'
+import { textToTipTap } from '../../server/utils/post-by-email'
 
 describe('parseRecipient', () => {
   it('splits local part, sub-address tag and domain, lowercased', () => {

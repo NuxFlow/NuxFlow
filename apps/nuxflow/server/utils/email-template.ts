@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { escapeHtml, loadEmailConfig, sendEmailWithConfig, type SendResult } from './email'
-import { resolveSetting } from './settings'
+import { resolveStringSetting } from './settings'
 
 export interface EmailTemplateInput {
   siteName: string
@@ -101,7 +101,7 @@ export interface TemplatedEmail {
 export async function sendTemplatedEmail(event: H3Event, email: TemplatedEmail): Promise<SendResult> {
   const [config, accentColor] = await Promise.all([
     loadEmailConfig(event),
-    resolveSetting(event, 'theme.primary_color'),
+    resolveStringSetting(event, 'theme.primary_color'),
   ])
   const { html, text } = renderEmailTemplate({
     ...email.template,

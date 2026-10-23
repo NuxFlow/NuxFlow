@@ -2,7 +2,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { ensureInboundHandle, mailboxAddresses } from '../../../utils/inbox'
 import { getEmailBinding } from '../../../utils/cf-env'
-import { resolveSetting } from '../../../utils/settings'
+import { resolveStringSetting } from '../../../utils/settings'
 import { mailboxes, sites } from '@nuxflow/db/schema'
 import { and, asc, eq } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
       orderBy: [asc(mailboxes.createdAt)],
     }),
     ensureInboundHandle(event, db, siteId),
-    resolveSetting(event, 'email.provider', 'emailProvider'),
+    resolveStringSetting(event, 'email.provider', 'emailProvider'),
   ])
   const siteDomain = site?.domain ?? ''
   const platformDomain = String(useRuntimeConfig().inboundEmailDomain ?? '').trim() || null

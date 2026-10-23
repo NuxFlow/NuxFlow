@@ -3,7 +3,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole, isSuperAdminOnSite } from '../../../utils/permissions'
 import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
-import { resolveSetting, batchSaveSettings, isOllamaAvailable, SERVER_MANAGED_SETTING_KEYS } from '../../../utils/settings'
+import { resolveStringSetting, resolveBooleanSetting, batchSaveSettings, isOllamaAvailable, SERVER_MANAGED_SETTING_KEYS } from '../../../utils/settings'
 import { normalizeDomain } from '../../../utils/domain'
 import { clearSiteCache } from '../../../middleware/02.multi-site'
 import { clearAppearanceCache } from '../../../utils/appearance-cache'
@@ -166,9 +166,9 @@ export default defineEventHandler(async (event) => {
     // *would* leave in place (incoming body value where provided, current effective value
     // otherwise) and reject before writing anything if that combination is incomplete.
     const [currentAccountId, currentImagesToken, currentDeliveryUrl] = await Promise.all([
-      resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId'),
-      resolveSetting(event, 'cloudflare.images_token', 'cloudflareImagesToken'),
-      resolveSetting(event, 'cloudflare.images_delivery_url', 'cloudflareImagesDeliveryUrl'),
+      resolveStringSetting(event, 'cloudflare.account_id', 'cloudflareAccountId'),
+      resolveStringSetting(event, 'cloudflare.images_token', 'cloudflareImagesToken'),
+      resolveStringSetting(event, 'cloudflare.images_delivery_url', 'cloudflareImagesDeliveryUrl'),
     ])
     const nextAccountId = cf.accountId !== undefined ? cf.accountId : currentAccountId
     const nextImagesToken = cf.imagesToken !== undefined ? cf.imagesToken : currentImagesToken
@@ -208,7 +208,7 @@ export default defineEventHandler(async (event) => {
   // Settings page saves at once, and a site moved to a smaller plan must still be able to
   // save (GET /api/public/site ignores the setting while the plan doesn't include it).
   if (settingEntries.some(([k, v]) => k === 'media.enable_image_transformations' && v === true)
-    && (await resolveSetting(event, 'media.enable_image_transformations')) !== true
+    && !(await resolveBooleanSetting(event, 'media.enable_image_transformations'))
     && !(await planIncludes(db, siteId, 'imageTransformations'))) {
     throw createError({
       statusCode: 403,

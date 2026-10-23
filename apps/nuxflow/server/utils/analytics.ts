@@ -3,6 +3,7 @@ import { getAnalyticsEngine } from './cf-env'
 import { isPageCachePath } from './page-cache'
 import { detectCrawler, isNoindexPath } from './seo'
 import { createIsolateCache } from './isolate-cache'
+import { utcDayAgo } from './utc-day'
 
 /**
  * Visitor analytics (Admin → Analytics), on Cloudflare Analytics Engine.
@@ -195,7 +196,7 @@ const num = (v: unknown): number => {
 /** The UTC days the report covers, oldest first, as YYYY-MM-DD. */
 export function reportDays(days: AnalyticsRange, now = new Date()): string[] {
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-  return Array.from({ length: days }, (_, i) => new Date(today - (days - 1 - i) * 86_400_000).toISOString().slice(0, 10))
+  return Array.from({ length: days }, (_, i) => utcDayAgo(days - 1 - i, new Date(today)))
 }
 
 // Five minutes per site and range: the dashboard is opened far more often than the

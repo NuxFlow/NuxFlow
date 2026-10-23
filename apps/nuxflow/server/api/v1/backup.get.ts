@@ -7,6 +7,7 @@ import { writeAuditLog } from '../../utils/audit'
 import { getCfBindings } from '../../utils/cf-env'
 import { workerMediaKey } from '../../utils/media-url'
 import { requireSiteId } from '../../utils/site-context'
+import { utcDay } from '../../utils/utc-day'
 
 // Matches restore.post.ts's upload limit — a bigger backup couldn't be restored.
 const MAX_RAW_MEDIA_BYTES = 100 * 1024 * 1024
@@ -37,7 +38,7 @@ export default defineEventHandler(async (event) => {
   // from ordinary reads, since downloading one is effectively exporting live credentials.
   await writeAuditLog(event, userId, { action: 'export', resource: 'site', resourceId: siteId })
 
-  const filename = `nuxflow-backup-${new Date().toISOString().slice(0, 10)}.zip`
+  const filename = `nuxflow-backup-${utcDay()}.zip`
   setHeader(event, 'Content-Type', 'application/zip')
   setHeader(event, 'Content-Disposition', `attachment; filename="${filename}"`)
 

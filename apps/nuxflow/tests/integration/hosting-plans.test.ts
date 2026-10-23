@@ -14,6 +14,7 @@ import { dynamicPlugins, emailLog, emailMessages, hostingPlans, notifications, s
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedContentType, seedContentItem, seedMedia, seedSetting } from '../helpers/seed'
+import { utcDay } from '../../server/utils/utc-day'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -44,7 +45,7 @@ const { checkPlanLimit, assertWithinPlan, clearHostingPlanCache, limitForRole, p
 const { requireAiSdkModel, withUsageCounting } = await import('../../server/utils/ai-sdk')
 const { sendEmailWithConfig } = await import('../../server/utils/email')
 const { registerAccountForSite } = await import('../../server/utils/registration')
-const { countUsage, flushUsage, pendingUsage, resetUsageBuffer, usageDay } = await import('../../server/utils/usage')
+const { countUsage, flushUsage, pendingUsage, resetUsageBuffer } = await import('../../server/utils/usage')
 const { checkAiAllowance, clearAiDailyCapCache, platformAiCreditsToday } = await import('../../server/utils/ai-allowance')
 const { resolveSetting, saveSetting } = await import('../../server/utils/settings')
 const { sendPlanUsageAlerts, sendPlatformAiCapAlert } = await import('../../server/scheduled/plan-usage-alerts')
@@ -106,7 +107,7 @@ async function useLimits(limits: Partial<typeof hostingPlans.$inferInsert>) {
 }
 
 async function setMonthUsage(metric: string, value: number, siteId = TENANT) {
-  await flushUsage(getCurrentTestDb(), [{ siteId, day: usageDay(), metric, value }])
+  await flushUsage(getCurrentTestDb(), [{ siteId, day: utcDay(), metric, value }])
 }
 
 beforeAll(async () => {
@@ -424,7 +425,7 @@ describe('visitor AI, inbound email storage, image resizing and database size', 
     await useLimits({ maxDatabaseBytes: 10 * 1024 ** 2 })
     await flushUsage(db, [
       { siteId: TENANT, day: '2000-01-01', metric: 'database_bytes', value: 1 },
-      { siteId: TENANT, day: usageDay(), metric: 'database_bytes', value: 9 * 1024 ** 2 },
+      { siteId: TENANT, day: utcDay(), metric: 'database_bytes', value: 9 * 1024 ** 2 },
     ])
     expect(await planUsage(db, TENANT, 'database')).toBe(9 * 1024 ** 2)
     expect(await sendPlanUsageAlerts()).toMatchObject({ notified: 1 })

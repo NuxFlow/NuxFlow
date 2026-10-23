@@ -1,8 +1,8 @@
-import { resolveSetting } from '../../../utils/settings'
+import { isPublicRegistrationOpen } from '../../../utils/registration'
 
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId
   if (!siteId) return { enabled: false }
-  const value = await resolveSetting(event, 'auth.allow_public_registration').catch(() => '')
-  return { enabled: value === 'true' }
+  const enabled = await isPublicRegistrationOpen(event, siteId).catch(() => false)
+  return { enabled }
 })

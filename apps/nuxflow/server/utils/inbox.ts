@@ -3,7 +3,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { emailMessages, mailboxes, siteSettings, sites } from '@nuxflow/db/schema'
 import type { Db } from './db'
 import { getCfBindings } from './cf-env'
-import { resolveSetting, saveSetting } from './settings'
+import { resolveStringSetting, saveSetting } from './settings'
 import { CATCH_ALL_LOCAL_PART, INBOUND_HANDLE_SETTING } from './inbound-email'
 import { getPoolId } from './control-plane'
 
@@ -80,7 +80,7 @@ export async function ensureInboundHandle(event: H3Event, db: Db, siteId: string
   if (!platform) return null
   const poolId = getPoolId()
   const suffix = poolId ? `.${poolId}` : ''
-  const existing = await resolveSetting(event, INBOUND_HANDLE_SETTING)
+  const existing = await resolveStringSetting(event, INBOUND_HANDLE_SETTING)
   if (typeof existing === 'string' && existing && existing.endsWith(suffix)) return existing
 
   const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } })

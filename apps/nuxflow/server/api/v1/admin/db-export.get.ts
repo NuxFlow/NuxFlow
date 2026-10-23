@@ -4,6 +4,7 @@ import { prepareD1Dump, streamD1TableData } from '../../../utils/d1-export'
 import { writeAuditLog } from '../../../utils/audit'
 import { notifySiteRole } from '../../../utils/notify'
 import { requireSiteId } from '../../../utils/site-context'
+import { utcDay } from '../../../utils/utc-day'
 
 // Whole-D1-instance raw SQL export — every site's data in one file. Gated on
 // requireSuperAdmin (cross-site), not the site-scoped requireRole() the per-site
@@ -31,7 +32,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, message: `D1 export failed: ${message}` })
   }
 
-  const filename = `nuxflow-d1-export-${new Date().toISOString().slice(0, 10)}.sql`
+  const filename = `nuxflow-d1-export-${utcDay()}.sql`
   setHeader(event, 'Content-Type', 'application/sql; charset=utf-8')
   setHeader(event, 'Content-Disposition', `attachment; filename="${filename}"`)
 

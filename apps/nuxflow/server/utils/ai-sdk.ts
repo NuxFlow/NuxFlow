@@ -1,6 +1,6 @@
 import { wrapLanguageModel, type LanguageModel } from 'ai'
 import { isError, type H3Event } from 'h3'
-import { isOllamaAvailable, resolveSetting } from './settings'
+import { resolveStringSetting, isOllamaAvailable } from './settings'
 import { getCfBindings, getWorkersAiBinding } from './cf-env'
 import { WORKER_MEDIA_PREFIX, workerMediaKey } from './media-url'
 import { safeFetch } from './ssrf'
@@ -45,9 +45,9 @@ export interface GatewaySettings { gatewayId: string; accountId: string; token: 
  */
 export async function resolveGatewaySettings(event: H3Event): Promise<GatewaySettings> {
   const [gatewayId, accountId, token] = await Promise.all([
-    resolveSetting(event, 'ai.gateway_id', 'aiGatewayId') as Promise<string>,
-    resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId') as Promise<string>,
-    resolveSetting(event, 'ai.gateway_token', 'aiGatewayToken') as Promise<string>,
+    resolveStringSetting(event, 'ai.gateway_id', 'aiGatewayId'),
+    resolveStringSetting(event, 'cloudflare.account_id', 'cloudflareAccountId'),
+    resolveStringSetting(event, 'ai.gateway_token', 'aiGatewayToken'),
   ])
   return { gatewayId, accountId, token }
 }
@@ -93,9 +93,9 @@ export interface ResolvedAiModel {
  * gets the env fallback at all — settings.ts, HOSTING_PLATFORM_ONLY_ENV_KEYS.)
  */
 export async function resolveAiKey(event: H3Event, key: string, envKey: string): Promise<{ value: string, payer: AiPayer }> {
-  const own = await resolveSetting(event, key) as string | undefined
+  const own = await resolveStringSetting(event, key)
   if (own) return { value: own, payer: 'site' }
-  return { value: (await resolveSetting(event, key, envKey) as string | undefined) || '', payer: 'platform' }
+  return { value: (await resolveStringSetting(event, key, envKey)) || '', payer: 'platform' }
 }
 
 /**
@@ -188,7 +188,7 @@ async function resolveProviderModel(event: H3Event, quality: AiQuality, opts: Ge
   // admin action beyond that one uncomment. If the binding genuinely isn't present (not yet
   // uncommented, or a self-hoster on an older wrangler.toml), the workers-ai case below
   // returns null exactly as the old unconfigured-provider default did — no regression.
-  const provider = (await resolveSetting(event, 'ai.provider', 'aiProvider') as string | undefined) || 'workers-ai'
+  const provider = (await resolveStringSetting(event, 'ai.provider', 'aiProvider')) || 'workers-ai'
 
   switch (provider) {
     case 'workers-ai': {
@@ -297,7 +297,7 @@ async function resolveProviderModel(event: H3Event, quality: AiQuality, opts: Ge
       if (!(await isOllamaAvailable(event))) return null
       const [{ value: url, payer }, model] = await Promise.all([
         resolveAiKey(event, 'ai.ollama_base_url', 'ollamaUrl'),
-        resolveSetting(event, 'ai.ollama_model', 'ollamaModel') as Promise<string>,
+        resolveStringSetting(event, 'ai.ollama_model', 'ollamaModel'),
       ])
       const { createOpenAI } = await import('@ai-sdk/openai')
       const ollama = createOpenAI({ apiKey: 'ollama', baseURL: `${url || 'http://localhost:11434'}/v1` })

@@ -11,7 +11,7 @@ describe('verifyTurnstile', () => {
     vi.restoreAllMocks()
   })
 
-  it('returns true when the secret key is not configured (dev bypass)', async () => {
+  it('returns true when the secret key is not configured (Turnstile is opt-in)', async () => {
     const result = await verifyTurnstile('any-token')
     expect(result).toBe(true)
   })
@@ -19,6 +19,7 @@ describe('verifyTurnstile', () => {
   it('returns true when Cloudflare returns success: true', async () => {
     process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY = 'test-secret'
     const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
       json: async () => ({ success: true }),
     })
     vi.stubGlobal('fetch', mockFetch)
@@ -31,6 +32,7 @@ describe('verifyTurnstile', () => {
   it('returns false when Cloudflare returns success: false', async () => {
     process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY = 'test-secret'
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
       json: async () => ({ success: false, 'error-codes': ['invalid-input-response'] }),
     }))
 
@@ -43,7 +45,7 @@ describe('verifyTurnstile', () => {
     let capturedBody: FormData | null = null
     vi.stubGlobal('fetch', vi.fn().mockImplementation((_url, opts) => {
       capturedBody = opts.body as FormData
-      return Promise.resolve({ json: async () => ({ success: true }) })
+      return Promise.resolve({ ok: true, json: async () => ({ success: true }) })
     }))
 
     await verifyTurnstile('tok-abc')
@@ -57,10 +59,26 @@ describe('verifyTurnstile', () => {
     let capturedBody: FormData | null = null
     vi.stubGlobal('fetch', vi.fn().mockImplementation((_url, opts) => {
       capturedBody = opts.body as FormData
-      return Promise.resolve({ json: async () => ({ success: true }) })
+      return Promise.resolve({ ok: true, json: async () => ({ success: true }) })
     }))
 
     await verifyTurnstile('tok', '10.0.0.1')
     expect(capturedBody!.get('remoteip')).toBe('10.0.0.1')
+  })
+
+  it('fails the check when siteverify answers with an error status', async () => {
+    process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY = 'key'
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 502, json: async () => { throw new Error('not JSON') } }))
+
+    expect(await verifyTurnstile('tok')).toBe(false)
+  })
+
+  it('fails the check when siteverify cannot be reached', async () => {
+    process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY = 'key'
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+
+    expect(await verifyTurnstile('tok')).toBe(false)
   })
 })

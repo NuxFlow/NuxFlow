@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import { auditLogs, emailLog, forms, media, passkeys, sites, siteSettings } from '@nuxflow/db/schema'
 import { and, count, desc, eq, inArray } from 'drizzle-orm'
 import { useDb } from './db'
-import { resolveSetting } from './settings'
+import { resolveStringSetting } from './settings'
 import { getActiveProvider } from './media-providers/index'
 import { getAiSdkModel } from './ai-sdk'
 import { getAnalyticsEngine, getEmailBinding } from './cf-env'
@@ -12,6 +12,7 @@ import { loadEmailConfig } from './email'
 import { getAccountsOrigin } from './accounts-origin'
 import { isPrimarySite } from './site-info'
 import { requireSiteId } from './site-context'
+import { getTurnstileSecret } from './turnstile'
 
 /**
  * The admin dashboard's "Finish setting up your site" card (GET /api/v1/site-checklist,
@@ -302,8 +303,8 @@ export async function gatherSetupChecklistInputs(event: H3Event, userId: string)
   const [provider, emailProvider, aiProviderSetting, turnstileSiteKey, seo, aiModel, site, localMedia, formRows, lastEmail, passkeyRows, lastBackup, siteCountRow] = await Promise.all([
     getActiveProvider(event),
     loadEmailConfig(event).then(c => c.emailProvider),
-    resolveSetting(event, 'ai.provider', 'aiProvider'),
-    resolveSetting(event, 'integrations.turnstile_site_key'),
+    resolveStringSetting(event, 'ai.provider', 'aiProvider'),
+    resolveStringSetting(event, 'integrations.turnstile_site_key'),
     getSeoSettings(db, siteId),
     getAiSdkModel(event, 'fast').catch(() => null),
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } }),
@@ -321,7 +322,7 @@ export async function gatherSetupChecklistInputs(event: H3Event, userId: string)
   const primary = await isPrimarySite(event, siteId)
   // Only the primary site gets the analytics item; its credentials are stored there.
   const [analyticsToken, accountId] = primary
-    ? await Promise.all([resolveSetting(event, ANALYTICS_TOKEN_KEY), resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')])
+    ? await Promise.all([resolveStringSetting(event, ANALYTICS_TOKEN_KEY), resolveStringSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')])
     : ['', '']
 
   return {
@@ -336,7 +337,7 @@ export async function gatherSetupChecklistInputs(event: H3Event, userId: string)
     aiAvailable: Boolean(aiModel),
     aiProvider: (aiProviderSetting as string) || 'workers-ai',
     turnstileSiteKey: (turnstileSiteKey as string) || '',
-    hasTurnstileSecret: Boolean(process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY),
+    hasTurnstileSecret: Boolean(getTurnstileSecret()),
     formCount: formRows[0]?.n ?? 0,
     userPasskeyCount: passkeyRows[0]?.n ?? 0,
     lastBackupAt: lastBackup?.createdAt ?? null,

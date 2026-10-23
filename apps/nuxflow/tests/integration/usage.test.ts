@@ -12,6 +12,7 @@ import { dynamicPlugins, emailMessages, formSubmissions, forms, siteUsageDaily }
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedContentType, seedContentItem, seedMedia, seedSetting } from '../helpers/seed'
+import { utcDay } from '../../server/utils/utc-day'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -20,7 +21,7 @@ vi.mock('../../server/utils/db', () => ({
 
 globalThis.defineNitroPlugin = ((fn: unknown) => fn) as never
 
-const { countUsage, flushUsage, pendingUsage, resetUsageBuffer, usageDay } = await import('../../server/utils/usage')
+const { countUsage, flushUsage, pendingUsage, resetUsageBuffer } = await import('../../server/utils/usage')
 const { default: usageMiddleware } = await import('../../server/middleware/05.usage')
 const { default: usagePlugin } = await import('../../server/plugins/usage')
 const { withUsageCounting } = await import('../../server/utils/ai-sdk')
@@ -43,7 +44,7 @@ function ev(opts: Parameters<typeof createMockEvent>[0] = {}): H3Event {
   return e
 }
 
-async function usageRow(siteId: string, metric: string, day = usageDay()) {
+async function usageRow(siteId: string, metric: string, day = utcDay()) {
   const [row] = await getCurrentTestDb().select().from(siteUsageDaily)
     .where(and(eq(siteUsageDaily.siteId, siteId), eq(siteUsageDaily.day, day), eq(siteUsageDaily.metric, metric)))
   return row?.value
@@ -87,7 +88,7 @@ describe('countUsage and flushUsage', () => {
   })
 
   it('adds to an existing row and splits large batches across statements', async () => {
-    const day = usageDay()
+    const day = utcDay()
     await flushUsage(getCurrentTestDb(), [{ siteId: A, day, metric: 'api', value: 5 }])
     await flushUsage(getCurrentTestDb(), [
       { siteId: A, day, metric: 'api', value: 7 },
@@ -222,7 +223,7 @@ describe('nightly snapshot', () => {
 
 describe('retention', () => {
   it('prunes usage rows older than 400 days', async () => {
-    const day = (daysAgo: number) => usageDay(new Date(Date.now() - daysAgo * 86_400_000))
+    const day = (daysAgo: number) => utcDay(new Date(Date.now() - daysAgo * 86_400_000))
     await flushUsage(getCurrentTestDb(), [
       { siteId: A, day: day(401), metric: 'views', value: 1 },
       { siteId: A, day: day(399), metric: 'views', value: 1 },
@@ -277,7 +278,7 @@ describe('Super Admin → Usage API', () => {
   })
 
   it("returns one site's daily series, with gaps as 0 for events and null for totals", async () => {
-    const today = usageDay()
+    const today = utcDay()
     await flushUsage(getCurrentTestDb(), [
       { siteId: A, day: today, metric: 'views', value: 7 },
       { siteId: A, day: today, metric: 'storage_bytes', value: 42 },

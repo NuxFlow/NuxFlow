@@ -9,6 +9,7 @@ import { notifySiteRole } from './notify'
 import { waitUntil } from './cf-env'
 import { refreshSitesAfterPlanChange } from './hosting-plans'
 import { clearSiteCache } from '../middleware/02.multi-site'
+import { getClientIp } from './client-ip'
 
 /**
  * Super Admin → Sites' changes to a site, applied to the database the site lives in: the
@@ -102,7 +103,7 @@ export async function updateSiteRecord(event: H3Event, siteId: string, changes: 
     resourceId: siteId,
     before: existing,
     after: body,
-    ipAddress: getHeader(event, 'cf-connecting-ip') ?? getHeader(event, 'x-forwarded-for') ?? null,
+    ipAddress: getClientIp(event) ?? null,
     userAgent: getHeader(event, 'user-agent') ?? null,
   })
 

@@ -1,7 +1,7 @@
 import type Stripe from 'stripe'
 import { HOSTING_WEBHOOK_SECRET_KEY, hostingContext, isHostingStripeObject, syncHostingSubscription } from '../../../utils/hosting-billing'
 import { getStripeProvider } from '../../../utils/payments/resolve'
-import { resolveSetting } from '../../../utils/settings'
+import { resolveStringSetting } from '../../../utils/settings'
 import { rateLimit } from '../../../utils/rate-limit'
 
 /**
@@ -14,7 +14,7 @@ import { rateLimit } from '../../../utils/rate-limit'
 export default defineEventHandler(async (event) => {
   const ctx = await hostingContext(event)
   await rateLimit(event, { limit: 300, windowMs: 60_000, keyPrefix: 'hosting-webhook' })
-  const secret = await resolveSetting(ctx.primaryEvent, HOSTING_WEBHOOK_SECRET_KEY)
+  const secret = await resolveStringSetting(ctx.primaryEvent, HOSTING_WEBHOOK_SECRET_KEY)
   if (!secret) throw createError({ statusCode: 503, message: 'The hosting webhook signing secret is not set (Super Admin → Platform).' })
   const stripe = await getStripeProvider(ctx.primaryEvent)
 

@@ -11,6 +11,7 @@ import { created } from '../../../../utils/response'
 import { sites, auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { randomToken } from '../../../../../shared/lib/base64'
+import { getClientIp } from '../../../../utils/client-ip'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
@@ -66,7 +67,7 @@ export default defineEventHandler(async (event) => {
     resource: 'site',
     resourceId: id,
     after: { domain: body.domain, name: body.name },
-    ipAddress: getHeader(event, 'cf-connecting-ip') ?? getHeader(event, 'x-forwarded-for') ?? null,
+    ipAddress: getClientIp(event) ?? null,
     userAgent: getHeader(event, 'user-agent') ?? null,
   })
 

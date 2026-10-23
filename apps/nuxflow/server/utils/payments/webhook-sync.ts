@@ -3,7 +3,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { membershipTiers, subscriptions } from '@nuxflow/db/schema'
 import { useDb } from '../db'
-import { resolveSetting } from '../settings'
+import { resolveStringSetting, resolveBooleanSetting } from '../settings'
 import { sendNotification } from '../notify'
 import { writeAuditLog } from '../audit'
 import type { PaymentProviderName, SubscriptionStatus } from './types'
@@ -89,7 +89,7 @@ export class WebhookForOtherSite extends Error {}
  * Shared by every provider's handler in [provider].post.ts.
  */
 export async function requireWebhookSecret(event: H3Event, settingKey: string, envKey: string, providerLabel: string): Promise<string> {
-  const secret = await resolveSetting(event, settingKey, envKey)
+  const secret = await resolveStringSetting(event, settingKey, envKey)
   if (!secret) {
     throw createError({ statusCode: 503, message: `${providerLabel} webhook secret is not configured` })
   }
@@ -97,8 +97,7 @@ export async function requireWebhookSecret(event: H3Event, settingKey: string, e
 }
 
 async function maybeSendPaymentPush(event: H3Event, siteId: string, userId: string, tierName: string | undefined) {
-  const enabled = await resolveSetting(event, 'push.events.payment_confirmation')
-  if (enabled !== 'true') return
+  if (!(await resolveBooleanSetting(event, 'push.events.payment_confirmation'))) return
   await sendNotification({
     siteId,
     userId,

@@ -167,10 +167,37 @@ export const SERVER_MANAGED_SETTING_KEYS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Resolves a site setting. Checks the database first, decrypts if sensitive, and falls back to environment variables.
+ * A site setting as text: a stored string (or number) as-is, anything else — unset, a
+ * boolean, an object — as ''. What nearly every setting (keys, ids, URLs, names) wants.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function resolveSetting(event: H3Event, key: string, envKey?: string): Promise<any> {
+export async function resolveStringSetting(event: H3Event, key: string, envKey?: string): Promise<string> {
+  return settingToString(await resolveSetting(event, key, envKey))
+}
+
+/**
+ * A yes/no site setting. Settings are stored as JSON, and switches have been saved both as
+ * `true` and as `'true'` over time, so both count as on; everything else is off.
+ */
+export async function resolveBooleanSetting(event: H3Event, key: string, envKey?: string): Promise<boolean> {
+  return settingToBoolean(await resolveSetting(event, key, envKey))
+}
+
+export function settingToString(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return ''
+}
+
+export function settingToBoolean(value: unknown): boolean {
+  return value === true || value === 'true'
+}
+
+/**
+ * Resolves a site setting. Checks the database first, decrypts if sensitive, and falls back
+ * to environment variables. The value is whatever JSON was saved — use
+ * resolveStringSetting()/resolveBooleanSetting() unless the setting holds structured data.
+ */
+export async function resolveSetting(event: H3Event, key: string, envKey?: string): Promise<unknown> {
   const siteId = event.context.siteId
   const rc = useRuntimeConfig()
 

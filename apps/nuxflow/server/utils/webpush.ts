@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import { useDb } from './db'
 import { pushSubscriptions, sites } from '@nuxflow/db/schema'
 import { eq, and } from 'drizzle-orm'
-import { resolveSetting } from './settings'
+import { resolveStringSetting } from './settings'
 import { base64ToBytes, bytesToBase64Url } from '../../shared/lib/base64'
 import { requireSiteId } from './site-context'
 
@@ -209,8 +209,8 @@ interface VapidConfig { pub: string; priv: string; subject: string }
 async function getVapidKeys(event: H3Event): Promise<VapidConfig | null> {
   const siteId = requireSiteId(event)
   const [pub, priv, site] = await Promise.all([
-    resolveSetting(event, 'push.vapid_public_key'),
-    resolveSetting(event, 'push.vapid_private_key'),
+    resolveStringSetting(event, 'push.vapid_public_key'),
+    resolveStringSetting(event, 'push.vapid_private_key'),
     useDb(event).query.sites.findFirst({ where: eq(sites.id, siteId), columns: { domain: true } }),
   ])
   if (!pub || !priv) return null

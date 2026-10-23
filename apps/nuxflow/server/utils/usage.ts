@@ -3,6 +3,8 @@ import { siteUsageDaily } from '@nuxflow/db/schema'
 import { sql } from 'drizzle-orm'
 import { useDb, type Db } from './db'
 import { waitUntil } from './cf-env'
+import { utcDay } from './utc-day'
+import { createCounterBuffer } from './counter-buffer'
 
 /**
  * Per-site usage counting (site_usage_daily) — what each site uses, for Super Admin →
@@ -79,9 +81,6 @@ export type SiteStatMetric = typeof SITE_STAT_METRICS[number]
 export type UsageSnapshotMetric = typeof USAGE_SNAPSHOT_METRICS[number]
 export type UsageMetric = UsageEventMetric | UsageSnapshotMetric
 
-const FLUSH_INTERVAL_MS = 60_000
-// Flush early when this many distinct (site, day, metric) counters are waiting.
-const MAX_PENDING_COUNTERS = 100
 // 4 bound parameters per row; D1 allows 100 per statement.
 const ROWS_PER_STATEMENT = 20
 
@@ -92,42 +91,28 @@ export interface UsageCount {
   value: number
 }
 
-const pending = new Map<string, UsageCount>()
-let lastFlushAt = 0
-
-export function usageDay(now = new Date()): string {
-  return now.toISOString().slice(0, 10)
-}
+// Written at most once a minute, or early when 100 distinct (site, day, metric) counters wait.
+const pending = createCounterBuffer<UsageCount>({ flushIntervalMs: 60_000, maxPending: 100 })
 
 /**
  * Adds `n` to a site's count for today. Silently does nothing without a site (the accounts
  * origin, setup) — usage belongs to a site or to nobody. Never throws: counting must not
  * be able to fail the request it's counting.
  */
-export function countUsage(event: H3Event, metric: UsageEventMetric | SiteStatMetric, n = 1, siteId = event.context?.siteId as string | undefined): void {
+export function countUsage(event: H3Event, metric: UsageEventMetric | SiteStatMetric, n = 1, siteId = event.context?.siteId ?? undefined): void {
   if (!siteId || n <= 0) return
   try {
-    const day = usageDay()
-    const key = `${siteId}|${day}|${metric}`
-    const existing = pending.get(key)
-    if (existing) existing.value += n
-    else pending.set(key, { siteId, day, metric, value: n })
-
-    if (Date.now() - lastFlushAt < FLUSH_INTERVAL_MS && pending.size < MAX_PENDING_COUNTERS) return
-    const batch = takePendingUsage()
-    waitUntil(event, flushUsage(useDb(event), batch).catch((err) => {
+    const day = utcDay()
+    const due = pending.add(`${siteId}|${day}|${metric}`, () => ({ siteId, day, metric, value: 0 }), (count) => {
+      count.value += n
+    })
+    if (!due) return
+    waitUntil(event, flushUsage(useDb(event), pending.take()).catch((err) => {
       console.error('[usage] counter write failed', err)
     }))
   } catch (err) {
     console.error('[usage] counting failed', err)
   }
-}
-
-function takePendingUsage(): UsageCount[] {
-  const batch = [...pending.values()]
-  pending.clear()
-  lastFlushAt = Date.now()
-  return batch
 }
 
 /** Adds each buffered count to its row — one statement per ROWS_PER_STATEMENT counters. */
@@ -156,11 +141,10 @@ export async function writeUsageSnapshot(db: Db, rows: UsageCount[]): Promise<vo
 
 /** Test hook: forget isolate-level state. */
 export function resetUsageBuffer(): void {
-  pending.clear()
-  lastFlushAt = 0
+  pending.reset()
 }
 
-/** Test hook: what's waiting to be written. */
+/** Counts in this isolate not yet written (plan limits add them to the stored totals). */
 export function pendingUsage(): UsageCount[] {
-  return [...pending.values()]
+  return pending.pending()
 }

@@ -1,19 +1,20 @@
 import { z } from 'zod'
-import { forms, formSubmissions, userSiteRoles } from '@nuxflow/db/schema'
+import { forms, formSubmissions } from '@nuxflow/db/schema'
 import type { FormField } from '@nuxflow/db/schema'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
 import { verifyTurnstile } from '../../../utils/turnstile'
 import { rateLimit } from '../../../utils/rate-limit'
 import { sendTemplatedEmail } from '../../../utils/email-template'
-import { resolveSetting } from '../../../utils/settings'
+import { resolveBooleanSetting } from '../../../utils/settings'
 import { created } from '../../../utils/response'
-import { sendNotification } from '../../../utils/notify'
+import { sendNotification, siteNotificationEmail } from '../../../utils/notify'
 import { dispatchPluginHook } from '../../../utils/plugin-hooks'
 import { waitUntil } from '../../../utils/cf-env'
 import { moderateText } from '../../../utils/moderation'
 import { requireSiteId } from '../../../utils/site-context'
+import { getClientIp } from '../../../utils/client-ip'
 
 const CONTACT_SLUG = 'contact'
 
@@ -59,7 +60,7 @@ export default defineEventHandler(async (event) => {
   const submitterUserId = (await getAuthSession(event).catch(() => null))?.user.id ?? null
   const body = await parseBody(event, bodySchema)
 
-  const ip = getHeader(event, 'cf-connecting-ip') ?? getHeader(event, 'x-forwarded-for') ?? undefined
+  const ip = getClientIp(event) ?? undefined
   const valid = await verifyTurnstile(body.turnstileToken ?? '', ip)
   if (!valid) throw validationError('Spam check failed')
 
@@ -96,21 +97,7 @@ export default defineEventHandler(async (event) => {
 
   // Best-effort email notification
   try {
-    let notifyEmail = (await resolveSetting(event, 'notificationEmail')) as string | undefined
-
-    // Fallback: use first admin's email if no notificationEmail is set
-    if (!notifyEmail) {
-      const firstAdmin = await db.query.userSiteRoles.findFirst({
-        where: and(eq(userSiteRoles.siteId, siteId), inArray(userSiteRoles.role, ['admin', 'super_admin'])),
-        with: {
-          user: {
-            columns: { email: true }
-          }
-        }
-      })
-      notifyEmail = firstAdmin?.user?.email
-    }
-
+    const notifyEmail = await siteNotificationEmail(event, siteId)
     if (!notifyEmail) {
       throw new Error('No notification email address is configured, and no admin users were found to use as a fallback.')
     }
@@ -138,8 +125,7 @@ export default defineEventHandler(async (event) => {
 
   // Push confirmation to the logged-in member who submitted
   if (submitterUserId) {
-    const pushEnabled = await resolveSetting(event, 'push.events.form_submission')
-    if (pushEnabled === 'true') {
+    if (await resolveBooleanSetting(event, 'push.events.form_submission')) {
       waitUntil(event, sendNotification({
         siteId,
         userId: submitterUserId,

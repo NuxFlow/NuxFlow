@@ -14,7 +14,7 @@ export default defineNuxtPlugin((nuxtApp) => {
   const site = useNuxtData<{ pageViews?: boolean }>('nuxflow-public-site')
   const error = useError()
   // Set by PublicContentPage for a path it's showing "Page not found" (or another error) on.
-  const uncountedPath = useState<string | null>('nuxflow:uncounted-view-path', () => null)
+  const uncountedPath = useUncountedViewPath()
   const router = useRouter()
   let lastPath: string | null = null
   let firstView = true

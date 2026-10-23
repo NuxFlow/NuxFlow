@@ -11,24 +11,10 @@
 // lowest role that can do anything useful there, usually the read role) — see CLAUDE.md's
 // "Permission helpers" section for the authoritative per-route table this was built from.
 
-export type Role = 'super_admin' | 'admin' | 'editor' | 'author' | 'viewer' | 'member'
+import { isTeamRole, roleAtLeast, type Role } from '@nuxflow/db/roles'
 
-// Mirrors server/utils/permissions.ts's ROLE_RANK. Duplicated rather than imported
-// because the server file pulls in useDb()/D1-specific utilities that don't belong in
-// the client bundle — this table itself is small and pure, safe to keep in sync by hand.
-const ROLE_RANK: Record<Role, number> = {
-  super_admin: 100,
-  admin: 80,
-  editor: 60,
-  author: 40,
-  member: 20,
-  viewer: 10,
-}
-
-export function roleAtLeast(role: Role | null | undefined, minimum: Role): boolean {
-  if (!role) return false
-  return ROLE_RANK[role] >= ROLE_RANK[minimum]
-}
+// Re-exported so pages and components get them through Nuxt's auto-imports.
+export { isTeamRole, roleAtLeast, type Role }
 
 export interface AdminNavItem {
   label: string
@@ -80,15 +66,6 @@ export const SUPER_ADMIN_NAV: AdminNavItem[] = [
   { label: 'Email', to: '/admin/super/email', icon: 'i-lucide-send', superAdminOnly: true },
   { label: 'Platform', to: '/admin/super/platform', icon: 'i-lucide-server', superAdminOnly: true },
 ]
-
-/**
- * Team roles (viewer and up) may use /admin; `member` is a site visitor (public sign-up,
- * a membership) and never may — it ranks above `viewer` only for historical reasons, so
- * roleAtLeast() alone would let members in. Mirrors isTeamRole() in server/utils/permissions.ts.
- */
-export function isTeamRole(role: Role | null | undefined): boolean {
-  return !!role && role !== 'member'
-}
 
 export function canAccessNavItem(item: AdminNavItem, access: { role: Role | null; isSuperAdmin: boolean; hostingPlatform?: boolean } | null | undefined): boolean {
   if (!isTeamRole(access?.role) && !access?.isSuperAdmin) return false

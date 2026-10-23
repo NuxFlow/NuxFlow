@@ -8,6 +8,7 @@ import { getAccountsOrigin } from './accounts-origin'
 import { randomToken } from '../../shared/lib/base64'
 import { isMemberPool } from './control-plane'
 import { endParentSession, parentSessionAlive } from './pool-session'
+import { getClientIp } from './client-ip'
 
 // ── Site sessions: a login that is valid on one site's own domain only ─────────────────
 //
@@ -144,7 +145,7 @@ export async function createSiteSession(event: H3Event, input: { userId: string;
     tokenHash: await sha256Hex(token),
     ...input,
     expiresAt: new Date(Date.now() + SITE_SESSION_TTL_MS).toISOString(),
-    ipAddress: getHeader(event, 'cf-connecting-ip') ?? null,
+    ipAddress: getClientIp(event) ?? null,
     userAgent: getHeader(event, 'user-agent') ?? null,
   })
   setCookie(event, siteSessionCookieName(), token, {

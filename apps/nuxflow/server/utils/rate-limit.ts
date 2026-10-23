@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { sql } from 'drizzle-orm'
+import { getClientIp } from './client-ip'
 
 interface RateLimitOptions {
   limit: number
@@ -32,7 +33,7 @@ function rememberBlocked(key: string, resetMs: number, now: number) {
 }
 
 export async function rateLimit(event: H3Event, opts: RateLimitOptions): Promise<void> {
-  const ip = getHeader(event, 'cf-connecting-ip') ?? getHeader(event, 'x-forwarded-for') ?? 'unknown'
+  const ip = getClientIp(event) ?? 'unknown'
   const siteId = event.context.siteId ?? 'global'
   const key = `${opts.keyPrefix ?? 'rl'}:${siteId}:${ip}`
   const now = Date.now()

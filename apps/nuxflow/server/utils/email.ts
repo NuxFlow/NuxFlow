@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import { ulid } from 'ulid'
 import { and, desc, eq, gte, sql } from 'drizzle-orm'
 import { emailLog, siteDomains, sites } from '@nuxflow/db/schema'
-import { resolveSetting } from './settings'
+import { resolveStringSetting } from './settings'
 import { getEmailBinding } from './cf-env'
 import { useDb } from './db'
 import { getSiteInfo, isPrimarySite } from './site-info'
@@ -344,12 +344,12 @@ export async function loadEmailConfig(event: H3Event): Promise<EmailConfig> {
   // ones. Fires on every email send (password resets, invites, form notifications), so
   // this is a real per-request hot path, not an admin-only rarity.
   const [storedProvider, fromAddress, fromName, resendApiKey, brevoApiKey, zeptoApiKey, siteName] = await Promise.all([
-    resolveSetting(event, 'email.provider', 'emailProvider'),
-    resolveSetting(event, 'email.from_address', 'emailFromAddress'),
-    resolveSetting(event, 'email.from_name'),
-    resolveSetting(event, 'email.resend_api_key', 'resendApiKey'),
-    resolveSetting(event, 'email.brevo_api_key', 'brevoApiKey'),
-    resolveSetting(event, 'email.zepto_api_key', 'zeptoApiKey'),
+    resolveStringSetting(event, 'email.provider', 'emailProvider'),
+    resolveStringSetting(event, 'email.from_address', 'emailFromAddress'),
+    resolveStringSetting(event, 'email.from_name'),
+    resolveStringSetting(event, 'email.resend_api_key', 'resendApiKey'),
+    resolveStringSetting(event, 'email.brevo_api_key', 'brevoApiKey'),
+    resolveStringSetting(event, 'email.zepto_api_key', 'zeptoApiKey'),
     siteId ? getSiteName(event, siteId) : Promise.resolve(''),
   ])
 

@@ -2,10 +2,11 @@ import type { H3Event } from 'h3'
 import { and, asc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { siteUsageDaily, sites } from '@nuxflow/db/schema'
 import { useDb } from './db'
-import { USAGE_EVENT_METRICS, USAGE_SNAPSHOT_METRICS, usageDay } from './usage'
+import { USAGE_EVENT_METRICS, USAGE_SNAPSHOT_METRICS } from './usage'
 import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
 import { callPool, poolBindings } from './pools'
 import { sitePool } from './pool-sites'
+import { utcDay, utcDayAgo } from './utc-day'
 
 /**
  * Super Admin → Usage's figures (GET /api/v1/admin/usage, /api/v1/admin/usage/:siteId),
@@ -35,7 +36,7 @@ export async function localMonthlyUsage(event: H3Event, month: string): Promise<
   const first = `${month}-01`
   const nextMonth = new Date(`${first}T00:00:00Z`)
   nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1)
-  const last = usageDay(new Date(nextMonth.getTime() - 86_400_000))
+  const last = utcDay(new Date(nextMonth.getTime() - 86_400_000))
   const latestSnapshotDay = sql`(select max(u2.day) from site_usage_daily u2 where u2.site_id = ${siteUsageDaily.siteId} and u2.metric = ${siteUsageDaily.metric} and u2.day <= ${last})`
 
   const [siteRows, eventRows, snapshotRows] = await Promise.all([
@@ -114,7 +115,7 @@ export async function localSiteUsageSeries(event: H3Event, siteId: string, days:
   if (!site) return null
 
   const now = Date.now()
-  const dayList = Array.from({ length: days }, (_, i) => usageDay(new Date(now - (days - 1 - i) * 86_400_000)))
+  const dayList = Array.from({ length: days }, (_, i) => utcDayAgo(days - 1 - i, new Date(now)))
   const rows = await db.select({ day: siteUsageDaily.day, metric: siteUsageDaily.metric, value: siteUsageDaily.value })
     .from(siteUsageDaily)
     .where(and(eq(siteUsageDaily.siteId, siteId), gte(siteUsageDaily.day, dayList[0]!)))

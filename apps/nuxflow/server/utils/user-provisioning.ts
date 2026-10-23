@@ -6,6 +6,7 @@ import { getPoolId, isMemberPool } from './control-plane'
 import { POOL_PROTOCOL } from './pool-admin'
 import { callControlPlane, upsertUserCopy } from './pool-session'
 import { requireSiteId } from './site-context'
+import { SELF_SERVE_ROLES } from '@nuxflow/db/roles'
 import type { EmailDeliveryOutcome } from './email'
 
 /**
@@ -21,11 +22,6 @@ import type { EmailDeliveryOutcome } from './email'
  * (auth.api.requestPasswordReset()), which is the step that proves mailbox ownership.
  */
 export type AccountProvisioningStatus = 'new' | 'existing' | 'unclaimed'
-
-// Roles an account can hold without anyone having vouched for it: self-registration
-// (api/public/auth/register.post.ts) grants 'member' to an address whose owner has never
-// clicked anything. Any higher role was granted by a site admin or the setup wizard.
-const SELF_SERVE_ROLES = ['member', 'viewer'] as const
 
 /**
  * True when an account exists for an email but nothing shows its creator controls that

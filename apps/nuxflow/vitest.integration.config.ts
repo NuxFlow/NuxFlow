@@ -6,6 +6,7 @@ export default defineConfig({
     alias: {
       '@nuxflow/db/schema': resolve(import.meta.dirname, '../../packages/db/src/schema/index.ts'),
       '@nuxflow/db/queries': resolve(import.meta.dirname, '../../packages/db/src/queries/index.ts'),
+      '@nuxflow/db/roles': resolve(import.meta.dirname, '../../packages/db/src/roles.ts'),
       '@nuxflow/db': resolve(import.meta.dirname, '../../packages/db/src/index.ts'),
     },
   },

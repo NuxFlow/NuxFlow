@@ -1,4 +1,4 @@
-import type { EdgeCacheStorage } from '../utils/edge-cache'
+import { getEdgeCache } from '../utils/edge-cache'
 import { isPageCacheEligible, PAGE_BROWSER_CACHE_CONTROL, pageCacheRequest, PAGE_CACHE_TTL_SECONDS } from '../utils/page-cache'
 import { getExecutionContext } from '../utils/cf-env'
 
@@ -48,7 +48,7 @@ export default defineNitroPlugin((nitro) => {
       // Same browser instruction a later cache hit sends (07.page-cache.ts).
       setResponseHeader(event, 'Cache-Control', PAGE_BROWSER_CACHE_CONTROL)
 
-      const cache = (caches as unknown as EdgeCacheStorage).default
+      const cache = getEdgeCache()
       const cacheResponse = new Response(cacheBody, {
         headers: {
           'content-type': 'text/html; charset=utf-8',

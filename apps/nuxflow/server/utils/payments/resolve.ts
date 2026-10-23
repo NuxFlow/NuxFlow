@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { resolveSetting } from '../settings'
+import { resolveStringSetting, resolveBooleanSetting } from '../settings'
 import { StripeProvider } from './stripe'
 import { LemonSqueezyProvider } from './lemonsqueezy'
 import { PaddleProvider } from './paddle'
@@ -7,7 +7,7 @@ import type { PaymentProvider, PaymentProviderName } from './types'
 
 /** Constructs a StripeProvider from site settings, or returns null if unconfigured. */
 export async function resolveStripeProvider(event: H3Event): Promise<StripeProvider | null> {
-  const secretKey = await resolveSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
+  const secretKey = await resolveStringSetting(event, 'payments.stripe_secret_key', 'stripeSecretKey')
   return secretKey ? new StripeProvider(secretKey) : null
 }
 
@@ -21,8 +21,8 @@ export async function getStripeProvider(event: H3Event): Promise<StripeProvider>
 /** Constructs a LemonSqueezyProvider from site settings, or returns null if unconfigured. */
 export async function resolveLemonSqueezyProvider(event: H3Event): Promise<LemonSqueezyProvider | null> {
   const [apiKey, storeId] = await Promise.all([
-    resolveSetting(event, 'payments.ls_api_key', 'lsApiKey'),
-    resolveSetting(event, 'payments.ls_store_id', 'lsStoreId'),
+    resolveStringSetting(event, 'payments.ls_api_key', 'lsApiKey'),
+    resolveStringSetting(event, 'payments.ls_store_id', 'lsStoreId'),
   ])
   return apiKey && storeId ? new LemonSqueezyProvider(apiKey, storeId) : null
 }
@@ -37,12 +37,12 @@ export async function getLemonSqueezyProvider(event: H3Event): Promise<LemonSque
 /** Constructs a PaddleProvider from site settings, or returns null if unconfigured. */
 export async function resolvePaddleProvider(event: H3Event): Promise<PaddleProvider | null> {
   const [apiKey, vendorId, sandbox] = await Promise.all([
-    resolveSetting(event, 'payments.paddle_api_key', 'paddleApiKey'),
-    resolveSetting(event, 'payments.paddle_vendor_id', 'paddleVendorId'),
-    resolveSetting(event, 'payments.paddle_sandbox'),
+    resolveStringSetting(event, 'payments.paddle_api_key', 'paddleApiKey'),
+    resolveStringSetting(event, 'payments.paddle_vendor_id', 'paddleVendorId'),
+    resolveBooleanSetting(event, 'payments.paddle_sandbox'),
   ])
   if (!apiKey || !vendorId) return null
-  return new PaddleProvider(apiKey, vendorId, sandbox === 'true')
+  return new PaddleProvider(apiKey, vendorId, sandbox)
 }
 
 /** Same as resolvePaddleProvider, but throws the standard 503 instead of returning null. */

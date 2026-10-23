@@ -7,8 +7,22 @@ import { notifications, notificationPreferences, sites, users, userSiteRoles } f
 import { and, eq, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { roleAtLeast, type Role } from './permissions'
+import { ROLES } from '@nuxflow/db/roles'
+import { resolveStringSetting } from './settings'
 
-const ALL_ROLES: Role[] = ['super_admin', 'admin', 'editor', 'author', 'member', 'viewer']
+/**
+ * Where a site's form and contact submissions are emailed: the `notificationEmail` setting,
+ * or else the first admin's address. Null when the site has neither.
+ */
+export async function siteNotificationEmail(event: H3Event, siteId: string): Promise<string | null> {
+  const configured = await resolveStringSetting(event, 'notificationEmail')
+  if (configured) return configured
+  const firstAdmin = await useDb(event).query.userSiteRoles.findFirst({
+    where: and(eq(userSiteRoles.siteId, siteId), inArray(userSiteRoles.role, ['admin', 'super_admin'])),
+    with: { user: { columns: { email: true } } },
+  })
+  return firstAdmin?.user?.email ?? null
+}
 
 export interface NotificationTypeDef {
   label: string
@@ -160,7 +174,7 @@ export async function notifySiteRole(
   event: H3Event,
   opts: Omit<NotifyOptions, 'userId'> & { minRole: Role; excludeUserId?: string },
 ): Promise<number> {
-  const allowed = ALL_ROLES.filter(r => roleAtLeast(r, opts.minRole))
+  const allowed = ROLES.filter(r => roleAtLeast(r, opts.minRole))
   const rows = await useDb(event).query.userSiteRoles.findMany({
     where: and(eq(userSiteRoles.siteId, opts.siteId), inArray(userSiteRoles.role, allowed)),
     columns: { userId: true },

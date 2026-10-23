@@ -5,9 +5,10 @@ import { useDb, type Db } from './db'
 import { createIsolateCache } from './isolate-cache'
 import { isHostingPlatform } from './hosting-platform'
 import { checkPlanLimit, planLimitMessage, type PlanCheck } from './hosting-plans'
-import { countUsage, pendingUsage, usageDay } from './usage'
+import { countUsage, pendingUsage } from './usage'
 import { getPrimarySite } from './site-info'
 import { getPlatformSetting } from './control-plane'
+import { utcDay } from './utc-day'
 
 /**
  * AI the platform pays for, and how much of it a site may use.
@@ -100,7 +101,7 @@ export async function getAiDailyCap(db: Db): Promise<number | null> {
 
 /** AI credits (team and visitor) every site except the primary one has used today (UTC): stored rows plus this isolate's unwritten counts. */
 export async function platformAiCreditsToday(db: Db, primarySiteId: string | null, now = new Date()): Promise<number> {
-  const day = usageDay(now)
+  const day = utcDay(now)
   const conditions = [inArray(siteUsageDaily.metric, PLATFORM_CREDIT_METRICS), gte(siteUsageDaily.day, day)]
   if (primarySiteId) conditions.push(ne(siteUsageDaily.siteId, primarySiteId))
   const [r] = await db.select({ n: sql<number>`coalesce(sum(${siteUsageDaily.value}), 0)` })
@@ -131,7 +132,7 @@ export function aiAllowanceMessage(check: Exclude<AiAllowanceCheck, { allowed: t
  * daily cap are checked — site-paid calls never come here. Usage is only known after a
  * text call, so text calls check with 1 credit; a site can go over by one call's worth.
  */
-export async function checkAiAllowance(event: H3Event, credits = 1, trigger: AiTrigger = 'team', siteId = event.context?.siteId as string | undefined): Promise<AiAllowanceCheck> {
+export async function checkAiAllowance(event: H3Event, credits = 1, trigger: AiTrigger = 'team', siteId = event.context?.siteId ?? undefined): Promise<AiAllowanceCheck> {
   if (!siteId) return { allowed: true }
   const db = useDb(event)
   const plan = await checkPlanLimit(db, siteId, PLAN_KEY[trigger], credits)

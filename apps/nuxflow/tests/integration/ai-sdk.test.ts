@@ -16,6 +16,7 @@ const settingsMap = new Map<string, string>()
 
 vi.mock('../../server/utils/settings', () => ({
   resolveSetting: async (_event: unknown, key: string) => settingsMap.get(key) ?? '',
+  resolveStringSetting: async (_event: unknown, key: string) => settingsMap.get(key) ?? '',
   // Hosting-platform gating has its own tests (hosting-plans.test.ts).
   isOllamaAvailable: async () => true,
 }))

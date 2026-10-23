@@ -4,9 +4,10 @@ import { contentItems, dynamicPlugins, emailMessages, hostingPlans, media, siteD
 import { PLAN_LIMITS, planFeature, planLimit, type PlanFeatureKey, type PlanLimitKey } from '../../shared/lib/hosting-plan-limits'
 import { useDb, type Db } from './db'
 import { createIsolateCache } from './isolate-cache'
-import { pendingUsage, usageDay, type UsageEventMetric } from './usage'
+import { pendingUsage, type UsageEventMetric } from './usage'
 import { isHostingPlatform } from './hosting-platform'
 import { bumpCacheVersion } from './cache-version'
+import { utcDay } from './utc-day'
 
 /**
  * Hosting plans: what the operator sells a site, and the limits that come with it
@@ -140,7 +141,7 @@ export async function planUsage(db: Db, siteId: string, key: PlanLimitKey, now =
 
 /** A monthly event metric so far this calendar month (UTC): stored rows plus this isolate's unwritten counts. */
 export async function monthlyUsage(db: Db, siteId: string, metric: UsageEventMetric, now = new Date()): Promise<number> {
-  const monthStart = `${usageDay(now).slice(0, 7)}-01`
+  const monthStart = `${utcDay(now).slice(0, 7)}-01`
   const [r] = await db.select({ n: sql<number>`coalesce(sum(${siteUsageDaily.value}), 0)` })
     .from(siteUsageDaily)
     .where(and(eq(siteUsageDaily.siteId, siteId), eq(siteUsageDaily.metric, metric), gte(siteUsageDaily.day, monthStart)))

@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { useDb } from './db'
-import { resolveSetting } from './settings'
+import { resolveBooleanSetting } from './settings'
 import { broadcastPushToSite } from './webpush'
 import { contentHookFor } from './plugin-hooks'
 import { itemPublicPath } from './public-page'
@@ -25,7 +25,7 @@ interface PublishedItem {
  */
 export async function pushContentPublished(event: H3Event, siteId: string, before: ContentState, after: ContentState, item: PublishedItem): Promise<void> {
   if (contentHookFor(before, after) !== 'content.published') return
-  if (await resolveSetting(event, 'push.events.content_published') !== 'true') return
+  if (!(await resolveBooleanSetting(event, 'push.events.content_published'))) return
   await broadcastPushToSite(event, {
     title: item.title,
     body: 'New content has been published.',

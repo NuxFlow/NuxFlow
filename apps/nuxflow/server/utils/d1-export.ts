@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { getD1 } from './db'
+import { bufferToHex } from './buffer'
 
 // Whole-D1-instance SQL dump — not the per-site JSON backup in backup.ts. `wrangler d1
 // export` is a CLI-only tool (it shells out to Cloudflare's API from the developer's
@@ -86,10 +87,9 @@ function sqlLiteral(value: unknown): string {
   if (value === null || value === undefined) return 'NULL'
   if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'NULL'
   if (typeof value === 'boolean') return value ? '1' : '0'
-  if (value instanceof ArrayBuffer) return `X'${Buffer.from(value).toString('hex')}'`
+  if (value instanceof ArrayBuffer) return `X'${bufferToHex(value)}'`
   if (ArrayBuffer.isView(value)) {
-    const view = value as Uint8Array
-    return `X'${Buffer.from(view.buffer, view.byteOffset, view.byteLength).toString('hex')}'`
+    return `X'${bufferToHex(new Uint8Array(value.buffer, value.byteOffset, value.byteLength))}'`
   }
   return `'${String(value).replace(/'/g, '\'\'')}'`
 }

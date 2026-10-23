@@ -7,6 +7,7 @@
 // them, and this is the one file every one of those already depends on transitively via
 // the backup schema types — see backup.ts for the orchestrator that wires them together.
 
+import { ASSIGNABLE_ROLES } from '@nuxflow/db/roles'
 import { z } from 'zod'
 
 // ── Backup format types ───────────────────────────────────────────────────────
@@ -237,7 +238,7 @@ export interface NuxFlowBackup {
 // loop in applyBackup() itself (a second, redundant check — applyBackup() is also called
 // from demo-import.post.ts and directly from tests, neither of which necessarily goes
 // through parseBackupJson(), so the loop must not rely solely on the upload-time schema).
-export const RESTORABLE_ROLES = ['admin', 'editor', 'author', 'viewer', 'member'] as const
+export const RESTORABLE_ROLES = ASSIGNABLE_ROLES
 
 export const MAX_BACKUP_USERS = 500
 
