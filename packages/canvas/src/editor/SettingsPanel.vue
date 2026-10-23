@@ -4,6 +4,7 @@ import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { CanvasBlockData, CanvasBlockDefinition } from '../types'
 import FieldRenderer from './FieldRenderer.vue'
 import { normalizeImageValue } from '../utils/json'
+import { useCanvasHost } from '../host'
 
 const props = defineProps<{
   block: CanvasBlockData
@@ -34,6 +35,7 @@ const focalImageUrl = computed(() => {
   const imageField = props.definition.fields.find(f => f.type === 'image')
   return imageField ? normalizeImageValue(props.block.props[imageField.key]).url : ''
 })
+const host = useCanvasHost()
 const focalLoading = ref(false)
 const focalError = ref('')
 watch(() => props.block.id, () => { focalError.value = '' })
@@ -43,13 +45,7 @@ async function suggestFocalPoint() {
   focalLoading.value = true
   focalError.value = ''
   try {
-    const res = await fetch('/api/v1/ai/suggest-focal-point', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: focalImageUrl.value }),
-    })
-    const data = await res.json().catch(() => ({})) as { focalX?: number; focalY?: number; message?: string }
-    if (!res.ok || data.focalX === undefined || data.focalY === undefined) throw new Error(data.message || 'Could not suggest a focal point')
+    const data = await host.suggestFocalPoint(focalImageUrl.value)
     emit('update:prop', 'focalX', data.focalX)
     emit('update:prop', 'focalY', data.focalY)
   }

@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { useCanvasHost } from '../host'
 
 export type AiInstruction = 'improve' | 'shorten' | 'expand' | 'simplify'
 
@@ -19,9 +20,11 @@ export const AI_IMPROVE_ACTIONS: AiImproveAction[] = [
  * Shared "Improve with AI" state/fetch logic used by RichTextInput.vue and
  * FieldRenderer.vue's text/textarea fields. Deliberately does not own how the source
  * text is read or how a chosen alternative gets applied — those differ per caller
- * (TipTap HTML vs plain string inputs) — this only owns the fetch and results list.
+ * (TipTap HTML vs plain string inputs) — this only owns the request (through the
+ * CanvasHost) and results list.
  */
 export function useAiImprove() {
+  const host = useCanvasHost()
   const aiLoading = ref(false)
   const aiAlternatives = ref<string[]>([])
   const aiError = ref<string | null>(null)
@@ -35,23 +38,12 @@ export function useAiImprove() {
     aiAlternatives.value = []
     aiError.value = null
     try {
-      const res = await fetch('/api/v1/ai/improve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, instruction }),
-      })
-      if (res.ok) {
-        const data = await res.json() as { alternatives?: string[] }
-        aiAlternatives.value = data.alternatives ?? []
-        if (!aiAlternatives.value.length) {
-          aiError.value = 'AI returned no suggestions. Try again or rephrase the text.'
-        }
-      } else {
-        const body = await res.json().catch(() => null) as { message?: string; statusMessage?: string } | null
-        aiError.value = body?.message || body?.statusMessage || `AI request failed (${res.status}).`
+      aiAlternatives.value = await host.improveText(text, instruction)
+      if (!aiAlternatives.value.length) {
+        aiError.value = 'AI returned no suggestions. Try again or rephrase the text.'
       }
-    } catch {
-      aiError.value = 'Could not reach the AI service. Check your connection and try again.'
+    } catch (e: unknown) {
+      aiError.value = (e instanceof Error && e.message) || 'Could not reach the AI service. Check your connection and try again.'
     } finally {
       aiLoading.value = false
     }
