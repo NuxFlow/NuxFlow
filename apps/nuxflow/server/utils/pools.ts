@@ -137,7 +137,7 @@ export async function collectPlatformSettings(db: Db): Promise<Record<string, st
   return Object.fromEntries(keys.map((key, i) => [key, values[i] ?? null]))
 }
 
-export interface PushResult {
+export interface PoolPushResult {
   binding: string
   ok: boolean
   error: string | null
@@ -148,11 +148,11 @@ export interface PushResult {
  * from the Pools page (e.g. after connecting a new pool). Never throws: one unreachable
  * pool doesn't stop the others, and the results say which failed.
  */
-export async function pushSettingsToPools(event: H3Event): Promise<PushResult[]> {
+export async function pushSettingsToPools(event: H3Event): Promise<PoolPushResult[]> {
   const bindings = poolBindings(event)
   if (!bindings.length) return []
   const payload: PushedSettings = { protocol: POOL_PROTOCOL, settings: await collectPlatformSettings(useDb(event)) }
-  return Promise.all(bindings.map(async ({ binding, stub }): Promise<PushResult> => {
+  return Promise.all(bindings.map(async ({ binding, stub }): Promise<PoolPushResult> => {
     try {
       await callPool(stub.pushPlatformSettings(payload), binding)
       return { binding, ok: true, error: null }
