@@ -47,7 +47,7 @@ const PLATFORM_CREDIT_METRICS = [CREDIT_METRIC.team, CREDIT_METRIC.visitor]
 
 /**
  * Credit weights. 1 credit ≈ 1,000 tokens (prompt + answer) on the fast text model. The
- * heavy model (Workers AI 'smart'/'vision' — kimi-k2.7-code) costs roughly 5× the fast one
+ * heavy model (Workers AI 'smart'/'vision' — kimi-k2.6) costs roughly 5× the fast one
  * per token on Cloudflare's price list, so its tokens count 5×. Image generation,
  * transcription and speech have no tokens, so each is a flat or per-character amount
  * pitched at a similar cost. Every call is at least 1 credit.
@@ -161,7 +161,13 @@ export class AiAllowanceError extends Error {
 export async function assertAiAllowance(event: H3Event, credits = 1, trigger: AiTrigger = 'team'): Promise<void> {
   const check = await checkAiAllowance(event, credits, trigger)
   if (check.allowed) return
-  throw forbidden(aiAllowanceMessage(check), check.reason === 'plan'
+  throw allowanceForbidden(check)
+}
+
+/** The 403 for a refused allowance check (or an AiAllowanceError caught from inside a model call). */
+export function allowanceForbidden(source: Exclude<AiAllowanceCheck, { allowed: true }> | AiAllowanceError) {
+  const check = source instanceof AiAllowanceError ? source.check : source
+  return forbidden(aiAllowanceMessage(check), check.reason === 'plan'
     ? { code: 'plan_limit', limit: check.plan.key, used: check.plan.used, max: check.plan.max }
     : { code: 'platform_ai_cap', used: check.used, max: check.max })
 }

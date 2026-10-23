@@ -140,6 +140,21 @@ export const ALLOWLIST: AllowlistEntry[] = [
     reason: 'Every-minute job that publishes scheduled items on every site.',
   },
   {
+    file: 'server/scheduled/search-index-rebuild.ts',
+    tables: ['content_items', 'sites'],
+    reason: 'Every-minute job that re-embeds every site\'s published pages into the shared Vectorize index after it changes (each vector is namespaced by its own site).',
+  },
+  {
+    file: 'server/api/v1/admin/search-index/index.get.ts',
+    tables: ['content_items', 'sites'],
+    reason: 'Super Admin: how many published pages, across every site, the shared smart-search index should hold.',
+  },
+  {
+    file: 'server/api/v1/admin/search-index/rebuild.post.ts',
+    tables: ['content_items', 'sites'],
+    reason: 'Super Admin: same count as the status view, returned after restarting the rebuild.',
+  },
+  {
     file: 'server/scheduled/prune-old-data.ts',
     tables: ['ai_generation_jobs', 'audit_logs', 'crawler_hits', 'email_log', 'email_messages', 'notifications', 'plugin_storage', 'site_auth_codes', 'site_invitations', 'site_sessions', 'site_usage_daily'],
     reason: 'Nightly retention clean-up for every site.',

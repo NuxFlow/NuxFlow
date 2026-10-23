@@ -124,12 +124,12 @@ describe('getAiSdkModel — workers-ai model selection', () => {
 
   it('uses the larger model for "smart"', async () => {
     const model = await getAiSdkModel(fakeEvent(), 'smart') as { __modelId: string }
-    expect(model.__modelId).toBe('@cf/moonshotai/kimi-k2.7-code')
+    expect(model.__modelId).toBe('@cf/moonshotai/kimi-k2.6')
   })
 
   it('uses the vision-capable model for "vision", not the cheap "fast" model', async () => {
     const model = await getAiSdkModel(fakeEvent(), 'vision') as { __modelId: string }
-    expect(model.__modelId).toBe('@cf/moonshotai/kimi-k2.7-code')
+    expect(model.__modelId).toBe('@cf/moonshotai/kimi-k2.6')
   })
 })
 
@@ -171,21 +171,21 @@ describe('getAiSdkModel — BYOK providers return null without a key', () => {
 })
 
 describe('getAiSdkModel — BYOK model selection', () => {
-  it('openai: gpt-4o-mini for fast, gpt-4o for smart, gpt-4o-mini for vision', async () => {
+  it('openai: gpt-6-luna for fast, gpt-6.1-sol for smart and vision', async () => {
     settingsMap.set('ai.provider', 'openai')
     settingsMap.set('ai.openai_api_key', 'sk-test')
 
-    expect((await getAiSdkModel(fakeEvent(), 'fast') as { __modelId: string }).__modelId).toBe('gpt-4o-mini')
-    expect((await getAiSdkModel(fakeEvent(), 'smart') as { __modelId: string }).__modelId).toBe('gpt-4o')
-    expect((await getAiSdkModel(fakeEvent(), 'vision') as { __modelId: string }).__modelId).toBe('gpt-4o-mini')
+    expect((await getAiSdkModel(fakeEvent(), 'fast') as { __modelId: string }).__modelId).toBe('gpt-6-luna')
+    expect((await getAiSdkModel(fakeEvent(), 'smart') as { __modelId: string }).__modelId).toBe('gpt-6.1-sol')
+    expect((await getAiSdkModel(fakeEvent(), 'vision') as { __modelId: string }).__modelId).toBe('gpt-6.1-sol')
   })
 
   it('anthropic: haiku for fast, sonnet for smart', async () => {
     settingsMap.set('ai.provider', 'anthropic')
     settingsMap.set('ai.anthropic_api_key', 'sk-ant-test')
 
-    expect((await getAiSdkModel(fakeEvent(), 'fast') as { __modelId: string }).__modelId).toBe('claude-haiku-4-5-20251001')
-    expect((await getAiSdkModel(fakeEvent(), 'smart') as { __modelId: string }).__modelId).toBe('claude-sonnet-5')
+    expect((await getAiSdkModel(fakeEvent(), 'fast') as { __modelId: string }).__modelId).toBe('claude-haiku-5-5')
+    expect((await getAiSdkModel(fakeEvent(), 'smart') as { __modelId: string }).__modelId).toBe('claude-sonnet-5-5')
   })
 
   it('gemini: flash for fast, pro for smart', async () => {
@@ -356,6 +356,19 @@ describe('aiErrorMessage', () => {
 
   it('passes our own H3 errors through unchanged — a 404 lookup isn\'t "model not found"', () => {
     expect(aiErrorMessage(createError({ statusCode: 404, message: 'Content type not found' }))).toBe('Content type not found')
+  })
+
+  it('reads the provider status through the AI SDK RetryError', () => {
+    const retry = Object.assign(new Error('Failed after 3 attempts. Last error: Too Many Requests'), {
+      name: 'AI_RetryError',
+      lastError: Object.assign(new Error('Too Many Requests'), { statusCode: 429 }),
+    })
+    expect(aiErrorMessage(retry)).toMatch(/rate limit/)
+  })
+
+  it('explains a schema mismatch in plain words', () => {
+    const err = Object.assign(new Error('No object generated: response did not match schema.'), { name: 'AI_NoObjectGeneratedError' })
+    expect(aiErrorMessage(err)).toMatch(/wasn't in the expected format/)
   })
 
   it('falls back to the raw message, then to a generic one', () => {

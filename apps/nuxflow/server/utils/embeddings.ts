@@ -1,14 +1,80 @@
-import { embed } from 'ai'
+import { embed, embedMany } from 'ai'
 import { createWorkersAI } from 'workers-ai-provider'
 import type { H3Event } from 'h3'
 import { getWorkersAiBinding, getVectorizeIndex } from './cf-env'
 import { AI_CREDITS, checkAiAllowance, recordAiCall, type AiTrigger } from './ai-allowance'
+import { createIsolateCache } from './isolate-cache'
 
-// 768-dim — the Vectorize index must be created with matching dimensions
-// (`wrangler vectorize create ... --dimensions=768 --metric=cosine`, see
-// wrangler.toml.example). Dimensions are immutable after index creation, so changing this
-// model later means recreating the index and re-embedding every content item.
-const EMBEDDING_MODEL = '@cf/baai/bge-base-en-v1.5'
+/**
+ * Embedding models by the vector size they produce. A Vectorize index's dimensions are
+ * fixed when it's created, so the index decides the model — not a setting that could
+ * disagree with it:
+ *  - 1024 → bge-m3, multilingual (the default for new installs — wrangler.toml.example).
+ *  - 768  → bge-base-en-v1.5, English only. Every deployment made before multilingual
+ *    search has a 768 index and keeps working on it unchanged.
+ * Switching an existing deployment = create a 1024 index, point the VECTORIZE binding at
+ * it, deploy; the search-index-rebuild task then re-embeds every page by itself.
+ */
+export const EMBEDDING_MODELS = {
+  1024: { id: '@cf/baai/bge-m3', multilingual: true },
+  768: { id: '@cf/baai/bge-base-en-v1.5', multilingual: false },
+} as const satisfies Record<number, { id: string; multilingual: boolean }>
+
+export type EmbeddingModel = (typeof EMBEDDING_MODELS)[keyof typeof EMBEDDING_MODELS]
+
+export interface SearchIndexInfo {
+  dimensions: number | null
+  /** Null when the index has a size no model here produces — nothing is embedded then. */
+  model: EmbeddingModel | null
+  vectorCount: number | null
+}
+
+// describe() is a network call; the dimensions can only change with a redeploy (a new
+// binding), so ten minutes per isolate is plenty.
+const indexInfoCache = createIsolateCache<SearchIndexInfo>(10 * 60_000)
+
+export function clearSearchIndexInfoCache(): void {
+  indexInfoCache.clear()
+}
+
+/**
+ * What the bound index is and which model fills it. When describe() isn't available or
+ * fails, assumes the original 768 index: embedText() still checks each vector's length
+ * against known dimensions, and an unknown size is never written.
+ */
+export async function getSearchIndexInfo(event: H3Event): Promise<SearchIndexInfo | null> {
+  const index = getVectorizeIndex(event)
+  if (!index) return null
+  const cached = indexInfoCache.get('info')
+  if (cached) return cached
+  if (typeof index.describe !== 'function') return { dimensions: null, model: EMBEDDING_MODELS[768], vectorCount: null }
+  let info: SearchIndexInfo
+  try {
+    const d = (await index.describe() ?? {}) as { dimensions?: number, vectorCount?: number, config?: { dimensions?: number } }
+    const dimensions = d.dimensions ?? d.config?.dimensions ?? null
+    info = {
+      dimensions,
+      model: dimensions ? (EMBEDDING_MODELS as Record<number, EmbeddingModel>)[dimensions] ?? null : EMBEDDING_MODELS[768],
+      vectorCount: d.vectorCount ?? null,
+    }
+    if (dimensions && !info.model) console.error(`[embeddings] The Vectorize index has ${dimensions} dimensions; no embedding model here makes those (768 or 1024). Semantic search is off.`)
+  }
+  catch (err) {
+    console.error('[embeddings] Could not describe the Vectorize index; assuming 768 dimensions:', err)
+    return { dimensions: null, model: EMBEDDING_MODELS[768], vectorCount: null }
+  }
+  indexInfoCache.set('info', info)
+  return info
+}
+
+function rightSize(vector: number[] | undefined, info: SearchIndexInfo): vector is number[] {
+  if (!vector?.length) return false
+  if (info.dimensions && vector.length !== info.dimensions) {
+    console.error(`[embeddings] ${info.model?.id} returned ${vector.length} values but the index has ${info.dimensions} dimensions — not written.`)
+    return false
+  }
+  return true
+}
 
 /**
  * Embeds arbitrary text via Workers AI. Returns null when the AI binding isn't available
@@ -24,11 +90,13 @@ const EMBEDDING_MODEL = '@cf/baai/bge-base-en-v1.5'
 async function embedText(event: H3Event, text: string, trigger: AiTrigger): Promise<number[] | null> {
   const ai = getWorkersAiBinding(event)
   if (!ai) return null
+  const info = await getSearchIndexInfo(event)
+  if (!info?.model) return null
   if (!(await checkAiAllowance(event, AI_CREDITS.embedding, trigger)).allowed) return null
   const workersai = createWorkersAI({ binding: ai })
   try {
-    const { embedding } = await embed({ model: workersai.textEmbedding(EMBEDDING_MODEL), value: text })
-    return embedding
+    const { embedding } = await embed({ model: workersai.textEmbedding(info.model.id), value: text })
+    return rightSize(embedding, info) ? embedding : null
   }
   finally {
     recordAiCall(event, 'platform', AI_CREDITS.embedding, trigger)
@@ -36,11 +104,25 @@ async function embedText(event: H3Event, text: string, trigger: AiTrigger): Prom
 }
 
 /**
+ * Embeds many texts in one Workers AI call, for the index rebuild (search-index-rebuild.ts).
+ * Not charged to any site's allowance: it's the operator's own maintenance of the shared
+ * index, run once per index, not something a site's team or visitors did. Entries that
+ * come back the wrong size are null.
+ */
+export async function embedTextsForRebuild(event: H3Event, texts: string[], info: SearchIndexInfo): Promise<Array<number[] | null>> {
+  const ai = getWorkersAiBinding(event)
+  if (!ai || !info.model || !texts.length) return texts.map(() => null)
+  const workersai = createWorkersAI({ binding: ai })
+  const { embeddings } = await embedMany({ model: workersai.textEmbedding(info.model.id), values: texts })
+  return texts.map((_, i) => (rightSize(embeddings[i], info) ? embeddings[i]! : null))
+}
+
+/**
  * Same searchable text FTS5 already indexes (see migrations/0001_search_index.sql's
  * `COALESCE(excerpt, seo_description, '')`) — kept identical so semantic search and keyword
  * search cover the same content, not two subtly different corpora.
  */
-function buildEmbeddingText(title: string, excerpt: string | null | undefined, seoDescription: string | null | undefined): string {
+export function buildEmbeddingText(title: string, excerpt: string | null | undefined, seoDescription: string | null | undefined): string {
   return `${title}\n\n${excerpt || seoDescription || ''}`.trim()
 }
 
@@ -131,6 +213,21 @@ export async function deleteContentEmbeddings(event: H3Event, contentItemIds: st
   }
 }
 
+/**
+ * Vectorize always returns its topK nearest items, however far away they are — so a query
+ * about something the site never mentions used to list ten unrelated pages. Two cuts:
+ * an absolute floor (cosine similarity on bge-base-en-v1.5; unrelated text mostly scores
+ * below it), and a relative one, so a single strong match isn't padded out with weak ones.
+ * Starting values — tune them against a real site's queries.
+ */
+export const MIN_SEMANTIC_SCORE = 0.6
+export const MAX_SCORE_GAP_FROM_BEST = 0.15
+
+export function relevantMatches<T extends { score: number }>(matches: T[]): T[] {
+  const best = Math.max(...matches.map(m => m.score))
+  return matches.filter(m => m.score >= MIN_SEMANTIC_SCORE && best - m.score <= MAX_SCORE_GAP_FROM_BEST)
+}
+
 export interface SemanticMatch {
   contentItemId: string
   score: number
@@ -139,21 +236,33 @@ export interface SemanticMatch {
 
 /**
  * Returns the top-K semantically similar published/public content items for a query, or
- * null when Vectorize isn't configured (caller falls back to FTS5-only search — see
- * search/semantic.get.ts). Scoped to `siteId` via the namespace partition described above,
- * not a metadata filter, so a query can never leak matches from a different tenant.
+ * null when Vectorize isn't configured or the lookup fails (caller falls back to FTS5-only
+ * search — see search/semantic.get.ts). Scoped to `siteId` via the namespace partition
+ * described above, not a metadata filter, so a query can never leak matches from a
+ * different tenant. `trigger` is 'visitor' for public search, 'team' for editor tools.
+ * Weak matches are dropped (relevantMatches), so the list can be shorter than topK.
  */
-export async function semanticSearch(event: H3Event, siteId: string, query: string, topK = 10): Promise<SemanticMatch[] | null> {
+export async function semanticSearch(event: H3Event, siteId: string, query: string, topK = 10, trigger: AiTrigger = 'visitor', excludeId?: string): Promise<SemanticMatch[] | null> {
   const index = getVectorizeIndex(event)
   if (!index) return null
 
-  const values = await embedText(event, query, 'visitor')
-  if (!values) return null
+  try {
+    const values = await embedText(event, query, trigger)
+    if (!values) return null
 
-  const result = await index.query(values, { topK, namespace: siteId, returnMetadata: 'indexed' })
-  return result.matches.map(m => ({
-    contentItemId: m.id,
-    score: m.score,
-    title: (m.metadata?.title as string) ?? undefined,
-  }))
+    const result = await index.query(values, { topK, namespace: siteId, returnMetadata: 'indexed' })
+    // The excluded item (related posts searches with a page's own text, so the page itself
+    // is the near-perfect best match) goes before the relevance cut, not after.
+    return relevantMatches(result.matches.filter(m => m.id !== excludeId)).map(m => ({
+      contentItemId: m.id,
+      score: m.score,
+      title: (m.metadata?.title as string) ?? undefined,
+    }))
+  }
+  catch (err) {
+    // Same best-effort rule as the upserts above: a Workers AI or Vectorize hiccup must
+    // not turn the search page (or an AI writing tool) into a 500.
+    console.error('[embeddings] Semantic search failed:', err)
+    return null
+  }
 }

@@ -92,6 +92,13 @@ describe('POST /api/public/listen/:slug', () => {
     await expect((listenHandler as HandlerFn)(mkEvent('empty-article'))).rejects.toMatchObject({ statusCode: 422 })
   })
 
+  it('returns 422 for a page that isn’t in English — the only voice is English', async () => {
+    const db = getCurrentTestDb()
+    await seedContentItem(db, SITE, typeId, { slug: 'article-fr', locale: 'fr', content: PROSE_DOC })
+    mockGetWorkersAiBinding.mockReturnValue({ run: vi.fn() })
+    await expect((listenHandler as HandlerFn)(mkEvent('article-fr'))).rejects.toMatchObject({ statusCode: 422 })
+  })
+
   it('returns generated audio bytes for a published prose page', async () => {
     const db = getCurrentTestDb()
     await seedContentItem(db, SITE, typeId, { slug: 'real-article', content: PROSE_DOC })

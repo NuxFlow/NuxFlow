@@ -27,8 +27,10 @@ const formatOptions = [
   { label: 'FAQ', value: 'faq' },
 ]
 
+// Capped like typing is (the textarea's maxlength) — a long dictation used to push the
+// description past the server's 500-character limit and fail with a validation error.
 function appendDictation(text: string) {
-  generateDescription.value = generateDescription.value ? `${generateDescription.value.trimEnd()} ${text}` : text
+  generateDescription.value = (generateDescription.value ? `${generateDescription.value.trimEnd()} ${text}` : text).slice(0, 500)
 }
 
 async function generateContent() {
@@ -40,7 +42,10 @@ async function generateContent() {
       method: 'POST',
       body: { description: generateDescription.value, tone: generateTone.value, format: generateFormat.value },
     })
-    props.editor?.commands.setContent(html)
+    // An empty post gets the draft as its body; one that already has writing gets it at the
+    // cursor — setContent() here used to replace everything the author had written.
+    if (!props.editor || props.editor.isEmpty) props.editor?.commands.setContent(html)
+    else props.editor.commands.insertContent(html)
     emit('update:modelValue', props.editor?.getJSON())
     generateDescription.value = ''
     emit('close')
@@ -76,6 +81,9 @@ async function generateContent() {
         <USelect v-model="generateFormat" :items="formatOptions" />
       </UFormField>
     </div>
+    <p v-if="editor && !editor.isEmpty" class="text-xs text-gray-500">
+      Your post already has content — the generated text is added where your cursor is.
+    </p>
     <p v-if="generateError" class="text-sm text-red-500">{{ generateError }}</p>
 
     <div class="flex justify-end gap-2 pt-2">

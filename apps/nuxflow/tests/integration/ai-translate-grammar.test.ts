@@ -150,6 +150,34 @@ describe('POST /api/v1/ai/translate', () => {
     expect(copies).toHaveLength(1)
   })
 
+  it('never overwrites a live translation — re-translating it makes a separate draft', async () => {
+    const db = getCurrentTestDb()
+    const src = await seedContentItem(db, SITE, typeId, { slug: 'live-src', title: 'Live' })
+    const live = await seedContentItem(db, SITE, typeId, {
+      slug: 'live-src-fr', title: 'Vivant', status: 'published', locale: 'fr', sourceItemId: src,
+    })
+
+    const res = await (translateHandler as Handler)(ev(editorId, { contentItemId: src, targetLocale: 'fr' })) as { id: string; slug: string; updated: boolean; replacesLive: boolean }
+    expect(res).toMatchObject({ updated: false, replacesLive: true, slug: 'live-src-fr-2' })
+    expect(res.id).not.toBe(live)
+    expect(await row(live)).toMatchObject({ title: 'Vivant', status: 'published' })
+    expect(await row(res.id)).toMatchObject({ status: 'draft', locale: 'fr', sourceItemId: src, title: 'ES:Live' })
+
+    // Translating again updates that draft rather than making a third copy.
+    const again = await (translateHandler as Handler)(ev(editorId, { contentItemId: src, targetLocale: 'fr' })) as { id: string; updated: boolean }
+    expect(again).toMatchObject({ id: res.id, updated: true })
+  })
+
+  it('translates from the original when given a translation, and links to the original', async () => {
+    const db = getCurrentTestDb()
+    const src = await seedContentItem(db, SITE, typeId, { slug: 'chain-src', title: 'Original' })
+    const es = await seedContentItem(db, SITE, typeId, { slug: 'chain-src-es', title: 'Original ES', locale: 'es', sourceItemId: src })
+
+    const res = await (translateHandler as Handler)(ev(editorId, { contentItemId: es, targetLocale: 'it' })) as { id: string; slug: string }
+    expect(res.slug).toBe('chain-src-it')
+    expect(await row(res.id)).toMatchObject({ sourceItemId: src, title: 'ES:Original' })
+  })
+
   it('409s before calling the model when the translation slug is already taken', async () => {
     const db = getCurrentTestDb()
     const src = await seedContentItem(db, SITE, typeId, { slug: 'pricing', title: 'Pricing' })

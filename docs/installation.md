@@ -457,17 +457,20 @@ Nothing to add to `wrangler.toml` — this is configured entirely through Settin
 
 Powers the "You might be looking for" fallback on the public Search page and the editor's "Related content" suggestions — a supplement to the built-in keyword search, not required for any other AI feature.
 
-1. Create the index (dimensions must match the embedding model NuxFlow uses):
+1. Create the index. Its size decides the search model, and can't be changed later:
    ```bash
-   wrangler vectorize create nuxflow-content --dimensions=768 --metric=cosine
+   wrangler vectorize create nuxflow-content --dimensions=1024 --metric=cosine
    ```
+   1024 dimensions uses `bge-m3`, which understands every language. (An index made with `--dimensions=768`, as older versions of this guide said, still works but uses an English-only model.)
 2. In `apps/nuxflow/wrangler.toml`, uncomment the `[[vectorize]]` block (it's already there, commented out, with these exact values) and redeploy:
    ```toml
    [[vectorize]]
    binding = "VECTORIZE"
    index_name = "nuxflow-content"
    ```
-3. That's it — no further settings to configure. Existing content is embedded automatically the next time each item is saved; there's no bulk backfill command, so editing and re-saving a published page is enough to add it to the index.
+3. That's it — no further settings to configure. Within a minute of the deploy, NuxFlow starts adding every published page to the index by itself, up to about 500 pages a minute. **Super Admin → Database → Smart search index** shows the progress.
+
+**Switching an English-only (768) index to every language:** create a new index with the command above under a new name (e.g. `nuxflow-content-m3`), change `index_name` in the `[[vectorize]]` block — in every pool's config too, if you run pools — and deploy. Every page is re-indexed into the new index automatically; until that finishes, smart search only finds pages already done. Delete the old index afterwards with `wrangler vectorize delete <old name>`.
 
 ### Spam Protection (Turnstile)
 

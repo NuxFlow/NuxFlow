@@ -238,6 +238,9 @@ const isCanvasPage = computed(() => {
 // "Listen to this article" — generates audio on demand (see api/public/listen/[slug].post.ts)
 // rather than pre-fetching on every page load, since most visitors never click it and each
 // click costs a real Workers AI TTS call.
+// The voice (Deepgram Aura-2 English) reads every language as English, so the button is
+// only offered on English pages — the listen route refuses the rest too.
+const canListen = computed(() => /^en(?:-|$)/i.test(page.value?.locale || site.value?.locale || 'en'))
 const listenAudioUrl = ref<string | null>(null)
 const listenLoading = ref(false)
 const listenError = ref(false)
@@ -316,7 +319,7 @@ const formattedDate = computed(() => formatDate(page.value?.publishedAt, '') || 
         </div>
 
         <!-- Listen to this article (AI text-to-speech) -->
-        <div class="mb-8">
+        <div v-if="canListen" class="mb-8">
           <audio v-if="listenAudioUrl" :src="listenAudioUrl" controls class="w-full max-w-sm" />
           <UButton
             v-else

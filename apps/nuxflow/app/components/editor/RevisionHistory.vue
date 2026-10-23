@@ -5,10 +5,11 @@ const emit = defineEmits<{ restored: [] }>()
 interface Revision {
   id: string
   title: string
+  summary?: string | null
   createdAt: string
 }
 
-const { data } = await useFetch<{ revisions?: Revision[] }>(() => `/api/v1/content/${props.contentId}/revisions`)
+const { data, refresh } = await useFetch<{ revisions?: Revision[] }>(() => `/api/v1/content/${props.contentId}/revisions`)
 const revisions = computed(() => data.value?.revisions ?? [])
 const { run, isRunning } = useAdminAction()
 
@@ -16,6 +17,8 @@ async function restore(revisionId: string) {
   await run(async () => {
     await $fetch<unknown>(`/api/v1/content/${props.contentId}/revisions/${revisionId}/restore`, { method: 'POST' })
     emit('restored')
+    // The version replaced by the restore is now a revision of its own.
+    await refresh()
   }, { errorTitle: "Couldn't restore revision", key: revisionId })
 }
 </script>
@@ -32,7 +35,7 @@ async function restore(revisionId: string) {
       >
         <div class="min-w-0">
           <p class="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{{ rev.title }}</p>
-          <p class="text-xs text-gray-400">{{ formatLocalDateTime(rev.createdAt) }}</p>
+          <p class="text-xs text-gray-400">{{ formatLocalDateTime(rev.createdAt) }}<template v-if="rev.summary"> · {{ rev.summary }}</template></p>
         </div>
         <UButton
           size="xs"

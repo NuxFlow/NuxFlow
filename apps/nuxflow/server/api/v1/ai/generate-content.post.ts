@@ -43,7 +43,7 @@ export default defineEventHandler(async (event) => {
   // deliberately lightweight (titles only, not full text) — enough to steer the model away
   // from an obvious duplicate without spending tokens re-grounding every generation in full
   // page bodies.
-  const related = await semanticSearch(event, requireSiteId(event), description, 3)
+  const related = await semanticSearch(event, requireSiteId(event), description, 3, 'team')
   const groundingNote = related?.length
     ? `\n\nFor context, this site already has related content titled: ${related.map(r => `"${r.title}"`).join(', ')}. Write new, non-duplicate content — don't just restate these.`
     : ''
@@ -58,5 +58,13 @@ export default defineEventHandler(async (event) => {
       maxOutputTokens: 1500,
     }),
   )
-  return { html: text.trim() }
+  return { html: stripCodeFence(text) }
 })
+
+// Models wrap their answer in ```html … ``` despite the prompt often enough that the
+// editor used to show the fence as literal text at the top and bottom of the post.
+function stripCodeFence(text: string): string {
+  const lines = text.trim().split('\n')
+  if (lines.length < 2 || !lines[0]!.startsWith('```') || lines.at(-1)!.trim() !== '```') return text.trim()
+  return lines.slice(1, -1).join('\n').trim()
+}

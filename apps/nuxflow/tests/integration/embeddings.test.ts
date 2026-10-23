@@ -16,6 +16,7 @@ vi.mock('../../server/utils/cf-env', () => ({
 const mockEmbed = vi.fn()
 vi.mock('ai', () => ({
   embed: (...args: unknown[]) => mockEmbed(...args),
+  embedMany: vi.fn(),
 }))
 
 vi.mock('workers-ai-provider', () => ({
@@ -32,7 +33,7 @@ vi.mock('../../server/utils/ai-allowance', () => ({
   recordAiCall: (...args: unknown[]) => mockRecordAiCall(...args),
 }))
 
-const { upsertContentEmbedding, deleteContentEmbedding, semanticSearch } = await import('../../server/utils/embeddings')
+const { upsertContentEmbedding, deleteContentEmbedding, semanticSearch, clearSearchIndexInfoCache } = await import('../../server/utils/embeddings')
 
 function fakeEvent(): H3Event {
   return { context: { siteId: 'site-01' } } as unknown as H3Event
@@ -50,6 +51,7 @@ function fakeIndex() {
 }
 
 beforeEach(() => {
+  clearSearchIndexInfoCache()
   mockGetWorkersAiBinding.mockReset()
   mockGetVectorizeIndex.mockReset()
   mockEmbed.mockReset()
@@ -244,5 +246,98 @@ describe('semanticSearch', () => {
       { contentItemId: 'item-01', score: 0.92, title: 'Growing Tomatoes' },
       { contentItemId: 'item-02', score: 0.81, title: undefined },
     ])
+  })
+
+  it('drops weak matches: below the floor, or far behind the best one', async () => {
+    const index = fakeIndex()
+    index.query.mockResolvedValue({
+      matches: [
+        { id: 'strong', score: 0.9, metadata: {} },
+        { id: 'close', score: 0.8, metadata: {} },
+        { id: 'far-behind', score: 0.7, metadata: {} },
+        { id: 'unrelated', score: 0.4, metadata: {} },
+      ],
+    })
+    mockGetVectorizeIndex.mockReturnValue(index)
+    mockGetWorkersAiBinding.mockReturnValue({ run: vi.fn() })
+    mockEmbed.mockResolvedValue({ embedding: [0.1] })
+
+    const result = await semanticSearch(fakeEvent(), 'site-01', 'tomatoes')
+    expect(result!.map(m => m.contentItemId)).toEqual(['strong', 'close'])
+  })
+
+  it('leaves out the excluded item before judging relevance (related posts)', async () => {
+    const index = fakeIndex()
+    index.query.mockResolvedValue({
+      matches: [
+        { id: 'self', score: 0.99, metadata: {} },
+        { id: 'related', score: 0.75, metadata: {} },
+      ],
+    })
+    mockGetVectorizeIndex.mockReturnValue(index)
+    mockGetWorkersAiBinding.mockReturnValue({ run: vi.fn() })
+    mockEmbed.mockResolvedValue({ embedding: [0.1] })
+
+    const result = await semanticSearch(fakeEvent(), 'site-01', 'tomatoes', 6, 'team', 'self')
+    expect(result!.map(m => m.contentItemId)).toEqual(['related'])
+  })
+
+  it('returns null instead of throwing when Vectorize fails', async () => {
+    const index = fakeIndex()
+    index.query.mockRejectedValue(new Error('Vectorize unavailable'))
+    mockGetVectorizeIndex.mockReturnValue(index)
+    mockGetWorkersAiBinding.mockReturnValue({ run: vi.fn() })
+    mockEmbed.mockResolvedValue({ embedding: [0.1] })
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    expect(await semanticSearch(fakeEvent(), 'site-01', 'tomatoes')).toBeNull()
+    spy.mockRestore()
+  })
+})
+
+describe('the embedding model follows the index', () => {
+  const published = {
+    contentItemId: 'item-m3', siteId: 'site-01', title: 'Tomates', excerpt: 'Guía', seoDescription: null, status: 'published', visibility: 'public',
+  }
+
+  it('uses multilingual bge-m3 for a 1024-dimension index', async () => {
+    const index = fakeIndex()
+    index.describe.mockResolvedValue({ dimensions: 1024, vectorCount: 3 })
+    mockGetVectorizeIndex.mockReturnValue(index)
+    mockGetWorkersAiBinding.mockReturnValue({ run: vi.fn() })
+    mockEmbed.mockResolvedValue({ embedding: Array.from({ length: 1024 }, () => 0.1) })
+
+    await upsertContentEmbedding(fakeEvent(), published)
+    expect(mockEmbed).toHaveBeenCalledWith(expect.objectContaining({ model: { modelId: '@cf/baai/bge-m3' } }))
+    expect(index.upsert).toHaveBeenCalled()
+  })
+
+  it('keeps English bge-base for an older 768-dimension index', async () => {
+    const index = fakeIndex()
+    index.describe.mockResolvedValue({ dimensions: 768 })
+    mockGetVectorizeIndex.mockReturnValue(index)
+    mockGetWorkersAiBinding.mockReturnValue({ run: vi.fn() })
+    mockEmbed.mockResolvedValue({ embedding: Array.from({ length: 768 }, () => 0.1) })
+
+    await upsertContentEmbedding(fakeEvent(), published)
+    expect(mockEmbed).toHaveBeenCalledWith(expect.objectContaining({ model: { modelId: '@cf/baai/bge-base-en-v1.5' } }))
+  })
+
+  it('never writes a vector of the wrong size, and embeds nothing for an unsupported index', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const index = fakeIndex()
+    index.describe.mockResolvedValue({ dimensions: 1024 })
+    mockGetVectorizeIndex.mockReturnValue(index)
+    mockGetWorkersAiBinding.mockReturnValue({ run: vi.fn() })
+    mockEmbed.mockResolvedValue({ embedding: [0.1, 0.2] })
+    await upsertContentEmbedding(fakeEvent(), published)
+    expect(index.upsert).not.toHaveBeenCalled()
+
+    clearSearchIndexInfoCache()
+    index.describe.mockResolvedValue({ dimensions: 384 })
+    mockEmbed.mockClear()
+    await upsertContentEmbedding(fakeEvent(), published)
+    expect(mockEmbed).not.toHaveBeenCalled()
+    spy.mockRestore()
   })
 })

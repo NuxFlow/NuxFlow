@@ -6,7 +6,7 @@ import type { Db } from './db'
 import { checkPlanLimit, planLimitMessage } from './hosting-plans'
 import { contentItems, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { roleAtLeast, hasApiKeyScope, canEditContentItem, AUTHOR_SETTABLE_STATUSES, type Role, type ApiKeyScope } from './permissions'
-import { getContentItem, getContentTypeBySlug } from './content-queries'
+import { archiveReplacedTranslations, getContentItem, getContentTypeBySlug } from './content-queries'
 import { scopedById } from './db-helpers'
 import { writeAuditLog } from './audit'
 import { semanticSearch, upsertContentEmbedding, deleteContentEmbedding } from './embeddings'
@@ -284,6 +284,8 @@ async function syncAfterContentWrite(
   // A delete cascades the item's term links away, so its caller reads them beforehand.
   termIds?: string[],
 ): Promise<void> {
+  // Before the purge below, which then covers the archived translation too.
+  if (after?.status === 'published') await archiveReplacedTranslations(ctx.db, ctx.siteId, after)
   const rows = [before, after].filter((r): r is ContentRow => r !== null)
   const itemId = rows[0]!.id
   const [paths, termRefs] = await Promise.all([
@@ -547,7 +549,7 @@ async function searchContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   const { query } = parsed.data
   const limit = Math.min(parsed.data.limit ?? 10, 20)
 
-  const semantic = await semanticSearch(ctx.event, ctx.siteId, query, limit)
+  const semantic = await semanticSearch(ctx.event, ctx.siteId, query, limit, 'team')
   if (semantic !== null) {
     if (!semantic.length) return textResult('No matching content found.')
     return textResult(JSON.stringify(semantic.map(m => ({ id: m.contentItemId, title: m.title, score: m.score })), null, 2))

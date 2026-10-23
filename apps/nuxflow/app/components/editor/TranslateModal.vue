@@ -5,6 +5,7 @@ const emit = defineEmits<{
   close: []
 }>()
 
+const toast = useToast()
 const loading = ref(false)
 const error = ref('')
 
@@ -42,10 +43,17 @@ async function translate() {
   loading.value = true
   error.value = ''
   try {
-    const res = await $fetch<{ id: string; locale: string; updated: boolean }>('/api/v1/ai/translate', {
+    const res = await $fetch<{ id: string; locale: string; updated: boolean; replacesLive: boolean }>('/api/v1/ai/translate', {
       method: 'POST',
       body: { contentItemId: props.contentItemId, targetLocale: locale },
     })
+    if (res.replacesLive) {
+      toast.add({
+        title: 'New translation saved as a draft',
+        description: 'The live translation is unchanged. Publishing this draft replaces it.',
+        color: 'info',
+      })
+    }
     emit('translated', res.id, res.locale)
   } catch (e: unknown) {
     error.value = getErrorMessage(e, 'Translation failed. Please try again.')
@@ -58,7 +66,8 @@ async function translate() {
 <template>
   <div class="space-y-4">
     <p class="text-sm text-gray-500 dark:text-gray-400">
-      AI will translate all page content and create a separate draft content item linked to this source.
+      AI translates the original page into a draft linked to it. A live translation is never
+      changed — re-translating one makes a new draft, and publishing that draft replaces it.
     </p>
 
     <UFormField label="Target language">

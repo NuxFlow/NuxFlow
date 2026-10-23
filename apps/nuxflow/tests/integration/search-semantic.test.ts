@@ -126,6 +126,8 @@ describe('GET /api/v1/content/:id/related', () => {
 
     expect(result.results.some(r => r.id === itemA)).toBe(false)
     expect(result.results.some(r => r.id === itemB)).toBe(true)
+    // Passed down so the relevance cut never measures against the self-match.
+    expect(mockSemanticSearch).toHaveBeenLastCalledWith(expect.anything(), expect.any(String), expect.any(String), 6, 'team', itemA)
   })
 
   it('queries using the item\'s own title/excerpt as the search text', async () => {

@@ -27,7 +27,9 @@ export default defineEventHandler(async (event) => {
 
   // Over-fetch slightly and drop the item itself (a published item's own vector is a
   // near-perfect match for its own title/excerpt) rather than asking Vectorize for topK+1.
-  const matches = await semanticSearch(event, siteId, queryText, 6)
+  // semanticSearch drops it before its relevance cut, which would otherwise measure every
+  // other match against that self-match and discard them all.
+  const matches = await semanticSearch(event, siteId, queryText, 6, 'team', id)
   if (matches === null) return { available: false, results: [] }
 
   const filtered = matches.filter(m => m.contentItemId !== id).slice(0, 5)

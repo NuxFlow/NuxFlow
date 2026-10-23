@@ -133,7 +133,11 @@ async function generatePlanPage(event: H3Event, db: Db, job: AiGenerationJob, in
       resourceId: id,
       after: { source: 'ai-generation', jobId: job.id },
     }))
-    return { ...page, title, slug, contentItemId: id, error: undefined }
+    // A site job keeps the planned slug on its plan entry: the other pages link to it (and
+    // to "home" as /), and the item row has the real one. They only differ for "home" —
+    // saved as home-2 next to the existing homepage until "Publish as homepage" — or when
+    // a slug was taken after the plan was approved.
+    return { ...page, title, slug: job.type === 'site' ? page.slug : slug, contentItemId: id, error: undefined }
   }
   catch (err) {
     console.error(`[site-generation] Job ${job.id}: page "${page.title}" failed:`, err)
@@ -252,6 +256,28 @@ export async function jobResponse(db: Db, job: AiGenerationJob) {
     busy: Boolean(lockedUntil && lockedUntil > new Date().toISOString()),
     items: rows satisfies AiGenerationJobItem[],
   }
+}
+
+/**
+ * Gives every planned page (except "home", see make-homepage.post.ts) the address it will
+ * really get, before any page is generated. Each page links to the others by these slugs,
+ * so a planned "about" on a site that already has one used to be saved as about-2 while
+ * every other page still linked to the old /about.
+ */
+export async function reservePlanSlugs(db: Db, siteId: string, plan: AiGenerationPlanPage[]): Promise<AiGenerationPlanPage[]> {
+  const used = new Set<string>()
+  const out: AiGenerationPlanPage[] = []
+  for (const page of plan) {
+    if (page.slug === 'home') {
+      out.push(page)
+      continue
+    }
+    let slug = await availableSlug(db, siteId, page.slug)
+    for (let n = 2; used.has(slug); n++) slug = await availableSlug(db, siteId, `${page.slug}-${n}`)
+    used.add(slug)
+    out.push({ ...page, slug })
+  }
+  return out
 }
 
 /** Makes every slug in an edited plan unique, so two planned pages can't collide. */

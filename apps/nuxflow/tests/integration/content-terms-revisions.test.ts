@@ -225,6 +225,37 @@ describe('revisions', () => {
     expect(row?.content).toEqual({ type: 'doc', content: [] })
   })
 
+  it('keeps the version it replaces as a revision, bumps the version, and clears a live page\'s cache', async () => {
+    const db = getCurrentTestDb()
+    const live = await seedContentItem(db, SITE, typeId, { slug: 'restore-live', title: 'Current', status: 'published', content: { type: 'doc', content: [{ type: 'paragraph' }] } })
+    const before = (await db.query.contentItems.findFirst({ where: eq(contentItems.id, live) }))!
+    const rev = ulid()
+    await db.insert(contentRevisions).values({ id: rev, itemId: live, title: 'Earlier', content: { type: 'doc', content: [] } })
+    mockPurge.mockClear()
+
+    const res = await (restoreHandler as Handler)(ev(editorId, { params: { id: live, revisionId: rev } })) as { version: number }
+
+    const row = (await db.query.contentItems.findFirst({ where: eq(contentItems.id, live) }))!
+    expect(row.title).toBe('Earlier')
+    expect(row.version).toBe(before.version + 1)
+    expect(res.version).toBe(row.version)
+    const kept = await db.query.contentRevisions.findMany({ where: eq(contentRevisions.itemId, live) })
+    expect(kept.find(r => r.title === 'Current')).toMatchObject({ content: before.content, summary: 'Before restoring an earlier version' })
+    expect(mockPurge).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ published: true, slugs: ['restore-live'] }))
+  })
+
+  it('does nothing when the revision matches what is already there', async () => {
+    const db = getCurrentTestDb()
+    const same = await seedContentItem(db, SITE, typeId, { title: 'Same', content: { type: 'doc', content: [] } })
+    const rev = ulid()
+    await db.insert(contentRevisions).values({ id: rev, itemId: same, title: 'Same', content: { type: 'doc', content: [] } })
+    const before = (await db.query.contentItems.findFirst({ where: eq(contentItems.id, same) }))!
+
+    await (restoreHandler as Handler)(ev(editorId, { params: { id: same, revisionId: rev } }))
+    expect((await db.query.contentItems.findFirst({ where: eq(contentItems.id, same) }))!.version).toBe(before.version)
+    expect(await db.query.contentRevisions.findMany({ where: eq(contentRevisions.itemId, same) })).toHaveLength(1)
+  })
+
   it('404s when the revision belongs to a different item', async () => {
     const db = getCurrentTestDb()
     const other = await seedContentItem(db, SITE, typeId)

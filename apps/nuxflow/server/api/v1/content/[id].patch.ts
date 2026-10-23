@@ -3,7 +3,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole, roleAtLeast, AUTHOR_SETTABLE_STATUSES, assertCanEditContentItem } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { queueContentPublishedPush } from '../../../utils/push-content'
-import { getContentItemOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
+import { getContentItemOrThrow, deriveVisibilityFromSettings, archiveReplacedTranslations } from '../../../utils/content-queries'
 import { contentItems, contentRevisions } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -158,6 +158,16 @@ export default defineEventHandler(async (event) => {
     : [itemUpdate]
   if (termsChanged) writes.push(...replaceContentTermsStatements(db, id, nextTermIds))
   await batchWithAudit(db, writes, auditInsert)
+
+  // Publishing a translation retires any other live one in its language (an AI
+  // re-translation of a live page is a separate draft until this moment).
+  if ((updateFields.status ?? existing.status) === 'published') {
+    await archiveReplacedTranslations(db, siteId, {
+      id,
+      sourceItemId: updateFields.sourceItemId !== undefined ? updateFields.sourceItemId : existing.sourceItemId,
+      locale: updateFields.locale ?? existing.locale,
+    })
+  }
 
   // Public URL bookkeeping. A translation is served at /{locale}/{source slug}, and a
   // source item's slug change moves every one of its translations' URLs with it.

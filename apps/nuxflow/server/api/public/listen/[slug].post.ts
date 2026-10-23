@@ -2,10 +2,11 @@ import { createWorkersAI } from 'workers-ai-provider'
 import { generateSpeech } from 'ai'
 import { useReplicaDb } from '../../../utils/db'
 import { getWorkersAiBinding } from '../../../utils/cf-env'
+import { callAiOrThrow } from '../../../utils/ai-sdk'
 import { assertAiAllowance, recordAiCall, speechCredits } from '../../../utils/ai-allowance'
 import { extractPlainText } from '../../../utils/tiptap-text'
 import { rateLimit } from '../../../utils/rate-limit'
-import { contentItems } from '@nuxflow/db/schema'
+import { contentItems, sites } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
 
@@ -41,9 +42,14 @@ export default defineEventHandler(async (event) => {
       eq(contentItems.status, 'published'),
       eq(contentItems.visibility, 'public'),
     ),
-    columns: { content: true },
+    columns: { content: true, locale: true },
   })
   if (!item) throw notFound('Content not found')
+
+  // The only voice here is English; a French page read by it is gibberish, and still costs
+  // credits. ContentPage hides the button on other languages.
+  const locale = item.locale || (await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true } }))?.locale || 'en'
+  if (!/^en(?:-|$)/i.test(locale)) throw validationError('Listening is only available for English pages.')
 
   // Canvas pages are a block layout, not prose — there's no single "article text" to read.
   const isCanvas = (item.content as { type?: string } | null)?.type === 'canvas'
@@ -58,11 +64,11 @@ export default defineEventHandler(async (event) => {
   const credits = speechCredits(text.length)
   await assertAiAllowance(event, credits, 'visitor')
   recordAiCall(event, 'platform', credits, 'visitor')
-  const { audio } = await generateSpeech({
+  const { audio } = await callAiOrThrow(() => generateSpeech({
     model: workersai.speech('@cf/deepgram/aura-2-en'),
     text,
     voice: 'asteria',
-  })
+  }))
 
   setHeader(event, 'Content-Type', 'audio/mpeg')
   setHeader(event, 'Cache-Control', 'private, max-age=3600')
