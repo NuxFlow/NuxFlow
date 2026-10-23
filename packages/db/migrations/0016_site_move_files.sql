@@ -1,0 +1,1 @@
+ALTER TABLE `site_moves` ADD `copy_files` integer DEFAULT false NOT NULL;

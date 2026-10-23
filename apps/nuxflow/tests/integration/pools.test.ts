@@ -204,3 +204,24 @@ describe('names and releases', () => {
     expect(sorted).toEqual(['new-pool-x', 'ring2-2026-10-24', 'ring1-2026-10-24', 'ring1-2026-10-24-2', 'ring1-2026-10-25'])
   })
 })
+
+describe('Super Admin → Pools: keeping customer sites off the control panel', () => {
+  it('counts customer sites still here and plans whose sign-ups land here, not the operator\'s own or a copy mid-move', async () => {
+    const db = getCurrentTestDb()
+    const { controlPlaneSummary } = await import('../../server/utils/pools')
+    const { hostingPlans, sites } = await import('@nuxflow/db/schema')
+    const { eq } = await import('drizzle-orm')
+    const before = await controlPlaneSummary(db)
+    await seedSite(db, { id: 'site-pools-cafe', domain: 'cafe.example' })
+    await seedSite(db, { id: 'site-pools-moving-in', domain: 'incoming.example', moveState: 'incoming' })
+    await db.insert(hostingPlans).values([{ id: 'plan-here', name: 'Here' }, { id: 'plan-pooled', name: 'Pooled', defaultPoolId: 'main' }])
+
+    const after = await controlPlaneSummary(db)
+    expect(after.customerSites).toBe(before.customerSites + 1)
+    expect(after.plansWithoutPool).toBe(before.plansWithoutPool + 1)
+
+    await db.delete(sites).where(eq(sites.id, 'site-pools-cafe'))
+    await db.delete(sites).where(eq(sites.id, 'site-pools-moving-in'))
+    await db.delete(hostingPlans)
+  })
+})

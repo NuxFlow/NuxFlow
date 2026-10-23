@@ -6,6 +6,9 @@
 //   --from <file>      the control plane's wrangler config (default wrangler.toml)
 //   --ring 1|2         which ring the pool joins (default 2)
 //   --location <hint>  where D1 keeps the data: weur, eeur, apac, oc, wnam, enam
+//   --own-bucket       its own R2 bucket for files (nuxflow-pool-<name>-media), not the shared one
+//   --bucket <name>    the same, with that bucket name
+//   --jurisdiction eu  D1 and the bucket (always its own) stay in the EU
 //   --dry-run          show what would happen; create nothing
 //   --yes              don't ask for confirmation
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -25,13 +28,15 @@ import {
   wranglerCapture,
   wranglerLive,
 } from '../release/shell'
-import { addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasSecret, parsePoolFlags, poolConfigFile, poolNames, routerBindingBlock, serviceBindingBlock } from './lib'
+import { addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasBucket, hasSecret, ownBucket, parsePoolFlags, poolConfigFile, poolNames, routerBindingBlock, serviceBindingBlock, type OwnBucket } from './lib'
 
-const HELP = `pnpm pool:create <name> [--from wrangler.cloud.toml] [--ring 1|2] [--location weur] [--dry-run] [--yes]
+const HELP = `pnpm pool:create <name> [--from wrangler.cloud.toml] [--ring 1|2] [--location weur | --jurisdiction eu] [--own-bucket | --bucket <name>] [--dry-run] [--yes]
 
 Sets up a member pool of a hosting platform: a Worker "nuxflow-pool-<name>" with its own
 D1 and KV, a config made from the control plane's (--from), and its own sign-in secret,
-then deploys it and adds it to apps/nuxflow/release-targets.json. See docs/release-rings.md.`
+then deploys it and adds it to apps/nuxflow/release-targets.json. With --own-bucket or
+--bucket it gets its own R2 bucket for files; --jurisdiction eu keeps its database and
+files in the EU. See docs/pools.md.`
 
 const SECRET_NAME = 'NUXT_BETTER_AUTH_SECRET'
 // Cloudflare's answer for a Worker that hasn't been deployed yet (API error 10007).
@@ -65,8 +70,10 @@ runMain(async () => {
 
   const poolId = flags.poolId
   let names: ReturnType<typeof poolNames>
+  let bucket: OwnBucket | null
   try {
     names = poolNames(poolId)
+    bucket = ownBucket(flags, poolId)
   } catch (err) {
     fail((err as Error).message)
   }
@@ -79,16 +86,18 @@ runMain(async () => {
   // Checks the control plane's config before anything is created on Cloudflare.
   const base = readConfig(flags.from)
   try {
-    buildPoolConfig(base, { poolId, databaseId: 'check', kvId: 'check' })
+    buildPoolConfig(base, { poolId, databaseId: 'check', kvId: 'check', bucket: bucket ?? undefined })
   } catch (err) {
     fail((err as Error).message)
   }
 
   heading(`New pool: ${poolId}`)
   console.log(`Worker:    ${names.worker} (no routes: traffic arrives through the platform's router)`)
-  console.log(`D1:        ${names.database}${flags.location ? ` (location ${flags.location})` : ''}`)
+  console.log(`D1:        ${names.database}${flags.jurisdiction ? ` (kept in the ${flags.jurisdiction.toUpperCase()})` : flags.location ? ` (location ${flags.location})` : ''}`)
   console.log(`KV:        ${names.kv}`)
-  console.log(`Shared:    the R2 bucket, Analytics Engine, Vectorize, AI and email from ${flags.from}`)
+  console.log(`Files:     ${bucket ? `its own R2 bucket ${bucket.name}${bucket.jurisdiction ? ` (kept in the ${bucket.jurisdiction.toUpperCase()})` : ''}` : `the shared R2 bucket from ${flags.from}`}`)
+  console.log(`Shared:    Analytics Engine, Vectorize, AI and email from ${flags.from}`)
+  if (flags.jurisdiction) console.log('Note:      KV (plugin code, theme CSS, caches) has no EU option; it is stored globally.')
   console.log(`Config:    apps/nuxflow/${names.config}${configExists ? ' (exists, reused)' : ` (made from ${flags.from})`}`)
   console.log(`Ring:      ${flags.ring}`)
   if (flags.dryRun) {
@@ -103,7 +112,7 @@ runMain(async () => {
     if (databaseId) {
       console.log(`Already exists: ${databaseId}`)
     } else {
-      const args = ['d1', 'create', names.database, ...(flags.location ? ['--location', flags.location] : [])]
+      const args = ['d1', 'create', names.database, ...(flags.jurisdiction ? ['--jurisdiction', flags.jurisdiction] : flags.location ? ['--location', flags.location] : [])]
       if (!wranglerLive(args)) fail('Creating the D1 database failed (see above). Run pnpm pool:create again once it\'s fixed.')
       databaseId = findD1Id(wranglerJson(['d1', 'list', '--json'], 'Listing D1 databases'), names.database)
         ?? fail(`Created ${names.database}, but can't find it in wrangler d1 list.`)
@@ -119,7 +128,17 @@ runMain(async () => {
         ?? fail(`Created ${names.kv}, but can't find it in wrangler kv namespace list.`)
     }
 
-    writeFileSync(configPath, poolConfigFile(buildPoolConfig(base, { poolId, databaseId, kvId }), { poolId, from: flags.from }))
+    if (bucket) {
+      heading('R2 bucket')
+      const jurisdiction = bucket.jurisdiction ? ['--jurisdiction', bucket.jurisdiction] : []
+      if (hasBucket(wranglerJson(['r2', 'bucket', 'list', ...jurisdiction], 'Listing R2 buckets'), bucket.name)) {
+        console.log(`Already exists: ${bucket.name}`)
+      } else if (!wranglerLive(['r2', 'bucket', 'create', bucket.name, ...jurisdiction])) {
+        fail('Creating the R2 bucket failed (see above). Run pnpm pool:create again once it\'s fixed.')
+      }
+    }
+
+    writeFileSync(configPath, poolConfigFile(buildPoolConfig(base, { poolId, databaseId, kvId, bucket: bucket ?? undefined }), { poolId, from: flags.from }))
     console.log(`\nWrote apps/nuxflow/${names.config}`)
   }
 

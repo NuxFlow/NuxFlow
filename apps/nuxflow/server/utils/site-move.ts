@@ -151,9 +151,39 @@ export interface MoveStore {
   kvKeys(siteId: string, cursor: KvCursor | null): Promise<{ keys: string[]; cursor: KvCursor | null }>
   kvGet(keys: string[]): Promise<{ key: string; value: string }[]>
   kvPut(entries: { key: string; value: string }[]): Promise<void>
+  // Files, only when the two sides keep them in different R2 buckets (a pool with its own,
+  // or an EU pool). Which is the case is found out, not configured: one side writes a probe
+  // object and the other looks for it — copying a file "between" two names for the same
+  // bucket and then deleting the original would lose it.
+  /** False when this side has no bucket at all. */
+  probeWrite(key: string): Promise<boolean>
+  probeSees(key: string): Promise<'yes' | 'no' | 'no-bucket'>
+  probeDelete(key: string): Promise<void>
+  fileList(siteId: string, cursor: FileCursor | null): Promise<{ files: { key: string; size: number }[]; cursor: FileCursor | null }>
+  /** The size of a file here, or null when it isn't. */
+  fileSize(key: string): Promise<number | null>
+  fileGet(key: string): Promise<MovedFile | null>
+  filePut(file: MovedFile & { key: string }): Promise<void>
+  fileSummary(siteId: string): Promise<{ count: number; bytes: number }>
+  /** Deletes the site's files — only for a copy that is `incoming` or `moved`. */
+  purgeFiles(siteId: string): Promise<void>
+  /** Media rows whose address points straight at a bucket's public URL, which a copy to another bucket would break. */
+  absoluteMediaUrls(siteId: string): Promise<number>
 }
 
 export interface KvCursor { prefix: number; cursor?: string }
+export interface FileCursor { prefix: number; cursor?: string }
+export interface MovedFile {
+  body: ReadableStream | ArrayBuffer | Uint8Array
+  size: number
+  httpMetadata?: R2HTTPMetadata
+  customMetadata?: Record<string, string>
+}
+
+/** Where a site's files are in an R2 bucket: media and theme files, and received mail (inbound-email.ts). */
+const FILE_PREFIXES = (siteId: string) => [`${siteId}/`, `_private/${siteId}/`]
+const FILE_PAGE = 50
+const FILE_PUT_TIMEOUT_MS = 5 * 60_000
 
 const PAGE_ROWS = 200
 /** Keeps one page well under the 32 MiB a call between Workers can carry. */
@@ -387,6 +417,105 @@ export function localMoveStore(event: H3Event): MoveStore {
     async kvPut(entries) {
       for (const { key, value } of entries) await kv().put(key, value)
     },
+
+    async probeWrite(key) {
+      const r2 = getCfBindings(event).r2
+      if (!r2) return false
+      await r2.put(key, 'nuxflow site move probe')
+      return true
+    },
+
+    async probeSees(key) {
+      const r2 = getCfBindings(event).r2
+      if (!r2) return 'no-bucket'
+      return (await r2.head(key)) ? 'yes' : 'no'
+    },
+
+    async probeDelete(key) {
+      await getCfBindings(event).r2?.delete(key)
+    },
+
+    async fileList(siteId, cursor) {
+      const r2 = bucket()
+      const prefixes = FILE_PREFIXES(siteId)
+      const at = cursor ?? { prefix: 0 }
+      if (at.prefix >= prefixes.length) return { files: [], cursor: null }
+      const page = await r2.list({ prefix: prefixes[at.prefix], cursor: at.cursor, limit: FILE_PAGE })
+      const next: FileCursor | null = page.truncated
+        ? { prefix: at.prefix, cursor: page.cursor }
+        : at.prefix + 1 < prefixes.length ? { prefix: at.prefix + 1 } : null
+      return { files: page.objects.map(o => ({ key: o.key, size: o.size })), cursor: next }
+    },
+
+    async fileSize(key) {
+      return (await bucket().head(key))?.size ?? null
+    },
+
+    async fileGet(key) {
+      const object = await bucket().get(key)
+      if (!object) return null
+      return { body: object.body, size: object.size, httpMetadata: object.httpMetadata, customMetadata: object.customMetadata }
+    },
+
+    async filePut({ key, body, size, httpMetadata, customMetadata }) {
+      // R2 needs a stream's length up front; one handed over from another Worker doesn't
+      // carry it, so it goes through a FixedLengthStream of the size the source reported.
+      const Fixed = (globalThis as { FixedLengthStream?: new (length: number) => TransformStream }).FixedLengthStream
+      if (Fixed && body instanceof ReadableStream) {
+        const { readable, writable } = new Fixed(size)
+        await Promise.all([bucket().put(key, readable, { httpMetadata, customMetadata }), body.pipeTo(writable)])
+        return
+      }
+      await bucket().put(key, body, { httpMetadata, customMetadata })
+    },
+
+    async fileSummary(siteId) {
+      const r2 = bucket()
+      let count = 0
+      let bytes = 0
+      for (const prefix of FILE_PREFIXES(siteId)) {
+        let cursor: string | undefined
+        do {
+          const page = await r2.list({ prefix, cursor })
+          for (const o of page.objects) {
+            count++
+            bytes += o.size
+          }
+          cursor = page.truncated ? page.cursor : undefined
+        } while (cursor)
+      }
+      return { count, bytes }
+    },
+
+    async purgeFiles(siteId) {
+      // Stricter than purge(): the copy must still be here and marked, never "no such site",
+      // because a site absent from this database may well have its files in this bucket.
+      const state = await moveStateOf(db, siteId)
+      if (!state.present || (state.moveState !== 'incoming' && state.moveState !== 'moved')) {
+        throw new Error('Only the files of a copy left behind by a move can be removed this way.')
+      }
+      const r2 = bucket()
+      for (const prefix of FILE_PREFIXES(siteId)) {
+        let cursor: string | undefined
+        do {
+          const page = await r2.list({ prefix, cursor })
+          const keys = page.objects.map(o => o.key)
+          if (keys.length) await r2.delete(keys)
+          cursor = page.truncated ? page.cursor : undefined
+        } while (cursor)
+      }
+    },
+
+    async absoluteMediaUrls(siteId) {
+      const [row] = await db.all<{ n: number }>(sql`select count(*) as n from media where site_id = ${siteId} and storage_provider = 'r2' and url not like '/%'`)
+      return Number(row?.n ?? 0)
+    },
+  }
+
+  function bucket(): R2Bucket {
+    const r2 = getCfBindings(event).r2
+    if (!r2) throw new Error('The MEDIA_BUCKET binding is missing, so files can\'t be moved.')
+    return r2
   }
 }
 
@@ -407,6 +536,16 @@ export type MoveOp =
   | { op: 'kvKeys'; cursor: KvCursor | null }
   | { op: 'kvGet'; keys: string[] }
   | { op: 'kvPut'; entries: { key: string; value: string }[] }
+  | { op: 'probeWrite'; key: string }
+  | { op: 'probeSees'; key: string }
+  | { op: 'probeDelete'; key: string }
+  | { op: 'fileList'; cursor: FileCursor | null }
+  | { op: 'fileSize'; key: string }
+  | { op: 'fileGet'; key: string }
+  | { op: 'filePut'; file: MovedFile & { key: string } }
+  | { op: 'fileSummary' }
+  | { op: 'purgeFiles' }
+  | { op: 'absoluteMediaUrls' }
 
 /** A member pool doing its part of a move, as its control plane asks. */
 export async function poolSiteMove(event: H3Event, input: { protocol: number; siteId: string; op: MoveOp }): Promise<unknown> {
@@ -428,6 +567,16 @@ export async function poolSiteMove(event: H3Event, input: { protocol: number; si
     case 'kvKeys': return store.kvKeys(siteId, op.cursor)
     case 'kvGet': return store.kvGet(op.keys)
     case 'kvPut': return store.kvPut(op.entries)
+    case 'probeWrite': return store.probeWrite(op.key)
+    case 'probeSees': return store.probeSees(op.key)
+    case 'probeDelete': return store.probeDelete(op.key)
+    case 'fileList': return store.fileList(siteId, op.cursor)
+    case 'fileSize': return store.fileSize(op.key)
+    case 'fileGet': return store.fileGet(op.key)
+    case 'filePut': return store.filePut(op.file)
+    case 'fileSummary': return store.fileSummary(siteId)
+    case 'purgeFiles': return store.purgeFiles(siteId)
+    case 'absoluteMediaUrls': return store.absoluteMediaUrls(siteId)
     default: throw new Error(`Unknown move operation: ${(op as { op: string }).op}`)
   }
 }
@@ -435,7 +584,8 @@ export async function poolSiteMove(event: H3Event, input: { protocol: number; si
 function poolMoveStore(event: H3Event, poolId: string): MoveStore {
   const stub = poolAdminStub(event, poolId)
   if (!stub) throw createError({ statusCode: 503, message: `Pool "${poolId}" isn't connected to this control panel.` })
-  const call = <T>(siteId: string, op: MoveOp) => callPool(stub.siteMove({ protocol: POOL_PROTOCOL, siteId, op }), `pool ${poolId}`) as Promise<T>
+  // Copying one large file can take minutes; everything else answers in moments.
+  const call = <T>(siteId: string, op: MoveOp) => callPool(stub.siteMove({ protocol: POOL_PROTOCOL, siteId, op }), `pool ${poolId}`, op.op === 'filePut' ? FILE_PUT_TIMEOUT_MS : undefined) as Promise<T>
   return {
     inspect: siteId => call(siteId, { op: 'inspect' }),
     takenHosts: (siteId, hosts) => call(siteId, { op: 'takenHosts', hosts }),
@@ -451,6 +601,17 @@ function poolMoveStore(event: H3Event, poolId: string): MoveStore {
     kvKeys: (siteId, cursor) => call(siteId, { op: 'kvKeys', cursor }),
     kvGet: keys => call('', { op: 'kvGet', keys }),
     kvPut: entries => call('', { op: 'kvPut', entries }),
+    probeWrite: key => call('', { op: 'probeWrite', key }),
+    probeSees: key => call('', { op: 'probeSees', key }),
+    probeDelete: key => call('', { op: 'probeDelete', key }),
+    fileList: (siteId, cursor) => call(siteId, { op: 'fileList', cursor }),
+    fileSize: key => call('', { op: 'fileSize', key }),
+    // A file's body crosses the binding as a stream, so large files never sit in memory.
+    fileGet: key => call('', { op: 'fileGet', key }),
+    filePut: file => call('', { op: 'filePut', file }),
+    fileSummary: siteId => call(siteId, { op: 'fileSummary' }),
+    purgeFiles: siteId => call(siteId, { op: 'purgeFiles' }),
+    absoluteMediaUrls: siteId => call(siteId, { op: 'absoluteMediaUrls' }),
   }
 }
 

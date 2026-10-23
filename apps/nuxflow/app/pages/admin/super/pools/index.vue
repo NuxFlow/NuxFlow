@@ -17,7 +17,8 @@ interface PoolReport {
   error: string | null
 }
 interface PoolsState {
-  controlPlane: { commit: string | null; release: string | null; siteCount: number }
+  /** customerSites: sites besides the operator's own still on this Worker; plansWithoutPool: plans whose sign-ups land here. */
+  controlPlane: { commit: string | null; release: string | null; siteCount: number; customerSites: number; plansWithoutPool: number }
   pools: PoolReport[]
   newestRelease: string | null
   /** Addresses the front-door router sends to each pool, by pool id. */
@@ -33,6 +34,17 @@ interface DirectorySyncResult {
 
 const { data, error, refresh, status } = await useFetch<PoolsState>('/api/v1/admin/pools')
 const { run, isRunning } = useAdminAction()
+
+// Customer sites on the control panel share its Worker with sign-in and billing, so every
+// release for them also updates those (docs/pools.md → "Keep customer sites apart").
+const splitAdvice = computed(() => {
+  const cp = data.value?.controlPlane
+  if (!cp) return ''
+  const parts: string[] = []
+  if (cp.customerSites) parts.push(`${cp.customerSites} customer ${cp.customerSites === 1 ? 'site runs' : 'sites run'} on this control panel. Move ${cp.customerSites === 1 ? 'it' : 'them'} into a pool with Super Admin → Sites → Move.`)
+  if (cp.plansWithoutPool) parts.push(`${cp.plansWithoutPool} ${cp.plansWithoutPool === 1 ? 'plan puts' : 'plans put'} new sign-ups here. Set "Sign-ups get their site in" in Super Admin → Plans.`)
+  return [...parts, 'Then a release for customer sites never touches sign-in or billing.'].join(' ')
+})
 
 function version(release: string | null, commit: string | null): string {
   if (!commit) return 'Not recorded (deployed without the release scripts)'
@@ -116,6 +128,15 @@ entrypoint = "NuxflowPoolAdmin"`
     </div>
 
     <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-circle-alert" :description="getErrorMessage(error, 'Could not load pools')" />
+
+    <UAlert
+      v-if="data?.pools.length && (data.controlPlane.customerSites || data.controlPlane.plansWithoutPool)"
+      color="info"
+      variant="soft"
+      icon="i-lucide-shield"
+      title="Keep customer sites apart from sign-in and billing"
+      :description="splitAdvice"
+    />
 
     <template v-else-if="data">
       <UAlert
