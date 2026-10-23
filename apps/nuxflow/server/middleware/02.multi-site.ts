@@ -17,7 +17,7 @@ import { getUserSiteRole, hasSuperAdminRole, roleAtLeast, type Role } from '../u
 // `redirectTo` is set when the host is one of the site's extra addresses (site_domains —
 // a customer's own domain, or the original subdomain after the site moved to its own
 // domain): requests there redirect to the main address.
-type SiteLookup = { id: string; status: 'active' | 'maintenance' | 'suspended'; setupCompleted: boolean; domain?: string; redirectTo?: string }
+type SiteLookup = { id: string; status: 'active' | 'maintenance' | 'suspended'; setupCompleted: boolean; domain?: string; redirectTo?: string; moveState?: string | null }
 
 // Per-isolate cache: domain -> site rarely changes (only admin site
 // create/update/delete, or the self-healing domain migration below), but
@@ -82,17 +82,19 @@ export default defineEventHandler(async (event) => {
     try {
       site = await db.query.sites.findFirst({
         where: eq(sites.domain, host),
-        columns: { id: true, status: true, setupCompleted: true, domain: true },
+        columns: { id: true, status: true, setupCompleted: true, domain: true, moveState: true },
       })
+      // A copy still being written by a move between pools (utils/site-move.ts) is served nowhere.
+      if (site?.moveState === 'incoming') site = undefined
 
       // One of a site's extra addresses: resolve to that site, then redirect below.
       if (!site) {
-        const [alias] = await db.select({ id: sites.id, status: sites.status, setupCompleted: sites.setupCompleted, domain: sites.domain })
+        const [alias] = await db.select({ id: sites.id, status: sites.status, setupCompleted: sites.setupCompleted, domain: sites.domain, moveState: sites.moveState })
           .from(siteDomains)
           .innerJoin(sites, eq(sites.id, siteDomains.siteId))
           .where(eq(siteDomains.hostname, host))
           .limit(1)
-        if (alias) site = { ...alias, redirectTo: alias.domain }
+        if (alias && alias.moveState !== 'incoming') site = { ...alias, redirectTo: alias.domain }
       }
 
       // A member pool only ever serves the addresses its sites own (utils/control-plane.ts):
@@ -105,12 +107,12 @@ export default defineEventHandler(async (event) => {
         // Resilient Fallback: If no site matches the request domain but there is
         // exactly one site in D1, use that site. This prevents locking the user
         // out of their admin dashboard when migrating from localhost/.workers.dev to a custom domain.
-        const allSites = await db.query.sites.findMany({
-          columns: { id: true, status: true, setupCompleted: true, domain: true },
+        const allSites = (await db.query.sites.findMany({
+          columns: { id: true, status: true, setupCompleted: true, domain: true, moveState: true },
           // Primary (operator's) site first, then oldest — so the preview fallback below
           // is deterministic instead of whichever row the table scan returns first.
           orderBy: (s, { desc, asc }) => [desc(s.isPrimary), asc(s.createdAt)],
-        })
+        })).filter(s => s.moveState !== 'incoming' && s.moveState !== 'moved')
         if (allSites.length === 1) {
           site = allSites[0]!
 
@@ -262,7 +264,17 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  if (site?.status === 'maintenance' && !path.startsWith('/admin') && !path.startsWith('/api') && !path.startsWith('/_')) {
+  // Being moved to another pool (utils/site-move.ts): nothing may change until the copy is
+  // live, or it would be lost. Reading still works, so the admin can look around.
+  const moving = site?.moveState === 'outgoing' || site?.moveState === 'moved'
+  if (moving && !['GET', 'HEAD', 'OPTIONS'].includes(event.method.toUpperCase())) {
+    setResponseStatus(event, 503)
+    setHeader(event, 'Retry-After', 120)
+    setHeader(event, 'Content-Type', 'application/json')
+    return { statusCode: 503, statusMessage: 'This site is being moved to a new server. Changes are paused for a few minutes; please try again shortly.' }
+  }
+
+  if ((site?.status === 'maintenance' || moving) && !path.startsWith('/admin') && !path.startsWith('/api') && !path.startsWith('/_')) {
     setResponseStatus(event, 503)
     setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
     return `<!doctype html>

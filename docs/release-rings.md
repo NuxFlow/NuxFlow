@@ -85,13 +85,13 @@ pnpm ring:status
 | `--urgent` | promote | Skip the 48-hour wait. Only for security fixes. |
 | `--tag ring1-…` | promote | Promote that release instead of the newest |
 
-## Member pools (in progress)
+## Member pools
 
-A hosting platform will be able to spread its sites over several Workers, each with its
-own database ("pools"), so particular clients can be kept apart and each pool can be on
-its own ring. `pnpm pool:create <name> --from <control plane config>` already sets one up
-and adds it to `release-targets.json`, but sites can't be placed in a pool yet. Nothing
-about pools applies to an ordinary install.
+A hosting platform can spread its sites over several Workers, each with its own database
+("pools"), so particular clients can be kept apart and each pool can be on its own ring.
+`pnpm pool:create <name> --from <control plane config> --ring 1|2` sets one up and adds it
+to `release-targets.json`, so `ring:canary` and `ring:promote` deploy it with the rest of
+its ring. See [Member Pools](./pools.md). Nothing about pools applies to an ordinary install.
 
 ## Which version is running
 

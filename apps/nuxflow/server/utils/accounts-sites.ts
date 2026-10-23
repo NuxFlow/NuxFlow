@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { and, eq, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { siteDirectory, siteSettings, sites, userSiteRoles } from '@nuxflow/db/schema'
+import { isServedCopy } from './move-state'
 import { useDb } from './db'
 import { getSiteInfo } from './site-info'
 import { siteOriginForDomain } from './site-auth'
@@ -53,7 +54,7 @@ const HEX_COLOR = /^#[0-9a-f]{3,8}$/i
  */
 async function localSiteBranding(event: H3Event, siteId: string): Promise<SiteBranding | null> {
   const site = await getSiteInfo(event, siteId)
-  if (!site || site.status === 'suspended') return null
+  if (!site || site.status === 'suspended' || !isServedCopy(site.moveState)) return null
   const rows = await useDb(event).query.siteSettings.findMany({
     where: and(eq(siteSettings.siteId, siteId), inArray(siteSettings.key, ['appearance.logo_url', 'theme.primary_color', 'auth.allow_public_registration'])),
     columns: { key: true, value: true },
@@ -140,13 +141,14 @@ async function localUserSites(event: H3Event, userId: string): Promise<AccountSi
     name: sites.name,
     domain: sites.domain,
     status: sites.status,
+    moveState: sites.moveState,
     role: userSiteRoles.role,
   })
     .from(userSiteRoles)
     .innerJoin(sites, eq(sites.id, userSiteRoles.siteId))
     .where(eq(userSiteRoles.userId, userId))
   return rows
-    .filter(r => r.status !== 'suspended')
+    .filter(r => r.status !== 'suspended' && isServedCopy(r.moveState))
     .map(r => ({ id: r.id, name: r.name, domain: r.domain, role: r.role, origin: siteOriginForDomain(r.domain) }))
 }
 

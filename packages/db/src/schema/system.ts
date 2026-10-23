@@ -97,6 +97,36 @@ export const platformSettings = sqliteTable('platform_settings', {
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 })
 
+// Moving a site between the control plane and member pools (apps/nuxflow/server/utils/
+// site-move-job.ts), one row per move, driven a step at a time by Super Admin → Sites.
+// `moved_site_id` (not `site_id`: the site may not be in this database) and the pool ids
+// are plain columns; null pool = the control plane. `cursor` is where copying has got to.
+export const siteMoves = sqliteTable('site_moves', {
+  id: text('id').primaryKey(),
+  movedSiteId: text('moved_site_id').notNull(),
+  siteName: text('site_name').notNull(),
+  siteDomain: text('site_domain').notNull(),
+  fromPool: text('from_pool'),
+  toPool: text('to_pool'),
+  /** locking → copying → checking → switching → cleaning → done; or failed / cancelled. */
+  phase: text('phase').notNull(),
+  cursor: text('cursor', { mode: 'json' }).$type<Record<string, unknown>>(),
+  /** Rows per table on each side when they were compared. */
+  counts: text('counts', { mode: 'json' }).$type<Record<string, unknown>>(),
+  error: text('error'),
+  startedBy: text('started_by'),
+  lockedAt: text('locked_at'),
+  copyStartedAt: text('copy_started_at'),
+  switchedAt: text('switched_at'),
+  /** Claimed by the request doing a step, so two tabs never run the same step. */
+  lockedUntil: text('locked_until'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, t => [
+  // One unfinished move per site.
+  uniqueIndex('idx_site_moves_active').on(t.movedSiteId).where(sql`${t.phase} not in ('done', 'cancelled')`),
+])
+
 // Only used by a control plane with member pools (apps/nuxflow/server/utils/site-directory.ts):
 // every address a member pool serves, so the front-door router (packages/router) sends it
 // there — it reads a KV copy of these rows. Addresses not listed go to the control plane.

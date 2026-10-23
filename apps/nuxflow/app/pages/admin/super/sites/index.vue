@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import type { SiteMoveRow } from '~/components/admin/SiteMoveModal.vue'
+
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 // poolId: the member pool the site lives in (null = this control panel's own).
-type SiteRow = { id: string; name: string; domain: string; status: string; locale?: string; hostingPlanId: string | null; createdAt: string; poolId: string | null }
+// moving: locked while being moved to another pool (Move, below).
+type SiteRow = { id: string; name: string; domain: string; status: string; locale?: string; hostingPlanId: string | null; createdAt: string; poolId: string | null; moving?: boolean }
 const { data, refresh } = await useFetch<{ sites: SiteRow[]; pools: string[]; unreachablePools: string[] }>('/api/v1/admin/sites')
 const showPools = computed(() => (data.value?.pools.length ?? 0) > 0 || (data.value?.sites ?? []).some(s => s.poolId))
 // Plans only exist while Super Admin → Platform's hosting switch is on (the API 404s otherwise).
@@ -15,6 +18,29 @@ const planItems = computed(() => [
   { label: 'Unlimited (built-in)', value: UNLIMITED },
   ...(planData.value?.plans ?? []).map(p => ({ label: p.name, value: p.id })),
 ])
+// Moving a site between pools (AdminSiteMoveModal). Only with pools, which need the hosting switch.
+const { data: moveData, refresh: refreshMoves } = await useFetch<{ moves: SiteMoveRow[] }>('/api/v1/admin/site-moves', { immediate: hostingPlatform })
+const canMove = computed(() => hostingPlatform && (data.value?.pools.length ?? 0) > 0)
+const unfinishedMoves = computed(() => (moveData.value?.moves ?? []).filter(m => !['done', 'cancelled'].includes(m.phase)))
+const MOVE_FAILED_TEXT = "The copy didn't match, so nothing was switched. Open it to cancel the move."
+const MOVE_PAUSED_TEXT = "The site is locked until the move finishes or is cancelled. Open it to continue."
+const isMoveOpen = ref(false)
+const moveSite = ref<SiteRow | null>(null)
+const resumeMove = ref<SiteMoveRow | null>(null)
+function openMove(site: SiteRow) {
+  moveSite.value = site
+  resumeMove.value = null
+  isMoveOpen.value = true
+}
+function continueMove(move: SiteMoveRow) {
+  moveSite.value = null
+  resumeMove.value = move
+  isMoveOpen.value = true
+}
+async function afterMoveChange() {
+  await Promise.all([refresh(), refreshMoves()])
+}
+
 const planName = (id: string | null) => (id && planData.value?.plans.find(p => p.id === id)?.name) || 'Unlimited'
 
 // useRequestURL() is the same on the server and in the browser. Reading window.location
@@ -130,6 +156,17 @@ async function deleteSite() {
       :description="`Couldn't reach ${data.unreachablePools.join(', ')}, so their sites aren't listed. See Super Admin → Pools.`"
     />
 
+    <UAlert
+      v-for="m in unfinishedMoves"
+      :key="m.id"
+      :color="m.phase === 'failed' ? 'error' : 'warning'"
+      variant="soft"
+      icon="i-lucide-arrow-right-left"
+      :title="`Moving ${m.siteDomain} hasn't finished`"
+      :description="m.phase === 'failed' ? MOVE_FAILED_TEXT : MOVE_PAUSED_TEXT"
+      :actions="[{ label: 'Open', onClick: () => continueMove(m) }]"
+    />
+
     <UCard>
       <UTable :data="items" :columns="columns">
         <template #poolId-cell="{ row }">
@@ -139,7 +176,10 @@ async function deleteSite() {
           <a :href="`https://${row.original.domain}`" target="_blank" class="text-primary-500 hover:underline text-sm">{{ row.original.domain }}</a>
         </template>
         <template #status-cell="{ row }">
-          <UBadge :color="statusColor[row.original.status] ?? 'neutral'" variant="soft" size="xs" class="capitalize">{{ row.original.status }}</UBadge>
+          <div class="flex items-center gap-1">
+            <UBadge :color="statusColor[row.original.status] ?? 'neutral'" variant="soft" size="xs" class="capitalize">{{ row.original.status }}</UBadge>
+            <UBadge v-if="row.original.moving" color="warning" variant="soft" size="xs">Moving</UBadge>
+          </div>
         </template>
         <template #hostingPlanId-cell="{ row }">
           <span class="text-sm" :class="row.original.hostingPlanId ? 'text-gray-900 dark:text-white' : 'text-gray-400'">{{ planName(row.original.hostingPlanId) }}</span>
@@ -150,6 +190,16 @@ async function deleteSite() {
         <template #actions-cell="{ row }">
           <div class="flex items-center gap-1.5">
             <UButton variant="ghost" size="xs" icon="i-lucide-pencil" :aria-label="`Edit ${row.original.name}`" @click="openEdit(row.original)" />
+            <UButton
+              v-if="canMove"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-arrow-right-left"
+              :title="isCurrentSite(row.original) ? 'The site you are signed in to cannot be moved' : row.original.moving ? 'Already being moved' : `Move ${row.original.name} to another pool`"
+              :aria-label="`Move ${row.original.name}`"
+              :disabled="isCurrentSite(row.original) || row.original.moving"
+              @click="openMove(row.original)"
+            />
             <!-- A plain title attribute rather than <UTooltip> (which needs the <UApp> root in app.vue). -->
             <UButton
               variant="ghost"
@@ -200,6 +250,8 @@ async function deleteSite() {
         <UButton :loading="saving" :disabled="!editForm.name || !editForm.domain" @click="saveSite">Save changes</UButton>
       </template>
     </UModal>
+
+    <AdminSiteMoveModal v-model:open="isMoveOpen" :site="moveSite" :pools="data?.pools ?? []" :resume="resumeMove" @changed="afterMoveChange" />
 
     <!-- Delete Site Modal -->
     <UModal v-model:open="isDeleteOpen" title="Delete Site">

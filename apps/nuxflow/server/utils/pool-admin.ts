@@ -2,6 +2,7 @@ import { asc, count, desc, eq, sql } from 'drizzle-orm'
 import { platformSettings, siteDomains, sites } from '@nuxflow/db/schema'
 import type { Db } from './db'
 import { getPoolId, isMemberPool, POOL_PLATFORM_SETTINGS, storePlatformSettings } from './control-plane'
+import { isServedCopy } from './move-state'
 import { clearAiDailyCapCache } from './ai-allowance'
 import { clearAnalyticsCache } from './analytics'
 
@@ -51,6 +52,8 @@ export interface PoolSite {
   /** Optional, like aliases: older pools don't send them. */
   hostingPlanId?: string | null
   locale?: string
+  /** Locked while being moved to another pool. Optional, like the fields above. */
+  moving?: boolean
 }
 
 export async function poolStatus(db: Db): Promise<PoolStatus> {
@@ -82,12 +85,18 @@ async function newestMigration(db: Db): Promise<string | null> {
 
 export async function poolSites(db: Db): Promise<PoolSite[]> {
   const [rows, extra] = await Promise.all([
-    db.select({ id: sites.id, name: sites.name, domain: sites.domain, status: sites.status, createdAt: sites.createdAt, hostingPlanId: sites.hostingPlanId, locale: sites.locale })
+    db.select({ id: sites.id, name: sites.name, domain: sites.domain, status: sites.status, createdAt: sites.createdAt, hostingPlanId: sites.hostingPlanId, locale: sites.locale, moveState: sites.moveState })
       .from(sites)
       .orderBy(desc(sites.isPrimary), asc(sites.createdAt)),
     db.select({ siteId: siteDomains.siteId, hostname: siteDomains.hostname }).from(siteDomains),
   ])
-  return rows.map(site => ({ ...site, locale: site.locale ?? undefined, aliases: extra.filter(d => d.siteId === site.id).map(d => d.hostname) }))
+  // A copy being written by a move, or left behind by one, isn't this pool's site (site-move.ts).
+  return rows.filter(site => isServedCopy(site.moveState)).map(({ moveState, ...site }) => ({
+    ...site,
+    locale: site.locale ?? undefined,
+    aliases: extra.filter(d => d.siteId === site.id).map(d => d.hostname),
+    moving: moveState === 'outgoing',
+  }))
 }
 
 const RECEIVED_AT_KEY = '_received_at'

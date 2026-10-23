@@ -26,6 +26,7 @@ import { isMemberPool } from './control-plane'
 import { callPool, poolAdminStub, type PoolAdminStub } from './pools'
 import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
 import { POOL_ID_RE } from '../../shared/lib/pool-id'
+import { isServedCopy } from './move-state'
 
 /**
  * Inbound email — Cloudflare Email Routing → this Worker's `email()` export (Nitro's
@@ -120,8 +121,8 @@ export async function resolveRecipient(db: Db, to: string, platformDomain: strin
       columns: { siteId: true },
     })
     if (!setting) return null
-    const site = await db.query.sites.findFirst({ where: eq(sites.id, setting.siteId), columns: { id: true, domain: true, status: true } })
-    if (!site || site.status === 'suspended') return null
+    const site = await db.query.sites.findFirst({ where: eq(sites.id, setting.siteId), columns: { id: true, domain: true, status: true, moveState: true } })
+    if (!site || site.status === 'suspended' || !isServedCopy(site.moveState)) return null
     const mailbox = await findMailbox(db, site.id, parsed.tag)
     return mailbox ? { siteId: site.id, siteDomain: site.domain, mailbox, viaPlatform: true } : null
   }
@@ -129,9 +130,11 @@ export async function resolveRecipient(db: Db, to: string, platformDomain: strin
   // A site configured as `www.acme.com` still receives `contact@acme.com`.
   const site = await db.query.sites.findFirst({
     where: inArray(sites.domain, [parsed.domain, `www.${parsed.domain}`]),
-    columns: { id: true, domain: true, status: true },
+    columns: { id: true, domain: true, status: true, moveState: true },
   })
-  if (!site || site.status === 'suspended') return null
+  // A copy mid-move that isn't the live one (site-move.ts) never takes mail; the live one
+  // does, and its new mail is copied across just before the switch.
+  if (!site || site.status === 'suspended' || !isServedCopy(site.moveState)) return null
   const mailbox = await findMailbox(db, site.id, parsed.local)
   return mailbox ? { siteId: site.id, siteDomain: site.domain, mailbox, viaPlatform: false } : null
 }

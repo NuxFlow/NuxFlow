@@ -15,6 +15,7 @@ import { upsertUserCopy } from './pool-session'
 import { findOrCreateLocalAccount, isUnclaimedAccount, type AccountProvisioningStatus } from './user-provisioning'
 import { sendSetPasswordEmailForPool, type PoolSignInUser } from './pool-sign-in'
 import { syncSiteDirectory } from './site-directory'
+import { isServedCopy } from './move-state'
 import { sendTemplatedEmail } from './email-template'
 import { emailLogTimestamp, lastEmailOutcome, type EmailDeliveryOutcome } from './email'
 import { eventForSite, getPrimarySite } from './site-info'
@@ -225,9 +226,10 @@ export async function placeSiteInPool(event: H3Event, input: {
 
 /** A site on this control plane or in a member pool, with the pool it's in (null = here). */
 export async function findSite(event: H3Event, siteId: string): Promise<(SiteSummary & { poolId: string | null }) | null> {
-  const [local] = await useDb(event).select({ id: sites.id, name: sites.name, domain: sites.domain, status: sites.status, hostingPlanId: sites.hostingPlanId })
+  const [local] = await useDb(event).select({ id: sites.id, name: sites.name, domain: sites.domain, status: sites.status, hostingPlanId: sites.hostingPlanId, moveState: sites.moveState })
     .from(sites).where(eq(sites.id, siteId)).limit(1)
-  if (local) return { ...local, poolId: null }
+  // A copy mid-move that isn't the live one doesn't count: the live one is in a pool.
+  if (local && isServedCopy(local.moveState)) return { id: local.id, name: local.name, domain: local.domain, status: local.status, hostingPlanId: local.hostingPlanId, poolId: null }
   const pool = await sitePool(event, siteId)
   if (!pool) return null
   const site = await callPool(pool.stub.getSite({ protocol: POOL_PROTOCOL, siteId }), `pool ${pool.poolId}`)
@@ -315,19 +317,21 @@ export interface SiteListing {
   createdAt: string
   /** The member pool it lives in, or null for this control plane's own sites. */
   poolId: string | null
+  /** Locked while being moved to another pool (site-move-job.ts). */
+  moving?: boolean
 }
 
 /** Every site: the control plane's own, then each reachable pool's. */
 export async function listAllSites(event: H3Event): Promise<{ sites: SiteListing[]; unreachablePools: string[] }> {
-  const own = await useDb(event).query.sites.findMany({ limit: 1000 })
-  const listed: SiteListing[] = own.map(s => ({ id: s.id, name: s.name, domain: s.domain, status: s.status, locale: s.locale ?? undefined, hostingPlanId: s.hostingPlanId ?? null, createdAt: s.createdAt, poolId: null }))
+  const own = (await useDb(event).query.sites.findMany({ limit: 1000 })).filter(s => isServedCopy(s.moveState))
+  const listed: SiteListing[] = own.map(s => ({ id: s.id, name: s.name, domain: s.domain, status: s.status, locale: s.locale ?? undefined, hostingPlanId: s.hostingPlanId ?? null, createdAt: s.createdAt, poolId: null, moving: !!s.moveState }))
   const unreachablePools: string[] = []
   await Promise.all(poolBindings(event).map(async ({ binding, stub }) => {
     try {
       const status = await callPool(stub.status(), binding)
       const poolSites = await callPool(stub.listSites(), binding)
       for (const s of poolSites) {
-        listed.push({ id: s.id, name: s.name, domain: s.domain, status: s.status, locale: s.locale, hostingPlanId: s.hostingPlanId ?? null, createdAt: s.createdAt, poolId: status.poolId })
+        listed.push({ id: s.id, name: s.name, domain: s.domain, status: s.status, locale: s.locale, hostingPlanId: s.hostingPlanId ?? null, createdAt: s.createdAt, poolId: status.poolId, moving: !!s.moving })
       }
     } catch (err) {
       console.error(`[pool-sites] Couldn't list ${binding}'s sites:`, err)

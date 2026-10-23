@@ -39,6 +39,14 @@ export const sites = sqliteTable('sites', {
   // table (see the comment above). Deleting a plan moves its sites back to null in code.
   hostingPlanId: text('hosting_plan_id'),
   settings: text('settings', { mode: 'json' }).$type<Record<string, unknown>>(),
+  /**
+   * Set only while the site is being moved between a hosting platform's control plane and
+   * its member pools (apps/nuxflow/server/utils/site-move.ts): `outgoing` = the live copy,
+   * locked (visitors see the maintenance page, changes are refused); `incoming` = the copy
+   * being written in its new home, served nowhere yet; `moved` = the old copy after the
+   * switch, removed shortly afterwards. Null on every ordinary site.
+   */
+  moveState: text('move_state', { enum: ['outgoing', 'incoming', 'moved'] }),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [

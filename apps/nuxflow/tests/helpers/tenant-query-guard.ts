@@ -58,6 +58,12 @@ export const ALLOWLIST: AllowlistEntry[] = [
     tables: ['site_domains'],
     reason: "checkPendingCustomDomains(): the hourly check of every site's domains that aren't live yet.",
   },
+  {
+    file: 'server/utils/site-move.ts',
+    match: /union select hostname as host from site_domains where hostname in \(.*\) and site_id != \?/,
+    tables: ['site_domains'],
+    reason: 'takenHosts(): before moving a site in, whether any other site in this database already uses its addresses.',
+  },
   // ── Accounts are global; these ask about a person across every site ──────────────
   {
     match: /from "user_site_roles" "userSiteRoles" where \("userSiteRoles"\."user_id" = \? and "userSiteRoles"\."role" = \?\)/,
