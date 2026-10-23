@@ -152,6 +152,14 @@ const showTranslateModal = ref(false)
 const showImagePicker = ref(false)
 
 const router = useRouter()
+// The form is filled from the item once (formSeeded); after a restore it has to be filled
+// again, or the editor keeps showing the old text and the next autosave writes it back
+// over the restored version.
+async function onRevisionRestored() {
+  formSeeded = false
+  await refresh()
+}
+
 function onTranslated(newId: string) {
   showTranslateModal.value = false
   router.push(`/admin/content/${newId}`)
@@ -501,7 +509,7 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
         <EditorRevisionHistory
           v-if="showRevisions && !isNew"
           :content-id="id"
-          @restored="refresh()"
+          @restored="onRevisionRestored"
         />
       </div>
     </div>
