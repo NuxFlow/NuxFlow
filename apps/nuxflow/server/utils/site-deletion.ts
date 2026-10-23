@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { useDb } from './db'
+import { useDb, type Db } from './db'
 import { clearSiteCache } from './site-resolution'
 import { deleteStoredMedia } from './media-providers/storage-delete'
 import { writeAuditLog } from './audit'
@@ -13,11 +13,14 @@ import { cancelHostingForDeletedSite } from './hosting-billing'
 import { removeDomainsForDeletedSite } from './hosting-domains'
 import { deleteStreamVideo, streamAccountFor, type StreamAccountKind } from './stream'
 import { eventForSite } from './site-info'
+import { isMemberPool } from './control-plane'
+import { callPool, poolBindings } from './pools'
+import { assertCompatibleProtocol, POOL_PROTOCOL } from './pool-admin'
 import {
-  sites, users, userSiteRoles, media, contentItems,
+  sites, users, userSiteRoles, siteInvitations, hostingSubscriptions, media, contentItems,
   accounts, sessions, passkeys, themes, dynamicPlugins, videoAssets,
 } from '@nuxflow/db/schema'
-import { eq, and, ne, inArray } from 'drizzle-orm'
+import { eq, and, ne, or, inArray, isNull } from 'drizzle-orm'
 
 /**
  * Permanently deletes a site and every record scoped to it, including users who
@@ -178,19 +181,8 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
   const siteUserIds = siteRoles.map(r => r.userId)
 
   if (siteUserIds.length > 0) {
-    // Excludes this site's own (still-present) role rows explicitly, rather than relying
-    // on them already being gone, so this check is correct regardless of whether the
-    // cascade above has run yet.
-    const sharedRoles = await db
-      .select({ userId: userSiteRoles.userId })
-      .from(userSiteRoles)
-      .where(and(
-        inArray(userSiteRoles.userId, siteUserIds),
-        ne(userSiteRoles.siteId, siteId),
-      ))
-
-    const sharedIds = new Set(sharedRoles.map(r => r.userId))
-    const toDelete = siteUserIds.filter(uid => !sharedIds.has(uid))
+    const keep = await usersStillNeeded(event, siteUserIds, siteId)
+    const toDelete = siteUserIds.filter(uid => !keep.has(uid))
 
     if (toDelete.length > 0) {
       // users/accounts/sessions/passkeys have no FK to sites.id at all (accounts are
@@ -236,4 +228,60 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
   }
 
   return { failedMediaDeletes }
+}
+
+/**
+ * Of a deleted site's users, those whose accounts must stay: anyone with a role or a
+ * pending invitation on another site, or a hosting subscription for another site (or one
+ * still at checkout). This site's own (still-present) rows are excluded explicitly, so the
+ * answer doesn't depend on whether the cascade has run yet.
+ *
+ * Accounts live on the control plane, but its users can belong to sites in member pools
+ * too — deleting the account there would lock them out of those sites (and leave a pool
+ * site's hosting subscription with nobody to manage it). So the control plane also asks
+ * every pool; a pool that can't answer keeps everyone, since a leftover account is
+ * harmless and a wrongly deleted one is not. A pool deleting one of its own sites only
+ * erases its copies of users, so it checks just itself.
+ */
+async function usersStillNeeded(event: H3Event, userIds: string[], siteId: string): Promise<Set<string>> {
+  const keep = new Set(await usersInUseLocally(useDb(event), userIds, siteId))
+  if (isMemberPool()) return keep
+  const pending = userIds.filter(id => !keep.has(id))
+  if (!pending.length) return keep
+  await Promise.all(poolBindings(event).map(async ({ binding, stub }) => {
+    try {
+      const { inUse } = await callPool(stub.usersInUse({ protocol: POOL_PROTOCOL, userIds: pending }), binding)
+      for (const id of inUse) keep.add(id)
+    }
+    catch (err) {
+      console.error(JSON.stringify({ event: 'site.delete.pool_user_check_failed', siteId, pool: binding, error: errorMessage(err, String(err)) }))
+      for (const id of pending) keep.add(id)
+    }
+  }))
+  return keep
+}
+
+async function usersInUseLocally(db: Db, userIds: string[], exceptSiteId: string | null): Promise<string[]> {
+  const [roles, invitations, hosting] = await Promise.all([
+    db.select({ userId: userSiteRoles.userId }).from(userSiteRoles).where(and(
+      inArray(userSiteRoles.userId, userIds),
+      exceptSiteId ? ne(userSiteRoles.siteId, exceptSiteId) : undefined,
+    )),
+    db.select({ userId: siteInvitations.userId }).from(siteInvitations).where(and(
+      inArray(siteInvitations.userId, userIds),
+      exceptSiteId ? ne(siteInvitations.siteId, exceptSiteId) : undefined,
+    )),
+    db.select({ userId: hostingSubscriptions.ownerUserId }).from(hostingSubscriptions).where(and(
+      inArray(hostingSubscriptions.ownerUserId, userIds),
+      exceptSiteId ? or(isNull(hostingSubscriptions.hostedSiteId), ne(hostingSubscriptions.hostedSiteId, exceptSiteId)) : undefined,
+    )),
+  ])
+  return [...new Set([...roles, ...invitations, ...hosting].map(r => r.userId))]
+}
+
+/** A member pool's answer: which of these users still have a role or invitation on any of its sites. */
+export async function poolUsersInUse(event: H3Event, input: { protocol: number; userIds: string[] }): Promise<{ inUse: string[] }> {
+  assertCompatibleProtocol(input.protocol)
+  if (!Array.isArray(input.userIds) || !input.userIds.length) return { inUse: [] }
+  return { inUse: await usersInUseLocally(useDb(event), input.userIds.slice(0, 500), null) }
 }

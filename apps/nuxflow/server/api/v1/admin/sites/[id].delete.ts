@@ -10,6 +10,7 @@ import { syncSiteDirectory } from '../../../../utils/site-directory'
 import { POOL_PROTOCOL } from '../../../../utils/pool-admin'
 import { callPool } from '../../../../utils/pools'
 import { removePoolSiteDomains } from '../../../../utils/hosting-domains'
+import { assertSiteNotMoving } from '../../../../utils/site-move-job'
 
 export default defineEventHandler(async (event) => {
   requireControlPlane(event)
@@ -19,6 +20,8 @@ export default defineEventHandler(async (event) => {
   if (id === event.context.siteId) {
     throw conflict('Cannot delete the site you are currently viewing. Switch to another domain first.')
   }
+
+  await assertSiteNotMoving(useDb(event), id)
 
   // A site in a member pool is deleted there, by the same code (utils/pool-sites.ts), and
   // its addresses stop routing to the pool.

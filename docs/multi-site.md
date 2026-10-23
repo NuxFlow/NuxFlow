@@ -349,7 +349,7 @@ You must be authenticated as a super admin for this request to succeed.
 
 ## Removing a site
 
-Deleting always wipes everything the site owns: content, media, forms, settings, themes, and plugins. Users who exist solely on the deleted site are also removed; users with roles on other sites are left untouched. What happens to the `sites` row itself depends on which of the two delete paths you use.
+Deleting always wipes everything the site owns: content, media, forms, settings, themes, and plugins. Users who exist solely on the deleted site are also removed. An account is kept if the person still has a role or a pending invitation on another site — including a site in a [member pool](pools.md) — or a hosting subscription for another site. If a pool can't be reached to check, every account is kept. A site that is being moved between pools can't be deleted until the move finishes or is cancelled (a failed move must be cancelled first). What happens to the `sites` row itself depends on which of the two delete paths you use.
 
 ### Super Admin → Sites (cross-site)
 
@@ -359,14 +359,15 @@ Send a `DELETE` request to `/api/v1/admin/sites/:id`, or use **Super Admin → S
 curl -X DELETE https://yourdomain.com/api/v1/admin/sites/SITE_ID
 ```
 
-You must be viewing a *different* site's domain than the one you're deleting — this endpoint refuses to delete the site you're currently on. It always fully removes the row, regardless of how many other sites exist. There's no confirmation step here and no undo.
+You must be viewing a *different* site's domain than the one you're deleting — this endpoint refuses to delete the site you're currently on. It always fully removes the row, regardless of how many other sites exist. There's no confirmation step here and no undo. Sites in member pools are deleted from here too: the control panel cancels the site's hosting subscription, removes its own domains from Cloudflare, has the pool delete the site, and updates the routing.
 
 After deleting, remove its Custom Domain (Option B) from the Cloudflare dashboard and from `wrangler.toml`. A subdomain served by the wildcard route (Option A) needs no change: with no site record, its address shows a 404 "Site not found" page.
 
 ### Settings → Danger Zone (self-service, per-site)
 
-The Danger Zone tab in **Admin → Settings** always targets whichever site's domain you're currently on, and behaves differently depending on whether that site is the **main** site — the oldest one in the deployment (there's no separate flag for this; it's simply whichever site has been around the longest) — or an **addon** site:
+The Danger Zone tab in **Admin → Settings** always targets whichever site's domain you're currently on, and behaves differently depending on whether that site is the **main** site — the primary site, set by the first-ever install — or an **addon** site:
 
+- **Site in a member pool:** refused. Delete it from **Super Admin → Sites** on the control panel, which also cancels its hosting subscription and removes its domains.
 - **Only site in the deployment:** fully deleted, exactly like the cross-site path above. You're signed out and taken to the ordinary fresh-install `/setup` wizard.
 - **Main site, while addon sites still exist:** blocked with a 409 and the list of addon domains that must be deleted first. The UI shows this list up front so you don't have to attempt the delete to find out.
 - **Addon site:** fully deleted, same as the cross-site path — the row is dropped entirely rather than kept around in any reset state, so it doesn't linger as a phantom entry that would block a later main-site deletion. You're signed out here too: this delete only ever targets the domain you're currently on, and once that domain no longer has a site, a session cookie for it is meaningless — cookies don't carry over to your other domains anyway, since they're genuinely separate origins, not subdomains of one parent. You land on this domain's home page. To bring the deleted domain back, create it again from **Super Admin → Sites → New** on a site you can still reach — the same flow as adding any other new site — which issues a fresh one-time setup link.

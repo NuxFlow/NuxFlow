@@ -17,6 +17,7 @@ import { poolMonthlyUsage, poolSiteUsage } from '../utils/usage-report'
 import { poolInboundRecipient, poolReceiveEmail } from '../utils/inbound-email'
 import { poolPendingDomains, poolSiteDomains } from '../utils/hosting-domains'
 import { poolSiteMove } from '../utils/site-move'
+import { poolUsersInUse } from '../utils/site-deletion'
 
 type Input<F> = F extends (event: H3Event, input: infer I) => unknown ? I : never
 
@@ -49,6 +50,7 @@ export class NuxflowPoolAdmin extends WorkerEntrypoint<Record<string, unknown>> 
   createSite(input: Input<typeof poolCreateSite>) { return this.run('createSite', e => poolCreateSite(e, input)) }
   updateSite(input: Input<typeof poolUpdateSite>) { return this.run('updateSite', e => poolUpdateSite(e, input)) }
   deleteSite(input: Input<typeof poolDeleteSite>) { return this.run('deleteSite', e => poolDeleteSite(e, input)) }
+  usersInUse(input: Input<typeof poolUsersInUse>) { return this.run('usersInUse', e => poolUsersInUse(e, input)) }
   setPlans(input: Input<typeof poolSetPlans>) { return this.run('setPlans', e => poolSetPlans(e, input)) }
   getSite(input: Input<typeof poolGetSite>) { return this.run('getSite', e => poolGetSite(e, input)) }
   monthlyUsage(input: Input<typeof poolMonthlyUsage>) { return this.run('monthlyUsage', e => poolMonthlyUsage(e, input)) }
