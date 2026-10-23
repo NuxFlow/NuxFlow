@@ -7,7 +7,7 @@ import { getPrimarySite } from './site-info'
 import { findSite, pushPlansToPools } from './pool-sites'
 import { syncSiteDirectory } from './site-directory'
 import { poolAdminStub } from './pools'
-import { CATCH_UP_TABLES, moveStore, moveTables, type KvCursor, type MoveStore } from './site-move'
+import { CATCH_UP_TABLES, moveStore, moveTables, type FileCursor, type KvCursor, type MoveStore } from './site-move'
 import { poolBindingName } from '../../shared/lib/pool-id'
 
 /**
@@ -41,15 +41,22 @@ const STEP_BUDGET_MS = 12_000
 const LEASE_MS = 3 * 60_000
 const KV_GET_BATCH = 5
 const CATCH_UP_SLACK_MS = 60_000
+/** Times the files are gone over again before a move whose file totals still differ fails. */
+const MAX_FILE_ROUNDS = 3
 
 interface CopyCursor {
-  stage: 'users' | 'rows' | 'kv' | 'links' | 'catchup'
+  stage: 'users' | 'rows' | 'kv' | 'files' | 'links' | 'catchup'
   table?: number
   offset?: number
   kv?: KvCursor | null
   link?: number
   /** Rows per table left out on purpose (see importRows). */
   dropped?: Record<string, number>
+  /** Files (only when the buckets differ): the page being copied and how far into it. */
+  files?: FileCursor | null
+  fileIndex?: number
+  /** How many times the files have been gone over again because the totals differed. */
+  fileRounds?: number
 }
 
 export interface StepResult {
@@ -89,6 +96,25 @@ export async function listSiteMoves(db: Db): Promise<SiteMove[]> {
   return db.select().from(siteMoves).orderBy(desc(siteMoves.createdAt)).limit(20)
 }
 
+/**
+ * Whether the destination keeps files in a different bucket: the source writes a probe
+ * object, and if the destination can't see it, they're different. Copying files within one
+ * bucket and then deleting the "old" ones would delete the only copy.
+ */
+async function filesNeedCopying(source: MoveStore, target: MoveStore): Promise<boolean> {
+  const key = `_nuxflow/move-probe/${ulid()}`
+  // No bucket on the source side: there are no files to copy.
+  if (!(await source.probeWrite(key))) return false
+  try {
+    const seen = await target.probeSees(key)
+    if (seen === 'no-bucket') throw conflict('The destination has no file storage (MEDIA_BUCKET), so this site\'s files couldn\'t go with it.')
+    return seen === 'no'
+  }
+  finally {
+    await source.probeDelete(key)
+  }
+}
+
 /** Starts moving a site: checks both sides, then locks it. */
 export async function startSiteMove(event: H3Event, input: { siteId: string; toPool: string | null }, actorUserId: string): Promise<SiteMove> {
   const db = useDb(event)
@@ -114,8 +140,22 @@ export async function startSiteMove(event: H3Event, input: { siteId: string; toP
   }
   const taken = await target.takenHosts(site.id, [here.domain!, ...here.aliases])
   if (taken.length) throw conflict(`Another site at the destination already uses ${taken.join(', ')}.`)
+
+  // Same R2 bucket on both sides (the usual case: pools share one), or not (a pool with its
+  // own, or an EU pool)? Found by a test write, never assumed from config.
+  const copyFiles = await filesNeedCopying(source, target)
+  if (copyFiles) {
+    const absolute = await source.absoluteMediaUrls(site.id)
+    if (absolute) {
+      throw conflict(`${absolute} of this site's media files are linked by the old storage's public address, so they would break in a pool with its own storage. Set the site's media to be served by NuxFlow (no public R2 address), or move it to a pool that shares storage.`)
+    }
+  }
+
   // A copy left over from an earlier move that didn't finish.
-  if (there.present) await target.purge(site.id)
+  if (there.present) {
+    if (copyFiles) await target.purgeFiles(site.id)
+    await target.purge(site.id)
+  }
   // The site keeps its plan: the destination pool needs the plans first.
   if (toPool) await pushPlansToPools(event, [poolBindingName(toPool)])
 
@@ -130,6 +170,7 @@ export async function startSiteMove(event: H3Event, input: { siteId: string; toP
       fromPool,
       toPool,
       phase: 'locking',
+      copyFiles,
       startedBy: actorUserId,
     })
     move = await getSiteMove(db, id)
@@ -196,10 +237,22 @@ async function runStep(event: H3Event, db: Db, move: SiteMove): Promise<StepChan
     const [mine, theirs] = await Promise.all([source.counts(siteId), target.counts(siteId)])
     const dropped = ((move.counts as { dropped?: Record<string, number> } | null)?.dropped) ?? {}
     const differ = Object.keys(mine).filter(t => (theirs[t] ?? 0) !== mine[t]! - (dropped[t] ?? 0))
+    const fileRounds = ((move.counts as { fileRounds?: number } | null)?.fileRounds) ?? 0
+    if (!differ.length && move.copyFiles) {
+      const [mineFiles, theirFiles] = await Promise.all([source.fileSummary(siteId), target.fileSummary(siteId)])
+      if (mineFiles.count !== theirFiles.count || mineFiles.bytes !== theirFiles.bytes) {
+        const detail = `${mineFiles.count} files (${mineFiles.bytes} bytes) vs ${theirFiles.count} (${theirFiles.bytes} bytes)`
+        if (fileRounds >= MAX_FILE_ROUNDS) {
+          return { changes: { phase: 'failed', counts: { source: mine, target: theirs, dropped, files: { source: mineFiles, target: theirFiles } }, error: `The copied files don't match the originals: ${detail}. Cancel the move; the site stays where it is.` }, message: 'The files don\'t match.' }
+        }
+        // A file that arrived (an email attachment) or failed: go over them again.
+        return { changes: { phase: 'copying', cursor: { stage: 'files', files: null, fileIndex: 0, dropped, fileRounds: fileRounds + 1 } }, message: 'Some files differ; going over them again.' }
+      }
+    }
     if (!differ.length) return { changes: { phase: 'switching', counts: { source: mine, target: theirs, dropped } }, message: 'Every table matches.' }
     // Mail or a log line that arrived since the catch-up: copy it, then count again.
     if (differ.every(t => (CATCH_UP_TABLES as readonly string[]).includes(t))) {
-      return { changes: { phase: 'copying', cursor: { stage: 'catchup', table: 0, offset: 0, dropped } }, message: 'A few new messages arrived; copying them.' }
+      return { changes: { phase: 'copying', cursor: { stage: 'catchup', table: 0, offset: 0, dropped, fileRounds } }, message: 'A few new messages arrived; copying them.' }
     }
     return {
       changes: { phase: 'failed', counts: { source: mine, target: theirs, dropped }, error: `The copy doesn't match the original in: ${differ.map(t => `${t} (${mine[t]} vs ${theirs[t] ?? 0})`).join(', ')}. Cancel the move; the site stays where it is.` },
@@ -225,6 +278,8 @@ async function runStep(event: H3Event, db: Db, move: SiteMove): Promise<StepChan
     if (waited < CLEANUP_DELAY_MS) {
       return { changes: {}, waitMs: CLEANUP_DELAY_MS - waited, message: 'Live in its new home. Waiting a minute before removing the old copy…' }
     }
+    // Files first: purgeFiles() needs the old copy's row, marked `moved`, to still be there.
+    if (move.copyFiles) await source.purgeFiles(siteId)
     await source.purge(siteId)
     return { changes: { phase: 'done' }, message: 'Moved. The old copy has been removed.' }
   }
@@ -256,7 +311,7 @@ async function copyStep(event: H3Event, db: Db, move: SiteMove, source: MoveStor
       const list = cursor.stage === 'rows' ? tables.map(t => t.name) : [...CATCH_UP_TABLES]
       const index = cursor.table ?? 0
       if (index >= list.length) {
-        if (cursor.stage === 'catchup') return { changes: { phase: 'checking', cursor: null, counts: { dropped: cursor.dropped ?? {} } }, message: 'Copied. Checking every table…' }
+        if (cursor.stage === 'catchup') return { changes: { phase: 'checking', cursor: null, counts: { dropped: cursor.dropped ?? {}, fileRounds: cursor.fileRounds ?? 0 } }, message: 'Copied. Checking every table…' }
         Object.assign(cursor, { stage: 'kv', kv: null, table: undefined, offset: undefined })
         continue
       }
@@ -281,7 +336,28 @@ async function copyStep(event: H3Event, db: Db, move: SiteMove, source: MoveStor
         if (entries.length) await target.kvPut(entries)
       }
       if (page.cursor) cursor.kv = page.cursor
+      else if (move.copyFiles) Object.assign(cursor, { stage: 'files', files: null, fileIndex: 0, kv: undefined })
       else Object.assign(cursor, { stage: 'links', link: 0, offset: 0, kv: undefined })
+      continue
+    }
+
+    if (cursor.stage === 'files') {
+      // One listing page at a time, and within it as many files as the step has time for.
+      // A file already there at the same size is skipped, so going over them again is cheap.
+      const page = await source.fileList(siteId, cursor.files ?? null)
+      let i = cursor.fileIndex ?? 0
+      for (; i < page.files.length && Date.now() < deadline; i++) {
+        const { key, size } = page.files[i]!
+        if ((await target.fileSize(key)) === size) continue
+        const file = await source.fileGet(key)
+        if (file) await target.filePut({ ...file, key })
+      }
+      if (i < page.files.length) {
+        cursor.fileIndex = i
+        continue
+      }
+      if (page.cursor) Object.assign(cursor, { files: page.cursor, fileIndex: 0 })
+      else Object.assign(cursor, { stage: 'links', link: 0, offset: 0, files: undefined, fileIndex: undefined })
       continue
     }
 
@@ -303,6 +379,7 @@ async function copyStep(event: H3Event, db: Db, move: SiteMove, source: MoveStor
 
   const label = cursor.stage === 'rows' ? `Copying ${tables[cursor.table ?? 0]?.name ?? ''}…`
     : cursor.stage === 'kv' ? 'Copying plugins and themes…'
+      : cursor.stage === 'files' ? 'Copying images and files…'
       : cursor.stage === 'links' ? 'Linking translations…'
         : 'Copying the last few messages…'
   return { changes: { cursor: cursor as unknown as Record<string, unknown> }, message: label }
@@ -321,7 +398,10 @@ export async function cancelSiteMove(event: H3Event, id: string, actorUserId: st
   }
   const { source, target } = sides(event, move)
   const there = await target.inspect(move.movedSiteId)
-  if (there.present) await target.purge(move.movedSiteId)
+  if (there.present) {
+    if (move.copyFiles) await target.purgeFiles(move.movedSiteId)
+    await target.purge(move.movedSiteId)
+  }
   await source.setMoveState(move.movedSiteId, null, 'outgoing')
   const saved = await save(db, id, { phase: 'cancelled', lockedUntil: null })
   await logMove(db, saved, actorUserId, 'cancel')

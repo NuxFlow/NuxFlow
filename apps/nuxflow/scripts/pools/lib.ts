@@ -8,6 +8,8 @@ export interface PoolNames {
   worker: string
   database: string
   kv: string
+  /** The pool's own R2 bucket, when it has one (--bucket / --jurisdiction). */
+  bucket: string
   /** Wrangler config file in apps/nuxflow. */
   config: string
 }
@@ -20,21 +22,33 @@ export function poolNames(poolId: string): PoolNames {
     worker: `nuxflow-pool-${poolId}`,
     database: `nuxflow-pool-${poolId}`,
     kv: `nuxflow-pool-${poolId}-plugin-kv`,
+    bucket: `nuxflow-pool-${poolId}-media`,
     config: `wrangler.pool-${poolId}.jsonc`,
   }
 }
 
 type Config = Record<string, unknown>
 
+export type Jurisdiction = 'eu'
+
+/** A pool's own R2 bucket instead of the control plane's shared one. */
+export interface OwnBucket {
+  name: string
+  jurisdiction?: Jurisdiction
+}
+
+// R2 bucket names: 3–63 lower-case letters, digits and dashes, not starting or ending with a dash.
+const BUCKET_RE = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/
+
 /**
  * The pool's wrangler config, from the control plane's. Shared with the control plane:
  * the R2 bucket (media keys are `<siteId>/…`, so pools can share it and a site can move
- * pool without copying files), Analytics Engine, Vectorize, Workers AI, email sending,
- * crons and limits. Its own: the Worker name, D1, KV and the pool's id. Taken away:
- * routes (traffic reaches a pool only through the platform's router) and the
- * workers.dev / preview addresses.
+ * pool without copying files) unless the pool has its own (`bucket`), Analytics Engine,
+ * Vectorize, Workers AI, email sending, crons and limits. Its own: the Worker name, D1, KV
+ * and the pool's id. Taken away: routes (traffic reaches a pool only through the
+ * platform's router) and the workers.dev / preview addresses.
  */
-export function buildPoolConfig(base: Config, input: { poolId: string; databaseId: string; kvId: string }): Config {
+export function buildPoolConfig(base: Config, input: { poolId: string; databaseId: string; kvId: string; bucket?: OwnBucket }): Config {
   const names = poolNames(input.poolId)
   const config = structuredClone(base)
 
@@ -44,6 +58,15 @@ export function buildPoolConfig(base: Config, input: { poolId: string; databaseI
   }
   delete vars.NUXT_PUBLIC_SITE_URL // the control plane's own address; a pool has none
   vars.NUXT_POOL_ID = input.poolId
+  // A public address for the shared bucket would hand out links to files that aren't in
+  // the pool's own; without one, NuxFlow serves files itself (/_nuxflow/media/…).
+  if (input.bucket) delete vars.NUXT_R2_PUBLIC_URL
+
+  const r2 = Array.isArray(config.r2_buckets) ? config.r2_buckets as Config[] : []
+  if (input.bucket) {
+    if (!BUCKET_RE.test(input.bucket.name)) throw new Error(`"${input.bucket.name}" can't be an R2 bucket name: use 3–63 lower-case letters, digits and dashes.`)
+    if (!r2.some(b => b.binding === 'MEDIA_BUCKET')) throw new Error('The control plane\'s config has no R2 bucket with binding "MEDIA_BUCKET", so there\'s nothing to replace with the pool\'s own.')
+  }
 
   const d1 = Array.isArray(config.d1_databases) ? config.d1_databases as Config[] : []
   if (!d1.some(db => db.binding === 'DB')) throw new Error('The control plane\'s config has no D1 database with binding "DB".')
@@ -72,6 +95,11 @@ export function buildPoolConfig(base: Config, input: { poolId: string; databaseI
       ? { binding: 'DB', database_name: names.database, database_id: input.databaseId }
       : db),
     kv_namespaces: kv.map(ns => ns.binding === 'PLUGIN_KV' ? { binding: 'PLUGIN_KV', id: input.kvId } : ns),
+    ...(input.bucket
+      ? { r2_buckets: r2.map(b => b.binding === 'MEDIA_BUCKET'
+          ? { binding: 'MEDIA_BUCKET', bucket_name: input.bucket!.name, ...(input.bucket!.jurisdiction ? { jurisdiction: input.bucket!.jurisdiction } : {}) }
+          : b) }
+      : {}),
   }
 }
 
@@ -118,6 +146,11 @@ export function findKvId(listJson: string, title: string): string | null {
   return typeof match?.id === 'string' ? match.id : null
 }
 
+/** Whether `wrangler r2 bucket list` (labelled `name:` lines) lists a bucket. */
+export function hasBucket(listText: string, name: string): boolean {
+  return listText.split("\n").some(line => /^name:\s+(\S+)\s*$/.exec(line.trim())?.[1] === name)
+}
+
 /** Whether a Worker already has a secret, from `wrangler secret list --format json`. */
 export function hasSecret(listJson: string, name: string): boolean {
   return parseList(listJson, 'wrangler secret list').some(s => s.name === name)
@@ -152,6 +185,9 @@ export interface PoolFlags {
   ring: 1 | 2
   from: string
   location: string | null
+  /** The pool's own R2 bucket: a name, or true for the default name. Null = the shared one. */
+  bucket: string | true | null
+  jurisdiction: Jurisdiction | null
   dryRun: boolean
   yes: boolean
   help: boolean
@@ -161,7 +197,7 @@ export interface PoolFlags {
 const LOCATIONS = new Set(['weur', 'eeur', 'apac', 'oc', 'wnam', 'enam'])
 
 export function parsePoolFlags(argv: readonly string[]): PoolFlags {
-  const flags: PoolFlags = { poolId: null, ring: 2, from: 'wrangler.toml', location: null, dryRun: false, yes: false, help: false }
+  const flags: PoolFlags = { poolId: null, ring: 2, from: 'wrangler.toml', location: null, bucket: null, jurisdiction: null, dryRun: false, yes: false, help: false }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!
     if (arg === '--') continue
@@ -182,6 +218,14 @@ export function parsePoolFlags(argv: readonly string[]): PoolFlags {
         break
       }
       case '--from': flags.from = value(); break
+      case '--own-bucket': flags.bucket = flags.bucket ?? true; break
+      case '--bucket': flags.bucket = value(); break
+      case '--jurisdiction': {
+        const j = value()
+        if (j !== 'eu') throw new Error('--jurisdiction can only be eu.')
+        flags.jurisdiction = j
+        break
+      }
       case '--location': {
         const location = value()
         if (!LOCATIONS.has(location)) throw new Error(`--location must be one of: ${[...LOCATIONS].join(', ')}.`)
@@ -193,5 +237,17 @@ export function parsePoolFlags(argv: readonly string[]): PoolFlags {
         flags.poolId = arg
     }
   }
+  // An EU pool keeps its files in the EU too, so it always has its own bucket. D1 ignores
+  // a location hint once a jurisdiction is set.
+  if (flags.jurisdiction && !flags.bucket) flags.bucket = true
+  if (flags.jurisdiction && flags.location) throw new Error('--location and --jurisdiction can\'t be used together: the jurisdiction decides where the data lives.')
   return flags
+}
+
+/** The pool's own bucket from its flags, or null for the shared one. */
+export function ownBucket(flags: Pick<PoolFlags, 'bucket' | 'jurisdiction'>, poolId: string): OwnBucket | null {
+  if (!flags.bucket) return null
+  const name = flags.bucket === true ? poolNames(poolId).bucket : flags.bucket
+  if (!BUCKET_RE.test(name)) throw new Error(`"${name}" can't be an R2 bucket name: use 3–63 lower-case letters, digits and dashes.`)
+  return { name, ...(flags.jurisdiction ? { jurisdiction: flags.jurisdiction } : {}) }
 }

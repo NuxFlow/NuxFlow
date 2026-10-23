@@ -67,12 +67,44 @@ function fakeKv() {
 const cpKv = fakeKv()
 const poolKv = fakeKv()
 
+/** A fake R2 bucket with the parts a move uses. */
+function fakeBucket() {
+  const data = new Map<string, { bytes: Uint8Array; httpMetadata?: Record<string, unknown>; customMetadata?: Record<string, string> }>()
+  return {
+    data,
+    async put(key: string, value: unknown, opts: { httpMetadata?: Record<string, unknown>; customMetadata?: Record<string, string> } = {}) {
+      data.set(key, { bytes: new Uint8Array(await new Response(value as BodyInit).arrayBuffer()), ...opts })
+    },
+    async get(key: string) {
+      const o = data.get(key)
+      return o ? { body: new Response(o.bytes).body, size: o.bytes.byteLength, httpMetadata: o.httpMetadata, customMetadata: o.customMetadata } : null
+    },
+    async head(key: string) {
+      const o = data.get(key)
+      return o ? { size: o.bytes.byteLength } : null
+    },
+    async delete(keys: string | string[]) {
+      for (const k of Array.isArray(keys) ? keys : [keys]) data.delete(k)
+    },
+    async list({ prefix = '', cursor, limit = 1000 }: { prefix?: string; cursor?: string; limit?: number }) {
+      const all = [...data.keys()].filter(k => k.startsWith(prefix)).sort()
+      const start = cursor ? Number(cursor) : 0
+      const page = all.slice(start, start + limit)
+      const truncated = start + limit < all.length
+      return { objects: page.map(key => ({ key, size: data.get(key)!.bytes.byteLength })), truncated, cursor: truncated ? String(start + limit) : undefined }
+    },
+  }
+}
+type FakeBucket = ReturnType<typeof fakeBucket>
+/** Each side's MEDIA_BUCKET for the test (undefined = none; the same object = a shared bucket). */
+const buckets: { cp?: FakeBucket; pool?: FakeBucket } = {}
+
 /** An event inside the pool: its own database and KV. */
 function poolEvent(): H3Event {
   const event = createMockEvent({ siteId: undefined, headers: { host: 'localhost' } }) as MockEvent
   event.context.siteId = null
   event.context.poolDb = poolDb
-  event.context.cloudflare = { env: { PLUGIN_KV: poolKv }, context: { waitUntil: () => {} } }
+  event.context.cloudflare = { env: { PLUGIN_KV: poolKv, MEDIA_BUCKET: buckets.pool }, context: { waitUntil: () => {} } }
   return event as unknown as H3Event
 }
 
@@ -97,7 +129,7 @@ const poolStub = {
 
 function cpEvent(opts: Parameters<typeof createMockEvent>[0] = {}): H3Event {
   const event = createMockEvent({ siteId: PRIMARY, headers: { host: 'platform.test' }, ...opts }) as MockEvent
-  event.context.cloudflare = { env: { PLUGIN_KV: cpKv, POOL_CLIENTX: poolStub }, context: { waitUntil: () => {} } }
+  event.context.cloudflare = { env: { PLUGIN_KV: cpKv, POOL_CLIENTX: poolStub, MEDIA_BUCKET: buckets.cp }, context: { waitUntil: () => {} } }
   return event as unknown as H3Event
 }
 
@@ -176,6 +208,8 @@ beforeEach(async () => {
   await getCurrentTestDb().delete(siteMoves)
   await poolDb.delete(users)
   for (const kv of [cpKv, poolKv]) kv.data.clear()
+  buckets.cp = undefined
+  buckets.pool = undefined
   clearSiteCache()
   await seedCafe()
 })
@@ -334,5 +368,84 @@ describe('moving a site from the control plane into a pool', () => {
     expect(await poolDb.select().from(sites).where(eq(sites.id, SITE))).toHaveLength(1)
     await poolDb.delete(sites).where(eq(sites.id, SITE))
     void sql
+  })
+})
+
+describe('files, when the destination keeps them in a different bucket (a pool with its own, or an EU pool)', () => {
+  const siteFiles = [`${SITE}/cup.jpg`, `${SITE}/themes/hero.png`, `_private/${SITE}/email/m1-abc.eml`]
+  async function fill(bucket: FakeBucket) {
+    for (const key of siteFiles) await bucket.put(key, `bytes of ${key}`, { httpMetadata: { contentType: 'image/jpeg' }, customMetadata: { by: 'test' } })
+    await bucket.put('someone-else/keep.jpg', 'not ours')
+  }
+
+  it('copies every file of the site with its metadata, then removes the old ones and only those', async () => {
+    buckets.cp = fakeBucket()
+    buckets.pool = fakeBucket()
+    await fill(buckets.cp)
+    const move = await startSiteMove(cpEvent(), { siteId: SITE, toPool: POOL }, operatorId)
+    expect(move.copyFiles).toBe(true)
+    expect(await runMove(move.id)).toMatchObject({ phase: 'done', error: null })
+
+    expect([...buckets.pool.data.keys()].sort()).toEqual([...siteFiles].sort())
+    const copied = buckets.pool.data.get(siteFiles[0]!)!
+    expect(new TextDecoder().decode(copied.bytes)).toBe(`bytes of ${siteFiles[0]}`)
+    expect(copied).toMatchObject({ httpMetadata: { contentType: 'image/jpeg' }, customMetadata: { by: 'test' } })
+    // The old bucket keeps other sites' files, and no probe is left anywhere.
+    expect([...buckets.cp.data.keys()]).toEqual(['someone-else/keep.jpg'])
+  })
+
+  it('never copies or deletes anything when both sides share one bucket', async () => {
+    const shared = fakeBucket()
+    buckets.cp = shared
+    buckets.pool = shared
+    await fill(shared)
+    const move = await startSiteMove(cpEvent(), { siteId: SITE, toPool: POOL }, operatorId)
+    expect(move.copyFiles).toBe(false)
+    expect(await runMove(move.id)).toMatchObject({ phase: 'done' })
+    expect([...shared.data.keys()].sort()).toEqual([...siteFiles, 'someone-else/keep.jpg'].sort())
+  })
+
+  it('goes over the files again when one arrives during the move (an email attachment)', async () => {
+    buckets.cp = fakeBucket()
+    buckets.pool = fakeBucket()
+    await fill(buckets.cp)
+    const move = await startSiteMove(cpEvent(), { siteId: SITE, toPool: POOL }, operatorId)
+    await runMove(move.id, 'checking')
+    await buckets.cp.put(`_private/${SITE}/email/late-xyz.eml`, 'late mail')
+    expect(await runMove(move.id)).toMatchObject({ phase: 'done', error: null })
+    expect(buckets.pool.data.has(`_private/${SITE}/email/late-xyz.eml`)).toBe(true)
+  })
+
+  it('cancelling removes the copied files too, and leaves the originals', async () => {
+    buckets.cp = fakeBucket()
+    buckets.pool = fakeBucket()
+    await fill(buckets.cp)
+    const move = await startSiteMove(cpEvent(), { siteId: SITE, toPool: POOL }, operatorId)
+    await runMove(move.id, 'checking')
+    expect(buckets.pool.data.size).toBe(3)
+    await cancelSiteMove(cpEvent(), move.id, operatorId)
+    expect(buckets.pool.data.size).toBe(0)
+    expect(buckets.cp.data.size).toBe(4)
+  })
+
+  // ("The destination has no storage" isn't testable here: getCfBindings() falls back to the
+  // last bucket it saw, per Worker — harmless in production, but both sides share it in tests.)
+  it('refuses when the site links files by a public bucket address', async () => {
+    buckets.cp = fakeBucket()
+    buckets.pool = fakeBucket()
+    await seedMedia(getCurrentTestDb(), SITE, { storageProvider: 'r2', url: 'https://pub-123.r2.dev/x.jpg' })
+    await expect(startSiteMove(cpEvent(), { siteId: SITE, toPool: POOL }, operatorId)).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/public address/) })
+    // Nothing was locked, and no probe is left behind.
+    const [here] = await getCurrentTestDb().select().from(sites).where(eq(sites.id, SITE))
+    expect(here!.moveState).toBeNull()
+    expect([...buckets.cp.data.keys()]).toEqual([])
+  })
+
+  it("a pool refuses to delete the files of a site that isn't a copy left by a move", async () => {
+    buckets.pool = fakeBucket()
+    await buckets.pool.put(`${SITE}/cup.jpg`, 'x')
+    // Absent from the pool's database: its files may belong to the live site elsewhere.
+    await expect(poolStub.siteMove({ protocol: POOL_PROTOCOL, siteId: SITE, op: { op: 'purgeFiles' } })).rejects.toThrow(/left behind by a move/)
+    expect(buckets.pool.data.size).toBe(1)
   })
 })

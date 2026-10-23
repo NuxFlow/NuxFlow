@@ -114,6 +114,11 @@ export const siteMoves = sqliteTable('site_moves', {
   /** Rows per table on each side when they were compared. */
   counts: text('counts', { mode: 'json' }).$type<Record<string, unknown>>(),
   error: text('error'),
+  /**
+   * True when the two sides keep files in different R2 buckets (a pool with its own, or an
+   * EU pool), found by a test write when the move starts: files are then copied too.
+   */
+  copyFiles: integer('copy_files', { mode: 'boolean' }).notNull().default(false),
   startedBy: text('started_by'),
   lockedAt: text('locked_at'),
   copyStartedAt: text('copy_started_at'),

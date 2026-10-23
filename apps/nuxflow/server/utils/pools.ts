@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
-import { count } from 'drizzle-orm'
-import { sites } from '@nuxflow/db/schema'
+import { count, isNull, sql } from 'drizzle-orm'
+import { hostingPlans, sites } from '@nuxflow/db/schema'
 import { useDb, type Db } from './db'
 import { getPlatformSetting, POOL_PLATFORM_SETTINGS, type PlatformSettingKey } from './control-plane'
 import { POOL_PROTOCOL, assertCompatibleProtocol, type PoolSite, type PoolStatus, type PushedSettings } from './pool-admin'
@@ -69,9 +69,9 @@ export function poolAdminStub(event: H3Event, poolId: string): PoolAdminStub | n
   return poolBindings(event).find(p => p.binding === poolBindingName(poolId))?.stub ?? null
 }
 
-/** Pool calls must not hang a page: rejects after 10 s. */
-export function callPool<T>(promise: Promise<T>, what: string): Promise<T> {
-  return withTimeout(promise, what)
+/** Pool calls must not hang a page: rejects after 10 s, or `timeoutMs` for one known to take longer. */
+export function callPool<T>(promise: Promise<T>, what: string, timeoutMs = CALL_TIMEOUT_MS): Promise<T> {
+  return withTimeout(promise, what, timeoutMs)
 }
 
 /** Every pool binding on this Worker, in name order. */
@@ -86,10 +86,10 @@ export function poolBindings(event: H3Event): { binding: string; stub: PoolAdmin
 // A pool that doesn't answer must not hang the Pools page or a settings save.
 const CALL_TIMEOUT_MS = 10_000
 
-function withTimeout<T>(promise: Promise<T>, what: string): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, what: string, ms = CALL_TIMEOUT_MS): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${what} didn't answer within ${CALL_TIMEOUT_MS / 1000} s`)), CALL_TIMEOUT_MS)
+    timer = setTimeout(() => reject(new Error(`${what} didn't answer within ${ms / 1000} s`)), ms)
   })
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
@@ -119,13 +119,21 @@ export async function describePools(event: H3Event): Promise<PoolReport[]> {
 }
 
 /** This Worker's own line on the Pools page. */
-export async function controlPlaneSummary(db: Db): Promise<{ commit: string | null; release: string | null; siteCount: number }> {
+export async function controlPlaneSummary(db: Db): Promise<{ commit: string | null; release: string | null; siteCount: number; customerSites: number; plansWithoutPool: number }> {
   const config = useRuntimeConfig()
-  const [row] = await db.select({ n: count() }).from(sites)
+  const [[row], [customers], [plans]] = await Promise.all([
+    db.select({ n: count() }).from(sites),
+    // Sites other than the operator's own that still share this Worker with sign-in and
+    // billing (Super Admin → Pools suggests moving them into a pool; docs/pools.md).
+    db.select({ n: count() }).from(sites).where(sql`${sites.isPrimary} = 0 and coalesce(${sites.moveState}, '') not in ('incoming', 'moved')`),
+    db.select({ n: count() }).from(hostingPlans).where(isNull(hostingPlans.defaultPoolId)),
+  ])
   return {
     commit: config.buildCommit ? String(config.buildCommit) : null,
     release: config.buildRelease ? String(config.buildRelease) : null,
     siteCount: row?.n ?? 0,
+    customerSites: customers?.n ?? 0,
+    plansWithoutPool: plans?.n ?? 0,
   }
 }
 

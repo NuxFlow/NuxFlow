@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasSecret, parsePoolFlags, poolConfigFile, poolNames, routerBindingBlock, serviceBindingBlock,
+  addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasBucket, hasSecret, ownBucket, parsePoolFlags, poolConfigFile, poolNames, routerBindingBlock, serviceBindingBlock,
 } from '../../scripts/pools/lib'
 
 const base = {
@@ -22,6 +22,7 @@ describe('poolNames', () => {
       worker: 'nuxflow-pool-clientx',
       database: 'nuxflow-pool-clientx',
       kv: 'nuxflow-pool-clientx-plugin-kv',
+      bucket: 'nuxflow-pool-clientx-media',
       config: 'wrangler.pool-clientx.jsonc',
     })
   })
@@ -153,7 +154,7 @@ describe('addPoolTarget', () => {
 describe('parsePoolFlags', () => {
   it('reads the name and options', () => {
     expect(parsePoolFlags(['clientx', '--ring', '1', '--from=wrangler.cloud.toml', '--location', 'weur', '--yes'])).toEqual({
-      poolId: 'clientx', ring: 1, from: 'wrangler.cloud.toml', location: 'weur', dryRun: false, yes: true, help: false,
+      poolId: 'clientx', ring: 1, from: 'wrangler.cloud.toml', location: 'weur', bucket: null, jurisdiction: null, dryRun: false, yes: true, help: false,
     })
   })
 
@@ -169,5 +170,47 @@ describe('parsePoolFlags', () => {
     [['--urgent'], /Unknown option/],
   ])('refuses %j', (argv, message) => {
     expect(() => parsePoolFlags(argv)).toThrow(message)
+  })
+})
+
+describe('a pool with its own bucket, or in the EU', () => {
+  it('gives the pool its own R2 bucket and drops the shared bucket\'s public address', () => {
+    const withPublic = { ...base, vars: { ...base.vars, NUXT_R2_PUBLIC_URL: 'https://media.nuxflow.cloud' } }
+    const pool = buildPoolConfig(withPublic, { poolId: 'clientx', databaseId: 'd', kvId: 'k', bucket: { name: 'nuxflow-pool-clientx-media' } })
+    expect(pool.r2_buckets).toEqual([{ binding: 'MEDIA_BUCKET', bucket_name: 'nuxflow-pool-clientx-media' }])
+    expect((pool.vars as Record<string, unknown>).NUXT_R2_PUBLIC_URL).toBeUndefined()
+    // Without one, the shared bucket and its address stay.
+    const shared = buildPoolConfig(withPublic, { poolId: 'clientx', databaseId: 'd', kvId: 'k' })
+    expect(shared.r2_buckets).toEqual(base.r2_buckets)
+    expect((shared.vars as Record<string, unknown>).NUXT_R2_PUBLIC_URL).toBe('https://media.nuxflow.cloud')
+  })
+
+  it('binds an EU bucket with its jurisdiction', () => {
+    const pool = buildPoolConfig(base, { poolId: 'eu1', databaseId: 'd', kvId: 'k', bucket: { name: 'nuxflow-pool-eu1-media', jurisdiction: 'eu' } })
+    expect(pool.r2_buckets).toEqual([{ binding: 'MEDIA_BUCKET', bucket_name: 'nuxflow-pool-eu1-media', jurisdiction: 'eu' }])
+  })
+
+  it('refuses a bad bucket name, or a config with no bucket to replace', () => {
+    expect(() => buildPoolConfig(base, { poolId: 'x', databaseId: 'd', kvId: 'k', bucket: { name: 'Bad_Name' } })).toThrow(/bucket name/)
+    const noR2 = { ...base, r2_buckets: [] }
+    expect(() => buildPoolConfig(noR2, { poolId: 'x', databaseId: 'd', kvId: 'k', bucket: { name: 'fine-name' } })).toThrow(/MEDIA_BUCKET/)
+  })
+
+  it('reads the bucket options', () => {
+    expect(ownBucket(parsePoolFlags(['clientx']), 'clientx')).toBeNull()
+    expect(ownBucket(parsePoolFlags(['clientx', '--own-bucket']), 'clientx')).toEqual({ name: 'nuxflow-pool-clientx-media' })
+    expect(ownBucket(parsePoolFlags(['clientx', '--bucket', 'acme-files']), 'clientx')).toEqual({ name: 'acme-files' })
+    // An EU pool always has its own bucket, in the EU.
+    expect(ownBucket(parsePoolFlags(['eu1', '--jurisdiction', 'eu']), 'eu1')).toEqual({ name: 'nuxflow-pool-eu1-media', jurisdiction: 'eu' })
+    expect(ownBucket(parsePoolFlags(['eu1', '--jurisdiction=eu', '--bucket=eu-files']), 'eu1')).toEqual({ name: 'eu-files', jurisdiction: 'eu' })
+    expect(() => parsePoolFlags(['eu1', '--jurisdiction', 'us'])).toThrow(/only be eu/)
+    expect(() => parsePoolFlags(['eu1', '--jurisdiction', 'eu', '--location', 'weur'])).toThrow(/together/)
+    expect(() => ownBucket(parsePoolFlags(['x', '--bucket', 'NO']), 'x')).toThrow(/bucket name/)
+  })
+
+  it('finds a bucket in wrangler r2 bucket list', () => {
+    const list = 'Listing buckets...\nname:           nuxflow-cloud-media\ncreation_date:  2026-10-15T10:00:00.000Z\n\nname:           nuxflow-pool-eu1-media\ncreation_date:  2026-10-23T09:00:00.000Z\n'
+    expect(hasBucket(list, 'nuxflow-pool-eu1-media')).toBe(true)
+    expect(hasBucket(list, 'nuxflow-pool-eu1')).toBe(false)
   })
 })

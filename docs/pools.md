@@ -35,6 +35,21 @@ It creates the pool's D1 database and KV namespace, writes its config
 (`wrangler.pool-<name>.jsonc`, not committed), deploys it with its own secret, and adds
 it to `release-targets.json`. Running it again is safe: it finds what already exists.
 
+Options for particular clients:
+
+| Option | What it does |
+|---|---|
+| `--location weur` | Where the pool's database lives (`weur`, `eeur`, `apac`, `oc`, `wnam`, `enam`). A hint, not a promise. |
+| `--own-bucket` | The pool gets its own R2 bucket for files (`nuxflow-pool-<name>-media`) instead of sharing the platform's. For a client whose contract asks for separate storage. |
+| `--bucket <name>` | The same, with a bucket name you choose. |
+| `--jurisdiction eu` | **An EU pool**: its database and its own bucket are created in Cloudflare's EU jurisdiction, so they're stored and processed only in the EU. Can't be combined with `--location`. |
+
+For an EU pool, be clear with the client about what is and isn't covered. Covered: the
+database (every page, setting, member, inbox message) and every file. Not covered: the
+pool's KV (plugin code, theme CSS and short-lived caches have no EU option), sign-in and
+billing (they live on your control plane), and Cloudflare's edge, which still answers
+visitors worldwide and caches public pages close to them.
+
 It then prints two snippets:
 
 1. A service binding for the **control plane's** config. Add it and deploy the control plane.
@@ -44,6 +59,25 @@ Then open **Super Admin → Pools** and click **Send platform settings**. The po
 its release, its newest database migration and its sites.
 
 The router's own setup is in `packages/router/README.md`.
+
+## Keeping customer sites apart from sign-in and billing
+
+Your control plane does two jobs: it runs the business (sign-in, billing, Super Admin) and
+it can hold sites. While customer sites live on it, every release for them also updates
+sign-in and billing, and a bug in a new site feature could reach them.
+
+Once you have a few customers, keep the control plane for your own site only:
+
+1. Create a pool for ordinary customers, e.g. `pnpm pool:create main --from wrangler.cloud.toml`,
+   and connect it.
+2. In **Super Admin → Plans**, set every plan's **Sign-ups get their site in** to `main`.
+3. In **Super Admin → Sites**, **Move** each customer site into `main`.
+
+**Super Admin → Pools** reminds you while any customer site or plan still uses the control
+plane. From then on, new code reaches customers through their pools (see
+[Release rings](./release-rings.md)), and the control plane can be updated less often. It
+still needs updating now and then: the control plane and its pools work together across one
+release's difference, not many.
 
 ## Putting sites in a pool
 
@@ -69,7 +103,9 @@ it goes: another pool, or the control panel itself. A move takes a few minutes:
 2. **Copy.** Everything the site owns is copied, with the same IDs: pages, posts, media
    records, forms and answers, inbox, members and their memberships, mailing list, plugins
    and their stored data, themes, settings, redirects, usage history. Media files and
-   email attachments stay where they are, because every pool shares one R2 bucket.
+   email attachments stay where they are when both sides share the platform's bucket;
+   when the destination has its own (`--own-bucket`, or an EU pool), they're copied too,
+   and the totals checked.
 3. **Check.** Mail that arrived during the copy is copied too. Then the number of rows in
    every table must match on both sides. If anything doesn't match, the move stops and
    nothing is switched.
@@ -89,6 +125,12 @@ Good to know:
   change.
 - Scheduled posts that fall due during the move go out just after it, from the new home.
 - The platform's own main site can't be moved.
+- A site whose media files are linked by a public bucket address (`https://pub-….r2.dev/…`
+  or a custom media domain) can't be moved to or from a pool with its own bucket: those
+  links would break. NuxFlow-served addresses (`/_nuxflow/media/…`) move fine.
+- Whether two places share a bucket is tested, not assumed: the move writes a small marker
+  file on one side and looks for it on the other. So a file is never "copied" onto itself
+  and then deleted.
 - As a further safety net, every D1 database keeps 30 days of history
   ([Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/)), so the
   old database can be restored to a moment before the move if ever needed.
