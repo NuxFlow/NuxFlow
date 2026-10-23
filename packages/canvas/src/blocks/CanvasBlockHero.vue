@@ -4,6 +4,7 @@ import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import { safeHref } from '../utils/sanitize-html'
 import { spacingToCss } from '../utils/spacing'
+import { parseVideoUrl, videoBackgroundUrl } from '../utils/video-url'
 
 const props = withDefaults(defineProps<{
   headline?: string
@@ -20,6 +21,10 @@ const props = withDefaults(defineProps<{
   logoIcon?: string
   showDecorations?: boolean
   padding?: SpacingValue
+  /** A YouTube, Vimeo or public Cloudflare Stream video playing silently behind the hero. */
+  bgVideo?: string
+  /** How much the background video is darkened, 0–90 (%), so text stays readable. */
+  bgVideoDim?: number
 }>(), {
   headline: 'Welcome to our site',
   subtext: 'We help you build amazing things.',
@@ -34,7 +39,15 @@ const props = withDefaults(defineProps<{
   ctaBgColor: undefined,
   logoIcon: undefined,
   padding: undefined,
+  bgVideo: '',
+  bgVideoDim: 40,
 })
+
+const bgVideoUrl = computed(() => {
+  const ref = parseVideoUrl(props.bgVideo)
+  return ref ? videoBackgroundUrl(ref) : null
+})
+const bgVideoDimStyle = computed(() => ({ background: `rgba(0, 0, 0, ${Math.min(90, Math.max(0, Number(props.bgVideoDim ?? 40))) / 100})` }))
 
 const containerStyle = computed(() => ({
   background: props.bgGradient ?? props.bgColor,
@@ -67,6 +80,17 @@ const logoStyle = computed(() => {
 
 <template>
   <section class="canvas-hero relative overflow-hidden" :style="containerStyle">
+    <!-- Background video: muted and looping, cropped to cover the hero like a background image -->
+    <div v-if="bgVideoUrl" class="canvas-hero-video absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+      <iframe
+        :src="bgVideoUrl"
+        title=""
+        tabindex="-1"
+        allow="autoplay; encrypted-media; picture-in-picture"
+        class="canvas-hero-video-frame"
+      />
+      <div class="absolute inset-0" :style="bgVideoDimStyle" />
+    </div>
     <!-- Grid overlay -->
     <div
       v-if="showDecorations"
@@ -127,3 +151,22 @@ const logoStyle = computed(() => {
     </div>
   </section>
 </template>
+
+<style scoped>
+.canvas-hero-video {
+  container-type: size;
+}
+/* A 16:9 player scaled until it covers the whole hero, whatever the hero's shape. */
+.canvas-hero-video-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 177.78cqh);
+  height: max(100%, 56.25cqw);
+  transform: translate(-50%, -50%);
+  border: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .canvas-hero-video-frame { display: none; }
+}
+</style>

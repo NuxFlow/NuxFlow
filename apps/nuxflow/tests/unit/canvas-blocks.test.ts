@@ -15,6 +15,7 @@ describe('CANVAS_BLOCKS registry', () => {
     expect(ids).toContain('canvas-text')
     expect(ids).toContain('canvas-image')
     expect(ids).toContain('canvas-video')
+    expect(ids).toContain('canvas-video-gallery')
     expect(ids).toContain('canvas-columns')
     expect(ids).toContain('canvas-container')
     expect(ids).toContain('canvas-features')
@@ -776,5 +777,33 @@ describe('Video embed URL parsing', () => {
     it('returns null for a random string', () => {
       expect(buildEmbedUrl('not a url at all', false, false)).toBeNull()
     })
+  })
+})
+
+describe('canvas-video-gallery block definition', () => {
+  const gallery = CANVAS_BLOCKS.find(b => b.id === 'canvas-video-gallery')!
+
+  it('is a media block whose list of links is never machine-translated', () => {
+    expect(gallery.category).toBe('media')
+    const videos = gallery.fields.find(f => f.key === 'videos')!
+    expect(videos.type).toBe('textarea')
+    expect(videos.translatable).toBe(false)
+  })
+
+  it('defaults to a 3-column 16:9 grid with titles', () => {
+    expect(gallery.defaultProps).toMatchObject({ columns: '3', aspectRatio: '16:9', showTitles: true })
+  })
+})
+
+describe('canvas-hero background video', () => {
+  const hero = CANVAS_BLOCKS.find(b => b.id === 'canvas-hero')!
+
+  it('has a background video link the AI never fills in, and a dim control shown only with one', () => {
+    const video = hero.fields.find(f => f.key === 'bgVideo')!
+    expect(video.type).toBe('url')
+    expect(video.ai).toBe(false)
+    const dim = hero.fields.find(f => f.key === 'bgVideoDim')!
+    expect(dim.condition!({ bgVideo: '' })).toBe(false)
+    expect(dim.condition!({ bgVideo: 'https://youtu.be/dQw4w9WgXcQ' })).toBe(true)
   })
 })

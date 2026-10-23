@@ -53,6 +53,7 @@ const EXCLUDED_PATH_PREFIXES = ['/admin', '/api', '/_']
 const EXCLUDED_EXACT_PATHS = new Set([
   '/sitemap.xml',
   '/sitemap-images.xml',
+  '/sitemap-video.xml',
   '/feed.xml',
   '/atom.xml',
   '/events.ics',

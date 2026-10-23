@@ -113,9 +113,9 @@ export const PLATFORM_ONLY_ENV_KEYS: ReadonlySet<string> = new Set([
  * plan, ai-allowance.ts) or uses its own key. The gateway settings go too, so a
  * customer's own-key requests aren't logged in the operator's AI Gateway. The same goes
  * for Cloudflare Stream and Images, billed per minute and per image to the operator's
- * account with no plan limit of their own: a hosted site's images fall through to the
- * shared R2 bucket (counted by the plan's storage limit), and video needs the site's own
- * Stream credentials.
+ * account: a hosted site's images fall through to the shared R2 bucket (counted by the
+ * plan's storage limit), and its video goes into the operator's Stream account only through
+ * stream.ts, which counts it against the plan's video minutes.
  */
 export const HOSTING_PLATFORM_ONLY_ENV_KEYS: ReadonlySet<string> = new Set([
   'ai.provider',

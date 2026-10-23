@@ -10,14 +10,19 @@ interface VideoAsset {
   status: 'uploading' | 'processing' | 'ready' | 'failed'
   size: number | null
   createdAt: string
+  isPrivate: boolean
+  playbackUrl: string
 }
 
 const { run, isRunning } = useAdminAction()
 const fileInput = ref<HTMLInputElement>()
 
 // Check Stream credentials before showing upload controls
-const { data: streamStatus } = await useFetch<{ configured: boolean }>('/api/v1/media/video/configured')
+// `account: 'platform'` = a hosted site using the platform's Stream account, within its
+// plan's video minutes; `message` says why uploading is off when the plan doesn't allow it.
+const { data: streamStatus } = await useFetch<{ configured: boolean; account: 'site' | 'platform' | null; message: string | null; minutesLeft?: number | null }>('/api/v1/media/video/configured')
 const streamConfigured = computed(() => streamStatus.value?.configured ?? false)
+const planMessage = computed(() => streamStatus.value?.message ?? null)
 
 // Fetch videos
 const { data: videos, refresh } = await useFetch<VideoAsset[]>('/api/v1/media/video')
@@ -63,12 +68,14 @@ async function handleUpload(e: Event) {
 const showDetailModal = ref(false)
 const selectedVideo = ref<VideoAsset | null>(null)
 const editTitle = ref('')
+const editPrivate = ref(false)
 const savingDetail = computed(() => isRunning('save'))
 const deletingDetail = computed(() => isRunning('delete'))
 
 function openDetail(video: VideoAsset) {
   selectedVideo.value = video
   editTitle.value = video.title
+  editPrivate.value = video.isPrivate
   showDetailModal.value = true
 }
 
@@ -78,7 +85,7 @@ async function saveDetail() {
   await run(async () => {
     await $fetch<unknown>(`/api/v1/media/video/${id}`, {
       method: 'PATCH',
-      body: { title: editTitle.value },
+      body: { title: editTitle.value, isPrivate: editPrivate.value },
     })
     await refresh()
     showDetailModal.value = false
@@ -152,7 +159,15 @@ function playVideo(video: VideoAsset) {
 
     <!-- Stream not configured banner -->
     <UAlert
-      v-if="!streamConfigured"
+      v-if="!streamConfigured && planMessage"
+      icon="i-lucide-video-off"
+      color="neutral"
+      variant="soft"
+      title="Video uploads aren't included"
+      :description="planMessage"
+    />
+    <UAlert
+      v-else-if="!streamConfigured"
       icon="i-lucide-triangle-alert"
       color="warning"
       variant="soft"
@@ -164,19 +179,23 @@ function playVideo(video: VideoAsset) {
         <NuxtLink to="/admin/settings" class="underline font-medium ml-1">Go to Settings → Media</NuxtLink> to set them up.
       </template>
     </UAlert>
+    <p v-else-if="streamStatus?.account === 'platform' && streamStatus.minutesLeft != null" class="text-sm text-gray-500 dark:text-gray-400">
+      Your plan has {{ streamStatus.minutesLeft.toLocaleString() }} minutes of video storage left.
+    </p>
 
-    <!-- Stream quota / billing error -->
+    <!-- Stream quota / billing or plan error -->
     <UAlert
       v-if="streamError"
       icon="i-lucide-credit-card"
       color="error"
       variant="soft"
-      title="Cloudflare Stream quota exceeded"
+      title="Couldn't upload the video"
       :description="streamError"
     >
       <template #description>
         {{ streamError }}
         <a
+          v-if="streamStatus?.account !== 'platform'"
           href="https://dash.cloudflare.com/?to=/:account/stream"
           target="_blank"
           rel="noopener"
@@ -226,11 +245,14 @@ function playVideo(video: VideoAsset) {
         class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-700 mb-3"
       />
       <h3 class="text-md font-semibold text-gray-700 dark:text-gray-300">
-        {{ streamConfigured ? 'No videos uploaded yet' : 'Cloudflare Stream not configured' }}
+        {{ streamConfigured ? 'No videos uploaded yet' : planMessage ? 'No video uploads on this plan' : 'Cloudflare Stream not configured' }}
       </h3>
       <p class="text-sm text-gray-500 dark:text-gray-500 mt-1 max-w-sm mx-auto">
         <template v-if="streamConfigured">
           Upload your first video to begin adaptive bitrate delivery.
+        </template>
+        <template v-else-if="planMessage">
+          You can still show YouTube and Vimeo videos with the Video block on any page.
         </template>
         <template v-else>
           Add your Account ID and Stream API token in
@@ -247,7 +269,7 @@ function playVideo(video: VideoAsset) {
           Upload first video
         </UButton>
         <UButton
-          v-else-if="!streamConfigured"
+          v-else-if="!streamConfigured && !planMessage"
           icon="i-lucide-settings"
           variant="soft"
           to="/admin/settings"
@@ -260,6 +282,7 @@ function playVideo(video: VideoAsset) {
     <AdminMediaVideoDetailModal
       v-model:open="showDetailModal"
       v-model:edit-title="editTitle"
+      v-model:edit-private="editPrivate"
       :video="selectedVideo"
       :saving="savingDetail"
       :deleting="deletingDetail"

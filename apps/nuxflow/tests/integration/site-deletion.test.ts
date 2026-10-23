@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
-import { seedSite, seedUser, seedRole, seedContentType, seedContentItem, seedMedia } from '../helpers/seed'
+import { seedSite, seedUser, seedRole, seedContentType, seedContentItem, seedMedia, seedSetting, seedVideoAsset } from '../helpers/seed'
 import { sites, contentItems, contentTypes, userSiteRoles, themes, dynamicPlugins, media } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import deleteSettingsHandler from '../../server/api/v1/settings/index.delete'
@@ -217,6 +217,34 @@ describe('deleteSiteCompletely — media failures and KV cleanup', () => {
     expect(result.failedMediaDeletes).toEqual([`${actingSiteId}/not-theirs.jpg`])
 
     await cleanupSites(actingSiteId)
+  })
+
+  it('deletes the site\'s videos from its Cloudflare Stream account, reporting any Stream refuses', async () => {
+    const db = getCurrentTestDb()
+    const siteId = await seedSite(db, { id: 'del-video-01', domain: 'del-video.localhost' })
+    const userId = await seedUser(db, { email: 'admin-video@example.com' })
+    await seedRole(db, userId, siteId, 'admin')
+    await seedSetting(db, siteId, 'cloudflare.account_id', 'acct-del')
+    await seedSetting(db, siteId, 'cloudflare.stream_token', 'tok-del')
+    const gone = 'a'.repeat(32)
+    const refused = 'b'.repeat(32)
+    await seedVideoAsset(db, siteId, { cloudflareStreamId: gone })
+    await seedVideoAsset(db, siteId, { cloudflareStreamId: refused })
+    vi.mocked(getActiveProvider).mockResolvedValue({ name: 'r2', upload: vi.fn(), delete: vi.fn(), getUrl: vi.fn() })
+    const mockFetch = vi.fn(async (url: string) => new Response(null, { status: url.endsWith(refused) ? 500 : 200 }))
+    vi.stubGlobal('fetch', mockFetch)
+
+    try {
+      const result = await deleteSiteCompletely(mkEvent(siteId, userId), siteId, userId)
+      const deletes = mockFetch.mock.calls.map(([url]) => url)
+      expect(deletes).toEqual([
+        `https://api.cloudflare.com/client/v4/accounts/acct-del/stream/${gone}`,
+        `https://api.cloudflare.com/client/v4/accounts/acct-del/stream/${refused}`,
+      ])
+      expect(result.failedMediaDeletes).toEqual([`stream:${refused}`])
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('cleans up KV-stored theme and plugin assets before the D1 rows are cascade-deleted', async () => {

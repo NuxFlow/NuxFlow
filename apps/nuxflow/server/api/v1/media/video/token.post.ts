@@ -1,89 +1,69 @@
 import { requireRole } from '../../../../utils/permissions'
-import { resolveStringSetting } from '../../../../utils/settings'
-import { isHttpError } from '../../../../utils/errors'
 import { parseBody } from '../../../../utils/validate'
 import { z } from 'zod'
 import { requireSiteId } from '../../../../utils/site-context'
+import { useDb } from '../../../../utils/db'
+import { checkPlanLimit, planLimitMessage } from '../../../../utils/hosting-plans'
+import { forbidden } from '../../../../utils/response'
+import { createStreamUpload, MAX_UPLOAD_DURATION_SECONDS, streamNotConfigured, uploadStreamAccount } from '../../../../utils/stream'
+import { videoAssets } from '@nuxflow/db/schema'
+import { ulid } from 'ulid'
+import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 
-// The body is optional — the client may request an upload URL before naming the video.
+// Stream's own per-file cap for resumable uploads.
+const MAX_UPLOAD_BYTES = 30 * 1024 ** 3
+
 const bodySchema = z.object({
   title: z.string().trim().max(500).optional(),
-}).nullish()
+  size: z.number().int().positive().max(MAX_UPLOAD_BYTES, 'Videos can be up to 30 GB'),
+})
 
+// Starts a resumable (tus) upload: returns the upload.cloudflarestream.com URL the browser
+// sends the file to in chunks (useVideoUpload.ts). The browser never sees the Stream token.
+// The library row is written now, as 'uploading', so a video whose tab was closed before
+// it was registered is still listed, counted against the plan and deleted with the site —
+// never left in the Stream account (and on its bill) with nothing pointing at it.
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
   const siteId = requireSiteId(event)
-
-  const accountId = await resolveStringSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
-  const streamToken = await resolveStringSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')
-
-  if (!accountId || !streamToken) {
-    throw createError({
-      statusCode: 501,
-      message: 'Cloudflare Stream is not configured. Add your Account ID and Stream API token in Settings → Media.',
-    })
-  }
-
   const body = await parseBody(event, bodySchema)
-  const title = body?.title || 'Untitled Video'
 
-  // direct_upload returns a pre-authorised upload.cloudflarestream.com URL that supports
-  // browser cross-origin POST (FormData). The authenticated TUS endpoint returns URLs
-  // on edge-production.gateway.api.cloudflare.com which has no CORS headers, so TUS
-  // from the browser is not possible. A plain XHR POST to the direct_upload URL is the
-  // correct approach for browser-initiated uploads.
-  try {
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/direct_upload`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${streamToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          maxDurationSeconds: 14400,
-          meta: { name: title, siteId, uploadedBy: userId },
-        }),
-      },
-    )
+  const account = await uploadStreamAccount(event)
+  if (!account) streamNotConfigured()
 
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '')
-      console.error('Cloudflare Stream direct_upload HTTP error:', response.status, errText)
-      throw createError({ statusCode: 502, message: 'Failed to request upload token from Cloudflare Stream.' })
+  // Video in the operator's Stream account is billed per minute stored, so it comes out of
+  // the plan's video minutes. Stream itself stops an upload longer than what's left.
+  let maxDurationSeconds = MAX_UPLOAD_DURATION_SECONDS
+  if (account.kind === 'platform') {
+    const check = await checkPlanLimit(useDb(event), siteId, 'video', 1)
+    if (!check.allowed) {
+      throw forbidden(planLimitMessage('video', check.max ?? 0), { code: 'plan_limit', limit: 'video', used: check.used, max: check.max })
     }
-
-    interface CloudflareDirectUploadResponse {
-      success: boolean
-      errors?: Array<{ code: number; message: string }>
-      result: { uploadURL: string; uid: string }
-    }
-
-    const data = (await response.json()) as CloudflareDirectUploadResponse
-
-    if (!data.success) {
-      const cfError = data.errors?.[0]
-      console.error('Cloudflare Stream direct_upload error:', JSON.stringify(data))
-
-      if (cfError?.code === 10011) {
-        throw createError({
-          statusCode: 402,
-          message: 'Your Cloudflare account has no Stream minutes allocated. Purchase a Stream minutes package in the Cloudflare dashboard (Stream → Buy minutes) to enable video uploads. The Workers Paid plan does not include Stream storage.',
-        })
-      }
-
-      throw createError({
-        statusCode: 502,
-        message: cfError?.message || 'Failed to request upload token from Cloudflare Stream.',
-      })
-    }
-
-    return { uploadUrl: data.result.uploadURL, uid: data.result.uid }
+    if (check.max !== null) maxDurationSeconds = Math.min(maxDurationSeconds, (check.max - check.used) * 60)
   }
-  catch (error: unknown) {
-    if (isHttpError(error)) throw error
-    console.error('Fetch error calling Cloudflare Stream API:', error)
-    throw createError({ statusCode: 500, message: 'Failed to communicate with Cloudflare Stream API.' })
-  }
+
+  const title = (body.title || 'Untitled Video').replace(/\.[^/.]+$/, '') || 'Untitled Video'
+  const { uploadUrl, uid } = await createStreamUpload(account, { size: body.size, name: title, maxDurationSeconds, creator: siteId })
+
+  const db = useDb(event)
+  const id = ulid()
+  const insert = db.insert(videoAssets).values({
+    id,
+    siteId,
+    uploadedBy: userId,
+    cloudflareStreamId: uid,
+    title,
+    status: 'uploading',
+    size: body.size,
+    streamAccount: account.kind,
+  })
+  const audit = buildAuditLogInsert(event, userId, {
+    action: 'create',
+    resource: 'video_assets',
+    resourceId: id,
+    after: { title, cloudflareStreamId: uid, streamAccount: account.kind },
+  })
+  await batchWithAudit(db, [insert], audit)
+
+  return { id, uid, uploadUrl }
 })

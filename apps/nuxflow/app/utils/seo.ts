@@ -114,6 +114,17 @@ export interface JsonLdPage {
   terms?: { isHierarchical: boolean; termName: string }[]
   content?: unknown
   isHome?: boolean
+  /** The page's public videos as the page API describes them (server/utils/video-seo.ts). */
+  videos?: JsonLdVideo[] | null
+}
+
+export interface JsonLdVideo {
+  name: string
+  description: string
+  thumbnailUrl: string
+  embedUrl: string
+  uploadDate: string
+  duration?: string
 }
 
 export interface JsonLdSite {
@@ -129,7 +140,8 @@ type Json = Record<string, unknown>
  * - `event` items → Event (dates, place or online location, organizer)
  * - `post` items → BlogPosting (with author/publisher/dates)
  * - everything else → WebPage
- * - plus FAQPage when the page has accordion Q&As, and a BreadcrumbList (Home › [Blog ›] page)
+ * - plus a VideoObject per public video, FAQPage when the page has accordion Q&As, and a
+ *   BreadcrumbList (Home › [Blog ›] page)
  */
 export function buildPageJsonLd(page: JsonLdPage, site: JsonLdSite): Json[] {
   const out: Json[] = []
@@ -195,6 +207,22 @@ export function buildPageJsonLd(page: JsonLdPage, site: JsonLdSite): Json[] {
       datePublished,
       dateModified,
       isPartOf: site.base ? { '@type': 'WebSite', url: site.base, name: site.name } : undefined,
+    })
+  }
+
+  // One VideoObject per video, so Google can show the page in video results. Google needs
+  // name, description, thumbnail and upload date — the page API only lists videos that have them.
+  for (const v of page.videos ?? []) {
+    out.push({
+      '@context': 'https://schema.org',
+      '@type': 'VideoObject',
+      name: v.name,
+      description: v.description,
+      thumbnailUrl: [v.thumbnailUrl],
+      uploadDate: v.uploadDate,
+      duration: v.duration,
+      embedUrl: v.embedUrl,
+      publisher,
     })
   }
 

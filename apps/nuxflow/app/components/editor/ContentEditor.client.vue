@@ -5,6 +5,8 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Image from '@tiptap/extension-image'
 import Highlight from '@tiptap/extension-highlight'
 import { TableKit } from '@tiptap/extension-table'
+import { parseVideoUrl } from '@nuxflow/canvas/video'
+import { VideoNode } from '~/utils/tiptap-video'
 
 const props = defineProps<{ modelValue: unknown }>()
 const emit = defineEmits<{ 'update:modelValue': [value: unknown] }>()
@@ -46,6 +48,7 @@ const editor = useEditor({
     }),
     Placeholder.configure({ placeholder: 'Start writing your content here…' }),
     Highlight,
+    VideoNode,
     TableKit.configure({
       table: {
         resizable: true,
@@ -104,6 +107,34 @@ function onMediaSelect(file: { url: string; altText?: string }) {
   isMediaModalOpen.value = false
 }
 
+// ── Video ─────────────────────────────────────────────────────────────────────
+// A YouTube, Vimeo or Cloudflare Stream link (Media → Videos → Copy URL), inserted as a
+// `video` node (utils/tiptap-video.ts).
+
+const showVideoPanel = ref(false)
+const videoUrlDraft = ref('')
+const videoCaptionDraft = ref('')
+const videoUrlError = ref('')
+
+function openVideoPanel() {
+  videoUrlDraft.value = ''
+  videoCaptionDraft.value = ''
+  videoUrlError.value = ''
+  showVideoPanel.value = true
+}
+
+function insertVideo() {
+  const url = videoUrlDraft.value.trim()
+  if (!parseVideoUrl(url)) {
+    videoUrlError.value = 'Paste a YouTube, Vimeo or Cloudflare Stream link.'
+    return
+  }
+  // Shorts are vertical.
+  const aspectRatio = /youtube\.com\/shorts\//i.test(url) ? '9:16' : '16:9'
+  editor.value?.chain().focus().insertContent({ type: 'video', attrs: { url, caption: videoCaptionDraft.value.trim(), aspectRatio } }).run()
+  showVideoPanel.value = false
+}
+
 // ── AI modals ─────────────────────────────────────────────────────────────────
 
 const showGenerateModal = ref(false)
@@ -113,6 +144,7 @@ const showGrammarPanel = ref(false)
 
 const { tools } = useTipTapToolbar(editor, {
   onInsertImage: () => { isMediaModalOpen.value = true },
+  onInsertVideo: openVideoPanel,
   onSetLink: () => linkPanel.setLink(),
 })
 </script>
@@ -194,6 +226,36 @@ const { tools } = useTipTapToolbar(editor, {
       <p v-if="linkPanel.linkUrlError.value" class="text-xs text-red-500 mt-1.5">{{ linkPanel.linkUrlError.value }}</p>
     </div>
 
+    <!-- Video panel -->
+    <div
+      v-if="showVideoPanel"
+      class="border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30 px-4 py-3 space-y-2"
+    >
+      <div class="flex flex-wrap items-center gap-2">
+        <input
+          v-model="videoUrlDraft"
+          type="text"
+          placeholder="YouTube, Vimeo or Cloudflare Stream link"
+          aria-label="Video link"
+          class="flex-1 min-w-48 px-2 py-1.5 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          @keydown.enter.prevent="insertVideo()"
+          @keydown.escape.prevent="showVideoPanel = false"
+        >
+        <input
+          v-model="videoCaptionDraft"
+          type="text"
+          placeholder="Caption (optional)"
+          aria-label="Video caption"
+          class="flex-1 min-w-40 px-2 py-1.5 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          @keydown.enter.prevent="insertVideo()"
+          @keydown.escape.prevent="showVideoPanel = false"
+        >
+        <UButton size="xs" variant="ghost" @click="showVideoPanel = false">Cancel</UButton>
+        <UButton size="xs" color="primary" @click="insertVideo()">Insert video</UButton>
+      </div>
+      <p v-if="videoUrlError" class="text-xs text-red-500">{{ videoUrlError }}</p>
+    </div>
+
     <!-- Grammar panel -->
     <EditorGrammarPanel
       v-if="showGrammarPanel"
@@ -260,6 +322,12 @@ const { tools } = useTipTapToolbar(editor, {
 
 .nux-editor-prose > * + * { margin-top: 0.75rem; }
 .nux-editor-prose p { margin: 0; }
+.nux-editor-prose .nux-editor-video { margin: 1rem 0; }
+.nux-editor-prose .nux-editor-video-frame { position: relative; width: 100%; max-height: 480px; border-radius: 8px; overflow: hidden; background: #000; }
+.nux-editor-prose .nux-editor-video-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
+.nux-editor-prose .nux-editor-video-placeholder { display: flex; align-items: center; justify-content: center; color: #9ca3af; font-size: 0.875rem; }
+.nux-editor-prose .nux-editor-video figcaption { margin-top: 0.5rem; text-align: center; font-size: 0.875rem; color: #6b7280; }
+.nux-editor-prose .nux-editor-video.ProseMirror-selectednode .nux-editor-video-frame { outline: 2px solid var(--nuxflow-primary, #00dc82); }
 .nux-editor-prose h1 { font-size: 2rem; font-weight: 700; line-height: 1.2; }
 .nux-editor-prose h2 { font-size: 1.5rem; font-weight: 700; line-height: 1.3; }
 .nux-editor-prose h3 { font-size: 1.25rem; font-weight: 600; line-height: 1.4; }

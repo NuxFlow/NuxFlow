@@ -66,6 +66,20 @@ export const videoAssets = sqliteTable('video_assets', {
   thumbnailUrl: text('thumbnail_url'),
   status: text('status', { enum: ['ready', 'processing', 'failed', 'uploading'] }).notNull().default('uploading'),
   size: integer('size'),
+  /** Plays only with a signed link (Stream's requireSignedURLs) — see apps/nuxflow/server/utils/stream.ts. */
+  isPrivate: integer('is_private', { mode: 'boolean' }).notNull().default(false),
+  /**
+   * Whose Cloudflare Stream account holds the video: the site's own (its settings, or the
+   * deployment's env vars on an ordinary install) or, for a hosted customer without one,
+   * the platform operator's — counted against the plan's video minutes.
+   */
+  streamAccount: text('stream_account', { enum: ['site', 'platform'] }).notNull().default('site'),
+  /**
+   * Stopped by the plan's "video minutes watched a month" (stream.ts): Stream requires
+   * signed links for it, and none are given out until the allowance resets or grows. Stream
+   * requires signed links whenever `is_private || watch_paused`.
+   */
+  watchPaused: integer('watch_paused', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_video_assets_site').on(t.siteId),

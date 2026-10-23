@@ -268,6 +268,8 @@ Good to know:
 | **Emails a month** | Hard | Ordinary emails (form notifications, notices, inbox replies) are held back until the 1st. **Sign-in, password, invitation and security emails always go out.** |
 | **Emails received a month** | Hard | Mail to the site's own addresses (inbox and post-by-email) is no longer kept until the 1st. Mail set to forward still forwards. The site's admins are told once that month. |
 | **Own domains** | Hard | Connecting another of the customer's own domains is refused. 0 means not included. |
+| **Video minutes stored** | Hard | Uploading to your Cloudflare Stream account is refused once the site's videos add up to this many minutes, and an upload longer than what's left is stopped by Stream itself. 0 (the default, also for plans made before this existed) means no video uploads; YouTube and Vimeo links always work. Customers who add their own Stream account in Settings → Media aren't counted. Stream bills you $5 a month per 1,000 minutes stored, plus $1 per 1,000 minutes watched (limited by the row above). |
+| **Video minutes watched a month** | Hard | Minutes of the site's videos in your Stream account that visitors watch, counted hourly from Stream's analytics. **Needs the analytics API token** (Account Analytics Read) on Super Admin → Platform → Visitor analytics; without it nothing is counted, so nothing is enforced. At the limit the site's uploaded videos pause until the 1st (Stream is told to require signed links, and none are given out), its admins are told, and you get the usual 80% and 100% notices. Raising the plan plays them again within the hour. 0 (the default) means none, so set it whenever you set **Video minutes stored**. Analytics arrive a few minutes late, so a site can go slightly over before it's paused. |
 | **Page views a month** | Soft | Nothing is blocked. |
 | **Server renders a month** | Soft | Nothing is blocked. |
 | **Plugin requests a month** | Soft | Nothing is blocked. Each plugin request or event runs the plugin on your Cloudflare account. (Each visitor is also limited to 120 requests a minute per plugin.) |
@@ -302,7 +304,7 @@ A customer site's AI runs in one of two ways:
 **Your own keys stay yours.** While hosting is on, these env vars in `wrangler.toml` are used only by your main site, and customer sites never fall back to them:
 
 - AI keys, the AI provider choice and the AI Gateway settings.
-- Cloudflare Stream and Cloudflare Images (account ID and tokens). Both are billed per video minute or per image to your account, with no plan limit of their own. A customer site's images go to the shared R2 bucket instead, which the plan's storage limit counts. Video needs the customer's own Stream details in Settings → Media.
+- Cloudflare Stream and Cloudflare Images (account ID and tokens). A customer site's images go to the shared R2 bucket instead, which the plan's storage limit counts. A customer site without its own Stream details uploads video into your Stream account, counted against the plan's **Video minutes stored**; the customer never sees your token. Pools receive the Stream token with the other platform settings (Super Admin → Pools → Send platform settings, or automatically when you save it).
 
 **No Ollama for customer sites.** Ollama is hidden from customer sites' Settings → AI and refused if set some other way. A Worker can't reach anyone's own computer, and allowing it would let a customer make your Worker send requests to any address they type in. Your main site can still use it.
 

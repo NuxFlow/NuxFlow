@@ -2,7 +2,7 @@
 import { setResponseStatus } from 'h3'
 import Paywall from '~/components/memberships/Paywall.vue'
 import { NuxImage } from '@nuxflow/canvas'
-import type { PublicSiteInfo } from '~/utils/seo'
+import type { JsonLdVideo, PublicSiteInfo } from '~/utils/seo'
 
 /**
  * A published content item rendered at `slugPath` (e.g. `about`, `es/about`, `es`).
@@ -50,6 +50,7 @@ interface PublicPage {
   availableLocales?: Array<{ locale: string; slug: string; rawSlug?: string }> | null
   alternates?: Array<{ locale: string; path: string }> | null
   terms?: PublicTerm[] | null
+  videos?: JsonLdVideo[] | null
 }
 
 interface PublicTerm {
@@ -211,6 +212,7 @@ useHead({
       terms: page.value.terms ?? [],
       content: page.value.content,
       isHome: isHome.value,
+      videos: page.value.videos,
     }, {
       name: siteName.value,
       base: canonicalBase.value,

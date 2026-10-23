@@ -1,16 +1,18 @@
 /**
- * Owns the Cloudflare Stream upload flow used by media/videos.vue: get a direct-upload
- * URL, stream the file via XHR (for progress events, via useVideoUploadXhr), then
- * register the resulting video in NuxFlow. Extracted from videos.vue so the upload
- * state machine (progress/status/quota-error) is independently testable and separate
- * from the page's grid/modal orchestration.
+ * Owns the Cloudflare Stream upload flow used by media/videos.vue: ask the backend to start
+ * a resumable upload (which also adds the video to the library as 'uploading'), send the
+ * file to Stream in chunks (useVideoUploadXhr), then tell NuxFlow it's finished so the
+ * caller's poller can follow processing. Extracted from videos.vue so the upload state
+ * machine (progress/status/quota-error) is independently testable and separate from the
+ * page's grid/modal orchestration.
  *
- * Not built on useAdminAction(): a 402 (no Stream minutes) is shown inline as
- * `streamError` instead of a toast, and progress/status need their own state.
+ * Not built on useAdminAction(): a 402 (no Stream minutes) or 403 (the plan's video
+ * minutes) is shown inline as `streamError` instead of a toast, and progress/status need
+ * their own state.
  */
 export function useVideoUpload(onUploaded?: () => Promise<void> | void) {
   const toast = useToast()
-  const { uploadFileViaXhr } = useVideoUploadXhr()
+  const { uploadFileViaTus } = useVideoUploadXhr()
 
   const uploading = ref(false)
   const progress = ref(0)
@@ -24,28 +26,26 @@ export function useVideoUpload(onUploaded?: () => Promise<void> | void) {
     streamError.value = null
 
     try {
-      // 1. Get a pre-authorised upload.cloudflarestream.com URL from the backend.
-      //    TUS cannot be used from the browser: the authenticated CF TUS endpoint has no
-      //    CORS headers, and the direct_upload URL doesn't implement TUS properly.
-      //    A plain XHR POST to the direct_upload URL is the correct approach.
-      const { uploadUrl, uid } = await $fetch<{ uploadUrl: string; uid: string }>('/api/v1/media/video/token', {
+      // 1. The backend starts a resumable upload in the site's Stream account and returns
+      //    the address to send the file to. The browser never sees the Stream token.
+      const { uploadUrl, uid } = await $fetch<{ id: string; uid: string; uploadUrl: string }>('/api/v1/media/video/token', {
         method: 'POST',
-        body: { title: file.name },
+        body: { title: file.name, size: file.size },
       })
 
       statusText.value = 'Uploading to Cloudflare Stream...'
 
-      // 2. Upload via XHR so we get upload progress events.
-      await uploadFileViaXhr(uploadUrl, file, (p) => {
+      // 2. Send it in chunks; a dropped connection picks up where it stopped.
+      await uploadFileViaTus(uploadUrl, file, (p) => {
         progress.value = p.percent
         statusText.value = `Uploading: ${p.percent}% (${formatBytes(p.loaded)} of ${formatBytes(p.total)})`
       })
 
-      // 3. Register the video in NuxFlow and let the caller's poller sync processing status.
+      // 3. Tell NuxFlow it's finished and let the caller's poller sync processing status.
       statusText.value = 'Registering video with library...'
-      await $fetch('/api/v1/media/video', {
+      await $fetch<unknown>('/api/v1/media/video', {
         method: 'POST',
-        body: { uid, title: file.name.replace(/\.[^/.]+$/, ''), size: file.size },
+        body: { uid, size: file.size },
       })
       toast.add({ title: 'Video uploaded!', color: 'success', description: 'Cloudflare Stream is now processing the file.' })
       await onUploaded?.()
@@ -54,7 +54,7 @@ export function useVideoUpload(onUploaded?: () => Promise<void> | void) {
       console.error('Video upload failed:', err)
       const status = (err as { status?: number })?.status
       const errorMsg = getErrorMessage(err, 'Verify your Cloudflare Stream settings.')
-      if (status === 402) {
+      if (status === 402 || status === 403) {
         streamError.value = errorMsg
       }
       else {

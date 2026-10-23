@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Video playback modal, extracted from media/videos.vue. Purely presentational — no
 // state or API calls of its own, just an iframe embed of the Cloudflare Stream player.
+// `playbackUrl` comes from the API, signed for a private video (utils/stream.ts).
 interface VideoAsset {
   id: string
   title: string
@@ -10,6 +11,8 @@ interface VideoAsset {
   status: 'uploading' | 'processing' | 'ready' | 'failed'
   size: number | null
   createdAt: string
+  isPrivate: boolean
+  playbackUrl: string
 }
 
 const open = defineModel<boolean>('open', { required: true })
@@ -24,7 +27,7 @@ defineProps<{
     <template #body>
       <div v-if="video" class="aspect-video bg-black rounded-lg overflow-hidden shadow-inner">
         <iframe
-          :src="`https://iframe.videodelivery.net/${video.cloudflareStreamId}?controls=true&letterbox=false`"
+          :src="video.playbackUrl"
           class="w-full h-full border-0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowfullscreen

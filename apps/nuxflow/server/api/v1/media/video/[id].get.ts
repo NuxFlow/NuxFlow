@@ -1,10 +1,10 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { resolveStringSetting } from '../../../../utils/settings'
 import { getVideoAssetByIdOrThrow } from '../../../../utils/resource-queries'
 import { videoAssets } from '@nuxflow/db/schema'
 import { scopedById } from '../../../../utils/db-helpers'
 import { requireSiteId } from '../../../../utils/site-context'
+import { getStreamVideo, streamAccountFor, withAdminPlayback } from '../../../../utils/stream'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'viewer')
@@ -12,68 +12,38 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   const db = useDb(event)
 
-  const asset = await getVideoAssetByIdOrThrow(db, siteId, id)
+  let asset = await getVideoAssetByIdOrThrow(db, siteId, id)
+  setHeader(event, 'Cache-Control', 'private, no-store')
 
   // If the video is still processing/uploading, sync status with Cloudflare Stream
   if (asset.status === 'processing' || asset.status === 'uploading') {
-    const accountId = await resolveStringSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
-    const streamToken = await resolveStringSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')
-
-    if (accountId && streamToken) {
+    const account = await streamAccountFor(event, asset.streamAccount)
+    if (account) {
       try {
-        const response = await fetch(
-          `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/${asset.cloudflareStreamId}`,
-          {
-            headers: { Authorization: `Bearer ${streamToken}` },
+        const res = await getStreamVideo(account, asset.cloudflareStreamId)
+        if (res) {
+          const cfState = res.status?.state
+          const duration = res.duration && res.duration > 0 ? Math.round(res.duration) : null
+          const thumbnailUrl = res.thumbnail || null
+          let newStatus: 'ready' | 'processing' | 'failed' | 'uploading' = asset.status
+
+          if (cfState === 'ready') {
+            newStatus = 'ready'
+          } else if (cfState === 'error') {
+            newStatus = 'failed'
           }
-        )
 
-        if (response.ok) {
-          interface CloudflareStreamDetailsResponse {
-            success: boolean
-            result?: {
-              duration?: number
-              thumbnail?: string
-              status?: {
-                state: string
-              }
-              meta?: {
-                name?: string
-              }
+          // If metadata has changed, write back to DB
+          if (newStatus !== asset.status || duration !== asset.duration || thumbnailUrl !== asset.thumbnailUrl) {
+            const update = {
+              status: newStatus,
+              duration: duration ?? asset.duration,
+              thumbnailUrl: thumbnailUrl ?? asset.thumbnailUrl,
             }
-          }
-          const data = (await response.json()) as CloudflareStreamDetailsResponse
-          if (data.success && data.result) {
-            const res = data.result
-            const cfState = res.status?.state
-            const duration = res.duration ? Math.round(res.duration) : null
-            const thumbnailUrl = res.thumbnail || null
-            let newStatus: 'ready' | 'processing' | 'failed' | 'uploading' = asset.status
-
-            if (cfState === 'ready') {
-              newStatus = 'ready'
-            } else if (cfState === 'error') {
-              newStatus = 'failed'
-            }
-
-            // If metadata has changed, write back to DB
-            if (newStatus !== asset.status || duration !== asset.duration || thumbnailUrl !== asset.thumbnailUrl) {
-              await db.update(videoAssets)
-                .set({
-                  status: newStatus,
-                  duration: duration ?? asset.duration,
-                  thumbnailUrl: thumbnailUrl ?? asset.thumbnailUrl,
-                })
-                .where(scopedById(videoAssets.id, id, videoAssets.siteId, siteId))
-
-              // Return updated object
-              return {
-                ...asset,
-                status: newStatus,
-                duration: duration ?? asset.duration,
-                thumbnailUrl: thumbnailUrl ?? asset.thumbnailUrl,
-              }
-            }
+            await db.update(videoAssets)
+              .set(update)
+              .where(scopedById(videoAssets.id, id, videoAssets.siteId, siteId))
+            asset = { ...asset, ...update }
           }
         }
       } catch (err) {
@@ -82,5 +52,5 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  return asset
+  return withAdminPlayback(event, siteId, asset)
 })

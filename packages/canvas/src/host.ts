@@ -54,6 +54,13 @@ export interface CanvasHost {
   generatePage(request: CanvasPageRequest): Promise<CanvasContent>
   /** Focal point of a media-library image, as percentages (0–100) from the top left. */
   suggestFocalPoint(url: string): Promise<{ focalX: number; focalY: number }>
+  /**
+   * The player URL for a Cloudflare Stream video that may be private (playable only with
+   * a signed link): a signed player URL, or null when the video is public and its plain
+   * URL works. `blockId`/`path` name the Video block on the public page being viewed
+   * (empty inside the editor, where the signed-in team member is the authorization).
+   */
+  videoPlaybackUrl?(request: { streamId: string; blockId: string; path: string }): Promise<string | null>
   /** Media library picker dialog — emits `select(PickedMedia)` / `selectMany(PickedMedia[])`. */
   mediaPicker?: Component
   /** Dictation button — emits `transcribed(text)`. */

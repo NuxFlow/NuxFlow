@@ -26,7 +26,7 @@ export interface ToolGroup {
  */
 export function useTipTapToolbar(
   editor: Ref<Editor | undefined>,
-  opts: { onInsertImage: () => void; onSetLink: () => void },
+  opts: { onInsertImage: () => void; onInsertVideo: () => void; onSetLink: () => void },
 ) {
   const tools = computed((): ToolGroup[] => {
     const e = editor.value
@@ -96,6 +96,7 @@ export function useTipTapToolbar(
         group: 'inserts',
         items: [
           { icon: 'i-lucide-image', label: 'Insert Image', action: () => opts.onInsertImage() },
+          { icon: 'i-lucide-play-circle', label: 'Insert Video', action: () => opts.onInsertVideo() },
         ],
       },
     ]

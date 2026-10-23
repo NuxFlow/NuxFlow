@@ -52,13 +52,15 @@ export function requireControlPlane(_event: H3Event): void {
  * keeps the copy its control plane sends in `platform_settings`. Anything platform-wide
  * that pool sites must read goes through getPlatformSetting() and is listed here.
  */
-export type PlatformSettingKey = 'platform.ai_daily_credit_cap' | 'analytics.cf_api_token' | 'cloudflare.account_id'
+export type PlatformSettingKey = 'platform.ai_daily_credit_cap' | 'analytics.cf_api_token' | 'cloudflare.account_id' | 'cloudflare.stream_token'
 
 export const POOL_PLATFORM_SETTINGS: Record<PlatformSettingKey, { sensitive: boolean; envKey?: string }> = {
   'platform.ai_daily_credit_cap': { sensitive: false },
   'analytics.cf_api_token': { sensitive: true },
   // The deployment's NUXT_CLOUDFLARE_ACCOUNT_ID when none is saved, as resolveSetting() does.
   'cloudflare.account_id': { sensitive: false, envKey: 'cloudflareAccountId' },
+  // Hosted customers without a Stream account of their own upload into the operator's (stream.ts).
+  'cloudflare.stream_token': { sensitive: true, envKey: 'cloudflareStreamToken' },
 }
 
 function isPlatformSettingKey(key: string): key is PlatformSettingKey {

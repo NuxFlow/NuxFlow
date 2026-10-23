@@ -32,7 +32,7 @@ If you are new to NuxFlow, start with these guides:
 - **Payments & Memberships**: Subscription tiers and content gating via Stripe, Lemon Squeezy, or Paddle.
 - **Hot-Loading Plugins**: Install and activate dynamic plugins at runtime without redeploying — they run as isolated Cloudflare Workers spawned on demand.
 - **Photography Ready**: Responsive image Gallery block with full-screen lightbox, EXIF metadata display, live focal-point crop preview, and a dedicated Google Image Sitemap at `/sitemap-images.xml`.
-- **Video & Vlogging Ready**: Canvas Video block embeds YouTube, Vimeo, and Cloudflare Stream. Self-hosted Stream videos are ad-free, brandable, and can be gated behind membership tiers.
+- **Video & Vlogging Ready**: Canvas Video block embeds YouTube (including Shorts), Vimeo (including unlisted videos), and Cloudflare Stream. Resumable uploads of films up to 30 GB, private videos on password and members-only pages, cookie-free players, and a Google Video Sitemap at `/sitemap-video.xml`.
 - **Multi-Site**: Manage multiple sites from a single installation.
 - **Privacy-Friendly Analytics**: Page views, top pages, referrers, countries and devices for every site, on Cloudflare Analytics Engine — no cookies, no consent banner, no third-party script.
 - **SEO & GEO Built In**: Sitemaps, structured data, hreflang, redirects (with automatic redirects when a page is renamed), IndexNow, an SEO audit, and AI-crawler controls, plus `llms.txt` and Markdown versions of every page for AI assistants.

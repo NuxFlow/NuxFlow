@@ -16,7 +16,8 @@ import { generateIndexNowKey } from '../../../utils/indexnow'
 import { isPrimarySite } from '../../../utils/site-info'
 import { planIncludes } from '../../../utils/hosting-plans'
 import { requireSiteId } from '../../../utils/site-context'
-import { requireControlPlane } from '../../../utils/control-plane'
+import { isMemberPool, POOL_PLATFORM_SETTINGS, requireControlPlane } from '../../../utils/control-plane'
+import { pushSettingsToPools } from '../../../utils/pools'
 
 const bodySchema = z.object({
   // Site columns
@@ -262,6 +263,12 @@ export default defineEventHandler(async (event) => {
     waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
       console.error('[settings] Failed to purge page cache after settings change:', err)
     }))
+  }
+
+  // The primary site's Cloudflare account and Stream token are also the platform's (hosted
+  // customers' video goes there — stream.ts), so member pools need the new values.
+  if (!isMemberPool() && settingEntries.some(([k]) => Object.hasOwn(POOL_PLATFORM_SETTINGS, k)) && await isPrimarySite(event, siteId)) {
+    waitUntil(event, pushSettingsToPools(event).then(() => {}, err => console.error('[settings] Sending platform settings to pools failed:', err)))
   }
 
   return { success: true }

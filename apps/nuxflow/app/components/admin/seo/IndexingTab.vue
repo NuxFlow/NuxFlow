@@ -110,6 +110,7 @@ async function submitAll() {
         <div class="flex flex-wrap gap-2">
           <UButton size="xs" variant="ghost" to="/sitemap.xml" target="_blank" external icon="i-lucide-external-link">sitemap.xml</UButton>
           <UButton size="xs" variant="ghost" to="/sitemap-images.xml" target="_blank" external icon="i-lucide-external-link">sitemap-images.xml</UButton>
+          <UButton size="xs" variant="ghost" to="/sitemap-video.xml" target="_blank" external icon="i-lucide-external-link">sitemap-video.xml</UButton>
         </div>
         <UButton :loading="saving" @click="save">Save changes</UButton>
       </div>

@@ -12,7 +12,9 @@ Both approaches use the same Canvas Video block on your pages. The difference is
 
 **Use Cloudflare Stream when** you want to own the experience end-to-end. Videos hosted on Stream play in a clean, branded iframe with no ads, no platform branding, and no "recommended videos" sidebar. Because the video lives inside your NuxFlow media library, you can gate it behind a membership tier — for example, making a full-length tutorial available to paying subscribers while keeping a short preview public on YouTube. Stream also delivers video over Cloudflare's global network, so playback is fast regardless of where your visitors are.
 
-Cloudflare Stream requires the Cloudflare Workers Paid plan ($5/month) plus Stream storage, which is billed separately based on minutes stored and viewed. If you do not configure Stream credentials, the YouTube and Vimeo embed options still work without any additional setup.
+Cloudflare Stream is billed separately from the Workers Paid plan: $5 a month per 1,000 minutes of video stored, plus $1 per 1,000 minutes watched. If you do not configure Stream credentials, the YouTube and Vimeo embed options still work without any additional setup.
+
+**On a hosted NuxFlow site** (a hosting platform such as nuxflow.cloud) you don't need a Cloudflare account: if your plan includes video, Media → Videos uploads into the platform's Stream account, and the page shows how many minutes your plan has left. Your plan also sets how many minutes of your uploaded videos visitors can watch each month. When that runs out, uploaded videos pause until the 1st (YouTube and Vimeo videos keep playing), and your site's admins get a notice. You can still add your own Stream account in Settings → Media; videos in your own account are never counted against your plan.
 
 ---
 
@@ -40,15 +42,15 @@ Go to **Admin → Media → Videos** to manage your video library. The page show
 ### Uploading a video
 
 1. Click the **Upload Video** button in the top-right corner.
-2. Select any video file from your computer. NuxFlow uploads it directly from your browser to Cloudflare Stream — no file size limits imposed by the CMS.
-3. A progress bar shows the upload percentage in real time.
-4. After the upload completes, NuxFlow registers the video in your media library with a `Processing` status while Cloudflare transcodes it into an adaptive bitrate stream. The page polls automatically every few seconds and updates the status once it is ready.
+2. Select any video file from your computer, up to 30 GB (Cloudflare Stream's own limit). NuxFlow uploads it directly from your browser to Cloudflare Stream in 50 MB pieces, so a finished film of several gigabytes is fine.
+3. A progress bar shows the upload percentage in real time. If your connection drops, the upload waits and carries on from where it stopped rather than starting again. Keep the tab open until it finishes.
+4. The video appears in your library as soon as the upload starts. When the upload completes it moves to `Processing` while Cloudflare transcodes it into an adaptive bitrate stream. The page polls automatically every few seconds and updates the status once it is ready.
 
 ### Processing status
 
 | Status | Meaning |
 |---|---|
-| **Uploading** | The file transfer is in progress. |
+| **Uploading** | The file transfer is in progress. An upload that never finished (the tab was closed) is marked Failed after a day. |
 | **Processing** | Cloudflare Stream is transcoding the video. This typically takes 1–5 minutes depending on file size. |
 | **Ready** | The video is live and can be embedded. |
 | **Failed** | Transcoding failed. Delete the entry and try uploading again. |
@@ -70,7 +72,18 @@ The copied URL has the format `https://iframe.videodelivery.net/{streamId}`. The
 
 ### Renaming and deleting videos
 
-The **Manage** panel also lets you update the video title and permanently delete the video. Deleting a video removes it from both the NuxFlow database and Cloudflare Stream — this action cannot be undone.
+The **Manage** panel also lets you update the video title and permanently delete the video. Deleting a video removes it from both the NuxFlow database and Cloudflare Stream — this action cannot be undone. Deleting a whole site deletes its videos from Stream too.
+
+### Private videos
+
+A **private** video plays only on your own site's pages, for visitors who are allowed to see the page it's on. If someone copies the video's address and sends it to a friend, it won't play for them. This is what you want for client films and paid content.
+
+- **Automatic:** when you save a password-protected or members-only page, every Stream video on it from your library becomes private.
+- **By hand:** switch **Private video** on or off in a video's **Manage** panel. A private video shows a lock badge in the library.
+
+Behind the scenes, Cloudflare Stream is told to require a signed link for the video. NuxFlow creates a fresh link, valid for 12 hours, each time an allowed visitor opens the page. Search engines are never told about private videos.
+
+Private videos only work with Cloudflare Stream. A YouTube or Vimeo video on a password page can still be watched by anyone who has its YouTube or Vimeo address. Use the platform's own privacy settings for those, such as Vimeo's "Hide from Vimeo" and domain-level embed restrictions.
 
 ---
 
@@ -92,10 +105,18 @@ The Canvas Video block embeds a video player on any Canvas page. It accepts URLs
 |---|---|
 | **YouTube** | `https://www.youtube.com/watch?v=XXXXXXXXXXX` |
 | | `https://youtu.be/XXXXXXXXXXX` |
+| | Shorts: `https://www.youtube.com/shorts/XXXXXXXXXXX` |
+| | Live: `https://www.youtube.com/live/XXXXXXXXXXX` |
+| | Embed links: `https://www.youtube.com/embed/XXXXXXXXXXX` |
 | **Vimeo** | `https://vimeo.com/123456789` |
+| | Unlisted: `https://vimeo.com/123456789/abcdef1234` (keep the last part, or the video won't play) |
+| | Player links: `https://player.vimeo.com/video/123456789?h=abcdef1234` |
 | **Cloudflare Stream** | `https://iframe.videodelivery.net/{32-char-id}` |
 | | `https://watch.cloudflarestream.com/{32-char-id}` |
+| | `https://customer-{code}.cloudflarestream.com/{32-char-id}/…` |
 | | The bare 32-character Stream ID on its own |
+
+For a Short or a Reel, set the **Aspect ratio** to 9:16.
 
 Paste the URL from your browser's address bar or from the **Copy URL** button in the Videos admin panel. The block shows a placeholder until a valid URL is entered.
 
@@ -108,7 +129,46 @@ Paste the URL from your browser's address bar or from the **Copy URL** button in
 | **Caption** | Optional text displayed below the player. |
 | **Autoplay** | Starts the video automatically when the page loads. Most browsers require videos to be muted for autoplay to work. |
 | **Muted** | Mutes the video. This option is only shown when Autoplay is enabled. |
+| **Video title (for search engines)** | Not shown on the page. The title Google shows in video results. Defaults to the caption, then the video's own title, then the page title. |
+| **Video description (for search engines)** | Not shown on the page. Defaults to the page's description. |
 | **Padding** | Controls the space around the block within the page layout. |
+
+## Video in Blog Posts
+
+Posts written in the ordinary editor can hold video too:
+
+1. Click the **Insert Video** button (the play icon) in the editor toolbar.
+2. Paste a YouTube, Vimeo or Cloudflare Stream link, and optionally a caption.
+3. Click **Insert video**.
+
+A YouTube Short is inserted in portrait shape automatically. In the editor, YouTube and Vimeo videos show their player. A Cloudflare Stream video shows a placeholder box and plays on the published page. Private videos work in posts exactly as on Canvas pages.
+
+## Video Gallery Block
+
+The **Video gallery** block (in the **Media** category) shows a grid of video thumbnails. Clicking one plays it in a full-screen player, with arrows (or the ← and → keys) to move between videos. Use it for a showreel page, a wedding-films portfolio or a list of your latest YouTube uploads.
+
+In the **Videos** box, put one link per line. Add a title after a `|`:
+
+```
+https://youtu.be/dQw4w9WgXcQ | Our showreel
+https://vimeo.com/123456789/abcdef1234 | Smith wedding
+https://iframe.videodelivery.net/{32-char-id} | Behind the scenes
+```
+
+Settings: **Columns** (1–4), **Thumbnail shape** (16:9, 9:16 for Shorts and Reels, square or 4:3), **Gap**, **Show titles** and **Rounded corners**. Thumbnails come from YouTube, Vimeo and Cloudflare Stream automatically. A private Stream video shows a plain tile, because its thumbnail needs a signed link too.
+
+## Background Video in the Hero Block
+
+The **Hero** block can play a video behind its headline, the usual look for a videographer's homepage. Paste a link into **Background video**. It plays muted, on a loop, with no controls, and is cropped to fill the hero whatever the screen shape. **Darken the video** (0–90%) keeps the headline readable; 40% is a good start.
+
+- Use a short clip (10–30 seconds) without important detail at the edges, since the sides or top may be cropped.
+- Use a **public** video: a private Stream video won't play as a background.
+- The hero's background colour or gradient shows while the video loads, and for visitors whose device asks for reduced motion, who don't see the video.
+- Watching a background video counts towards your plan's minutes watched on a hosted site, like any other Stream video. A YouTube or Vimeo background doesn't.
+
+### Cookies and privacy
+
+YouTube videos play through YouTube's privacy-enhanced (`youtube-nocookie.com`) player and Vimeo videos with Vimeo's "do not track" setting. Neither sets tracking cookies just because the page loaded. Cloudflare Stream sets no tracking cookies.
 
 > Autoplay with sound is blocked by most browsers by default. If you enable Autoplay, also enable Muted to ensure the video actually plays automatically across all browsers.
 
@@ -125,7 +185,20 @@ Because video content lives on Canvas pages, you can restrict any video page to 
 
 Visitors who do not have the required membership see a paywall with the available plans. Visitors who are subscribed at the correct tier see the full page and can watch the video.
 
+Saving the page makes its Stream videos private (see **Private videos** above), so the video itself is protected, not just the page. A subscriber can't pass the video's address to someone who hasn't paid. Password-protected pages (client galleries) work the same way.
+
 This makes Cloudflare Stream the natural choice for premium video content — you control both the hosting and the access, without relying on any platform's own membership or paywall features.
+
+---
+
+## Getting Videos Found in Search
+
+NuxFlow tells search engines about the videos on your public pages, so they can appear in Google's video results:
+
+- **On each page**, a `VideoObject` description of every video: its title, description, thumbnail, upload date and length.
+- **A video sitemap** at `/sitemap-video.xml`, listing each page with the videos on it. It is listed in your `robots.txt` automatically. To tell Google straight away, open [Google Search Console](https://search.google.com/search-console), choose your site, go to **Sitemaps**, enter `sitemap-video.xml` and click **Submit**.
+
+YouTube, Vimeo and Cloudflare Stream videos are all included. Thumbnails come from the video itself: YouTube and Stream provide one, and NuxFlow asks Vimeo for one. Give each video a title and description in the block's settings for the best results. Private videos and videos on password-protected, members-only or noindex pages are never listed.
 
 ---
 
@@ -137,7 +210,7 @@ Use Cloudflare Stream for premium, gated, or brand-sensitive content. Use YouTub
 
 ### 2. Upload to Cloudflare Stream (if self-hosting)
 
-Go to **Admin → Media → Videos**, click **Upload Video**, and wait for processing to complete. Give each video a clear title — this is for your own reference in the dashboard.
+Go to **Admin → Media → Videos**, click **Upload Video**, and wait for processing to complete. Give each video a clear title. Search engines use it when the block doesn't set a title of its own.
 
 ### 3. Build your video pages with the Canvas editor
 

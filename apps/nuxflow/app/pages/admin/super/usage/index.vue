@@ -2,7 +2,7 @@
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Usage' })
 
-type MetricKey = 'views' | 'renders' | 'api' | 'ai_calls' | 'ai_credits' | 'ai_visitor_credits' | 'emails' | 'inbound_emails' | 'plugin_calls'
+type MetricKey = 'views' | 'renders' | 'api' | 'ai_calls' | 'ai_credits' | 'ai_visitor_credits' | 'emails' | 'inbound_emails' | 'plugin_calls' | 'video_minutes_viewed'
   | 'storage_bytes' | 'content_items' | 'team_members' | 'site_members' | 'plugins' | 'database_bytes'
 
 interface SiteUsage {
@@ -40,6 +40,7 @@ const METRICS: { key: MetricKey; label: string; hint: string; bytes?: boolean }[
   { key: 'emails', label: 'Emails', hint: 'Recipients a provider accepted' },
   { key: 'inbound_emails', label: 'Received', hint: 'Emails received at the site’s own addresses' },
   { key: 'plugin_calls', label: 'Plugin calls', hint: 'Requests and events handled by plugins (each runs a Dynamic Worker)' },
+  { key: 'video_minutes_viewed', label: 'Video watched', hint: 'Minutes of video in your Cloudflare Stream account watched (hourly, from Stream’s analytics)' },
   { key: 'storage_bytes', label: 'Storage', hint: 'Media library plus email kept in R2 (nightly)', bytes: true },
   { key: 'content_items', label: 'Pages', hint: 'Pages, posts and other content (nightly)' },
   { key: 'team_members', label: 'Team', hint: 'Viewer role and above, not counting super admins (nightly)' },
@@ -47,7 +48,7 @@ const METRICS: { key: MetricKey; label: string; hint: string; bytes?: boolean }[
   { key: 'plugins', label: 'Plugins', hint: 'Installed plugins (nightly)' },
   { key: 'database_bytes', label: 'Database', hint: 'Approximate share of the shared D1 database (nightly)', bytes: true },
 ]
-const EVENT_METRICS = METRICS.slice(0, 9)
+const EVENT_METRICS = METRICS.slice(0, 10)
 
 const month = ref(new Date().toISOString().slice(0, 7))
 const { data, pending, error, refresh } = await useFetch<UsageResponse>('/api/v1/admin/usage', { query: { month } })

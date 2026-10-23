@@ -37,6 +37,10 @@ export default defineNuxtPlugin((nuxtApp) => {
     suggestFocalPoint(url) {
       return call(() => $fetch<{ focalX: number; focalY: number }>('/api/v1/ai/suggest-focal-point', { method: 'POST', body: { url } }), 'Could not suggest a focal point')
     },
+    async videoPlaybackUrl({ streamId, blockId, path }) {
+      const data = await call(() => $fetch<{ url: string | null }>('/api/public/video-playback', { query: { video: streamId, block: blockId || undefined, path } }), 'Could not load the video')
+      return data.url
+    },
     // Lazy, so visitors never download admin-only components.
     mediaPicker: defineAsyncComponent(() => import('~/components/editor/MediaPicker.vue')),
     voiceInput: defineAsyncComponent(() => import('~/components/ai/VoiceInput.vue')),

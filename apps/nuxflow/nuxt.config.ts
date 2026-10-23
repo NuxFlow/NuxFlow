@@ -79,8 +79,9 @@ export default defineNuxtConfig({
       // completed Cloudflare Stream upload) past a 2-hour TTL and mark them 'failed'; tell
       // the operator when a site reaches 80%/100% of a monthly hosting-plan limit; check
       // customers' own domains that aren't live yet; rebuild the router's site directory
-      // from the member pools (does nothing without pools).
-      '0 * * * *': ['reconcile-stuck-videos', 'plan-usage-alerts', 'custom-domain-check', 'pool-directory-sync'],
+      // from the member pools (does nothing without pools); count minutes watched of the
+      // platform's Stream video and pause sites over their plan (video-usage.ts).
+      '0 * * * *': ['reconcile-stuck-videos', 'plan-usage-alerts', 'custom-domain-check', 'pool-directory-sync', 'video-usage'],
     },
     serverAssets: [
       { baseName: 'migrations', dir: resolve(_dirname, '../../packages/db/migrations') },

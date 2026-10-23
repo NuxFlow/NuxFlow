@@ -240,9 +240,9 @@ describe('GET /api/v1/media/video/configured', () => {
   })
 
   it('is true only when both account id and stream token are set', async () => {
-    expect(await (videoConfiguredHandler as Handler)(ev(authorId))).toEqual({ configured: false })
+    expect(await (videoConfiguredHandler as Handler)(ev(authorId))).toMatchObject({ configured: false })
     const db = getCurrentTestDb()
     await seedSetting(db, SITE, 'cloudflare.account_id', 'acct123')
-    expect(await (videoConfiguredHandler as Handler)(ev(authorId))).toEqual({ configured: false })
+    expect(await (videoConfiguredHandler as Handler)(ev(authorId))).toMatchObject({ configured: false })
   })
 })
