@@ -11,7 +11,7 @@ export interface SessionUser {
 // view of it; useSignIn()/signOut() write to it directly so a client-side
 // navigateTo() afterward reflects the change immediately, without waiting for
 // (or relying on) a fresh SSR render re-running the middleware's fetch branch.
-function useSessionUserState() {
+export function useSessionUserState() {
   return useState<SessionUser | null | undefined>('auth:user', () => undefined)
 }
 

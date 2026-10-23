@@ -1,6 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { resolveSetting } from '../../../../utils/settings'
+import { resolveStringSetting } from '../../../../utils/settings'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
 import { getVideoAssetByIdOrThrow } from '../../../../utils/resource-queries'
 import { videoAssets } from '@nuxflow/db/schema'
@@ -16,8 +16,8 @@ export default defineEventHandler(async (event) => {
   const asset = await getVideoAssetByIdOrThrow(db, siteId, id)
 
   // Delete from Cloudflare Stream if configured
-  const accountId = await resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
-  const streamToken = await resolveSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')
+  const accountId = await resolveStringSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
+  const streamToken = await resolveStringSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')
 
   if (accountId && streamToken) {
     try {

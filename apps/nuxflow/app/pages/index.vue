@@ -37,7 +37,7 @@ const isCanvasPage = computed(() => {
 })
 
 // Language switcher (SiteHeader) — same shared state PublicContentPage fills.
-const activeLocalesState = useState<Array<{ locale: string; slug: string; rawSlug?: string }>>('active-locales', () => [])
+const activeLocalesState = useActiveLocales()
 watch(page, (val) => {
   activeLocalesState.value = val?.availableLocales || []
 }, { immediate: true })

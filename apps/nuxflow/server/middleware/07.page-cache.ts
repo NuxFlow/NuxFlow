@@ -1,4 +1,4 @@
-import type { EdgeCacheStorage } from '../utils/edge-cache'
+import { getEdgeCache } from '../utils/edge-cache'
 import { isPageCacheEligible, PAGE_BROWSER_CACHE_CONTROL, pageCacheRequest } from '../utils/page-cache'
 import { currentCacheVersion } from '../utils/cache-version'
 
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   const cf = event.context.cloudflare
   if (!cf?.request) return
 
-  const cache = (caches as unknown as EdgeCacheStorage).default
+  const cache = getEdgeCache()
 
   try {
     // Read once, here, and reused by the write side (plugins/page-cache.ts): a page that

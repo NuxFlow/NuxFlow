@@ -6,6 +6,7 @@ import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
 import { csvField } from '../../../utils/mailing-list'
 import { requireSiteId } from '../../../utils/site-context'
+import { utcDay } from '../../../utils/utc-day'
 
 const querySchema = z.object({
   status: z.enum(['pending', 'subscribed', 'unsubscribed']).optional(),
@@ -24,7 +25,7 @@ export default defineEventHandler(async (event) => {
   await writeAuditLog(event, userId, { action: 'export', resource: 'mailing_list', after: { status: status ?? 'all' } })
 
   setHeader(event, 'Content-Type', 'text/csv; charset=utf-8')
-  setHeader(event, 'Content-Disposition', `attachment; filename="mailing-list-${status ?? 'all'}-${new Date().toISOString().slice(0, 10)}.csv"`)
+  setHeader(event, 'Content-Disposition', `attachment; filename="mailing-list-${status ?? 'all'}-${utcDay()}.csv"`)
   setHeader(event, 'Cache-Control', 'no-store')
 
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>()

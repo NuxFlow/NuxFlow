@@ -4,7 +4,7 @@ import { isHostingPlatform } from '../../../../utils/hosting-platform'
 import { eventForSite, getPrimarySite } from '../../../../utils/site-info'
 import { accountsUrl, isCentralAuth } from '../../../../utils/accounts-origin'
 import { HOSTING_WEBHOOK_SECRET_KEY, hostingSitesDomain } from '../../../../utils/hosting-billing'
-import { resolveSetting } from '../../../../utils/settings'
+import { resolveStringSetting } from '../../../../utils/settings'
 import { customDomainTarget, SAAS_TOKEN_KEY, SAAS_ZONE_KEY } from '../../../../utils/hosting-domains'
 import { getAiDailyCap, platformAiCreditsToday } from '../../../../utils/ai-allowance'
 import { ANALYTICS_TOKEN_KEY } from '../../../../utils/analytics'
@@ -19,10 +19,10 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const [hostingEnabled, stripeKey, webhookSecret, cfZoneId, cfToken, target, aiDailyCap, aiCreditsToday, analyticsToken, accountId] = await Promise.all([
     isHostingPlatform(db),
-    primaryEvent ? resolveSetting(primaryEvent, 'payments.stripe_secret_key', 'stripeSecretKey') : '',
-    primaryEvent ? resolveSetting(primaryEvent, HOSTING_WEBHOOK_SECRET_KEY) : '',
-    primaryEvent ? resolveSetting(primaryEvent, SAAS_ZONE_KEY) : '',
-    primaryEvent ? resolveSetting(primaryEvent, SAAS_TOKEN_KEY) : '',
+    primaryEvent ? resolveStringSetting(primaryEvent, 'payments.stripe_secret_key', 'stripeSecretKey') : '',
+    primaryEvent ? resolveStringSetting(primaryEvent, HOSTING_WEBHOOK_SECRET_KEY) : '',
+    primaryEvent ? resolveStringSetting(primaryEvent, SAAS_ZONE_KEY) : '',
+    primaryEvent ? resolveStringSetting(primaryEvent, SAAS_TOKEN_KEY) : '',
     primaryEvent ? customDomainTarget(primaryEvent) : '',
     getAiDailyCap(db),
     platformAiCreditsToday(db, primary?.id ?? null),

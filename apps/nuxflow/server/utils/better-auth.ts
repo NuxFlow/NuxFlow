@@ -41,10 +41,10 @@ async function buildBetterAuthInstance(event: H3Event) {
   const primary = await getPrimarySite(event)
   const settingsEvent = primary ? eventForSite(event, primary.id) : event
   const [googleClientId, googleClientSecret, githubClientId, githubClientSecret] = await Promise.all([
-    resolveSetting(settingsEvent, 'auth.google_client_id', 'googleClientId'),
-    resolveSetting(settingsEvent, 'auth.google_client_secret', 'googleClientSecret'),
-    resolveSetting(settingsEvent, 'auth.github_client_id', 'githubClientId'),
-    resolveSetting(settingsEvent, 'auth.github_client_secret', 'githubClientSecret'),
+    resolveStringSetting(settingsEvent, 'auth.google_client_id', 'googleClientId'),
+    resolveStringSetting(settingsEvent, 'auth.google_client_secret', 'googleClientSecret'),
+    resolveStringSetting(settingsEvent, 'auth.github_client_id', 'githubClientId'),
+    resolveStringSetting(settingsEvent, 'auth.github_client_secret', 'githubClientSecret'),
   ])
 
   const signInCaptcha = await getSignInCaptcha(event)
@@ -174,7 +174,7 @@ async function buildBetterAuthInstance(event: H3Event) {
       // have no live auth request and fall back to `event`.
       const siteEvent = eventForSite(currentAuthEvent() ?? event, site.id)
       const emailConfig = await loadEmailConfig(siteEvent)
-      const accent = await resolveSetting(siteEvent, 'theme.primary_color')
+      const accent = await resolveStringSetting(siteEvent, 'theme.primary_color')
       const { html, text } = renderEmailTemplate({
         ...opts.template,
         siteName: site.name,

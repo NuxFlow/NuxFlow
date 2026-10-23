@@ -4,6 +4,7 @@ import { auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import type { H3Event } from 'h3'
 import type { BatchItem } from 'drizzle-orm/batch'
+import { getClientIp } from './client-ip'
 
 interface AuditOptions {
   action: string
@@ -35,7 +36,7 @@ export function buildAuditLogInsert(event: H3Event, userId: string | null, opts:
     resourceId: opts.resourceId,
     before: opts.before,
     after: opts.after,
-    ipAddress: getHeader(event, 'cf-connecting-ip') ?? getHeader(event, 'x-forwarded-for') ?? null,
+    ipAddress: getClientIp(event) ?? null,
     userAgent: getHeader(event, 'user-agent') ?? null,
   })
 }

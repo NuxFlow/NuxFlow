@@ -74,7 +74,7 @@ const { data: page, error, refresh } = await useFetch<PublicPage>(() => `/api/pu
 // A missing or broken page renders its message here rather than through Nuxt's error
 // page, so tell the visitor-analytics beacon (page-views.client.ts) not to count it. A
 // paywall or password prompt (402/401) is still a view of a real page.
-const uncountedPath = useState<string | null>('nuxflow:uncounted-view-path', () => null)
+const uncountedPath = useUncountedViewPath()
 const currentRoute = useRoute()
 watchEffect(() => {
   const status = error.value?.statusCode
@@ -124,7 +124,7 @@ if (import.meta.server) {
 }
 
 // Share available translations with layout/header via useState
-const activeLocalesState = useState<Array<{ locale: string; slug: string; rawSlug?: string }>>('active-locales', () => [])
+const activeLocalesState = useActiveLocales()
 watch(page, (val) => {
   activeLocalesState.value = val?.availableLocales || []
 }, { immediate: true })

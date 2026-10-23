@@ -17,6 +17,7 @@ const settings = new Map<string, string>()
 
 vi.mock('../../server/utils/settings', () => ({
   resolveSetting: vi.fn((_event: unknown, key: string) => Promise.resolve(settings.get(key) ?? '')),
+  resolveStringSetting: vi.fn((_event: unknown, key: string) => Promise.resolve(settings.get(key) ?? '')),
 }))
 
 function mkEvent(): H3Event {

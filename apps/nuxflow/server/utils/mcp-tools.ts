@@ -10,6 +10,7 @@ import { getContentItem, getContentTypeBySlug } from './content-queries'
 import { scopedById } from './db-helpers'
 import { writeAuditLog } from './audit'
 import { semanticSearch, upsertContentEmbedding, deleteContentEmbedding } from './embeddings'
+import { searchIndex } from './search'
 import { purgeContentCache } from './edge-cache'
 import { waitUntil } from './cf-env'
 import { itemPublicPath } from './public-page'
@@ -556,18 +557,9 @@ async function searchContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   // No Vectorize index configured on this deployment — fall back to FTS5 keyword search
   // over the same published/public corpus (see search.get.ts), so this tool always works
   // regardless of whether the site has set up semantic search.
-  const safe = query.replace(/[^a-z0-9 ]/gi, '') + '*'
-  const rawResults = await ctx.db.run(sql`
-    SELECT content_item_id, title
-    FROM search_index
-    WHERE search_index MATCH ${safe} AND site_id = ${ctx.siteId}
-    ORDER BY rank
-    LIMIT ${limit}
-  `)
-  const raw = rawResults as unknown as { rows?: unknown[]; results?: unknown[] }
-  const rows = (raw.rows ?? raw.results ?? []) as Record<string, unknown>[]
-  if (!rows.length) return textResult('No matching content found.')
-  return textResult(JSON.stringify(rows.map(r => ({ id: r.content_item_id, title: r.title })), null, 2))
+  const hits = await searchIndex(ctx.db, ctx.siteId, query, limit)
+  if (!hits.length) return textResult('No matching content found.')
+  return textResult(JSON.stringify(hits.map(h => ({ id: h.contentItemId, title: h.title })), null, 2))
 }
 
 /**

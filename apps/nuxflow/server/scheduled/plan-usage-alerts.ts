@@ -5,9 +5,9 @@ import { createSystemEvent } from '../utils/system-event'
 import { notifySiteRole } from '../utils/notify'
 import { MONTHLY_METRIC, planMax, type HostingPlan } from '../utils/hosting-plans'
 import { isHostingPlatform } from '../utils/hosting-platform'
-import { usageDay } from '../utils/usage'
 import { PLAN_LIMITS } from '../../shared/lib/hosting-plan-limits'
 import { getAiDailyCap, platformAiCreditsToday } from '../utils/ai-allowance'
+import { utcDay } from '../utils/utc-day'
 
 const THRESHOLDS = [100, 80] as const
 // Every monthly limit, plus soft limits on totals (database size) — hard totals refuse the
@@ -33,7 +33,7 @@ export const sendPlanUsageAlerts = async (now = new Date()) => {
   const db = useDb()
   if (!(await isHostingPlatform(db))) return { checked: 0, notified: 0 }
   const capNotified = await sendPlatformAiCapAlert(now)
-  const month = usageDay(now).slice(0, 7)
+  const month = utcDay(now).slice(0, 7)
   const monthStart = `${month}-01`
 
   const limited = await db.select({ site: { id: sites.id, name: sites.name, domain: sites.domain }, plan: hostingPlans })
@@ -112,7 +112,7 @@ export const sendPlatformAiCapAlert = async (now = new Date()): Promise<number> 
   if (!cap) return 0
   const primary = await db.query.sites.findFirst({ where: eq(sites.isPrimary, true), columns: { id: true, domain: true } })
   if (!primary) return 0
-  const day = usageDay(now)
+  const day = utcDay(now)
   const used = await platformAiCreditsToday(db, primary.id, now)
   const threshold = THRESHOLDS.find(t => used >= (cap * t) / 100)
   if (!threshold) return 0

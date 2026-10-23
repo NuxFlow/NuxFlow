@@ -4,21 +4,9 @@ import type { H3Event } from 'h3'
 import { useDb } from './db'
 import type { Db } from './db'
 import { getCachedRole, setCachedRole } from './role-cache'
+import { isTeamRole, roleAtLeast, type Role } from '@nuxflow/db/roles'
 
-export type Role = 'super_admin' | 'admin' | 'editor' | 'author' | 'viewer' | 'member'
-
-const ROLE_RANK: Record<Role, number> = {
-  super_admin: 100,
-  admin: 80,
-  editor: 60,
-  author: 40,
-  member: 20,
-  viewer: 10,
-}
-
-export function roleAtLeast(role: Role, minimum: Role): boolean {
-  return ROLE_RANK[role] >= ROLE_RANK[minimum]
-}
+export { isTeamRole, roleAtLeast, type Role }
 
 // The only scopes an API key can declare — see api-keys/index.post.ts. A key's own
 // declared scopes are a ceiling on top of (never a substitute for) the issuing user's
@@ -70,16 +58,6 @@ export function assertCanEditContentItem(role: Role, userId: string, item: { aut
       ? 'This item has been published or scheduled — only an editor can change it now'
       : 'Authors can only edit their own content')
   }
-}
-
-/**
- * True for roles that belong to the site's team (viewer and up). `member` is a site
- * visitor — someone who registered publicly, joined through the accounts origin, or holds
- * a membership — and ranks above `viewer` only for historical reasons, so never compare it
- * with roleAtLeast() to decide admin access.
- */
-export function isTeamRole(role: Role | null | undefined): boolean {
-  return !!role && role !== 'member'
 }
 
 /**

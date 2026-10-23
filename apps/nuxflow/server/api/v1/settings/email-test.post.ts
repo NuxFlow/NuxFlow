@@ -5,7 +5,7 @@ import { users } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { sendEmailWithConfig, loadEmailConfig } from '../../../utils/email'
 import { renderEmailTemplate } from '../../../utils/email-template'
-import { resolveSetting, SECRET_MASK } from '../../../utils/settings'
+import { resolveStringSetting, SECRET_MASK } from '../../../utils/settings'
 import { errorMessage } from '../../../utils/errors'
 
 const bodySchema = z.object({
@@ -37,22 +37,22 @@ export default defineEventHandler(async (event) => {
 
   let resendApiKey = body.resendApiKey
   if (resendApiKey === SECRET_MASK || !resendApiKey) {
-    resendApiKey = await resolveSetting(event, 'email.resend_api_key', 'resendApiKey')
+    resendApiKey = await resolveStringSetting(event, 'email.resend_api_key', 'resendApiKey')
   }
 
   let brevoApiKey = body.brevoApiKey
   if (brevoApiKey === SECRET_MASK || !brevoApiKey) {
-    brevoApiKey = await resolveSetting(event, 'email.brevo_api_key', 'brevoApiKey')
+    brevoApiKey = await resolveStringSetting(event, 'email.brevo_api_key', 'brevoApiKey')
   }
 
   let zeptoApiKey = body.zeptoApiKey
   if (zeptoApiKey === SECRET_MASK || !zeptoApiKey) {
-    zeptoApiKey = await resolveSetting(event, 'email.zepto_api_key', 'zeptoApiKey')
+    zeptoApiKey = await resolveStringSetting(event, 'email.zepto_api_key', 'zeptoApiKey')
   }
 
   let fromAddress = body.fromAddress
   if (!fromAddress) {
-    fromAddress = await resolveSetting(event, 'email.from_address', 'emailFromAddress')
+    fromAddress = await resolveStringSetting(event, 'email.from_address', 'emailFromAddress')
   }
 
   // Start from the saved config (site id for email_log, site name, domain) and overlay

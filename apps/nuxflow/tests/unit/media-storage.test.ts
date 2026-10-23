@@ -10,6 +10,7 @@ if (!(globalThis as any).createError) {
 const settings = new Map<string, string>()
 vi.mock('../../server/utils/settings', () => ({
   resolveSetting: vi.fn((_event: unknown, key: string) => Promise.resolve(settings.get(key) ?? '')),
+  resolveStringSetting: vi.fn((_event: unknown, key: string) => Promise.resolve(settings.get(key) ?? '')),
 }))
 
 // getCfBindings caches bindings at module level once it has seen them, so the binding is

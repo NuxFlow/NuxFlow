@@ -6,9 +6,9 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { parsePagination } from '../../../utils/pagination'
 import { loadEmailConfig } from '../../../utils/email'
-import { usageDay } from '../../../utils/usage'
 import { canSendListEmail, subscriberCounts } from '../../../utils/mailing-list'
 import { requireSiteId } from '../../../utils/site-context'
+import { utcDay } from '../../../utils/utc-day'
 
 const querySchema = z.object({
   status: z.enum(['pending', 'subscribed', 'unsubscribed']).optional(),
@@ -65,7 +65,7 @@ export default defineEventHandler(async (event) => {
       .where(and(
         eq(siteUsageDaily.siteId, siteId),
         inArray(siteUsageDaily.metric, ['signup_prompt_shown', 'signup_prompt_dismissed']),
-        gte(siteUsageDaily.day, usageDay(since)),
+        gte(siteUsageDaily.day, utcDay(since)),
       ))
       .groupBy(siteUsageDaily.metric),
     db.select({ total: sql<number>`count(*)` }).from(mailingListSubscribers).where(and(

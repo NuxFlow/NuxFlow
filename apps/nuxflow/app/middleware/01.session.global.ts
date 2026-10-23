@@ -8,7 +8,7 @@ import type { SessionUser } from '~/composables/useAuth'
 export default defineNuxtRouteMiddleware(async (to) => {
   if (to.path.startsWith('/api')) return
 
-  const user = useState<SessionUser | null | undefined>('auth:user', () => undefined)
+  const user = useSessionUserState()
   if (user.value === undefined) {
     try {
       // 'cookie' is required here — unlike 00.setup-guard.global.ts's fetch (which

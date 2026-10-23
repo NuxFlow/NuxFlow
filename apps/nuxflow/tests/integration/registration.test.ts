@@ -6,11 +6,11 @@ import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser } from '../helpers/seed'
 import handler from '../../server/api/public/auth/register.post'
-import { resolveSetting } from '../../server/utils/settings'
+import { resolveBooleanSetting } from '../../server/utils/settings'
 import { rateLimit } from '../../server/utils/rate-limit'
 
 vi.mock('../../server/utils/settings', () => ({
-  resolveSetting: vi.fn(),
+  resolveBooleanSetting: vi.fn(),
   saveSetting: vi.fn(),
   SENSITIVE_SETTING_KEYS: new Set(),
   SECRET_MASK: '••••••••••••••••',
@@ -57,7 +57,7 @@ function mkEvent(body: unknown, siteId = SITE) {
 
 describe('POST /api/public/auth/register', () => {
   it('rate-limits by IP before doing anything else, mirroring the 5/hour limit on the Better Auth sign-up path', async () => {
-    vi.mocked(resolveSetting).mockResolvedValue('true')
+    vi.mocked(resolveBooleanSetting).mockResolvedValue(true)
     vi.mocked(rateLimit).mockRejectedValueOnce(
       Object.assign(new Error('Too many requests'), { statusCode: 429 }),
     )
@@ -74,7 +74,7 @@ describe('POST /api/public/auth/register', () => {
 
   describe('when registration is disabled', () => {
     beforeAll(() => {
-      vi.mocked(resolveSetting).mockResolvedValue('false')
+      vi.mocked(resolveBooleanSetting).mockResolvedValue(false)
     })
 
     it('throws 403 when public registration is not enabled', async () => {
@@ -88,7 +88,7 @@ describe('POST /api/public/auth/register', () => {
 
   describe('when registration is enabled', () => {
     beforeAll(() => {
-      vi.mocked(resolveSetting).mockResolvedValue('true')
+      vi.mocked(resolveBooleanSetting).mockResolvedValue(true)
     })
 
     it('throws when body is invalid — missing name', async () => {

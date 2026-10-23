@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { ASSIGNABLE_ROLES, ROLE_LABELS, type AssignableRole, type Role } from '@nuxflow/db/roles'
+
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
-type UserRow = { id: string; name: string; email: string; role: string; createdAt: string; pending: boolean; invitationExpiresAt?: string }
+type UserRow = { id: string; name: string; email: string; role: Role; createdAt: string; pending: boolean; invitationExpiresAt?: string }
 const { data, refresh } = await useFetch<{ users: UserRow[] }>('/api/v1/users')
 const users = computed(() => data.value?.users ?? [])
 
@@ -10,19 +12,17 @@ const access = await fetchAdminAccess()
 const isSuperAdmin = computed(() => access?.isSuperAdmin ?? false)
 
 const showInvite = ref(false)
-const inviteForm = reactive({ name: '', email: '', role: 'viewer' as string })
-const inviting = ref(false)
-const inviteError = ref('')
+const inviteForm = reactive({ name: '', email: '', role: 'viewer' as Role })
 
-const removingId = ref<string | null>(null)
-const resendingId = ref<string | null>(null)
-const superAdminActionId = ref<string | null>(null)
-const actionError = ref('')
+const roleOptions: { label: string; value: Role }[] = ASSIGNABLE_ROLES.map(value => ({ label: ROLE_LABELS[value], value }))
+// A super admin's row shows its role read-only; it's never something to pick from the list.
+const superAdminOptions: { label: string; value: Role }[] = [{ label: ROLE_LABELS.super_admin, value: 'super_admin' }]
+
 // Set when an invite/resend succeeded but its email didn't go out (e.g. the sending domain
 // isn't onboarded yet) — the user is still added, so this is a warning, not an error.
 const emailWarning = ref('')
 type EmailDelivery = { sent: true } | { sent: false; reason: string }
-const toast = useToast()
+const { run, isRunning, toast } = useAdminAction()
 function noteEmailDelivery(email: string, delivery: EmailDelivery | undefined) {
   emailWarning.value = delivery && !delivery.sent ? `The invitation email to ${email} wasn't sent. ${delivery.reason}` : ''
   if (delivery?.sent) toast.add({ title: 'Invitation sent', description: `A fresh link is on its way to ${email}. It works for one hour.`, color: 'success', icon: 'i-lucide-mail-check' })
@@ -36,98 +36,60 @@ async function removeUser(userId: string) {
     confirmLabel: 'Remove',
   })
   if (!ok) return
-  removingId.value = userId
-  actionError.value = ''
-  try {
-    await $fetch(`/api/v1/users/${userId}`, { method: 'DELETE' })
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/users/${userId}`, { method: 'DELETE' })
     await refresh()
-  } catch (e: unknown) {
-    actionError.value = getErrorMessage(e, 'Failed to remove user')
-  } finally {
-    removingId.value = null
-  }
+  }, { successTitle: 'User removed', errorTitle: "Couldn't remove user", key: `remove:${userId}` })
 }
 
 async function resendInvite(userId: string) {
-  resendingId.value = userId
-  actionError.value = ''
-  try {
-    const res = await $fetch<{ emailDelivery?: EmailDelivery }>(`/api/v1/users/${userId}/resend-invite`, { method: 'POST' })
-    noteEmailDelivery(users.value.find(u => u.id === userId)?.email ?? 'this user', res.emailDelivery)
-  } catch (e: unknown) {
-    actionError.value = getErrorMessage(e, 'Failed to resend invite')
-  } finally {
-    resendingId.value = null
-  }
+  const res = await run(
+    () => $fetch<{ emailDelivery?: EmailDelivery }>(`/api/v1/users/${userId}/resend-invite`, { method: 'POST' }),
+    { errorTitle: "Couldn't resend invite", key: `resend:${userId}` },
+  )
+  if (res) noteEmailDelivery(users.value.find(u => u.id === userId)?.email ?? 'this user', res.emailDelivery)
 }
 
-async function promoteSuperAdmin(userId: string) {
-  const ok = await confirm({
-    title: 'Grant super admin access?',
-    description: 'This user will be able to manage every site in this NuxFlow instance.',
-    confirmLabel: 'Grant access',
-  })
+async function setSuperAdmin(userId: string, grant: boolean) {
+  const ok = await confirm(grant
+    ? {
+        title: 'Grant super admin access?',
+        description: 'This user will be able to manage every site in this NuxFlow instance.',
+        confirmLabel: 'Grant access',
+      }
+    : {
+        title: 'Revoke super admin access?',
+        description: 'This user will be downgraded to admin on this site.',
+        confirmLabel: 'Revoke access',
+      })
   if (!ok) return
-  superAdminActionId.value = userId
-  actionError.value = ''
-  try {
-    await $fetch(`/api/v1/users/${userId}/super-admin`, { method: 'POST' })
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/users/${userId}/super-admin`, { method: grant ? 'POST' : 'DELETE' })
     await refresh()
-  } catch (e: unknown) {
-    actionError.value = getErrorMessage(e, 'Failed to grant super admin')
-  } finally {
-    superAdminActionId.value = null
-  }
-}
-
-async function revokeSuperAdmin(userId: string) {
-  const ok = await confirm({
-    title: 'Revoke super admin access?',
-    description: 'This user will be downgraded to admin on this site.',
-    confirmLabel: 'Revoke access',
+  }, {
+    successTitle: grant ? 'Super admin granted' : 'Super admin revoked',
+    errorTitle: grant ? "Couldn't grant super admin" : "Couldn't revoke super admin",
+    key: `super-admin:${userId}`,
   })
-  if (!ok) return
-  superAdminActionId.value = userId
-  actionError.value = ''
-  try {
-    await $fetch(`/api/v1/users/${userId}/super-admin`, { method: 'DELETE' })
-    await refresh()
-  } catch (e: unknown) {
-    actionError.value = getErrorMessage(e, 'Failed to revoke super admin')
-  } finally {
-    superAdminActionId.value = null
-  }
 }
-
-const roleOptions = [
-  { label: 'Admin', value: 'admin' },
-  { label: 'Editor', value: 'editor' },
-  { label: 'Author', value: 'author' },
-  { label: 'Viewer', value: 'viewer' },
-  { label: 'Member', value: 'member' },
-]
 
 async function invite() {
-  inviteError.value = ''
-  inviting.value = true
-  try {
-    const res = await $fetch<{ emailDelivery?: EmailDelivery }>('/api/v1/users', { method: 'POST', body: inviteForm })
-    noteEmailDelivery(inviteForm.email, res.emailDelivery)
-    showInvite.value = false
-    inviteForm.name = ''
-    inviteForm.email = ''
-    inviteForm.role = 'viewer'
-    await refresh()
-  } catch (e: unknown) {
-    inviteError.value = getErrorMessage(e, 'Failed to invite user')
-  } finally {
-    inviting.value = false
-  }
+  const res = await run(
+    () => $fetch<{ emailDelivery?: EmailDelivery }>('/api/v1/users', { method: 'POST', body: inviteForm }),
+    { errorTitle: "Couldn't invite user", key: 'invite' },
+  )
+  if (!res) return
+  noteEmailDelivery(inviteForm.email, res.emailDelivery)
+  showInvite.value = false
+  Object.assign(inviteForm, { name: '', email: '', role: 'viewer' })
+  await refresh()
 }
 
-async function updateRole(userId: string, role: string) {
-  await $fetch(`/api/v1/users/${userId}`, { method: 'PATCH', body: { role } })
-  await refresh()
+async function updateRole(userId: string, role: AssignableRole) {
+  await run(async () => {
+    await $fetch<unknown>(`/api/v1/users/${userId}`, { method: 'PATCH', body: { role } })
+    await refresh()
+  }, { successTitle: 'Role updated', errorTitle: "Couldn't change role", key: `role:${userId}` })
 }
 
 const columns = [
@@ -163,12 +125,12 @@ const columns = [
         <template #role-cell="{ row }">
           <USelect
             :model-value="row.original.role"
-            :items="roleOptions"
+            :items="row.original.role === 'super_admin' ? superAdminOptions : roleOptions"
             size="xs"
             class="min-w-28"
-            :disabled="row.original.role === 'super_admin' || row.original.id === currentUser?.id"
+            :disabled="row.original.role === 'super_admin' || row.original.id === currentUser?.id || isRunning(`role:${row.original.id}`)"
             :title="row.original.id === currentUser?.id ? 'You cannot change your own role' : undefined"
-            @update:model-value="(val) => updateRole(row.original.id, val as string)"
+            @update:model-value="(val) => updateRole(row.original.id, val as AssignableRole)"
           />
         </template>
 
@@ -196,7 +158,7 @@ const columns = [
               variant="soft"
               size="xs"
               title="Email them a fresh invitation link (links expire after one hour)"
-              :loading="resendingId === row.original.id"
+              :loading="isRunning(`resend:${row.original.id}`)"
               @click="resendInvite(row.original.id)"
             >
               Resend invite
@@ -210,8 +172,8 @@ const columns = [
                 color="warning"
                 size="xs"
                 title="Grant super admin"
-                :loading="superAdminActionId === row.original.id"
-                @click="promoteSuperAdmin(row.original.id)"
+                :loading="isRunning(`super-admin:${row.original.id}`)"
+                @click="setSuperAdmin(row.original.id, true)"
               />
               <UButton
                 v-else
@@ -220,8 +182,8 @@ const columns = [
                 color="warning"
                 size="xs"
                 title="Revoke super admin (downgrades to admin)"
-                :loading="superAdminActionId === row.original.id"
-                @click="revokeSuperAdmin(row.original.id)"
+                :loading="isRunning(`super-admin:${row.original.id}`)"
+                @click="setSuperAdmin(row.original.id, false)"
               />
             </template>
 
@@ -231,7 +193,7 @@ const columns = [
               color="error"
               variant="ghost"
               size="xs"
-              :loading="removingId === row.original.id"
+              :loading="isRunning(`remove:${row.original.id}`)"
               @click="removeUser(row.original.id)"
             />
           </div>
@@ -239,7 +201,6 @@ const columns = [
       </UTable>
     </UCard>
 
-    <UAlert v-if="actionError" icon="i-lucide-circle-x" color="error" variant="soft" :description="actionError" />
     <UAlert
       v-if="emailWarning"
       icon="i-lucide-mail-warning"
@@ -265,8 +226,6 @@ const columns = [
           <UFormField label="Role">
             <USelect v-model="inviteForm.role" :items="roleOptions" />
           </UFormField>
-
-          <p v-if="inviteError" class="text-sm text-red-500">{{ inviteError }}</p>
         </div>
       </template>
 
@@ -274,7 +233,7 @@ const columns = [
         <div class="flex justify-end gap-2">
           <UButton variant="ghost" @click="showInvite = false">Cancel</UButton>
           <UButton
-            :loading="inviting"
+            :loading="isRunning('invite')"
             :disabled="!inviteForm.name || !inviteForm.email"
             @click="invite"
           >

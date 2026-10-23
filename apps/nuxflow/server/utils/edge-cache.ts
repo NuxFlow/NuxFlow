@@ -13,12 +13,15 @@ import { bumpCacheVersion, currentCacheVersion, versionedCacheUrl } from './cach
 // worker-configuration.d.ts. Same class of DOM/workerd global-type collision documented for
 // Response.json() elsewhere in this codebase; worked around the same way, with an explicit
 // cast through a narrow local type covering only what's used here.
-export interface EdgeCacheStorage {
-  default: {
-    match(request: RequestInfo | URL): Promise<Response | undefined>
-    put(request: RequestInfo | URL, response: Response): Promise<void>
-    delete(request: RequestInfo | URL): Promise<boolean>
-  }
+export interface EdgeCache {
+  match(request: RequestInfo | URL): Promise<Response | undefined>
+  put(request: RequestInfo | URL, response: Response): Promise<void>
+  delete(request: RequestInfo | URL): Promise<boolean>
+}
+
+/** This data centre's `caches.default` — the one place that needs the cast above. */
+export function getEdgeCache(): EdgeCache {
+  return (caches as unknown as { default: EdgeCache }).default
 }
 
 /**
@@ -81,7 +84,7 @@ export async function withEdgeCacheKey<T>(
   // The site's cache version (cache-version.ts) is part of the key, read once before
   // compute() so a result computed before an edit is never stored under the new version.
   const cacheKey = new Request(versionedCacheUrl(cacheUrl, await currentCacheVersion(event)), { method: 'GET' })
-  const cache = (caches as unknown as EdgeCacheStorage).default
+  const cache = getEdgeCache()
 
   try {
     const cached = await cache.match(cacheKey)
@@ -145,7 +148,7 @@ export async function purgeEdgeCache(event: H3Event, paths: string[]): Promise<v
 // clearing a whole site goes through the version bump instead.
 async function deleteLocally(event: H3Event, paths: string[], version: string): Promise<void> {
   if (paths.length === 0) return
-  const cache = (caches as unknown as EdgeCacheStorage).default
+  const cache = getEdgeCache()
   const origin = getRequestURL(event).origin
 
   await Promise.all(paths.map(async (path) => {

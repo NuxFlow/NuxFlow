@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { rateLimit } from '../../../utils/rate-limit'
 import { verifyTurnstile } from '../../../utils/turnstile'
 import { signUp } from '../../../utils/mailing-list'
+import { getClientIp } from '../../../utils/client-ip'
 
 const bodySchema = z.object({
   email: z.string().trim().max(254).email(),
@@ -21,7 +22,7 @@ export default defineEventHandler(async (event) => {
 
   if (body.website) return { status: 'pending', reward: null }
 
-  const ip = getHeader(event, 'cf-connecting-ip') ?? undefined
+  const ip = getClientIp(event) ?? undefined
   if (!(await verifyTurnstile(body.turnstileToken ?? '', ip))) validationError('Spam check failed')
 
   return signUp(event, { email: body.email, name: body.name, source: body.source, path: body.path })

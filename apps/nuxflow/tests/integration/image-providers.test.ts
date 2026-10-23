@@ -10,6 +10,7 @@ import type { H3Event } from 'h3'
 const settingsMap = new Map<string, string>()
 vi.mock('../../server/utils/settings', () => ({
   resolveSetting: async (_event: unknown, key: string) => settingsMap.get(key) ?? '',
+  resolveStringSetting: async (_event: unknown, key: string) => settingsMap.get(key) ?? '',
 }))
 
 const mockGetWorkersAiBinding = vi.fn()

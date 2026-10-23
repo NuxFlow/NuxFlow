@@ -3,13 +3,14 @@ import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { mailingListSubscribers } from '@nuxflow/db/schema'
 import { useDb } from './db'
-import { resolveSetting } from './settings'
+import { resolveSetting, resolveStringSetting } from './settings'
 import { loadEmailConfig, sendEmailWithConfig, type EmailConfig } from './email'
 import { renderEmailTemplate } from './email-template'
 import { hmacSha256Hex, constantTimeEqualHex } from './webhook-crypto'
 import { waitUntil } from './cf-env'
 import { parseSignupSettings, signupReward, type SignupReward, type SignupSettings } from '../../shared/lib/signup-prompt'
 import { requireSiteId } from './site-context'
+import { getClientIp } from './client-ip'
 
 /**
  * The site's mailing list (`mailing_list_subscribers`): signups from the popup and the
@@ -110,7 +111,7 @@ export async function signUp(event: H3Event, input: SignupInput): Promise<Signup
   const settings = await getSignupSettings(event)
   const email = normalizeEmail(input.email)
   const name = input.name?.trim().slice(0, 100) || null
-  const ip = getHeader(event, 'cf-connecting-ip') ?? null
+  const ip = getClientIp(event) ?? null
   const now = new Date().toISOString()
 
   const existing = await db.query.mailingListSubscribers.findFirst({
@@ -176,7 +177,7 @@ export async function sendConfirmationEmail(event: H3Event, siteId: string, id: 
   if (!canSendListEmail(config)) {
     throw new Error('No third-party email provider is set up (Settings → Email), so the confirmation email was not sent.')
   }
-  const accentColor = await resolveSetting(event, 'theme.primary_color')
+  const accentColor = await resolveStringSetting(event, 'theme.primary_color')
   const siteName = config.siteName || config.domain
   const { html, text } = renderEmailTemplate({
     siteName,
@@ -268,7 +269,7 @@ export async function syncSubscriberToBrevo(event: H3Event, listId: number, site
   })
   if (!row || row.status === 'pending') return
 
-  const apiKey = await resolveSetting(event, 'email.brevo_api_key', 'brevoApiKey') as string | undefined
+  const apiKey = await resolveStringSetting(event, 'email.brevo_api_key', 'brevoApiKey')
   let error: string | null = null
   if (!apiKey) {
     error = 'No Brevo API key is set (Settings → Email).'

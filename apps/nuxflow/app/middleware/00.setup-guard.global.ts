@@ -8,7 +8,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // The accounts origin (central sign-in) is not a site and has nothing to set up.
   if (useAccounts().isAccountsHost) return
 
-  const needsSetup = useState('setup:needs-setup', () => null as boolean | null)
+  const needsSetup = useNeedsSetup()
   if (needsSetup.value === null) {
     try {
       const status = await $fetch<{ needsSetup: boolean }>('/api/v1/setup/status', {

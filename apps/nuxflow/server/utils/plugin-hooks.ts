@@ -14,6 +14,7 @@ import { waitUntil } from './cf-env'
 import { itemPublicPath } from './public-page'
 import { invokePlugin, RESERVED_PLUGIN_PATH_PREFIX } from './plugin-runtime'
 import type { PluginHookEvent } from '../../shared/lib/plugin-permissions'
+import { withTimeout } from './timeout'
 
 const HOOK_TIMEOUT_MS = 15_000
 
@@ -40,17 +41,9 @@ export async function dispatchPluginHook(event: H3Event, siteId: string, hook: P
       headers: { 'content-type': 'application/json', 'x-nuxflow-hook': hook },
       body,
     })
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`timed out after ${HOOK_TIMEOUT_MS / 1000}s`)), HOOK_TIMEOUT_MS)
-    })
-    try {
-      const res = await Promise.race([invokePlugin(event, plugin, request), timeout])
-      if (!res.ok) throw new Error(`answered ${res.status}`)
-      await res.body?.cancel()
-    } finally {
-      clearTimeout(timer)
-    }
+    const res = await withTimeout(invokePlugin(event, plugin, request), HOOK_TIMEOUT_MS, `timed out after ${HOOK_TIMEOUT_MS / 1000}s`)
+    if (!res.ok) throw new Error(`answered ${res.status}`)
+    await res.body?.cancel()
   }))
   results.forEach((r, i) => {
     if (r.status === 'rejected') console.error(`[plugin-hooks] ${hook} → ${targets[i]!.id} on site ${siteId} failed:`, r.reason)

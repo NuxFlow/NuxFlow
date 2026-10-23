@@ -1,6 +1,7 @@
 import { sqliteTable, text, integer, index, uniqueIndex, customType } from 'drizzle-orm/sqlite-core'
 import { relations, sql } from 'drizzle-orm'
 import { sites } from './sites'
+import { ASSIGNABLE_ROLES, ROLES } from '../roles'
 
 // D1 does not accept JavaScript Date objects as bind parameters — only strings,
 // numbers, booleans, null, and ArrayBuffer. Better Auth's drizzle adapter passes
@@ -90,7 +91,7 @@ export const userSiteRoles = sqliteTable('user_site_roles', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
-  role: text('role', { enum: ['super_admin', 'admin', 'editor', 'author', 'viewer', 'member'] }).notNull().default('viewer'),
+  role: text('role', { enum: ROLES }).notNull().default('viewer'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   // Unique, not just indexed: without this, two concurrent invites for the same
@@ -115,7 +116,7 @@ export const siteInvitations = sqliteTable('site_invitations', {
   id: text('id').primaryKey(),
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  role: text('role', { enum: ['admin', 'editor', 'author', 'viewer', 'member'] }).notNull(),
+  role: text('role', { enum: ASSIGNABLE_ROLES }).notNull(),
   invitedBy: text('invited_by').references(() => users.id, { onDelete: 'set null' }),
   expiresAt: text('expires_at').notNull(),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),

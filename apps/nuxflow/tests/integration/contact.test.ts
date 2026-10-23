@@ -6,6 +6,7 @@ import { seedSite, seedUser, seedRole, seedSetting } from '../helpers/seed'
 import { forms, formSubmissions } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import type * as Notify from '../../server/utils/notify'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -30,7 +31,8 @@ vi.mock('../../server/utils/moderation', () => ({
 }))
 
 const mockSendNotification = vi.fn().mockResolvedValue(undefined)
-vi.mock('../../server/utils/notify', () => ({
+vi.mock('../../server/utils/notify', async importOriginal => ({
+  ...await importOriginal<typeof Notify>(),
   sendNotification: (...args: unknown[]) => mockSendNotification(...args),
 }))
 

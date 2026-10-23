@@ -5,6 +5,8 @@ import type { Db } from './db'
 import { useDb } from './db'
 import { getAnalyticsEngine, waitUntil } from './cf-env'
 import type { KnownCrawler } from './seo'
+import { utcDay, utcDayAgo } from './utc-day'
+import { createCounterBuffer } from './counter-buffer'
 
 /**
  * Records one request from a known search/AI crawler (seo.ts's detectCrawler), called by
@@ -41,17 +43,20 @@ export function recordCrawlerHit(event: H3Event, siteId: string, crawler: KnownC
     }
   }
 
-  addPendingHit(siteId, crawler, trimmedPath)
-  if (!shouldFlush()) return
-  const batch = takePendingHits()
-  waitUntil(event, flushCrawlerHits(useDb(event), batch).catch((err) => {
+  const day = utcDay()
+  const due = pendingHits.add(
+    `${siteId}|${day}|${crawler.token}`,
+    () => ({ siteId, day, crawler, hits: 0, lastPath: trimmedPath }),
+    (hit) => {
+      hit.hits++
+      hit.lastPath = trimmedPath
+    },
+  )
+  if (!due) return
+  waitUntil(event, flushCrawlerHits(useDb(event), pendingHits.take()).catch((err) => {
     console.error('[crawler-tracking] D1 counter write failed', err)
   }))
 }
-
-const FLUSH_INTERVAL_MS = 60_000
-// Flush early when this many distinct (site, day, bot) counters are waiting.
-const MAX_PENDING_COUNTERS = 50
 
 export interface PendingCrawlerHit {
   siteId: string
@@ -61,31 +66,8 @@ export interface PendingCrawlerHit {
   lastPath: string
 }
 
-const pendingHits = new Map<string, PendingCrawlerHit>()
-let lastFlushAt = 0
-
-function addPendingHit(siteId: string, crawler: KnownCrawler, path: string, now = new Date()): void {
-  const day = now.toISOString().slice(0, 10)
-  const key = `${siteId}|${day}|${crawler.token}`
-  const existing = pendingHits.get(key)
-  if (existing) {
-    existing.hits++
-    existing.lastPath = path
-  } else {
-    pendingHits.set(key, { siteId, day, crawler, hits: 1, lastPath: path })
-  }
-}
-
-function shouldFlush(): boolean {
-  return Date.now() - lastFlushAt >= FLUSH_INTERVAL_MS || pendingHits.size >= MAX_PENDING_COUNTERS
-}
-
-function takePendingHits(): PendingCrawlerHit[] {
-  const batch = [...pendingHits.values()]
-  pendingHits.clear()
-  lastFlushAt = Date.now()
-  return batch
-}
+// Written at most once a minute, or early when 50 distinct (site, day, bot) counters wait.
+const pendingHits = createCounterBuffer<PendingCrawlerHit>({ flushIntervalMs: 60_000, maxPending: 50 })
 
 /** Writes buffered counters — one upsert per (site, day, bot). */
 export async function flushCrawlerHits(db: Db, batch: PendingCrawlerHit[]): Promise<void> {
@@ -97,12 +79,11 @@ export async function flushCrawlerHits(db: Db, batch: PendingCrawlerHit[]): Prom
 
 /** Test hook: forget isolate-level state. */
 export function resetCrawlerHitBuffer(): void {
-  pendingHits.clear()
-  lastFlushAt = 0
+  pendingHits.reset()
 }
 
 export async function incrementCrawlerHit(db: Db, siteId: string, crawler: KnownCrawler, path: string, now = new Date(), hits = 1): Promise<void> {
-  const day = now.toISOString().slice(0, 10)
+  const day = utcDay(now)
   await db.insert(crawlerHits)
     .values({ siteId, day, bot: crawler.token, category: crawler.category, hits, lastPath: path })
     .onConflictDoUpdate({
@@ -121,7 +102,7 @@ export interface CrawlerActivityRow {
 
 /** Per-bot totals over the last `days` days (UTC), busiest first. */
 export async function getCrawlerActivity(db: Db, siteId: string, days: number, now = new Date()): Promise<{ since: string; bots: CrawlerActivityRow[]; daily: { day: string; category: string; hits: number }[] }> {
-  const since = new Date(now.getTime() - (days - 1) * 86_400_000).toISOString().slice(0, 10)
+  const since = utcDayAgo(days - 1, now)
   const where = and(eq(crawlerHits.siteId, siteId), gte(crawlerHits.day, since))
 
   const [bots, daily] = await Promise.all([

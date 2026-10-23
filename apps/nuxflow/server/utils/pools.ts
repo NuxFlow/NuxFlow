@@ -15,6 +15,7 @@ import type { SiteChanges } from './site-admin'
 import type { AccountProvisioningStatus } from './user-provisioning'
 import type { DomainOp, DomainOpResult, PendingDomain } from './hosting-domains'
 import type { MoveOp } from './site-move'
+import { withTimeout } from './timeout'
 
 /**
  * The control plane's view of its member pools (control-plane.ts). A pool is connected by
@@ -69,29 +70,21 @@ export function poolAdminStub(event: H3Event, poolId: string): PoolAdminStub | n
   return poolBindings(event).find(p => p.binding === poolBindingName(poolId))?.stub ?? null
 }
 
+// A pool that doesn't answer must not hang the Pools page or a settings save.
+const CALL_TIMEOUT_MS = 10_000
+
 /** Pool calls must not hang a page: rejects after 10 s, or `timeoutMs` for one known to take longer. */
 export function callPool<T>(promise: Promise<T>, what: string, timeoutMs = CALL_TIMEOUT_MS): Promise<T> {
-  return withTimeout(promise, what, timeoutMs)
+  return withTimeout(promise, timeoutMs, `${what} didn't answer within ${timeoutMs / 1000} s`)
 }
 
 /** Every pool binding on this Worker, in name order. */
 export function poolBindings(event: H3Event): { binding: string; stub: PoolAdminStub }[] {
-  const env = (event.context.cloudflare?.env ?? {}) as unknown as Record<string, unknown>
+  const env: Record<string, unknown> = event.context.cloudflare?.env ?? {}
   return Object.keys(env)
     .filter(name => POOL_BINDING_RE.test(name) && env[name] != null && typeof env[name] === 'object')
     .sort()
     .map(binding => ({ binding, stub: env[binding] as PoolAdminStub }))
-}
-
-// A pool that doesn't answer must not hang the Pools page or a settings save.
-const CALL_TIMEOUT_MS = 10_000
-
-function withTimeout<T>(promise: Promise<T>, what: string, ms = CALL_TIMEOUT_MS): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${what} didn't answer within ${ms / 1000} s`)), ms)
-  })
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
 
 export interface PoolReport {
@@ -106,8 +99,8 @@ export async function describePools(event: H3Event): Promise<PoolReport[]> {
   return Promise.all(poolBindings(event).map(async ({ binding, stub }): Promise<PoolReport> => {
     try {
       const [status, sites] = await Promise.all([
-        withTimeout(stub.status(), binding),
-        withTimeout(stub.listSites(), binding),
+        callPool(stub.status(), binding),
+        callPool(stub.listSites(), binding),
       ])
       assertCompatibleProtocol(status?.protocol)
       if (!status.poolId) return { binding, status, sites, error: `${binding} points at a Worker that isn't a member pool (no NUXT_POOL_ID).` }
@@ -161,7 +154,7 @@ export async function pushSettingsToPools(event: H3Event): Promise<PushResult[]>
   const payload: PushedSettings = { protocol: POOL_PROTOCOL, settings: await collectPlatformSettings(useDb(event)) }
   return Promise.all(bindings.map(async ({ binding, stub }): Promise<PushResult> => {
     try {
-      await withTimeout(stub.pushPlatformSettings(payload), binding)
+      await callPool(stub.pushPlatformSettings(payload), binding)
       return { binding, ok: true, error: null }
     } catch (err) {
       const error = errorMessage(err, `Couldn't reach ${binding}`)

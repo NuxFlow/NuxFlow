@@ -1,5 +1,5 @@
 import { requireRole } from '../../../../utils/permissions'
-import { resolveSetting } from '../../../../utils/settings'
+import { resolveStringSetting } from '../../../../utils/settings'
 import { isHttpError } from '../../../../utils/errors'
 import { parseBody } from '../../../../utils/validate'
 import { z } from 'zod'
@@ -14,8 +14,8 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
   const siteId = requireSiteId(event)
 
-  const accountId = await resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
-  const streamToken = await resolveSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')
+  const accountId = await resolveStringSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
+  const streamToken = await resolveStringSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')
 
   if (!accountId || !streamToken) {
     throw createError({

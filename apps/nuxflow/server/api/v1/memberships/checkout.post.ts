@@ -5,7 +5,7 @@ import { ulid } from 'ulid'
 import { useDb } from '../../../utils/db'
 import { assertSameHostReturnUrl } from '../../../utils/validate'
 import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
-import { resolveSetting } from '../../../utils/settings'
+import { resolveStringSetting, resolveBooleanSetting } from '../../../utils/settings'
 import { resolveStripeProvider, resolveLemonSqueezyProvider, resolvePaddleProvider } from '../../../utils/payments/resolve'
 import { conflict } from '../../../utils/response'
 import { rethrowAsProviderError } from '../../../utils/errors'
@@ -31,10 +31,9 @@ export default defineEventHandler(async (event) => {
 
   const db = useDb(event)
 
-  const signupsDisabled = await resolveSetting(event, 'payments.signups_disabled')
-  if (signupsDisabled === 'true') {
-    const msg = await resolveSetting(event, 'payments.signups_disabled_message')
-    throw forbidden((msg as string | null) || 'New signups are temporarily paused.')
+  if (await resolveBooleanSetting(event, 'payments.signups_disabled')) {
+    const msg = await resolveStringSetting(event, 'payments.signups_disabled_message')
+    throw forbidden(msg || 'New signups are temporarily paused.')
   }
 
   const tier = await getMembershipTierByIdOrThrow(db, siteId, body.tierId)

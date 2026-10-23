@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { scopedById } from '../../../utils/db-helpers'
 import { requireRole } from '../../../utils/permissions'
-import { resolveSetting, saveSetting } from '../../../utils/settings'
+import { resolveStringSetting, saveSetting } from '../../../utils/settings'
 import { waitUntil } from '../../../utils/cf-env'
 import { putThemeCSS } from '../../../utils/cf-theme-kv'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
@@ -11,6 +11,7 @@ import { clearActiveThemeCache } from '../../../utils/theme-cache'
 import { useDb } from '../../../utils/db'
 import { purgeAllPublicPages } from '../../../utils/edge-cache'
 import { requireSiteId } from '../../../utils/site-context'
+import { utcDay } from '../../../utils/utc-day'
 
 interface CustomizerValues {
   colorMode: 'auto' | 'light' | 'dark'
@@ -39,7 +40,7 @@ export default defineEventHandler(async (event) => {
   await saveSetting(event, 'theme.font_sans', values.bodyFont !== 'system' ? values.bodyFont : 'system')
 
   // Find or create the customizer-managed CSS theme
-  const storedThemeId = ((await resolveSetting(event, 'theme.customizer_theme_id')) as string) || null
+  const storedThemeId = ((await resolveStringSetting(event, 'theme.customizer_theme_id'))) || null
   let themeId: string | null = storedThemeId
 
   if (themeId) {
@@ -90,7 +91,7 @@ export default defineEventHandler(async (event) => {
   if (themeId) {
     await putThemeCSS(event, siteId, themeId, ownCss)
     await db.update(themes)
-      .set({ version: new Date().toISOString().slice(0, 10) })
+      .set({ version: utcDay() })
       .where(scopedById(themes.id, themeId, themes.siteId, siteId))
   }
   else {
@@ -101,7 +102,7 @@ export default defineEventHandler(async (event) => {
       siteId,
       packageName: `@customizer/theme-${themeId}`,
       name: 'NuxFlow Customizer',
-      version: new Date().toISOString().slice(0, 10),
+      version: utcDay(),
       isActive: false,
       hasCss: true,
     })

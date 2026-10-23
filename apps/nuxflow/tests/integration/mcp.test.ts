@@ -264,6 +264,35 @@ describe('POST /api/v1/mcp — search_content tool', () => {
     expect(response.result.content[0].text).toBe('No matching content found.')
   })
 
+  // The fallback used to strip everything but ASCII letters/digits and append `*`, so a
+  // query in another script became a bare `*` and FTS5 keywords reached the parser. It now
+  // shares toFtsQuery() with GET /api/v1/search.
+  it('finds non-Latin text, like the public search does', async () => {
+    await seedContentItem(getCurrentTestDb(), SITE, pageTypeId, {
+      title: 'Ελληνική συνταγή',
+      excerpt: 'Μουσακάς με μελιτζάνες.',
+      status: 'published',
+      visibility: 'public',
+    })
+
+    const event = mkMcpEvent({
+      body: { jsonrpc: '2.0', id: 13, method: 'tools/call', params: { name: 'search_content', arguments: { query: 'μουσακάς' } } },
+    })
+    const response = await (mcpHandler as HandlerFn)(event) as { result: { content: { type: string; text: string }[] } }
+
+    expect(response.result.content[0].text).toContain('Ελληνική συνταγή')
+  })
+
+  it.each(['tomatoes OR', 'NOT', 'NEAR(', '"', '***', '日本語'])('treats %j as plain text instead of failing', async (query) => {
+    const event = mkMcpEvent({
+      body: { jsonrpc: '2.0', id: 14, method: 'tools/call', params: { name: 'search_content', arguments: { query } } },
+    })
+    const response = await (mcpHandler as HandlerFn)(event) as { result?: { content: { type: string; text: string }[] }; error?: unknown }
+
+    expect(response.error).toBeUndefined()
+    expect(response.result?.content[0].text).not.toMatch(/^Error/)
+  })
+
   it('is rejected without the read:content scope', async () => {
     const event = mkMcpEvent({
       apiKeyScopes: ['write:content'],

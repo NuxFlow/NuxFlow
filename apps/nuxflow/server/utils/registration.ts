@@ -4,15 +4,14 @@ import { ulid } from 'ulid'
 import { users, accounts, userSiteRoles } from '@nuxflow/db/schema'
 import { useDb } from './db'
 import { nuxflowPasswordHasher } from './pw'
-import { resolveSetting } from './settings'
+import { resolveBooleanSetting } from './settings'
 import { eventForSite } from './site-info'
 import { getOrCreateBetterAuth } from './better-auth'
 import { assertWithinPlan } from './hosting-plans'
 
 /** A site's own "Allow public registration" setting (Settings → General). */
 export async function isPublicRegistrationOpen(event: H3Event, siteId: string): Promise<boolean> {
-  const value = await resolveSetting(eventForSite(event, siteId), 'auth.allow_public_registration')
-  return value === 'true' || value === true
+  return resolveBooleanSetting(eventForSite(event, siteId), 'auth.allow_public_registration')
 }
 
 /**

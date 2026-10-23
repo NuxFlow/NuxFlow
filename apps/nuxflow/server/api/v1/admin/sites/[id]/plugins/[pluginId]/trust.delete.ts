@@ -3,6 +3,7 @@ import { requireSuperAdmin } from '../../../../../../../utils/permissions'
 import { dynamicPluginTrust, sites, auditLogs } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { getClientIp } from '../../../../../../../utils/client-ip'
 
 // Platform-side counterpart to DELETE /api/v1/dynamic-plugins/:id/trust. That route acts
 // on the site the request arrived on and needs super_admin *there* — which a super admin
@@ -35,7 +36,7 @@ export default defineEventHandler(async (event) => {
       resource: 'dynamic_plugin_trust',
       resourceId: pluginId,
       before: trust,
-      ipAddress: getHeader(event, 'cf-connecting-ip') ?? null,
+      ipAddress: getClientIp(event) ?? null,
       userAgent: getHeader(event, 'user-agent') ?? null,
     }),
   ])

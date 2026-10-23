@@ -1,6 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
-import { resolveSetting } from '../../../../utils/settings'
+import { resolveStringSetting } from '../../../../utils/settings'
 import { videoAssets } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
@@ -26,8 +26,8 @@ export default defineEventHandler(async (event) => {
   let title = body.title
   const size = body.size
 
-  const accountId = await resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
-  const streamToken = await resolveSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')
+  const accountId = await resolveStringSetting(event, 'cloudflare.account_id', 'cloudflareAccountId')
+  const streamToken = await resolveStringSetting(event, 'cloudflare.stream_token', 'cloudflareStreamToken')
 
   if (!accountId || !streamToken) {
     throw createError({

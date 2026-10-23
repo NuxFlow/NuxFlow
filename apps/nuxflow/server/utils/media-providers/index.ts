@@ -1,9 +1,10 @@
 import type { H3Event } from 'h3'
 import { CloudflareImagesProvider } from './cloudflare-images'
 import { R2Provider } from './r2'
-import { resolveSetting } from '../settings'
+import { resolveStringSetting } from '../settings'
 import { getCfBindings } from '../cf-env'
 import { eventForSite } from '../site-info'
+import { bytesToBase64 } from '../../../shared/lib/base64'
 
 export interface UploadResult {
   url: string
@@ -77,10 +78,10 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
     accountId, imagesToken, deliveryUrl,
     r2PublicUrl,
   ] = await Promise.all([
-    resolveSetting(event, 'cloudflare.account_id', 'cloudflareAccountId'),
-    resolveSetting(event, 'cloudflare.images_token', 'cloudflareImagesToken'),
-    resolveSetting(event, 'cloudflare.images_delivery_url', 'cloudflareImagesDeliveryUrl'),
-    resolveSetting(event, 'media.r2_public_url', 'r2PublicUrl'),
+    resolveStringSetting(event, 'cloudflare.account_id', 'cloudflareAccountId'),
+    resolveStringSetting(event, 'cloudflare.images_token', 'cloudflareImagesToken'),
+    resolveStringSetting(event, 'cloudflare.images_delivery_url', 'cloudflareImagesDeliveryUrl'),
+    resolveStringSetting(event, 'media.r2_public_url', 'r2PublicUrl'),
   ])
 
   // deliveryUrl is required alongside the token/account — without it, getUrl() builds a
@@ -118,7 +119,7 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
       // only on `wrangler tail`/logs still needs a signal the moment it's actually used.
       console.warn(`[nuxflow:media] Storing "${file.name}" as base64 in D1 — no media storage connected. See Settings → Media.`)
       const buf = await file.arrayBuffer()
-      const b64 = Buffer.from(buf).toString('base64')
+      const b64 = bytesToBase64(buf)
       const url = `data:${file.type};base64,${b64}`
       return { url, storageKey: file.name, provider: 'local' }
     },

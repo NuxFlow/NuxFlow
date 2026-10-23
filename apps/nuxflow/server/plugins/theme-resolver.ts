@@ -3,7 +3,7 @@ import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getCfBindings } from '../utils/cf-env'
 import { getThemeCSS } from '../utils/cf-theme-kv'
-import { resolveSetting } from '../utils/settings'
+import { resolveStringSetting } from '../utils/settings'
 import { type ActiveTheme, resolveActiveTheme } from '../utils/theme-cache'
 import { errorMessage } from '../utils/errors'
 
@@ -82,7 +82,7 @@ export default defineNitroPlugin((nitro) => {
       // a base theme's own `:root` defaults silently outrank the customizer.
       const isCustomizerTheme = active.packageName.startsWith('@customizer/')
       const baseThemeId = isCustomizerTheme
-        ? (await resolveSetting(event, 'theme.base_theme_id')) as string | null
+        ? (await resolveStringSetting(event, 'theme.base_theme_id'))
         : null
 
       // getThemeCSS already sanitizes (on write, and on read as a fallback for CSS

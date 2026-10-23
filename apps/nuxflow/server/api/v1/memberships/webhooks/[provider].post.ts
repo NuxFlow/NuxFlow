@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import type { H3Event } from 'h3'
 import type { StripeProvider } from '../../../../utils/payments/stripe'
 import { getStripeProvider, getLemonSqueezyProvider, getPaddleProvider } from '../../../../utils/payments/resolve'
@@ -129,6 +128,7 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
       break
     }
     default:
+      // eslint-disable-next-line no-console -- informational: Stripe sends every event type, most aren't ours
       console.log('[stripe-webhook] unhandled event type:', stripeEvent.type)
   }
 }
@@ -275,6 +275,7 @@ export default defineEventHandler(async (event) => {
     // Signature was valid, but the event is another site's (or not NuxFlow's at all) —
     // acknowledge so the provider stops retrying; see WebhookForOtherSite.
     if (err instanceof WebhookForOtherSite) {
+      // eslint-disable-next-line no-console -- informational: an expected, acknowledged event
       console.log(`[${provider}-webhook] ignored: ${err.message}`)
       return { received: true, ignored: true }
     }

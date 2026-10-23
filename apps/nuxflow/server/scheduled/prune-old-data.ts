@@ -2,6 +2,7 @@ import { useDb } from '../utils/db'
 import { aiGenerationJobs, auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits, siteUsageDaily, siteInvitations, siteAuthCodes, siteSessions, pluginStorage } from '@nuxflow/db/schema'
 import { and, count, eq, inArray, lt, ne, notInArray, sql, isNotNull, or } from 'drizzle-orm'
 import { chunk } from '../../shared/lib/array'
+import { utcDayAgo } from '../utils/utc-day'
 
 // Bounds how many overflowing content items get their excess revisions pruned in a
 // single scheduled run. Each item needs its own `findMany` (Drizzle/D1 has no
@@ -146,7 +147,7 @@ export const pruneOldData = async () => {
   }
 
   // --- Crawler activity counters --- the SEO page shows at most 90 days.
-  const crawlerCutoff = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10)
+  const crawlerCutoff = utcDayAgo(90)
   const [crawlerRow] = await db.select({ value: count() }).from(crawlerHits).where(lt(crawlerHits.day, crawlerCutoff))
   const prunedCrawlerHits = crawlerRow?.value ?? 0
   if (prunedCrawlerHits > 0) {
@@ -155,7 +156,7 @@ export const pruneOldData = async () => {
 
   // --- Usage counters --- kept a little over a year, so a month can be compared with the
   // same month last year.
-  const usageCutoff = new Date(Date.now() - 400 * 86_400_000).toISOString().slice(0, 10)
+  const usageCutoff = utcDayAgo(400)
   const [usageRow] = await db.select({ value: count() }).from(siteUsageDaily).where(lt(siteUsageDaily.day, usageCutoff))
   const prunedUsageRows = usageRow?.value ?? 0
   if (prunedUsageRows > 0) {

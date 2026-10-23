@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
-import { resolveSetting } from './settings'
+import { resolveStringSetting, resolveBooleanSetting } from './settings'
 import { eventForSite, getPrimarySite } from './site-info'
+import { getTurnstileSecret } from './turnstile'
 
 /**
  * Turnstile on password sign-in and password-reset requests — opt-in, deployment-wide.
@@ -24,17 +25,17 @@ import { eventForSite, getPrimarySite } from './site-info'
  * widget) — both from this one function so the two can't disagree.
  */
 export async function getSignInCaptcha(event: H3Event): Promise<{ siteKey: string; secretKey: string } | null> {
-  const secretKey = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY
+  const secretKey = getTurnstileSecret()
   if (!secretKey) return null
 
   const primary = await getPrimarySite(event)
   if (!primary) return null
   const siteEvent = eventForSite(event, primary.id)
   const [enabled, siteKey] = await Promise.all([
-    resolveSetting(siteEvent, 'auth.turnstile_sign_in'),
-    resolveSetting(siteEvent, 'integrations.turnstile_site_key'),
+    resolveBooleanSetting(siteEvent, 'auth.turnstile_sign_in'),
+    resolveStringSetting(siteEvent, 'integrations.turnstile_site_key'),
   ])
-  if (String(enabled) !== 'true' || typeof siteKey !== 'string' || !siteKey) return null
+  if (!enabled || !siteKey) return null
   return { siteKey, secretKey }
 }
 

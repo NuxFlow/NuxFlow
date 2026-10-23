@@ -2,7 +2,8 @@ import { useDb } from '../utils/db'
 import { comments, contentItems, contentRevisions, dynamicPlugins, emailMessages, formSubmissions, media, pluginStorage, sites, userSiteRoles } from '@nuxflow/db/schema'
 import { count, eq, sql } from 'drizzle-orm'
 import type { Db } from '../utils/db'
-import { usageDay, writeUsageSnapshot, type UsageCount, type UsageSnapshotMetric } from '../utils/usage'
+import { writeUsageSnapshot, type UsageCount, type UsageSnapshotMetric } from '../utils/usage'
+import { utcDay } from '../utils/utc-day'
 
 // Same split as hosting-plans.ts's team/member limits: `member` is audience, every other
 // role is team — except super_admin, the platform operator's own grant.
@@ -45,7 +46,7 @@ async function databaseBytesBySite(db: Db): Promise<Map<string, number>> {
  */
 export const snapshotUsage = async (now = new Date()) => {
   const db = useDb()
-  const day = usageDay(now)
+  const day = utcDay(now)
 
   const [siteRows, storage, emailStorage, items, roles, plugins, database] = await Promise.all([
     db.select({ id: sites.id }).from(sites),
