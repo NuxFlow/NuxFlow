@@ -37,8 +37,6 @@ const KV_PREFIXES = (siteId: string) => [`plugin:${siteId}:`, `theme:${siteId}:`
 
 export type MoveState = 'outgoing' | 'incoming' | 'moved'
 
-export { isServedCopy } from './move-state'
-
 export interface MoveTable {
   name: string
   columns: Set<string>
