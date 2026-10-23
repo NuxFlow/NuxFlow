@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { ADMIN_EMAIL, ADMIN_PASSWORD } from './global-setup'
+import { gotoHydrated, waitForHydration } from './helpers'
 
 /**
  * Passkey lifecycle on a single-site install: register a passkey from the Security
@@ -25,15 +26,16 @@ test.describe('Passkeys', () => {
       },
     })
 
-    await page.goto('/login')
+    await gotoHydrated(page, '/login')
     await page.fill('input[type="email"]', ADMIN_EMAIL)
     await page.fill('input[type="password"]', ADMIN_PASSWORD)
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
     await page.waitForURL(/\/admin/, { timeout: 20_000 })
 
     const keyName = `E2E key ${Date.now().toString(36)}`
+    // The settings tabs are plain buttons: a click before hydration is silently ignored.
     const openSecurity = async () => {
-      await page.goto('/admin/settings')
+      await gotoHydrated(page, '/admin/settings')
       await page.getByRole('button', { name: 'Security' }).click()
       await expect(page.getByText('Passkeys & Passwordless Login')).toBeVisible({ timeout: 15_000 })
     }
@@ -45,6 +47,7 @@ test.describe('Passkeys', () => {
 
     await page.getByRole('button', { name: 'Sign out' }).first().click()
     await page.waitForURL(/\/login/, { timeout: 15_000 })
+    await waitForHydration(page)
 
     await page.getByRole('button', { name: 'Sign in with Passkey' }).click()
     await page.waitForURL(/\/admin/, { timeout: 20_000 })

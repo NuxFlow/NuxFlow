@@ -182,6 +182,10 @@ async function save(overrideStatus?: string) {
     canvasEditorRef.value?.flushPendingProps?.()
     await nextTick()
   }
+  if (!form.title.trim()) {
+    saveError.value = 'Add a title before saving.'
+    return
+  }
   if (form.access === 'password' && !form.hasPassword && !form.pagePassword) {
     saveError.value = 'Enter a password for this page (under Content access) before saving.'
     return

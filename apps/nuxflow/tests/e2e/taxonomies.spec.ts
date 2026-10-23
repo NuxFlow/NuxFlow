@@ -5,6 +5,7 @@
  */
 import { test, expect } from '@playwright/test'
 import { ADMIN_STORAGE_STATE_PATH } from './global-setup'
+import { gotoHydrated } from './helpers'
 
 test.use({ storageState: ADMIN_STORAGE_STATE_PATH })
 
@@ -23,7 +24,7 @@ test.describe.serial('Taxonomies', () => {
   })
 
   test('adds a term and a nested sub-term to Categories', async ({ page }) => {
-    await page.goto('/admin/taxonomies')
+    await gotoHydrated(page, '/admin/taxonomies')
     await page.getByText('Categories', { exact: true }).first().click()
 
     await page.getByRole('button', { name: 'Add term' }).click()
@@ -39,7 +40,9 @@ test.describe.serial('Taxonomies', () => {
   })
 
   test('terms picked on a brand-new post are saved with it', async ({ page }) => {
-    await page.goto('/admin/content/new?type=post')
+    // Typed before hydration, the title shows in the box but never reaches the form, and
+    // Publish sends an empty title.
+    await gotoHydrated(page, '/admin/content/new?type=post')
     await page.getByPlaceholder('Page title').fill(POST_TITLE)
     await page.getByRole('button', { name: /^Categories\b/ }).click()
     await page.getByRole('checkbox', { name: SUB_NAME }).check()
