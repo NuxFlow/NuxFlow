@@ -68,7 +68,9 @@ export default defineNuxtConfig({
       // demo-reset and demo-nightly-reset guard themselves via isDemoInstance() so they
       // are safe to include unconditionally — NUXT_IS_DEMO is a runtime [vars] entry in
       // wrangler.demo.toml and is NOT available as process.env during the build step.
-      '* * * * *': ['publish-scheduled', 'demo-reset'],
+      // search-index-rebuild re-embeds pages into Vectorize after the index changes (a
+      // KV read a minute otherwise — search-index-rebuild.ts).
+      '* * * * *': ['publish-scheduled', 'demo-reset', 'search-index-rebuild'],
       // Nightly at 3 AM UTC — prune old data; demo instances also wipe and reseed; flag
       // long-untouched published content for its author to review; record each site's
       // usage totals (Super Admin → Usage).

@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
 
   const jobs = await db.query.aiGenerationJobs.findMany({
     where: eq(aiGenerationJobs.siteId, siteId),
-    columns: { id: true, siteId: true, userId: true, prompt: true, type: true, status: true, generatedCount: true, totalCount: true, error: true, createdAt: true, updatedAt: true },
+    columns: { id: true, siteId: true, userId: true, prompt: true, type: true, tone: true, status: true, generatedCount: true, totalCount: true, error: true, createdAt: true, updatedAt: true },
     orderBy: [desc(aiGenerationJobs.createdAt)],
     limit: 50,
   })

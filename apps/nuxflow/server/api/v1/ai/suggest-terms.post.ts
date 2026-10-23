@@ -31,6 +31,8 @@ const suggestionSchema = z.object({
   })).max(5).describe('Brand-new term names to propose only when no existing candidate is a good fit for that taxonomy'),
 })
 
+const MAX_CANDIDATE_TERMS = 500
+
 const SYSTEM = `You are a content tagging assistant for a CMS. Given a piece of content and a list of existing taxonomy terms (tags/categories), pick the ones that clearly apply. Only suggest a brand-new term when no existing one is a good fit — a few precise tags beat many loose ones.`
 
 export default defineEventHandler(async (event) => {
@@ -55,7 +57,12 @@ export default defineEventHandler(async (event) => {
   if (!siteTaxonomies.length) return { matchedTerms: [], newTermSuggestions: [] }
 
   const taxonomyIds = siteTaxonomies.map(t => t.id)
-  const existingTerms = await db.query.taxonomyTerms.findMany({ where: inArray(taxonomyTerms.taxonomyId, taxonomyIds) })
+  // Capped so a site with thousands of tags can't blow the prompt past the model's
+  // context (or the bill).
+  const existingTerms = await db.query.taxonomyTerms.findMany({
+    where: inArray(taxonomyTerms.taxonomyId, taxonomyIds),
+    limit: MAX_CANDIDATE_TERMS,
+  })
 
   const taxonomySlugById = new Map(siteTaxonomies.map(t => [t.id, t.slug]))
   const candidates = existingTerms.map((term, index) => ({

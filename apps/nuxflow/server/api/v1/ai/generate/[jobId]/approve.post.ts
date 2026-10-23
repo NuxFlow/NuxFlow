@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { requireRole } from '../../../../../utils/permissions'
 import { rateLimit } from '../../../../../utils/rate-limit'
 import { useDb } from '../../../../../utils/db'
-import { dedupePlanSlugs, jobResponse, MAX_PLAN_PAGES, planPageSchema } from '../../../../../utils/site-generation'
+import { dedupePlanSlugs, jobResponse, MAX_PLAN_PAGES, planPageSchema, reservePlanSlugs } from '../../../../../utils/site-generation'
 import { aiGenerationJobs } from '@nuxflow/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { requireSiteId } from '../../../../../utils/site-context'
@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
     throw notFound('Generation job not found, or not awaiting approval')
   }
 
-  const plan = dedupePlanSlugs(pages ?? job.plan)
+  const plan = await reservePlanSlugs(db, siteId, dedupePlanSlugs(pages ?? job.plan))
   const [updated] = await db.update(aiGenerationJobs)
     .set({ plan, totalCount: plan.length, generatedCount: 0, status: 'generating', updatedAt: sql`(datetime('now'))` })
     .where(and(eq(aiGenerationJobs.id, jobId), eq(aiGenerationJobs.siteId, siteId), eq(aiGenerationJobs.status, 'planning')))

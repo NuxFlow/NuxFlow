@@ -295,6 +295,26 @@ describe('whole-site jobs', () => {
   })
 })
 
+describe('approving a plan', () => {
+  it('reserves each page’s real address up front, so pages link to the right ones — except home', async () => {
+    const db = getCurrentTestDb()
+    await seedContentItem(db, SITE, pageTypeId, { slug: 'reserve-about', status: 'published' })
+    const job = await createJob({ prompt: 'A site whose about page already exists', type: 'site' })
+    mockGenerateObject.mockResolvedValueOnce({
+      object: {
+        pages: [
+          { title: 'Home', slug: 'home', description: 'Homepage.' },
+          { title: 'About', slug: 'reserve-about', description: 'About page.' },
+          { title: 'About 2', slug: 'reserve-about-2', description: 'Clashes with the reserved name above.' },
+        ],
+      },
+    })
+    await step(job.id)
+    const approved = await approve(job.id)
+    expect(approved.plan!.map(p => p.slug)).toEqual(['home', 'reserve-about-2', 'reserve-about-2-2'])
+  })
+})
+
 describe('the step lease', () => {
   it('a step while another request holds the lease does no work and reports busy', async () => {
     const db = getCurrentTestDb()

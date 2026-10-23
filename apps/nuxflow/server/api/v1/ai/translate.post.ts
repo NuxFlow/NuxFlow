@@ -6,10 +6,10 @@ import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { assertWithinPlan } from '../../../utils/hosting-plans'
 import { contentItems } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { buildAuditLogInsert } from '../../../utils/audit'
-import { getContentItemOrThrow } from '../../../utils/content-queries'
+import { getContentItemOrThrow, uniqueContentSlug } from '../../../utils/content-queries'
 import { contentSlugProblem } from '../../../utils/taxonomy'
 import { applyCanvasTranslations, collectCanvasStrings } from '@nuxflow/canvas/ai'
 import type { CanvasBlockData } from '@nuxflow/canvas'
@@ -94,7 +94,16 @@ export default defineEventHandler(async (event) => {
   const siteId = requireSiteId(event)
   const db = useDb(event)
 
-  const source = await getContentItemOrThrow(db, siteId, contentItemId, 'Content item not found')
+  const picked = await getContentItemOrThrow(db, siteId, contentItemId, 'Content item not found')
+  // Always translate from the original. Translating a translation (the Spanish page into
+  // French) used to link the French one to the Spanish one, which the public language
+  // switcher never finds, and it compounded one AI translation's errors into the next.
+  const source = picked.sourceItemId
+    ? await getContentItemOrThrow(db, siteId, picked.sourceItemId, 'The original of this translation no longer exists')
+    : picked
+  if (source.locale && source.locale === targetLocale) {
+    validationError('The original page is already in that language')
+  }
 
   // Build a map of { key -> original text } for everything needing translation
   const strings = new Map<string, string>()
@@ -114,20 +123,29 @@ export default defineEventHandler(async (event) => {
 
   // Serialize strings to a numbered bundle for the AI
   const slugSuffix = targetSlugSuffix || `-${targetLocale}`
-  const newSlug = `${source.slug}${slugSuffix}`
 
-  const existing = await db.query.contentItems.findFirst({
+  // This language's translations of the original. An unpublished one is updated in place;
+  // a live one is never overwritten — the new translation becomes a separate draft, and
+  // publishing that draft retires the live one (archiveReplacedTranslations).
+  const translationsOfSource = await db.query.contentItems.findMany({
     where: and(
       eq(contentItems.siteId, siteId),
       eq(contentItems.sourceItemId, source.id),
       eq(contentItems.locale, targetLocale),
-    )!,
+    ),
   })
+  const existing = translationsOfSource.find(t => t.status !== 'published' && t.status !== 'archived')
+  const replacesLive = !existing && translationsOfSource.some(t => t.status === 'published')
 
-  // Checked before the (paid, rate-limited) AI call: slugs are unique per site, so an
-  // unrelated item already using the translation's slug would otherwise surface as a raw
-  // constraint error only after the translation had been generated.
-  if (!existing) {
+  let newSlug = `${source.slug}${slugSuffix}`
+  if (!existing && translationsOfSource.length) {
+    // The usual slug belongs to the live (or an archived) translation of this same page.
+    newSlug = await uniqueContentSlug(db, siteId, newSlug)
+  }
+  else if (!existing) {
+    // Checked before the (paid, rate-limited) AI call: slugs are unique per site, so an
+    // unrelated item already using the translation's slug would otherwise surface as a raw
+    // constraint error only after the translation had been generated.
     const problem = await contentSlugProblem(db, siteId, newSlug)
     if (problem) conflict(`${problem}. Choose a different slug suffix.`)
   }
@@ -174,13 +192,16 @@ export default defineEventHandler(async (event) => {
         seoTitle: translations['__seoTitle__'] ?? existing.seoTitle,
         seoDescription: translations['__seoDescription__'] ?? existing.seoDescription,
         excerpt: translations['__excerpt__'] ?? existing.excerpt,
+        // Bumped so an editor that has this translation open notices on its next save
+        // rather than silently overwriting the new translation (optimistic lock).
+        version: sql`${contentItems.version} + 1`,
         updatedAt: new Date().toISOString(),
       })
-      .where(eq(contentItems.id, existing.id))
+      .where(and(eq(contentItems.id, existing.id), eq(contentItems.siteId, siteId)))
 
     const updateAudit = buildAuditLogInsert(event, userId, { action: 'update', resource: 'content_item', resourceId: existing.id })
     await db.batch(updateAudit ? [itemUpdate, updateAudit] : [itemUpdate])
-    return { id: existing.id, locale: targetLocale, updated: true }
+    return { id: existing.id, locale: targetLocale, updated: true, replacesLive: false }
   }
 
   // Create a new translated content item
@@ -209,5 +230,5 @@ export default defineEventHandler(async (event) => {
   const createAudit = buildAuditLogInsert(event, userId, { action: 'create', resource: 'content_item', resourceId: newId })
   await db.batch(createAudit ? [itemInsert, createAudit] : [itemInsert])
 
-  return { id: newId, locale: targetLocale, slug: newSlug, updated: false }
+  return { id: newId, locale: targetLocale, slug: newSlug, updated: false, replacesLive }
 })

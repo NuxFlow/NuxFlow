@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { requireRole, roleAtLeast, AUTHOR_SETTABLE_STATUSES } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
-import { getContentTypeBySlugOrThrow, getContentItemOrThrow, deriveVisibilityFromSettings } from '../../../utils/content-queries'
+import { getContentTypeBySlugOrThrow, getContentItemOrThrow, deriveVisibilityFromSettings, archiveReplacedTranslations } from '../../../utils/content-queries'
 import { created } from '../../../utils/response'
 import { assertWithinPlan } from '../../../utils/hosting-plans'
 import { purgeContentCache } from '../../../utils/edge-cache'
@@ -102,6 +102,10 @@ export default defineEventHandler(async (event) => {
 
   // Only the inserts — a brand-new item has no assignments to clear.
   await batchWithAudit(db, [itemInsert, ...replaceContentTermsStatements(db, id, termIds).slice(1)], auditInsert)
+
+  if (body.status === 'published') {
+    await archiveReplacedTranslations(db, siteId, { id, sourceItemId: body.sourceItemId, locale: body.locale })
+  }
 
   // A brand-new slug can't already be cached, but the site-wide views (blog index,
   // sitemaps, feeds) and the archives of its terms that could now list it might be.

@@ -5,8 +5,11 @@ import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 import { fleschScores, gradeLabel, isLikelyEnglish } from '../../../utils/readability'
 
+// The editor sends the whole rendered body, and a long post's HTML easily passes 20,000
+// characters — that cap used to reject every long article with a validation error. The
+// model only ever sees the first 6,000 characters of text below; Flesch scores the lot.
 const bodySchema = z.object({
-  html: z.string().min(1).max(20000),
+  html: z.string().min(1).max(1_000_000),
 })
 
 const readabilitySchema = z.object({

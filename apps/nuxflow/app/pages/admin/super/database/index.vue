@@ -304,5 +304,7 @@ async function downloadExport() {
         </div>
       </template>
     </UCard>
+
+    <AdminSearchIndexCard />
   </div>
 </template>

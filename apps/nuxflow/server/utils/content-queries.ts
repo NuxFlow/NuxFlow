@@ -1,5 +1,5 @@
 import { contentItems, contentTypes } from '@nuxflow/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, ne, sql } from 'drizzle-orm'
 import type { Db } from './db'
 
 export async function getContentItem(db: Db, siteId: string, id: string, columns?: Record<string, boolean>) {
@@ -66,4 +66,29 @@ export async function uniqueContentSlug(db: Db, siteId: string, baseSlug: string
     suffix++
     slug = `${base}-${suffix}`
   }
+}
+
+/**
+ * One live translation per language: when a translation is published, any other published
+ * translation of the same source in the same locale is archived. Re-translating a live
+ * page with AI makes a separate draft (ai/translate.post.ts) so the live one stays as it is
+ * until the new one is reviewed; publishing the draft is what replaces it. Without this the
+ * public page lookup would pick between two live translations at random. Call it from
+ * every path that can publish an item (the caller purges the cache, as it already does).
+ */
+export async function archiveReplacedTranslations(
+  db: Db,
+  siteId: string,
+  item: { id: string; sourceItemId?: string | null; locale?: string | null },
+): Promise<void> {
+  if (!item.sourceItemId || !item.locale) return
+  await db.update(contentItems)
+    .set({ status: 'archived', version: sql`${contentItems.version} + 1`, updatedAt: sql`(datetime('now'))` })
+    .where(and(
+      eq(contentItems.siteId, siteId),
+      eq(contentItems.sourceItemId, item.sourceItemId),
+      eq(contentItems.locale, item.locale),
+      eq(contentItems.status, 'published'),
+      ne(contentItems.id, item.id),
+    ))
 }

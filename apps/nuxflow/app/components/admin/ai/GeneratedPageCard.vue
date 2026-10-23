@@ -13,10 +13,12 @@ export interface GeneratedPage {
   item?: { id: string; title: string; slug: string; status: string; content: { blocks?: CanvasBlockData[] } | null }
   /** The plan entry had a draft that's since been deleted. */
   missing?: boolean
+  /** Offer "Publish as homepage" — the page the plan made as the home page (or a single-page job). */
+  homepageCandidate?: boolean
 }
 
 const props = defineProps<{ page: GeneratedPage; busy?: boolean }>()
-const emit = defineEmits<{ regenerate: []; discard: []; preview: [] }>()
+const emit = defineEmits<{ regenerate: []; discard: []; preview: []; makeHomepage: [] }>()
 
 const showPreview = ref(false)
 const blocks = computed(() => props.page.item?.content?.blocks ?? [])
@@ -43,6 +45,17 @@ const statusColor = computed(() => (props.page.item?.status === 'published' ? 's
           </UButton>
           <UButton size="xs" variant="ghost" icon="i-lucide-external-link" :disabled="busy" @click="emit('preview')">Full preview</UButton>
           <UButton size="xs" variant="ghost" icon="i-lucide-pencil" :to="`/admin/content/${page.item.id}`">Edit</UButton>
+          <UButton
+            v-if="page.homepageCandidate && page.item.slug !== 'home'"
+            size="xs"
+            variant="soft"
+            icon="i-lucide-house"
+            :disabled="busy"
+            @click="emit('makeHomepage')"
+          >
+            Publish as homepage
+          </UButton>
+          <UBadge v-else-if="page.item.slug === 'home' && page.item.status === 'published'" color="primary" variant="subtle" size="sm" icon="i-lucide-house">Homepage</UBadge>
         </template>
         <UButton
           v-if="page.item?.status !== 'published'"

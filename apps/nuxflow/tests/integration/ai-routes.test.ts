@@ -17,6 +17,7 @@ import type { H3Event } from 'h3'
 import { eq, and } from 'drizzle-orm'
 import { media, auditLogs, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
+import type * as AiSdk from '../../server/utils/ai-sdk'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedMedia } from '../helpers/seed'
@@ -51,7 +52,15 @@ const { mockGetAiSdkModel, mockGenerateText, mockGenerateObject, mockLoadImageBy
   mockLoadImageBytesForAi: vi.fn(),
 }))
 
-vi.mock('../../server/utils/ai-sdk', () => ({
+vi.mock('../../server/utils/ai-sdk', async () => {
+  // The pure helpers are the real ones; only provider access is mocked.
+  const actual = await vi.importActual<typeof AiSdk>('../../server/utils/ai-sdk')
+  return {
+  isVisionImageType: actual.isVisionImageType,
+  VISION_IMAGE_TYPES: actual.VISION_IMAGE_TYPES,
+  VISION_IMAGE_TYPE_MESSAGE: actual.VISION_IMAGE_TYPE_MESSAGE,
+  isSystemicAiError: actual.isSystemicAiError,
+  findAllowanceError: actual.findAllowanceError,
   getAiSdkModel: mockGetAiSdkModel,
   requireAiSdkModel: async (...args: unknown[]) => {
     const model = await mockGetAiSdkModel(...args)
@@ -73,7 +82,8 @@ vi.mock('../../server/utils/ai-sdk', () => ({
     }
   },
   loadImageBytesForAi: mockLoadImageBytesForAi,
-}))
+  }
+})
 
 vi.mock('ai', () => ({
   generateText: mockGenerateText,
@@ -201,6 +211,15 @@ describe('POST /api/v1/ai/alt-text', () => {
     expect(result.altText).toBe('A cheerful person smiling at the camera')
   })
 
+  it('refuses formats vision models cannot read (SVG) before calling the model', async () => {
+    const svgId = await seedMedia(getCurrentTestDb(), SITE, { originalName: 'icon.svg', mimeType: 'image/svg+xml' })
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+
+    await expect(
+      (altTextHandler as HandlerFn)(mkEditorEvent({ mediaId: svgId })),
+    ).rejects.toMatchObject({ statusCode: 422 })
+  })
+
   it('sends the fetched image bytes alongside a filename-context prompt', async () => {
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
     const fakeImage = { data: new Uint8Array([1, 2, 3]), mediaType: 'image/jpeg' }
@@ -252,6 +271,14 @@ describe('POST /api/v1/ai/improve', () => {
     await expect(
       (improveHandler as HandlerFn)(mkEditorEvent({ text: 'Some text' })),
     ).rejects.toMatchObject({ statusCode: 502 })
+  })
+
+  it('keeps the first three when the model returns more, and drops blank ones', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockResolvedValueOnce({ object: { alternatives: [' A ', '', 'B', 'C', 'D'] } })
+
+    const result = await (improveHandler as HandlerFn)(mkEditorEvent({ text: 'Some text' })) as { alternatives: string[] }
+    expect(result.alternatives).toEqual(['A', 'B', 'C'])
   })
 })
 
@@ -314,6 +341,44 @@ describe('POST /api/v1/ai/bulk-alt-text', () => {
     consoleErrorSpy.mockRestore()
   })
 
+  it('stops the run with the real reason when the provider rejects the key, keeping images already done', async () => {
+    const db = getCurrentTestDb()
+    const okId = await seedMedia(db, SITE, { originalName: 'ok.jpg', mimeType: 'image/jpeg' })
+    const badId = await seedMedia(db, SITE, { originalName: 'bad.jpg', mimeType: 'image/jpeg' })
+    const neverId = await seedMedia(db, SITE, { originalName: 'never.jpg', mimeType: 'image/jpeg' })
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockGenerateText.mockClear()
+
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockLoadImageBytesForAi.mockResolvedValue({ data: new Uint8Array([1, 2, 3]), mediaType: 'image/jpeg' })
+    mockGenerateText
+      .mockResolvedValueOnce({ text: 'A described image' })
+      .mockRejectedValueOnce(Object.assign(new Error('Incorrect API key'), { statusCode: 401 }))
+
+    await expect(
+      (bulkAltTextHandler as HandlerFn)(mkEditorEvent({ mediaIds: [okId, badId, neverId] })),
+    ).rejects.toMatchObject({ statusCode: 502 })
+
+    const rows = await db.query.media.findMany({ where: eq(media.siteId, SITE) })
+    expect(rows.find(r => r.id === okId)?.altText).toBe('A described image')
+    // Never attempted: the run stopped at the key error instead of failing every image.
+    expect(mockGenerateText).toHaveBeenCalledTimes(2)
+    expect(rows.find(r => r.id === neverId)?.altText ?? null).toBeNull()
+    consoleErrorSpy.mockRestore()
+    mockLoadImageBytesForAi.mockReset()
+  })
+
+  it('never picks images the vision models cannot read (SVG)', async () => {
+    const db = getCurrentTestDb()
+    const svgId = await seedMedia(db, SITE, { originalName: 'logo.svg', mimeType: 'image/svg+xml' })
+    mockGenerateText.mockClear()
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+
+    const result = await (bulkAltTextHandler as HandlerFn)(mkEditorEvent({ mediaIds: [svgId] })) as { processed: number; skipped: number }
+    expect(result).toMatchObject({ processed: 0, skipped: 0 })
+    expect(mockGenerateText).not.toHaveBeenCalled()
+  })
+
   it('handles a small batch per call, reports hasMore, and skips ids that already failed', async () => {
     const db = getCurrentTestDb()
     const batchSite = 'site-ai-batch-01'
@@ -373,6 +438,14 @@ describe('POST /api/v1/ai/generate-content', () => {
     ) as { html: string }
 
     expect(result.html).toBe('<p>Sustainable travel matters.</p>')
+  })
+
+  it('strips a markdown code fence the model wrapped round the HTML', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateText.mockResolvedValueOnce({ text: '```html\n<h2>Title</h2>\n<p>Body</p>\n```' })
+
+    const result = await (generateContentHandler as HandlerFn)(mkEditorEvent({ description: 'A post about bees' })) as { html: string }
+    expect(result.html).toBe('<h2>Title</h2>\n<p>Body</p>')
   })
 
   it('passes the model and system prompt to generateText', async () => {

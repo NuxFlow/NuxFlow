@@ -4,7 +4,7 @@ import { resolveStringSetting, isOllamaAvailable } from './settings'
 import { getCfBindings, getWorkersAiBinding } from './cf-env'
 import { WORKER_MEDIA_PREFIX, workerMediaKey } from './media-url'
 import { safeFetch } from './ssrf'
-import { AiAllowanceError, assertAiAllowance, checkAiAllowance, recordAiCall, textCredits, type AiPayer, type AiTrigger } from './ai-allowance'
+import { AiAllowanceError, allowanceForbidden, assertAiAllowance, checkAiAllowance, recordAiCall, textCredits, type AiPayer, type AiTrigger } from './ai-allowance'
 import { base64ToBytes } from '../../shared/lib/base64'
 
 /**
@@ -12,8 +12,8 @@ import { base64ToBytes } from '../../shared/lib/base64'
  * bulk-alt-text.post.ts) — kept distinct from 'fast'/'smart' because not every provider's
  * cheap/fast model is multimodal (Workers AI's fast text model, `glm-4.7-flash`, isn't;
  * its vision-capable model is a different, heavier one — see the workers-ai case below).
- * For the five BYOK providers this collapses to the same model 'fast' already used, since
- * gpt-4o-mini/claude-haiku-4-5/gemini-3.8-flash are all already vision-capable.
+ * For Anthropic and Gemini this collapses to the same model 'fast' already used, since
+ * claude-haiku-5-5/gemini-3.8-flash are vision-capable; OpenAI's uses its larger model.
  */
 export type AiQuality = 'fast' | 'smart' | 'vision'
 
@@ -204,14 +204,14 @@ async function resolveProviderModel(event: H3Event, quality: AiQuality, opts: Ge
         // set at model-instance level since a fresh instance is created per request anyway.
         ...(gatewayId && { gateway: { id: gatewayId, ...(opts.userId && { metadata: { userId: opts.userId } }) } }),
       })
-      // Model IDs current as of the workers-ai-provider@4 README (Jul 2026) — Cloudflare's
-      // catalog churns at least as fast as Gemini's does (see the gemini case below), so
-      // re-check https://developers.cloudflare.com/workers-ai/models/ before assuming these
-      // stay valid. kimi-k2.7-code is the vision-capable model (also handles 'smart' — it's
-      // the larger, 256k-context, tool+reasoning-capable model); glm-4.7-flash is the cheap
-      // default for everyday 'fast' calls (grammar, improve, SEO suggestions) and is not
-      // known to be vision-capable, hence the separate 'vision' branch.
-      if (quality === 'vision' || quality === 'smart') return { model: workersai('@cf/moonshotai/kimi-k2.7-code'), payer: 'platform' }
+      // Checked against https://developers.cloudflare.com/workers-ai/models/ (Oct 2026) —
+      // Cloudflare's catalog churns at least as fast as Gemini's (see the gemini case below),
+      // so re-check before assuming these stay valid. kimi-k2.6 is the general-purpose large
+      // model (vision input and structured outputs, both needed here) for 'smart'/'vision';
+      // it replaced kimi-k2.7-code, a coding-tuned model that was writing page copy.
+      // glm-4.7-flash is the cheap default for everyday 'fast' calls (grammar, improve, SEO
+      // suggestions) and is not known to be vision-capable, hence the separate 'vision' branch.
+      if (quality === 'vision' || quality === 'smart') return { model: workersai('@cf/moonshotai/kimi-k2.6'), payer: 'platform' }
       return { model: workersai('@cf/zai-org/glm-4.7-flash'), payer: 'platform' }
     }
     case 'openai': {
@@ -226,7 +226,11 @@ async function resolveProviderModel(event: H3Event, quality: AiQuality, opts: Ge
           headers: gatewayRequestHeaders(token, opts.userId),
         }),
       })
-      return { model: openai(quality === 'smart' ? 'gpt-4o' : 'gpt-4o-mini'), payer }
+      // GPT-6 family (Oct 2026, https://developers.openai.com/api/docs/guides/latest-model):
+      // 6.1 Sol is the balanced model, Luna the cheapest. Image input isn't documented for
+      // Luna, so 'vision' uses Sol. Both are reasoning models — the SDK drops `temperature`
+      // for them itself (improve.post.ts sets one).
+      return { model: openai(quality === 'fast' ? 'gpt-6-luna' : 'gpt-6.1-sol'), payer }
     }
     case 'anthropic': {
       const { value: apiKey, payer } = await resolveAiKey(event, 'ai.anthropic_api_key', 'anthropicApiKey')
@@ -243,7 +247,7 @@ async function resolveProviderModel(event: H3Event, quality: AiQuality, opts: Ge
           headers: gatewayRequestHeaders(token, opts.userId),
         }),
       })
-      return { model: anthropic(quality === 'smart' ? 'claude-sonnet-5' : 'claude-haiku-4-5-20251001'), payer }
+      return { model: anthropic(quality === 'smart' ? 'claude-sonnet-5-5' : 'claude-haiku-5-5'), payer }
     }
     case 'gemini': {
       const { value: apiKey, payer } = await resolveAiKey(event, 'ai.gemini_api_key', 'geminiApiKey')
@@ -324,9 +328,54 @@ export async function callAiOrThrow<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn()
   } catch (err) {
+    // The allowance ran out between requireAiSdkModel()'s check and this call (a multi-call
+    // route like translate, or a whole-site job) — the same 403 the up-front check gives.
+    const allowance = findAllowanceError(err)
+    if (allowance) throw allowanceForbidden(allowance)
+    if (isError(err)) throw err
     throw createError({ statusCode: 502, message: aiErrorMessage(err) })
   }
 }
+
+/** The AiAllowanceError behind `err`, also when the AI SDK wrapped it in a RetryError. */
+export function findAllowanceError(err: unknown): AiAllowanceError | null {
+  if (err instanceof AiAllowanceError) return err
+  const last = (err as { lastError?: unknown } | null)?.lastError
+  return last instanceof AiAllowanceError ? last : null
+}
+
+/**
+ * True for failures that will hit every call the same way (bad key, allowance used up,
+ * rate limit, unknown model) — a loop over many items should stop rather than try each one.
+ */
+export function isSystemicAiError(err: unknown): boolean {
+  if (findAllowanceError(err)) return true
+  const status = providerStatus(err)
+  return status === 401 || status === 403 || status === 404 || status === 429
+}
+
+function providerStatus(err: unknown): unknown {
+  if (!err || typeof err !== 'object') return undefined
+  // The AI SDK retries failed calls and then throws a RetryError whose own message is
+  // "Failed after 3 attempts…" — the provider's status is on the last attempt's error.
+  const e = ((err as { name?: unknown }).name === 'AI_RetryError' && (err as { lastError?: unknown }).lastError) || err
+  if (!e || typeof e !== 'object') return undefined
+  const { status, statusCode } = e as { status?: unknown; statusCode?: unknown }
+  return typeof statusCode === 'number' ? statusCode : status
+}
+
+/**
+ * Image formats every vision provider here accepts. SVG (vector markup, not pixels), HEIC,
+ * TIFF, BMP and AVIF are refused by at least one of them with an unhelpful error.
+ */
+export const VISION_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const
+
+export function isVisionImageType(mimeType: string): boolean {
+  const base = mimeType.split(';')[0]!.trim().toLowerCase()
+  return (VISION_IMAGE_TYPES as readonly string[]).includes(base === 'image/jpg' ? 'image/jpeg' : base)
+}
+
+export const VISION_IMAGE_TYPE_MESSAGE = 'AI can only describe JPEG, PNG, WebP and GIF images'
 
 /**
  * Fetches an already-uploaded media item's bytes so they can be passed to a multimodal
@@ -380,13 +429,18 @@ export function aiErrorMessage(err: unknown): string {
   // Our own errors (createError — e.g. callAiOrThrow's 502, a 404 from a lookup) already
   // carry the right message; only provider errors need translating.
   if (isError(err)) return err.message
+  const allowance = findAllowanceError(err)
+  if (allowance) return allowance.message
   if (err && typeof err === 'object') {
-    const e = err as { status?: unknown; statusCode?: unknown; message?: unknown }
-    const status = typeof e.statusCode === 'number' ? e.statusCode : e.status
+    const status = providerStatus(err)
     if (status === 401 || status === 403) return 'AI provider authentication failed — check your API key in Settings → AI'
     if (status === 429) return 'AI provider rate limit exceeded — try again in a moment'
     if (status === 404) return 'AI model not found — check your provider settings'
-    if (typeof e.message === 'string' && e.message) return e.message
+    // generateObject()'s answer didn't fit the schema — the raw message ("No object
+    // generated: response did not match schema") means nothing to an editor.
+    if ((err as { name?: unknown }).name === 'AI_NoObjectGeneratedError') return 'The AI\'s answer wasn\'t in the expected format — try again'
+    const { message } = err as { message?: unknown }
+    if (typeof message === 'string' && message) return message
   }
   return 'AI provider request failed'
 }

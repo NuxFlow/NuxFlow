@@ -11,6 +11,7 @@ interface GenerationJob {
   type: 'page' | 'site'
   status: 'planning' | 'approved' | 'generating' | 'complete' | 'failed'
   prompt: string
+  tone: string | null
   plan: PlanPage[] | null
   generatedCount: number
   totalCount: number
@@ -23,6 +24,7 @@ interface JobSummary {
   prompt: string
   type: 'page' | 'site'
   status: GenerationJob['status']
+  tone: string | null
   generatedCount: number
   totalCount: number
   createdAt: string
@@ -97,6 +99,17 @@ watch(() => job.value?.plan, (plan) => {
   }
 }, { immediate: true })
 
+// A failed job can't be resumed (its plan or page never came back), so "Try again"
+// starts a fresh one with the same request.
+async function tryAgain(from: { prompt: string; type: 'page' | 'site'; tone: string | null }) {
+  job.value = null
+  driveError.value = ''
+  prompt.value = from.prompt
+  genType.value = from.type
+  tone.value = from.tone ?? 'professional'
+  await generate()
+}
+
 async function generate() {
   if (prompt.value.trim().length < 10) {
     toast.add({ title: 'Describe what you want in a bit more detail', color: 'warning' })
@@ -118,6 +131,7 @@ async function openJob(id: string) {
   job.value = opened
   prompt.value = opened.prompt
   genType.value = opened.type
+  tone.value = opened.tone ?? 'professional'
   void drive()
 }
 
@@ -154,7 +168,15 @@ const reviewPages = computed<GeneratedPage[]>(() => {
   const items = new Map(j.items.map(i => [i.id, i]))
   return j.plan.map((p, index) => {
     const item = p.contentItemId ? items.get(p.contentItemId) : undefined
-    return { index, title: p.title || 'Generated page', slug: p.slug, error: p.error, item, missing: Boolean(p.contentItemId && !item) }
+    return {
+      index,
+      title: p.title || 'Generated page',
+      slug: p.slug,
+      error: p.error,
+      item,
+      missing: Boolean(p.contentItemId && !item),
+      homepageCandidate: j.type === 'page' || p.slug === 'home',
+    }
   })
 })
 const draftItems = computed(() => reviewPages.value.flatMap(p => (p.item?.status === 'draft' ? [p.item] : [])))
@@ -186,6 +208,22 @@ async function discard(page: GeneratedPage) {
     await $fetch<unknown>(url, { method: 'DELETE' })
     await reloadJob()
   }, { errorTitle: "Couldn't discard the page", key: `page:${page.index}` })
+}
+
+async function makeHomepage(page: GeneratedPage) {
+  if (!page.item) return
+  const ok = await confirm({
+    title: `Publish "${page.item.title}" as your homepage?`,
+    description: 'It goes live at your site’s main address straight away. Your current homepage is kept as a draft at /previous-home, so nothing is lost.',
+    confirmLabel: 'Publish as homepage',
+    color: 'primary',
+  })
+  if (!ok) return
+  const url: string = `/api/v1/content/${page.item.id}/make-homepage`
+  await run(async () => {
+    await $fetch<unknown>(url, { method: 'POST' })
+    await reloadJob()
+  }, { successTitle: 'Homepage published', errorTitle: "Couldn't make this the homepage", key: `page:${page.index}` })
 }
 
 async function forEachDraft(action: 'publish' | 'discard') {
@@ -369,6 +407,7 @@ const statusLabel: Record<GenerationJob['status'], string> = {
           @regenerate="regenerate(page.index)"
           @discard="discard(page)"
           @preview="openPreview(page)"
+          @make-homepage="makeHomepage(page)"
         />
       </div>
     </UCard>
@@ -380,6 +419,7 @@ const statusLabel: Record<GenerationJob['status'], string> = {
       icon="i-lucide-x-circle"
       title="Generation failed"
       :description="job.error ?? 'Unknown error'"
+      :actions="[{ label: 'Try again', icon: 'i-lucide-rotate-cw', onClick: () => { void tryAgain(job!) } }]"
     />
 
     <!-- History -->
@@ -404,6 +444,9 @@ const statusLabel: Record<GenerationJob['status'], string> = {
             @click="openJob(h.id)"
           >
             {{ h.status === 'complete' ? 'Review' : h.status === 'planning' ? 'Continue' : 'Resume' }}
+          </UButton>
+          <UButton v-else size="xs" variant="outline" icon="i-lucide-rotate-cw" :loading="starting" @click="tryAgain(h)">
+            Try again
           </UButton>
         </li>
       </ul>

@@ -3,7 +3,7 @@ import { generateObject } from 'ai'
 import { and, eq } from 'drizzle-orm'
 import { media } from '@nuxflow/db/schema'
 import { requireRole } from '../../../utils/permissions'
-import { requireAiSdkModel, callAiOrThrow, loadImageBytesForAi } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, callAiOrThrow, loadImageBytesForAi, isVisionImageType, VISION_IMAGE_TYPE_MESSAGE } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
@@ -49,6 +49,7 @@ export default defineEventHandler(async (event) => {
   if (!file.mimeType.startsWith('image/')) {
     throw validationError('Focal point suggestion only applies to images')
   }
+  if (!isVisionImageType(file.mimeType)) validationError(VISION_IMAGE_TYPE_MESSAGE)
 
   const { data, mediaType } = await callAiOrThrow(() => loadImageBytesForAi(event, file.url, file.mimeType))
 

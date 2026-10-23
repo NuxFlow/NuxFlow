@@ -15,11 +15,13 @@ const bodySchema = z.object({
 // approach had a known failure mode: seo-suggest.post.ts's sibling had already needed a
 // code-fence-stripping workaround for "the model doesn't always comply," and this route had
 // the same exposure without ever getting the same fix.
+// Not .length(3): the schema is enforced on the model's answer, and one returning 2 or 4
+// failed the whole call. Three are asked for; extras are dropped below.
 const alternativesSchema = z.object({
-  alternatives: z.array(z.string()).length(3),
+  alternatives: z.array(z.string()).min(1).max(6),
 })
 
-const SYSTEM = `You are a helpful writing assistant. Generate exactly 3 alternative versions of the given text.`
+const SYSTEM = `You are a helpful writing assistant. Generate exactly 3 alternative versions of the given text. Write them in the same language as the text, and return only the rewritten text — no labels or commentary.`
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
@@ -42,5 +44,7 @@ export default defineEventHandler(async (event) => {
     generateObject({ model, schema: alternativesSchema, system: SYSTEM, prompt, maxOutputTokens: 800, temperature: 0.8 }),
   )
 
-  return object
+  const alternatives = object.alternatives.map(a => a.trim()).filter(Boolean).slice(0, 3)
+  if (!alternatives.length) throw createError({ statusCode: 502, message: 'The AI returned no suggestions — try again' })
+  return { alternatives }
 })

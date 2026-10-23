@@ -1,7 +1,7 @@
 import { transcribe } from 'ai'
 import { createWorkersAI } from 'workers-ai-provider'
 import { requireRole } from '../../../utils/permissions'
-import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
+import { callAiOrThrow } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 import { getWorkersAiBinding } from '../../../utils/cf-env'
 import { AI_CREDITS, assertAiAllowance, recordAiCall } from '../../../utils/ai-allowance'
@@ -15,21 +15,18 @@ const MAX_AUDIO_SIZE = 20 * 1024 * 1024
  * text-generation surface (`generateText`/`generateObject`) that abstraction wraps, and
  * none of the five BYOK providers' SDKs already used here expose a transcription model —
  * adding real multi-provider transcription support would mean pulling in a 6th kind of SDK
- * call per provider for a comparatively minor feature. Returns 503 (via requireAiSdkModel's
- * own check, reused here purely to get the standard "no provider" error copy) when the
- * Workers AI binding specifically isn't available, regardless of which text provider a site
- * has configured.
+ * call per provider for a comparatively minor feature. Returns 503 when the Workers AI
+ * binding specifically isn't available, regardless of which text provider a site has
+ * configured.
  */
 export default defineEventHandler(async (event) => {
-  const { userId } = await requireRole(event, 'editor')
+  await requireRole(event, 'editor')
   await rateLimit(event, { limit: 10, windowMs: 60_000, keyPrefix: 'ai-transcribe' })
 
   const ai = getWorkersAiBinding(event)
   if (!ai) {
-    // Reuse requireAiSdkModel's standard 503 rather than hand-writing a second copy of the
-    // same error — the underlying cause (no Workers AI binding) is the same class of
-    // "AI provider unavailable" case every other AI route already surfaces this way.
-    await requireAiSdkModel(event, 'fast', { userId })
+    // Not requireAiSdkModel(): a site with its own OpenAI/Anthropic key would pass that
+    // check (or be refused by the platform's AI allowance) and get the wrong message.
     throw createError({ statusCode: 503, message: 'Voice-to-text requires the Workers AI binding — see Settings → AI.' })
   }
 

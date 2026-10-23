@@ -6,6 +6,7 @@ import { bumpCacheVersionInKv } from '../utils/cache-version'
 import { createSystemEvent } from '../utils/system-event'
 import { dispatchContentHook } from '../utils/plugin-hooks'
 import { pushContentPublished } from '../utils/push-content'
+import { archiveReplacedTranslations } from '../utils/content-queries'
 
 /** What Nitro hands a Cloudflare cron task (`context.cloudflare`). */
 export interface ScheduledCloudflareContext {
@@ -38,6 +39,14 @@ export const publishScheduled = async (cloudflare?: ScheduledCloudflareContext) 
       // parameters). An item that became due in between is published too, just without
       // an IndexNow ping; the sitemap still covers it.
       .where(where)
+
+    // A scheduled translation retires the live one in its language, as publishing by hand
+    // does. One call per language: two due at once for the same one leave the last standing
+    // (calling it for both would have each archive the other).
+    const byLanguage = new Map(due.filter(i => i.sourceItemId).map(i => [`${i.siteId}:${i.sourceItemId}:${i.locale}`, i]))
+    for (const item of byLanguage.values()) {
+      await archiveReplacedTranslations(db, item.siteId, item)
+    }
 
     // Newly published items belong in their site's blog index, feeds, sitemaps and term
     // archives — start a new cache version per affected site so those show them within

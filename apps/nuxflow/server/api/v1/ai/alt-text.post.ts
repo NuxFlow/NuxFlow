@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { generateText } from 'ai'
 import { requireRole } from '../../../utils/permissions'
-import { requireAiSdkModel, callAiOrThrow, loadImageBytesForAi } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, callAiOrThrow, loadImageBytesForAi, isVisionImageType, VISION_IMAGE_TYPE_MESSAGE } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { getMediaByIdOrThrow } from '../../../utils/resource-queries'
@@ -23,6 +23,7 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
 
   const file = await getMediaByIdOrThrow(db, siteId, mediaId, 'Media not found', { originalName: true, url: true, mimeType: true })
+  if (!isVisionImageType(file.mimeType)) validationError(VISION_IMAGE_TYPE_MESSAGE)
 
   // The model needs to actually see the image — a prompt built only from the filename
   // (e.g. "IMG_2384.jpg") gives it nothing to describe and produces plausible-sounding but

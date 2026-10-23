@@ -174,12 +174,12 @@ name = "EMAIL"
 
 # Vectorize (optional) — semantic search and "related content" suggestions, as a
 # supplement to (not a replacement for) the built-in FTS5 keyword search. Unlike the [ai]
-# binding above, this needs a real index created first, with dimensions matching the
-# embedding model in server/utils/embeddings.ts (@cf/baai/bge-base-en-v1.5, 768-dim):
-#   wrangler vectorize create nuxflow-content --dimensions=768 --metric=cosine
-# Then uncomment below. Dimensions/metric are immutable after creation — changing the
-# embedding model later means recreating the index and re-saving every content item to
-# regenerate its vector.
+# binding above, this needs a real index created first. Its dimensions pick the embedding
+# model (server/utils/embeddings.ts): 1024 = @cf/baai/bge-m3, every language; 768 = the
+# older English-only @cf/baai/bge-base-en-v1.5, still supported for existing indexes.
+#   wrangler vectorize create nuxflow-content --dimensions=1024 --metric=cosine
+# Then uncomment below. Dimensions/metric are immutable after creation — to switch, create
+# a new index and change index_name; the search-index-rebuild task re-embeds every page.
 # [[vectorize]]
 # binding = "VECTORIZE"
 # index_name = "nuxflow-content"

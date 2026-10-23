@@ -1,12 +1,13 @@
 import { z } from 'zod'
 import { generateText } from 'ai'
 import { requireRole } from '../../../utils/permissions'
-import { requireAiSdkModel, loadImageBytesForAi } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, loadImageBytesForAi, isSystemicAiError, findAllowanceError, aiErrorMessage, VISION_IMAGE_TYPES } from '../../../utils/ai-sdk'
+import { allowanceForbidden } from '../../../utils/ai-allowance'
 import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { writeAuditLog } from '../../../utils/audit'
 import { media } from '@nuxflow/db/schema'
-import { and, eq, inArray, isNull, like, notInArray, or } from 'drizzle-orm'
+import { and, eq, inArray, isNull, notInArray, or } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
@@ -39,7 +40,8 @@ export default defineEventHandler(async (event) => {
 
   const where = and(
     eq(media.siteId, siteId),
-    like(media.mimeType, 'image/%'),
+    // Only formats the vision models can read — an SVG used to "fail" on every run.
+    inArray(media.mimeType, [...VISION_IMAGE_TYPES]),
     mediaIds?.length ? inArray(media.id, mediaIds) : or(isNull(media.altText), eq(media.altText, '')),
     skipIds?.length ? notInArray(media.id, skipIds) : undefined,
   )
@@ -53,6 +55,7 @@ export default defineEventHandler(async (event) => {
 
   const updated: Array<{ id: string; altText: string }> = []
   const failed: string[] = []
+  let stopError: unknown
 
   for (const file of batch) {
     try {
@@ -79,6 +82,13 @@ export default defineEventHandler(async (event) => {
       // showing up only as a failure count in the admin UI.
       console.error(`[bulk-alt-text] Failed to generate alt text for media ${file.id} ("${file.originalName}")`, err)
       failed.push(file.id)
+      // A bad key, a used-up AI allowance or a rate limit fails every image the same way —
+      // stop here with the real reason rather than letting the page loop through the whole
+      // library marking each one "failed". Images already done in this batch are saved.
+      if (isSystemicAiError(err)) {
+        stopError = err
+        break
+      }
     }
   }
 
@@ -90,6 +100,12 @@ export default defineEventHandler(async (event) => {
       resourceId: 'bulk-alt-text',
       after: { siteId, processed: updated.length, skipped: failed.length, total: batch.length },
     })
+  }
+
+  if (stopError) {
+    const allowance = findAllowanceError(stopError)
+    if (allowance) allowanceForbidden(allowance)
+    throw createError({ statusCode: 502, message: aiErrorMessage(stopError) })
   }
 
   // For an explicit id list the caller sends the rest next time; otherwise the extra row

@@ -11,11 +11,12 @@ import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedContentType, seedContentItem } from '../helpers/seed'
-import { contentItems, contentRevisions } from '@nuxflow/db/schema'
+import { contentItems, contentRevisions, redirects } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import createHandler from '../../server/api/v1/content/index.post'
 import patchHandler from '../../server/api/v1/content/[id].patch'
 import deleteHandler from '../../server/api/v1/content/[id].delete'
+import makeHomepageHandler from '../../server/api/v1/content/[id]/make-homepage.post'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -530,5 +531,89 @@ describe('content routes — embedding sync wiring', () => {
     await (deleteHandler as HandlerFn)(mkDeleteEvent(id, 'editor'))
 
     expect(mockDeleteContentEmbedding).toHaveBeenCalledWith(expect.anything(), id)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// One live translation per language
+// ---------------------------------------------------------------------------
+
+describe('PATCH /api/v1/content/[id] — publishing a translation', () => {
+  it('archives the live translation in the same language it replaces, and nothing else', async () => {
+    const db = getCurrentTestDb()
+    const src = await seedContentItem(db, SITE, typeId, { slug: 'tr-src', status: 'published' })
+    const liveEs = await seedContentItem(db, SITE, typeId, { slug: 'tr-src-es', status: 'published', locale: 'es', sourceItemId: src })
+    const liveFr = await seedContentItem(db, SITE, typeId, { slug: 'tr-src-fr', status: 'published', locale: 'fr', sourceItemId: src })
+    const draftEs = await seedContentItem(db, SITE, typeId, { slug: 'tr-src-es-2', status: 'draft', locale: 'es', sourceItemId: src })
+
+    await (patchHandler as HandlerFn)(mkPatchEvent({ status: 'published' }, draftEs, 'editor'))
+
+    const status = async (id: string) => (await db.query.contentItems.findFirst({ where: eq(contentItems.id, id) }))!.status
+    expect(await status(draftEs)).toBe('published')
+    expect(await status(liveEs)).toBe('archived')
+    expect(await status(liveFr)).toBe('published')
+    expect(await status(src)).toBe('published')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/content/[id]/make-homepage
+// ---------------------------------------------------------------------------
+
+describe('POST /api/v1/content/[id]/make-homepage', () => {
+  const HOME_SITE = 'site-home-01'
+  let homeEditorId: string
+  let homeTypeId: string
+
+  beforeAll(async () => {
+    const db = getCurrentTestDb()
+    await seedSite(db, { id: HOME_SITE, domain: 'home.localhost' })
+    homeEditorId = await seedUser(db, { email: 'editor@home.test' })
+    await seedRole(db, homeEditorId, HOME_SITE, 'editor')
+    homeTypeId = await seedContentType(db, HOME_SITE, { slug: 'page' })
+  })
+
+  const call = (id: string, userId = homeEditorId) => (makeHomepageHandler as HandlerFn)(createMockEvent({
+    siteId: HOME_SITE,
+    session: { user: { id: userId, name: 'Editor', email: 'editor@home.test' } },
+    params: { id },
+  }) as unknown as H3Event) as Promise<{ id: string; previousHome: { id: string; slug: string } | null }>
+
+  const get = (id: string) => getCurrentTestDb().query.contentItems.findFirst({ where: eq(contentItems.id, id) })
+
+  it('publishes a draft at "home" and keeps the old homepage as a draft at /previous-home', async () => {
+    const db = getCurrentTestDb()
+    const oldHome = await seedContentItem(db, HOME_SITE, homeTypeId, { slug: 'home', title: 'Old home', status: 'published' })
+    const generated = await seedContentItem(db, HOME_SITE, homeTypeId, { slug: 'home-2', title: 'New home', status: 'draft', publishedAt: null })
+
+    const res = await call(generated)
+    expect(res.previousHome).toMatchObject({ id: oldHome, slug: 'previous-home' })
+    expect(await get(generated)).toMatchObject({ slug: 'home', status: 'published' })
+    expect((await get(generated))!.publishedAt).toBeTruthy()
+    expect(await get(oldHome)).toMatchObject({ slug: 'previous-home', status: 'draft' })
+
+    // Doing it again with another page picks a free name for the one it replaces.
+    const third = await seedContentItem(db, HOME_SITE, homeTypeId, { slug: 'home-3', status: 'draft' })
+    const again = await call(third)
+    expect(again.previousHome).toMatchObject({ id: generated, slug: 'previous-home-2' })
+  })
+
+  it('redirects a published page’s old address to /', async () => {
+    const db = getCurrentTestDb()
+    const about = await seedContentItem(db, HOME_SITE, homeTypeId, { slug: 'welcome', status: 'published' })
+    await call(about)
+    const rules = await db.query.redirects.findMany({ where: eq(redirects.siteId, HOME_SITE) })
+    expect(rules).toEqual(expect.arrayContaining([expect.objectContaining({ from: '/welcome', to: '/' })]))
+  })
+
+  it('refuses a translation, and a viewer', async () => {
+    const db = getCurrentTestDb()
+    const src = await seedContentItem(db, HOME_SITE, homeTypeId, { slug: 'src-page' })
+    const tr = await seedContentItem(db, HOME_SITE, homeTypeId, { slug: 'src-page-es', locale: 'es', sourceItemId: src })
+    await expect(call(tr)).rejects.toMatchObject({ statusCode: 422 })
+
+    const viewerId = await seedUser(db, { email: 'viewer@home.test' })
+    await seedRole(db, viewerId, HOME_SITE, 'viewer')
+    await expect(call(src, viewerId)).rejects.toMatchObject({ statusCode: 403 })
   })
 })
