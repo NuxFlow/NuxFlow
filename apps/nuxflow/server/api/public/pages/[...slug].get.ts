@@ -9,6 +9,8 @@ import { effectiveItemRobots, getSeoSettings, publicPathForItem } from '../../..
 import { getPublicItemTerms, termArchivePath } from '../../../utils/taxonomy'
 import { checkContentAccess } from '../../../utils/content-access'
 import { requireSiteId } from '../../../utils/site-context'
+import { markPrivateVideos } from '../../../utils/stream'
+import { describePageVideos, hasVideoBlocks } from '../../../utils/video-seo'
 
 type ContentItemRow = typeof contentItems.$inferSelect
 
@@ -89,7 +91,11 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
   // Content type, author, source-page, site-locale, and SEO-settings lookups are all
   // independent of each other (they only need `page`, already resolved above), so run
   // them as one round trip each in parallel instead of sequentially.
-  const [type, authorUser, sourcePageResolved, site, seo, ownTerms] = await Promise.all([
+  // Video blocks: each Stream video marked private or public (the block fetches a signed
+  // link for a private one), and every public video described for VideoObject structured
+  // data. Both depend only on the stored content and library, so they're fine to edge-cache.
+  const hasVideo = hasVideoBlocks(page.content)
+  const [type, authorUser, sourcePageResolved, site, seo, ownTerms, content, videos] = await Promise.all([
     page.typeId
       ? db.query.contentTypes.findFirst({
           where: and(eq(contentTypes.id, page.typeId), eq(contentTypes.siteId, siteId)),
@@ -117,6 +123,15 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true } }),
     getSeoSettings(db, siteId),
     getPublicItemTerms(db, siteId, page.id),
+    hasVideo ? markPrivateVideos(db, siteId, page.content) : Promise.resolve(page.content),
+    hasVideo
+      ? describePageVideos(db, siteId, page.content, {
+          title: page.title,
+          description: page.seoDescription || page.excerpt,
+          publishedAt: page.publishedAt,
+          updatedAt: page.updatedAt,
+        })
+      : Promise.resolve([]),
   ])
   const defaultLocale = site?.locale || 'en'
 
@@ -184,7 +199,7 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
     path,
     locale: page.locale || defaultLocale,
     defaultLocale,
-    content: page.content,
+    content,
     excerpt: page.excerpt,
     seoTitle: page.seoTitle,
     seoDescription: page.seoDescription,
@@ -209,6 +224,7 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
     hasComments,
     author,
     terms,
+    videos,
     availableLocales,
     alternates,
   }

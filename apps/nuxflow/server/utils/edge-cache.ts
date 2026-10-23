@@ -178,6 +178,7 @@ const GLOBAL_CONTENT_CACHE_PATHS = [
   '/blog',
   '/sitemap.xml',
   '/sitemap-images.xml',
+  '/sitemap-video.xml',
   '/feed.xml',
   '/atom.xml',
   '/llms.txt',

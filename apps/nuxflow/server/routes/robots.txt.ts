@@ -56,7 +56,7 @@ async function buildRobotsTxt(event: H3Event, siteId: string): Promise<string> {
     lines.push('', '# Custom rules', seo.robotsCustom)
   }
 
-  lines.push('', `Sitemap: ${baseUrl}/sitemap.xml`, `Sitemap: ${baseUrl}/sitemap-images.xml`, '')
+  lines.push('', `Sitemap: ${baseUrl}/sitemap.xml`, `Sitemap: ${baseUrl}/sitemap-images.xml`, `Sitemap: ${baseUrl}/sitemap-video.xml`, '')
   return lines.join('\n')
 }
 

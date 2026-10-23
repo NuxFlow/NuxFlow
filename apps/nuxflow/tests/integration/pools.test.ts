@@ -164,7 +164,7 @@ describe('Super Admin → Pools', () => {
     expect(a.received).toEqual([{
       protocol: POOL_PROTOCOL,
       // The cap from the primary site; the account id from the deployment's variable.
-      settings: { 'platform.ai_daily_credit_cap': '250', 'analytics.cf_api_token': null, 'cloudflare.account_id': 'a'.repeat(32) },
+      settings: { 'platform.ai_daily_credit_cap': '250', 'analytics.cf_api_token': null, 'cloudflare.account_id': 'a'.repeat(32), 'cloudflare.stream_token': null },
     }])
     expect(b.received).toHaveLength(1)
     // The hosting plans go with them, so a newly connected pool has everything (pool-sites.ts).

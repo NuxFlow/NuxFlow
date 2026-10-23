@@ -2,6 +2,7 @@
 // (NuxBlock.vue), the editor's readability input, and the RSS/Atom feeds all use it, so
 // they can't drift apart on what's escaped or which nodes render.
 
+import { parseVideoUrl, videoEmbedUrl, videoWatchUrl } from '@nuxflow/canvas/video'
 import { escapeHtml } from './html-text'
 
 interface TipTapNode {
@@ -151,6 +152,9 @@ function renderNode(node: TipTapNode): string {
       return `<img src="${src}"${alt}${title}${width}${height} loading="lazy">`
     }
 
+    case 'video':
+      return renderVideo(node)
+
     case 'table':
       return `<table>${children(node)}</table>`
 
@@ -179,6 +183,29 @@ function renderNode(node: TipTapNode): string {
     default:
       return children(node)
   }
+}
+
+const VIDEO_RATIO: Record<string, string> = { '16:9': '56.25%', '4:3': '75%', '1:1': '100%', '9:16': '177.78%' }
+
+/**
+ * A video in a post (`video` node: url, caption, aspectRatio). YouTube and Vimeo get their
+ * privacy-friendly player. A Cloudflare Stream video gets a player only when the public page
+ * API marked it public (`privateVideo: false`); otherwise — private, or not marked, as in a
+ * feed — a placeholder that NuxBlock.vue swaps for a signed player in the browser, with a
+ * link for readers that don't run scripts.
+ */
+function renderVideo(node: TipTapNode): string {
+  const ref = parseVideoUrl(node.attrs?.url)
+  if (!ref) return ''
+  const ratio = VIDEO_RATIO[String(node.attrs?.aspectRatio ?? '16:9')] ?? VIDEO_RATIO['16:9']
+  const caption = typeof node.attrs?.caption === 'string' && node.attrs.caption.trim()
+    ? `<figcaption>${esc(node.attrs.caption.trim())}</figcaption>`
+    : ''
+  const frame = `position:relative;padding-bottom:${ratio};height:0;overflow:hidden;border-radius:8px;background:#000`
+  const inner = ref.provider === 'stream' && node.attrs?.privateVideo !== false
+    ? `<div class="nux-video-frame" style="${frame}" data-nuxflow-video="${ref.id}"><a href="${esc(videoWatchUrl(ref))}" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff">Watch the video</a></div>`
+    : `<div class="nux-video-frame" style="${frame}"><iframe src="${esc(videoEmbedUrl(ref))}" title="${esc(String(node.attrs?.caption || 'Video'))}" style="position:absolute;inset:0;width:100%;height:100%;border:0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`
+  return `<figure class="nux-video">${inner}${caption}</figure>`
 }
 
 export function renderTipTap(doc: unknown): string {

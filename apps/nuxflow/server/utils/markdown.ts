@@ -12,6 +12,7 @@
 
 import { decodeHtmlEntities } from '../../shared/lib/html-text'
 import { isSafeLinkUrl } from '../../shared/lib/render-tiptap'
+import { parseVideoList, parseVideoUrl, videoWatchUrl } from '@nuxflow/canvas/video'
 
 // ── Text helpers ─────────────────────────────────────────────────────────────
 
@@ -276,6 +277,10 @@ function blockToMarkdown(node: TiptapNode, depth: number): string {
       return '---'
     case 'image':
       return inlineToMarkdown([node])
+    case 'video': {
+      const ref = parseVideoUrl(node.attrs?.url)
+      return ref ? `[${typeof node.attrs?.caption === 'string' && node.attrs.caption ? escapeMarkdown(node.attrs.caption) : 'Watch the video'}](${videoWatchUrl(ref)})` : ''
+    }
     case 'table': {
       const rows = children.map(row => (row.content ?? []).map(cell =>
         (cell.content ?? []).map(c => blockToMarkdown(c, depth)).join(' ').replace(/\|/g, '\\|').replace(/\n+/g, ' ')))
@@ -366,6 +371,12 @@ function canvasBlockToMarkdown(block: CanvasBlock): string {
         const url = safeUrl(imageUrl(img))
         if (url) push(`![${escapeMarkdown(s(img.alt))}](${url})`)
         if (url) push(para(s(img.caption)))
+      }
+      break
+    case 'canvas-video-gallery':
+      for (const item of parseVideoList(p.videos)) {
+        const ref = parseVideoUrl(item.url)
+        if (ref) push(link(item.title || 'Watch the video', videoWatchUrl(ref)))
       }
       break
     case 'canvas-video':

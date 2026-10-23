@@ -324,7 +324,7 @@ NuxFlow ships several AI-discoverability features out of the box — no configur
 |---|---|
 | `/llms.txt`, `/llms-full.txt` | Markdown index (and full text) of your site for ChatGPT, Claude, Perplexity, and other assistants |
 | `/<page>.md` or `Accept: text/markdown` | A clean Markdown version of any page, for AI agents |
-| `/sitemap.xml`, `/sitemap-images.xml` | Indexable pages with `lastmod`, hreflang alternates, and each page's images |
+| `/sitemap.xml`, `/sitemap-images.xml`, `/sitemap-video.xml` | Indexable pages with `lastmod`, hreflang alternates, and each page's images and videos |
 | `/robots.txt` | Generated from Admin → SEO, including a `Content-Signal` line |
 | `/atom.xml` | Atom 1.0 feed (alongside RSS 2.0 at `/feed.xml`) with author and image metadata |
 | JSON-LD | `BlogPosting` / `Event` / `WebPage`, `FAQPage`, `BreadcrumbList`, `Organization`, and `WebSite` |

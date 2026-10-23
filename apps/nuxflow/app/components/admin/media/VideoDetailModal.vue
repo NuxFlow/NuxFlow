@@ -12,10 +12,13 @@ interface VideoAsset {
   status: 'uploading' | 'processing' | 'ready' | 'failed'
   size: number | null
   createdAt: string
+  isPrivate: boolean
+  playbackUrl: string
 }
 
 const open = defineModel<boolean>('open', { required: true })
 const editTitle = defineModel<string>('editTitle', { required: true })
+const editPrivate = defineModel<boolean>('editPrivate', { required: true })
 
 defineProps<{
   video: VideoAsset | null
@@ -72,6 +75,13 @@ async function copyStreamUrl(streamId: string) {
 
         <UFormField label="Video Title">
           <UInput v-model="editTitle" placeholder="Enter a descriptive title..." />
+        </UFormField>
+
+        <UFormField
+          label="Private video"
+          help="Plays only on this site's own pages, for visitors who can see that page — a copied or forwarded link won't play. Videos on password-protected and members-only pages are made private automatically."
+        >
+          <USwitch v-model="editPrivate" />
         </UFormField>
       </div>
     </template>

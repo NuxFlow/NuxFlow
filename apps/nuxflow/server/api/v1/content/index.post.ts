@@ -6,6 +6,7 @@ import { getContentTypeBySlugOrThrow, getContentItemOrThrow, deriveVisibilityFro
 import { created } from '../../../utils/response'
 import { assertWithinPlan } from '../../../utils/hosting-plans'
 import { purgeContentCache } from '../../../utils/edge-cache'
+import { makePageVideosPrivate } from '../../../utils/stream'
 import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexnow'
 import { waitUntil } from '../../../utils/cf-env'
 import { upsertContentEmbedding } from '../../../utils/embeddings'
@@ -110,6 +111,9 @@ export default defineEventHandler(async (event) => {
   // A brand-new slug can't already be cached, but the site-wide views (blog index,
   // sitemaps, feeds) and the archives of its terms that could now list it might be.
   await purgeContentCache(event, { published: body.status === 'published', slugs: [body.slug], taxonomyTerms: await getTermRefsWithAncestors(db, siteId, termIds) })
+
+  // A password or members-only page makes its library videos private (signed links only).
+  await makePageVideosPrivate(event, siteId, { content: body.content, visibility: deriveVisibilityFromSettings(body.settings) })
 
   waitUntil(event, upsertContentEmbedding(event, {
     contentItemId: id,

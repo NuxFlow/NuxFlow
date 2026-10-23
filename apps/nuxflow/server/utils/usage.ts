@@ -48,6 +48,11 @@ export const USAGE_EVENT_METRICS = [
   'inbound_emails',
   /** Requests and event hooks handled by the site's dynamic plugins (each runs a Dynamic Worker). */
   'plugin_calls',
+  /**
+   * Minutes of the platform's Cloudflare Stream video watched. Not counted per request —
+   * written hourly from Stream's analytics by video-usage.ts, as each day's total.
+   */
+  'video_minutes_viewed',
 ] as const
 
 export const USAGE_SNAPSHOT_METRICS = [

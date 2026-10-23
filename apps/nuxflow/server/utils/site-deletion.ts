@@ -11,9 +11,11 @@ import { deleteSiteEmailObjects } from './inbox'
 import { deleteContentEmbeddings } from './embeddings'
 import { cancelHostingForDeletedSite } from './hosting-billing'
 import { removeDomainsForDeletedSite } from './hosting-domains'
+import { deleteStreamVideo, streamAccountFor, type StreamAccountKind } from './stream'
+import { eventForSite } from './site-info'
 import {
   sites, users, userSiteRoles, media, contentItems,
-  accounts, sessions, passkeys, themes, dynamicPlugins,
+  accounts, sessions, passkeys, themes, dynamicPlugins, videoAssets,
 } from '@nuxflow/db/schema'
 import { eq, and, ne, inArray } from 'drizzle-orm'
 
@@ -118,6 +120,24 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
   catch (err) {
     failedMediaDeletes.push(`_private/${siteId}/email/*`)
     console.error(JSON.stringify({ event: 'site.delete.email_failed', siteId, error: errorMessage(err, String(err)) }))
+  }
+
+  // 1c. Videos live in Cloudflare Stream — the site's own account or, for a hosted
+  // customer, the platform's, which keeps billing for every stored minute. Client films are
+  // personal data too, so a failure is surfaced like a media failure.
+  const siteVideos = await db.select({ uid: videoAssets.cloudflareStreamId, streamAccount: videoAssets.streamAccount })
+    .from(videoAssets).where(eq(videoAssets.siteId, siteId))
+  if (siteVideos.length) {
+    const siteEvent = eventForSite(event, siteId)
+    const streamAccounts = new Map<StreamAccountKind, Awaited<ReturnType<typeof streamAccountFor>>>()
+    for (const video of siteVideos) {
+      if (!streamAccounts.has(video.streamAccount)) streamAccounts.set(video.streamAccount, await streamAccountFor(siteEvent, video.streamAccount))
+      const account = streamAccounts.get(video.streamAccount)
+      if (!account || !(await deleteStreamVideo(account, video.uid))) {
+        failedMediaDeletes.push(`stream:${video.uid}`)
+        console.error(JSON.stringify({ event: 'site.delete.video_failed', siteId, streamId: video.uid, reason: account ? 'stream_refused' : 'no_credentials' }))
+      }
+    }
   }
 
   // 2. Delete KV-stored theme CSS/demo data and dynamic plugin server/client code for

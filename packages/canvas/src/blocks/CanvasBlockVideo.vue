@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
 import type { SpacingValue } from '../types'
 import { spacingToCss } from '../utils/spacing'
+import { blockIdKey } from '../utils/block-context'
+import { canvasHostKey } from '../host'
+import { isStreamPlayerUrl, parseVideoUrl, videoEmbedUrl } from '../utils/video-url'
 
 const props = withDefaults(defineProps<{
   url?: string
@@ -10,6 +13,15 @@ const props = withDefaults(defineProps<{
   autoplay?: boolean
   muted?: boolean
   padding?: SpacingValue
+  /** Search-engine details (VideoObject structured data and the video sitemap) — not shown. */
+  title?: string
+  description?: string
+  /**
+   * Set by the public page API, never stored: true when this is a private Cloudflare Stream
+   * video (plays only with a signed link), false when it's public. Absent in the editor
+   * and in pages cached before this existed — the block then asks.
+   */
+  privateVideo?: boolean
 }>(), {
   url: '',
   aspectRatio: '16:9',
@@ -17,6 +29,9 @@ const props = withDefaults(defineProps<{
   autoplay: false,
   muted: false,
   padding: undefined,
+  title: '',
+  description: '',
+  privateVideo: undefined,
 })
 
 const paddingStyle = computed(() => ({ padding: spacingToCss(props.padding, '16px 24px') }))
@@ -30,39 +45,50 @@ const aspectMap: Record<string, number> = {
 
 const paddingBottom = computed(() => `${aspectMap[props.aspectRatio ?? '16:9'] ?? 56.25}%`)
 
+const video = computed(() => parseVideoUrl(props.url))
+
+// ── Private Cloudflare Stream videos ─────────────────────────────────────────
+// A Stream video can require signed links (password and members-only pages make theirs
+// private). The signed link expires, so it's fetched in the browser for whoever is
+// watching — never put into the server-rendered (and cached) page.
+const host = inject(canvasHostKey, null)
+const blockId = inject(blockIdKey, '')
+const needsLookup = computed(() => video.value?.provider === 'stream' && props.privateVideo !== false && Boolean(host?.videoPlaybackUrl))
+const signedUrl = ref<string | null>(null)
+const lookupState = ref<'pending' | 'done' | 'failed'>('pending')
+
+async function lookUpPlayback() {
+  const v = video.value
+  if (!needsLookup.value || !v || !host?.videoPlaybackUrl) return
+  lookupState.value = 'pending'
+  signedUrl.value = null
+  try {
+    const path = typeof window !== 'undefined' ? window.location.pathname.replace(/^\/+|\/+$/g, '') : ''
+    const url = await host.videoPlaybackUrl({ streamId: v.id, blockId, path })
+    signedUrl.value = url && isStreamPlayerUrl(url) ? url : null
+    lookupState.value = 'done'
+  } catch {
+    lookupState.value = 'failed'
+  }
+}
+
+onMounted(lookUpPlayback)
+watch(() => [props.url, props.privateVideo], lookUpPlayback)
+
 const embedUrl = computed(() => {
-  const raw = props.url?.trim()
-  if (!raw) return null
-
-  // Cloudflare Stream
-  const cfStream = raw.match(/(?:videodelivery\.net\/|cloudflarestream\.com\/|watch\.cloudflarestream\.com\/|^)([a-f0-9]{32})(?:\/iframe)?$/i)
-  if (cfStream) {
-    const params = new URLSearchParams()
-    if (props.autoplay) params.set('autoplay', 'true')
-    if (props.muted) params.set('muted', 'true')
-    params.set('controls', 'true')
-    return `https://iframe.videodelivery.net/${cfStream[1]}?${params}`
+  const v = video.value
+  if (!v) return null
+  if (needsLookup.value) {
+    if (lookupState.value !== 'done') return null
+    if (signedUrl.value) {
+      const u = new URL(signedUrl.value)
+      if (props.autoplay) u.searchParams.set('autoplay', 'true')
+      if (props.muted) u.searchParams.set('muted', 'true')
+      return u.toString()
+    }
+    // The server said this video is public after all.
   }
-
-  // YouTube
-  const yt = raw.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{11})/)
-  if (yt) {
-    const params = new URLSearchParams({ rel: '0', modestbranding: '1' })
-    if (props.autoplay) params.set('autoplay', '1')
-    if (props.muted) params.set('mute', '1')
-    return `https://www.youtube.com/embed/${yt[1]}?${params}`
-  }
-
-  // Vimeo
-  const vimeo = raw.match(/vimeo\.com\/(\d+)/)
-  if (vimeo) {
-    const params = new URLSearchParams()
-    if (props.autoplay) params.set('autoplay', '1')
-    if (props.muted) params.set('muted', '1')
-    return `https://player.vimeo.com/video/${vimeo[1]}?${params}`
-  }
-
-  return null
+  return videoEmbedUrl(v, { autoplay: props.autoplay, muted: props.muted })
 })
 </script>
 
@@ -72,11 +98,21 @@ const embedUrl = computed(() => {
     <div v-if="embedUrl" class="relative overflow-hidden rounded-lg" :style="{ paddingBottom, height: 0 }">
       <iframe
         :src="embedUrl"
+        :title="title || caption || 'Video'"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen
         class="absolute inset-0 w-full h-full border-0"
         loading="lazy"
       />
+    </div>
+
+    <!-- A private video while its signed link loads, or when it can't be played here -->
+    <div
+      v-else-if="video"
+      class="canvas-video-pending flex flex-col items-center justify-center rounded-lg bg-black text-gray-400"
+      :style="{ aspectRatio: aspectRatio?.replace(':', '/') ?? '16/9' }"
+    >
+      <p v-if="lookupState === 'failed'" class="text-sm px-4 text-center">This video can't be played right now.</p>
     </div>
 
     <!-- Empty state -->

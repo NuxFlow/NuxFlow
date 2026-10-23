@@ -11,6 +11,8 @@ interface VideoAsset {
   status: 'uploading' | 'processing' | 'ready' | 'failed'
   size: number | null
   createdAt: string
+  isPrivate: boolean
+  playbackUrl: string
 }
 
 defineProps<{
@@ -34,6 +36,7 @@ const emit = defineEmits<{
         class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
         loading="lazy"
       >
+      <UBadge v-if="video.isPrivate" color="neutral" variant="solid" size="sm" icon="i-lucide-lock" class="absolute top-2 left-2 z-10">Private</UBadge>
       <!-- Custom Status Overlay -->
       <div
         v-if="video.status !== 'ready'"

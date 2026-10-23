@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { and, count, desc, eq, gt, gte, ne, notInArray, sql } from 'drizzle-orm'
-import { contentItems, dynamicPlugins, emailMessages, hostingPlans, media, siteDomains, siteInvitations, sites, siteUsageDaily, userSiteRoles } from '@nuxflow/db/schema'
+import { contentItems, dynamicPlugins, emailMessages, hostingPlans, media, siteDomains, siteInvitations, sites, siteUsageDaily, userSiteRoles, videoAssets } from '@nuxflow/db/schema'
 import { PLAN_LIMITS, planFeature, planLimit, type PlanFeatureKey, type PlanLimitKey } from '../../shared/lib/hosting-plan-limits'
 import { useDb, type Db } from './db'
 import { createIsolateCache } from './isolate-cache'
@@ -68,7 +68,7 @@ export function planMax(plan: HostingPlan | null, key: PlanLimitKey): number | n
 }
 
 /** The site_usage_daily metric each monthly limit reads. */
-export const MONTHLY_METRIC: Record<'ai' | 'visitor_ai' | 'emails' | 'inbound' | 'views' | 'renders' | 'plugin_calls', UsageEventMetric> = {
+export const MONTHLY_METRIC: Record<'ai' | 'visitor_ai' | 'emails' | 'inbound' | 'views' | 'renders' | 'plugin_calls' | 'video_watch', UsageEventMetric> = {
   ai: 'ai_credits',
   visitor_ai: 'ai_visitor_credits',
   emails: 'emails',
@@ -76,6 +76,7 @@ export const MONTHLY_METRIC: Record<'ai' | 'visitor_ai' | 'emails' | 'inbound' |
   views: 'views',
   renders: 'renders',
   plugin_calls: 'plugin_calls',
+  video_watch: 'video_minutes_viewed',
 }
 
 /**
@@ -135,6 +136,14 @@ export async function planUsage(db: Db, siteId: string, key: PlanLimitKey, now =
       const [r] = await db.select({ n: count() }).from(dynamicPlugins).where(eq(dynamicPlugins.siteId, siteId))
       return r?.n ?? 0
     }
+    case 'video': {
+      // Whole minutes per video, only videos in the platform's Stream account (stream.ts).
+      // A video still processing has no duration yet and counts as nothing until it does.
+      const [r] = await db.select({ n: sql<number>`coalesce(sum((coalesce(${videoAssets.duration}, 0) + 59) / 60), 0)` })
+        .from(videoAssets)
+        .where(and(eq(videoAssets.siteId, siteId), eq(videoAssets.streamAccount, 'platform')))
+      return Number(r?.n ?? 0)
+    }
     default:
       return monthlyUsage(db, siteId, MONTHLY_METRIC[key], now)
   }
@@ -180,6 +189,8 @@ export function planLimitMessage(key: PlanLimitKey, max: number): string {
     case 'members': return "This site isn't accepting new members."
     case 'domains': return max === 0 ? "Your plan doesn't include your own domain. Ask about a bigger plan." : `Your plan allows ${max.toLocaleString('en')} of your own domains.`
     case 'plugins': return max === 0 ? "Your plan doesn't include plugins." : `Your plan allows ${max.toLocaleString('en')} plugins.`
+    case 'video_watch': return "This month's video watching allowance is used up, so uploaded videos are paused until the 1st. YouTube and Vimeo videos still play."
+    case 'video': return max === 0 ? "Your plan doesn't include video uploads. YouTube and Vimeo links still work in the Video block." : `Your plan's video storage is full (${max.toLocaleString('en')} minutes). Delete some videos, or ask about a bigger plan.`
     case 'ai': return "This month's AI allowance is used up. It resets on the 1st. To keep going now, add your own AI key in Settings → AI."
     case 'emails': return "This month's email allowance is used up. It resets on the 1st. Sign-in and security emails still go out."
     case 'visitor_ai': return "This month's AI allowance for visitor features is used up. It resets on the 1st."
@@ -211,7 +222,11 @@ export async function assertWithinPlan(event: H3Event, key: PlanLimitKey, amount
 export async function sitePlanSummary(db: Db, siteId: string) {
   const plan = await getSitePlan(db, siteId)
   if (!plan) return { plan: null, limits: [] }
-  const limited = PLAN_LIMITS.filter(l => planMax(plan, l.key) !== null)
+  // A limit of 0 means "not included" (no video, no plugins…) — nothing to show as usage.
+  const limited = PLAN_LIMITS.filter((l) => {
+    const max = planMax(plan, l.key)
+    return max !== null && max !== 0
+  })
   const used = await Promise.all(limited.map(l => planUsage(db, siteId, l.key)))
   return {
     plan: { id: plan.id, name: plan.name, description: plan.description },

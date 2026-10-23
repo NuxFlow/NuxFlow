@@ -9,6 +9,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { scopedById } from '../../../utils/db-helpers'
 import { purgeContentCache } from '../../../utils/edge-cache'
+import { makePageVideosPrivate } from '../../../utils/stream'
 import { assertContentSlugAvailable, getContentTermIds, getTermRefsWithAncestors, replaceContentTermsStatements, validateSiteTermIds } from '../../../utils/taxonomy'
 import { waitUntil } from '../../../utils/cf-env'
 import { upsertContentEmbedding } from '../../../utils/embeddings'
@@ -244,6 +245,12 @@ export default defineEventHandler(async (event) => {
     status: updateFields.status ?? existing.status,
     visibility: visibility !== undefined ? visibility : existing.visibility,
   }))
+
+  // A password or members-only page makes its library videos private (signed links only),
+  // or a forwarded video address would get round the page's gate.
+  if (contentChanged || visibilityChanged) {
+    await makePageVideosPrivate(event, siteId, { content: updateFields.content !== undefined ? updateFields.content : existing.content, visibility: nextVisibility })
+  }
 
   // Plugins granted content hooks hear about public items going live, changing, or leaving.
   queueContentHook(event, siteId, existing, { status: nextStatus, visibility: nextVisibility }, {

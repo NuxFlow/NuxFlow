@@ -597,13 +597,19 @@ describe('POST /api/v1/media/video/token', () => {
     ).rejects.toMatchObject({ statusCode: 403 })
   })
 
+  it('returns 422 without the file size', async () => {
+    await expect(
+      (tokenHandler as HandlerFn)(mkEvent({ userId: authorUserId, body: { title: 'x.mp4' } })),
+    ).rejects.toMatchObject({ statusCode: 422 })
+  })
+
   it('returns 501 when Cloudflare Stream is not configured', async () => {
     await expect(
-      (tokenHandler as HandlerFn)(mkEvent({ userId: authorUserId })),
+      (tokenHandler as HandlerFn)(mkEvent({ userId: authorUserId, body: { size: 1000 } })),
     ).rejects.toMatchObject({ statusCode: 501 })
   })
 
-  it('returns uploadUrl and uid when CF is configured and API succeeds', async () => {
+  it('starts a resumable upload and lists the video as uploading', async () => {
     const originalConfig = globalThis.useRuntimeConfig
     globalThis.useRuntimeConfig = () => ({
       ...originalConfig(),
@@ -611,26 +617,49 @@ describe('POST /api/v1/media/video/token', () => {
       cloudflareStreamToken: 'tok-token',
     })
 
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        success: true,
-        result: {
-          uploadURL: 'https://upload.videodelivery.net/some-upload-url',
-          uid: 'aabbccddee1234567890abcdef123456',
-        },
-      }),
-    })
+    const uid = 'aabbccddee1234567890abcdef123456'
+    const mockFetch = vi.fn().mockResolvedValue(new Response(null, {
+      status: 201,
+      headers: { Location: `https://upload.cloudflarestream.com/${uid}?tusv2=true`, 'stream-media-id': uid },
+    }))
     vi.stubGlobal('fetch', mockFetch)
 
     try {
       const result = await (tokenHandler as HandlerFn)(
-        mkEvent({ userId: authorUserId, body: { title: 'My Upload' } }),
-      ) as { uploadUrl: string; uid: string }
+        mkEvent({ userId: authorUserId, body: { title: 'My Upload.mp4', size: 300_000_000 } }),
+      ) as { uploadUrl: string; uid: string; id: string }
 
-      expect(typeof result.uploadUrl).toBe('string')
-      expect(result.uploadUrl).toContain('videodelivery.net')
-      expect(typeof result.uid).toBe('string')
+      expect(result.uploadUrl).toBe(`https://upload.cloudflarestream.com/${uid}?tusv2=true`)
+      expect(result.uid).toBe(uid)
+      const [url, init] = mockFetch.mock.calls[0]!
+      expect(url).toBe('https://api.cloudflare.com/client/v4/accounts/acct-token/stream?direct_user=true')
+      expect(new Headers(init.headers).get('tus-resumable')).toBe('1.0.0')
+
+      const db = getCurrentTestDb()
+      const [row] = await db.select().from(videoAssets).where(eq(videoAssets.id, result.id))
+      expect(row).toMatchObject({ siteId: SITE, cloudflareStreamId: uid, status: 'uploading', title: 'My Upload', size: 300_000_000, streamAccount: 'site' })
+    } finally {
+      globalThis.useRuntimeConfig = originalConfig
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('returns 402 when the Stream account has no minutes, and writes no row', async () => {
+    const originalConfig = globalThis.useRuntimeConfig
+    globalThis.useRuntimeConfig = () => ({
+      ...originalConfig(),
+      cloudflareAccountId: 'acct-none',
+      cloudflareStreamToken: 'tok-none',
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: false, errors: [{ code: 10011, message: 'Insufficient minutes' }] }), { status: 403 })))
+
+    try {
+      const db = getCurrentTestDb()
+      const before = (await db.select().from(videoAssets).where(eq(videoAssets.siteId, SITE))).length
+      await expect(
+        (tokenHandler as HandlerFn)(mkEvent({ userId: authorUserId, body: { size: 1000 } })),
+      ).rejects.toMatchObject({ statusCode: 402 })
+      expect((await db.select().from(videoAssets).where(eq(videoAssets.siteId, SITE))).length).toBe(before)
     } finally {
       globalThis.useRuntimeConfig = originalConfig
       vi.unstubAllGlobals()
@@ -645,15 +674,12 @@ describe('POST /api/v1/media/video/token', () => {
       cloudflareStreamToken: 'tok-fail',
     })
 
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: false,
-      text: async () => 'Unauthorized',
-    })
+    const mockFetch = vi.fn().mockResolvedValue(new Response('Unauthorized', { status: 401 }))
     vi.stubGlobal('fetch', mockFetch)
 
     try {
       await expect(
-        (tokenHandler as HandlerFn)(mkEvent({ userId: authorUserId })),
+        (tokenHandler as HandlerFn)(mkEvent({ userId: authorUserId, body: { size: 1000 } })),
       ).rejects.toMatchObject({ statusCode: 502 })
     } finally {
       globalThis.useRuntimeConfig = originalConfig

@@ -165,6 +165,11 @@ export const ALLOWLIST: AllowlistEntry[] = [
     reason: 'Marks video uploads stuck in processing as failed, on every site.',
   },
   {
+    file: 'server/utils/video-usage.ts',
+    tables: ['video_assets'],
+    reason: "Hourly: counts minutes watched of every site's videos in the platform's Stream account and pauses or resumes them against each site's plan.",
+  },
+  {
     file: 'server/scheduled/stale-content-scan.ts',
     tables: ['content_items', 'notifications'],
     reason: 'Nightly scan for stale published content on every site.',

@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./consent": "./src/utils/consent.ts",
+    "./video": "./src/utils/video-url.ts",
     "./ai": "./src/ai/index.ts"
   },
   "scripts": {

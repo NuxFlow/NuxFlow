@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PublicSiteInfo } from '~/utils/seo'
+import type { JsonLdVideo, PublicSiteInfo } from '~/utils/seo'
 
 interface PublicPage {
   id: string
@@ -18,6 +18,7 @@ interface PublicPage {
   hasComments?: boolean | null
   availableLocales?: Array<{ locale: string; slug: string; rawSlug?: string }> | null
   alternates?: Array<{ locale: string; path: string }> | null
+  videos?: JsonLdVideo[] | null
 }
 
 // `cookie` is forwarded so a draft-preview cookie (api/preview/[token].get.ts) reaches the
@@ -79,6 +80,7 @@ useHead({
       updatedAt: page.value?.updatedAt,
       content: page.value?.content,
       isHome: true,
+      videos: page.value?.videos,
     }, { name: siteName.value, base: canonicalBase.value }).map(schema => ({ type: 'application/ld+json', innerHTML: JSON.stringify(schema) }))
   }),
 })
