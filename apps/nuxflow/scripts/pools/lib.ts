@@ -151,6 +151,16 @@ export function hasBucket(listText: string, name: string): boolean {
   return listText.split("\n").some(line => /^name:\s+(\S+)\s*$/.exec(line.trim())?.[1] === name)
 }
 
+/**
+ * Whether a failed `wrangler secret list` failed only because the Worker doesn't exist yet.
+ * Wrangler has worded this several ways (4.152: `Worker "x" not found.`); anything else must
+ * stop the script, since guessing wrong would replace a running pool's secret.
+ */
+export function isWorkerMissing(output: string, worker: string): boolean {
+  if (/\b10007\b|script_not_found|worker does not exist/i.test(output)) return true
+  return output.toLowerCase().includes(`worker "${worker.toLowerCase()}" not found`)
+}
+
 /** Whether a Worker already has a secret, from `wrangler secret list --format json`. */
 export function hasSecret(listJson: string, name: string): boolean {
   return parseList(listJson, 'wrangler secret list').some(s => s.name === name)

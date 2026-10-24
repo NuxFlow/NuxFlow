@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasBucket, hasSecret, ownBucket, parsePoolFlags, poolConfigFile, poolNames, routerBindingBlock, serviceBindingBlock,
+  addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasBucket, hasSecret, isWorkerMissing, ownBucket, parsePoolFlags, poolConfigFile, poolNames, routerBindingBlock, serviceBindingBlock,
 } from '../../scripts/pools/lib'
 
 const base = {
@@ -123,6 +123,13 @@ describe('wrangler listings', () => {
   it('reads secret names', () => {
     expect(hasSecret('[{"name":"NUXT_BETTER_AUTH_SECRET","type":"secret_text"}]', 'NUXT_BETTER_AUTH_SECRET')).toBe(true)
     expect(hasSecret('[]', 'NUXT_BETTER_AUTH_SECRET')).toBe(false)
+  })
+
+  it('recognises "no such Worker yet" in every wording, and nothing else', () => {
+    expect(isWorkerMissing('X [ERROR] Worker "nuxflow-pool-canary" not found.\n\n  If this is a new Worker, run `wrangler deploy` first', 'nuxflow-pool-canary')).toBe(true)
+    expect(isWorkerMissing('This Worker does not exist on your account. [code: 10007]', 'nuxflow-pool-canary')).toBe(true)
+    expect(isWorkerMissing('Worker "nuxflow-pool-other" not found.', 'nuxflow-pool-canary')).toBe(false)
+    expect(isWorkerMissing('Authentication error [code: 10000]', 'nuxflow-pool-canary')).toBe(false)
   })
 
   it('stops on output it can\'t read rather than guessing', () => {

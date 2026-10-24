@@ -28,7 +28,7 @@ import {
   wranglerCapture,
   wranglerLive,
 } from '../release/shell'
-import { addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasBucket, hasSecret, ownBucket, parsePoolFlags, poolConfigFile, poolNames, routerBindingBlock, serviceBindingBlock, type OwnBucket } from './lib'
+import { addPoolTarget, buildPoolConfig, findD1Id, findKvId, hasBucket, hasSecret, isWorkerMissing, ownBucket, parsePoolFlags, poolConfigFile, poolNames, routerBindingBlock, serviceBindingBlock, type OwnBucket } from './lib'
 
 const HELP = `pnpm pool:create <name> [--from wrangler.cloud.toml] [--ring 1|2] [--location weur | --jurisdiction eu] [--own-bucket | --bucket <name>] [--dry-run] [--yes]
 
@@ -40,7 +40,6 @@ files in the EU. See docs/pools.md.`
 
 const SECRET_NAME = 'NUXT_BETTER_AUTH_SECRET'
 // Cloudflare's answer for a Worker that hasn't been deployed yet (API error 10007).
-const WORKER_MISSING_RE = /\b10007\b|script_not_found|worker does not exist/i
 
 function wranglerJson(args: string[], what: string): string {
   const res = wranglerCapture(args)
@@ -148,7 +147,7 @@ runMain(async () => {
   const existingSecrets = wranglerCapture(['secret', 'list', '--config', names.config, '--format', 'json'])
   // Only "this Worker doesn't exist yet" means no secret. Any other failure stops here:
   // guessing wrong would replace a running pool's secret.
-  if (!existingSecrets.ok && !WORKER_MISSING_RE.test(`${existingSecrets.err}\n${existingSecrets.out}`)) {
+  if (!existingSecrets.ok && !isWorkerMissing(`${existingSecrets.err}\n${existingSecrets.out}`, names.worker)) {
     fail(`Couldn't check the pool's secrets, so nothing was deployed:\n${existingSecrets.err || existingSecrets.out}`)
   }
   const needsSecret = !existingSecrets.ok || !hasSecret(existingSecrets.out, SECRET_NAME)
