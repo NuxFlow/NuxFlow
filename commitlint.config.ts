@@ -2,6 +2,9 @@ import type { UserConfig } from '@commitlint/types'
 
 const config: UserConfig = {
   extends: ['@commitlint/config-conventional'],
+  // Dependabot always writes "chore(deps): Bump …" (capital B), which subject-case
+  // rejects, and its commit text can't be configured.
+  ignores: [message => message.includes('Signed-off-by: dependabot[bot]')],
   rules: {
     'type-enum': [
       2,
