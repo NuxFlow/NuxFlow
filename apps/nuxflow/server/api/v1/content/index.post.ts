@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { assertDemoAllowsContent } from '../../../utils/demo-mode'
 import { useDb } from '../../../utils/db'
 import { requireRole, roleAtLeast, AUTHOR_SETTABLE_STATUSES } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
@@ -47,6 +48,7 @@ export default defineEventHandler(async (event) => {
   const db = useDb(event)
   const siteId = requireSiteId(event)
   const { pagePassword, ...body } = await parseBody(event, bodySchema)
+  assertDemoAllowsContent(event, body.content)
   body.settings = await resolvePageSettings(body.settings, null, pagePassword)
 
   // Only editor+ may publish/schedule directly — mirrors the identical check already

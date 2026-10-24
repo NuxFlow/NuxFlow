@@ -1,6 +1,7 @@
 import { useDb } from '../../../utils/db'
 import { getUserSiteRole, hasSuperAdminRole } from '../../../utils/permissions'
 import { isHostingPlatform } from '../../../utils/hosting-platform'
+import { isDemoMode } from '../../../utils/demo-mode'
 
 export default defineEventHandler(async (event) => {
   const session = await requireSession(event)
@@ -26,5 +27,7 @@ export default defineEventHandler(async (event) => {
     isSuperAdmin,
     /** The Super Admin hosting-platform switch (hosting-platform.ts) — shows Plans/Usage. */
     hostingPlatform,
+    /** The public demo (demo-mode.ts) — the admin shows a banner saying what's switched off. */
+    demo: isDemoMode(event),
   }
 })

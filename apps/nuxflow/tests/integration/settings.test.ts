@@ -173,6 +173,37 @@ describe('batchSaveSettings', () => {
   })
 })
 
+describe('PATCH /api/v1/settings in the public demo', () => {
+  async function demoEvent(body: Record<string, unknown>) {
+    const demoSiteId = `${siteId}-demo-${Math.random().toString(36).slice(2)}`
+    await seedSite(getCurrentTestDb(), { id: demoSiteId, domain: `${demoSiteId}.localhost` })
+    const adminId = await seedUser(getCurrentTestDb(), { email: `admin-${demoSiteId}@settings-demo.test` })
+    await seedRole(getCurrentTestDb(), adminId, demoSiteId, 'admin')
+    const event = createMockEvent({
+      siteId: demoSiteId,
+      session: { user: { id: adminId, name: 'Admin', email: `admin-${demoSiteId}@settings-demo.test` } },
+      body,
+    }) as unknown as H3Event & { context: Record<string, unknown> }
+    event.context.cloudflare = { env: { NUXT_IS_DEMO: 'true' } }
+    return { event, demoSiteId }
+  }
+
+  it('refuses custom HTML and credentials, writing nothing', async () => {
+    const { event, demoSiteId } = await demoEvent({
+      settings: { 'appearance.custom_head_html': '<script>x</script>', 'site.tagline': 'kept out' },
+      ai: { provider: 'openai', openaiApiKey: 'sk-x' },
+    })
+    await expect((patchHandler as (e: H3Event) => Promise<unknown>)(event)).rejects.toMatchObject({ statusCode: 403 })
+    expect(await resolveSetting(mkEvent(demoSiteId), 'site.tagline')).toBe('')
+  })
+
+  it('still saves ordinary settings', async () => {
+    const { event, demoSiteId } = await demoEvent({ settings: { 'theme.primary_color': '#123456' } })
+    expect(await (patchHandler as (e: H3Event) => Promise<unknown>)(event)).toEqual({ success: true })
+    expect(await resolveSetting(mkEvent(demoSiteId), 'theme.primary_color')).toBe('#123456')
+  })
+})
+
 describe('PATCH /api/v1/settings (end-to-end multi-section save)', () => {
   it('saves site columns, generic settings, and structured ai/media/auth fields together', async () => {
     const routeSiteId = `${siteId}-route`

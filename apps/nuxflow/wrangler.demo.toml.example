@@ -1,7 +1,20 @@
+# The public demo (demo.nuxflow.dev). Copy to wrangler.demo.toml (gitignored) and fill in
+# the ids. NUXT_IS_DEMO turns on demo mode (server/utils/demo-mode.ts): the shared login is
+# an admin, AI is always off, and account changes, API keys, MCP, plugins, restore/import,
+# custom HTML and credential settings are refused. Everything is wiped and reseeded at
+# 3 AM UTC.
+#
+# Keep this Worker lean on purpose — do NOT add [ai], R2 (MEDIA_BUCKET), EMAIL, Vectorize,
+# Analytics Engine, or any AI/Stripe/email secrets. Demo mode refuses AI anyway, but the
+# fewer paid resources the Worker can reach, the less a visitor can cost you.
 name = "nuxflow-demo"
 main = ".output/server/index.mjs"
 compatibility_date = "2026-04-01"
 compatibility_flags = ["nodejs_compat"]
+
+# Served only on demo.nuxflow.dev, not on <name>.<account>.workers.dev or preview URLs.
+workers_dev = false
+preview_urls = false
 
 [build]
 command = "pnpm run build"
@@ -12,11 +25,12 @@ directory = ".output/public"
 [vars]
 NUXT_IS_DEMO = "true"
 NUXT_PUBLIC_SITE_URL = "https://demo.nuxflow.dev"
-# Set these secrets via: wrangler secret put NUXT_BETTER_AUTH_SECRET --config wrangler.demo.toml
+# The one secret, set via: wrangler secret put NUXT_BETTER_AUTH_SECRET --config wrangler.demo.toml
 # NUXT_BETTER_AUTH_SECRET =
 
 [triggers]
-# publish-scheduled runs every minute; demo-reset runs at 3 AM UTC daily
+# Every minute: publish-scheduled, plus demo-reset (seeds an empty database on first boot,
+# then does nothing). 3 AM UTC: demo-nightly-reset (wipe + reseed) and prune-old-data.
 crons = ["* * * * *", "0 3 * * *"]
 
 # Workers Logs — see wrangler.toml.example for the full rationale; included free on both
@@ -25,20 +39,21 @@ crons = ["* * * * *", "0 3 * * *"]
 enabled = true
 head_sampling_rate = 1
 
-# Dynamic plugin KV store — run to create:
-#   wrangler kv namespace create PLUGIN_KV --config wrangler.demo.toml
-# then paste the returned id below and in the preview_id field.
+# KV store for themes, plugins and the cache version — run to create:
+#   wrangler kv namespace create nuxflow-demo-kv --config wrangler.demo.toml
+# then paste the returned id below and in the preview_id field. The binding name must be
+# exactly PLUGIN_KV — the code reads no other name.
 [[kv_namespaces]]
 binding = "PLUGIN_KV"
 id = "your-demo-kv-namespace-id"
 preview_id = "your-demo-kv-preview-namespace-id"
 
-# Dynamic Workers loader
+# Dynamic Workers loader (the app expects the binding; demo mode refuses plugin installs)
 [[worker_loaders]]
 binding = "LOADER"
 
 # Cloudflare D1 database for the demo instance.
-# Create with: wrangler d1 create nuxflow-demo --config wrangler.demo.toml
+# Create with: wrangler d1 create nuxflow-demo
 # Then paste the returned database_id below.
 # Migrations run automatically on the first request after deployment.
 [[d1_databases]]
@@ -46,7 +61,11 @@ binding = "DB"
 database_name = "nuxflow-demo"
 database_id = "your-demo-d1-database-id"
 
-# demo.nuxflow.dev custom domain
+# A route, not a Custom Domain: nuxflow.dev uses wildcard routes for its other hostnames,
+# and mixing in per-hostname Custom Domain certificates causes empty 403s (see
+# docs/multi-site.md). More specific than the main Worker's *.nuxflow.dev/* route, so demo
+# traffic always lands here. Needs a proxied DNS record for `demo` (AAAA 100::, or the
+# zone's `*` wildcard record).
 [[routes]]
-pattern = "demo.nuxflow.dev"
-custom_domain = true
+pattern = "demo.nuxflow.dev/*"
+zone_name = "nuxflow.dev"

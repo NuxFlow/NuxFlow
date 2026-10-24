@@ -60,7 +60,7 @@ Explore NuxFlow without installing anything — a live instance resets every nig
 | **Email** | `demo@nuxflow.dev` |
 | **Password** | `demo123` |
 
-Every feature in the admin is fully functional. The demo resets automatically at 3 AM UTC each night.
+You can build pages, write posts, upload images, manage menus and taxonomies, switch themes and try the SEO tools. Because everyone shares one login, the demo switches off AI features, plugins, API keys and MCP, account changes, custom HTML, email, payments and backup restore. Uploads are limited to images up to 2 MB. The demo resets automatically at 3 AM UTC each night.
 
 ---
 
