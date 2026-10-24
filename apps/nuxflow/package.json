@@ -43,7 +43,7 @@
     "@tiptap/starter-kit": "^3.32.0",
     "@tiptap/vue-3": "^3.32.0",
     "ai": "^7.0.140",
-    "better-auth": "^1.7.7",
+    "better-auth": "^1.7.12",
     "drizzle-orm": "0.45.4",
     "fflate": "^0.8.3",
     "highlight.js": "^11.12.0",
