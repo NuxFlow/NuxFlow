@@ -2,6 +2,7 @@ import { wrapLanguageModel, type LanguageModel } from 'ai'
 import { isError, type H3Event } from 'h3'
 import { resolveStringSetting, isOllamaAvailable } from './settings'
 import { getCfBindings, getWorkersAiBinding } from './cf-env'
+import { isDemoMode } from './demo-mode'
 import { WORKER_MEDIA_PREFIX, workerMediaKey } from './media-url'
 import { safeFetch } from './ssrf'
 import { AiAllowanceError, allowanceForbidden, assertAiAllowance, checkAiAllowance, recordAiCall, textCredits, type AiPayer, type AiTrigger } from './ai-allowance'
@@ -188,6 +189,8 @@ async function resolveProviderModel(event: H3Event, quality: AiQuality, opts: Ge
   // admin action beyond that one uncomment. If the binding genuinely isn't present (not yet
   // uncommented, or a self-hoster on an older wrangler.toml), the workers-ai case below
   // returns null exactly as the old unconfigured-provider default did — no regression.
+  // The public demo never uses AI — env keys included (demo-mode.ts).
+  if (isDemoMode(event)) return null
   const provider = (await resolveStringSetting(event, 'ai.provider', 'aiProvider')) || 'workers-ai'
 
   switch (provider) {

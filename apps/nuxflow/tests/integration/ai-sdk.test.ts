@@ -111,6 +111,19 @@ describe('getAiSdkModel — default provider', () => {
   })
 })
 
+describe('getAiSdkModel — public demo', () => {
+  it('returns null in demo mode even with a binding and a BYOK key', async () => {
+    mockGetWorkersAiBinding.mockReturnValue({ run: vi.fn() })
+    settingsMap.set('ai.provider', 'openai')
+    settingsMap.set('ai.openai_api_key', 'sk-test')
+    const event = { context: { siteId: 'site-01', cloudflare: { env: { NUXT_IS_DEMO: 'true' } } } } as unknown as H3Event
+
+    expect(await getAiSdkModel(event)).toBeNull()
+    expect(mockCreateOpenAI).not.toHaveBeenCalled()
+    await expect(requireAiSdkModel(event)).rejects.toMatchObject({ statusCode: 503 })
+  })
+})
+
 describe('getAiSdkModel — workers-ai model selection', () => {
   beforeEach(() => {
     settingsMap.set('ai.provider', 'workers-ai')

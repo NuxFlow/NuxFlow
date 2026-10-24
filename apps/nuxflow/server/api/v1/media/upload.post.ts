@@ -11,6 +11,7 @@ import { media } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { created } from '../../../utils/response'
 import { requireSiteId } from '../../../utils/site-context'
+import { isDemoMode } from '../../../utils/demo-mode'
 
 const MAX_SIZE = 20 * 1024 * 1024
 
@@ -52,6 +53,11 @@ export default defineEventHandler(async (event) => {
   const mimeType = (file.type.split(';')[0] ?? '').trim().toLowerCase()
   if (!isAllowedMediaMimeType(mimeType)) {
     throw createError({ statusCode: 415, message: `Unsupported file type: ${mimeType || 'unknown'}` })
+  }
+  // The public demo takes images only — a PDF or audio file on the operator's domain is
+  // the easiest thing to abuse (demo-mode.ts).
+  if (isDemoMode(event) && !mimeType.startsWith('image/')) {
+    throw createError({ statusCode: 415, message: 'The live demo accepts images only.' })
   }
 
   const fileId = ulid()

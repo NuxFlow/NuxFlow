@@ -29,17 +29,36 @@ import {
   themes,
   auditLogs,
   notifications,
+  notificationPreferences,
   rateLimits,
   dynamicPlugins,
+  dynamicPluginTrust,
+  pluginStorage,
   pushSubscriptions,
   aiGenerationJobs,
   siteAuthCodes,
   siteSessions,
   siteInvitations,
+  siteDomains,
+  siteDirectory,
+  siteMoves,
+  siteUsageDaily,
+  crawlerHits,
+  consentLogs,
+  emailLog,
+  emailMessages,
+  mailboxes,
+  mailingListSubscribers,
+  hostingPlans,
+  hostingSubscriptions,
+  platformSettings,
 } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { nuxflowPasswordHasher } from '../utils/pw'
 import { getTemplateBlocks } from '../utils/setup-templates'
+import { isDemoMode } from '../utils/demo-mode'
+import { ensureMigrations } from '../utils/migrations'
+import { createSystemEvent } from '../utils/system-event'
 
 const DEMO_EMAIL = 'demo@nuxflow.dev'
 const DEMO_PASSWORD = 'demo123'
@@ -48,44 +67,67 @@ const DEMO_DOMAIN = 'demo.nuxflow.dev'
 
 type Db = ReturnType<typeof useDb>
 
+// Every table, deepest dependents first so FK constraints are respected. Listed in full
+// rather than relying on ON DELETE CASCADE from `sites`/`users`, because some tables
+// (plans, platform settings, the site directory) belong to no site. A unit test checks
+// this covers every table in the schema, so a new table can't be missed.
+export const DEMO_WIPE_TABLES = [
+  contentTaxonomyTerms,
+  taxonomyTerms,
+  contentRevisions,
+  comments,
+  formSubmissions,
+  subscriptions,
+  aiGenerationJobs,
+  pushSubscriptions,
+  siteAuthCodes,
+  siteSessions,
+  siteInvitations,
+  notifications,
+  notificationPreferences,
+  auditLogs,
+  emailMessages,
+  mailboxes,
+  emailLog,
+  mailingListSubscribers,
+  consentLogs,
+  crawlerHits,
+  siteUsageDaily,
+  siteDomains,
+  siteDirectory,
+  siteMoves,
+  hostingSubscriptions,
+  hostingPlans,
+  platformSettings,
+  contentItems,
+  taxonomyContentTypes,
+  contentTypes,
+  taxonomies,
+  menus,
+  redirects,
+  forms,
+  membershipTiers,
+  media,
+  mediaFolders,
+  videoAssets,
+  themes,
+  pluginStorage,
+  dynamicPluginTrust,
+  dynamicPlugins,
+  rateLimits,
+  siteSettings,
+  apiKeys,
+  userSiteRoles,
+  passkeys,
+  sessions,
+  verifications,
+  accounts,
+  sites,
+  users,
+]
+
 async function wipeAllTables(db: Db) {
-  // Delete in dependency order — deepest dependents first so FK constraints are respected
-  await db.delete(contentTaxonomyTerms)
-  await db.delete(taxonomyTerms)
-  await db.delete(contentRevisions)
-  await db.delete(comments)
-  await db.delete(formSubmissions)
-  await db.delete(subscriptions)
-  await db.delete(aiGenerationJobs)
-  await db.delete(pushSubscriptions)
-  await db.delete(siteAuthCodes)
-  await db.delete(siteSessions)
-  await db.delete(siteInvitations)
-  await db.delete(notifications)
-  await db.delete(auditLogs)
-  await db.delete(contentItems)
-  await db.delete(taxonomyContentTypes)
-  await db.delete(contentTypes)
-  await db.delete(taxonomies)
-  await db.delete(menus)
-  await db.delete(redirects)
-  await db.delete(forms)
-  await db.delete(membershipTiers)
-  await db.delete(media)
-  await db.delete(mediaFolders)
-  await db.delete(videoAssets)
-  await db.delete(themes)
-  await db.delete(dynamicPlugins)
-  await db.delete(rateLimits)
-  await db.delete(siteSettings)
-  await db.delete(apiKeys)
-  await db.delete(userSiteRoles)
-  await db.delete(passkeys)
-  await db.delete(sessions)
-  await db.delete(verifications)
-  await db.delete(accounts)
-  await db.delete(sites)
-  await db.delete(users)
+  for (const table of DEMO_WIPE_TABLES) await db.delete(table)
 }
 
 async function seedDemo(db: Db) {
@@ -250,27 +292,25 @@ async function seedDemo(db: Db) {
     { taxonomyId: tagTaxId, contentTypeId: postTypeId },
   ])
 
+  // `admin`, not `super_admin`: everyone shares this login, and the platform screens
+  // (hosting, plans, pools, whole-database export) have no place in a public demo.
   await db.insert(userSiteRoles).values({
     id: ulid(),
     userId,
     siteId,
-    role: 'super_admin',
+    role: 'admin',
   })
-}
-
-// useRuntimeConfig().isDemo is always false in CF module workers because [vars] from
-// wrangler.demo.toml are not in process.env — they live in the `env` binding object.
-// Nitro sets globalThis.__env__ = env before running scheduled tasks, so we check that.
-function isDemoInstance(): boolean {
-  return useRuntimeConfig().isDemo === true
-    || globalThis.__env__?.NUXT_IS_DEMO === 'true'
 }
 
 // Runs on every * * * * * tick — seeds the DB on first boot only, then does nothing.
 export const demoFirstBoot = async () => {
-  if (!isDemoInstance()) return { skipped: true, reason: 'not a demo instance' }
+  if (!isDemoMode()) return { skipped: true, reason: 'not a demo instance' }
 
   try {
+    // Migrations otherwise only run on a web request (00.migrate.ts), so a brand-new demo
+    // database would have no tables to seed until someone visits — and that visitor would
+    // meet the setup wizard (refused in demo mode, demoBlockReason()).
+    if (globalThis.__env__) await ensureMigrations(createSystemEvent({ env: globalThis.__env__ }))
     const db = useDb()
     const [existing] = await db.select({ id: sites.id }).from(sites).limit(1)
     if (existing) return { skipped: true, reason: 'already seeded' }
@@ -287,7 +327,7 @@ export const demoFirstBoot = async () => {
 // Runs on the dedicated 0 3 * * * cron — wipes and reseeds the demo data.
 // No internal time check: the cron schedule itself controls when this fires.
 export const demoNightlyReset = async () => {
-  if (!isDemoInstance()) return { skipped: true, reason: 'not a demo instance' }
+  if (!isDemoMode()) return { skipped: true, reason: 'not a demo instance' }
 
   const db = useDb()
   const now = new Date()

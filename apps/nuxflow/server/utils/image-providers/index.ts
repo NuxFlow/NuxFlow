@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { generateImage, type ImageModel } from 'ai'
 import { getWorkersAiBinding } from '../cf-env'
+import { isDemoMode } from '../demo-mode'
 import { gatewayBaseUrl, gatewayRequestHeaders, resolveAiKey, resolveGatewaySettings } from '../ai-sdk'
 import type { AiPayer } from '../ai-allowance'
 import { bytesToBase64 } from '../../../shared/lib/base64'
@@ -66,6 +67,7 @@ class AiSdkImageProvider implements ImageProvider {
  * in ai-sdk.ts.
  */
 export async function getImageProvider(event: H3Event, opts: { userId?: string } = {}): Promise<ImageProvider | null> {
+  if (isDemoMode(event)) return null
   const { gatewayId, accountId, token } = await resolveGatewaySettings(event)
   const viaGateway = Boolean(gatewayId && accountId)
 

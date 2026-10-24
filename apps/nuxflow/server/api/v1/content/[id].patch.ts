@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { assertDemoAllowsContent } from '../../../utils/demo-mode'
 import { useDb } from '../../../utils/db'
 import { requireRole, roleAtLeast, AUTHOR_SETTABLE_STATUSES, assertCanEditContentItem } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
@@ -60,6 +61,7 @@ export default defineEventHandler(async (event) => {
   const siteId = requireSiteId(event)
   const id = getRouterParam(event, 'id')!
   const body = await parseBody(event, bodySchema)
+  assertDemoAllowsContent(event, body.content)
 
   // Only editor+ may publish/schedule directly — mirrors the identical check already
   // enforced for the MCP `update_content` tool and for content creation.

@@ -65,7 +65,7 @@ export default defineNuxtConfig({
     },
     scheduledTasks: {
       // publish-scheduled runs every minute; demo-reset seeds an empty DB on first boot.
-      // demo-reset and demo-nightly-reset guard themselves via isDemoInstance() so they
+      // demo-reset and demo-nightly-reset guard themselves via isDemoMode() so they
       // are safe to include unconditionally — NUXT_IS_DEMO is a runtime [vars] entry in
       // wrangler.demo.toml and is NOT available as process.env during the build step.
       // search-index-rebuild re-embeds pages into Vectorize after the index changes (a

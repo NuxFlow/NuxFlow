@@ -2,10 +2,12 @@
  * Integration tests for demo-reset scheduled logic.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
-import { sql } from 'drizzle-orm'
+import { getTableName, is, sql } from 'drizzle-orm'
+import { SQLiteTable } from 'drizzle-orm/sqlite-core'
+import * as schema from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { seedSite } from '../helpers/seed'
-import { demoFirstBoot, demoNightlyReset } from '../../server/scheduled/demo-reset'
+import { demoFirstBoot, demoNightlyReset, DEMO_WIPE_TABLES } from '../../server/scheduled/demo-reset'
 import { sites, users, contentItems, taxonomies, userSiteRoles } from '@nuxflow/db/schema'
 
 vi.mock('../../server/utils/db', () => ({
@@ -100,7 +102,7 @@ describe('demoNightlyReset()', () => {
     const role = await db.query.userSiteRoles.findFirst({
       where: (r, { eq }) => eq(r.siteId, allSites[0]!.id),
     })
-    expect(role?.role).toBe('super_admin')
+    expect(role?.role).toBe('admin')
 
     const items = await db.select().from(contentItems).where(sql`site_id = ${allSites[0]!.id}`)
     expect(items.length).toBeGreaterThanOrEqual(2) // home page + hello-world post
@@ -122,5 +124,13 @@ describe('demoNightlyReset()', () => {
 
     const allRoles = await db.select().from(userSiteRoles)
     expect(allRoles).toHaveLength(1)
+  })
+})
+
+describe('DEMO_WIPE_TABLES', () => {
+  it('covers every table in the schema, so the nightly reset leaves nothing behind', () => {
+    const all = Object.values(schema).filter(v => is(v, SQLiteTable)).map(t => getTableName(t as SQLiteTable))
+    const wiped = new Set(DEMO_WIPE_TABLES.map(t => getTableName(t)))
+    expect(all.filter(name => !wiped.has(name))).toEqual([])
   })
 })

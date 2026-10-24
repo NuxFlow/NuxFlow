@@ -207,7 +207,7 @@ export const ALLOWLIST: AllowlistEntry[] = [
   {
     file: 'server/scheduled/demo-reset.ts',
     tables: ['*'],
-    reason: 'Wipes and reseeds the whole database — only ever runs on the public demo deployment (isDemoInstance()).',
+    reason: 'Wipes and reseeds the whole database — only ever runs on the public demo deployment (isDemoMode()).',
   },
 ]
 

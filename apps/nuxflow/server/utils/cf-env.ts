@@ -87,7 +87,12 @@ export function getEmailBinding(event: H3Event): SendEmail | null {
  * server/utils/image-providers/workers-ai.ts.
  */
 export function getWorkersAiBinding(event: H3Event): Ai | null {
-  return (event?.context?.cloudflare?.env?.AI as Ai | undefined) ?? null
+  const env = event?.context?.cloudflare?.env
+  // The public demo never uses AI, whatever its wrangler config binds (demo-mode.ts).
+  // Checked inline: importing demo-mode here pushed `nuxt typecheck` over its $fetch
+  // route-type depth limit (cf-env is imported by most routes).
+  if (env?.NUXT_IS_DEMO === 'true') return null
+  return (env?.AI as Ai | undefined) ?? null
 }
 
 /**

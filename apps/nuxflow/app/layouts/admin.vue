@@ -3,6 +3,8 @@ const sidebarOpen = ref(false)
 const sidebarCollapsed = ref(false)
 
 const route = useRoute()
+// Filled by AdminSidebar's fetchAdminAccess() during the same render.
+const adminAccess = useAdminAccessState()
 // Close mobile drawer on navigation
 watch(() => route.path, () => { sidebarOpen.value = false })
 </script>
@@ -87,6 +89,15 @@ watch(() => route.path, () => { sidebarOpen.value = false })
       </header>
 
       <main class="flex-1 p-4 md:p-6 overflow-auto bg-white dark:bg-transparent">
+        <UAlert
+          v-if="adminAccess?.demo"
+          class="mb-4"
+          color="info"
+          variant="subtle"
+          icon="i-lucide-flask-conical"
+          title="You're in the live demo"
+          description="Everything resets at 3 AM UTC. AI, plugins, API keys, account changes, custom HTML and email are switched off here."
+        />
         <slot />
       </main>
     </div>
