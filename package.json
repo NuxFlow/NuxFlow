@@ -21,18 +21,18 @@
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
-    "@commitlint/cli": "^21.2.3",
-    "@commitlint/config-conventional": "^21.2.3",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "@commitlint/types": "^21.2.3",
     "@nuxt/eslint-config": "^1.17.0",
-    "@typescript-eslint/eslint-plugin": "^8.71.2",
-    "turbo": "^2.11.8",
-    "vitest": "^5.0.4",
-    "wrangler": "^4.151.0"
+    "@typescript-eslint/eslint-plugin": "^8.72.0",
+    "turbo": "^2.11.10",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.151.3"
   },
   "pnpm": {
     "overrides": {
-      "better-auth": "^1.7.7",
+      "better-auth": "^1.7.12",
       "drizzle-orm": "0.45.4",
       "kysely": "^0.28.17",
       "vue": "3.5.44",
