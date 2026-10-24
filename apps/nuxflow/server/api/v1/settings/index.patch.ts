@@ -154,9 +154,17 @@ export default defineEventHandler(async (event) => {
 
   // Ollama isn't offered to customer sites on a hosting platform (isOllamaAvailable).
   // Checked on the collected entries, so the generic `settings` map can't get round it.
-  const setsOllama = settingEntries.some(([k, v]) => (k === 'ai.provider' && v === 'ollama') || ((k === 'ai.ollama_base_url' || k === 'ai.ollama_model') && v))
-  if (setsOllama && !(await isOllamaAvailable(event))) {
-    throw badRequest('Ollama isn\'t available on this site. Use Cloudflare Workers AI, or add your own key for another provider.')
+  // Only choosing it is refused: the Settings pages send the (hidden, pre-filled) Ollama
+  // URL and model with every save, so those are dropped instead of failing the save.
+  const isOllamaField = (k: string) => k === 'ai.ollama_base_url' || k === 'ai.ollama_model'
+  if (settingEntries.some(([k, v]) => k === 'ai.provider' ? v === 'ollama' : isOllamaField(k))
+    && !(await isOllamaAvailable(event))) {
+    if (settingEntries.some(([k, v]) => k === 'ai.provider' && v === 'ollama')) {
+      throw badRequest('Ollama isn\'t available on this site. Use Cloudflare Workers AI, or add your own key for another provider.')
+    }
+    for (let i = settingEntries.length - 1; i >= 0; i--) {
+      if (isOllamaField(settingEntries[i]![0])) settingEntries.splice(i, 1)
+    }
   }
 
   if (body.cloudflare) {
