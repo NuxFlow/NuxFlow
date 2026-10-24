@@ -519,8 +519,20 @@ describe('Ollama on a hosting platform', () => {
   it("isn't offered to a customer site: not saved, not used", async () => {
     await expect((patchSettings as Handler)(ev({ session: tenantAdmin(), body: { ai: { provider: 'ollama' } } })))
       .rejects.toMatchObject({ statusCode: 400 })
-    await expect((patchSettings as Handler)(ev({ session: tenantAdmin(), body: { settings: { 'ai.ollama_base_url': 'https://10.0.0.1' } } })))
-      .rejects.toMatchObject({ statusCode: 400 })
+    // The Settings pages send the hidden, pre-filled Ollama fields with every save: an
+    // unrelated change still saves, and the Ollama fields are dropped.
+    await (patchSettings as Handler)(ev({
+      session: tenantAdmin(),
+      body: {
+        settings: { 'ai.ollama_base_url': 'https://10.0.0.1', 'theme.show_header_bar': true },
+        ai: { ollamaBaseUrl: 'http://localhost:11434', ollamaModel: 'llama3' },
+      },
+    }))
+    const saved = await getCurrentTestDb().select().from(siteSettings).where(eq(siteSettings.siteId, TENANT))
+    const keys = saved.map(r => r.key)
+    expect(keys).toContain('theme.show_header_bar')
+    expect(keys).not.toContain('ai.ollama_base_url')
+    expect(keys).not.toContain('ai.ollama_model')
 
     // A provider stored before hosting was turned on is ignored rather than used.
     await seedSetting(getCurrentTestDb(), TENANT, 'ai.provider', 'ollama')
