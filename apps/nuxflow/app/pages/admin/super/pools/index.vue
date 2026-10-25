@@ -138,7 +138,8 @@ entrypoint = "NuxflowPoolAdmin"`
       :description="splitAdvice"
     />
 
-    <template v-else-if="data">
+    <!-- Not v-else-if: that chained it to the advice alert above, which then hid every pool. -->
+    <template v-if="data && !error">
       <UAlert
         v-if="routingProblems.length"
         color="warning"
