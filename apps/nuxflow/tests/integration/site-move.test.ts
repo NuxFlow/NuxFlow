@@ -183,6 +183,7 @@ async function seedCafe() {
   cpKv.data.set(`theme:${SITE}:t1:css:v1`, 'body{color:red}')
   cpKv.data.set(`plugin:${SITE}:p1:server:abc`, 'export default {}')
   cpKv.data.set('theme:someone-else:t1:css:v1', 'keep me')
+  cpKv.data.set(`cache-version:${SITE}`, 'before-move')
   originalCounts = await countsIn(getCurrentTestDb())
 }
 
@@ -254,7 +255,10 @@ describe('moving a site from the control plane into a pool', () => {
     expect(await poolDb.select({ id: hostingPlans.id }).from(hostingPlans)).toEqual([{ id: 'plan-mv' }])
 
     expect([...poolKv.data.keys()].sort()).toEqual([`plugin:${SITE}:p1:server:abc`, `theme:${SITE}:t1:css:v1`])
-    expect([...cpKv.data.keys()].filter(k => k.includes(SITE))).toEqual([])
+    // Only a new cache version is left here, so pages cached before the move are never
+    // served again if the site comes back within the cache's lifetime.
+    expect([...cpKv.data.keys()].filter(k => k.includes(SITE))).toEqual([`cache-version:${SITE}`])
+    expect(cpKv.data.get(`cache-version:${SITE}`)).not.toBe('before-move')
     expect(cpKv.data.get('theme:someone-else:t1:css:v1')).toBe('keep me')
 
     // The router sends both addresses to the pool.
