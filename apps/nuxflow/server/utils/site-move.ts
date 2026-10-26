@@ -4,6 +4,7 @@ import { getTableConfig, SQLiteAsyncDialect, SQLiteTable } from 'drizzle-orm/sql
 import * as schema from '@nuxflow/db/schema'
 import { getD1, useDb, type Db } from './db'
 import { getCfBindings } from './cf-env'
+import { bumpCacheVersionInKv } from './cache-version'
 import { isMemberPool } from './control-plane'
 import { upsertUserCopy } from './pool-session'
 import type { PoolSignInUser } from './pool-sign-in'
@@ -388,6 +389,10 @@ export function localMoveStore(event: H3Event): MoveStore {
             cursor = page.list_complete ? undefined : page.cursor
           } while (cursor)
         }
+        // This Worker's cached pages of the site stay in the Cache API until they expire
+        // (up to an hour). A fresh cache version means they're never read again, even if
+        // the site moves back here within that hour with edits made elsewhere.
+        await bumpCacheVersionInKv(store, siteId)
       }
       clearSiteCache()
     },
