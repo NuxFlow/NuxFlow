@@ -93,11 +93,11 @@ jobs:
       - run: pnpm test:integration
 
   node-floor:
-    name: Node engines floor (22)
-    # package.json declares "node": ">=22.0.0" but every other job here runs on 24 —
-    # this is the only one that actually exercises the documented minimum. Scoped to
-    # typecheck/lint/unit (not integration/E2E/build) to catch a real floor
-    # incompatibility without doubling CI's total runtime for every push.
+    name: Node engines floor (22.22)
+    # package.json declares "node": ">=22.22.0" (Nitro v3's floor, ahead of Nuxt 5) but
+    # every other job here runs on 24 — this is the only one that actually exercises the
+    # documented minimum. Scoped to typecheck/lint/unit (not integration/E2E/build) to
+    # catch a real floor incompatibility without doubling CI's total runtime for every push.
     if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
@@ -105,7 +105,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: '22.22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @nuxflow/app exec nuxt prepare
@@ -145,6 +145,31 @@ jobs:
           name: playwright-report
           path: apps/nuxflow/playwright-report/
           retention-days: 7
+
+  nuxt5-preview:
+    name: Nuxt 5 preview (informational)
+    # Builds and type-checks with Nuxt 5's defaults on (NUXFLOW_NUXT5_PREVIEW, see
+    # nuxt.config.ts) to show what the upgrade still needs. Allowed to fail: it never
+    # blocks a merge. Known today: typed $fetch rejects the `: string` URL workaround for
+    # non-GET calls (CLAUDE.md's $fetch typing notes) — that goes on upgrade day.
+    if: github.head_ref != 'changeset-release/main'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      NUXFLOW_NUXT5_PREVIEW: '1'
+      NUXT_BETTER_AUTH_SECRET: ci-placeholder-secret-32-characters
+      NUXT_PUBLIC_SITE_URL: https://example.com
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
 
   build:
     name: Build

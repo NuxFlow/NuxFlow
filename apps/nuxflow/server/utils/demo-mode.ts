@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { forbidden } from './response'
+import { getCfEnv } from './cf-env'
 
 // The public demo (demo.nuxflow.dev, wrangler.demo.toml) hands everyone the same admin
 // login, so anything that admin can do, any visitor can do. Demo mode keeps the product
@@ -25,7 +26,7 @@ export const DEMO_MAX_BODY_BYTES = 2 * 1024 * 1024
 // in process.env, they're on the env binding object — the request's, or globalThis.__env__
 // for scheduled tasks.
 export function isDemoMode(event?: H3Event | null): boolean {
-  const env = event?.context?.cloudflare?.env ?? globalThis.__env__
+  const env = getCfEnv(event) ?? globalThis.__env__
   return env?.NUXT_IS_DEMO === 'true' || useRuntimeConfig().isDemo === true
 }
 

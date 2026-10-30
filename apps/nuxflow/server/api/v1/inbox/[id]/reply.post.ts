@@ -11,7 +11,7 @@ import { parseRecipient, makeSnippet, CATCH_ALL_LOCAL_PART } from '../../../../u
 import { writeAuditLog } from '../../../../utils/audit'
 import { rateLimit } from '../../../../utils/rate-limit'
 import { errorMessage } from '../../../../utils/errors'
-import { created } from '../../../../utils/response'
+import { created, httpError } from '../../../../utils/response'
 import { requireSiteId } from '../../../../utils/site-context'
 import { getSiteInfo } from '../../../../utils/site-info'
 
@@ -104,7 +104,7 @@ export default defineEventHandler(async (event) => {
     }, event))
   }
   catch (err) {
-    throw createError({ statusCode: 502, message: `The reply could not be sent: ${errorMessage(err, String(err))}` })
+    throw httpError({ status: 502, message: `The reply could not be sent: ${errorMessage(err, String(err))}` })
   }
 
   const replyId = ulid()

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { createMockEvent } from '../helpers/event'
+import type * as CfEnv from '../../server/utils/cf-env'
 
 // A small in-memory stand-in for an R2Bucket's get(): honours If-None-Match (returning an
 // object with no body, as R2 does for a failed precondition) and simple byte ranges.
@@ -28,7 +29,8 @@ const fakeBucket = {
     return { ...base, body: new Blob([obj.bytes]).stream() }
   },
 }
-vi.mock('../../server/utils/cf-env', () => ({
+vi.mock('../../server/utils/cf-env', async importOriginal => ({
+  ...(await importOriginal<typeof CfEnv>()),
   getCfBindings: () => ({ r2: fakeBucket, kv: null, loader: null }),
 }))
 

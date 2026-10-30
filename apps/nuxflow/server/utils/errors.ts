@@ -1,3 +1,24 @@
+import { httpError } from './response'
+
+/**
+ * True if `err` is an HTTP error h3 itself made — ours via `httpError()`, or the runtime's
+ * own. The same test as h3 v1's `isError()` (which h3 v2 drops), plus h3 v2's `HTTPError`,
+ * so it works before and after the Nitro v3 upgrade. Unlike {@link isHttpError} it never
+ * matches a provider SDK error that merely carries a `statusCode`.
+ */
+export function isH3Error(err: unknown): err is Error & { message: string } {
+  if (!(err instanceof Error)) return false
+  return (err.constructor as { __h3_error__?: unknown }).__h3_error__ === true || err.name === 'HTTPError'
+}
+
+/** The HTTP status an error carries: `statusCode` in h3 v1, `status` in h3 v2. */
+export function httpErrorStatus(err: unknown): number | undefined {
+  if (!err || typeof err !== 'object') return undefined
+  const { status, statusCode } = err as { status?: unknown; statusCode?: unknown }
+  if (typeof statusCode === 'number') return statusCode
+  return typeof status === 'number' ? status : undefined
+}
+
 /** True if `err` is an H3/Nitro error created via `createError` (has a `statusCode`). */
 export function isHttpError(err: unknown): boolean {
   return !!err && typeof err === 'object' && 'statusCode' in err
@@ -16,7 +37,7 @@ export function errorMessage(err: unknown, fallback = 'Unexpected error'): strin
  */
 export function rethrowAsProviderError(err: unknown, operationLabel: string): never {
   if (isHttpError(err)) throw err
-  throw createError({ statusCode: 502, message: `Payment provider ${operationLabel} failed: ${errorMessage(err)}` })
+  throw httpError({ status: 502, message: `Payment provider ${operationLabel} failed: ${errorMessage(err)}` })
 }
 
 /**

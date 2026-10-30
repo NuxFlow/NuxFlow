@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
 
   if (account) {
     if (!(await deleteStreamVideo(account, asset.cloudflareStreamId))) {
-      throw createError({ statusCode: 502, message: 'Cloudflare Stream couldn\'t delete the video — check the Stream token in Settings → Media, then try again.' })
+      throw httpError({ status: 502, message: 'Cloudflare Stream couldn\'t delete the video — check the Stream token in Settings → Media, then try again.' })
     }
   } else {
     console.warn(`[video] Stream isn't configured — removing the row only; video ${asset.cloudflareStreamId} stays in Stream`)

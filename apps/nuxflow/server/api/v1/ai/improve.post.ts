@@ -45,6 +45,6 @@ export default defineEventHandler(async (event) => {
   )
 
   const alternatives = object.alternatives.map(a => a.trim()).filter(Boolean).slice(0, 3)
-  if (!alternatives.length) throw createError({ statusCode: 502, message: 'The AI returned no suggestions — try again' })
+  if (!alternatives.length) throw httpError({ status: 502, message: 'The AI returned no suggestions — try again' })
   return { alternatives }
 })

@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   } catch (err) {
     console.error('[db-export] D1 export preparation failed:', err)
     const message = err instanceof Error ? err.message : String(err)
-    throw createError({ statusCode: 500, message: `D1 export failed: ${message}` })
+    throw httpError({ status: 500, message: `D1 export failed: ${message}` })
   }
 
   const filename = `nuxflow-d1-export-${utcDay()}.sql`

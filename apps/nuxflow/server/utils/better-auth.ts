@@ -27,7 +27,7 @@ import { getSignInCaptcha, SIGN_IN_CAPTCHA_ENDPOINTS } from './sign-in-captcha'
 const _cachedBetterAuth = createIsolateCache<Awaited<ReturnType<typeof buildBetterAuthInstance>>>(5 * 60 * 1000)
 
 async function buildBetterAuthInstance(event: H3Event) {
-  const config = useRuntimeConfig(event)
+  const config = useRuntimeConfig()
   const db = useDb(event)
 
   const requestHost = getHeader(event, 'host')

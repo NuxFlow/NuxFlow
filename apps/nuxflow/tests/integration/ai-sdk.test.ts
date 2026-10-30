@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type * as AiAllowance from '../../server/utils/ai-allowance'
 import { createError, type H3Event } from 'h3'
+import type * as CfEnv from '../../server/utils/cf-env'
 
 const settingsMap = new Map<string, string>()
 
@@ -23,7 +24,8 @@ vi.mock('../../server/utils/settings', () => ({
 
 const mockGetWorkersAiBinding = vi.fn()
 const mockR2Get = vi.fn()
-vi.mock('../../server/utils/cf-env', () => ({
+vi.mock('../../server/utils/cf-env', async importOriginal => ({
+  ...(await importOriginal<typeof CfEnv>()),
   getWorkersAiBinding: (...args: unknown[]) => mockGetWorkersAiBinding(...args),
   getCfBindings: () => ({ kv: null, loader: null, r2: { get: mockR2Get } }),
 }))

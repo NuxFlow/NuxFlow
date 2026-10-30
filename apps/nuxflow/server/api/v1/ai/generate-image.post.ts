@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
 
   const imageProvider = await getImageProvider(event, { userId })
   if (!imageProvider) {
-    throw createError({ statusCode: 503, message: 'No image generation provider available. Add an OpenAI or Google Gemini key in Settings → AI, or enable the Workers AI binding.' })
+    throw httpError({ status: 503, message: 'No image generation provider available. Add an OpenAI or Google Gemini key in Settings → AI, or enable the Workers AI binding.' })
   }
 
   const { prompt, shape, quality, saveToLibrary } = await parseBody(event, bodySchema)

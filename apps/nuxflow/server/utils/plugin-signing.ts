@@ -4,6 +4,7 @@
 
 import { sha256Hex } from './buffer'
 import { base64ToBytes } from '../../shared/lib/base64'
+import { httpError } from './response'
 
 export interface SigningPayload {
   id: string
@@ -48,8 +49,8 @@ export async function computeSha256(data: string): Promise<string> {
 export async function assertCodeIntegrity(code: string, expectedChecksum: string, label: string): Promise<void> {
   const actual = await computeSha256(code)
   if (actual !== expectedChecksum) {
-    throw createError({
-      statusCode: 500,
+    throw httpError({
+      status: 500,
       message: `Plugin ${label} integrity check failed — KV content does not match the stored checksum. The plugin may have been tampered with.`,
     })
   }

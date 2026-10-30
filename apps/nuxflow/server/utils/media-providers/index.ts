@@ -5,6 +5,7 @@ import { resolveStringSetting } from '../settings'
 import { getCfBindings } from '../cf-env'
 import { eventForSite } from '../site-info'
 import { bytesToBase64 } from '../../../shared/lib/base64'
+import { httpError } from '../response'
 
 export interface UploadResult {
   url: string
@@ -108,8 +109,8 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
     name: 'local',
     async upload(file) {
       if (file.size > LOCAL_PROVIDER_MAX_BYTES) {
-        throw createError({
-          statusCode: 413,
+        throw httpError({
+          status: 413,
           message: `File too large for the database storage fallback (max ${Math.floor(LOCAL_PROVIDER_MAX_BYTES / 1024)} KB — with no media storage connected, files are stored as base64 directly in the database). Connect an R2 bucket (the MEDIA_BUCKET binding in wrangler.toml) or configure a provider in Settings → Media for normal-sized uploads.`,
         })
       }

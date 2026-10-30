@@ -3,7 +3,7 @@ import type { H3Event } from 'h3'
 import { useDb } from '../../../utils/db'
 import { auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
-import { created } from '../../../utils/response'
+import { created, httpError } from '../../../utils/response'
 import { rateLimit } from '../../../utils/rate-limit'
 import { isHttpError } from '../../../utils/errors'
 import { clearSiteCache } from '../../../utils/site-resolution'
@@ -53,7 +53,7 @@ export default defineEventHandler(async (event) => {
     // to an anonymous caller.
     if (isHttpError(e)) throw e
     console.error('[setup/complete] Unexpected error during setup:', e)
-    throw createError({ statusCode: 500, message: 'Setup failed due to an unexpected server error. Please try again.' })
+    throw httpError({ status: 500, message: 'Setup failed due to an unexpected server error. Please try again.' })
   }
 })
 

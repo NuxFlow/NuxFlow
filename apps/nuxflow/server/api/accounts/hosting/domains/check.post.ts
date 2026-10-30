@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
     await refreshCustomDomain(ctx, store, row, site.name)
   }
   catch (err) {
-    throw createError({ statusCode: 502, message: `Couldn't reach Cloudflare: ${(err as Error).message}` })
+    throw httpError({ status: 502, message: `Couldn't reach Cloudflare: ${(err as Error).message}` })
   }
   return domainPanel(ctx, site)
 })

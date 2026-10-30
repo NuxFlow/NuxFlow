@@ -21,6 +21,7 @@ import { emailLogTimestamp, lastEmailOutcome, type EmailDeliveryOutcome } from '
 import { eventForSite, getPrimarySite } from './site-info'
 import { clearSiteCache } from './site-resolution'
 import { poolBindingName } from '../../shared/lib/pool-id'
+import { httpError } from './response'
 
 /**
  * Sites in member pools (control-plane.ts), managed from the control plane's Super Admin →
@@ -175,7 +176,7 @@ export async function sitePool(event: H3Event, siteId: string) {
     .where(eq(siteDirectory.poolSiteId, siteId)).limit(1)
   if (!listed) return null
   const stub = poolAdminStub(event, listed.poolId)
-  if (!stub) throw createError({ statusCode: 503, message: `This site is in pool "${listed.poolId}", which isn't connected to this control panel.` })
+  if (!stub) throw httpError({ status: 503, message: `This site is in pool "${listed.poolId}", which isn't connected to this control panel.` })
   return { poolId: listed.poolId, stub }
 }
 
@@ -246,7 +247,7 @@ export async function changeSite(event: H3Event, site: { id: string; poolId: str
     return
   }
   const stub = poolAdminStub(event, site.poolId)
-  if (!stub) throw createError({ statusCode: 503, message: `Pool "${site.poolId}" isn't connected to this control panel.` })
+  if (!stub) throw httpError({ status: 503, message: `Pool "${site.poolId}" isn't connected to this control panel.` })
   if (changes.hostingPlanId) await pushPlansToPools(event, [poolBindingName(site.poolId)])
   await callPool(stub.updateSite({ protocol: POOL_PROTOCOL, siteId: site.id, changes, actorUserId: null, quiet: true }), `pool ${site.poolId}`)
 }

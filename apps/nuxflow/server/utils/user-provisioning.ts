@@ -8,6 +8,7 @@ import { callControlPlane, upsertUserCopy } from './pool-session'
 import { requireSiteId } from './site-context'
 import { SELF_SERVE_ROLES } from '@nuxflow/db/roles'
 import type { EmailDeliveryOutcome } from './email'
+import { httpError } from './response'
 
 /**
  * - `new`       — no account existed; one was just created, with no password yet.
@@ -104,7 +105,7 @@ export async function findOrCreateLocalAccount(
   const auth = await getOrCreateBetterAuth(event)
   const { internalAdapter } = await auth.$context
   const created = await internalAdapter.createUser({ name, email: normalizedEmail, emailVerified: false }, { method: 'email-password' })
-  if (!created) throw createError({ statusCode: 500, message: 'Failed to create user account' })
+  if (!created) throw httpError({ status: 500, message: 'Failed to create user account' })
   return { userId: created.id, status: 'new' }
 }
 

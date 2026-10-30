@@ -53,11 +53,11 @@ export default defineEventHandler(async (event) => {
   // ── Whole gallery as a zip ──────────────────────────────────────────────────
   if (!files.length) throw notFound()
   if (files.length > MAX_GALLERY_ZIP_FILES) {
-    throw createError({ statusCode: 413, message: `Galleries over ${MAX_GALLERY_ZIP_FILES} photos can't be downloaded in one go.` })
+    throw httpError({ status: 413, message: `Galleries over ${MAX_GALLERY_ZIP_FILES} photos can't be downloaded in one go.` })
   }
   const declared = files.reduce((sum, f) => sum + (f.size ?? 0), 0)
   if (declared > MAX_GALLERY_ZIP_BYTES) {
-    throw createError({ statusCode: 413, message: 'This gallery is too large to download in one go (over 2 GB).' })
+    throw httpError({ status: 413, message: 'This gallery is too large to download in one go (over 2 GB).' })
   }
 
   setHeader(event, 'Content-Type', 'application/zip')

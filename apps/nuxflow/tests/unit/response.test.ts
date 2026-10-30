@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { H3Event } from 'h3'
-import { ok, created, noContent, notFound, unauthorized, forbidden, conflict, validationError } from '../../server/utils/response'
+import { ok, created, noContent, notFound, unauthorized, forbidden, conflict, validationError, httpError } from '../../server/utils/response'
+import { httpErrorStatus, isH3Error } from '../../server/utils/errors'
 
 // Auto-import mocks
 ;(globalThis as Record<string, unknown>).createError = (opts: { statusCode?: number; message?: string; data?: unknown }) => {
@@ -95,5 +96,44 @@ describe('validationError', () => {
       expect((e as { statusCode: number }).statusCode).toBe(422)
       expect((e as { data: unknown }).data).toEqual(issues)
     }
+  })
+})
+
+describe('httpError', () => {
+  it('throws an error with the given status, message and data', () => {
+    expect(() => httpError({ status: 503, message: 'Try again shortly', data: { retry: true } }))
+      .toThrow(expect.objectContaining({ statusCode: 503, message: 'Try again shortly', data: { retry: true } }))
+  })
+})
+
+describe('httpErrorStatus', () => {
+  it("reads h3 v1's statusCode and h3 v2's status", () => {
+    expect(httpErrorStatus(Object.assign(new Error('x'), { statusCode: 404 }))).toBe(404)
+    expect(httpErrorStatus(Object.assign(new Error('x'), { status: 409 }))).toBe(409)
+  })
+
+  it('is undefined for anything without a numeric status', () => {
+    expect(httpErrorStatus(new Error('x'))).toBeUndefined()
+    expect(httpErrorStatus({ status: '500' })).toBeUndefined()
+    expect(httpErrorStatus(null)).toBeUndefined()
+  })
+})
+
+describe('isH3Error', () => {
+  it('matches h3 v1 errors (marked on their constructor) and h3 v2 HTTPErrors', () => {
+    class H3Error extends Error {
+      static __h3_error__ = true
+    }
+    class HTTPError extends Error {
+      override name = 'HTTPError'
+    }
+    expect(isH3Error(new H3Error('x'))).toBe(true)
+    expect(isH3Error(new HTTPError('x'))).toBe(true)
+  })
+
+  // Provider SDK errors (Stripe, the AI SDK) carry a statusCode too; they aren't ours to pass through.
+  it('does not match other errors that carry a status', () => {
+    expect(isH3Error(Object.assign(new Error('x'), { statusCode: 401 }))).toBe(false)
+    expect(isH3Error({ statusCode: 401, message: 'x' })).toBe(false)
   })
 })

@@ -27,8 +27,8 @@ export default defineEventHandler(async (event) => {
   const bundled = backup.media.filter(item => !item.url.startsWith('data:'))
   const declaredBytes = bundled.reduce((sum, item) => sum + (item.size || 0), 0)
   if (declaredBytes > MAX_RAW_MEDIA_BYTES) {
-    throw createError({
-      statusCode: 413,
+    throw httpError({
+      status: 413,
       message: 'Backup exceeds 100 MB of media. Remove unused media files and try again.',
     })
   }

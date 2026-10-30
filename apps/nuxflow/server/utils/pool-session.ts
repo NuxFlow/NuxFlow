@@ -12,6 +12,8 @@ import type { PoolSignInGrant, PoolSignInUser, SessionStatus } from './pool-sign
 import type { AccountProvisioningStatus } from './user-provisioning'
 import type { EmailDeliveryOutcome } from './email'
 import { withTimeout } from './timeout'
+import { httpError } from './response'
+import { getCfEnv } from './cf-env'
 
 /**
  * A member pool's side of signing in (the control plane's is pool-sign-in.ts). Accounts and
@@ -45,9 +47,9 @@ export function callControlPlane<T>(event: H3Event, call: (cp: ControlPlaneStub)
 }
 
 function controlPlane(event: H3Event): ControlPlaneStub {
-  const stub = event.context.cloudflare?.env.CONTROL_PLANE
+  const stub = getCfEnv(event)?.CONTROL_PLANE
   if (!stub || typeof stub !== 'object') {
-    throw createError({ statusCode: 503, message: 'Signing in is unavailable: this pool has no CONTROL_PLANE binding to its control panel.' })
+    throw httpError({ status: 503, message: 'Signing in is unavailable: this pool has no CONTROL_PLANE binding to its control panel.' })
   }
   return stub as ControlPlaneStub
 }

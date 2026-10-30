@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
     // logged here (labeledD1Query() already names which table's scan failed) rather
     // than left as a bare unhandled rejection.
     console.error('[db-stats] getD1SizeStats failed:', err)
-    throw createError({ statusCode: 500, message: 'Failed to compute database size stats — see server logs for which query failed.' })
+    throw httpError({ status: 500, message: 'Failed to compute database size stats — see server logs for which query failed.' })
   }
 
   return { ...stats, paidPlanSizeCapBytes: D1_PAID_PLAN_SIZE_CAP_BYTES }

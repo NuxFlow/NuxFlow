@@ -21,12 +21,11 @@ const { default: middleware } = await import('../../server/middleware/04.auth-ov
 
 type Handler = (e: H3Event) => Promise<unknown>
 
-// Real h3 exposes `event.path` including the query string — the property this middleware
-// reads to decide whether it applies at all — while getRequestURL() (stubbed off `_path`)
-// gives the parsed URL. Both are set from the same raw path here, as on a real request.
+// The raw path, query string included; the middleware reads it through getRequestURL()
+// (stubbed off `_path`), as on a real request.
 function mkEvent(rawPath: string, method = 'POST') {
   const event = createMockEvent({ path: rawPath, method, headers: { host: 'localhost' } })
-  return Object.assign(event, { path: rawPath, method }) as unknown as H3Event
+  return Object.assign(event, { method }) as unknown as H3Event
 }
 
 beforeEach(() => {
@@ -40,7 +39,7 @@ describe('04.auth-override middleware', () => {
     expect(rateLimitMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ keyPrefix: 'auth:/api/auth/sign-in/email' }))
   })
 
-  // event.path includes the query string; keying the limit lookup on it let
+  // The full path includes the query string; keying the limit lookup on it let
   // `?anything` skip the limit while Better Auth still processed the sign-in.
   it('still rate-limits sign-in when a query string is appended', async () => {
     await (middleware as Handler)(mkEvent('/api/auth/sign-in/email?bypass=1'))

@@ -105,7 +105,7 @@ const call = (handler: unknown, body: Record<string, unknown> = {}, session = ow
 /** Runs the site-resolving middleware for a request to `host`. */
 async function visit(host: string, path = '/about', method = 'GET') {
   const event = createMockEvent({ siteId: undefined, headers: { host } }) as unknown as Record<string, unknown>
-  event.path = path
+  event._path = path
   event.method = method
   await (multiSite as Handler)(event as unknown as H3Event)
   return event as unknown as { context: { siteId: string | null }, _redirect?: { url: string, code: number } }

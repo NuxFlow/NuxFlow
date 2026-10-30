@@ -28,7 +28,7 @@ export default defineEventHandler(async (event) => {
   // Check redirects first
   const redirect = await findRedirect(db, siteId, `/${slug}`)
   if (redirect) {
-    if (redirect.statusCode === 410) throw createError({ statusCode: 410, message: 'Gone' })
+    if (redirect.statusCode === 410) throw httpError({ status: 410, message: 'Gone' })
     return sendRedirect(event, redirect.to, redirect.statusCode)
   }
 
@@ -63,8 +63,8 @@ export default defineEventHandler(async (event) => {
     throw unauthorized('This page is password protected', { passwordRequired: true, title: page.title })
   }
   if (gate?.blocked) {
-    throw createError({
-      statusCode: 402,
+    throw httpError({
+      status: 402,
       data: { gated: true, requiredTier: gate.requiredTier, tiers: gate.tiers },
     })
   }

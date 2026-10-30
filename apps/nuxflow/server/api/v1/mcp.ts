@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
   // GET would open a server-to-client SSE stream; this server never sends unprompted messages.
   if (getMethod(event) !== 'POST') {
     setHeader(event, 'Allow', 'POST')
-    throw createError({ statusCode: 405, message: 'Method Not Allowed' })
+    throw httpError({ status: 405, message: 'Method Not Allowed' })
   }
 
   // apiKeyUserId/apiKeyRole/siteId are set by 03.api-key-auth.ts from the Authorization header.

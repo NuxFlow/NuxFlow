@@ -6,7 +6,7 @@
 // the plugin. Plugin code can call the methods below and nothing else; the props it can't
 // see or change decide which site, which plugin and which permissions every call acts on.
 import { WorkerEntrypoint } from 'cloudflare:workers'
-import { isError } from 'h3'
+import { httpErrorStatus, isH3Error } from '../utils/errors'
 import { createSystemEvent } from '../utils/system-event'
 import { PLUGIN_API_METHODS, PluginApiError, type PluginCallContext } from '../utils/plugin-api'
 import { egressFetch, type PluginEgressProps } from '../utils/plugin-egress'
@@ -37,7 +37,7 @@ export class NuxflowPluginHost extends WorkerEntrypoint<Record<string, unknown>,
       // error (SQL, stack, internal data) to the plugin.
       /* eslint-disable preserve-caught-error */
       if (err instanceof PluginApiError) throw new Error(err.message)
-      if (isError(err) && err.statusCode < 500) throw new Error(err.message)
+      if (isH3Error(err) && (httpErrorStatus(err) ?? 500) < 500) throw new Error(err.message)
       console.error(`[plugin-host] ${props.pluginId}.${method} failed on site ${props.siteId}:`, err)
       throw new Error(`NuxFlow could not complete ${method} — try again later.`)
       /* eslint-enable preserve-caught-error */

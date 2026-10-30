@@ -11,6 +11,7 @@ import { generateCanvasPage, loadGenerationContext, type GenerationContext } fro
 import { getContentTypeBySlugOrThrow, uniqueContentSlug } from './content-queries'
 import { assertContentSlugNotTaxonomy } from './taxonomy'
 import { buildAuditLogInsert, batchWithAudit } from './audit'
+import { httpError } from './response'
 
 // The Generate with AI page's jobs (POST /api/v1/ai/generate and its sub-routes).
 //
@@ -219,7 +220,7 @@ export async function regeneratePlanPage(event: H3Event, db: Db, job: AiGenerati
   }
   else {
     updated = await generatePlanPage(event, db, job, index, ctx)
-    if (updated.error) throw createError({ statusCode: 502, message: updated.error })
+    if (updated.error) throw httpError({ status: 502, message: updated.error })
   }
 
   const nextPlan = [...plan]

@@ -6,6 +6,7 @@ import { getCfBindings } from './cf-env'
 import { describePools } from './pools'
 import { isServedCopy } from './move-state'
 import { directoryKey, normalizeHostname, poolBindingName } from '../../shared/lib/pool-id'
+import { httpError } from './response'
 
 /**
  * The site directory: which member pool serves each address, for the front-door router
@@ -39,7 +40,7 @@ interface Entry { hostname: string; poolId: string; poolSiteId: string }
 
 export async function syncSiteDirectory(event: H3Event): Promise<DirectorySyncResult> {
   const kv = getCfBindings(event).kv
-  if (!kv) throw createError({ statusCode: 503, message: 'The PLUGIN_KV binding is missing, so the router\'s copy of the directory can\'t be written.' })
+  if (!kv) throw httpError({ status: 503, message: 'The PLUGIN_KV binding is missing, so the router\'s copy of the directory can\'t be written.' })
   const db = useDb(event)
   const [pools, existing] = await Promise.all([describePools(event), db.select().from(siteDirectory)])
 

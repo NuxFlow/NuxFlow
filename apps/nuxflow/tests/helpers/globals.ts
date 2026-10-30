@@ -154,6 +154,10 @@ globalThis.noContent = (event: Record<string, unknown>) => {
   return null
 }
 
+globalThis.httpError = ({ status, message, data }: { status: number; message?: string; data?: unknown }) => {
+  throw globalThis.createError({ statusCode: status, message, data })
+}
+
 globalThis.badRequest = (message = 'Bad request', data?: unknown) => {
   throw globalThis.createError({ statusCode: 400, message, data })
 }

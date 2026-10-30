@@ -24,7 +24,9 @@ export default defineEventHandler(async (event) => {
 
   // Let setup & auth API paths through before touching the DB — the schema
   // may not exist yet (fresh install / wiped DB awaiting migrations).
-  const path = event.path
+  // Pathname only; the query string is added back where a redirect needs it.
+  const url = getRequestURL(event)
+  const path = url.pathname
   if (path.startsWith('/api/v1/setup') || path.startsWith('/api/auth') || path === '/api/health') {
     return
   }
@@ -49,7 +51,7 @@ export default defineEventHandler(async (event) => {
   // under /.well-known/ are left alone.
   if (site?.redirectTo && site.redirectTo !== host && !path.startsWith('/.well-known/')) {
     const method = event.method.toUpperCase()
-    return sendRedirect(event, `https://${site.redirectTo}${path}`, method === 'GET' || method === 'HEAD' ? 301 : 308)
+    return sendRedirect(event, `https://${site.redirectTo}${path}${url.search}`, method === 'GET' || method === 'HEAD' ? 301 : 308)
   }
 
   if (unknownHost) {

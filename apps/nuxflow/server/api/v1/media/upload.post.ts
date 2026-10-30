@@ -9,7 +9,7 @@ import { mediaErrorMessage, isHttpError } from '../../../utils/errors'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { media } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
-import { created } from '../../../utils/response'
+import { created, httpError } from '../../../utils/response'
 import { requireSiteId } from '../../../utils/site-context'
 import { isDemoMode } from '../../../utils/demo-mode'
 
@@ -38,26 +38,26 @@ export default defineEventHandler(async (event) => {
   // post-buffering size check below still catches those, just without the early-exit benefit.
   const contentLength = Number(getHeader(event, 'content-length') ?? 0)
   if (contentLength > MAX_SIZE) {
-    throw createError({ statusCode: 413, message: 'File too large (max 20 MB)' })
+    throw httpError({ status: 413, message: 'File too large (max 20 MB)' })
   }
 
   const formData = await readFormData(event)
   const file = formData.get('file') as File | null
 
   if (!file) throw badRequest('No file provided')
-  if (file.size > MAX_SIZE) throw createError({ statusCode: 413, message: 'File too large (max 20 MB)' })
+  if (file.size > MAX_SIZE) throw httpError({ status: 413, message: 'File too large (max 20 MB)' })
   // The multipart part's declared Content-Type, reduced to its bare essence: lowercase,
   // parameters dropped. Every check below compares against this — the SVG sanitizer used
   // to test `file.type === 'image/svg+xml'` exactly, so `image/svg+xml;x=1` passed the
   // `image/` allowlist, skipped sanitization, and was stored/served as a live SVG.
   const mimeType = (file.type.split(';')[0] ?? '').trim().toLowerCase()
   if (!isAllowedMediaMimeType(mimeType)) {
-    throw createError({ statusCode: 415, message: `Unsupported file type: ${mimeType || 'unknown'}` })
+    throw httpError({ status: 415, message: `Unsupported file type: ${mimeType || 'unknown'}` })
   }
   // The public demo takes images only — a PDF or audio file on the operator's domain is
   // the easiest thing to abuse (demo-mode.ts).
   if (isDemoMode(event) && !mimeType.startsWith('image/')) {
-    throw createError({ statusCode: 415, message: 'The live demo accepts images only.' })
+    throw httpError({ status: 415, message: 'The live demo accepts images only.' })
   }
 
   const fileId = ulid()
@@ -86,7 +86,7 @@ export default defineEventHandler(async (event) => {
     // that's an intentional, already-correct status code, not a generic provider failure,
     // so it must pass through unchanged rather than being flattened into a 502.
     if (isHttpError(err)) throw err
-    throw createError({ statusCode: 502, message: mediaErrorMessage(err) })
+    throw httpError({ status: 502, message: mediaErrorMessage(err) })
   }
 
   // Extract EXIF from JPEG/TIFF images — runs after upload so it doesn't block the response path

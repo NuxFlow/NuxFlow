@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   await rateLimit(event, { limit: 10, windowMs: 60_000, keyPrefix: 'listen' })
 
   const ai = getWorkersAiBinding(event)
-  if (!ai) throw createError({ statusCode: 503, message: 'Text-to-speech requires the Workers AI binding.' })
+  if (!ai) throw httpError({ status: 503, message: 'Text-to-speech requires the Workers AI binding.' })
 
   const siteId = requireSiteId(event)
   const slug = getRouterParam(event, 'slug')!

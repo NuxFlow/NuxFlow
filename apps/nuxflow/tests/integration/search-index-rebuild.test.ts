@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm'
 import { sites } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { seedSite, seedContentType, seedContentItem } from '../helpers/seed'
+import type * as CfEnv from '../../server/utils/cf-env'
 
 vi.mock('../../server/utils/db', () => ({ useDb: () => getCurrentTestDb(), getD1: () => null }))
 
@@ -26,7 +27,8 @@ const index = {
   query: vi.fn(),
   deleteByIds: vi.fn(),
 }
-vi.mock('../../server/utils/cf-env', () => ({
+vi.mock('../../server/utils/cf-env', async importOriginal => ({
+  ...(await importOriginal<typeof CfEnv>()),
   getVectorizeIndex: () => index,
   getWorkersAiBinding: () => ({ run: vi.fn() }),
   getCfBindings: () => ({ kv, loader: null, r2: null }),

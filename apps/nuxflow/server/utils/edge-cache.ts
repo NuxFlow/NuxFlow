@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { contentItems, sites } from '@nuxflow/db/schema'
 import { publicPathForItem } from './seo'
 import { useDb } from './db'
-import { getExecutionContext } from './cf-env'
+import { getCloudflareContext, getExecutionContext } from './cf-env'
 import { isPageCachePath, pageCacheKeysForUrl } from './page-cache'
 import { bumpCacheVersion, currentCacheVersion, versionedCacheUrl } from './cache-version'
 
@@ -78,7 +78,7 @@ export async function withEdgeCacheKey<T>(
   maxAgeSeconds: number,
   compute: () => Promise<T>,
 ): Promise<T> {
-  const cf = event.context.cloudflare
+  const cf = getCloudflareContext(event)
   if (!cf?.request) return compute()
 
   // The site's cache version (cache-version.ts) is part of the key, read once before
@@ -134,7 +134,7 @@ export async function withEdgeCacheKey<T>(
  * must not fail the mutation that triggered it.
  */
 export async function purgeEdgeCache(event: H3Event, paths: string[]): Promise<void> {
-  const cf = event.context.cloudflare
+  const cf = getCloudflareContext(event)
   if (!cf?.request) return
 
   const replaced = await currentCacheVersion(event)
@@ -283,7 +283,7 @@ export async function purgeContentCache(
  * the old cached copy.
  */
 export async function purgeAllPublicPages(event: H3Event, siteId: string): Promise<void> {
-  const cf = event.context.cloudflare
+  const cf = getCloudflareContext(event)
   if (!cf?.request) return
 
   const replaced = await currentCacheVersion(event)

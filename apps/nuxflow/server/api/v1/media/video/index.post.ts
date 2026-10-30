@@ -3,7 +3,7 @@ import { requireRole } from '../../../../utils/permissions'
 import { videoAssets } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { buildAuditLogInsert, batchWithAudit } from '../../../../utils/audit'
-import { created, forbidden } from '../../../../utils/response'
+import { created, forbidden, httpError } from '../../../../utils/response'
 import { parseBody } from '../../../../utils/validate'
 import { z } from 'zod'
 import { requireSiteId } from '../../../../utils/site-context'
@@ -58,8 +58,8 @@ export default defineEventHandler(async (event) => {
   // status:'processing' until the stuck-video sweep marks it failed.
   const res = await getStreamVideo(account, uid)
   if (!res) {
-    throw createError({
-      statusCode: 404,
+    throw httpError({
+      status: 404,
       message: 'Cloudflare Stream did not recognize this upload UID. It may not have finished uploading yet, or belongs to a different account.',
     })
   }

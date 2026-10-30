@@ -31,13 +31,12 @@ const AUTH_RATE_LIMITS: Record<string, { limit: number; windowMs: number }> = {
 // This guarantees our Better Auth instance (with allowedHosts for multi-domain
 // OAuth) handles auth regardless of module-route registration order in Nitro.
 export default defineEventHandler(async (event) => {
-  if (!event.path.startsWith('/api/auth')) return
-
-  // Match on the pathname only — event.path includes the query string, so keying the
+  // Match on the pathname only — the full path includes the query string, so keying the
   // lookup on it let `/api/auth/sign-in/email?x=1` miss every limit below while Better
   // Auth's own router (which ignores the query string) still handled it normally.
   // Trailing slashes are trimmed for the same reason.
   const pathname = getRequestURL(event).pathname.replace(/\/+$/, '')
+  if (!pathname.startsWith('/api/auth')) return
 
   // Better Auth's own sign-up endpoint is global and ignores the per-site
   // `auth.allow_public_registration` setting. Nothing in the app calls it: public

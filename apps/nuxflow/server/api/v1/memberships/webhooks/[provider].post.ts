@@ -56,7 +56,7 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
         // Throwing surfaces a non-2xx response so Stripe's own retry/backoff picks it
         // back up; the redelivery is safe to reprocess now that the upsert is an atomic
         // conflict-safe operation (see webhook-sync.ts).
-        throw createError({ statusCode: 502, message: `Failed to fetch Stripe subscription ${session.subscription}: ${detail}` })
+        throw httpError({ status: 502, message: `Failed to fetch Stripe subscription ${session.subscription}: ${detail}` })
       }
       // Current API versions carry the billing period on each subscription item
       // rather than on the subscription itself.
@@ -99,7 +99,7 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
       } catch (err) {
         const detail = err instanceof Error ? err.message : String(err)
         console.error('[stripe-webhook] Failed to fetch subscription', detail)
-        throw createError({ statusCode: 502, message: `Failed to fetch Stripe subscription ${eventSub.id}: ${detail}` })
+        throw httpError({ status: 502, message: `Failed to fetch Stripe subscription ${eventSub.id}: ${detail}` })
       }
       const stripeSubItem = stripeSub.items.data[0]
 

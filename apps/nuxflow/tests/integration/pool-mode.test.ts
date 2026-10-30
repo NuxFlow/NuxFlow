@@ -50,7 +50,6 @@ function setPool(poolId: string | null, accountsUrl = 'https://accounts.platform
 
 function hostEvent(host: string, path = '/') {
   const event = createMockEvent({ headers: { host }, path }) as unknown as Record<string, unknown>
-  event.path = path
   return event as unknown as H3Event
 }
 

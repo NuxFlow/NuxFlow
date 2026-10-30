@@ -152,7 +152,7 @@ export default defineEventHandler(async (event) => {
 
   const chunks = chunkBundle(strings)
   if (chunks.length > MAX_CHUNKS) {
-    throw createError({ statusCode: 413, message: 'This page is too long to translate in one go — split it into smaller pages first' })
+    throw httpError({ status: 413, message: 'This page is too long to translate in one go — split it into smaller pages first' })
   }
 
   const translations: Record<string, string> = {}

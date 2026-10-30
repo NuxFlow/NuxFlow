@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { getD1 } from './db'
 import { bufferToHex } from './buffer'
+import { httpError } from './response'
 
 // Whole-D1-instance SQL dump — not the per-site JSON backup in backup.ts. `wrangler d1
 // export` is a CLI-only tool (it shells out to Cloudflare's API from the developer's
@@ -79,7 +80,7 @@ const IDENTIFIER_PATTERN = /^[a-z_]\w*$/i
 // than a real injection vector.
 function assertSafeIdentifier(name: string): void {
   if (!IDENTIFIER_PATTERN.test(name)) {
-    throw createError({ statusCode: 500, message: `D1 export: unexpected identifier "${name}" in database schema` })
+    throw httpError({ status: 500, message: `D1 export: unexpected identifier "${name}" in database schema` })
   }
 }
 
@@ -260,8 +261,8 @@ export async function streamD1TableData(
   let queryCount = 0
   function checkQueryBudget(): void {
     if (queryCount >= MAX_D1_QUERIES) {
-      throw createError({
-        statusCode: 413,
+      throw httpError({
+        status: 413,
         message: `D1 export exceeds the ${MAX_D1_QUERIES}-query budget for one Worker invocation (Cloudflare caps a paid plan at 1,000 D1 queries per invocation) — this database has too much data to export from the admin UI. Use \`wrangler d1 export\` from the CLI instead (no such limit there).`,
       })
     }
@@ -325,8 +326,8 @@ export async function streamD1TableData(
         if (isIsolateMemoryError(err)) {
           // Already at the floor and still rejected — a single row (or a small handful)
           // in this table is itself too large to fetch this way, not a page-size problem.
-          throw createError({
-            statusCode: 413,
+          throw httpError({
+            status: 413,
             message: `D1 export: table "${table.name}" still exceeds D1's isolate memory limit even at ${MIN_ROWS_PER_PAGE} rows/page (past rowid ${cursor}) — at least one row there is too large to export from the admin UI. Use \`wrangler d1 export\` from the CLI instead.`,
           })
         }
@@ -351,8 +352,8 @@ export async function streamD1TableData(
         const line = `INSERT INTO "${table.name}" (${columnList}) VALUES\n${valuesList};\n`
         bytesWritten += line.length
         if (bytesWritten > MAX_DUMP_BYTES) {
-          throw createError({
-            statusCode: 413,
+          throw httpError({
+            status: 413,
             message: `D1 export exceeds the ${MAX_DUMP_BYTES / (1024 * 1024)} MB safety limit for an in-Worker export — this database is too large to export from the admin UI. Use \`wrangler d1 export\` from the CLI instead (no request size/duration limit there).`,
           })
         }

@@ -5,10 +5,12 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { H3Event } from 'h3'
+import type * as CfEnv from '../../server/utils/cf-env'
 
 const mockGetWorkersAiBinding = vi.fn()
 const mockGetVectorizeIndex = vi.fn()
-vi.mock('../../server/utils/cf-env', () => ({
+vi.mock('../../server/utils/cf-env', async importOriginal => ({
+  ...(await importOriginal<typeof CfEnv>()),
   getWorkersAiBinding: (...args: unknown[]) => mockGetWorkersAiBinding(...args),
   getVectorizeIndex: (...args: unknown[]) => mockGetVectorizeIndex(...args),
 }))

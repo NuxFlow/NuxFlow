@@ -25,19 +25,12 @@ const SITE_C = 'site-mw-suspended'
 
 type MiddlewareFn = (e: H3Event) => Promise<unknown>
 
-/**
- * Creates a mock event with `path` exposed as a direct property so the
- * multi-site middleware can read `event.path` without going through a helper.
- */
+/** A request to `path` on `host` (the middleware reads the path through getRequestURL()). */
 function mkSiteEvent(opts: { host?: string; path?: string } = {}) {
-  const base = createMockEvent({
+  return createMockEvent({
     headers: opts.host ? { host: opts.host } : {},
-  }) as unknown as Record<string, unknown>
-
-  // The middleware reads event.path directly — it's not exposed by createMockEvent
-  base.path = opts.path ?? '/'
-
-  return base as unknown as H3Event
+    path: opts.path ?? '/',
+  }) as unknown as H3Event
 }
 
 beforeAll(async () => {
