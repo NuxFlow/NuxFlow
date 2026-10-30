@@ -125,6 +125,14 @@ export class LemonSqueezyProvider implements PaymentProvider {
     return res.data
   }
 
+  /**
+   * Lemon Squeezy can only cancel at the end of the paid period — there is no immediate
+   * cancel — so this is the same call; it still stops every renewal.
+   */
+  async cancelSubscriptionNow(subscriptionId: string): Promise<LsSubscription> {
+    return this.cancelSubscription(subscriptionId)
+  }
+
   async verifyWebhook(rawBody: string, signatureHeader: string, secret: string): Promise<boolean> {
     const expected = await hmacSha256Hex(secret, rawBody)
     // Constant-time compare — a plain `===` here leaks per-character timing (Stripe/Paddle's

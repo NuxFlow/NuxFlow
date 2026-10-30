@@ -15,4 +15,10 @@ export type PaymentProviderName = 'stripe' | 'lemonsqueezy' | 'paddle'
  */
 export interface PaymentProvider {
   cancelSubscription(subscriptionId: string): Promise<unknown>
+  /**
+   * Ends a subscription with no further charges — for when what it paid for is gone (the
+   * site is being deleted). Lemon Squeezy has no immediate cancel, so there it's the same
+   * end-of-period cancellation, which still stops every renewal.
+   */
+  cancelSubscriptionNow(subscriptionId: string): Promise<unknown>
 }

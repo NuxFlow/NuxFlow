@@ -398,6 +398,7 @@ describe("the customer's domains on a pool site (control plane)", () => {
         }
         throw new Error('unexpected op')
       },
+      prepareSiteDeletion: vi.fn().mockResolvedValue({ ok: true, found: true }),
       deleteSite: vi.fn().mockResolvedValue({ deleted: true, failedMediaDeletes: [] }),
     }
     return { stub, rows, ops, site }

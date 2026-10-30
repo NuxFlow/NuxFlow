@@ -70,11 +70,17 @@ export async function putThemeCSS(event: H3Event, siteId: string, themeId: strin
   setCachedThemeCss(siteId, themeId, sanitized)
 }
 
+/** Every published version: publishing writes a new key and leaves the old one. */
 export async function deleteThemeCSS(event: H3Event, siteId: string, themeId: string): Promise<void> {
   const { kv } = getCfBindings(event)
   if (!kv) return
-  const version = await getThemeCssVersion(event, siteId, themeId)
-  await kv.delete(themeCssKey(siteId, themeId, version))
+  const prefix = `theme:${siteId}:${themeId}:css:`
+  let cursor: string | undefined
+  do {
+    const page = await kv.list({ prefix, cursor })
+    await Promise.all(page.keys.map(k => kv.delete(k.name)))
+    cursor = page.list_complete ? undefined : page.cursor
+  } while (cursor)
   clearCachedThemeCss(siteId, themeId)
 }
 

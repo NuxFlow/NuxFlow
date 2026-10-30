@@ -1,13 +1,10 @@
 import type { H3Event } from 'h3'
 import { useDb, type Db } from './db'
 import { clearSiteCache } from './site-resolution'
-import { deleteStoredMedia } from './media-providers/storage-delete'
+import { deleteStoredMedia, isSiteStorageKey } from './media-providers/storage-delete'
 import { writeAuditLog } from './audit'
-import { deletePluginAssets } from './cf-plugin-kv'
-import { deleteThemeCSS, deleteThemeDemo } from './cf-theme-kv'
 import { errorMessage } from './errors'
 import { conflict } from './response'
-import { deleteSiteEmailObjects } from './inbox'
 import { deleteContentEmbeddings } from './embeddings'
 import { cancelHostingForDeletedSite } from './hosting-billing'
 import { removeDomainsForDeletedSite } from './hosting-domains'
@@ -16,11 +13,14 @@ import { eventForSite } from './site-info'
 import { isMemberPool } from './control-plane'
 import { callPool, poolBindings } from './pools'
 import { assertCompatibleProtocol, POOL_PROTOCOL } from './pool-admin'
+import { getCfBindings } from './cf-env'
+import { deleteCacheVersion } from './cache-version'
+import { getConfiguredPaymentProvider } from './payments/resolve'
 import {
   sites, users, userSiteRoles, siteInvitations, hostingSubscriptions, media, contentItems,
-  accounts, sessions, passkeys, themes, dynamicPlugins, videoAssets,
+  accounts, sessions, passkeys, videoAssets, siteDirectory, subscriptions,
 } from '@nuxflow/db/schema'
-import { eq, and, ne, or, inArray, isNull } from 'drizzle-orm'
+import { eq, and, ne, or, inArray, isNull, sql } from 'drizzle-orm'
 
 /**
  * Permanently deletes a site and every record scoped to it, including users who
@@ -40,6 +40,14 @@ export interface SiteDeletionResult {
   // exist on the provider. Non-empty means an operator needs to check the provider
   // directly; see the note on the deletion loop below for why this can't just retry.
   failedMediaDeletes: string[]
+  /** The site's own domains that couldn't be removed from Cloudflare for SaaS. */
+  leftoverDomains: string[]
+}
+
+/** The people a site had: anyone with a role on it, and anyone only invited to it. */
+export interface SitePeople {
+  roles: string[]
+  invited: string[]
 }
 
 /**
@@ -47,13 +55,21 @@ export interface SiteDeletionResult {
  * deployment's payment/email env credentials, holds the social-login settings, and
  * receives account-level alerts. Deleting it while tenants remain would silently strip
  * all of that from the platform with nothing to reassign it, so it can only go once it's
- * the last site. The 409 carries the other sites (`blockingSites`) so the UI can list them.
+ * the last site — counting the sites in member pools, which rely on it just the same. The
+ * 409 carries the other sites (`blockingSites`) so the UI can list them.
  */
 export async function assertPrimarySiteDeletable(event: H3Event, siteId: string): Promise<void> {
   const db = useDb(event)
   const target = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { isPrimary: true } })
   if (!target?.isPrimary) return
-  const others = await db.query.sites.findMany({ where: ne(sites.id, siteId), columns: { id: true, domain: true } })
+  const others: { id: string; domain: string }[] = await db.query.sites.findMany({ where: ne(sites.id, siteId), columns: { id: true, domain: true } })
+  if (!isMemberPool()) {
+    // A pool site's main address is its `sites.domain` there; the directory also lists its
+    // extra addresses, so take one row per site.
+    const poolSites = await db.select({ id: siteDirectory.poolSiteId, domain: sql<string>`min(${siteDirectory.hostname})` })
+      .from(siteDirectory).groupBy(siteDirectory.poolSiteId)
+    others.push(...poolSites)
+  }
   if (others.length > 0) {
     conflict(
       `This is the primary site — delete the other ${others.length} site${others.length === 1 ? '' : 's'} first: ${others.map(s => s.domain).join(', ')}`,
@@ -62,46 +78,95 @@ export async function assertPrimarySiteDeletable(event: H3Event, siteId: string)
   }
 }
 
+/**
+ * The steps that can refuse a deletion, done before anything is removed, so a refusal
+ * leaves the site exactly as it was. A member pool runs this when its control plane asks
+ * (`prepareSiteDeletion`), before the control plane cancels hosting or removes domains.
+ */
+export async function prepareSiteDeletion(event: H3Event, siteId: string): Promise<void> {
+  const db = useDb(event)
+  const [site] = await db.select({ moveState: sites.moveState }).from(sites).where(eq(sites.id, siteId)).limit(1)
+  // A copy in the middle of a move — or the old one, left until the move's clean-up — has
+  // media rows naming the same files as the live copy. With a shared bucket, deleting it
+  // here would delete the live site's files.
+  if (site?.moveState) {
+    conflict('This copy of the site is part of a move. Let the move finish (or cancel it) in Super Admin → Sites first, then delete the site.')
+  }
+  await cancelSiteMemberships(event, siteId)
+}
+
+/**
+ * Ends every paid membership visitors hold on the site, with the site's own payment
+ * credentials. The `subscriptions` rows go with the cascade, but the provider would keep
+ * charging those people for a site that no longer exists — so this refuses the deletion
+ * (409) if a provider can't be reached, as hosting billing does.
+ */
+async function cancelSiteMemberships(event: H3Event, siteId: string): Promise<void> {
+  const db = useDb(event)
+  const paid = await db.select({
+    id: subscriptions.id,
+    provider: subscriptions.provider,
+    providerSubscriptionId: subscriptions.providerSubscriptionId,
+  }).from(subscriptions).where(and(
+    eq(subscriptions.siteId, siteId),
+    inArray(subscriptions.status, ['active', 'trialing', 'past_due', 'unpaid']),
+  ))
+  const siteEvent = eventForSite(event, siteId)
+  for (const sub of paid) {
+    if (sub.providerSubscriptionId.startsWith('free_')) continue // no real provider behind a free-tier row
+    try {
+      const provider = await getConfiguredPaymentProvider(siteEvent, sub.provider)
+      await provider.cancelSubscriptionNow(sub.providerSubscriptionId)
+    }
+    catch (err) {
+      conflict(`Couldn't cancel a member's ${sub.provider} subscription (${errorMessage(err, String(err))}). The site's members would keep being charged — cancel it with ${sub.provider} first, then delete the site.`)
+    }
+    // Recorded at once, so a deletion that fails later doesn't ask the provider again.
+    await db.update(subscriptions).set({ status: 'cancelled', cancelledAt: sql`(datetime('now'))`, cancelAtPeriodEnd: false })
+      .where(and(eq(subscriptions.id, sub.id), eq(subscriptions.siteId, siteId)))
+  }
+}
+
 export async function deleteSiteCompletely(event: H3Event, siteId: string, actorUserId: string | null): Promise<SiteDeletionResult> {
   const db = useDb(event)
 
   await assertPrimarySiteDeletable(event, siteId)
+  await prepareSiteDeletion(event, siteId)
   // A site a customer pays for: stop the billing first (refuses if Stripe can't be reached).
   await cancelHostingForDeletedSite(event, siteId)
   // Its own domains are removed from Cloudflare too (best effort: a leftover costs pennies
-  // and is logged, so it never blocks the deletion).
-  await removeDomainsForDeletedSite(event, siteId)
+  // and is reported, so it never blocks the deletion).
+  const leftoverDomains = await removeDomainsForDeletedSite(event, siteId)
 
   console.warn(JSON.stringify({
     event: 'site.delete', siteId, actorUserId, at: new Date().toISOString(),
   }))
 
-  // 1. Delete physical media files from the active storage provider. This is the one
-  // step here that genuinely can't be a DB-level cascade — the provider (R2,
-  // Cloudflare Images) is external storage, not a D1 table, so nothing short of
-  // calling its API actually removes the files. Read the rows first (need storageKey),
-  // then delete each file; the media *rows* themselves don't need a manual delete here —
-  // see step 4 below, which removes them (and every other site-scoped table) via D1's
-  // real foreign-key cascade.
+  // 1. Delete physical media files from storage. This is the one step here that genuinely
+  // can't be a DB-level cascade — the provider (R2, Cloudflare Images) is external
+  // storage, not a D1 table, so nothing short of calling its API actually removes the
+  // files. Read the rows first (need storageKey), then delete each file; the media *rows*
+  // themselves don't need a manual delete here — see step 4 below, which removes them (and
+  // every other site-scoped table) via D1's real foreign-key cascade.
   //
   // A failed delete here is a genuine data-retention risk — the whole point of this
   // function is "permanently delete every record for this site," and an uploaded photo
-  // can easily be personal data. The previous version of this loop swallowed every
-  // failure with `.catch(() => {})` and no logging, so a provider error (wrong/expired
-  // credentials, a site that switched providers mid-life leaving old files on the
-  // no-longer-active one, a transient network failure) left files behind with nothing
-  // anywhere recording that erasure didn't actually happen. Each failure is now logged
-  // with the storage key and returned to the caller so it can surface to whoever
-  // triggered the deletion instead of disappearing silently.
+  // can easily be personal data. Each failure is logged with the storage key and returned
+  // to the caller so it can surface to whoever triggered the deletion instead of
+  // disappearing silently.
   //
-  // deleteStoredMedia() resolves the provider from the *deleted* site's own settings (not
-  // the acting super admin's site — a tenant on its own Cloudflare Images account would
-  // otherwise have every delete sent to the wrong storage) and only ever touches keys
-  // under that site's own prefix.
+  // Files in this Worker's R2 bucket are removed by the prefix sweep in 1b, whichever
+  // provider the site uses now (one per file here would also run out of subrequests on a
+  // big site). Anything else goes through deleteStoredMedia(), which resolves the provider
+  // from the *deleted* site's own settings (not the acting super admin's site — a tenant on
+  // its own Cloudflare Images account would otherwise have every delete sent to the wrong
+  // storage) and only ever touches keys under that site's own prefix.
+  const { r2 } = getCfBindings(event)
   const allMedia = await db.select({ storageKey: media.storageKey, storageProvider: media.storageProvider })
     .from(media).where(eq(media.siteId, siteId))
   const failedMediaDeletes: string[] = []
   for (const file of allMedia) {
+    if (r2 && file.storageProvider === 'r2' && isSiteStorageKey(siteId, file.storageKey)) continue
     try {
       if (!(await deleteStoredMedia(event, siteId, file))) failedMediaDeletes.push(file.storageKey)
     }
@@ -114,15 +179,20 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
     }
   }
 
-  // 1b. Received email (raw messages + attachments) lives in R2 under a private prefix —
-  // the email_messages rows go with the step-4 cascade, the objects don't. It's personal
-  // data from outside senders, so a failure is surfaced like a media failure.
-  try {
-    await deleteSiteEmailObjects(event, siteId)
-  }
-  catch (err) {
-    failedMediaDeletes.push(`_private/${siteId}/email/*`)
-    console.error(JSON.stringify({ event: 'site.delete.email_failed', siteId, error: errorMessage(err, String(err)) }))
+  // 1b. Everything the site has in R2: media, theme images and received email (raw messages
+  // + attachments, under the private prefix) — including files whose rows are long gone or
+  // that were left on R2 when the site switched to another provider. Received email is
+  // personal data from outside senders, so a failure is surfaced like a media failure.
+  if (r2) {
+    for (const prefix of siteR2Prefixes(siteId)) {
+      try {
+        await deleteR2Prefix(r2, prefix)
+      }
+      catch (err) {
+        failedMediaDeletes.push(`${prefix}*`)
+        console.error(JSON.stringify({ event: 'site.delete.r2_failed', siteId, prefix, error: errorMessage(err, String(err)) }))
+      }
+    }
   }
 
   // 1c. Videos live in Cloudflare Stream — the site's own account or, for a hosted
@@ -143,23 +213,13 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
     }
   }
 
-  // 2. Delete KV-stored theme CSS/demo data and dynamic plugin server/client code for
-  // this site. Like media above, these live outside D1 (Cloudflare KV), so the FK
-  // cascade in step 4 removes the `themes`/`dynamic_plugins` *rows* but can never touch
-  // their KV-side payloads — left alone, every theme this site ever published and every
-  // plugin it ever installed would stay in KV forever under a siteId that no longer
-  // resolves to anything. Must run before step 4's cascade delete: deleteThemeCSS needs
-  // the theme row's current `cssVersion` to know which KV key to remove, which is only
-  // available while the row still exists. Best-effort like media deletion above — CSS/
-  // plugin code isn't personal data, so a failure here is logged but doesn't block the
-  // rest of the deletion.
-  const siteThemes = await db.select({ id: themes.id }).from(themes).where(eq(themes.siteId, siteId))
-  const sitePlugins = await db.select({ id: dynamicPlugins.id }).from(dynamicPlugins).where(eq(dynamicPlugins.siteId, siteId))
+  // 2. Everything the site keeps in KV: every published version of every theme's CSS and
+  // its demo data, plugin code, its private Stream signing keys and its cache version. The
+  // step-4 cascade removes the `themes`/`dynamic_plugins` *rows* but can never touch KV.
+  // Best effort — none of it is personal data, so a failure is logged but doesn't block
+  // the rest of the deletion.
   try {
-    await Promise.all([
-      ...siteThemes.flatMap(t => [deleteThemeCSS(event, siteId, t.id), deleteThemeDemo(event, siteId, t.id)]),
-      ...sitePlugins.map(p => deletePluginAssets(event, siteId, p.id)),
-    ])
+    await deleteSiteKv(event, siteId)
   }
   catch (err) {
     console.error(JSON.stringify({ event: 'site.delete.kv_cleanup_failed', siteId, error: errorMessage(err, String(err)) }))
@@ -169,34 +229,9 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
   const siteItemIds = await db.select({ id: contentItems.id }).from(contentItems).where(eq(contentItems.siteId, siteId))
   await deleteContentEmbeddings(event, siteItemIds.map(r => r.id))
 
-  // 3. Handle users and roles. `user_site_roles` itself has an `onDelete: 'cascade'` FK to
-  // sites.id, so the rows for this site don't need a manual delete here — step 4's final
-  // `db.delete(sites)` removes them too. This read has to happen first regardless, to know
-  // which users belong to this site at all.
-  const siteRoles = await db
-    .select({ userId: userSiteRoles.userId })
-    .from(userSiteRoles)
-    .where(eq(userSiteRoles.siteId, siteId))
-
-  const siteUserIds = siteRoles.map(r => r.userId)
-
-  if (siteUserIds.length > 0) {
-    const keep = await usersStillNeeded(event, siteUserIds, siteId)
-    const toDelete = siteUserIds.filter(uid => !keep.has(uid))
-
-    if (toDelete.length > 0) {
-      // users/accounts/sessions/passkeys have no FK to sites.id at all (accounts are
-      // global, not per-site — see the multi-site note in CLAUDE.md), so these deletes
-      // are genuinely manual — no cascade from the site delete below could ever reach
-      // them. Batched so the 4 deletes are one atomic round trip.
-      await db.batch([
-        db.delete(accounts).where(inArray(accounts.userId, toDelete)),
-        db.delete(sessions).where(inArray(sessions.userId, toDelete)),
-        db.delete(passkeys).where(inArray(passkeys.userId, toDelete)),
-        db.delete(users).where(inArray(users.id, toDelete)),
-      ])
-    }
-  }
+  // 3. Accounts nothing else needs any more. Must be read before step 4, whose cascade
+  // removes this site's roles and invitations.
+  await deleteUnneededAccounts(event, siteId, await sitePeople(db, siteId))
 
   // 4. Finally delete the site itself. D1 always enforces foreign keys — it cannot be
   // disabled (see https://developers.cloudflare.com/d1/sql-api/foreign-keys/) — so this
@@ -223,11 +258,88 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
       action: 'delete',
       resource: 'site',
       resourceId: siteId,
-      after: failedMediaDeletes.length ? { failedMediaDeletes } : undefined,
+      after: failedMediaDeletes.length || leftoverDomains.length ? { failedMediaDeletes, leftoverDomains } : undefined,
     })
   }
 
-  return { failedMediaDeletes }
+  return { failedMediaDeletes, leftoverDomains }
+}
+
+/** Where a site's files are in R2 (the same prefixes a site move copies, site-move.ts). */
+function siteR2Prefixes(siteId: string): string[] {
+  return [`${siteId}/`, `_private/${siteId}/`]
+}
+
+async function deleteR2Prefix(r2: R2Bucket, prefix: string): Promise<void> {
+  let cursor: string | undefined
+  do {
+    const page = await r2.list({ prefix, cursor, limit: 1000 })
+    const keys = page.objects.map(o => o.key)
+    if (keys.length) await r2.delete(keys)
+    cursor = page.truncated ? page.cursor : undefined
+  } while (cursor)
+}
+
+/**
+ * Every KV key a site owns in this Worker's namespace: `theme:<site>:` (each published CSS
+ * version — publishing writes a new key and keeps the old — and demo data),
+ * `plugin:<site>:` (code), `stream-key:site:<site>:` (its own Stream signing keys; the
+ * platform's are shared and stay) and its cache version.
+ */
+async function deleteSiteKv(event: H3Event, siteId: string): Promise<void> {
+  const { kv } = getCfBindings(event)
+  if (!kv) return
+  for (const prefix of [`theme:${siteId}:`, `plugin:${siteId}:`, `stream-key:site:${siteId}:`]) {
+    let cursor: string | undefined
+    do {
+      const page = await kv.list({ prefix, cursor })
+      await Promise.all(page.keys.map(k => kv.delete(k.name)))
+      cursor = page.list_complete ? undefined : page.cursor
+    } while (cursor)
+  }
+  await deleteCacheVersion(kv, siteId)
+}
+
+/** Who a site has, read before its roles and invitations go with the cascade. */
+export async function sitePeople(db: Db, siteId: string): Promise<SitePeople> {
+  const [roles, invitations] = await Promise.all([
+    db.select({ userId: userSiteRoles.userId }).from(userSiteRoles).where(eq(userSiteRoles.siteId, siteId)),
+    db.select({ userId: siteInvitations.userId }).from(siteInvitations).where(eq(siteInvitations.siteId, siteId)),
+  ])
+  const roleIds = [...new Set(roles.map(r => r.userId))]
+  const invited = [...new Set(invitations.map(r => r.userId))].filter(id => !roleIds.includes(id))
+  return { roles: roleIds, invited }
+}
+
+/**
+ * Deletes the accounts of a deleted site's people that nothing else needs. Someone only
+ * invited counts only while their address is unverified: the invitation created that
+ * account and its owner never set a password, so it was never theirs to keep. A verified
+ * account that was merely invited belongs to someone who signed up themselves.
+ *
+ * Used for this Worker's own sites, and by the control plane after a member pool deletes
+ * one of its sites (the pool only erases its copies of the users; the accounts are here).
+ */
+export async function deleteUnneededAccounts(event: H3Event, siteId: string, people: SitePeople): Promise<void> {
+  const db = useDb(event)
+  const unclaimedInvited = people.invited.length
+    ? (await db.select({ id: users.id }).from(users).where(and(inArray(users.id, people.invited), eq(users.emailVerified, false)))).map(r => r.id)
+    : []
+  const candidates = [...people.roles, ...unclaimedInvited]
+  if (!candidates.length) return
+  const keep = await usersStillNeeded(event, candidates, siteId)
+  const toDelete = candidates.filter(uid => !keep.has(uid))
+  if (!toDelete.length) return
+  // users/accounts/sessions/passkeys have no FK to sites.id at all (accounts are global, not
+  // per-site — see the multi-site note in CLAUDE.md), so these deletes are genuinely manual
+  // — no cascade from the site delete could ever reach them. Batched so the 4 deletes are
+  // one atomic round trip.
+  await db.batch([
+    db.delete(accounts).where(inArray(accounts.userId, toDelete)),
+    db.delete(sessions).where(inArray(sessions.userId, toDelete)),
+    db.delete(passkeys).where(inArray(passkeys.userId, toDelete)),
+    db.delete(users).where(inArray(users.id, toDelete)),
+  ])
 }
 
 /**

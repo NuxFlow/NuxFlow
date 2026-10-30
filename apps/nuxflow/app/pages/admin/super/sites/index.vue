@@ -77,7 +77,10 @@ const editForm = reactive({
 
 const isDeleteOpen = ref(false)
 const deleteConfirmText = ref('')
-const deleting = ref(false)
+const { loading: deleting, run: runDelete } = useAdminAction()
+// What a deletion couldn't remove (files, Cloudflare domains) — kept on screen, since the
+// operator has to clear it by hand.
+const deleteLeftovers = ref<{ domain: string; failedMediaDeletes: string[]; leftoverDomains: string[] } | null>(null)
 
 const saving = ref(false)
 const saveError = ref('')
@@ -125,19 +128,18 @@ async function saveSite() {
 }
 
 async function deleteSite() {
-  if (!selectedSite.value) return
-  deleting.value = true
-  try {
-    await $fetch(`/api/v1/admin/sites/${selectedSite.value.id}`, {
-      method: 'DELETE',
-    })
+  const site = selectedSite.value
+  if (!site) return
+  const url: string = `/api/v1/admin/sites/${site.id}`
+  await runDelete(async () => {
+    // 204 when everything went, otherwise what's left.
+    const res = await $fetch<{ failedMediaDeletes: string[]; leftoverDomains: string[] } | null>(url, { method: 'DELETE' })
     isDeleteOpen.value = false
+    deleteLeftovers.value = res && (res.failedMediaDeletes.length || res.leftoverDomains.length)
+      ? { domain: site.domain, ...res }
+      : null
     await refresh()
-  } catch (e: unknown) {
-    alert(getErrorMessage(e, 'Failed to delete site'))
-  } finally {
-    deleting.value = false
-  }
+  }, { successTitle: `${site.domain} deleted`, errorTitle: "Couldn't delete the site" })
 }
 </script>
 
@@ -155,6 +157,25 @@ async function deleteSite() {
       icon="i-lucide-triangle-alert"
       :description="`Couldn't reach ${data.unreachablePools.join(', ')}, so their sites aren't listed. See Super Admin → Pools.`"
     />
+
+    <UAlert
+      v-if="deleteLeftovers"
+      color="warning"
+      variant="soft"
+      icon="i-lucide-triangle-alert"
+      :title="`${deleteLeftovers.domain} was deleted, but some things couldn't be removed`"
+      :close="true"
+      @update:open="deleteLeftovers = null"
+    >
+      <template #description>
+        <p v-if="deleteLeftovers.failedMediaDeletes.length">
+          Files still in storage — remove them with the storage provider: {{ deleteLeftovers.failedMediaDeletes.join(', ') }}
+        </p>
+        <p v-if="deleteLeftovers.leftoverDomains.length">
+          Domains still in Cloudflare — remove them under Custom Hostnames: {{ deleteLeftovers.leftoverDomains.join(', ') }}
+        </p>
+      </template>
+    </UAlert>
 
     <UAlert
       v-for="m in unfinishedMoves"
@@ -261,7 +282,7 @@ async function deleteSite() {
             Are you absolutely sure you want to delete <strong class="text-gray-900 dark:text-white">{{ selectedSite?.name }}</strong>?
           </p>
           <p class="text-sm text-red-500 font-medium">
-            Warning: This action is permanent and will delete all site pages, settings, media, and local users.
+            Warning: This action is permanent. It deletes all the site's pages, settings, media and videos, cancels its members' paid subscriptions and its hosting subscription, and deletes accounts no other site needs.
           </p>
           <div class="space-y-2">
             <label class="text-xs text-gray-400">Type the domain <strong class="text-gray-700 dark:text-gray-300">{{ selectedSite?.domain }}</strong> to confirm:</label>

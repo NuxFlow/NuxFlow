@@ -35,6 +35,11 @@ describe('StripeProvider', () => {
     expect(stripeCalls).toEqual([{ method: 'subscriptions.update', args: ['sub_1', { cancel_at_period_end: true }] }])
   })
 
+  it('cancels now when what it paid for is gone', async () => {
+    await new StripeProvider('sk_test').cancelSubscriptionNow('sub_1')
+    expect(stripeCalls).toEqual([{ method: 'subscriptions.cancel', args: ['sub_1'] }])
+  })
+
   it.each([
     [9.99, 'usd', 999],
     [10, 'EUR', 1000],
@@ -84,6 +89,18 @@ describe('HTTP providers', () => {
     expect(calls[0]!.url).toMatch(/\/subscriptions\/sub_9\/cancel$/)
     expect(calls[0]!.init.method).toBe('POST')
     expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ effective_from: 'next_billing_period' })
+  })
+
+  it('Paddle cancels immediately when asked to cancel now', async () => {
+    await new PaddleProvider('pdl_key', 'ven_1').cancelSubscriptionNow('sub_9')
+    expect(calls[0]!.url).toMatch(/\/subscriptions\/sub_9\/cancel$/)
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ effective_from: 'immediately' })
+  })
+
+  it('LemonSqueezy has no immediate cancel, so cancelling now is its end-of-period DELETE', async () => {
+    await new LemonSqueezyProvider('ls_key', 'store_1').cancelSubscriptionNow('42')
+    expect(calls[0]!.url).toBe('https://api.lemonsqueezy.com/v1/subscriptions/42')
+    expect(calls[0]!.init.method).toBe('DELETE')
   })
 
   it('surfaces a provider error status instead of treating it as success', async () => {

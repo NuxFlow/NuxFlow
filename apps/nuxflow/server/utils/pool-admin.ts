@@ -16,7 +16,8 @@ import { clearAnalyticsCache } from './analytics'
  * behind. Changing a shape: add fields as optional and bump the protocol; only rely on
  * them once every pool runs the new release.
  */
-export const POOL_PROTOCOL = 1
+// 2: prepareSiteDeletion; deleteSite returns leftoverDomains and the site's people.
+export const POOL_PROTOCOL = 2
 
 export class PoolProtocolError extends Error {}
 
