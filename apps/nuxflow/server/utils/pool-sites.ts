@@ -8,7 +8,7 @@ import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
 import { callPool, poolAdminStub, poolBindings } from './pools'
 import { assertDomainAvailable, knownUserId, updateSiteRecord, type SiteChanges } from './site-admin'
 import { seedNewSite, type SiteTemplate } from './site-seeding'
-import { deleteSiteCompletely } from './site-deletion'
+import { deleteSiteCompletely, prepareSiteDeletion, sitePeople, type SitePeople } from './site-deletion'
 import { clearHostingPlanCache, refreshSitesAfterPlanChange } from './hosting-plans'
 import { pendingInvitationInsert } from './invitations'
 import { upsertUserCopy } from './pool-session'
@@ -22,6 +22,7 @@ import { eventForSite, getPrimarySite } from './site-info'
 import { clearSiteCache } from './site-resolution'
 import { poolBindingName } from '../../shared/lib/pool-id'
 import { httpError } from './response'
+import { httpErrorStatus } from './errors'
 
 /**
  * Sites in member pools (control-plane.ts), managed from the control plane's Super Admin →
@@ -124,14 +125,44 @@ export async function poolGetSite(event: H3Event, input: { protocol: number; sit
   return site ?? null
 }
 
-export async function poolDeleteSite(event: H3Event, input: { protocol: number; siteId: string; actorUserId: string | null }): Promise<{ deleted: boolean; failedMediaDeletes: string[] }> {
+/**
+ * The refusable steps of deleting a pool site (memberships, move state), run before the
+ * control plane cancels its hosting or removes its domains. A refusal comes back as a value
+ * (as with `siteDomains`) so the operator sees its message and status.
+ */
+export async function poolPrepareSiteDeletion(event: H3Event, input: { protocol: number; siteId: string }): Promise<PoolPrepareResult> {
+  assertCompatibleProtocol(input.protocol)
+  const [site] = await useDb(event).select({ id: sites.id }).from(sites).where(eq(sites.id, input.siteId)).limit(1)
+  if (!site) return { ok: true, found: false }
+  try {
+    await prepareSiteDeletion(event, input.siteId)
+    return { ok: true, found: true }
+  }
+  catch (err) {
+    const e = err as { message?: string; data?: unknown }
+    const status = httpErrorStatus(err)
+    if (status !== undefined && status < 500) {
+      return { ok: false, error: { statusCode: status, message: e.message ?? 'Refused', ...(e.data !== undefined ? { data: e.data } : {}) } }
+    }
+    throw err
+  }
+}
+
+export type PoolPrepareResult =
+  | { ok: true; found: boolean }
+  | { ok: false; error: { statusCode: number; message: string; data?: unknown } }
+
+export async function poolDeleteSite(event: H3Event, input: { protocol: number; siteId: string; actorUserId: string | null }): Promise<{ deleted: boolean; failedMediaDeletes: string[]; leftoverDomains?: string[]; people?: SitePeople }> {
   assertCompatibleProtocol(input.protocol)
   const db = useDb(event)
   const [site] = await db.select({ id: sites.id }).from(sites).where(eq(sites.id, input.siteId)).limit(1)
   if (!site) return { deleted: false, failedMediaDeletes: [] }
+  // Who the site had, for the control plane, which holds the real accounts (this pool only
+  // erases its copies) and deletes the ones nothing needs any more.
+  const people = await sitePeople(db, input.siteId)
   // The operator may never have signed in to this pool, so may have no copy here to name.
-  const { failedMediaDeletes } = await deleteSiteCompletely(event, input.siteId, await knownUserId(db, input.actorUserId))
-  return { deleted: true, failedMediaDeletes }
+  const { failedMediaDeletes, leftoverDomains } = await deleteSiteCompletely(event, input.siteId, await knownUserId(db, input.actorUserId))
+  return { deleted: true, failedMediaDeletes, leftoverDomains, people }
 }
 
 /**

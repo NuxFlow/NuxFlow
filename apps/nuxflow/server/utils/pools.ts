@@ -9,7 +9,8 @@ import { poolBindingName } from '../../shared/lib/pool-id'
 import type { PoolSignInUser } from './pool-sign-in'
 import type { AccountSiteListing, PoolAccountsSite } from './accounts-sites'
 import type { UserData } from './account-data'
-import type { HostingPlanRow, NewPoolSite, SiteSummary } from './pool-sites'
+import type { HostingPlanRow, NewPoolSite, PoolPrepareResult, SiteSummary } from './pool-sites'
+import type { SitePeople } from './site-deletion'
 import type { MonthlySiteUsage, SiteUsageSeries } from './usage-report'
 import type { SiteChanges } from './site-admin'
 import type { AccountProvisioningStatus } from './user-provisioning'
@@ -54,7 +55,10 @@ export interface PoolAdminStub {
   // Super Admin → Usage (usage-report.ts).
   monthlyUsage(input: { protocol: number; month: string }): Promise<{ from: string; to: string; sites: Omit<MonthlySiteUsage, 'poolId'>[] }>
   siteUsage(input: { protocol: number; siteId: string; days: number }): Promise<SiteUsageSeries | null>
-  deleteSite(input: { protocol: number; siteId: string; actorUserId: string | null }): Promise<{ deleted: boolean; failedMediaDeletes: string[] }>
+  /** Protocol 2+. Older pools don't have it. */
+  prepareSiteDeletion(input: { protocol: number; siteId: string }): Promise<PoolPrepareResult>
+  /** `leftoverDomains` and `people` from protocol 2. */
+  deleteSite(input: { protocol: number; siteId: string; actorUserId: string | null }): Promise<{ deleted: boolean; failedMediaDeletes: string[]; leftoverDomains?: string[]; people?: SitePeople }>
   // Before the control plane deletes a deleted site's accounts (site-deletion.ts): who still belongs to a site here.
   usersInUse(input: { protocol: number; userIds: string[] }): Promise<{ inUse: string[] }>
   setPlans(input: { protocol: number; plans: HostingPlanRow[] }): Promise<{ stored: number }>

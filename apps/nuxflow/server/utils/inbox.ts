@@ -32,30 +32,6 @@ export async function deleteEmailObjects(event: H3Event, message: Pick<EmailMess
   }
 }
 
-/**
- * Deletes every stored email object (raw .eml + attachments) for a site — for site
- * deletion, where the email_messages rows go by FK cascade but R2 has no cascade. Walks
- * the private prefix with R2's paginated list (1000 keys per page). Returns the number of
- * keys deleted; throws on failure so the caller can report incomplete erasure.
- */
-export async function deleteSiteEmailObjects(event: H3Event, siteId: string): Promise<number> {
-  const { r2 } = getCfBindings(event)
-  if (!r2) return 0
-  const prefix = `_private/${siteId}/email/`
-  let cursor: string | undefined
-  let deleted = 0
-  do {
-    const page = await r2.list({ prefix, cursor, limit: 1000 })
-    const keys = page.objects.map(o => o.key)
-    if (keys.length) {
-      await r2.delete(keys)
-      deleted += keys.length
-    }
-    cursor = page.truncated ? page.cursor : undefined
-  } while (cursor)
-  return deleted
-}
-
 export const LOCAL_PART_RE = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/
 
 /** Local parts NuxFlow uses itself or that invite abuse; `*` is the catch-all and is allowed. */

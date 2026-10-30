@@ -73,6 +73,7 @@ function fakePool(poolId: string) {
         if (s) Object.assign(s, input.changes)
         return { updated: !!s }
       },
+      prepareSiteDeletion: async () => ({ ok: true, found: true }),
       deleteSite: async (input: { siteId: string }) => {
         calls.deleteSite!.push(input)
         return { deleted: sitesHere.delete(input.siteId), failedMediaDeletes: [] }

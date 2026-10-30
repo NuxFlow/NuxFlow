@@ -488,13 +488,15 @@ export async function removeDomainsForDeletedSite(event: H3Event, siteId: string
 /**
  * Before a pool's site is deleted (by the pool, which can't reach Cloudflare): its domains
  * go from Cloudflare. Best effort too — a pool that can't list them doesn't block it.
+ * Returns what's left there, as removeDomainsForDeletedSite() does.
  */
-export async function removePoolSiteDomains(event: H3Event, poolId: string, siteId: string): Promise<void> {
+export async function removePoolSiteDomains(event: H3Event, poolId: string, siteId: string): Promise<string[]> {
   try {
-    await removeDomainsForDeletedSite(event, siteId, await poolDomainStore(event, poolId, siteId).rows())
+    return await removeDomainsForDeletedSite(event, siteId, await poolDomainStore(event, poolId, siteId).rows())
   }
   catch (err) {
     console.error(JSON.stringify({ event: 'site.delete.custom_domain_failed', siteId, poolId, error: (err as Error).message }))
+    return ["(the site's own domains could not be listed — check Cloudflare for SaaS)"]
   }
 }
 

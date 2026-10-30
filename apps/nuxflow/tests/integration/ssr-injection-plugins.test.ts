@@ -52,6 +52,7 @@ const kv = {
   get: vi.fn(async (k: string) => kvStore.get(k) ?? null),
   put: vi.fn(async (k: string, v: string) => { kvStore.set(k, v) }),
   delete: vi.fn(async (k: string) => { kvStore.delete(k) }),
+  list: vi.fn(async ({ prefix }: { prefix?: string }) => ({ keys: [...kvStore.keys()].filter(k => !prefix || k.startsWith(prefix)).map(name => ({ name })), list_complete: true })),
 }
 
 beforeAll(async () => {
@@ -224,13 +225,17 @@ describe('cf-theme-kv', () => {
     await expect(fresh.putThemeCSS(noKv, SITE, 'th-put', 'a{}')).rejects.toMatchObject({ statusCode: 503 })
   })
 
-  it('deletes the current version\'s CSS and the demo payload', async () => {
+  it('deletes every published version of the CSS (publishing keeps the old ones) and the demo payload', async () => {
     await themeKv.putThemeDemo(ev(), SITE, 'th-put', '{"demo":1}')
     expect(await themeKv.getThemeDemo(ev(), SITE, 'th-put')).toBe('{"demo":1}')
+    kvStore.set(`theme:${SITE}:th-put-2:css:v1`, 'a{}') // another theme, not touched
+    expect(kvStore.has(`theme:${SITE}:th-put:css:v1`)).toBe(true)
     await themeKv.deleteThemeDemo(ev(), SITE, 'th-put')
     await themeKv.deleteThemeCSS(ev(), SITE, 'th-put')
     expect(await themeKv.getThemeDemo(ev(), SITE, 'th-put')).toBeNull()
+    expect(kvStore.has(`theme:${SITE}:th-put:css:v1`)).toBe(false)
     expect(kvStore.has(`theme:${SITE}:th-put:css:v2`)).toBe(false)
+    expect(kvStore.has(`theme:${SITE}:th-put-2:css:v1`)).toBe(true)
   })
 })
 

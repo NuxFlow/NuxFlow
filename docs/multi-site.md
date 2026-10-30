@@ -349,7 +349,18 @@ You must be authenticated as a super admin for this request to succeed.
 
 ## Removing a site
 
-Deleting always wipes everything the site owns: content, media, forms, settings, themes, and plugins. Users who exist solely on the deleted site are also removed. An account is kept if the person still has a role or a pending invitation on another site — including a site in a [member pool](pools.md) — or a hosting subscription for another site. If a pool can't be reached to check, every account is kept. A site that is being moved between pools can't be deleted until the move finishes or is cancelled (a failed move must be cancelled first). What happens to the `sites` row itself depends on which of the two delete paths you use.
+Deleting always wipes everything the site owns: content, media, forms, settings, themes and plugins, and also what it keeps outside the database — every file in storage, received email, videos in Cloudflare Stream, search entries, and its data in KV (every saved version of its themes, plugin code, its video signing keys).
+
+Before anything is removed, NuxFlow cancels the site's paid subscriptions:
+
+- **Members' memberships** are cancelled with the site's payment provider, so nobody keeps being charged for a site that's gone. Stripe and Paddle end them at once; Lemon Squeezy can only end them at the end of the paid period, which still stops every renewal.
+- **The site's hosting subscription**, if a customer pays for it, is cancelled in Stripe.
+
+If a provider can't be reached, the deletion is refused and nothing is changed. Cancel the subscription with the provider yourself, then try again.
+
+Accounts that only belonged to the deleted site are removed too. That includes accounts created by an invitation to the site that was never accepted. An account is kept if the person still has a role or a pending invitation on another site — including a site in a [member pool](pools.md) — or a hosting subscription for another site. If a pool can't be reached to check, every account is kept.
+
+A site that is being moved between pools can't be deleted until the move finishes or is cancelled (a failed move must be cancelled first). What happens to the `sites` row itself depends on which of the two delete paths you use.
 
 ### Super Admin → Sites (cross-site)
 
@@ -359,7 +370,9 @@ Send a `DELETE` request to `/api/v1/admin/sites/:id`, or use **Super Admin → S
 curl -X DELETE https://yourdomain.com/api/v1/admin/sites/SITE_ID
 ```
 
-You must be viewing a *different* site's domain than the one you're deleting — this endpoint refuses to delete the site you're currently on. It always fully removes the row, regardless of how many other sites exist. There's no confirmation step here and no undo. Sites in member pools are deleted from here too: the control panel cancels the site's hosting subscription, removes its own domains from Cloudflare, has the pool delete the site, and updates the routing.
+You must be viewing a *different* site's domain than the one you're deleting — this endpoint refuses to delete the site you're currently on. It always fully removes the row, regardless of how many other sites exist. There's no confirmation step here and no undo. Sites in member pools are deleted from here too: the pool first cancels the members' subscriptions (and refuses if it can't), then the control panel cancels the site's hosting subscription, removes its own domains from Cloudflare, has the pool delete the site, updates the routing, and removes the accounts nothing needs any more.
+
+If some files or domains couldn't be removed, the response lists them (`failedMediaDeletes`, `leftoverDomains`) instead of an empty `204`, and **Super Admin → Sites** shows them until you close the notice. Remove those by hand in your storage provider or under **SSL/TLS → Custom Hostnames** in Cloudflare.
 
 After deleting, remove its Custom Domain (Option B) from the Cloudflare dashboard and from `wrangler.toml`. A subdomain served by the wildcard route (Option A) needs no change: with no site record, its address shows a 404 "Site not found" page.
 
@@ -369,7 +382,7 @@ The Danger Zone tab in **Admin → Settings** always targets whichever site's do
 
 - **Site in a member pool:** refused. Delete it from **Super Admin → Sites** on the control panel, which also cancels its hosting subscription and removes its domains.
 - **Only site in the deployment:** fully deleted, exactly like the cross-site path above. You're signed out and taken to the ordinary fresh-install `/setup` wizard.
-- **Main site, while addon sites still exist:** blocked with a 409 and the list of addon domains that must be deleted first. The UI shows this list up front so you don't have to attempt the delete to find out.
+- **Main site, while addon sites still exist:** blocked with a 409 and the list of addon domains that must be deleted first — including sites in member pools, which depend on the main site's settings just as much. The UI shows this list up front so you don't have to attempt the delete to find out.
 - **Addon site:** fully deleted, same as the cross-site path — the row is dropped entirely rather than kept around in any reset state, so it doesn't linger as a phantom entry that would block a later main-site deletion. You're signed out here too: this delete only ever targets the domain you're currently on, and once that domain no longer has a site, a session cookie for it is meaningless — cookies don't carry over to your other domains anyway, since they're genuinely separate origins, not subdomains of one parent. You land on this domain's home page. To bring the deleted domain back, create it again from **Super Admin → Sites → New** on a site you can still reach — the same flow as adding any other new site — which issues a fresh one-time setup link.
 
 ::warning

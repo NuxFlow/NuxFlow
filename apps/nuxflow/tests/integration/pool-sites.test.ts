@@ -8,7 +8,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } 
 import type { H3Event } from 'h3'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
-import { contentTypes, hostingPlans, siteDirectory, siteInvitations, sites, userSiteRoles, users } from '@nuxflow/db/schema'
+import { auditLogs, contentTypes, hostingPlans, siteDirectory, siteInvitations, sites, userSiteRoles, users } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedRole, seedSetting, seedSite, seedUser } from '../helpers/seed'
@@ -173,7 +173,12 @@ describe('pool: editing, deleting, and its copy of the plans', () => {
 
 /** A fake pool binding: keeps its sites in memory and records every call. */
 function fakePool(poolId: string) {
-  const state = { sites: [] as { id: string; name: string; domain: string; status: string; createdAt: string; hostingPlanId: string | null }[] }
+  const state = {
+    sites: [] as { id: string; name: string; domain: string; status: string; createdAt: string; hostingPlanId: string | null }[],
+    // What the pool answers before a deletion, and the people its deleted site had.
+    prepare: { ok: true, found: true } as { ok: true; found: boolean } | { ok: false; error: { statusCode: number; message: string } },
+    people: { roles: [] as string[], invited: [] as string[] },
+  }
   const calls: Record<string, unknown[]> = { createSite: [], updateSite: [], deleteSite: [], setPlans: [] }
   const stub = {
     status: async () => ({ protocol: POOL_PROTOCOL, poolId, commit: null, release: null, siteCount: state.sites.length, lastMigration: null, settingsReceivedAt: null }),
@@ -190,11 +195,13 @@ function fakePool(poolId: string) {
       Object.assign(s, input.changes)
       return { updated: true }
     },
+    prepareSiteDeletion: async () => state.prepare,
     deleteSite: async (input: { siteId: string }) => {
       calls.deleteSite!.push(input)
       state.sites = state.sites.filter(x => x.id !== input.siteId)
-      return { deleted: true, failedMediaDeletes: [] }
+      return { deleted: true, failedMediaDeletes: [], leftoverDomains: [], people: state.people }
     },
+    usersInUse: async () => ({ inUse: [] as string[] }),
     setPlans: async (input: unknown) => { calls.setPlans!.push(input); return { stored: 0 } },
     siteDomains: async () => ({ ok: true, value: [] }),
   }
@@ -297,11 +304,32 @@ describe('Super Admin → Sites with a pool', () => {
     expect(pool.calls.setPlans!.length).toBeGreaterThan(before)
   })
 
-  it('deletes a pool site in its pool, and stops routing to it', async () => {
+  it("changes nothing when the pool refuses the deletion (e.g. a member's subscription it can't cancel)", async () => {
+    pool.state.prepare = { ok: false, error: { statusCode: 409, message: "Couldn't cancel a member's stripe subscription" } }
+    try {
+      const { event } = operator(env, { method: 'DELETE', params: { id: siteId } })
+      await expect((sitesDelete as Handler)(event)).rejects.toMatchObject({ statusCode: 409, message: "Couldn't cancel a member's stripe subscription" })
+      expect(pool.calls.deleteSite!.some(c => (c as { siteId: string }).siteId === siteId)).toBe(false)
+      expect(await getCurrentTestDb().select().from(siteDirectory).where(eq(siteDirectory.poolSiteId, siteId))).not.toEqual([])
+    }
+    finally {
+      pool.state.prepare = { ok: true, found: true }
+    }
+  })
+
+  it('deletes a pool site in its pool, stops routing to it, and removes accounts nothing needs here', async () => {
+    const db = getCurrentTestDb()
+    const [cleo] = await db.select({ id: users.id }).from(users).where(eq(users.email, 'cleo@client.test'))
+    pool.state.people = { roles: [cleo!.id, operatorId], invited: [] }
     const { event } = operator(env, { method: 'DELETE', params: { id: siteId } })
     await (sitesDelete as Handler)(event)
     expect(pool.calls.deleteSite!.at(-1)).toMatchObject({ siteId, actorUserId: operatorId })
     expect(kv.has('pool-route:client-new.example')).toBe(false)
-    expect(await getCurrentTestDb().select().from(siteDirectory).where(eq(siteDirectory.poolSiteId, siteId))).toEqual([])
+    expect(await db.select().from(siteDirectory).where(eq(siteDirectory.poolSiteId, siteId))).toEqual([])
+    // The owner's account was only for that site; the operator still runs the platform.
+    expect(await db.select().from(users).where(eq(users.id, cleo!.id))).toEqual([])
+    expect(await db.select().from(users).where(eq(users.id, operatorId))).toHaveLength(1)
+    // The pool's own audit log went with the site, so the record is here.
+    expect(await db.select().from(auditLogs).where(and(eq(auditLogs.resource, 'site'), eq(auditLogs.resourceId, siteId), eq(auditLogs.action, 'delete')))).toHaveLength(1)
   })
 })

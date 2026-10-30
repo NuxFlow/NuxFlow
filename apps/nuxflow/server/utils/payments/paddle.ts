@@ -92,6 +92,15 @@ export class PaddleProvider implements PaymentProvider {
     return res.data
   }
 
+  /** Ends a subscription now, with no further charges — for when what it paid for is gone. */
+  async cancelSubscriptionNow(subscriptionId: string): Promise<PaddleSubscription> {
+    const res = await this.request<{ data: PaddleSubscription }>(`/subscriptions/${subscriptionId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ effective_from: 'immediately' }),
+    })
+    return res.data
+  }
+
   /**
    * Paddle signs webhooks with HMAC-SHA256 keyed by the notification destination's own
    * secret key (`pdl_ntfset_...`, found under Developer tools → Notifications → that

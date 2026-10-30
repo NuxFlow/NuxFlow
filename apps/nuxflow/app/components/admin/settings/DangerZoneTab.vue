@@ -49,13 +49,20 @@ async function deleteSite() {
   if (deleteConfirm.value !== props.siteName) return
 
   await runDeleteSite(async () => {
-    const res = await $fetch<{ id: string; wasLastSite: boolean; failedMediaDeletes: string[] }>('/api/v1/settings', { method: 'DELETE' })
+    const res = await $fetch<{ id: string; wasLastSite: boolean; failedMediaDeletes: string[]; leftoverDomains: string[] }>('/api/v1/settings', { method: 'DELETE' })
     siteDeleted.value = true
     deletedWasLastSite.value = res.wasLastSite
     if (res.failedMediaDeletes.length > 0) {
       toast.add({
         title: `${res.failedMediaDeletes.length} media file(s) could not be removed from storage`,
         description: 'The site\'s records are gone, but some files may still exist with your media provider — check it directly.',
+        color: 'warning',
+      })
+    }
+    if (res.leftoverDomains.length > 0) {
+      toast.add({
+        title: `${res.leftoverDomains.length} domain(s) could not be removed from Cloudflare`,
+        description: `Remove them under Custom Hostnames in the Cloudflare dashboard: ${res.leftoverDomains.join(', ')}`,
         color: 'warning',
       })
     }

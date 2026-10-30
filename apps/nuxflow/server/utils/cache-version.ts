@@ -64,6 +64,13 @@ export async function readCacheVersion(kv: KVNamespace | null, siteId: string): 
  * Starts a new cache version for `siteId`. Returns false when there's no KV binding or the
  * write failed — callers then fall back to deleting entries locally.
  */
+/** Forgets a deleted site's cache version (site-deletion.ts). */
+export async function deleteCacheVersion(kv: KVNamespace | null, siteId: string): Promise<void> {
+  isolateCache.delete(siteId)
+  lastWriteAt.delete(siteId)
+  if (kv) await kv.delete(keyFor(siteId))
+}
+
 export async function bumpCacheVersionInKv(kv: KVNamespace | null, siteId: string): Promise<boolean> {
   if (!kv) return false
 

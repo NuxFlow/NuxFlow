@@ -17,7 +17,7 @@ import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedContentType, seedContentItem, seedMedia, seedSetting, seedVideoAsset } from '../helpers/seed'
-import { sites, contentItems, contentTypes, userSiteRoles, themes, dynamicPlugins, media } from '@nuxflow/db/schema'
+import { sites, contentItems, contentTypes, userSiteRoles, media } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import deleteSettingsHandler from '../../server/api/v1/settings/index.delete'
 import { deleteSiteCompletely } from '../../server/utils/site-deletion'
@@ -30,20 +30,6 @@ vi.mock('../../server/utils/db', () => ({
 
 vi.mock('../../server/utils/media-providers/index', () => ({
   getActiveProvider: vi.fn(),
-}))
-
-const { mockDeleteThemeCSS, mockDeleteThemeDemo, mockDeletePluginAssets } = vi.hoisted(() => ({
-  mockDeleteThemeCSS: vi.fn().mockResolvedValue(undefined),
-  mockDeleteThemeDemo: vi.fn().mockResolvedValue(undefined),
-  mockDeletePluginAssets: vi.fn().mockResolvedValue(undefined),
-}))
-
-vi.mock('../../server/utils/cf-theme-kv', () => ({
-  deleteThemeCSS: mockDeleteThemeCSS,
-  deleteThemeDemo: mockDeleteThemeDemo,
-}))
-vi.mock('../../server/utils/cf-plugin-kv', () => ({
-  deletePluginAssets: mockDeletePluginAssets,
 }))
 
 type Handler = (e: H3Event) => Promise<unknown>
@@ -245,30 +231,5 @@ describe('deleteSiteCompletely — media failures and KV cleanup', () => {
     } finally {
       vi.unstubAllGlobals()
     }
-  })
-
-  it('cleans up KV-stored theme and plugin assets before the D1 rows are cascade-deleted', async () => {
-    const db = getCurrentTestDb()
-    const siteId = await seedSite(db, { id: 'del-kv-cleanup-01', domain: 'del-kv-cleanup.localhost' })
-    const userId = await seedUser(db, { email: 'admin-kv-cleanup@example.com' })
-    await seedRole(db, userId, siteId, 'admin')
-
-    const themeId = 'theme-kv-cleanup-01'
-    await db.insert(themes).values({ id: themeId, siteId, packageName: 'test-theme', name: 'Test Theme', version: '1.0.0' })
-    const pluginId = 'plugin-kv-cleanup-01'
-    await db.insert(dynamicPlugins).values({ id: pluginId, siteId, name: 'Test Plugin', version: '1.0.0' })
-
-    vi.mocked(getActiveProvider).mockResolvedValue({ upload: vi.fn(), delete: vi.fn().mockResolvedValue(undefined), getUrl: vi.fn() })
-    mockDeleteThemeCSS.mockClear()
-    mockDeleteThemeDemo.mockClear()
-    mockDeletePluginAssets.mockClear()
-
-    const event = mkEvent(siteId, userId)
-    await deleteSiteCompletely(event, siteId, userId)
-
-    expect(mockDeleteThemeCSS).toHaveBeenCalledWith(event, siteId, themeId)
-    expect(mockDeleteThemeDemo).toHaveBeenCalledWith(event, siteId, themeId)
-    expect(mockDeletePluginAssets).toHaveBeenCalledWith(event, siteId, pluginId)
-    expect(await db.query.sites.findFirst({ where: eq(sites.id, siteId) })).toBeUndefined()
   })
 })

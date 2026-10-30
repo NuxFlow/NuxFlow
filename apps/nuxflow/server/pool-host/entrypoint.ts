@@ -12,7 +12,7 @@ import { ensureMigrations } from '../utils/migrations'
 import { poolSites, poolStatus, receivePlatformSettings, type PushedSettings } from '../utils/pool-admin'
 import { poolJoinSite, poolSiteForAccounts, poolUserSites } from '../utils/accounts-sites'
 import { poolAccountDeletionCheck, poolDeleteAccount, poolExportUserData } from '../utils/account-data'
-import { poolCreateSite, poolDeleteSite, poolGetSite, poolSetPlans, poolUpdateSite } from '../utils/pool-sites'
+import { poolCreateSite, poolDeleteSite, poolGetSite, poolPrepareSiteDeletion, poolSetPlans, poolUpdateSite } from '../utils/pool-sites'
 import { poolMonthlyUsage, poolSiteUsage } from '../utils/usage-report'
 import { poolInboundRecipient, poolReceiveEmail } from '../utils/inbound-email'
 import { poolPendingDomains, poolSiteDomains } from '../utils/hosting-domains'
@@ -49,6 +49,7 @@ export class NuxflowPoolAdmin extends WorkerEntrypoint<Record<string, unknown>> 
   exportUserData(input: Input<typeof poolExportUserData>) { return this.run('exportUserData', e => poolExportUserData(e, input)) }
   createSite(input: Input<typeof poolCreateSite>) { return this.run('createSite', e => poolCreateSite(e, input)) }
   updateSite(input: Input<typeof poolUpdateSite>) { return this.run('updateSite', e => poolUpdateSite(e, input)) }
+  prepareSiteDeletion(input: Input<typeof poolPrepareSiteDeletion>) { return this.run('prepareSiteDeletion', e => poolPrepareSiteDeletion(e, input)) }
   deleteSite(input: Input<typeof poolDeleteSite>) { return this.run('deleteSite', e => poolDeleteSite(e, input)) }
   usersInUse(input: Input<typeof poolUsersInUse>) { return this.run('usersInUse', e => poolUsersInUse(e, input)) }
   setPlans(input: Input<typeof poolSetPlans>) { return this.run('setPlans', e => poolSetPlans(e, input)) }

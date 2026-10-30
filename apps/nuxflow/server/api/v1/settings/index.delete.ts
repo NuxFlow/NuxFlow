@@ -21,6 +21,6 @@ export default defineEventHandler(async (event) => {
   // Always a full delete. deleteSiteCompletely() refuses (409, listing the blocking sites)
   // when this is the primary site and other sites still exist; any other site can go
   // regardless. Re-provisioning a domain afterward goes through Super Admin → Sites → New.
-  const { failedMediaDeletes } = await deleteSiteCompletely(event, siteId, userId)
-  return { id: siteId, wasLastSite: siteCount === 1, failedMediaDeletes }
+  const { failedMediaDeletes, leftoverDomains } = await deleteSiteCompletely(event, siteId, userId)
+  return { id: siteId, wasLastSite: siteCount === 1, failedMediaDeletes, leftoverDomains }
 })
