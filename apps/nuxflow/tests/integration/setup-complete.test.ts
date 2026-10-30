@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { and, eq } from 'drizzle-orm'
-import { accounts, sites, userSiteRoles, users } from '@nuxflow/db/schema'
+import { accounts, sites, siteSettings, userSiteRoles, users } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite } from '../helpers/seed'
@@ -105,6 +105,42 @@ describe('POST /api/v1/setup/complete — pre-created secondary sites', () => {
     await expect(
       (handler as HandlerFn)(mkEvent('good-token.localhost', payload({ setupToken: rawToken }))),
     ).rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  // The wizard no longer asks for an email provider: Cloudflare Email when the deployment
+  // has the EMAIL binding, otherwise nothing stored (env default / server log applies).
+  it('picks the email provider itself', async () => {
+    const db = getCurrentTestDb()
+    const providerFor = async (siteId: string) => (await db.query.siteSettings.findFirst({
+      where: and(eq(siteSettings.siteId, siteId), eq(siteSettings.key, 'email.provider')),
+    }))?.value
+
+    await seedSite(db, { id: 'site-no-binding', domain: 'no-binding.localhost', setupCompleted: false, setupTokenHash: await hashToken('t1') })
+    await (handler as HandlerFn)(mkEvent('no-binding.localhost', payload({ setupToken: 't1', admin: { name: 'A', email: 'a@no-binding.test', password: 'securePass9!' } })))
+    expect(await providerFor('site-no-binding')).toBeUndefined()
+
+    const g = globalThis as { __env__?: Record<string, unknown> }
+    const before = g.__env__
+    g.__env__ = { ...before, EMAIL: { send: vi.fn() } }
+    try {
+      await seedSite(db, { id: 'site-binding', domain: 'binding.localhost', setupCompleted: false, setupTokenHash: await hashToken('t2') })
+      await (handler as HandlerFn)(mkEvent('binding.localhost', payload({ setupToken: 't2', admin: { name: 'B', email: 'b@binding.test', password: 'securePass9!' } })))
+      expect(await providerFor('site-binding')).toBe('cloudflare')
+    } finally {
+      g.__env__ = before
+    }
+  })
+
+  it("refuses a timezone or language that isn't a real one, without using up the token", async () => {
+    const db = getCurrentTestDb()
+    await seedSite(db, { id: 'site-bad-tz', domain: 'bad-tz.localhost', setupCompleted: false, setupTokenHash: await hashToken('t3') })
+    await expect((handler as HandlerFn)(mkEvent('bad-tz.localhost', payload({ setupToken: 't3', site: { name: 'X', locale: 'en', timezone: 'GMT+1 London' } }))))
+      .rejects.toMatchObject({ statusCode: 422 })
+    await expect((handler as HandlerFn)(mkEvent('bad-tz.localhost', payload({ setupToken: 't3', site: { name: 'X', locale: 'English', timezone: 'UTC' } }))))
+      .rejects.toMatchObject({ statusCode: 422 })
+    const site = await db.query.sites.findFirst({ where: eq(sites.id, 'site-bad-tz') })
+    expect(site?.setupCompleted).toBe(false)
+    expect(site?.setupTokenHash).not.toBeNull()
   })
 
   // Accounts are global: naming an existing account's email must not be enough to be

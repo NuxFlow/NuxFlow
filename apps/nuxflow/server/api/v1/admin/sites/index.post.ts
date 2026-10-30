@@ -12,12 +12,13 @@ import { sites, auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import { randomToken } from '../../../../../shared/lib/base64'
 import { getClientIp } from '../../../../utils/client-ip'
+import { siteLocaleSchema, siteTimezoneSchema } from '../../../../utils/site-fields'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
   domain: z.string().min(1),
-  locale: z.string().default('en'),
-  timezone: z.string().default('UTC'),
+  locale: siteLocaleSchema.default('en'),
+  timezone: siteTimezoneSchema.default('UTC'),
   // A member pool to create it in (utils/pool-sites.ts), with its owner — instead of the
   // setup link, which can't work there (a pool has no passwords to set up).
   poolId: z.string().min(1).max(40).optional(),
@@ -37,8 +38,8 @@ export default defineEventHandler(async (event) => {
 
   if (poolId) {
     if (!owner) throw validationError('A site in a pool needs an owner: their name and email address.')
-    const { id, pending, emailDelivery } = await createSiteInPool(event, { poolId, name: body.name, domain: body.domain, locale: body.locale, timezone: body.timezone, owner }, userId)
-    return created(event, { id, poolId, pending, emailDelivery })
+    const { id, domain, pending, emailDelivery } = await createSiteInPool(event, { poolId, name: body.name, domain: body.domain, locale: body.locale, timezone: body.timezone, owner }, userId)
+    return created(event, { id, domain, poolId, pending, emailDelivery })
   }
 
   // Stored exactly as the Host header will present it (see utils/domain.ts). Not one any
@@ -74,5 +75,6 @@ export default defineEventHandler(async (event) => {
   // A request for this domain made just before creation would have cached a
   // "no site" miss — clear it so the new site is picked up immediately.
   clearSiteCache(body.domain)
-  return created(event, { id, setupToken })
+  // The setup link is built from the stored form, not what was typed ("https://…").
+  return created(event, { id, domain: body.domain, setupToken })
 })

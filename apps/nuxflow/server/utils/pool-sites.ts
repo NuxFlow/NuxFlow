@@ -265,7 +265,7 @@ export interface CreateInPoolInput {
  * has the pool create the site, routes its address there, and tells the owner — a
  * set-password email for a new or unproven account, otherwise "your site is ready".
  */
-export async function createSiteInPool(event: H3Event, input: CreateInPoolInput, actorUserId: string): Promise<{ id: string; pending: boolean; emailDelivery: EmailDeliveryOutcome }> {
+export async function createSiteInPool(event: H3Event, input: CreateInPoolInput, actorUserId: string): Promise<{ id: string; domain: string; pending: boolean; emailDelivery: EmailDeliveryOutcome }> {
   const db = useDb(event)
   const stub = poolAdminStub(event, input.poolId)
   if (!stub) throw validationError(`There's no pool "${input.poolId}" connected to this control panel.`)
@@ -304,7 +304,7 @@ export async function createSiteInPool(event: H3Event, input: CreateInPoolInput,
   } else {
     ({ emailDelivery } = await sendSetPasswordEmailForPool(event, { protocol: POOL_PROTOCOL, poolId: input.poolId, siteId: id, email: owner.email, purpose: 'invite' }))
   }
-  return { id, pending, emailDelivery }
+  return { id, domain, pending, emailDelivery }
 }
 
 export interface SiteListing {

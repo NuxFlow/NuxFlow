@@ -11,21 +11,6 @@ defineProps<{
 // platform routing — see settings/index.patch.ts), so everyone else sees it read-only.
 const access = useAdminAccessState()
 const canEditDomain = computed(() => Boolean(access.value?.isSuperAdmin))
-
-const localeOptions = [
-  { label: 'English', value: 'en' },
-  { label: 'French', value: 'fr' },
-  { label: 'German', value: 'de' },
-  { label: 'Spanish', value: 'es' },
-  { label: 'Portuguese', value: 'pt' },
-  { label: 'Japanese', value: 'ja' },
-]
-
-const timezones = [
-  'UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
-  'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Asia/Tokyo', 'Asia/Singapore',
-  'Australia/Sydney',
-].map(v => ({ label: v, value: v }))
 </script>
 
 <template>
@@ -44,11 +29,11 @@ const timezones = [
       <UFormField label="Notification email" hint="The email address where contact form submissions will be sent. Falls back to your admin email address if empty.">
         <UInput v-model="general.notificationEmail" type="email" placeholder="you@domain.com" />
       </UFormField>
-      <UFormField label="Default locale">
-        <USelect v-model="general.locale" :items="localeOptions" class="w-full" />
+      <UFormField label="Default language">
+        <SiteLanguageSelect v-model="general.locale" />
       </UFormField>
       <UFormField label="Timezone">
-        <USelect v-model="general.timezone" :items="timezones" class="w-full" />
+        <SiteTimezoneSelect v-model="general.timezone" />
       </UFormField>
       <UFormField label="Site mode">
         <USelect

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { normalizeDomain } from '#shared/lib/domain'
+import { browserTimeZone } from '#shared/lib/site-locale'
+
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const router = useRouter()
@@ -21,6 +24,20 @@ const form = reactive({
   ownerEmail: '',
 })
 const inPool = computed(() => form.place !== HERE)
+onMounted(() => { form.timezone = browserTimeZone() })
+
+// The address as it will be stored (a pasted "https://Example.com/" becomes example.com),
+// shown under the field so what's created is never a surprise.
+const domain = computed(() => normalizeDomain(form.domain))
+const domainHelp = computed(() => {
+  if (!form.domain.trim()) return 'Just the address, e.g. myblog.com or blog.example.com'
+  if (!domain.value) return undefined
+  return `The site will be at https://${domain.value}`
+})
+const domainError = computed(() => form.domain.trim() && !domain.value ? "That isn't a valid domain, e.g. myblog.com" : undefined)
+function tidyDomain() {
+  if (domain.value) form.domain = domain.value
+}
 
 const saving = ref(false)
 const error = ref('')
@@ -36,30 +53,31 @@ async function create() {
     if (inPool.value) {
       // A pool has no passwords to set up: the site is created ready to use, and its owner
       // gets an email (a set-password link for a new account).
-      const res = await $fetch<{ id: string; poolId: string; pending: boolean; emailDelivery: { sent: boolean; reason?: string } }>('/api/v1/admin/sites', {
+      const res = await $fetch<{ id: string; domain: string; poolId: string; pending: boolean; emailDelivery: { sent: boolean; reason?: string } }>('/api/v1/admin/sites', {
         method: 'POST',
         body: {
           name: form.name,
-          domain: form.domain,
+          domain: domain.value,
           locale: form.locale,
           timezone: form.timezone,
           poolId: form.place,
           owner: { name: form.ownerName, email: form.ownerEmail },
         },
       })
+      form.domain = res.domain
       poolResult.value = res
       return
     }
-    const res = await $fetch<{ id: string; setupToken: string }>('/api/v1/admin/sites', {
+    const res = await $fetch<{ id: string; domain: string; setupToken: string }>('/api/v1/admin/sites', {
       method: 'POST',
       body: {
         name: form.name,
-        domain: form.domain,
+        domain: domain.value,
         locale: form.locale,
         timezone: form.timezone,
       },
     })
-    setupUrl.value = `https://${form.domain}/setup?token=${res.setupToken}`
+    setupUrl.value = `https://${res.domain}/setup?token=${res.setupToken}`
   } catch (e: unknown) {
     error.value = getErrorMessage(e, 'Failed to create site')
   } finally {
@@ -77,7 +95,7 @@ function done() {
   router.push('/admin/super/sites')
 }
 
-const canCreate = computed(() => !!form.name && !!form.domain && (!inPool.value || (!!form.ownerName && !!form.ownerEmail)))
+const canCreate = computed(() => !!form.name.trim() && !!domain.value && (!inPool.value || (!!form.ownerName && !!form.ownerEmail)))
 </script>
 
 <template>
@@ -142,17 +160,25 @@ const canCreate = computed(() => !!form.name && !!form.domain && (!inPool.value 
         </template>
         <div class="space-y-4">
           <UFormField label="Site name" required>
-            <UInput v-model="form.name" placeholder="My Blog" />
+            <UInput v-model="form.name" placeholder="My Blog" class="w-full" />
           </UFormField>
-          <UFormField label="Domain" required hint="Used to route requests to this site">
-            <UInput v-model="form.domain" placeholder="myblog.com" />
+          <UFormField label="Domain" required :help="domainHelp" :error="domainError">
+            <UInput
+              v-model="form.domain"
+              placeholder="myblog.com"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              class="w-full"
+              @blur="tidyDomain"
+            />
           </UFormField>
-          <div class="grid grid-cols-2 gap-4">
-            <UFormField label="Default locale">
-              <UInput v-model="form.locale" placeholder="en" />
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <UFormField label="Default language" help="The language the site's pages are written in">
+              <SiteLanguageSelect v-model="form.locale" />
             </UFormField>
             <UFormField label="Timezone">
-              <UInput v-model="form.timezone" placeholder="UTC" />
+              <SiteTimezoneSelect v-model="form.timezone" />
             </UFormField>
           </div>
           <UFormField

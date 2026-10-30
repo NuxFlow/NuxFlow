@@ -713,7 +713,7 @@ Each item says what goes wrong if you skip it and how to check it's done.
 #### ☐ 2. Turn on email sending
 
 - **If you skip it:** NuxFlow doesn't send email at all. It only writes emails to the server log, and nothing warns you. Password-reset links, user invitations, email verification, and security alerts never arrive, which can lock you out of your own site.
-- **Do this:** in **Admin → Settings → Email**, choose **Cloudflare**. Then run `wrangler email sending enable yourdomain.com` once for your domain. See [Email Providers](#email-providers). Resend, Brevo, and ZeptoMail also work.
+- **Do this:** setup already chooses **Cloudflare** when your `wrangler.toml` has the `[[send_email]]` block (the example file does); otherwise choose it in **Admin → Settings → Email**. Then run `wrangler email sending enable yourdomain.com` once for your domain. Mail goes out from `noreply@yourdomain.com` under your site's name unless you enter another From address there. See [Email Providers](#email-providers). Resend, Brevo, and ZeptoMail also work.
 - **Check:** use **Send a test email** on that page, sent to an address that *isn't* on your Cloudflare account (a personal Gmail address works). Until the domain is enabled, Cloudflare only delivers to addresses verified on your own account, so a test to yourself can succeed even though other people won't receive anything.
 
 #### ☐ 3. Use your own domain, and only that domain

@@ -94,9 +94,24 @@ export async function bumpCacheVersionInKv(kv: KVNamespace | null, siteId: strin
  * (control-plane.ts) the control plane and a pool can both answer the same address — e.g.
  * before a site's route reaches the router, or after the site moves pool — and must never
  * read each other's entries, whose versions live in different KV namespaces.
+ *
+ * It also names the build: a page cached before a deploy points at the old build's script
+ * files, which the new deploy no longer serves, so that copy had no working JavaScript
+ * until it expired (up to an hour) — found when a cached /setup ignored a fix.
  */
 function scopedVersion(siteId: string | null, version: string): string {
-  return `${getPoolId() ?? 'cp'}.${siteId ?? '-'}.${version}`
+  const build = buildTag()
+  return `${getPoolId() ?? 'cp'}.${siteId ?? '-'}.${version}${build ? `.${build}` : ''}`
+}
+
+/** A short form of Nuxt's per-build id, or '' where there is none (tests). */
+function buildTag(): string {
+  try {
+    const id = (useRuntimeConfig().app as { buildId?: string } | undefined)?.buildId
+    return typeof id === 'string' ? id.replace(/[^a-z0-9]/gi, '').slice(0, 8) : ''
+  } catch {
+    return ''
+  }
 }
 
 export async function getCacheVersion(event: H3Event, siteId: string): Promise<string> {

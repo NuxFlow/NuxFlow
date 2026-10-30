@@ -20,6 +20,7 @@ interface SiteData {
   settings: Record<string, unknown>
   ollamaAvailable?: boolean
   imageTransformationsAvailable?: boolean
+  emailDefaults?: { provider: string; fromAddress: { cloudflare: string; other: string } }
 }
 
 const { data, error: loadError, refresh } = await useFetch<SiteData>('/api/v1/settings')
@@ -160,7 +161,7 @@ watch(data, (d) => {
   const s = d.settings
   general.notificationEmail = (s['notificationEmail'] as string) ?? ''
   general.allowPublicRegistration = s['auth.allow_public_registration'] === 'true'
-  email.provider = (s['email.provider'] as string) ?? 'console'
+  email.provider = (s['email.provider'] as string) ?? d.emailDefaults?.provider ?? 'console'
   email.fromAddress = (s['email.from_address'] as string) ?? ''
   email.fromName = (s['email.from_name'] as string) ?? ''
   email.resendApiKey = (s['email.resend_api_key'] as string) ?? ''
@@ -342,7 +343,7 @@ async function save() {
       <div class="flex-1 space-y-4">
         <AdminSettingsGeneralTab v-if="active === 'General'" v-model:general="general" :saving="saving" :on-save="save" />
         <AdminSettingsAppearanceTab v-if="active === 'Appearance'" v-model:appearance="appearance" :saving="saving" :on-save="save" />
-        <AdminSettingsEmailTab v-if="active === 'Email'" v-model:email="email" :domain="general.domain" :saving="saving" :on-save="save" />
+        <AdminSettingsEmailTab v-if="active === 'Email'" v-model:email="email" :default-from="data?.emailDefaults?.fromAddress" :saving="saving" :on-save="save" />
         <AdminSettingsPaymentsTab v-if="active === 'Payments'" v-model:payments="payments" :domain="general.domain" :saving="saving" :on-save="save" />
         <AdminSettingsMediaTab v-if="active === 'Media'" v-model:cloudflare="cloudflare" v-model:r2="r2" :saving="saving" :on-save="save" :image-transformations-available="data?.imageTransformationsAvailable !== false" />
         <AdminSettingsIntegrationsTab v-if="active === 'Integrations'" v-model:integrations="integrations" v-model:social="social" :domain="general.domain" :is-primary="isPrimarySite" :saving="saving" :on-save="save" />

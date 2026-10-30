@@ -1,16 +1,17 @@
 <script setup lang="ts">
+import { browserTimeZone } from '#shared/lib/site-locale'
+
 definePageMeta({ layout: 'auth' })
 
 const route = useRoute()
 const setupToken = typeof route.query.token === 'string' ? route.query.token : ''
 
 const step = ref(1)
-const totalSteps = 5
+const totalSteps = 4
 
 const form = reactive({
   site: { name: '', locale: 'en', timezone: 'UTC' },
   admin: { name: '', email: '', password: '' },
-  email: { provider: 'cloudflare' as const },
   template: 'landing',
 })
 
@@ -26,6 +27,9 @@ if (status.value?.site) {
   form.site.name = status.value.site.name || ''
   form.site.locale = status.value.site.locale || 'en'
   form.site.timezone = status.value.site.timezone || 'UTC'
+} else {
+  // A fresh install: start from the visitor's own timezone rather than UTC.
+  onMounted(() => { form.site.timezone = browserTimeZone() })
 }
 
 const loading = ref(false)
@@ -34,9 +38,8 @@ const error = ref('')
 const steps = [
   { id: 1, label: 'Site details', icon: 'i-lucide-globe' },
   { id: 2, label: 'Admin account', icon: 'i-lucide-user' },
-  { id: 3, label: 'Email settings', icon: 'i-lucide-mail' },
-  { id: 4, label: 'Template', icon: 'i-lucide-layout' },
-  { id: 5, label: 'All done!', icon: 'i-lucide-check-circle' },
+  { id: 3, label: 'Template', icon: 'i-lucide-layout' },
+  { id: 4, label: 'All done!', icon: 'i-lucide-check-circle' },
 ]
 
 const signInEmail = useSignIn('email')
@@ -58,7 +61,8 @@ async function complete() {
     try {
       await $fetch('/api/v1/setup/complete', {
         method: 'POST',
-        body: { site: form.site, admin: form.admin, email: form.email, template: form.template, setupToken },
+        // No email step: the server picks Cloudflare Email when it's available (Settings → Email to change).
+        body: { site: form.site, admin: form.admin, template: form.template, setupToken },
       })
       clearNuxtData('/api/v1/setup/status')
     } catch (e: unknown) {
@@ -123,9 +127,8 @@ async function complete() {
     <div class="glass rounded-2xl p-6">
       <SetupStepSite v-if="step === 1" v-model="form.site" @next="next" />
       <SetupStepAdmin v-else-if="step === 2" v-model="form.admin" :has-global-admin="status?.hasAdmin" @next="next" @back="back" />
-      <SetupStepEmail v-else-if="step === 3" v-model="form.email" @next="next" @back="back" />
-      <SetupStepAppearance v-else-if="step === 4" v-model="form.template" :loading="loading" :error="error" :media-storage="status?.mediaStorage" @next="complete" @back="back" />
-      <SetupStepDone v-else-if="step === 5" />
+      <SetupStepAppearance v-else-if="step === 3" v-model="form.template" :loading="loading" :error="error" :media-storage="status?.mediaStorage" @next="complete" @back="back" />
+      <SetupStepDone v-else-if="step === 4" />
     </div>
   </div>
 </template>

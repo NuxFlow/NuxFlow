@@ -77,7 +77,8 @@ function collectSettingKeyLiterals(): Set<string> {
   return keys
 }
 
-describe('settings key allowlist guard rail', () => {
+// Reads every server file, which can pass the 5 s default when the whole suite runs in parallel.
+describe('settings key allowlist guard rail', { timeout: 30_000 }, () => {
   it('every secret-shaped setting key referenced in server/ is in SENSITIVE_SETTING_KEYS', () => {
     const allKeys = collectSettingKeyLiterals()
     const secretShaped = [...allKeys].filter(k => SECRET_NAME_PATTERN.test(k) && !PUBLIC_KEY_SHAPED_EXCEPTIONS.has(k))

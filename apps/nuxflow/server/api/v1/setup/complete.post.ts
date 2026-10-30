@@ -20,20 +20,23 @@ import {
 } from '../../../utils/setup-wizard'
 import { requireControlPlane } from '../../../utils/control-plane'
 import { getClientIp } from '../../../utils/client-ip'
+import { getEmailBinding } from '../../../utils/cf-env'
+import { siteLocaleSchema, siteTimezoneSchema } from '../../../utils/site-fields'
 
 const bodySchema = z.object({
   site: z.object({
     name: z.string().min(1).max(100),
-    locale: z.string().default('en'),
-    timezone: z.string().default('UTC'),
+    locale: siteLocaleSchema.default('en'),
+    timezone: siteTimezoneSchema.default('UTC'),
   }),
   admin: z.object({
     name: z.string().max(100).optional().default(''),
     email: z.email(),
     password: z.string().max(128).optional().default(''),
   }),
+  // No longer asked by the wizard (the provider is picked below); still accepted from older clients.
   email: z.object({
-    provider: z.enum(['console', 'cloudflare', 'resend', 'brevo', 'zepto']).default('console'),
+    provider: z.enum(['console', 'cloudflare', 'resend', 'brevo', 'zepto']),
   }).optional(),
   template: z.enum(['landing', 'blog', 'portfolio', 'blank']).default('landing'),
   setupToken: z.string().optional(),
@@ -91,7 +94,10 @@ async function _handleSetup(event: H3Event) {
   clearSiteCache(host)
   clearSetupStatusCache(host)
 
-  await saveSetupSettings(db, siteId, body.email?.provider ?? 'console')
+  // Cloudflare Email when the deployment has the EMAIL binding (the default wrangler.toml
+  // does); otherwise nothing is stored, so an env-configured provider still applies and
+  // the dashboard checklist asks for one. Changeable any time in Settings → Email.
+  await saveSetupSettings(db, siteId, body.email?.provider ?? (getEmailBinding(event) ? 'cloudflare' : null))
 
   // An existing account was already authenticated against its own password above.
   const adminUserId = existingUserId ?? await createSetupAdminAccount(db, admin)

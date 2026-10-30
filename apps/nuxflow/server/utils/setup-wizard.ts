@@ -155,9 +155,10 @@ export async function claimSecondarySite(db: Db, host: string, site: SetupSiteFi
 }
 
 /** Initial site settings from the wizard's choices. */
-export async function saveSetupSettings(db: Db, siteId: string, emailProvider: string): Promise<void> {
+/** `emailProvider` null = store none (the env default, or the server log, applies). */
+export async function saveSetupSettings(db: Db, siteId: string, emailProvider: string | null): Promise<void> {
   await db.insert(siteSettings).values([
-    { id: ulid(), siteId, key: 'email.provider', value: emailProvider },
+    ...(emailProvider ? [{ id: ulid(), siteId, key: 'email.provider', value: emailProvider }] : []),
     { id: ulid(), siteId, key: 'frontend.show_header', value: false },
   ])
 }

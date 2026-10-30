@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { SENSITIVE_SETTING_KEYS, SECRET_MASK, isEnvFallbackWithheld, isOllamaAvailable } from '../../../utils/settings'
 import { planIncludes } from '../../../utils/hosting-plans'
 import { requireSiteId } from '../../../utils/site-context'
+import { defaultFromAddresses, loadEmailConfig } from '../../../utils/email'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
@@ -95,5 +96,11 @@ export default defineEventHandler(async (event) => {
     settings,
     ollamaAvailable: await isOllamaAvailable(event),
     imageTransformationsAvailable: await planIncludes(db, siteId, 'imageTransformations'),
+    // What the Email tab shows while nothing is saved: the provider actually used (a
+    // customer site falls back to Cloudflare, not the server log) and the From addresses.
+    emailDefaults: {
+      provider: (await loadEmailConfig(event)).emailProvider,
+      fromAddress: await defaultFromAddresses(event, siteId, site.domain),
+    },
   }
 })
