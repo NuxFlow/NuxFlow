@@ -5,6 +5,7 @@ import { sites } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { resolveStringSetting, resolveBooleanSetting, batchSaveSettings, isOllamaAvailable, SERVER_MANAGED_SETTING_KEYS } from '../../../utils/settings'
 import { normalizeDomain } from '../../../utils/domain'
+import { siteLocaleSchema, siteTimezoneSchema } from '../../../utils/site-fields'
 import { clearSiteCache } from '../../../utils/site-resolution'
 import { clearAppearanceCache } from '../../../utils/appearance-cache'
 import { writeAuditLog } from '../../../utils/audit'
@@ -24,8 +25,8 @@ const bodySchema = z.object({
   // Site columns
   name: z.string().min(1).max(100).optional(),
   domain: z.string().min(1).max(100).optional(),
-  locale: z.string().optional(),
-  timezone: z.string().optional(),
+  locale: siteLocaleSchema.optional(),
+  timezone: siteTimezoneSchema.optional(),
   status: z.enum(['active', 'maintenance']).optional(),
   // Site settings (key-value store)
   settings: z.record(z.string(), z.unknown()).optional(),

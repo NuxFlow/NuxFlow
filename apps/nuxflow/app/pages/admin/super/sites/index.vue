@@ -226,8 +226,8 @@ async function deleteSite() {
           <UFormField label="Domain" required>
             <UInput v-model="editForm.domain" />
           </UFormField>
-          <UFormField label="Default locale">
-            <UInput v-model="editForm.locale" />
+          <UFormField label="Default language">
+            <SiteLanguageSelect v-model="editForm.locale" />
           </UFormField>
           <UFormField label="Status">
             <USelect

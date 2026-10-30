@@ -5,6 +5,7 @@ import { ulid } from 'ulid'
 import { auditLogs, hostingPlans, siteDirectory, siteDomains, sites, users } from '@nuxflow/db/schema'
 import { useDb, type Db } from './db'
 import { normalizeDomain } from './domain'
+import { siteLocaleSchema } from './site-fields'
 import { notifySiteRole } from './notify'
 import { waitUntil } from './cf-env'
 import { refreshSitesAfterPlanChange } from './hosting-plans'
@@ -20,7 +21,7 @@ export const siteChangesSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   domain: z.string().optional(),
   status: z.enum(['active', 'maintenance', 'suspended']).optional(),
-  locale: z.string().optional(),
+  locale: siteLocaleSchema.optional(),
   /** null = the built-in unlimited plan. */
   hostingPlanId: z.string().nullable().optional(),
 })

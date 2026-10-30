@@ -192,6 +192,18 @@ export function hostingSenderDomain(siteDomain: string): string | null {
 }
 
 /**
+ * The From addresses a site's mail goes out from while `email.from_address` is blank —
+ * `cloudflare` for the Cloudflare provider (a hosting customer's site shares the sites
+ * domain, see loadEmailConfig), `other` for a third-party provider. Settings → Email shows
+ * them, so a blank field doesn't look like email isn't set up.
+ */
+export async function defaultFromAddresses(event: H3Event, siteId: string, siteDomain: string): Promise<{ cloudflare: string; other: string }> {
+  const own = `noreply@${siteDomain}`
+  const shared = await hostingSenderDomainForSite(event, siteId, siteDomain)
+  return { cloudflare: shared ? `noreply@${shared}` : own, other: own }
+}
+
+/**
  * hostingSenderDomain() for a site that may have moved to the customer's own domain:
  * its original <name>.<sites domain> address is then kept in `site_domains`, and the site
  * still sends from the shared sites domain (the customer's domain isn't set up for sending).

@@ -384,4 +384,16 @@ describe('purging with a KV cache version', () => {
 
     expect((match.mock.calls[0]![0] as Request).url).toBe('https://example.com/api/public/site?__nfc=clientx.site-1.old')
   })
+
+  // A page cached before a deploy points at script files the new build no longer serves.
+  it('starts fresh entries for each build', async () => {
+    const match = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('caches', { default: { match, put: vi.fn().mockResolvedValue(undefined) } })
+    vi.stubGlobal('useRuntimeConfig', () => ({ poolId: '', public: {}, app: { buildId: '39da2e68-4828-4ba2-860e' } }))
+    const { event } = kvEvent('https://example.com/api/public/site')
+
+    await withEdgeCache(event, 60, async () => ({ ok: true }))
+
+    expect((match.mock.calls[0]![0] as Request).url).toBe('https://example.com/api/public/site?__nfc=cp.site-1.old.39da2e68')
+  })
 })

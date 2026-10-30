@@ -2,11 +2,15 @@
 import type { EmailState } from '~/types/admin-settings'
 
 const email = defineModel<EmailState>('email', { required: true })
-defineProps<{
-  domain: string
+const props = defineProps<{
+  /** Where mail goes out from while the From address is blank (GET /api/v1/settings). */
+  defaultFrom?: { cloudflare: string; other: string }
   saving: boolean
   onSave: () => Promise<void>
 }>()
+
+const defaultAddress = computed(() =>
+  (email.value.provider === 'cloudflare' ? props.defaultFrom?.cloudflare : props.defaultFrom?.other) ?? '')
 
 const emailProviderOptions = [
   { label: 'Cloudflare Email (recommended)', value: 'cloudflare' },
@@ -58,11 +62,14 @@ async function sendTestEmail() {
       </UFormField>
 
       <template v-if="email.provider !== 'console'">
-        <UFormField label="From address" :hint="`Optional — defaults to noreply@${domain || 'yourdomain.com'}`">
-          <UInput v-model="email.fromAddress" type="email" placeholder="noreply@yourdomain.com" />
+        <UFormField
+          label="From address"
+          :help="email.fromAddress ? 'Clear it to go back to the default.' : defaultAddress ? `Email is sent from ${defaultAddress} until you enter a different address.` : undefined"
+        >
+          <UInput v-model="email.fromAddress" type="email" :placeholder="defaultAddress || 'noreply@yourdomain.com'" class="w-full" />
         </UFormField>
         <UFormField label="From name" hint="Optional — defaults to the site name">
-          <UInput v-model="email.fromName" placeholder="Acme Bakery" />
+          <UInput v-model="email.fromName" placeholder="Acme Bakery" class="w-full" />
         </UFormField>
       </template>
 

@@ -86,8 +86,8 @@ describe('isPageCacheEligible', () => {
     })
   }
 
-  for (const path of ['/sitemap.xml', '/sitemap-images.xml', '/feed.xml', '/atom.xml', '/robots.txt', '/llms.txt']) {
-    it(`rejects excluded exact path (has its own edge cache already): ${path}`, () => {
+  for (const path of ['/sitemap.xml', '/sitemap-images.xml', '/feed.xml', '/atom.xml', '/robots.txt', '/llms.txt', '/setup']) {
+    it(`rejects excluded exact path: ${path}`, () => {
       expect(isPageCacheEligible(mkEvent({ url: `https://example.com${path}` }))).toBe(false)
     })
   }

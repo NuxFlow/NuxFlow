@@ -122,9 +122,11 @@ describe('POST /api/v1/admin/sites', () => {
   })
 
   it('stores the domain the way the Host header will present it, and refuses a duplicate', async () => {
-    const res = await (createHandler as Handler)(ev(superId, { body: { name: 'Pasted', domain: '  https://Shop.Example.COM/path ' } })) as { id: string }
+    const res = await (createHandler as Handler)(ev(superId, { body: { name: 'Pasted', domain: '  https://Shop.Example.COM/path ' } })) as { id: string; domain: string }
     const row = await getCurrentTestDb().query.sites.findFirst({ where: eq(sites.id, res.id) })
     expect(row?.domain).toBe('shop.example.com')
+    // The page builds the setup link from this, so a pasted URL never gives "https://https://".
+    expect(res.domain).toBe('shop.example.com')
     await expect((createHandler as Handler)(ev(superId, { body: { name: 'Dup', domain: 'shop.example.com' } })))
       .rejects.toMatchObject({ statusCode: 409 })
     await expect((createHandler as Handler)(ev(superId, { body: { name: 'Bad', domain: 'not a domain' } })))
@@ -166,6 +168,13 @@ describe('POST /api/v1/admin/sites', () => {
     const a = await (createHandler as Handler)(ev(superId, { body: { name: 'A', domain: 'a.localhost' } })) as { setupToken: string }
     const b = await (createHandler as Handler)(ev(superId, { body: { name: 'B', domain: 'b.localhost' } })) as { setupToken: string }
     expect(a.setupToken).not.toBe(b.setupToken)
+  })
+
+  it("rejects a language or timezone that isn't a real one", async () => {
+    await expect((createHandler as Handler)(ev(superId, { body: { name: 'L', domain: 'l.localhost', locale: 'English' } })))
+      .rejects.toMatchObject({ statusCode: 422 })
+    await expect((createHandler as Handler)(ev(superId, { body: { name: 'T', domain: 't.localhost', timezone: 'London' } })))
+      .rejects.toMatchObject({ statusCode: 422 })
   })
 
   it('rejects an empty name with 422', async () => {

@@ -72,7 +72,7 @@ const valid = computed(() => {
         :class="useExisting ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'"
         @click="useExisting = true"
       >
-        Use Existing Admin
+        I already have an account
       </button>
       <button
         type="button"
@@ -80,7 +80,7 @@ const valid = computed(() => {
         :class="!useExisting ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'"
         @click="useExisting = false"
       >
-        Create New Admin
+        Create a new account
       </button>
     </div>
 

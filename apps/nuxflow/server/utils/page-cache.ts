@@ -61,6 +61,8 @@ const EXCLUDED_EXACT_PATHS = new Set([
   '/llms.txt',
   '/llms-full.txt',
   '/indexnow-key.txt',
+  // What it shows depends on whether setup is done, and it's never a page for visitors.
+  '/setup',
 ])
 
 export const PAGE_CACHE_TTL_SECONDS = 3600
