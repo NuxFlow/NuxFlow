@@ -38,13 +38,18 @@ function withAe(event: ReturnType<typeof createMockEvent>, ae: unknown) {
   return event as unknown as H3Event
 }
 
+// As a browser sends it: navigator.sendBeacon() posts the JSON string as text/plain, which
+// h3's readBody() returns unparsed — so the route must read and parse the raw text.
 function beacon(body: unknown, opts: { headers?: Record<string, string>; siteId?: string; ae?: unknown } = {}) {
-  return withAe(createMockEvent({
+  const text = typeof body === 'string' ? body : JSON.stringify(body)
+  const event = withAe(createMockEvent({
     siteId: opts.siteId ?? TENANT,
     method: 'POST',
-    body,
-    headers: { 'user-agent': CHROME, 'sec-fetch-site': 'same-origin', 'cf-ipcountry': 'gb', 'host': 'tenant.localhost', 'cf-connecting-ip': '203.0.113.9', ...opts.headers },
+    body: text,
+    headers: { 'user-agent': CHROME, 'content-type': 'text/plain;charset=UTF-8', 'sec-fetch-site': 'same-origin', 'cf-ipcountry': 'gb', 'host': 'tenant.localhost', 'cf-connecting-ip': '203.0.113.9', ...opts.headers },
   }), opts.ae ?? null)
+  ;(event as unknown as { _rawBody: string })._rawBody = text
+  return event
 }
 
 function asUser(userId: string, opts: { siteId?: string; query?: Record<string, string>; body?: unknown; ae?: unknown } = {}) {
