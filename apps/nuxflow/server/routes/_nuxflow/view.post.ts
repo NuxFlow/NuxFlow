@@ -34,7 +34,20 @@ export default defineEventHandler(async (event) => {
   if (seen >= MAX_VIEWS_PER_MINUTE) return noContent(event)
   recentViews.set(key, seen + 1)
 
-  const parsed = bodySchema.safeParse(await readBody(event).catch(() => null))
+  // navigator.sendBeacon() sends a string body as text/plain, which readBody() hands back
+  // as the raw string, never an object — so the JSON is parsed here. (Until 2026-10-30
+  // this used readBody() and dropped every view.)
+  const raw = await readRawBody(event, 'utf8').catch(() => undefined)
+  const parsed = bodySchema.safeParse(parseJson(raw))
   if (parsed.success) recordPageView(event, siteId, parsed.data)
   return noContent(event)
 })
+
+function parseJson(raw: string | undefined): unknown {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
