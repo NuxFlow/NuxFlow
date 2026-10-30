@@ -14,6 +14,6 @@ export default defineEventHandler((event) => {
 
   const length = Number(getHeader(event, 'content-length') ?? 0)
   if (length > DEMO_MAX_BODY_BYTES) {
-    throw createError({ statusCode: 413, message: 'Uploads are limited to 2 MB in the live demo.' })
+    throw httpError({ status: 413, message: 'Uploads are limited to 2 MB in the live demo.' })
   }
 })

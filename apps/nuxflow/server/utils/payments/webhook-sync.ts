@@ -8,6 +8,7 @@ import { sendNotification } from '../notify'
 import { writeAuditLog } from '../audit'
 import type { PaymentProviderName, SubscriptionStatus } from './types'
 import { requireSiteId } from '../site-context'
+import { httpError } from '../response'
 
 // The column each provider's webhook payload actually resolves a membership tier by.
 const TIER_LOOKUP_COLUMN = {
@@ -91,7 +92,7 @@ export class WebhookForOtherSite extends Error {}
 export async function requireWebhookSecret(event: H3Event, settingKey: string, envKey: string, providerLabel: string): Promise<string> {
   const secret = await resolveStringSetting(event, settingKey, envKey)
   if (!secret) {
-    throw createError({ statusCode: 503, message: `${providerLabel} webhook secret is not configured` })
+    throw httpError({ status: 503, message: `${providerLabel} webhook secret is not configured` })
   }
   return secret as string
 }

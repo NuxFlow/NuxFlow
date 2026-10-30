@@ -60,7 +60,7 @@ export default defineEventHandler(async (event) => {
       const ls = await getLemonSqueezyProvider(event)
       const sub = await ls.getSubscription(activeSub.providerSubscriptionId)
       const url = sub.attributes.urls?.customer_portal
-      if (!url) throw createError({ statusCode: 502, message: 'Lemon Squeezy did not return a customer portal URL for this subscription' })
+      if (!url) throw httpError({ status: 502, message: 'Lemon Squeezy did not return a customer portal URL for this subscription' })
       return { url }
     }
 
@@ -73,5 +73,5 @@ export default defineEventHandler(async (event) => {
     rethrowAsProviderError(err, 'billing portal request')
   }
 
-  throw createError({ statusCode: 502, message: `Unsupported payment provider: ${activeSub.provider}` })
+  throw httpError({ status: 502, message: `Unsupported payment provider: ${activeSub.provider}` })
 })

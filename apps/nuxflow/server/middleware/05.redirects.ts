@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId
   if (!siteId) return
 
-  // Only check non-API, non-admin paths. Matching uses the pathname only — `event.path`
+  // Only check non-API, non-admin paths. Matching uses the pathname only — the full path
   // includes the query string, so `/old-page?utm_source=x` used to miss a `/old-page` rule.
   const url = getRequestURL(event)
   const path = url.pathname

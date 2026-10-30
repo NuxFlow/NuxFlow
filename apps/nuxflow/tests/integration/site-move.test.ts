@@ -301,7 +301,7 @@ describe('moving a site from the control plane into a pool', () => {
     clearSiteCache()
     const visit = async (method: string, path: string) => {
       const event = createMockEvent({ siteId: undefined, method, headers: { host: 'cafe.sites.test' } }) as unknown as Record<string, unknown>
-      event.path = path
+      event._path = path
       event.method = method
       return { body: await (multiSite as Handler)(event as unknown as H3Event), event: event as unknown as { context: { siteId: string } } }
     }

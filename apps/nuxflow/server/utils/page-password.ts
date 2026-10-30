@@ -3,6 +3,7 @@ import { argon2Hash, argon2Verify } from './argon2'
 import { constantTimeEqualHex, hmacSha256Hex } from './webhook-crypto'
 import { getUserSiteRole, hasSuperAdminRole, roleAtLeast, type Role } from './permissions'
 import { useDb } from './db'
+import { httpError } from './response'
 
 /**
  * Password-protected pages (client galleries and the like): `settings.access = 'password'`
@@ -81,7 +82,7 @@ export function unlockCookieName(item: { id: string; sourceItemId?: string | nul
 function secret(): string {
   const value = useRuntimeConfig().betterAuthSecret as string | undefined
   // Fail with a clear message rather than Web Crypto's "HMAC key length (0)".
-  if (!value) throw createError({ statusCode: 500, message: 'NUXT_BETTER_AUTH_SECRET is not set' })
+  if (!value) throw httpError({ status: 500, message: 'NUXT_BETTER_AUTH_SECRET is not set' })
   return value
 }
 

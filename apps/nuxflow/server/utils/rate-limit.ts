@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { sql } from 'drizzle-orm'
 import { getClientIp } from './client-ip'
+import { httpError } from './response'
 
 interface RateLimitOptions {
   limit: number
@@ -41,8 +42,8 @@ export async function rateLimit(event: H3Event, opts: RateLimitOptions): Promise
   const blockedAt = blockedUntil.get(key)
   if (blockedAt !== undefined) {
     if (blockedAt > now) {
-      throw createError({
-        statusCode: 429,
+      throw httpError({
+        status: 429,
         message: 'Too many requests',
         data: { retryAfter: Math.ceil((blockedAt - now) / 1000) },
       })
@@ -72,7 +73,7 @@ export async function rateLimit(event: H3Event, opts: RateLimitOptions): Promise
     const resetMs = new Date(windowResetAt).getTime()
     rememberBlocked(key, resetMs, now)
     const retryAfter = Math.ceil((resetMs - now) / 1000)
-    throw createError({ statusCode: 429, message: 'Too many requests', data: { retryAfter } })
+    throw httpError({ status: 429, message: 'Too many requests', data: { retryAfter } })
   }
 }
 

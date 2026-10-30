@@ -7,6 +7,7 @@ import { themes, auditLogs, contentItems } from '@nuxflow/db/schema'
 import type { NuxFlowBackup } from '../../server/utils/backup'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import type * as CfEnv from '../../server/utils/cf-env'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -26,7 +27,8 @@ vi.mock('../../server/utils/cf-theme-kv', () => ({
   deleteThemeCSS: (...args: unknown[]) => deleteThemeCSSMock(...args),
   deleteThemeDemo: (...args: unknown[]) => deleteThemeDemoMock(...args),
 }))
-vi.mock('../../server/utils/cf-env', () => ({
+vi.mock('../../server/utils/cf-env', async importOriginal => ({
+  ...(await importOriginal<typeof CfEnv>()),
   getCfBindings: () => ({ kv: null }),
   getAnalyticsEngine: () => null,
   waitUntil: (_event: unknown, promise: Promise<unknown>) => { void promise },

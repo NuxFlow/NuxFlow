@@ -1,5 +1,5 @@
 import { wrapLanguageModel, type LanguageModel } from 'ai'
-import { isError, type H3Event } from 'h3'
+import type { H3Event } from 'h3'
 import { resolveStringSetting, isOllamaAvailable } from './settings'
 import { getCfBindings, getWorkersAiBinding } from './cf-env'
 import { isDemoMode } from './demo-mode'
@@ -7,6 +7,8 @@ import { WORKER_MEDIA_PREFIX, workerMediaKey } from './media-url'
 import { safeFetch } from './ssrf'
 import { AiAllowanceError, allowanceForbidden, assertAiAllowance, checkAiAllowance, recordAiCall, textCredits, type AiPayer, type AiTrigger } from './ai-allowance'
 import { base64ToBytes } from '../../shared/lib/base64'
+import { httpError } from './response'
+import { isH3Error } from './errors'
 
 /**
  * 'vision' is for routes that send image bytes to the model (alt-text.post.ts,
@@ -319,7 +321,7 @@ async function resolveProviderModel(event: H3Event, quality: AiQuality, opts: Ge
 export async function requireAiSdkModel(event: H3Event, quality: AiQuality = 'fast', opts: GetAiSdkModelOptions = {}): Promise<LanguageModel> {
   const resolved = await resolveAiSdkModel(event, quality, opts)
   if (!resolved) {
-    throw createError({ statusCode: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
+    throw httpError({ status: 503, message: 'No AI provider configured. Add an API key in Settings → AI.' })
   }
   // Only AI the platform pays for is limited; the site's own key is never refused.
   if (resolved.payer === 'platform') await assertAiAllowance(event, 1, resolved.trigger)
@@ -335,8 +337,8 @@ export async function callAiOrThrow<T>(fn: () => Promise<T>): Promise<T> {
     // route like translate, or a whole-site job) — the same 403 the up-front check gives.
     const allowance = findAllowanceError(err)
     if (allowance) throw allowanceForbidden(allowance)
-    if (isError(err)) throw err
-    throw createError({ statusCode: 502, message: aiErrorMessage(err) })
+    if (isH3Error(err)) throw err
+    throw httpError({ status: 502, message: aiErrorMessage(err) })
   }
 }
 
@@ -431,7 +433,7 @@ export async function loadImageBytesForAi(event: H3Event, url: string, fallbackM
 export function aiErrorMessage(err: unknown): string {
   // Our own errors (createError — e.g. callAiOrThrow's 502, a 404 from a lookup) already
   // carry the right message; only provider errors need translating.
-  if (isError(err)) return err.message
+  if (isH3Error(err)) return err.message
   const allowance = findAllowanceError(err)
   if (allowance) return allowance.message
   if (err && typeof err === 'object') {

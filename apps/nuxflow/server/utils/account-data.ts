@@ -12,6 +12,7 @@ import { rethrowAsProviderError } from './errors'
 import { batchWithAudit, type buildAuditLogInsert } from './audit'
 import { callPool, poolBindings } from './pools'
 import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
+import { httpError } from './response'
 
 /**
  * Account-wide actions — deleting an account and downloading its data — over one
@@ -78,7 +79,7 @@ export async function soleAdminDomainsInPools(event: H3Event, userId: string): P
       return (await callPool(stub.accountDeletionCheck({ protocol: POOL_PROTOCOL, userId }), binding)).soleAdminDomains
     } catch (err) {
       console.error(`[account] ${binding} couldn't be checked before deleting an account:`, err)
-      throw createError({ statusCode: 503, message: 'Part of the platform can\'t be reached right now, so your account can\'t be deleted completely. Please try again in a few minutes.' })
+      throw httpError({ status: 503, message: 'Part of the platform can\'t be reached right now, so your account can\'t be deleted completely. Please try again in a few minutes.' })
     }
   }))
   return answers.flat()
@@ -91,8 +92,8 @@ export async function deleteAccountInPools(event: H3Event, userId: string): Prom
       await callPool(stub.deleteAccount({ protocol: POOL_PROTOCOL, userId }), binding)
     } catch (err) {
       console.error(`[account] Deleting an account in ${binding} failed:`, err)
-      throw createError({
-        statusCode: 502,
+      throw httpError({
+        status: 502,
         message: `Your account couldn't be removed from every site yet (${err instanceof Error ? err.message : 'a site couldn\'t be reached'}). It still exists — please try again, and the rest will be finished.`,
       })
     }

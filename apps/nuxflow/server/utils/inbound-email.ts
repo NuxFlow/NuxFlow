@@ -24,6 +24,7 @@ import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
 import { POOL_ID_RE } from '../../shared/lib/pool-id'
 import { isServedCopy } from './move-state'
 import { handlePostByEmail } from './post-by-email'
+import { getCfEnv, getCloudflareContext } from './cf-env'
 
 /**
  * Inbound email — Cloudflare Email Routing → this Worker's `email()` export (Nitro's
@@ -210,7 +211,7 @@ function randomSuffix(): string {
 }
 
 function getBucket(event: H3Event): R2Bucket | null {
-  return (event.context.cloudflare?.env?.MEDIA_BUCKET as R2Bucket | undefined) ?? null
+  return (getCfEnv(event)?.MEDIA_BUCKET as R2Bucket | undefined) ?? null
 }
 
 /**
@@ -401,7 +402,7 @@ export async function poolReceiveEmail(event: H3Event, input: { protocol: number
   const resolved = await resolveRecipient(useDb(event), input.to, String(useRuntimeConfig().inboundEmailDomain ?? ''))
   if (!resolved) return { refused: 'Unknown recipient' }
   if (input.raw.byteLength > MAX_INBOUND_BYTES) return { refused: 'Message too large' }
-  const refused = await acceptForSite(event.context.cloudflare?.env, event.context.cloudflare?.context, resolved, {
+  const refused = await acceptForSite(getCfEnv(event), getCloudflareContext(event)?.context, resolved, {
     from: input.from,
     to: input.to,
     authResults: input.authResults,

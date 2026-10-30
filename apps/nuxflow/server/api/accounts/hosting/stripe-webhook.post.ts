@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   const ctx = await hostingContext(event)
   await rateLimit(event, { limit: 300, windowMs: 60_000, keyPrefix: 'hosting-webhook' })
   const secret = await resolveStringSetting(ctx.primaryEvent, HOSTING_WEBHOOK_SECRET_KEY)
-  if (!secret) throw createError({ statusCode: 503, message: 'The hosting webhook signing secret is not set (Super Admin → Platform).' })
+  if (!secret) throw httpError({ status: 503, message: 'The hosting webhook signing secret is not set (Super Admin → Platform).' })
   const stripe = await getStripeProvider(ctx.primaryEvent)
 
   const rawBody = await readRawBody(event) ?? ''
@@ -52,7 +52,7 @@ export default defineEventHandler(async (event) => {
   }
   catch (err) {
     // Not a 2xx, so Stripe retries later instead of treating the event as delivered.
-    throw createError({ statusCode: 502, message: `Failed to fetch Stripe subscription ${subscriptionId}: ${(err as Error).message}` })
+    throw httpError({ status: 502, message: `Failed to fetch Stripe subscription ${subscriptionId}: ${(err as Error).message}` })
   }
   const row = await syncHostingSubscription(ctx, sub)
   return { received: true, status: row?.status ?? null }

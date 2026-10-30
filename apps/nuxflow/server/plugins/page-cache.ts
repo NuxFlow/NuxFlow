@@ -1,6 +1,6 @@
 import { getEdgeCache } from '../utils/edge-cache'
 import { isPageCacheEligible, PAGE_BROWSER_CACHE_CONTROL, pageCacheRequest, PAGE_CACHE_TTL_SECONDS } from '../utils/page-cache'
-import { getExecutionContext } from '../utils/cf-env'
+import { getCloudflareContext, getExecutionContext } from '../utils/cf-env'
 
 // Write side of the full-page edge cache — see server/utils/page-cache.ts for the
 // eligibility rules (shared with the read side in 07.page-cache.ts) and server/middleware/
@@ -26,7 +26,7 @@ export default defineNitroPlugin((nitro) => {
       const contentType = headers?.['content-type'] ?? headers?.['Content-Type'] ?? String(getResponseHeader(event, 'content-type') ?? '')
       if (!contentType.includes('text/html')) return
 
-      const cf = event.context.cloudflare
+      const cf = getCloudflareContext(event)
       if (!cf?.request) return
       // Set by the read side (07.page-cache.ts) before rendering began; see the note there.
       const version = event.context.pageCacheVersion

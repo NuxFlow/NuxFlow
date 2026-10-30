@@ -18,6 +18,7 @@ import { clearSiteCache } from './site-resolution'
 import { domainTaken } from './site-admin'
 import { changeSite, findSite, placeSiteInPool } from './pool-sites'
 import { poolAdminStub } from './pools'
+import { httpError } from './response'
 
 /**
  * The hosting platform's shop: a customer picks a plan and a subdomain on the accounts
@@ -237,7 +238,7 @@ export interface CheckoutRequest {
 /** Records the sign-up and returns the Stripe Checkout URL to send the customer to. */
 export async function startHostingCheckout(ctx: HostingContext, req: CheckoutRequest): Promise<{ url: string; id: string }> {
   const { db, primary, primaryEvent } = ctx
-  if (!hostingSitesDomain()) throw createError({ statusCode: 503, message: 'Sign-up is not open yet.' })
+  if (!hostingSitesDomain()) throw httpError({ status: 503, message: 'Sign-up is not open yet.' })
 
   const plan = await db.query.hostingPlans.findFirst({ where: and(eq(hostingPlans.id, req.planId), eq(hostingPlans.isPublic, true)) })
   const priceId = req.interval === 'month' ? plan?.stripePriceMonthlyId : plan?.stripePriceYearlyId
@@ -277,7 +278,7 @@ export async function startHostingCheckout(ctx: HostingContext, req: CheckoutReq
     flexibleBilling: true,
   }))
   await db.update(hostingSubscriptions).set({ stripeCheckoutSessionId: session.id }).where(eq(hostingSubscriptions.id, id))
-  if (!session.url) throw createError({ statusCode: 502, message: 'Stripe did not return a checkout page.' })
+  if (!session.url) throw httpError({ status: 502, message: 'Stripe did not return a checkout page.' })
   return { url: session.url, id }
 }
 

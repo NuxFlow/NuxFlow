@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
   try {
     reachable = await deleteStoredMedia(event, siteId, file)
   } catch (err) {
-    throw createError({ statusCode: 502, message: mediaErrorMessage(err) })
+    throw httpError({ status: 502, message: mediaErrorMessage(err) })
   }
   if (!reachable) {
     // The file lives on a provider this site has since switched away from (no credentials

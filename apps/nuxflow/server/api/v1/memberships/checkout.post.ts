@@ -7,7 +7,7 @@ import { assertSameHostReturnUrl } from '../../../utils/validate'
 import { getMembershipTierByIdOrThrow } from '../../../utils/resource-queries'
 import { resolveStringSetting, resolveBooleanSetting } from '../../../utils/settings'
 import { resolveStripeProvider, resolveLemonSqueezyProvider, resolvePaddleProvider } from '../../../utils/payments/resolve'
-import { conflict } from '../../../utils/response'
+import { conflict, httpError } from '../../../utils/response'
 import { rethrowAsProviderError } from '../../../utils/errors'
 import { rateLimit } from '../../../utils/rate-limit'
 import { writeAuditLog } from '../../../utils/audit'
@@ -169,7 +169,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (!stripe && !ls && !paddle) {
-    throw createError({ statusCode: 503, message: 'No payment provider is configured' })
+    throw httpError({ status: 503, message: 'No payment provider is configured' })
   }
 
   throw conflict(`"${tier.name}" has not been synced to any of the currently configured payment providers. Sync this tier to a configured provider (or configure the provider it's already synced to) before selling it.`)

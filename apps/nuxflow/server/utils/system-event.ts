@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createEvent, type H3Event } from 'h3'
 import type { NuxFlowCloudflareEnv } from '../types/cloudflare-bindings'
+import { setCloudflareContext } from './cf-env'
 
 interface SystemEventOptions {
   env: unknown
@@ -28,12 +29,12 @@ export function createSystemEvent(opts: SystemEventOptions): H3Event {
     headers: { host: opts.host ?? 'localhost' },
   } as unknown as IncomingMessage
   const event = createEvent(req, {} as ServerResponse)
-  event.context.cloudflare = {
+  setCloudflareContext(event, {
     env: opts.env as NuxFlowCloudflareEnv,
     request: new Request(`https://${opts.host ?? 'localhost'}/`),
     // Without a real ctx (tests) a waitUntil'd promise still runs, it just isn't kept alive.
     context: opts.ctx ?? { waitUntil: (p) => { void p } },
-  }
+  })
   if (opts.siteId) event.context.siteId = opts.siteId
   return event
 }

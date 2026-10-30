@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
   try {
     backup = JSON.parse(demoJson) as NuxFlowBackup
   } catch {
-    throw createError({ statusCode: 500, message: 'Demo content is corrupted' })
+    throw httpError({ status: 500, message: 'Demo content is corrupted' })
   }
 
   const result = await applyBackup(event, siteId, backup, {

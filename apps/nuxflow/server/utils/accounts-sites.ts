@@ -14,6 +14,7 @@ import { callPool, poolAdminStub, poolBindings } from './pools'
 import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
 import { upsertUserCopy } from './pool-session'
 import type { PoolSignInUser } from './pool-sign-in'
+import { httpError } from './response'
 
 export interface SiteBranding {
   id: string
@@ -117,7 +118,7 @@ export async function joinSiteAsMember(event: H3Event, found: AccountsSite, user
   const platformOperator = await hasSuperAdminRole(db, user.id)
   if (found.poolId) {
     const stub = poolAdminStub(event, found.poolId)
-    if (!stub) throw createError({ statusCode: 503, message: 'This site can\'t be reached right now' })
+    if (!stub) throw httpError({ status: 503, message: 'This site can\'t be reached right now' })
     await callPool(stub.joinSite({ protocol: POOL_PROTOCOL, siteId: found.site.id, user, platformOperator }), `pool ${found.poolId}`)
     return
   }

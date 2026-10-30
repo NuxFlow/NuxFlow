@@ -21,7 +21,7 @@ function decodeKey(raw: string): string | null {
 export default defineEventHandler(async (event) => {
   if (event.method !== 'GET' && event.method !== 'HEAD') {
     setHeader(event, 'Allow', 'GET, HEAD')
-    throw createError({ statusCode: 405, message: 'Method not allowed' })
+    throw httpError({ status: 405, message: 'Method not allowed' })
   }
 
   const siteId = event.context.siteId

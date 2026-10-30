@@ -16,6 +16,7 @@ import type { AccountProvisioningStatus } from './user-provisioning'
 import type { DomainOp, DomainOpResult, PendingDomain } from './hosting-domains'
 import type { MoveOp } from './site-move'
 import { withTimeout } from './timeout'
+import { getCfEnv } from './cf-env'
 
 /**
  * The control plane's view of its member pools (control-plane.ts). A pool is connected by
@@ -82,7 +83,7 @@ export function callPool<T>(promise: Promise<T>, what: string, timeoutMs = CALL_
 
 /** Every pool binding on this Worker, in name order. */
 export function poolBindings(event: H3Event): { binding: string; stub: PoolAdminStub }[] {
-  const env: Record<string, unknown> = event.context.cloudflare?.env ?? {}
+  const env: Record<string, unknown> = getCfEnv(event) ?? {}
   return Object.keys(env)
     .filter(name => POOL_BINDING_RE.test(name) && env[name] != null && typeof env[name] === 'object')
     .sort()

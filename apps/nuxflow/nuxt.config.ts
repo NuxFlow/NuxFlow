@@ -7,6 +7,14 @@ const _dirname = fileURLToPath(new URL('.', import.meta.url))
 export default defineNuxtConfig({
   compatibilityDate: '2026-08-27',
 
+  // NUXFLOW_NUXT5_PREVIEW=1 builds with Nuxt 5's defaults switched on, for CI's informational
+  // "Nuxt 5 preview" job — so new incompatibilities show up as each 4.x release lands rather
+  // than all at once on upgrade day. Nitro's auto-imports stay on: that change belongs to
+  // the Nitro v3 move itself, which no flag can preview. Never set it for a real deploy.
+  ...(process.env.NUXFLOW_NUXT5_PREVIEW
+    ? { future: { compatibilityVersion: 5 as const }, experimental: { nitroAutoImports: true } }
+    : {}),
+
   css: ['~/assets/css/main.css'],
 
   app: {
@@ -51,7 +59,10 @@ export default defineNuxtConfig({
       tasks: true,
     },
     // Passkeys (@better-auth/passkey → @simplewebauthn → @peculiar/x509) use tsyringe,
-    // which needs the Reflect.metadata polyfill loaded before any of that code runs.
+    // which needs the Reflect.metadata polyfill loaded before any of that code runs. It has
+    // to be an output intro: an `import 'reflect-metadata'` at the top of
+    // server/cloudflare-entry.ts is too late — Nitro's bundle runs its own code ahead of the
+    // entry, and the Worker fails to start. Nitro v3 (Rolldown) needs its equivalent.
     rollupConfig: {
       output: {
         intro: 'import "reflect-metadata";',

@@ -4,6 +4,7 @@ import { StripeProvider } from './stripe'
 import { LemonSqueezyProvider } from './lemonsqueezy'
 import { PaddleProvider } from './paddle'
 import type { PaymentProvider, PaymentProviderName } from './types'
+import { httpError } from '../response'
 
 /** Constructs a StripeProvider from site settings, or returns null if unconfigured. */
 export async function resolveStripeProvider(event: H3Event): Promise<StripeProvider | null> {
@@ -14,7 +15,7 @@ export async function resolveStripeProvider(event: H3Event): Promise<StripeProvi
 /** Same as resolveStripeProvider, but throws the standard 503 instead of returning null. */
 export async function getStripeProvider(event: H3Event): Promise<StripeProvider> {
   const provider = await resolveStripeProvider(event)
-  if (!provider) throw createError({ statusCode: 503, message: 'Stripe is not configured' })
+  if (!provider) throw httpError({ status: 503, message: 'Stripe is not configured' })
   return provider
 }
 
@@ -30,7 +31,7 @@ export async function resolveLemonSqueezyProvider(event: H3Event): Promise<Lemon
 /** Same as resolveLemonSqueezyProvider, but throws the standard 503 instead of returning null. */
 export async function getLemonSqueezyProvider(event: H3Event): Promise<LemonSqueezyProvider> {
   const provider = await resolveLemonSqueezyProvider(event)
-  if (!provider) throw createError({ statusCode: 503, message: 'Lemon Squeezy is not configured' })
+  if (!provider) throw httpError({ status: 503, message: 'Lemon Squeezy is not configured' })
   return provider
 }
 
@@ -48,7 +49,7 @@ export async function resolvePaddleProvider(event: H3Event): Promise<PaddleProvi
 /** Same as resolvePaddleProvider, but throws the standard 503 instead of returning null. */
 export async function getPaddleProvider(event: H3Event): Promise<PaddleProvider> {
   const provider = await resolvePaddleProvider(event)
-  if (!provider) throw createError({ statusCode: 503, message: 'Paddle is not configured' })
+  if (!provider) throw httpError({ status: 503, message: 'Paddle is not configured' })
   return provider
 }
 

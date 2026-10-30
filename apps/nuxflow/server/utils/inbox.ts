@@ -6,6 +6,7 @@ import { getCfBindings } from './cf-env'
 import { resolveStringSetting, saveSetting } from './settings'
 import { CATCH_ALL_LOCAL_PART, INBOUND_HANDLE_SETTING } from './inbound-email'
 import { getPoolId } from './control-plane'
+import { httpError } from './response'
 
 export type EmailMessageRow = typeof emailMessages.$inferSelect
 
@@ -103,7 +104,7 @@ export async function ensureInboundHandle(event: H3Event, db: Db, siteId: string
       if (!/unique/i.test(String(err) + String((err as { cause?: unknown })?.cause ?? ''))) throw err
     }
   }
-  throw createError({ statusCode: 500, message: 'Could not allocate an inbound email handle' })
+  throw httpError({ status: 500, message: 'Could not allocate an inbound email handle' })
 }
 
 /** Addresses a mailbox answers on — the site's own domain and, if configured, the platform domain. */

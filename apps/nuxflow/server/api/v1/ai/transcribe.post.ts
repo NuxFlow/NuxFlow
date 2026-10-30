@@ -27,20 +27,20 @@ export default defineEventHandler(async (event) => {
   if (!ai) {
     // Not requireAiSdkModel(): a site with its own OpenAI/Anthropic key would pass that
     // check (or be refused by the platform's AI allowance) and get the wrong message.
-    throw createError({ statusCode: 503, message: 'Voice-to-text requires the Workers AI binding — see Settings → AI.' })
+    throw httpError({ status: 503, message: 'Voice-to-text requires the Workers AI binding — see Settings → AI.' })
   }
 
   const contentLength = Number(getHeader(event, 'content-length') ?? 0)
   if (contentLength > MAX_AUDIO_SIZE) {
-    throw createError({ statusCode: 413, message: 'Audio file too large (max 20 MB)' })
+    throw httpError({ status: 413, message: 'Audio file too large (max 20 MB)' })
   }
 
   const formData = await readFormData(event)
   const file = formData.get('file') as File | null
   if (!file) throw badRequest('No audio file provided')
-  if (file.size > MAX_AUDIO_SIZE) throw createError({ statusCode: 413, message: 'Audio file too large (max 20 MB)' })
+  if (file.size > MAX_AUDIO_SIZE) throw httpError({ status: 413, message: 'Audio file too large (max 20 MB)' })
   if (!file.type.startsWith('audio/')) {
-    throw createError({ statusCode: 415, message: `Unsupported file type: ${file.type || 'unknown'}` })
+    throw httpError({ status: 415, message: `Unsupported file type: ${file.type || 'unknown'}` })
   }
 
   const workersai = createWorkersAI({ binding: ai })

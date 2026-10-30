@@ -105,7 +105,7 @@ export default defineEventHandler(async (event) => {
   if (stopError) {
     const allowance = findAllowanceError(stopError)
     if (allowance) allowanceForbidden(allowance)
-    throw createError({ statusCode: 502, message: aiErrorMessage(stopError) })
+    throw httpError({ status: 502, message: aiErrorMessage(stopError) })
   }
 
   // For an explicit id list the caller sends the rest next time; otherwise the extra row

@@ -3,7 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { notifications, sites } from '@nuxflow/db/schema'
 import { useDb, type Db } from './db'
 import { createSystemEvent } from './system-event'
-import { getExecutionContext, waitUntil } from './cf-env'
+import { getCfEnv, getExecutionContext, waitUntil } from './cf-env'
 import { sendNotification } from './notify'
 import { getSiteInfo } from './site-info'
 
@@ -41,7 +41,7 @@ export async function siteEventForRequest(event: H3Event): Promise<H3Event | nul
   // email defaults (sender address, absolute links) are derived from this host.
   const site = await getSiteInfo(event, siteId)
   return createSystemEvent({
-    env: event.context.cloudflare?.env ?? globalThis.__env__,
+    env: getCfEnv(event) ?? globalThis.__env__,
     ctx: getExecutionContext(event) ?? undefined,
     siteId,
     host: site?.domain ?? host.split(':')[0],

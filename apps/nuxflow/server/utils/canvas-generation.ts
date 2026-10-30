@@ -9,6 +9,7 @@ import { contentItems, contentTypes, forms, media, membershipTiers, sites } from
 import { callAiOrThrow } from './ai-sdk'
 import { resolveStringSetting } from './settings'
 import type { Db } from './db'
+import { httpError } from './response'
 
 // Shared by generate-canvas.post.ts (the canvas editor's "Generate page" modal) and
 // site-generation.ts (the Generate with AI page's single-page and whole-site jobs), so the
@@ -170,7 +171,7 @@ export async function generateCanvasPage(model: LanguageModel, ctx: GenerationCo
 
   const blocks = normalizeAiBlocks(object.blocks, { defs: ctx.defs, media: ctx.media, newId: ulid })
   if (!blocks.length) {
-    throw createError({ statusCode: 502, message: 'The AI returned no usable blocks — try again or rephrase the request.' })
+    throw httpError({ status: 502, message: 'The AI returned no usable blocks — try again or rephrase the request.' })
   }
   return { title: object.title.trim(), slug: object.slug.trim(), content: { type: 'canvas', blocks } }
 }

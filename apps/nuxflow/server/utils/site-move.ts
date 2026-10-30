@@ -12,6 +12,7 @@ import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
 import { callPool, poolAdminStub } from './pools'
 import { clearHostingPlanCache } from './hosting-plans'
 import { clearSiteCache } from './site-resolution'
+import { httpError } from './response'
 
 /**
  * Moving a site between a hosting platform's control plane and its member pools: the
@@ -586,7 +587,7 @@ export async function poolSiteMove(event: H3Event, input: { protocol: number; si
 
 function poolMoveStore(event: H3Event, poolId: string): MoveStore {
   const stub = poolAdminStub(event, poolId)
-  if (!stub) throw createError({ statusCode: 503, message: `Pool "${poolId}" isn't connected to this control panel.` })
+  if (!stub) throw httpError({ status: 503, message: `Pool "${poolId}" isn't connected to this control panel.` })
   // Copying one large file can take minutes; everything else answers in moments.
   const call = <T>(siteId: string, op: MoveOp) => callPool(stub.siteMove({ protocol: POOL_PROTOCOL, siteId, op }), `pool ${poolId}`, op.op === 'filePut' ? FILE_PUT_TIMEOUT_MS : undefined) as Promise<T>
   return {

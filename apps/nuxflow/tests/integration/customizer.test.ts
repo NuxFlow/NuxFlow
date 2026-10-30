@@ -6,6 +6,7 @@ import { seedSite, seedUser, seedRole, seedSetting } from '../helpers/seed'
 import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import type * as CfEnv from '../../server/utils/cf-env'
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -19,7 +20,8 @@ const putThemeCSSMock = vi.fn().mockResolvedValue(undefined)
 vi.mock('../../server/utils/cf-theme-kv', () => ({
   putThemeCSS: (...args: unknown[]) => putThemeCSSMock(...args),
 }))
-vi.mock('../../server/utils/cf-env', () => ({
+vi.mock('../../server/utils/cf-env', async importOriginal => ({
+  ...(await importOriginal<typeof CfEnv>()),
   getCfBindings: () => ({ kv: null }),
   getAnalyticsEngine: () => null,
   // Real waitUntil falls back to firing the promise inline when there's no Cloudflare

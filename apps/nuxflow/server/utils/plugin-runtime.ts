@@ -21,6 +21,8 @@ import { assertCodeIntegrity, computeSha256 } from './plugin-signing'
 import { getAccountsHost } from './accounts-origin'
 import { networkHostsOf } from '../../shared/lib/plugin-permissions'
 import type { PluginEgressProps } from './plugin-egress'
+import { httpError } from './response'
+import { getCloudflareContext } from './cf-env'
 
 // Paths under this prefix are how NuxFlow itself talks to a plugin (event hooks, see
 // plugin-hooks.ts). The public /_nuxflow/ext route refuses them.
@@ -44,7 +46,7 @@ export interface RunnablePlugin {
 type LoopbackFactory = (opts: { props: unknown }) => unknown
 
 function loopbackExports(event: H3Event): Record<string, LoopbackFactory | undefined> | null {
-  const ctx = event.context.cloudflare?.context as { exports?: Record<string, LoopbackFactory | undefined> } | undefined
+  const ctx = getCloudflareContext(event)?.context as { exports?: Record<string, LoopbackFactory | undefined> } | undefined
   return ctx?.exports ?? null
 }
 
@@ -63,7 +65,7 @@ const MAX_VERIFIED_LOADS = 1000
 
 async function loadVerifiedServerCode(event: H3Event, plugin: RunnablePlugin): Promise<string> {
   const code = await getPluginServerCode(event, plugin.siteId, plugin.id, plugin.serverChecksum)
-  if (!code) throw createError({ statusCode: 503, message: 'Plugin code is not available yet — try again in a minute.' })
+  if (!code) throw httpError({ status: 503, message: 'Plugin code is not available yet — try again in a minute.' })
   // Verify KV content against the checksum stored in D1 at install time.
   // A mismatch means the KV entry was modified after the signed install — hard stop.
   await assertCodeIntegrity(code, plugin.serverChecksum!, 'server module')
@@ -74,7 +76,7 @@ async function loadVerifiedServerCode(event: H3Event, plugin: RunnablePlugin): P
 export async function getPluginWorker(event: H3Event, plugin: RunnablePlugin): Promise<WorkerStub> {
   // Fails closed: a plugin without a recorded checksum never runs (see assertCodeIntegrity).
   if (!plugin.serverChecksum) {
-    throw createError({ statusCode: 500, message: 'Plugin server module has no recorded checksum — refusing to execute unverified code.' })
+    throw httpError({ status: 500, message: 'Plugin server module has no recorded checksum — refusing to execute unverified code.' })
   }
   const permissions = [...(plugin.grantedPermissions ?? [])].sort()
   const exportsObj = loopbackExports(event)
@@ -87,7 +89,7 @@ export async function getPluginWorker(event: H3Event, plugin: RunnablePlugin): P
     // or a build that lost the entry's named exports — a plugin then runs with nothing,
     // which is safe, but one that needs its permissions can't work, so say so plainly.
     if (permissions.length > 0) {
-      throw createError({ statusCode: 503, message: 'Plugin capabilities are unavailable: this Worker does not expose ctx.exports (check compatibility_date and that the build uses server/cloudflare-entry.ts).' })
+      throw httpError({ status: 503, message: 'Plugin capabilities are unavailable: this Worker does not expose ctx.exports (check compatibility_date and that the build uses server/cloudflare-entry.ts).' })
     }
   }
 

@@ -20,6 +20,8 @@ import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
 import { callPool, poolAdminStub, poolBindings } from './pools'
 import { clearSiteCache } from './site-resolution'
 import { getClientIp } from './client-ip'
+import { httpError } from './response'
+import { httpErrorStatus } from './errors'
 
 /**
  * Customers' own domains on a hosting platform (Cloudflare for SaaS). A customer connects
@@ -233,10 +235,10 @@ export type DomainOpResult =
 /** The addresses of a site in a member pool, kept there and changed over its binding. */
 function poolDomainStore(event: H3Event, poolId: string, siteId: string): DomainStore {
   const stub = poolAdminStub(event, poolId)
-  if (!stub) throw createError({ statusCode: 503, message: `Pool "${poolId}" isn't connected to this control panel.` })
+  if (!stub) throw httpError({ status: 503, message: `Pool "${poolId}" isn't connected to this control panel.` })
   const call = async <T>(op: DomainOp): Promise<T> => {
     const result = await callPool(stub.siteDomains({ protocol: POOL_PROTOCOL, siteId, op }), `pool ${poolId}`)
-    if (!result.ok) throw createError(result.error)
+    if (!result.ok) httpError({ status: result.error.statusCode, message: result.error.message, data: result.error.data })
     return result.value as T
   }
   return {
@@ -272,9 +274,10 @@ export async function poolSiteDomains(event: H3Event, input: { protocol: number;
     }
   }
   catch (err) {
-    const e = err as { statusCode?: number; message?: string; data?: unknown }
-    if (typeof e?.statusCode === 'number' && e.statusCode < 500) {
-      return { ok: false, error: { statusCode: e.statusCode, message: e.message ?? 'Refused', ...(e.data !== undefined ? { data: e.data } : {}) } }
+    const e = err as { message?: string; data?: unknown }
+    const status = httpErrorStatus(err)
+    if (status !== undefined && status < 500) {
+      return { ok: false, error: { statusCode: status, message: e.message ?? 'Refused', ...(e.data !== undefined ? { data: e.data } : {}) } }
     }
     throw err
   }
@@ -327,7 +330,7 @@ export async function addCustomDomain(ctx: HostingContext, site: HostedSite, inp
   const hostname = host!
 
   const cfg = await saasConfig(ctx.primaryEvent)
-  if (!cfg) throw createError({ statusCode: 503, message: "Connecting your own domain isn't available yet. Please contact us." })
+  if (!cfg) throw httpError({ status: 503, message: "Connecting your own domain isn't available yet. Please contact us." })
 
   const store = domainStore(ctx.primaryEvent, site)
   await store.assertCanAdd()
@@ -341,7 +344,7 @@ export async function addCustomDomain(ctx: HostingContext, site: HostedSite, inp
   catch (err) {
     if (err instanceof CloudflareApiError && err.codes.includes(DUPLICATE_HOSTNAME_CODE)) throw conflict('That domain is already connected to a site.')
     console.error('[hosting-domains] Cloudflare refused', hostname, err)
-    throw createError({ statusCode: 502, message: `Cloudflare couldn't add that domain: ${(err as Error).message}` })
+    throw httpError({ status: 502, message: `Cloudflare couldn't add that domain: ${(err as Error).message}` })
   }
 
   let row: SiteDomain
@@ -443,12 +446,12 @@ export async function removeSiteDomain(ctx: HostingContext, site: HostedSite, ho
   if (!row) throw notFound("That address isn't connected to this site.")
   if (row.kind === 'custom' && row.cfCustomHostnameId) {
     const cfg = await saasConfig(ctx.primaryEvent)
-    if (!cfg) throw createError({ statusCode: 503, message: "Domains can't be changed right now. Please contact us." })
+    if (!cfg) throw httpError({ status: 503, message: "Domains can't be changed right now. Please contact us." })
     try {
       await deleteCustomHostname(cfg, row.cfCustomHostnameId)
     }
     catch (err) {
-      throw createError({ statusCode: 502, message: `Cloudflare couldn't remove that domain: ${(err as Error).message}` })
+      throw httpError({ status: 502, message: `Cloudflare couldn't remove that domain: ${(err as Error).message}` })
     }
   }
   await store.remove(hostname)

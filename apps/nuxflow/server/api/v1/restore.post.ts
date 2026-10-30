@@ -51,7 +51,7 @@ export default defineEventHandler(async (event) => {
   if (!file) throw badRequest('No file uploaded')
 
   if (file.data.byteLength > MAX_UPLOAD_BYTES) {
-    throw createError({ statusCode: 413, message: 'Backup file exceeds 100 MB limit' })
+    throw httpError({ status: 413, message: 'Backup file exceeds 100 MB limit' })
   }
 
   let backup: NuxFlowBackup

@@ -1,6 +1,8 @@
+import { httpErrorStatus } from '../utils/errors'
+
 export default defineNitroPlugin((nitro) => {
   nitro.hooks.hook('error', (error, { event }) => {
-    const statusCode = error.statusCode ?? 500
+    const statusCode = httpErrorStatus(error) ?? 500
 
     // 4xx errors are expected client mistakes — don't pollute the log stream
     if (statusCode < 500) return

@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { H3Event } from 'h3'
+import type * as CfEnv from '../../server/utils/cf-env'
 
 const settingsMap = new Map<string, string>()
 vi.mock('../../server/utils/settings', () => ({
@@ -14,7 +15,8 @@ vi.mock('../../server/utils/settings', () => ({
 }))
 
 const mockGetWorkersAiBinding = vi.fn()
-vi.mock('../../server/utils/cf-env', () => ({
+vi.mock('../../server/utils/cf-env', async importOriginal => ({
+  ...(await importOriginal<typeof CfEnv>()),
   getWorkersAiBinding: (...args: unknown[]) => mockGetWorkersAiBinding(...args),
   getCfBindings: () => ({ kv: null, loader: null, r2: null }),
 }))

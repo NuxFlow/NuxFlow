@@ -12,6 +12,7 @@ import { decryptText, encryptText } from './encryption'
 import { bumpCacheVersion } from './cache-version'
 import { errorMessage } from './errors'
 import { bytesToBase64, bytesToBase64Url, base64ToBytes } from '../../shared/lib/base64'
+import { httpError } from './response'
 
 /**
  * Cloudflare Stream: whose account a site's videos go into, the REST calls the video
@@ -80,8 +81,8 @@ export function streamAccountFor(event: H3Event, kind: StreamAccountKind): Promi
 }
 
 export function streamNotConfigured(): never {
-  throw createError({
-    statusCode: 501,
+  throw httpError({
+    status: 501,
     message: 'Cloudflare Stream is not configured. Add your Account ID and Stream API token in Settings → Media.',
   })
 }
@@ -113,7 +114,7 @@ async function streamFetch(account: StreamAccount, path: string, init: RequestIn
     })
   } catch (err) {
     console.error(`[stream] Request to ${path || '/'} failed:`, err)
-    throw createError({ statusCode: 502, message: "Couldn't reach Cloudflare Stream. Try again in a moment." })
+    throw httpError({ status: 502, message: "Couldn't reach Cloudflare Stream. Try again in a moment." })
   }
 }
 
@@ -128,7 +129,7 @@ export async function getStreamVideo(account: StreamAccount, uid: string): Promi
   const data = await readEnvelope<StreamVideoDetails>(res)
   if (!res.ok || !data?.success || !data.result) {
     console.error('[stream] Video lookup failed:', res.status, JSON.stringify(data?.errors ?? null))
-    throw createError({ statusCode: 502, message: 'Cloudflare Stream returned an error while looking up the video.' })
+    throw httpError({ status: 502, message: 'Cloudflare Stream returned an error while looking up the video.' })
   }
   return data.result
 }
@@ -154,7 +155,7 @@ export async function setStreamVideoPrivate(account: StreamAccount, uid: string,
   })
   if (!res.ok) {
     console.error('[stream] Changing privacy failed:', res.status, await res.text().catch(() => ''))
-    throw createError({ statusCode: 502, message: `Cloudflare Stream refused to change the video's privacy (HTTP ${res.status}).` })
+    throw httpError({ status: 502, message: `Cloudflare Stream refused to change the video's privacy (HTTP ${res.status}).` })
   }
 }
 
@@ -194,12 +195,12 @@ export async function createStreamUpload(
   const data = await readEnvelope<unknown>(res)
   console.error('[stream] Creating the upload failed:', res.status, JSON.stringify(data?.errors ?? null))
   if (data?.errors?.some(e => e.code === 10011)) {
-    throw createError({
-      statusCode: 402,
+    throw httpError({
+      status: 402,
       message: 'This Cloudflare account has no Stream minutes. Buy a Stream plan in the Cloudflare dashboard (Stream → Buy minutes) to upload videos — the Workers Paid plan does not include Stream storage.',
     })
   }
-  throw createError({ statusCode: 502, message: data?.errors?.[0]?.message || 'Cloudflare Stream refused to start the upload.' })
+  throw httpError({ status: 502, message: data?.errors?.[0]?.message || 'Cloudflare Stream refused to start the upload.' })
 }
 
 // ── Signed links ─────────────────────────────────────────────────────────────
@@ -220,7 +221,7 @@ function importSigningKey(jwk: JsonWebKey): Promise<CryptoKey> {
 
 async function loadOrCreateSigningKey(event: H3Event, account: StreamAccount, siteId: string): Promise<SigningKey> {
   const { kv } = getCfBindings(event)
-  if (!kv) throw createError({ statusCode: 503, message: 'Private videos need the PLUGIN_KV binding.' })
+  if (!kv) throw httpError({ status: 503, message: 'Private videos need the PLUGIN_KV binding.' })
   const secret = String(useRuntimeConfig().betterAuthSecret)
   const kvKey = signingKeyKvKey(account, siteId)
 
@@ -239,7 +240,7 @@ async function loadOrCreateSigningKey(event: H3Event, account: StreamAccount, si
   const data = await readEnvelope<{ id: string; jwk: string }>(res)
   if (!res.ok || !data?.success || !data.result?.id || !data.result.jwk) {
     console.error('[stream] Creating a signing key failed:', res.status, JSON.stringify(data?.errors ?? null))
-    throw createError({ statusCode: 502, message: 'Cloudflare Stream refused to create a signing key — check that the Stream token can edit Stream.' })
+    throw httpError({ status: 502, message: 'Cloudflare Stream refused to create a signing key — check that the Stream token can edit Stream.' })
   }
   const jwk = JSON.parse(new TextDecoder().decode(base64ToBytes(data.result.jwk))) as JsonWebKey
   await kv.put(kvKey, await encryptText(JSON.stringify({ id: data.result.id, jwk }), secret))

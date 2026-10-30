@@ -11,7 +11,7 @@ import { restartSearchIndexRebuild, searchIndexStatus } from '../../../../utils/
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSuperAdmin(event)
   const state = await restartSearchIndexRebuild(event)
-  if (!state) throw createError({ statusCode: 503, message: 'Smart search isn\'t set up on this deployment (no Vectorize index, or one of an unsupported size).' })
+  if (!state) throw httpError({ status: 503, message: 'Smart search isn\'t set up on this deployment (no Vectorize index, or one of an unsupported size).' })
   await writeAuditLog(event, userId, { action: 'update', resource: 'search_index', resourceId: 'rebuild', after: { model: state.model } })
   return searchIndexStatus(event, useDb(event))
 })

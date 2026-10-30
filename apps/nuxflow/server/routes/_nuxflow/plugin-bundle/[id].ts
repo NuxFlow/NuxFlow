@@ -38,7 +38,7 @@ async function loadAndVerifyBundle(event: H3Event, pluginId: string): Promise<st
   // superRefine on backupDynamicPluginSchema in backup.ts) be served unverified to every
   // visitor's sandboxed iframe.
   if (!plugin.clientChecksum) {
-    throw createError({ statusCode: 500, message: 'Plugin client bundle has no recorded checksum — refusing to serve unverified code.' })
+    throw httpError({ status: 500, message: 'Plugin client bundle has no recorded checksum — refusing to serve unverified code.' })
   }
   // Verify KV content against the checksum stored in D1 at install time.
   // A mismatch means the KV entry was modified after the signed install — hard stop.

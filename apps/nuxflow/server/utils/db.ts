@@ -1,6 +1,8 @@
 import type { H3Event } from 'h3'
 import { drizzle } from 'drizzle-orm/d1'
 import * as schema from '@nuxflow/db/schema'
+import { httpError } from './response'
+import { getCfEnv } from './cf-env'
 
 export type Db = ReturnType<typeof drizzle<typeof schema>>
 
@@ -61,13 +63,13 @@ function resolveD1Binding(event?: H3Event): unknown {
   // Isolate it so the globalThis.__env__ fallback is always reachable.
   let eventD1: unknown
   // eslint-disable-next-line no-empty
-  try { eventD1 = (event ?? useEvent())?.context?.cloudflare?.env?.DB } catch {}
+  try { eventD1 = getCfEnv(event ?? useEvent())?.DB } catch {}
 
   const d1 = eventD1 ?? globalThis.__env__?.DB ?? _d1
 
   if (!d1) {
-    throw createError({
-      statusCode: 500,
+    throw httpError({
+      status: 500,
       message: 'No D1 database bound. Add a [[d1_databases]] block to wrangler.toml and run via `wrangler dev` (local) or a real deploy — D1 is provisioned automatically either way.',
     })
   }

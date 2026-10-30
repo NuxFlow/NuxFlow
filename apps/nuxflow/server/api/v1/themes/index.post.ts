@@ -57,7 +57,7 @@ export default defineEventHandler(async (event) => {
     if (fileField?.filename?.endsWith('.zip')) {
       // ── Zip theme package ─────────────────────────────────────────────────
       if (fileField.data.byteLength > MAX_ZIP_BYTES) {
-        throw createError({ statusCode: 413, message: 'Theme zip exceeds 50 MB limit' })
+        throw httpError({ status: 413, message: 'Theme zip exceeds 50 MB limit' })
       }
 
       // Robustly validate the ZIP archive for Zip Slip (path traversal) and Zip Bomb (uncompressed size)

@@ -1,6 +1,7 @@
 import { getEdgeCache } from '../utils/edge-cache'
 import { isPageCacheEligible, PAGE_BROWSER_CACHE_CONTROL, pageCacheRequest } from '../utils/page-cache'
 import { currentCacheVersion } from '../utils/cache-version'
+import { getCloudflareContext } from '../utils/cf-env'
 
 // Ordering matters here and Nitro loads server/middleware/** in filename order, which is
 // why this is numbered rather than left to sort alphabetically after 04.auth-override.ts —
@@ -21,7 +22,7 @@ import { currentCacheVersion } from '../utils/cache-version'
 export default defineEventHandler(async (event) => {
   if (!isPageCacheEligible(event)) return
 
-  const cf = event.context.cloudflare
+  const cf = getCloudflareContext(event)
   if (!cf?.request) return
 
   const cache = getEdgeCache()

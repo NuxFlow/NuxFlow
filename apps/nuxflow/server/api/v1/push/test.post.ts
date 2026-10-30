@@ -1,6 +1,6 @@
 import { requireRole } from '../../../utils/permissions'
 import { sendPushToUser } from '../../../utils/webpush'
-import { validationError } from '../../../utils/response'
+import { validationError, httpError } from '../../../utils/response'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
     validationError('You have no browser subscribed to push notifications on this site yet — turn them on under My account first.')
   }
   if (result.delivered === 0) {
-    throw createError({ statusCode: 502, message: 'The push service refused the notification. Try turning push notifications off and on again under My account.' })
+    throw httpError({ status: 502, message: 'The push service refused the notification. Try turning push notifications off and on again under My account.' })
   }
 
   return { sent: true, ...result }

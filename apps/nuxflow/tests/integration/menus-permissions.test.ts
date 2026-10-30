@@ -21,6 +21,7 @@ import { ulid } from 'ulid'
 import createMenuHandler from '../../server/api/v1/menus/index.post'
 import updateMenuHandler from '../../server/api/v1/menus/[id].patch'
 import deleteMenuHandler from '../../server/api/v1/menus/[id].delete'
+import type * as CfEnv from '../../server/utils/cf-env'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -32,7 +33,8 @@ vi.mock('../../server/utils/edge-cache', () => ({
   purgeAllPublicPages: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('../../server/utils/cf-env', () => ({
+vi.mock('../../server/utils/cf-env', async importOriginal => ({
+  ...(await importOriginal<typeof CfEnv>()),
   waitUntil: (_event: unknown, promise: Promise<unknown>) => { void promise },
 }))
 

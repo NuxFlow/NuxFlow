@@ -1,4 +1,4 @@
-import { badRequest } from './response'
+import { badRequest, httpError } from './response'
 
 /**
  * Parses the Central Directory of a ZIP archive in memory (without decompressing the files)
@@ -83,8 +83,8 @@ export function validateZipArchive(
     fileCount++
 
     if (totalUncompressedSize > maxUncompressedSize) {
-      throw createError({
-        statusCode: 413,
+      throw httpError({
+        status: 413,
         message: `Decompression limit exceeded: total uncompressed size exceeds ${Math.floor(
           maxUncompressedSize / (1024 * 1024)
         )} MB`,
