@@ -3,7 +3,7 @@ import { generateObject, type LanguageModel } from 'ai'
 import { ulid } from 'ulid'
 import type { H3Event } from 'h3'
 import { and, desc, eq, gt, like, not } from 'drizzle-orm'
-import { aiBlockDefinitions, buildBlockCatalog, normalizeAiBlocks, type AiCapability, type AiMediaItem } from '@nuxflow/canvas/ai'
+import { aiBlockDefinitions, buildBlockCatalog, normalizeAiBlocks, type AiCapability, type AiMediaItem, type AiRawBlock } from '@nuxflow/canvas/ai'
 import type { CanvasBlockData, CanvasBlockDefinition } from '@nuxflow/canvas'
 import { contentItems, contentTypes, forms, media, membershipTiers, sites } from '@nuxflow/db/schema'
 import { callAiOrThrow } from './ai-sdk'
@@ -93,20 +93,41 @@ export async function loadGenerationContext(event: H3Event, db: Db, siteId: stri
 }
 
 // Children are one level deep (see normalizeAiBlocks) so the schema isn't recursive —
-// several providers' structured-output modes reject recursive JSON schemas.
+// several providers' structured-output modes reject recursive JSON schemas. Props are a
+// list of key/value strings, not a record: a record's `additionalProperties: {…}` is
+// rejected by DeepSeek ("expected a boolean") and by OpenAI's strict mode, and
+// normalizeAiBlocks() reads every field type from its string form anyway.
 const leafBlockSchema = z.object({
   type: z.string(),
-  props: z.record(z.string(), z.unknown()),
+  props: z.array(z.object({
+    key: z.string().describe('Field name from the BLOCK LIBRARY'),
+    value: z.string().describe('The value as text: "true"/"false" for booleans, digits for numbers, JSON for arrays'),
+  })).describe('Only the fields you set'),
 })
 const blockSchema = leafBlockSchema.extend({
   children: z.array(z.object({ slot: z.string(), blocks: z.array(leafBlockSchema) }))
     .describe('Child blocks per slot — only for blocks that list child slots; otherwise an empty array'),
 })
-const responseSchema = z.object({
+const MAX_PAGE_BLOCKS = 16
+
+export const pageResponseSchema = z.object({
   title: z.string().describe('Page title, as it would appear in navigation (e.g. "About us")'),
   slug: z.string().describe('URL slug: lowercase, hyphenated, no leading slash. "home" for the homepage.'),
-  blocks: z.array(blockSchema).min(1).max(16),
+  // No maxItems: providers don't enforce it, and one block too many failed the whole page —
+  // the extra blocks are dropped below instead.
+  blocks: z.array(blockSchema).min(1).describe('Usually 4-10 blocks, never more than 16'),
 })
+
+type SchemaBlock = z.infer<typeof leafBlockSchema> & { children?: Array<{ slot: string; blocks: SchemaBlock[] }> }
+
+/** The schema's prop lists as the objects normalizeAiBlocks() takes. */
+function toRawBlocks(blocks: SchemaBlock[]): AiRawBlock[] {
+  return blocks.map(b => ({
+    type: b.type,
+    props: Object.fromEntries(b.props.map(p => [p.key, p.value])),
+    children: b.children?.map(c => ({ slot: c.slot, blocks: toRawBlocks(c.blocks) })),
+  }))
+}
 
 function systemPrompt(ctx: GenerationContext): string {
   const media = ctx.media.length
@@ -166,10 +187,10 @@ export async function generateCanvasPage(model: LanguageModel, ctx: GenerationCo
   ].filter(Boolean)
 
   const { object } = await callAiOrThrow(() =>
-    generateObject({ model, schema: responseSchema, system: systemPrompt(ctx), prompt: parts.join('\n\n') }),
+    generateObject({ model, schema: pageResponseSchema, system: systemPrompt(ctx), prompt: parts.join('\n\n') }),
   )
 
-  const blocks = normalizeAiBlocks(object.blocks, { defs: ctx.defs, media: ctx.media, newId: ulid })
+  const blocks = normalizeAiBlocks(toRawBlocks(object.blocks.slice(0, MAX_PAGE_BLOCKS)), { defs: ctx.defs, media: ctx.media, newId: ulid })
   if (!blocks.length) {
     throw httpError({ status: 502, message: 'The AI returned no usable blocks — try again or rephrase the request.' })
   }

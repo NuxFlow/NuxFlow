@@ -33,13 +33,32 @@ const LEASE_MS = 3 * 60_000
 
 export const MAX_PLAN_PAGES = 10
 
+const SLUG_HINT = 'URL-safe slug: lowercase, hyphenated, no leading slash. Use "home" for the homepage.'
+const DESCRIPTION_HINT = 'What this page should contain — handed directly to the page designer, so name the specific sections and content, not just the page.'
+
 export const planPageSchema = z.object({
   title: z.string().trim().min(1).max(200),
-  slug: z.string().trim().max(200).describe('URL-safe slug: lowercase, hyphenated, no leading slash. Use "home" for the homepage.'),
-  description: z.string().trim().min(1).max(1000).describe('What this page should contain — handed directly to the page designer, so name the specific sections and content, not just the page.'),
+  slug: z.string().trim().max(200).describe(SLUG_HINT),
+  description: z.string().trim().min(1).max(1000).describe(DESCRIPTION_HINT),
 })
 
-const planSchema = z.object({ pages: z.array(planPageSchema).min(1).max(MAX_PLAN_PAGES) })
+// What the model is asked for: planPageSchema without its length limits. Providers don't
+// enforce maxLength/maxItems, so one description a little over 1,000 characters failed the
+// whole plan ("wasn't in the expected format"); clampPlan() trims to the limits instead.
+const planSchema = z.object({
+  pages: z.array(z.object({
+    title: z.string(),
+    slug: z.string().describe(SLUG_HINT),
+    description: z.string().describe(`${DESCRIPTION_HINT} At most 1,000 characters.`),
+  })).min(1),
+})
+
+function clampPlan(pages: z.infer<typeof planSchema>['pages']): AiGenerationPlanPage[] {
+  return pages
+    .map(p => ({ title: p.title.trim().slice(0, 200), slug: p.slug.trim().slice(0, 200), description: p.description.trim().slice(0, 1000) }))
+    .filter(p => p.title && p.description)
+    .slice(0, MAX_PLAN_PAGES)
+}
 
 const PLAN_SYSTEM = `You are a website information architect. Given a description of a website, plan the pages that together make a complete, coherent small site: a home page plus whichever of about/services/pricing/contact/blog genuinely fit — don't pad the plan with pages the site doesn't need. Give every page a unique slug ("home" for the homepage). Each description must be specific enough to hand straight to a page designer: list the sections the page needs and what each should say.`
 
@@ -89,7 +108,9 @@ async function generatePlan(event: H3Event, db: Db, job: AiGenerationJob): Promi
     const { object } = await callAiOrThrow(() =>
       generateObject({ model, schema: planSchema, system: PLAN_SYSTEM, prompt: `Plan a site for: """${job.prompt}"""` }),
     )
-    await saveJob(db, job, { plan: object.pages, totalCount: object.pages.length })
+    const plan = clampPlan(object.pages)
+    if (!plan.length) throw httpError({ status: 502, message: 'The AI returned an empty plan — try again or rephrase the request.' })
+    await saveJob(db, job, { plan, totalCount: plan.length })
   }
   catch (err) {
     console.error(`[site-generation] Job ${job.id}: planning failed:`, err)

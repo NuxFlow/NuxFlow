@@ -15,6 +15,8 @@ import { seedSite, seedUser, seedRole, seedContentType, seedContentItem } from '
 import { contentItems, auditLogs, taxonomies } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import type { ZodType } from 'zod'
+import { nonBooleanAdditionalProperties } from '../helpers/ai-schema'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -65,7 +67,7 @@ beforeEach(() => {
   mockGetModel.mockResolvedValue({ id: 'fake-model' })
   mockGenerateObject.mockReset().mockImplementation(async ({ prompt }: { prompt: string }) => {
     lastBundle = JSON.parse(prompt.slice(prompt.indexOf('{')))
-    return { object: Object.fromEntries(Object.entries(lastBundle).map(([k, v]) => [k, `ES:${v}`])) }
+    return { object: { translations: Object.entries(lastBundle).map(([key, v]) => ({ key, text: `ES:${v}` })) } }
   })
 })
 
@@ -222,13 +224,23 @@ describe('POST /api/v1/ai/translate', () => {
     expect(mockGenerateObject).not.toHaveBeenCalled()
   })
 
+  it('sends a schema DeepSeek and OpenAI strict mode accept (no record of translations)', async () => {
+    const db = getCurrentTestDb()
+    const src = await seedContentItem(db, SITE, typeId, { slug: 'schema-page', title: 'Schema', content: { type: 'canvas', blocks: [] } })
+
+    await (translateHandler as Handler)(ev(editorId, { contentItemId: src, targetLocale: 'fr' }))
+
+    const [args] = mockGenerateObject.mock.calls.at(-1) as [{ schema: ZodType }]
+    expect(nonBooleanAdditionalProperties(args.schema)).toEqual([])
+  })
+
   it('splits a long page into several model calls instead of failing at the output limit, and ignores invented keys', async () => {
     const db = getCurrentTestDb()
     const blocks = Array.from({ length: 6 }, (_, i) => ({ id: `t${i}`, type: 'canvas-text', props: { content: `<p>${'word '.repeat(400)}${i}</p>` } }))
     const src = await seedContentItem(db, SITE, typeId, { slug: 'long-page', title: 'Long', content: { type: 'canvas', blocks } })
     mockGenerateObject.mockImplementation(async ({ prompt }: { prompt: string }) => {
       const bundle = JSON.parse(prompt.slice(prompt.indexOf('{'))) as Record<string, string>
-      return { object: { ...Object.fromEntries(Object.entries(bundle).map(([k, v]) => [k, `ES:${v}`])), 'evil.injected': '<script>' } }
+      return { object: { translations: [...Object.entries(bundle).map(([key, v]) => ({ key, text: `ES:${v}` })), { key: 'evil.injected', text: '<script>' }] } }
     })
 
     const res = await (translateHandler as Handler)(ev(editorId, { contentItemId: src, targetLocale: 'es' })) as { id: string }

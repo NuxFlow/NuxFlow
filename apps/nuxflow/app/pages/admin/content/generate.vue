@@ -229,16 +229,30 @@ async function makeHomepage(page: GeneratedPage) {
 async function forEachDraft(action: 'publish' | 'discard') {
   const drafts = draftItems.value
   if (!drafts.length) return
+  // A whole site's planned home page replaces the current homepage — published as a plain
+  // page it would only go live at /home-2, with the old homepage still at /.
+  const newHome = job.value?.type === 'site'
+    ? reviewPages.value.find(p => p.slug === 'home' && p.item?.status === 'draft' && p.item.slug !== 'home')?.item
+    : undefined
   const ok = await confirm(action === 'publish'
-    ? { title: `Publish ${drafts.length} page${drafts.length === 1 ? '' : 's'}?`, description: 'They go live on the site straight away.', confirmLabel: 'Publish', color: 'primary' }
+    ? {
+        title: `Publish ${drafts.length} page${drafts.length === 1 ? '' : 's'}?`,
+        description: newHome
+          ? `They go live on the site straight away, and "${newHome.title}" becomes your homepage. Your current homepage is kept as a draft at /previous-home, so nothing is lost.`
+          : 'They go live on the site straight away.',
+        confirmLabel: 'Publish',
+        color: 'primary',
+      }
     : { title: `Discard ${drafts.length} draft page${drafts.length === 1 ? '' : 's'}?`, description: 'The draft pages are deleted.', confirmLabel: 'Discard all', color: 'error' })
   if (!ok) return
   bulkBusy.value = true
   let failed = 0
   for (const item of drafts) {
     const url: string = `/api/v1/content/${item.id}`
+    const homepageUrl: string = `/api/v1/content/${item.id}/make-homepage`
     try {
-      if (action === 'publish') await $fetch<unknown>(url, { method: 'PATCH', body: { status: 'published' } })
+      if (action === 'publish' && item.id === newHome?.id) await $fetch<unknown>(homepageUrl, { method: 'POST' })
+      else if (action === 'publish') await $fetch<unknown>(url, { method: 'PATCH', body: { status: 'published' } })
       else await $fetch<unknown>(url, { method: 'DELETE' })
     }
     catch {

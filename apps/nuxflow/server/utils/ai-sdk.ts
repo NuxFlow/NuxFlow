@@ -338,8 +338,24 @@ export async function callAiOrThrow<T>(fn: () => Promise<T>): Promise<T> {
     const allowance = findAllowanceError(err)
     if (allowance) throw allowanceForbidden(allowance)
     if (isH3Error(err)) throw err
+    logRejectedAnswer(err)
     throw httpError({ status: 502, message: aiErrorMessage(err) })
   }
+}
+
+/**
+ * The editor only sees "wasn't in the expected format", so the log says why: cut off at the
+ * token limit, invalid JSON, or which field broke the schema — plus the start of the answer.
+ */
+function logRejectedAnswer(err: unknown): void {
+  if ((err as { name?: unknown } | null)?.name !== 'AI_NoObjectGeneratedError') return
+  const { finishReason, text, cause } = err as { finishReason?: unknown; text?: unknown; cause?: unknown }
+  console.warn('[ai] answer rejected by the schema', {
+    finishReason,
+    problem: cause instanceof Error ? cause.message.slice(0, 2000) : undefined,
+    answerStart: typeof text === 'string' ? text.slice(0, 1500) : undefined,
+    answerLength: typeof text === 'string' ? text.length : undefined,
+  })
 }
 
 /** The AiAllowanceError behind `err`, also when the AI SDK wrapped it in a RetryError. */

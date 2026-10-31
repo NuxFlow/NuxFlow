@@ -24,15 +24,14 @@ const bodySchema = z.object({
 
 // generateObject (Vercel AI SDK) enforces this shape at the provider-call level instead of
 // hand-parsing a generateText response — same reasoning as improve.post.ts/seo-suggest.post.ts's
-// comments: the model doesn't always comply with a "return ONLY valid JSON" instruction, and
-// this route used to need its own markdown-code-fence-stripping workaround for it. The keys
-// here are dynamic (internal string-path identifiers built by extractTipTapStrings/
-// collectCanvasStrings, e.g. "__title__" or "blockId.propKey"), not a fixed set known ahead of
-// time, so the schema is a plain string->string record rather than a z.object() with named
-// fields — this preserves the exact same `Record<string, string>` shape the old manual
-// `JSON.parse()` produced, so every consumer below (translations['__title__'], etc.) keeps
-// working unchanged.
-const translationsSchema = z.record(z.string(), z.string())
+// comments: the model doesn't always comply with a "return ONLY valid JSON" instruction. The keys
+// are dynamic (internal string-path identifiers built by extractTipTapStrings/
+// collectCanvasStrings, e.g. "__title__" or "blockId.propKey"), so the answer is a list of
+// key/text pairs — not a record: a record's `additionalProperties: {…}` is rejected by
+// DeepSeek ("expected a boolean") and by OpenAI's strict mode.
+const translationsSchema = z.object({
+  translations: z.array(z.object({ key: z.string(), text: z.string() })),
+})
 
 // Extract all translatable string values from a TipTap JSON tree.
 function extractTipTapStrings(node: unknown, out: Map<string, string>, path: string) {
@@ -162,14 +161,14 @@ export default defineEventHandler(async (event) => {
       generateObject({
         model,
         schema: translationsSchema,
-        system: `You are a professional translator. You will receive a JSON object whose keys are internal identifiers and whose values are text. Translate every value into the language with code "${targetLocale}", returning an object with exactly the same keys. For HTML values, translate only the visible text, preserving every tag and attribute exactly. Keep brand names, product names, and URLs unchanged.`,
+        system: `You are a professional translator. You will receive a JSON object whose keys are internal identifiers and whose values are text. Translate every value into the language with code "${targetLocale}", returning one { key, text } entry per key, with the key copied exactly. For HTML values, translate only the visible text, preserving every tag and attribute exactly. Keep brand names, product names, and URLs unchanged.`,
         prompt: `Translate to ${targetLocale}:\n\n${chunkJson}`,
         maxOutputTokens: Math.min(8192, Math.max(1000, chunkJson.length)),
       }),
     )
     // Only keys that were asked for — a hallucinated key must never land in the content.
-    for (const key of Object.keys(chunk)) {
-      if (typeof object[key] === 'string' && object[key].trim()) translations[key] = object[key]
+    for (const { key, text } of object.translations) {
+      if (Object.hasOwn(chunk, key) && text.trim()) translations[key] = text
     }
   }
 
