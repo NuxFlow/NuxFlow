@@ -125,7 +125,7 @@ function authorEvent(body: unknown, params: Record<string, string> = {}) {
 }
 
 const pageResponse = (title: string, slug: string, headline = title) => ({
-  object: { title, slug, blocks: [{ type: 'canvas-hero', props: { headline }, children: [] }] },
+  object: { title, slug, blocks: [{ type: 'canvas-hero', props: [{ key: 'headline', value: headline }], children: [] }] },
 })
 
 async function createJob(body: Record<string, unknown>): Promise<JobResponse> {
@@ -253,6 +253,26 @@ describe('whole-site jobs', () => {
     // A site job keeps the reviewed plan's titles/slugs, not the model's.
     expect(done.items.map(i => i.slug).sort()).toEqual(['pipes-home', 'pipes-home-2'])
     expect(done.items.find(i => i.slug === 'pipes-home')!.title).toBe('Home')
+  })
+
+  it('trims an over-long plan to the limits instead of failing it', async () => {
+    const job = await createJob({ prompt: 'A detailed site for Pipe Pros', type: 'site' })
+    mockGenerateObject.mockResolvedValueOnce({
+      object: {
+        pages: [
+          { title: '  Home  ', slug: 'pros-home', description: 'x'.repeat(1500) },
+          { title: '', slug: 'empty', description: 'Dropped: no title.' },
+          ...Array.from({ length: 12 }, (_, i) => ({ title: `Page ${i}`, slug: `pros-${i}`, description: 'A page.' })),
+        ],
+      },
+    })
+
+    const planned = await step(job.id)
+    expect(planned.status).toBe('planning')
+    expect(planned.plan).toHaveLength(10)
+    expect(planned.plan![0]).toMatchObject({ title: 'Home', slug: 'pros-home' })
+    expect(planned.plan![0]!.description).toHaveLength(1000)
+    expect(planned.plan!.some(p => p.slug === 'empty')).toBe(false)
   })
 
   it('marks the job failed when planning fails', async () => {

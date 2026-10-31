@@ -30,6 +30,8 @@ import readabilityHandler from '../../server/api/v1/ai/readability.post'
 import suggestTermsHandler from '../../server/api/v1/ai/suggest-terms.post'
 import suggestFocalPointHandler from '../../server/api/v1/ai/suggest-focal-point.post'
 import generateCanvasHandler from '../../server/api/v1/ai/generate-canvas.post'
+import type { ZodType } from 'zod'
+import { nonBooleanAdditionalProperties } from '../helpers/ai-schema'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -526,7 +528,7 @@ describe('POST /api/v1/ai/generate-canvas', () => {
   it('returns the generated canvas blocks with server-assigned ULIDs', async () => {
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
     mockGenerateObject.mockResolvedValueOnce({
-      object: { title: 'Home', slug: 'home', blocks: [{ type: 'canvas-hero', props: { headline: 'Welcome' }, children: [] }] },
+      object: { title: 'Home', slug: 'home', blocks: [{ type: 'canvas-hero', props: [{ key: 'headline', value: 'Welcome' }], children: [] }] },
     })
 
     const result = await (generateCanvasHandler as HandlerFn)(
@@ -548,19 +550,19 @@ describe('POST /api/v1/ai/generate-canvas', () => {
         title: 'Page',
         slug: 'page',
         blocks: [
-          { type: 'canvas-made-up', props: { headline: 'x' }, children: [] },
+          { type: 'canvas-made-up', props: [{ key: 'headline', value: 'x' }], children: [] },
           // The site layout renders the footer — a generated one would be a second footer.
-          { type: 'canvas-footer', props: { logoText: 'Acme' }, children: [] },
+          { type: 'canvas-footer', props: [{ key: 'logoText', value: 'Acme' }], children: [] },
           {
             type: 'canvas-accordion',
-            props: {
-              itemsJson: [{ question: 'Q1?', answer: 'A1', extra: 'dropped' }],
-              bgColor: 'not-a-colour',
-              madeUpProp: true,
-            },
+            props: [
+              { key: 'itemsJson', value: JSON.stringify([{ question: 'Q1?', answer: 'A1', extra: 'dropped' }]) },
+              { key: 'bgColor', value: 'not-a-colour' },
+              { key: 'madeUpProp', value: 'true' },
+            ],
             children: [],
           },
-          { type: 'canvas-button', props: { label: 'Go', url: 'javascript:alert(1)', size: 'huge' }, children: [] },
+          { type: 'canvas-button', props: [{ key: 'label', value: 'Go' }, { key: 'url', value: 'javascript:alert(1)' }, { key: 'size', value: 'huge' }], children: [] },
         ],
       },
     })
@@ -582,7 +584,7 @@ describe('POST /api/v1/ai/generate-canvas', () => {
 
   it('builds the block catalog from the real block definitions', async () => {
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
-    mockGenerateObject.mockResolvedValueOnce({ object: { title: 'Contact', slug: 'contact', blocks: [{ type: 'contact-form/form', props: {}, children: [] }] } })
+    mockGenerateObject.mockResolvedValueOnce({ object: { title: 'Contact', slug: 'contact', blocks: [{ type: 'contact-form/form', props: [], children: [] }] } })
 
     await (generateCanvasHandler as HandlerFn)(mkEditorEvent({ description: 'A contact page for a coffee shop' }))
 
@@ -596,16 +598,52 @@ describe('POST /api/v1/ai/generate-canvas', () => {
 
   it('returns 502 when the model returns nothing usable', async () => {
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
-    mockGenerateObject.mockResolvedValueOnce({ object: { title: 'x', slug: 'x', blocks: [{ type: 'canvas-nope', props: {}, children: [] }] } })
+    mockGenerateObject.mockResolvedValueOnce({ object: { title: 'x', slug: 'x', blocks: [{ type: 'canvas-nope', props: [], children: [] }] } })
 
     await expect(
       (generateCanvasHandler as HandlerFn)(mkEditorEvent({ description: 'A landing page for a coffee shop' })),
     ).rejects.toMatchObject({ statusCode: 502 })
   })
 
+  it('sends a schema DeepSeek and OpenAI strict mode accept (no record-shaped props)', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockResolvedValueOnce({ object: { title: 'Page', slug: 'page', blocks: [{ type: 'canvas-text', props: [], children: [] }] } })
+
+    await (generateCanvasHandler as HandlerFn)(mkEditorEvent({ description: 'A landing page for a coffee shop' }))
+
+    const [args] = mockGenerateObject.mock.calls.at(-1) as [{ schema: ZodType }]
+    expect(nonBooleanAdditionalProperties(args.schema)).toEqual([])
+  })
+
+  it('keeps the first 16 blocks of a longer page instead of failing it', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    const blocks = Array.from({ length: 20 }, (_, i) => ({ type: 'canvas-hero', props: [{ key: 'headline', value: `H${i}` }], children: [] }))
+    mockGenerateObject.mockResolvedValueOnce({ object: { title: 'Page', slug: 'page', blocks } })
+
+    const result = await (generateCanvasHandler as HandlerFn)(
+      mkEditorEvent({ description: 'A landing page for a coffee shop' }),
+    ) as { blocks: { props: Record<string, unknown> }[] }
+
+    expect(result.blocks).toHaveLength(16)
+    expect(result.blocks[15]!.props.headline).toBe('H15')
+  })
+
+  it('reads number and toggle fields from their text form', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockResolvedValueOnce({
+      object: { title: 'Page', slug: 'page', blocks: [{ type: 'canvas-spacer', props: [{ key: 'height', value: '48' }, { key: 'showLine', value: 'true' }], children: [] }] },
+    })
+
+    const result = await (generateCanvasHandler as HandlerFn)(
+      mkEditorEvent({ description: 'A landing page for a coffee shop' }),
+    ) as { blocks: { props: Record<string, unknown> }[] }
+
+    expect(result.blocks[0]!.props).toMatchObject({ height: 48, showLine: true })
+  })
+
   it('requests the "smart" quality tier', async () => {
     mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
-    mockGenerateObject.mockResolvedValueOnce({ object: { title: 'Page', slug: 'page', blocks: [{ type: 'canvas-text', props: {}, children: [] }] } })
+    mockGenerateObject.mockResolvedValueOnce({ object: { title: 'Page', slug: 'page', blocks: [{ type: 'canvas-text', props: [], children: [] }] } })
 
     await (generateCanvasHandler as HandlerFn)(mkEditorEvent({ description: 'A landing page for a coffee shop' }))
 
