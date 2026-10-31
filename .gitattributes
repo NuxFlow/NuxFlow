@@ -1,0 +1,3 @@
+# Store text files with LF line endings in the repo, whatever the contributor's OS or
+# git settings; git still detects binary files itself.
+* text=auto eol=lf
