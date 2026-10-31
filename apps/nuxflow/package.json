@@ -49,7 +49,7 @@
     "highlight.js": "^11.12.0",
     "postal-mime": "^4.1.4",
     "reflect-metadata": "^0.2.2",
-    "stripe": "^23.0.0",
+    "stripe": "^23.0.1",
     "ulid": "^3.0.2",
     "workers-ai-provider": "^4.0.1",
     "zod": "^4.6.7"
