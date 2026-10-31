@@ -28,7 +28,7 @@
     "@typescript-eslint/eslint-plugin": "^8.72.1",
     "turbo": "^2.11.10",
     "vitest": "^5.0.5",
-    "wrangler": "^4.151.3"
+    "wrangler": "^4.154.0"
   },
   "pnpm": {
     "overrides": {
