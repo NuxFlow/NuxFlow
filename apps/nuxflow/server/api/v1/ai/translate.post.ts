@@ -81,6 +81,17 @@ function chunkBundle(bundle: Map<string, string>): Array<Record<string, string>>
   return chunks
 }
 
+// An event is the same event in every language. RSVPs stay on the original's list.
+function eventDetails(source: typeof contentItems.$inferSelect) {
+  return {
+    eventStartAt: source.eventStartAt,
+    eventEndAt: source.eventEndAt,
+    eventAllDay: source.eventAllDay,
+    eventLocation: source.eventLocation,
+    eventUrl: source.eventUrl,
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   await rateLimit(event, { limit: 5, windowMs: 60_000, keyPrefix: 'ai-translate' })
@@ -191,6 +202,7 @@ export default defineEventHandler(async (event) => {
         seoTitle: translations['__seoTitle__'] ?? existing.seoTitle,
         seoDescription: translations['__seoDescription__'] ?? existing.seoDescription,
         excerpt: translations['__excerpt__'] ?? existing.excerpt,
+        ...eventDetails(source),
         // Bumped so an editor that has this translation open notices on its next save
         // rather than silently overwriting the new translation (optimistic lock).
         version: sql`${contentItems.version} + 1`,
@@ -222,6 +234,7 @@ export default defineEventHandler(async (event) => {
     seoTitle: translations['__seoTitle__'] ?? null,
     seoDescription: translations['__seoDescription__'] ?? null,
     excerpt: translations['__excerpt__'] ?? null,
+    ...eventDetails(source),
     locale: targetLocale,
     sourceItemId: source.id,
   })

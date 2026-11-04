@@ -59,7 +59,7 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
         content: true, excerpt: true, seoTitle: true, seoDescription: true, ogImage: true,
         publishedAt: true, settings: true, locale: true, sourceItemId: true,
         canonicalUrl: true, metaRobots: true, focusKeyword: true, allowComments: true,
-        eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true,
+        eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, eventRsvpEnabled: true, eventRsvpCapacity: true, eventRsvpClosesAt: true,
       },
     }),
     db.query.taxonomies.findMany({ where: eq(taxonomies.siteId, siteId) }),
@@ -239,6 +239,9 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
       eventAllDay: item.eventAllDay,
       eventLocation: item.eventLocation,
       eventUrl: item.eventUrl,
+      eventRsvpEnabled: item.eventRsvpEnabled,
+      eventRsvpCapacity: item.eventRsvpCapacity,
+      eventRsvpClosesAt: item.eventRsvpClosesAt,
     })
   }
 

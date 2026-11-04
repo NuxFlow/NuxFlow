@@ -1,7 +1,9 @@
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   modelValue: { status: string; scheduledAt?: string }
   saving?: boolean
+  /** The site's time zone, which the date here is in. */
+  timeZone?: string
 }>()
 defineEmits<{
   'update:modelValue': [value: { status: string; scheduledAt?: string }]
@@ -16,6 +18,10 @@ const statusOptions = [
   { label: 'Scheduled', value: 'scheduled' },
   { label: 'Archived', value: 'archived' },
 ]
+
+// Drafts can carry a planned date too: it places them on the calendar, and nothing is
+// published until the status is Scheduled.
+const showsDate = computed(() => ['draft', 'review', 'scheduled'].includes(props.modelValue.status))
 </script>
 
 <template>
@@ -32,25 +38,22 @@ const statusOptions = [
         />
       </UFormField>
 
-      <template v-if="modelValue.status === 'scheduled'">
-        <UFormField label="Schedule for">
-          <UInput
-            type="datetime-local"
-            :model-value="modelValue.scheduledAt"
-            @update:model-value="(val) => $emit('update:modelValue', { ...modelValue, scheduledAt: val as string | undefined })"
-          />
-        </UFormField>
-        <UAlert
-          color="warning"
-          variant="soft"
-          icon="i-lucide-clock"
-          description="Scheduled publishing requires a cron trigger, which is not available on Cloudflare Workers' free tier. Upgrade to the paid Workers plan ($5/mo) to enable it."
-          :ui="{ description: 'text-xs' }"
+      <UFormField
+        v-if="showsDate"
+        :label="modelValue.status === 'scheduled' ? 'Publish on' : 'Planned date (optional)'"
+        :help="timeZone ? `Time zone: ${timeZone}` : undefined"
+      >
+        <UInput
+          type="datetime-local"
+          :model-value="modelValue.scheduledAt"
+          @update:model-value="(val) => $emit('update:modelValue', { ...modelValue, scheduledAt: (val as string) || undefined })"
         />
-      </template>
+      </UFormField>
 
       <div class="flex gap-2">
-        <UButton variant="outline" class="flex-1" :loading="saving" @click="$emit('save')">Save draft</UButton>
+        <UButton variant="outline" class="flex-1" :loading="saving" @click="$emit('save')">
+          {{ modelValue.status === 'draft' ? 'Save draft' : 'Save' }}
+        </UButton>
         <UButton class="flex-1" :loading="saving" @click="$emit('publish')">
           {{ modelValue.status === 'scheduled' ? 'Schedule' : 'Publish' }}
         </UButton>

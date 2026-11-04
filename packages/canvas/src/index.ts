@@ -22,7 +22,7 @@ export type { AiInstruction, AiImproveAction } from './editor/useAiImprove'
 export { imageTransformsEnabledKey } from './utils/image-transforms'
 export { blockIdKey } from './utils/block-context'
 export { canvasHostKey, useCanvasHost } from './host'
-export type { CanvasHost, CanvasPostItem, CanvasEventItem, CanvasPostsQuery, CanvasPageRequest } from './host'
+export type { CanvasHost, CanvasPostItem, CanvasEventItem, CanvasEventList, CanvasEventsQuery, CanvasPostsQuery, CanvasPageRequest } from './host'
 
 // Vue components
 //

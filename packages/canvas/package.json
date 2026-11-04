@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./consent": "./src/utils/consent.ts",
     "./video": "./src/utils/video-url.ts",
+    "./events": "./src/utils/event-dates.ts",
     "./ai": "./src/ai/index.ts"
   },
   "scripts": {

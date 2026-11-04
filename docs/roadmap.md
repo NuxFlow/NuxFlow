@@ -15,6 +15,17 @@ Admin → Analytics (page views per day, top pages, referrers, countries and dev
 
 ---
 
+## Events: what's next
+
+The calendar, event pages, RSVPs and waitlists are built (see `docs/user-guide.md`). Still to come:
+
+- **Repeating events.** A rule on an event (weekly, monthly) and its dates worked out for the calendar, the Calendar block and `/events.ics`. RSVPs would need a list per date.
+- **Reminders and change notices.** Emailing attendees the day before, and when an event's time or place changes or it's cancelled. Needs a scheduled task, with a marker on each booking so nobody is emailed twice.
+- **Attendees in the site backup.** Left out for now, like mailing-list subscribers, as they're personal data and restoring would need their links to the new event ids.
+- **Paid tickets**, through the existing payment providers.
+
+---
+
 ## Browser Rendering for dynamic OG/social cards
 
 **What**: Use the `@cloudflare/puppeteer` binding to screenshot a public page or Canvas layout at the edge and save the PNG to the active media provider, for automatic social-share images instead of relying on a manually-set `ogImage`.

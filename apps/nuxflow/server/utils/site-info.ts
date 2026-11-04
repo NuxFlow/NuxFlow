@@ -10,6 +10,8 @@ export interface SiteInfo {
   domain: string
   /** The site's default language (`sites.locale`). */
   locale: string
+  /** The site's IANA time zone (`sites.timezone`). */
+  timezone: string
   status: string
   isPrimary: boolean
   /** Set only while the site is being moved between pools (site-move.ts). */
@@ -31,7 +33,7 @@ export async function getSiteInfo(event: H3Event, siteId: string): Promise<SiteI
   if (cached !== undefined) return cached
   const row = await useDb(event).query.sites.findFirst({
     where: eq(sites.id, siteId),
-    columns: { id: true, name: true, domain: true, locale: true, status: true, isPrimary: true, moveState: true },
+    columns: { id: true, name: true, domain: true, locale: true, timezone: true, status: true, isPrimary: true, moveState: true },
   })
   const info = row ?? null
   cache.set(siteId, info)
@@ -48,7 +50,7 @@ export async function isPrimarySite(event: H3Event, siteId: string | null | unde
 export async function getPrimarySite(event: H3Event): Promise<SiteInfo | null> {
   const row = await useDb(event).query.sites.findFirst({
     where: eq(sites.isPrimary, true),
-    columns: { id: true, name: true, domain: true, locale: true, status: true, isPrimary: true, moveState: true },
+    columns: { id: true, name: true, domain: true, locale: true, timezone: true, status: true, isPrimary: true, moveState: true },
   })
   return row ?? null
 }

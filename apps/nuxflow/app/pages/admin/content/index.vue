@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatEventWhen } from '@nuxflow/canvas/events'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const route = useRoute()
@@ -15,6 +16,16 @@ type ContentRow = {
   updatedAt: string
   locale: string | null
   sourceItemId: string | null
+  eventStartAt?: string | null
+  eventEndAt?: string | null
+  eventAllDay?: boolean | null
+}
+
+const siteTimeZone = await useSiteTimeZone()
+function eventWhen(row: ContentRow): string {
+  return row.eventStartAt
+    ? formatEventWhen({ eventStartAt: row.eventStartAt, eventEndAt: row.eventEndAt, eventAllDay: row.eventAllDay }, siteTimeZone.value)
+    : 'No date yet'
 }
 
 const selectedLocale = ref<string>('all')
@@ -105,12 +116,13 @@ const statusColor: Record<string, Color> = {
   review: 'orange',
 }
 
-const columns = [
+const columns = computed(() => [
   { accessorKey: 'title', header: 'Title' },
+  ...(typeSlug.value === 'event' ? [{ accessorKey: 'eventStartAt', header: 'When' }] : []),
   { accessorKey: 'status', header: 'Status' },
   { accessorKey: 'updatedAt', header: 'Updated' },
   { id: 'actions', header: actionsHeader },
-]
+])
 
 const { run, isRunning } = useAdminAction()
 const deleteId = ref<string | null>(null)
@@ -198,6 +210,10 @@ async function doDelete() {
               Translation
             </UBadge>
           </div>
+        </template>
+
+        <template #eventStartAt-cell="{ row }">
+          <span class="text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ eventWhen(row.original) }}</span>
         </template>
 
         <template #status-cell="{ row }">

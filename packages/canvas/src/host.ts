@@ -12,17 +12,39 @@ export interface CanvasPostItem {
   publishedAt: string | null
 }
 
-/** An upcoming event as the Calendar block shows it (GET /api/public/events in NuxFlow). */
+/** An event as the Calendar block shows it (GET /api/public/events in NuxFlow). */
 export interface CanvasEventItem {
   id: string
   slug?: string
   title: string
-  excerpt?: string
+  /** The event's own page. */
+  path?: string
+  excerpt?: string | null
   eventStartAt: string
-  eventEndAt?: string
-  eventAllDay?: boolean
-  eventLocation?: string
-  eventUrl?: string
+  eventEndAt?: string | null
+  eventAllDay?: boolean | null
+  eventLocation?: string | null
+  eventUrl?: string | null
+  /** Its "Add to calendar" file. */
+  icsUrl?: string
+  /** Visitors can RSVP on its page. */
+  rsvp?: boolean
+}
+
+export interface CanvasEventsQuery {
+  limit: number
+  /** Overlapping this window, as ISO 8601. Without one: what's coming up, or `past`. */
+  from?: string
+  to?: string
+  past?: boolean
+}
+
+export interface CanvasEventList {
+  events: CanvasEventItem[]
+  /** The site's time zone, which every time is shown in. */
+  timeZone: string
+  /** The site's calendar subscription address. */
+  feedUrl?: string
 }
 
 export interface CanvasPostsQuery {
@@ -47,7 +69,7 @@ export interface CanvasPageRequest {
  */
 export interface CanvasHost {
   listPosts(query: CanvasPostsQuery): Promise<CanvasPostItem[]>
-  listEvents(limit: number): Promise<CanvasEventItem[]>
+  listEvents(query: CanvasEventsQuery): Promise<CanvasEventList>
   /** Alternative wordings of `text` for the inline AI menu. */
   improveText(text: string, instruction: AiInstruction): Promise<string[]>
   /** A whole Canvas page from a description (the editor's "Generate with AI"). */

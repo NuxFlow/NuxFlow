@@ -19,7 +19,12 @@ export const publishScheduled = async (cloudflare?: ScheduledCloudflareContext) 
 
   const where = and(
     eq(contentItems.status, 'scheduled'),
-    lte(contentItems.scheduledAt, sql`(datetime('now'))`),
+    // Dates are compared as text, and scheduled_at holds ISO 8601 ("…T09:00:00.000Z") where
+    // datetime('now') gives "… 09:00:00". Compared directly, the "T" sorts after the space,
+    // so nothing published until the next UTC day. The first test keeps the partial index
+    // in use; the second is the exact one, whichever way the stored date is written.
+    lte(contentItems.scheduledAt, sql`strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`),
+    sql`datetime(${contentItems.scheduledAt}) <= datetime('now')`,
     // A suspended site is closed by the operator — nothing on it changes until it's
     // reactivated, at which point anything overdue publishes on the next tick. A site being
     // moved between pools (utils/site-move.ts) waits too, so a post goes out once, from

@@ -1,15 +1,19 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import type { SpacingValue } from '../types'
 import { safeHref } from '../utils/sanitize-html'
 import { spacingToCss } from '../utils/spacing'
+import { addDays, eventDays, formatEventWhen, eventDay, todayIn } from '../utils/event-dates'
 import { useCanvasHost, type CanvasEventItem } from '../host'
 
 const props = withDefaults(defineProps<{
   title?: string
   description?: string
   displayMode?: 'list' | 'month'
+  /** List view only: what's coming up, or what has finished. */
+  timeframe?: 'upcoming' | 'past'
   limit?: number
+  showSubscribe?: boolean
   bgColor?: string
   textColor?: string
   padding?: SpacingValue
@@ -17,7 +21,9 @@ const props = withDefaults(defineProps<{
   title: 'Upcoming Events',
   description: 'Join us at our upcoming meetups, webinars, and workshops.',
   displayMode: 'list',
+  timeframe: 'upcoming',
   limit: 10,
+  showSubscribe: true,
   bgColor: undefined,
   textColor: undefined,
   padding: undefined,
@@ -32,107 +38,97 @@ const containerStyle = computed(() => {
   }
 })
 
-type CalendarEvent = CanvasEventItem
 const host = useCanvasHost()
 
-// Fetch events
-const events = ref<CalendarEvent[]>([])
+const events = ref<CanvasEventItem[]>([])
+const timeZone = ref('UTC')
+const feedUrl = ref<string | undefined>()
 const loading = ref(true)
 
+// Most events one month of the grid asks for.
+const MONTH_LIMIT = 100
+
+const now = new Date()
+const currentYear = ref(now.getFullYear())
+const currentMonth = ref(now.getMonth())
+const selectedDate = ref<string | null>(null)
+
+const monthPrefix = computed(() => `${currentYear.value}-${String(currentMonth.value + 1).padStart(2, '0')}`)
+
 async function loadEvents() {
+  loading.value = true
   try {
-    events.value = await host.listEvents(props.limit)
-  } catch (err) {
+    let query: Parameters<typeof host.listEvents>[0]
+    if (props.displayMode === 'month') {
+      // A day either side covers every time zone; each event then lands on its own dates.
+      const lastDay = new Date(currentYear.value, currentMonth.value + 1, 0).getDate()
+      query = {
+        limit: MONTH_LIMIT,
+        from: `${addDays(`${monthPrefix.value}-01`, -1)}T00:00:00.000Z`,
+        to: `${addDays(`${monthPrefix.value}-${String(lastDay).padStart(2, '0')}`, 1)}T23:59:59.999Z`,
+      }
+    }
+    else {
+      query = { limit: props.limit, past: props.timeframe === 'past' }
+    }
+    const result = await host.listEvents(query)
+    events.value = result.events
+    timeZone.value = result.timeZone
+    feedUrl.value = result.feedUrl
+  }
+  catch (err) {
     console.error('Failed to load events:', err)
-  } finally {
+  }
+  finally {
     loading.value = false
   }
 }
 
-onMounted(() => {
-  loadEvents()
-})
+onMounted(loadEvents)
+watch(() => [props.displayMode, props.timeframe, props.limit, monthPrefix.value], loadEvents)
 
-// Date Formatting Helpers
-function formatDate(dateStr: string, allDay: boolean) {
-  const options: Intl.DateTimeFormatOptions = {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  }
-  if (!allDay) {
-    options.hour = '2-digit'
-    options.minute = '2-digit'
-  }
-  return new Date(dateStr).toLocaleDateString('en-US', options)
+function when(event: CanvasEventItem) {
+  return formatEventWhen(event, timeZone.value)
 }
 
-function getEventDay(dateStr: string) {
-  return new Date(dateStr).getDate()
+function dayOf(event: CanvasEventItem) {
+  return eventDay(event.eventStartAt, event.eventAllDay, timeZone.value)
 }
 
-function getEventMonth(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short' })
+function getEventDay(event: CanvasEventItem) {
+  return Number(dayOf(event).slice(8, 10))
 }
 
-// RFC 5545 §3.3.11 TEXT escaping for SUMMARY/DESCRIPTION/LOCATION values. Order matters:
-// backslash must be escaped first, or the backslashes inserted by the later replacements
-// would themselves get escaped again. Duplicated (not imported) from the sibling
-// server-side implementation in apps/nuxflow/server/routes/events.ics.ts — the canvas
-// package and the app are separate packages with no shared utility module for this.
-function escapeIcsText(text: string): string {
-  return text
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\n/g, '\\n')
+function getEventMonth(event: CanvasEventItem) {
+  return new Date(`${dayOf(event)}T00:00:00.000Z`).toLocaleDateString(undefined, { month: 'short', timeZone: 'UTC' })
 }
 
-// Client-Side iCal (.ics) Generator
-function downloadIcal(event: CalendarEvent) {
-  const cleanStamp = (dStr: string) => dStr.replace(/[-:]/g, '').split('.')[0] + 'Z'
-  const start = cleanStamp(event.eventStartAt)
-  const end = event.eventEndAt ? cleanStamp(event.eventEndAt) : start
-  const icsLines = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//NuxFlow//NuxFlow Events//EN',
-    'BEGIN:VEVENT',
-    `UID:${event.id}@nuxflow`,
-    `DTSTAMP:${cleanStamp(new Date().toISOString())}`,
-    `DTSTART:${start}`,
-    `DTEND:${end}`,
-    `SUMMARY:${escapeIcsText(event.title)}`,
-  ]
-  if (event.excerpt) icsLines.push(`DESCRIPTION:${escapeIcsText(event.excerpt)}`)
-  if (event.eventLocation) icsLines.push(`LOCATION:${escapeIcsText(event.eventLocation)}`)
-  if (event.eventUrl) icsLines.push(`URL:${event.eventUrl}`)
-  icsLines.push('END:VEVENT', 'END:VCALENDAR')
-
-  const blob = new Blob([icsLines.join('\r\n')], { type: 'text/calendar;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `${event.slug || 'event'}.ics`
-  link.click()
-  URL.revokeObjectURL(url)
-}
+// webcal:// opens the visitor's calendar app and offers to subscribe.
+const subscribeUrl = computed(() => (feedUrl.value && props.showSubscribe ? `webcal://${window.location.host}${feedUrl.value}` : null))
 
 // ── Calendar Month View State & Logic ──────────────────────────────────────────
-const today = new Date()
-const currentYear = ref(today.getFullYear())
-const currentMonth = ref(today.getMonth())
-const selectedDate = ref<string | null>(null)
 
 const monthLabel = computed(() =>
-  new Date(currentYear.value, currentMonth.value, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+  new Date(currentYear.value, currentMonth.value, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
 )
+
+const weekdays = computed(() => {
+  // 2023-01-01 was a Sunday.
+  return Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(2023, 0, 1 + i)).toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' }).slice(0, 2))
+})
+
+const daysWithEvents = computed(() => {
+  const days = new Set<string>()
+  for (const event of events.value) for (const day of eventDays(event, timeZone.value)) days.add(day)
+  return days
+})
 
 const calendarDays = computed(() => {
   const year = currentYear.value
   const month = currentMonth.value
   const firstDow = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const today = todayIn(timeZone.value)
 
   const cells: Array<{ date: string | null; day: number | null; isToday: boolean; hasEvents: boolean }> = []
 
@@ -141,30 +137,33 @@ const calendarDays = computed(() => {
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    const isT = dateStr === today.toISOString().substring(0, 10)
-    const hasEv = events.value.some(e => e.eventStartAt && e.eventStartAt.startsWith(dateStr))
-    cells.push({ date: dateStr, day: d, isToday: isT, hasEvents: hasEv })
+    const dateStr = `${monthPrefix.value}-${String(d).padStart(2, '0')}`
+    cells.push({ date: dateStr, day: d, isToday: dateStr === today, hasEvents: daysWithEvents.value.has(dateStr) })
   }
 
   return cells
 })
 
 function prevMonth() {
+  selectedDate.value = null
   if (currentMonth.value === 0) { currentYear.value--; currentMonth.value = 11 }
   else currentMonth.value--
 }
 
 function nextMonth() {
+  selectedDate.value = null
   if (currentMonth.value === 11) { currentYear.value++; currentMonth.value = 0 }
   else currentMonth.value++
 }
 
-const activeEvents = computed(() => {
-  if (props.displayMode === 'list') return events.value
-  if (!selectedDate.value) return events.value
-  return events.value.filter(e => e.eventStartAt && e.eventStartAt.startsWith(selectedDate.value!))
+const monthEvents = computed(() => {
+  const inView = (day: string) => (selectedDate.value ? day === selectedDate.value : day.startsWith(monthPrefix.value))
+  return events.value.filter(e => eventDays(e, timeZone.value).some(inView))
 })
+
+const selectedLabel = computed(() => selectedDate.value
+  ? new Date(`${selectedDate.value}T00:00:00.000Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'long', timeZone: 'UTC' })
+  : '')
 </script>
 
 <template>
@@ -176,86 +175,99 @@ const activeEvents = computed(() => {
         <p v-if="description" class="text-lg text-gray-500 dark:text-gray-400 max-w-2xl mx-auto whitespace-pre-wrap">{{ description }}</p>
       </div>
 
-      <!-- Loading State -->
-      <div v-if="loading" class="flex justify-center py-12">
-        <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary-500 border-t-transparent"/>
-      </div>
-
-      <!-- Empty State -->
-      <div v-else-if="events.length === 0" class="text-center py-12 bg-gray-50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.08] rounded-2xl">
-        <span class="text-3xl">📅</span>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">No upcoming events scheduled at this time.</p>
-      </div>
-
-      <div v-else>
-        <!-- 📅 DISPLAY MODE: MONTH GRID -->
-        <div v-if="displayMode === 'month'" class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start mb-8">
-          <!-- Calendar Month UI -->
-          <div class="lg:col-span-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-              <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ monthLabel }}</span>
-              <div class="flex gap-1">
-                <button class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors" aria-label="Previous Month" @click="prevMonth">
-                  <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                </button>
-                <button class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors" aria-label="Next Month" @click="nextMonth">
-                  <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                </button>
-              </div>
+      <!-- 📅 DISPLAY MODE: MONTH GRID — stays on screen while another month loads. -->
+      <div v-if="displayMode === 'month'" class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start mb-8">
+        <!-- Calendar Month UI -->
+        <div class="lg:col-span-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ monthLabel }}</span>
+            <div class="flex gap-1">
+              <button class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors" aria-label="Previous Month" @click="prevMonth">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+              </button>
+              <button class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors" aria-label="Next Month" @click="nextMonth">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </button>
             </div>
+          </div>
 
-            <div class="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
-              <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
-            </div>
+          <div class="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+            <div v-for="weekday in weekdays" :key="weekday">{{ weekday }}</div>
+          </div>
 
-            <div class="grid grid-cols-7 gap-1">
-              <div
-                v-for="(cell, idx) in calendarDays"
-                :key="idx"
-                class="aspect-square flex flex-col items-center justify-center rounded-lg text-sm transition-all relative"
+          <div class="grid grid-cols-7 gap-1">
+            <template v-for="(cell, idx) in calendarDays" :key="idx">
+              <button
+                v-if="cell.date"
+                type="button"
+                class="aspect-square flex flex-col items-center justify-center rounded-lg text-sm transition-all relative cursor-pointer"
                 :class="[
-                  cell.date ? 'cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-950/20' : '',
                   selectedDate === cell.date ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-950/30' : '',
-                  cell.isToday ? 'bg-primary-500 text-white font-bold hover:bg-primary-600' : 'text-gray-700 dark:text-gray-300'
+                  cell.isToday ? 'bg-primary-500 text-white font-bold hover:bg-primary-600' : 'text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-primary-950/20',
                 ]"
-                @click="cell.date && (selectedDate = selectedDate === cell.date ? null : cell.date)"
+                :aria-pressed="selectedDate === cell.date"
+                :aria-label="cell.hasEvents ? `${cell.date}, has events` : cell.date"
+                @click="selectedDate = selectedDate === cell.date ? null : cell.date"
               >
-                <span v-if="cell.day">{{ cell.day }}</span>
-                <span v-if="cell.hasEvents && !cell.isToday" class="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary-500"/>
-              </div>
-            </div>
+                <span>{{ cell.day }}</span>
+                <span v-if="cell.hasEvents" class="absolute bottom-1 w-1.5 h-1.5 rounded-full" :class="cell.isToday ? 'bg-white' : 'bg-primary-500'"/>
+              </button>
+              <div v-else class="aspect-square"/>
+            </template>
           </div>
+        </div>
 
-          <!-- Highlighted Events List -->
-          <div class="space-y-4">
-            <h3 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-              {{ selectedDate ? `Events for ${selectedDate}` : 'All Events' }}
-            </h3>
-            <div v-if="activeEvents.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
-              No events scheduled on this date. Select another date.
-            </div>
-            <div
-              v-for="event in activeEvents"
-              :key="event.id"
-              class="border border-gray-100 dark:border-white/[0.08] bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm rounded-xl p-4 shadow-sm hover:border-primary-500/50 transition-colors"
-            >
-              <h4 class="font-bold text-gray-900 dark:text-white">{{ event.title }}</h4>
-              <p class="text-xs text-primary-500 font-semibold mt-1">
-                {{ formatDate(event.eventStartAt, !!event.eventAllDay) }}
-              </p>
-              <p v-if="event.eventLocation" class="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
-                📍 {{ event.eventLocation }}
-              </p>
-              <div class="mt-3 flex gap-2">
-                <button class="text-[11px] font-semibold text-gray-600 dark:text-gray-400 hover:text-primary-500 cursor-pointer flex items-center gap-1" @click="downloadIcal(event)">
-                  📅 Add to Calendar
-                </button>
-                <a v-if="event.eventUrl" :href="safeHref(event.eventUrl)" target="_blank" class="text-[11px] font-semibold text-primary-500 hover:underline">
-                  Register →
-                </a>
-              </div>
+        <!-- Highlighted Events List -->
+        <div class="space-y-4">
+          <h3 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+            {{ selectedDate ? `Events on ${selectedLabel}` : `Events in ${monthLabel}` }}
+          </h3>
+          <div v-if="loading" class="flex justify-center py-6">
+            <div class="animate-spin rounded-full h-6 w-6 border-2 border-primary-500 border-t-transparent"/>
+          </div>
+          <div v-else-if="monthEvents.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
+            {{ selectedDate ? 'No events on this date.' : 'No events this month.' }}
+          </div>
+          <div
+            v-for="event in loading ? [] : monthEvents"
+            :key="event.id"
+            class="border border-gray-100 dark:border-white/[0.08] bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm rounded-xl p-4 shadow-sm hover:border-primary-500/50 transition-colors"
+          >
+            <h4 class="font-bold text-gray-900 dark:text-white">
+              <a v-if="event.path" :href="event.path" class="hover:text-primary-500">{{ event.title }}</a>
+              <template v-else>{{ event.title }}</template>
+            </h4>
+            <p class="text-xs text-primary-500 font-semibold mt-1">{{ when(event) }}</p>
+            <p v-if="event.eventLocation" class="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+              📍 {{ event.eventLocation }}
+            </p>
+            <div class="mt-3 flex gap-3">
+              <a v-if="event.icsUrl" :href="event.icsUrl" class="text-[11px] font-semibold text-gray-600 dark:text-gray-400 hover:text-primary-500 flex items-center gap-1">
+                📅 Add to Calendar
+              </a>
+              <a v-if="event.rsvp && event.path" :href="event.path" class="text-[11px] font-semibold text-primary-500 hover:underline">
+                RSVP →
+              </a>
+              <a v-else-if="event.eventUrl" :href="safeHref(event.eventUrl)" target="_blank" rel="noopener" class="text-[11px] font-semibold text-primary-500 hover:underline">
+                Register →
+              </a>
             </div>
           </div>
+        </div>
+      </div>
+
+      <template v-else>
+        <!-- Loading State -->
+        <div v-if="loading" class="flex justify-center py-12">
+          <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary-500 border-t-transparent"/>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else-if="events.length === 0" class="text-center py-12 bg-gray-50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.08] rounded-2xl">
+          <span class="text-3xl">📅</span>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            {{ timeframe === 'past' ? 'No past events yet.' : 'No upcoming events scheduled at this time.' }}
+          </p>
         </div>
 
         <!-- 📝 DISPLAY MODE: LIST VIEW -->
@@ -267,43 +279,56 @@ const activeEvents = computed(() => {
           >
             <!-- Date Box -->
             <div class="flex sm:flex-col items-center justify-center bg-primary-50 dark:bg-primary-950/30 border border-primary-100/50 dark:border-primary-900/30 rounded-xl px-4 py-3 sm:w-20 text-center flex-shrink-0">
-              <span class="text-2xl font-black text-primary-600 dark:text-primary-400">{{ getEventDay(event.eventStartAt) }}</span>
-              <span class="text-xs font-bold text-primary-500 uppercase tracking-widest sm:mt-1 ml-2 sm:ml-0">{{ getEventMonth(event.eventStartAt) }}</span>
+              <span class="text-2xl font-black text-primary-600 dark:text-primary-400">{{ getEventDay(event) }}</span>
+              <span class="text-xs font-bold text-primary-500 uppercase tracking-widest sm:mt-1 ml-2 sm:ml-0">{{ getEventMonth(event) }}</span>
             </div>
 
             <!-- Event Details -->
             <div class="flex-1 space-y-2">
-              <h3 class="text-xl font-bold text-gray-900 dark:text-white leading-snug">{{ event.title }}</h3>
+              <h3 class="text-xl font-bold text-gray-900 dark:text-white leading-snug">
+                <a v-if="event.path" :href="event.path" class="hover:text-primary-500">{{ event.title }}</a>
+                <template v-else>{{ event.title }}</template>
+              </h3>
               <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 flex flex-wrap items-center gap-3">
-                <span class="flex items-center gap-1">
-                  🕒 {{ formatDate(event.eventStartAt, !!event.eventAllDay) }}
-                </span>
-                <span v-if="event.eventLocation" class="flex items-center gap-1">
-                  📍 {{ event.eventLocation }}
-                </span>
+                <span class="flex items-center gap-1">🕒 {{ when(event) }}</span>
+                <span v-if="event.eventLocation" class="flex items-center gap-1">📍 {{ event.eventLocation }}</span>
               </p>
               <p v-if="event.excerpt" class="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{{ event.excerpt }}</p>
-              
-              <div class="pt-2 flex items-center gap-4">
-                <button
-                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-primary-500 transition-colors cursor-pointer select-none"
-                  @click="downloadIcal(event)"
+
+              <div v-if="timeframe !== 'past'" class="pt-2 flex items-center gap-4">
+                <a
+                  v-if="event.icsUrl"
+                  :href="event.icsUrl"
+                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-primary-500 transition-colors select-none"
                 >
                   📅 Add to Calendar
-                </button>
+                </a>
                 <a
-                  v-if="event.eventUrl"
+                  v-if="event.rsvp && event.path"
+                  :href="event.path"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-xs font-semibold text-white hover:bg-primary-600 transition-colors select-none"
+                >
+                  RSVP
+                </a>
+                <a
+                  v-else-if="event.eventUrl"
                   :href="safeHref(event.eventUrl)"
                   target="_blank"
-                  class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-xs font-semibold text-white hover:bg-primary-600 transition-colors cursor-pointer select-none"
+                  rel="noopener"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-xs font-semibold text-white hover:bg-primary-600 transition-colors select-none"
                 >
-                  Register / RSVP
+                  Register
                 </a>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </template>
+
+      <!-- Subscribe to every event in a calendar app -->
+      <p v-if="subscribeUrl && !loading" class="mt-8 text-center text-sm">
+        <a :href="subscribeUrl" class="font-semibold text-primary-500 hover:underline">Subscribe to this calendar</a>
+      </p>
     </div>
   </section>
 </template>

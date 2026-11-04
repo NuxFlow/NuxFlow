@@ -21,6 +21,9 @@ import { queueContentHook } from '../../../utils/plugin-hooks'
 import { PAGE_PASSWORD_MAX_LENGTH, resolvePageSettings } from '../../../utils/page-password'
 import type { BatchItem } from 'drizzle-orm/batch'
 import { requireSiteId } from '../../../utils/site-context'
+import { getSiteInfo } from '../../../utils/site-info'
+import { checkContentDates, contentDateFields } from '../../../utils/content-dates'
+import { promoteWaitlist } from '../../../utils/event-rsvp'
 
 const bodySchema = z.object({
   title: z.string().min(1).max(500).optional(),
@@ -32,18 +35,13 @@ const bodySchema = z.object({
   canonicalUrl: z.string().max(2048).nullish(),
   focusKeyword: z.string().max(200).nullish(),
   metaRobots: z.enum(['index,follow', 'noindex,follow', 'noindex,nofollow', 'index,nofollow']).nullish(),
-  scheduledAt: z.string().datetime().nullish(),
   settings: z.record(z.string(), z.unknown()).optional(),
   excerpt: z.string().max(2000).nullish(),
   ogImage: z.string().max(2048).nullish(),
   allowComments: z.boolean().nullable().optional(),
   locale: z.string().max(10).optional(),
   sourceItemId: z.string().nullable().optional(),
-  eventStartAt: z.string().nullable().optional(),
-  eventEndAt: z.string().nullable().optional(),
-  eventLocation: z.string().max(500).nullable().optional(),
-  eventUrl: z.string().max(2048).nullable().optional(),
-  eventAllDay: z.boolean().nullable().optional(),
+  ...contentDateFields,
   // Replaces the item's whole taxonomy-term set when present (the editor sends it with
   // every save, so tagging follows the same save/autosave flow as every other field).
   termIds: z.array(z.string()).max(200).optional(),
@@ -80,6 +78,12 @@ export default defineEventHandler(async (event) => {
   }
 
   const { expectedVersion, termIds: requestedTermIds, pagePassword, ...updateFields } = body
+
+  const site = await getSiteInfo(event, siteId)
+  const dateCheck = await checkContentDates(db, siteId, updateFields, { existing, sourceItemId: updateFields.sourceItemId, timeZone: site?.timezone || 'UTC' })
+  if (dateCheck.problem !== undefined) throw validationError(dateCheck.problem)
+  Object.assign(updateFields, dateCheck.dates)
+
   // The editor sends settings without the hash (GET never returns it): keep the stored
   // hash, hash a new password, or refuse a password page that has none.
   if (updateFields.settings !== undefined || pagePassword) {
@@ -252,6 +256,11 @@ export default defineEventHandler(async (event) => {
   // or a forwarded video address would get round the page's gate.
   if (contentChanged || visibilityChanged) {
     await makePageVideosPrivate(event, siteId, { content: updateFields.content !== undefined ? updateFields.content : existing.content, visibility: nextVisibility })
+  }
+
+  // More places (or RSVPs switched on) can let people in off the waitlist.
+  if (changedFields.has('eventRsvpCapacity') || changedFields.has('eventRsvpEnabled')) {
+    waitUntil(event, promoteWaitlist(event, id).catch(err => console.error('[event-rsvp] Waitlist update failed:', err)))
   }
 
   // Plugins granted content hooks hear about public items going live, changing, or leaving.

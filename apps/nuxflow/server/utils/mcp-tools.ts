@@ -16,6 +16,8 @@ import { waitUntil } from './cf-env'
 import { itemPublicPath } from './public-page'
 import { queueContentHook } from './plugin-hooks'
 import { queueContentPublishedPush } from './push-content'
+import { checkContentDates, contentDateFields } from './content-dates'
+import { getSiteInfo } from './site-info'
 import { contentSlugProblem, getContentTermIds, getPublicItemTerms, getTaxonomyContentTypeSlugs, getTermRefsWithAncestors, replaceContentTermsStatements } from './taxonomy'
 
 // Tool implementations for the MCP server (server/api/v1/mcp.ts). Extracted out of that
@@ -73,6 +75,7 @@ const createContentArgsSchema = z.object({
   content: z.unknown().optional(),
   type: z.string().optional(),
   status: CONTENT_STATUS.optional(),
+  ...contentDateFields,
 })
 
 const updateContentArgsSchema = z.object({
@@ -81,6 +84,7 @@ const updateContentArgsSchema = z.object({
   slug: z.string().min(1).max(500).optional(),
   content: z.unknown().optional(),
   status: CONTENT_STATUS.optional(),
+  ...contentDateFields,
 })
 
 const deleteContentArgsSchema = z.object({
@@ -102,6 +106,19 @@ const setContentTermsArgsSchema = z.object({
   terms: z.array(z.string().regex(/^[^/]+\/[^/]+$/, 'Each term must be "taxonomySlug/termSlug"')).max(200),
 })
 
+// Advertised on create_content and update_content, alongside contentDateFields above.
+const DATE_INPUT_PROPERTIES = {
+  scheduledAt: { type: 'string', description: 'When to publish, as ISO 8601 with a time zone (e.g. "2027-07-15T17:00:00Z"). Required when status is "scheduled".' },
+  eventStartAt: { type: 'string', description: 'Events: when it starts, as ISO 8601 with a time zone. Required to publish an event. For an all-day event, use the date at midnight UTC.' },
+  eventEndAt: { type: 'string', description: 'Events: when it ends, as ISO 8601 with a time zone. For an all-day event, the last day at midnight UTC.' },
+  eventAllDay: { type: 'boolean', description: 'Events: true for an all-day event' },
+  eventLocation: { type: 'string', description: 'Events: the venue or address, or "Online"' },
+  eventUrl: { type: 'string', description: 'Events: an external registration or joining link (https://)' },
+  eventRsvpEnabled: { type: 'boolean', description: 'Events: let visitors RSVP on the event page' },
+  eventRsvpCapacity: { type: 'number', description: 'Events: places available; further RSVPs join a waitlist. Leave out for unlimited.' },
+  eventRsvpClosesAt: { type: 'string', description: 'Events: when RSVPs close, as ISO 8601 with a time zone. Leave out to close when the event starts.' },
+}
+
 interface McpToolDefinition {
   description: string
   scope: ApiKeyScope
@@ -114,12 +131,12 @@ interface McpToolDefinition {
 // comment above).
 export const MCP_TOOLS: Record<string, McpToolDefinition> = {
   list_content: {
-    description: 'List pages or posts in the NuxFlow CMS.',
+    description: 'List pages, posts or events in the NuxFlow CMS.',
     scope: 'read:content',
     inputSchema: {
       type: 'object',
       properties: {
-        type: { type: 'string', enum: ['page', 'post'], description: 'Filter by content type slug (default: page)' },
+        type: { type: 'string', enum: ['page', 'post', 'event'], description: 'Filter by content type slug (default: page)' },
         status: { type: 'string', enum: ['draft', 'review', 'published', 'scheduled', 'archived'], description: 'Filter by publish status' },
         limit: { type: 'number', description: 'Maximum number of items to return (default: 20)' },
       },
@@ -137,7 +154,7 @@ export const MCP_TOOLS: Record<string, McpToolDefinition> = {
     },
   },
   create_content: {
-    description: 'Create a new page or post in NuxFlow.',
+    description: 'Create a new page, post or event in NuxFlow.',
     scope: 'write:content',
     inputSchema: {
       type: 'object',
@@ -145,14 +162,15 @@ export const MCP_TOOLS: Record<string, McpToolDefinition> = {
         title: { type: 'string', description: 'The title of the page' },
         slug: { type: 'string', description: 'The URL slug for the page' },
         content: { type: 'string', description: 'The text or HTML content' },
-        type: { type: 'string', enum: ['page', 'post'], description: 'The content type slug (default: page)' },
-        status: { type: 'string', enum: ['draft', 'published'], description: 'The status (default: draft)' },
+        type: { type: 'string', enum: ['page', 'post', 'event'], description: 'The content type slug (default: page)' },
+        status: { type: 'string', enum: ['draft', 'published', 'scheduled'], description: 'The status (default: draft)' },
+        ...DATE_INPUT_PROPERTIES,
       },
       required: ['title', 'slug'],
     },
   },
   update_content: {
-    description: 'Update the title, content, or status of an existing page or post.',
+    description: 'Update the title, content, status or dates of an existing page, post or event.',
     scope: 'write:content',
     inputSchema: {
       type: 'object',
@@ -162,6 +180,7 @@ export const MCP_TOOLS: Record<string, McpToolDefinition> = {
         slug: { type: 'string', description: 'The new slug' },
         content: { type: 'string', description: 'The new content text or HTML' },
         status: { type: 'string', enum: ['draft', 'review', 'published', 'scheduled', 'archived'], description: 'The new status' },
+        ...DATE_INPUT_PROPERTIES,
       },
       required: ['id'],
     },
@@ -338,6 +357,10 @@ async function createContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   const slugProblem = await contentSlugProblem(ctx.db, ctx.siteId, slugVal)
   if (slugProblem) return textResult(`Error: ${slugProblem}.`)
 
+  const site = await getSiteInfo(ctx.event, ctx.siteId)
+  const dateCheck = await checkContentDates(ctx.db, ctx.siteId, { ...parsed.data, status: statusVal }, { existing: null, typeSlug, timeZone: site?.timezone || 'UTC' })
+  if (dateCheck.problem !== undefined) return textResult(`Error: ${dateCheck.problem}`)
+
   const room = await checkPlanLimit(ctx.db, ctx.siteId, 'content')
   if (!room.allowed) return textResult(`Error: ${planLimitMessage('content', room.max ?? 0)}`)
 
@@ -352,6 +375,15 @@ async function createContent(args: unknown, ctx: McpToolContext): Promise<McpToo
     status: statusVal,
     content: contentVal,
     publishedAt: statusVal === 'published' ? new Date().toISOString() : null,
+    scheduledAt: parsed.data.scheduledAt ?? null,
+    eventStartAt: dateCheck.dates.eventStartAt ?? null,
+    eventEndAt: dateCheck.dates.eventEndAt ?? null,
+    eventAllDay: parsed.data.eventAllDay ?? null,
+    eventLocation: parsed.data.eventLocation ?? null,
+    eventUrl: parsed.data.eventUrl ?? null,
+    eventRsvpEnabled: parsed.data.eventRsvpEnabled ?? null,
+    eventRsvpCapacity: parsed.data.eventRsvpCapacity ?? null,
+    eventRsvpClosesAt: parsed.data.eventRsvpClosesAt ?? null,
   })
 
   await writeAuditLog(ctx.event, ctx.apiKeyUserId, {
@@ -405,6 +437,15 @@ async function updateContent(args: unknown, ctx: McpToolContext): Promise<McpToo
     if (parsedUpdate.data.status === 'published' && !existing.publishedAt) {
       updates.publishedAt = new Date().toISOString()
     }
+  }
+
+  const site = await getSiteInfo(ctx.event, ctx.siteId)
+  const dateCheck = await checkContentDates(ctx.db, ctx.siteId, parsedUpdate.data, { existing, timeZone: site?.timezone || 'UTC' })
+  if (dateCheck.problem !== undefined) return textResult(`Error: ${dateCheck.problem}`)
+  const { scheduledAt, eventAllDay, eventLocation, eventUrl, eventRsvpEnabled, eventRsvpCapacity, eventRsvpClosesAt } = parsedUpdate.data
+  Object.assign(updates, dateCheck.dates)
+  for (const [key, value] of Object.entries({ scheduledAt, eventAllDay, eventLocation, eventUrl, eventRsvpEnabled, eventRsvpCapacity, eventRsvpClosesAt })) {
+    if (value !== undefined) Object.assign(updates, { [key]: value })
   }
 
   await ctx.db.update(contentItems)

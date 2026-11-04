@@ -20,7 +20,7 @@ async function buildPayload(event: H3Event, siteId: string) {
   const db = useDb(event)
   const site = await db.query.sites.findFirst({
     where: eq(sites.id, siteId),
-    columns: { name: true, domain: true, locale: true },
+    columns: { name: true, domain: true, locale: true, timezone: true },
   })
   if (!site) notFound()
 

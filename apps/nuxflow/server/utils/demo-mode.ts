@@ -55,6 +55,8 @@ const BLOCKED_WRITE_PREFIXES = [
   '/api/v1/import/',
   '/api/v1/media/video',
   '/api/public/auth/register',
+  // RSVPs send email to whatever address is typed in.
+  '/api/public/rsvp',
   // The demo is seeded by demo-reset.ts; the first visitor to a fresh database must not
   // be able to run the setup wizard and make themselves super admin.
   '/api/v1/setup/complete',

@@ -11,6 +11,7 @@ import { checkContentAccess } from '../../../utils/content-access'
 import { requireSiteId } from '../../../utils/site-context'
 import { markPrivateVideos } from '../../../utils/stream'
 import { describePageVideos, hasVideoBlocks } from '../../../utils/video-seo'
+import { eventIcsPath } from '../../../utils/event-feed'
 
 type ContentItemRow = typeof contentItems.$inferSelect
 
@@ -117,10 +118,10 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
             eq(contentItems.siteId, siteId),
             eq(contentItems.status, 'published'),
           ),
-          columns: { locale: true, slug: true },
+          columns: { locale: true, slug: true, eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, eventRsvpEnabled: true },
         })
       : Promise.resolve(null),
-    db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true } }),
+    db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true, timezone: true } }),
     getSeoSettings(db, siteId),
     getPublicItemTerms(db, siteId, page.id),
     hasVideo ? markPrivateVideos(db, siteId, page.content) : Promise.resolve(page.content),
@@ -192,6 +193,11 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
       }))
     : []
 
+  // An older translation has no event details of its own, so it shows its original's. RSVPs
+  // are always the original's list, however many languages the event is in.
+  const eventSource = page.eventStartAt ? page : sourcePageResolved
+  const rsvpSource = sourcePageResolved ?? page
+
   return {
     id: page.id,
     title: page.title,
@@ -212,13 +218,17 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
     publishedAt: page.publishedAt,
     updatedAt: page.updatedAt,
     type: type ? { slug: type.slug, name: type.singularName || type.name } : null,
-    event: page.eventStartAt
+    event: eventSource?.eventStartAt
       ? {
-          startAt: page.eventStartAt,
-          endAt: page.eventEndAt,
-          allDay: page.eventAllDay,
-          location: page.eventLocation,
-          url: page.eventUrl,
+          startAt: eventSource.eventStartAt,
+          endAt: eventSource.eventEndAt,
+          allDay: eventSource.eventAllDay,
+          location: eventSource.eventLocation,
+          url: eventSource.eventUrl,
+          timeZone: site?.timezone || 'UTC',
+          rsvp: Boolean(rsvpSource.eventRsvpEnabled),
+          // The calendar file is public, so it's only offered for a public event.
+          icsUrl: page.visibility === 'public' ? eventIcsPath(page.sourceItemId ?? page.id) : null,
         }
       : null,
     hasComments,

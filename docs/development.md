@@ -494,9 +494,13 @@ Don't include `seo.indexnow_key`, since each site generates its own when IndexNo
   - `eventLocation` (text)
   - `eventUrl` (text)
   - `eventAllDay` (boolean flag)
+  - `eventRsvpEnabled`, `eventRsvpCapacity`, `eventRsvpClosesAt`
+- **Date format:** a timed event is a UTC instant, entered and shown in the site's time zone. An all-day event is its date at midnight UTC and is never converted between zones; its end is the last day, inclusive. All conversion is in `@nuxflow/canvas/events` (`packages/canvas/src/utils/event-dates.ts`), shared by the server, admin and block.
+- **Attendees:** the `event_rsvps` table and `server/utils/event-rsvp.ts`.
 - **Database Indexes:** Query ranges are optimized using the composite index `idx_content_items_event_start` on `(site_id, event_start_at)`.
 - **Public & iCal Feeds:**
   - `GET /api/public/events` returning list responses.
   - `GET /events.ics` returning standards-compliant iCal formatting (`VCALENDAR` and `VEVENT` blocks) for calendar client synchronization.
-- **Events Canvas Block:** The `CanvasBlockCalendar` block supports dynamic client-side `.ics` file generation and download using Blob and File APIs on click events.
+  - `GET /_nuxflow/event-ics/:id` returning one public event's calendar file.
+- **Events Canvas Block:** The `CanvasBlockCalendar` block fetches through `CanvasHost.listEvents()`, a month at a time for the grid, and links to each event's page and calendar file.
 
