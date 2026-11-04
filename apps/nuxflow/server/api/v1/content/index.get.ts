@@ -90,6 +90,7 @@ export default defineEventHandler(async (event) => {
   const where = and(...conditions)
   const columns = {
     id: true, title: true, slug: true, status: true, publishedAt: true, updatedAt: true, authorId: true, version: true, locale: true, sourceItemId: true,
+    eventStartAt: true, eventEndAt: true, eventAllDay: true,
   } as const
 
   if (query.updatedAfter) {

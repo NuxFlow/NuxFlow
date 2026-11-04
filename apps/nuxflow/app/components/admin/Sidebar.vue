@@ -19,6 +19,11 @@ const coreNav = computed(() => ADMIN_NAV.filter(item => !item.hidden && canAcces
 const superAdminNav = computed(() => SUPER_ADMIN_NAV.filter(item => !item.hidden && canAccessNavItem(item, access.value)))
 
 function isActive(to: string) {
+  // Posts and Events are the content list with ?type=, so they light up by that; "Content"
+  // stays lit for everything else under it.
+  const [path, query] = to.split('?')
+  if (query) return route.path === path && route.query.type === new URLSearchParams(query).get('type')
+  if (to === '/admin/content' && route.path === to && (route.query.type === 'post' || route.query.type === 'event')) return false
   return route.path === to || (to !== '/admin' && route.path.startsWith(to))
 }
 </script>

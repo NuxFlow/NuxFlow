@@ -20,6 +20,7 @@ import { sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { requireSiteId } from '../../../utils/site-context'
 import { getSiteInfo } from '../../../utils/site-info'
+import { checkContentDates, contentDateFields } from '../../../utils/content-dates'
 
 const bodySchema = z.object({
   title: z.string().min(1).max(500),
@@ -32,11 +33,7 @@ const bodySchema = z.object({
   settings: z.record(z.string(), z.unknown()).optional(),
   locale: z.string().max(10).optional(),
   sourceItemId: z.string().optional(),
-  eventStartAt: z.string().nullish(),
-  eventEndAt: z.string().nullish(),
-  eventLocation: z.string().max(500).nullish(),
-  eventUrl: z.string().max(2048).nullish(),
-  eventAllDay: z.boolean().nullish(),
+  ...contentDateFields,
   // Taxonomy terms to assign on creation (same rules as PUT /content/:id/terms).
   termIds: z.array(z.string()).max(200).optional(),
   // Write-only password for a password-protected page — see [id].patch.ts.
@@ -74,6 +71,9 @@ export default defineEventHandler(async (event) => {
   const site = await getSiteInfo(event, siteId)
   const siteLocale = site?.locale || 'en'
 
+  const dateCheck = await checkContentDates(db, siteId, body, { existing: null, typeSlug: type.slug, sourceItemId: body.sourceItemId, timeZone: site?.timezone || 'UTC' })
+  if (dateCheck.problem !== undefined) throw validationError(dateCheck.problem)
+
   await assertWithinPlan(event, 'content')
   const id = ulid()
   const itemInsert = db.insert(contentItems).values({
@@ -87,6 +87,7 @@ export default defineEventHandler(async (event) => {
     // Created already-published (e.g. via the API or MCP) — stamp the publish date the
     // same way PATCH does on a first publish; feeds, sitemaps, and JSON-LD rely on it.
     publishedAt: body.status === 'published' ? sql`(datetime('now'))` : null,
+    scheduledAt: body.scheduledAt || null,
     visibility: deriveVisibilityFromSettings(body.settings),
     content: body.content,
     seoTitle: body.seoTitle,
@@ -94,11 +95,14 @@ export default defineEventHandler(async (event) => {
     settings: body.settings,
     locale: body.locale || siteLocale,
     sourceItemId: body.sourceItemId || null,
-    eventStartAt: body.eventStartAt || null,
-    eventEndAt: body.eventEndAt || null,
+    eventStartAt: dateCheck.dates.eventStartAt ?? null,
+    eventEndAt: dateCheck.dates.eventEndAt ?? null,
     eventLocation: body.eventLocation || null,
     eventUrl: body.eventUrl || null,
     eventAllDay: body.eventAllDay || null,
+    eventRsvpEnabled: body.eventRsvpEnabled || null,
+    eventRsvpCapacity: body.eventRsvpCapacity ?? null,
+    eventRsvpClosesAt: body.eventRsvpClosesAt || null,
   })
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'create', resource: 'content_item', resourceId: id })

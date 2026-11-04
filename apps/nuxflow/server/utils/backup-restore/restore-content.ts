@@ -25,6 +25,9 @@ function extraItemFields(item: NuxFlowBackup['content'][number]) {
   if (item.eventAllDay !== undefined) out.eventAllDay = item.eventAllDay
   if (item.eventLocation !== undefined) out.eventLocation = item.eventLocation
   if (item.eventUrl !== undefined) out.eventUrl = item.eventUrl
+  if (item.eventRsvpEnabled !== undefined) out.eventRsvpEnabled = item.eventRsvpEnabled
+  if (item.eventRsvpCapacity !== undefined) out.eventRsvpCapacity = item.eventRsvpCapacity
+  if (item.eventRsvpClosesAt !== undefined) out.eventRsvpClosesAt = item.eventRsvpClosesAt
   return out
 }
 

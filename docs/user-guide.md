@@ -240,22 +240,47 @@ When editing an existing post or page, click the **Translate** button in the top
 Manage conferences, workshops, meetups, and webinars, displaying them on calendars and letting visitors subscribe or RSVP.
 
 ### 1. Creating Events
-NuxFlow includes a built-in `event` content type:
-- In the editor sidebar, fill out the **Event Details** card:
-  - **Start & End Times:** Input the date and time of the event.
-  - **All Day Event Switch:** Toggle if the event spans the full day without specific hours.
-  - **Location / Venue:** Enter address or "Online".
-  - **Registration URL:** Provide an external registration link (e.g. Zoom, Eventbrite, or checkout page).
-- Publish or schedule the event.
+Go to **Events** in the admin menu and select **New event**, or select **+** on a day in the **Calendar**. In the editor sidebar, fill out the **Event Details** card:
+- **Start & End Times:** The date and time of the event, in your site's time zone (**Settings → General**). An event needs a start before it can be published. The end is optional.
+- **All Day Event Switch:** For an event with no set hours. You enter its first and last day instead.
+- **Location / Venue:** An address, or "Online".
+- **Registration URL:** An optional external link (e.g. Zoom, Eventbrite, or a checkout page).
+- **Let visitors RSVP on this page:** See "RSVPs" below.
+
+Then publish or schedule the event. Its page shows visitors when and where it is, with an **Add to calendar** button.
+
+Visitors always see the time in your site's time zone, labelled, so a 6pm event in London reads as 6pm for everyone. Translating an event keeps its details.
+
+### RSVPs
+Switch on **Let visitors RSVP on this page** to show a form on the event's page.
+- **Places available** limits how many can come. Leave it blank for no limit.
+- **RSVPs close** is optional. Otherwise they close when the event starts.
+
+A visitor enters their name, email and how many places they want (up to 10), then gets an email with a link to confirm. A place is only taken once they confirm, so made-up addresses can't fill an event. Every email has a link to cancel.
+
+When an event is full, people join a waitlist. If someone cancels, or you add more places, the person who has waited longest gets the place and an email telling them so.
+
+If your site has no email provider set up, RSVPs take effect straight away, with no email.
+
+To see who is coming, open the event and select **View attendees** (editors and above). From there you can export a CSV, add someone by hand, move or cancel a booking (the person is emailed), and erase someone's details if they ask you to. Attendee lists are personal data that your site holds: mention them in your privacy policy. They aren't included in site backups yet.
 
 ### 2. Events Calendar Block
 To display events on your website:
 - Add the **Events Calendar** block to a Canvas page.
-- Choose between **List view** (displays a timeline of event cards) and **Calendar Grid** (displays a month-grid where clicking dates highlights matching events).
-- Visitors can click **Add to Calendar** on any event card to generate and download a standard `.ics` file instantly to their device.
+- Choose between **List view** (a timeline of event cards, upcoming or past) and **Calendar Grid** (a month grid visitors can page through; selecting a date shows its events).
+- Each event links to its own page. Visitors can select **Add to Calendar** to download a standard `.ics` file.
 
 ### 3. Subscription & Feeds
-- **Calendar Feed:** NuxFlow automatically hosts a standards-compliant iCal feed at `/events.ics`. Visitors can copy this link and paste it into Apple Calendar, Google Calendar, or Outlook to subscribe to your events.
+- **Calendar Feed:** NuxFlow automatically hosts a standards-compliant iCal feed at `/events.ics`. The block's **Subscribe to this calendar** link opens it in the visitor's calendar app, or they can paste the address into Apple Calendar, Google Calendar, or Outlook.
+
+### 4. The Admin Calendar
+**Calendar** in the admin menu shows everything with a date: events, scheduled and published content, and drafts with a planned date. Dates are in your site's time zone.
+- Select **+** on a day to add an event or a post. Choose which, give it a title, and carry on in the editor with the date filled in.
+- Drag an item to another day to move it. Events keep their time and length, and scheduled posts keep their time. Published posts can't be moved, as the date they went out is a fact.
+- **Unscheduled** lists drafts with no date yet. Drag one onto a day to give it a planned date. It isn't published until its status is set to Scheduled.
+- Filter by type or status, switch to the **Agenda** list, and choose whether weeks start on Monday or Sunday.
+
+Dragging needs a mouse or trackpad. On a phone or tablet, change the date in the editor.
 
 ---
 

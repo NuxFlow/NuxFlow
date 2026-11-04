@@ -34,6 +34,10 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Dashboard', to: '/admin', icon: 'i-lucide-layout-dashboard' },
   { label: 'Analytics', to: '/admin/analytics', icon: 'i-lucide-chart-line', minRole: 'editor' },
   { label: 'Content', to: '/admin/content', icon: 'i-lucide-file-text' },
+  { label: 'Posts', to: '/admin/content?type=post', icon: 'i-lucide-newspaper' },
+  { label: 'Events', to: '/admin/content?type=event', icon: 'i-lucide-calendar-check' },
+  // Attendee lists are personal data, reached from an event's editor. Same floor as their API.
+  { label: 'Attendees', to: '/admin/events', icon: 'i-lucide-users', minRole: 'editor', hidden: true },
   { label: 'Generate with AI', to: '/admin/content/generate', icon: 'i-lucide-sparkles', minRole: 'editor' },
   { label: 'Calendar', to: '/admin/calendar', icon: 'i-lucide-calendar-days' },
   { label: 'Taxonomies', to: '/admin/taxonomies', icon: 'i-lucide-tag', minRole: 'editor' },

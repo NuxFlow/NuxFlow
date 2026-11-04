@@ -80,7 +80,7 @@ describe('GET /api/public/events', () => {
     expect(json).not.toContain('MEMBERS-ONLY-BODY')
     const first = (res as { events: Record<string, unknown>[] }).events[0]
     expect(Object.keys(first).sort()).toEqual(
-      ['eventAllDay', 'eventEndAt', 'eventLocation', 'eventStartAt', 'eventUrl', 'excerpt', 'id', 'slug', 'title'],
+      ['eventAllDay', 'eventEndAt', 'eventLocation', 'eventStartAt', 'eventUrl', 'excerpt', 'icsUrl', 'id', 'path', 'rsvp', 'slug', 'title'],
     )
   })
 
@@ -120,7 +120,7 @@ describe('GET /events.ics', () => {
     expect(ics).not.toContain('Foreign event')
 
     // RFC 5545 TEXT escaping
-    expect(ics).toContain('X-WR-CALNAME:Pub, Site; Test Events')
+    expect(ics).toContain('X-WR-CALNAME:Pub\\, Site\\; Test Events')
     expect(ics).toContain('DESCRIPTION:Line 1\\nLine\\, 2\\; ok')
     expect(ics).toContain('LOCATION:Room A\\, Floor 2')
   })

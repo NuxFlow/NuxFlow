@@ -20,6 +20,7 @@ export interface PublicSiteInfo {
   name?: string
   domain?: string
   locale?: string | null
+  timezone?: string | null
   canonicalBase?: string
   logoUrl?: string | null
   locales?: string[]

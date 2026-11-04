@@ -1,9 +1,15 @@
 import type { H3Event } from 'h3'
+import { buildIcsCalendar } from '@nuxflow/canvas/events'
 import { useReplicaDb } from '../utils/db'
 import { getContentTypeBySlug } from '../utils/content-queries'
 import { contentItems, sites } from '@nuxflow/db/schema'
-import { eq, and, gte, desc } from 'drizzle-orm'
+import { eq, and, gte, asc, isNull } from 'drizzle-orm'
 import { withEdgeCache } from '../utils/edge-cache'
+import { lastEventDate, toIcsEvent } from '../utils/event-feed'
+import { publicPathForItem } from '../utils/seo'
+
+/** Most events in the subscription feed — plenty for a calendar app. */
+const FEED_LIMIT = 500
 
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId
@@ -23,19 +29,17 @@ async function buildEventsIcs(event: H3Event, siteId: string) {
   const [site, type] = await Promise.all([
     db.query.sites.findFirst({
       where: eq(sites.id, siteId),
-      columns: { name: true, domain: true }
+      columns: { name: true, domain: true, timezone: true, locale: true },
     }),
     getContentTypeBySlug(db, siteId, 'event', { id: true }),
   ])
   if (!site) throw notFound()
 
-  if (!type) {
-    return `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//NuxFlow//NuxFlow Events//EN\r\nEND:VCALENDAR\r\n`
-  }
+  const calendar = { domain: site.domain, timeZone: site.timezone || 'UTC', name: `${site.name} Events` }
+  if (!type) return buildIcsCalendar({ ...calendar, events: [] })
 
   const ninetyDaysAgo = new Date()
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
-  const fromTs = ninetyDaysAgo.toISOString()
 
   const rows = await db.query.contentItems.findMany({
     where: and(
@@ -44,89 +48,20 @@ async function buildEventsIcs(event: H3Event, siteId: string) {
       eq(contentItems.status, 'published'),
       // Public subscription feed — private/members-only events must not appear here.
       eq(contentItems.visibility, 'public'),
-      gte(contentItems.eventStartAt, fromTs)
+      // A translation is the same event, not another one.
+      isNull(contentItems.sourceItemId),
+      gte(lastEventDate, ninetyDaysAgo.toISOString()),
     ),
-    orderBy: [desc(contentItems.eventStartAt)],
-    limit: 100
+    // Earliest first with a LIMIT, so what a very long list drops is the furthest away
+    // rather than the events coming up next.
+    orderBy: [asc(contentItems.eventStartAt)],
+    limit: FEED_LIMIT,
+    columns: { id: true, slug: true, title: true, excerpt: true, eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, updatedAt: true },
   })
 
-  // RFC 5545 §3.3.11 TEXT escaping for SUMMARY/DESCRIPTION/LOCATION values. Order matters:
-  // backslash must be escaped first, or the backslashes inserted by the later replacements
-  // would themselves get escaped again.
-  const escapeIcsText = (text: string): string =>
-    text
-      .replace(/\\/g, '\\\\')
-      .replace(/;/g, '\\;')
-      .replace(/,/g, '\\,')
-      .replace(/\n/g, '\\n')
-
-  // Format Helper to convert Date/ISO to iCal stamp YYYYMMDDTHHMMSSZ or YYYYMMDD
-  const formatStamp = (isoStr: string | null | undefined, allDay: boolean): string => {
-    if (!isoStr) return ''
-    const parts = isoStr.replace(/[-:]/g, '').split('.')
-    const clean = parts[0] || ''
-    if (allDay) {
-      return clean.substring(0, 8)
-    }
-    return clean.endsWith('Z') ? clean : `${clean}Z`
-  }
-
-  const ics = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//NuxFlow//NuxFlow Events//EN',
-    `X-WR-CALNAME:${site.name} Events`,
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH'
-  ]
-
-  for (const row of rows) {
-    if (!row.eventStartAt) continue
-    const dtStamp = formatStamp(row.updatedAt || row.publishedAt || new Date().toISOString(), false)
-    const dtStart = formatStamp(row.eventStartAt, !!row.eventAllDay)
-    
-    let dtEnd: string
-    if (row.eventEndAt) {
-      dtEnd = formatStamp(row.eventEndAt, !!row.eventAllDay)
-    } else {
-      // Default end to 1 hour after or same day for allDay
-      if (row.eventAllDay) {
-        // All day end date is non-inclusive, so add 1 day
-        const endD = new Date(row.eventStartAt)
-        endD.setDate(endD.getDate() + 1)
-        dtEnd = formatStamp(endD.toISOString(), true)
-      } else {
-        const endD = new Date(row.eventStartAt)
-        endD.setHours(endD.getHours() + 1)
-        dtEnd = formatStamp(endD.toISOString(), false)
-      }
-    }
-
-    ics.push('BEGIN:VEVENT')
-    ics.push(`UID:${row.id}@${site.domain}`)
-    ics.push(`DTSTAMP:${dtStamp}`)
-    if (row.eventAllDay) {
-      ics.push(`DTSTART;VALUE=DATE:${dtStart}`)
-      ics.push(`DTEND;VALUE=DATE:${dtEnd}`)
-    } else {
-      ics.push(`DTSTART:${dtStart}`)
-      ics.push(`DTEND:${dtEnd}`)
-    }
-    ics.push(`SUMMARY:${escapeIcsText(row.title)}`)
-    if (row.excerpt) {
-      ics.push(`DESCRIPTION:${escapeIcsText(row.excerpt)}`)
-    }
-    if (row.eventLocation) {
-      ics.push(`LOCATION:${escapeIcsText(row.eventLocation)}`)
-    }
-    if (row.eventUrl) {
-      ics.push(`URL:${row.eventUrl}`)
-    }
-    ics.push('END:VEVENT')
-  }
-
-  ics.push('END:VCALENDAR')
-  ics.push('') // final newline
-
-  return ics.join('\r\n')
+  const origin = getRequestURL(event).origin
+  return buildIcsCalendar({
+    ...calendar,
+    events: rows.map(row => toIcsEvent(row, `${origin}${publicPathForItem({ slug: row.slug }, site.locale || 'en')}`)),
+  })
 }

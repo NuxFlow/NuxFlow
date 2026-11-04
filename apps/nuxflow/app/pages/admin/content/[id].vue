@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import { eventDay, floatingDate, todayIn, utcToZoned, zonedToUtc } from '@nuxflow/canvas/events'
 import { renderTipTap } from '#shared/lib/render-tiptap'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const route = useRoute()
 const id = computed(() => route.params.id as string)
 const isNew = computed(() => id.value === 'new')
+
+// Dates are typed and shown in the site's time zone; only UTC instants are stored.
+const siteTimeZone = await useSiteTimeZone()
 
 // server: false — the content API requires auth; the SSR $fetch never carries the
 // browser session cookie, so requireUserSession(event) throws and Nuxt marks the
@@ -22,7 +26,9 @@ const { data: item, error: loadError, refresh } = await useAsyncData(
     typeSlug?: string
     eventStartAt?: string | null; eventEndAt?: string | null; eventLocation?: string | null
     eventUrl?: string | null; eventAllDay?: boolean | null
+    eventRsvpEnabled?: boolean | null; eventRsvpCapacity?: number | null; eventRsvpClosesAt?: string | null
     canEdit?: boolean
+    sourceItemId?: string | null
     termIds?: string[]
   }>(`/api/v1/content/${id.value}`),
   { server: false },
@@ -60,6 +66,9 @@ const form = reactive({
   eventLocation: '',
   eventUrl: '',
   eventAllDay: false,
+  eventRsvpEnabled: false,
+  eventRsvpCapacity: null as number | null,
+  eventRsvpClosesAt: '',
   // Taxonomy term ids — saved with the rest of the item (see EditorTermPicker).
   termIds: [] as string[],
 })
@@ -68,6 +77,36 @@ const activeTypeSlug = computed(() => {
   if (isNew.value) return (route.query.type as string) || 'page'
   return item.value?.typeSlug ?? 'page'
 })
+
+// All-day events are plain dates in the form (YYYY-MM-DD), timed ones the site's wall
+// clock (YYYY-MM-DDTHH:mm). The two functions below are exact opposites, so opening and
+// saving an event never moves it.
+function eventDateForForm(stored: string | null | undefined, allDay: boolean): string {
+  return allDay ? eventDay(stored, true, siteTimeZone.value) : utcToZoned(stored, siteTimeZone.value)
+}
+
+function eventDateForSave(value: string, allDay: boolean): string | null {
+  if (!value) return null
+  return allDay ? floatingDate(value.slice(0, 10)) : zonedToUtc(value, siteTimeZone.value)
+}
+
+// A new item started from a day on the calendar: /admin/content/new?type=…&date=…&title=…
+if (isNew.value) {
+  const day = typeof route.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(route.query.date) ? route.query.date : ''
+  if (typeof route.query.title === 'string') {
+    form.title = route.query.title
+    form.slug = slugFromTitle(form.title)
+  }
+  if (day && activeTypeSlug.value === 'event') {
+    form.eventStartAt = `${day}T09:00`
+  }
+  else if (day && day >= todayIn(siteTimeZone.value)) {
+    // A publish date only makes sense ahead of today. Authors can't schedule, so for them
+    // it stays a planned date on a draft until an editor picks it up.
+    form.scheduledAt = `${day}T09:00`
+    if (roleAtLeast((await fetchAdminAccess())?.role, 'editor')) form.status = 'scheduled'
+  }
+}
 
 // Populate (once) when the async data resolves — works for both SSR hydration
 // and CSR fetches. A flag prevents overwriting edits the user has already made.
@@ -78,7 +117,7 @@ watch(item, (val) => {
   form.title = val.title ?? ''
   form.slug = val.slug ?? ''
   form.status = val.status ?? 'draft'
-  form.scheduledAt = val.scheduledAt
+  form.scheduledAt = utcToZoned(val.scheduledAt, siteTimeZone.value) || undefined
   form.content = val.content ?? EMPTY_DOC
   form.seoTitle = val.seoTitle ?? ''
   form.seoDescription = val.seoDescription ?? ''
@@ -91,11 +130,14 @@ watch(item, (val) => {
   form.hasPassword = Boolean((val.settings as Record<string, unknown> | null)?.hasPassword)
   form.pagePassword = ''
   form.allowComments = val.allowComments ?? null
-  form.eventStartAt = val.eventStartAt ? val.eventStartAt.substring(0, 16) : ''
-  form.eventEndAt = val.eventEndAt ? val.eventEndAt.substring(0, 16) : ''
+  form.eventAllDay = val.eventAllDay ?? false
+  form.eventStartAt = eventDateForForm(val.eventStartAt, form.eventAllDay)
+  form.eventEndAt = eventDateForForm(val.eventEndAt, form.eventAllDay)
   form.eventLocation = val.eventLocation ?? ''
   form.eventUrl = val.eventUrl ?? ''
-  form.eventAllDay = val.eventAllDay ?? false
+  form.eventRsvpEnabled = val.eventRsvpEnabled ?? false
+  form.eventRsvpCapacity = val.eventRsvpCapacity ?? null
+  form.eventRsvpClosesAt = utcToZoned(val.eventRsvpClosesAt, siteTimeZone.value)
   form.termIds = val.termIds ?? []
 }, { immediate: true })
 
@@ -138,10 +180,11 @@ const bodyText = computed(() => form.excerpt || (bodyHtml.value ?? '').replace(/
 useHead({ title: computed(() => form.title || (isNew.value ? 'New page' : 'Edit page')) })
 
 // Auto-generate slug from title on new items
+function slugFromTitle(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
 watch(() => form.title, (title) => {
-  if (isNew.value) {
-    form.slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-  }
+  if (isNew.value) form.slug = slugFromTitle(title)
 })
 
 const saving = ref(false)
@@ -210,7 +253,7 @@ async function save(overrideStatus?: string) {
       title: form.title,
       slug: form.slug,
       status: overrideStatus ?? form.status,
-      scheduledAt: form.scheduledAt,
+      scheduledAt: form.scheduledAt ? zonedToUtc(form.scheduledAt, siteTimeZone.value) : null,
       content: form.content,
       seoTitle: form.seoTitle,
       seoDescription: form.seoDescription,
@@ -221,11 +264,14 @@ async function save(overrideStatus?: string) {
       ogImage: form.ogImage || null,
       settings: { access: form.access },
       allowComments: form.allowComments,
-      eventStartAt: form.eventStartAt ? new Date(form.eventStartAt).toISOString() : null,
-      eventEndAt: form.eventEndAt ? new Date(form.eventEndAt).toISOString() : null,
+      eventStartAt: eventDateForSave(form.eventStartAt, form.eventAllDay),
+      eventEndAt: eventDateForSave(form.eventEndAt, form.eventAllDay),
       eventLocation: form.eventLocation || null,
       eventUrl: form.eventUrl || null,
       eventAllDay: form.eventAllDay,
+      eventRsvpEnabled: form.eventRsvpEnabled || null,
+      eventRsvpCapacity: form.eventRsvpCapacity,
+      eventRsvpClosesAt: form.eventRsvpClosesAt ? zonedToUtc(form.eventRsvpClosesAt, siteTimeZone.value) : null,
       termIds: form.termIds,
       pagePassword: newPassword,
     }
@@ -248,6 +294,8 @@ async function save(overrideStatus?: string) {
       const contentUrl: string = `/api/v1/content/${id.value}`
       await $fetch(contentUrl, { method: 'PATCH', body })
       lastSaved.value = new Date()
+      // Or the next autosave would send the old status and quietly unpublish the item.
+      if (overrideStatus) form.status = overrideStatus
     }
     if (newPassword) {
       form.hasPassword = true
@@ -262,7 +310,7 @@ async function save(overrideStatus?: string) {
 }
 
 async function publish() {
-  await save('published')
+  await save(form.status === 'scheduled' ? 'scheduled' : 'published')
 }
 
 const { run: runAction } = useAdminAction()
@@ -303,7 +351,7 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
     <!-- Top bar -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div class="flex items-center gap-3">
-        <UButton to="/admin/content" variant="ghost" icon="i-lucide-arrow-left" size="sm" />
+        <UButton :to="`/admin/content?type=${activeTypeSlug}`" variant="ghost" icon="i-lucide-arrow-left" size="sm" aria-label="Back to the list" />
         <span class="text-sm text-gray-400">
           <span v-if="saving">Saving…</span>
           <span v-else-if="saveError" class="text-red-500">{{ saveError }}</span>
@@ -406,6 +454,7 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
         <EditorPublishControls
           :model-value="{ status: form.status, scheduledAt: form.scheduledAt }"
           :saving="saving"
+          :time-zone="siteTimeZone"
           @update:model-value="v => { form.status = v.status; form.scheduledAt = v.scheduledAt }"
           @save="save()"
           @publish="publish()"
@@ -465,6 +514,12 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
           v-model:event-all-day="form.eventAllDay"
           v-model:event-location="form.eventLocation"
           v-model:event-url="form.eventUrl"
+          v-model:event-rsvp-enabled="form.eventRsvpEnabled"
+          v-model:event-rsvp-capacity="form.eventRsvpCapacity"
+          v-model:event-rsvp-closes-at="form.eventRsvpClosesAt"
+          :time-zone="siteTimeZone"
+          :item-id="isNew ? undefined : (item?.sourceItemId ?? id)"
+          :is-translation="Boolean(item?.sourceItemId)"
         />
 
         <!-- Excerpt & featured image -->

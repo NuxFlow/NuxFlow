@@ -3,6 +3,7 @@ import { setResponseStatus } from 'h3'
 import Paywall from '~/components/memberships/Paywall.vue'
 import { NuxImage } from '@nuxflow/canvas'
 import type { JsonLdVideo, PublicSiteInfo } from '~/utils/seo'
+import type { PublicEventInfo } from '~/components/public/EventDetails.vue'
 
 /**
  * A published content item rendered at `slugPath` (e.g. `about`, `es/about`, `es`).
@@ -46,7 +47,7 @@ interface PublicPage {
   locale?: string | null
   defaultLocale?: string | null
   type?: { slug: string; name: string } | null
-  event?: { startAt: string; endAt?: string | null; allDay?: boolean | null; location?: string | null; url?: string | null } | null
+  event?: PublicEventInfo | null
   availableLocales?: Array<{ locale: string; slug: string; rawSlug?: string }> | null
   alternates?: Array<{ locale: string; path: string }> | null
   terms?: PublicTerm[] | null
@@ -284,6 +285,9 @@ const formattedDate = computed(() => formatDate(page.value?.publishedAt, '') || 
     <template v-else-if="page">
       <!-- Canvas pages: full-width, no container — blocks handle their own layout -->
       <template v-if="isCanvasPage">
+        <div v-if="page.event" class="max-w-4xl mx-auto px-6 pt-8">
+          <PublicEventDetails :event="page.event" :item-id="page.id" :locale="page.locale ?? undefined" />
+        </div>
         <NuxBlock :content="page.content" />
         <CommentSection v-if="page.hasComments" :item-id="page.id" class="max-w-4xl mx-auto px-6 py-12" />
       </template>
@@ -307,7 +311,8 @@ const formattedDate = computed(() => formatDate(page.value?.publishedAt, '') || 
         </h1>
 
         <!-- Author + date meta -->
-        <div v-if="page.author || formattedDate" class="flex items-center gap-3 mb-8 text-sm text-gray-500">
+        <PublicEventDetails v-if="page.event" :event="page.event" :item-id="page.id" :locale="page.locale ?? undefined" class="mb-8" />
+        <div v-else-if="page.author || formattedDate" class="flex items-center gap-3 mb-8 text-sm text-gray-500">
           <template v-if="page.author">
             <UAvatar
               :src="page.author.image ?? undefined"

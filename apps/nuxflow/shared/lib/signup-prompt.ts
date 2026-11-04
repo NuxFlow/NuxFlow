@@ -109,7 +109,7 @@ export function isExcludedPath(path: string, excludePaths: string[]): boolean {
 }
 
 /** Pages the popup never appears on, whatever the settings say. */
-const NEVER_ON = ['/admin', '/account', '/login', '/register', '/forgot-password', '/reset-password', '/setup', '/authorize', '/mailing-list']
+const NEVER_ON = ['/admin', '/account', '/login', '/register', '/forgot-password', '/reset-password', '/setup', '/authorize', '/mailing-list', '/rsvp']
 
 export function isBuiltInExcludedPath(path: string): boolean {
   return isExcludedPath(path, NEVER_ON)

@@ -26,7 +26,7 @@ export const contentTypes = sqliteTable('content_types', {
 ])
 
 // Target of ON DELETE CASCADE from contentRevisions.itemId, contentTaxonomyTerms.contentItemId,
-// and comments.itemId — same DROP-TABLE-triggers-FK-actions landmine documented in full
+// eventRsvps.contentItemId and comments.itemId — same DROP-TABLE-triggers-FK-actions landmine documented in full
 // on `sites` in sites.ts. Also self-referenced by sourceItemId below (ON DELETE SET
 // NULL, used for translation/duplication tracking) — unlike taxonomyTerms.parentId/
 // comments.parentId elsewhere in this schema, that self-FK genuinely exists at the DB
@@ -67,11 +67,18 @@ export const contentItems = sqliteTable('content_items', {
   version: integer('version').notNull().default(1),
   // Event fields — null on regular content; populated when a content type is used as an events calendar.
   // Stored as ISO 8601 strings so SQLite string comparisons work correctly for range queries.
+  // A timed event is a UTC instant; an all-day event is its date at midnight UTC, with an
+  // inclusive end date (see @nuxflow/canvas/events).
   eventStartAt: text('event_start_at'),
   eventEndAt: text('event_end_at'),
   eventLocation: text('event_location'),
   eventUrl: text('event_url'),
   eventAllDay: integer('event_all_day', { mode: 'boolean' }),
+  // RSVPs (server/utils/event-rsvp.ts). A null capacity means unlimited; a null closing
+  // time means RSVPs stay open until the event starts.
+  eventRsvpEnabled: integer('event_rsvp_enabled', { mode: 'boolean' }),
+  eventRsvpCapacity: integer('event_rsvp_capacity'),
+  eventRsvpClosesAt: text('event_rsvp_closes_at'),
   // GEO/LLMO optimisation fields
   canonicalUrl: text('canonical_url'),
   focusKeyword: text('focus_keyword'),
@@ -107,6 +114,28 @@ export const contentItems = sqliteTable('content_items', {
   // once a minute. Partial, so it only ever holds the handful of scheduled items. A plain
   // CREATE INDEX — no table rebuild (see the landmine note on this table).
   index('idx_content_items_scheduled').on(t.scheduledAt).where(sql`${t.status} = 'scheduled'`),
+])
+
+// Who is coming to an event. The address is the identity, so one row per address per
+// event; `seats` is how many places that person is asking for. Only 'confirmed' seats
+// count against the capacity. Translations of an event share the original's list.
+export const eventRsvps = sqliteTable('event_rsvps', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  contentItemId: text('content_item_id').notNull().references(() => contentItems.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  name: text('name').notNull(),
+  seats: integer('seats').notNull().default(1),
+  status: text('status', { enum: ['pending', 'confirmed', 'waitlist', 'cancelled'] }).notNull().default('pending'),
+  confirmSentAt: text('confirm_sent_at'),
+  // When the address was confirmed — also the place in the waitlist queue.
+  confirmedAt: text('confirmed_at'),
+  cancelledAt: text('cancelled_at'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  uniqueIndex('uq_event_rsvps_item_email').on(t.contentItemId, t.email),
+  index('idx_event_rsvps_site_item_status').on(t.siteId, t.contentItemId, t.status),
 ])
 
 export const contentRevisions = sqliteTable('content_revisions', {

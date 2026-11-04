@@ -364,6 +364,21 @@ describe('POST /api/v1/mcp — content writes keep the edge cache and search ind
     expect(deleteContentEmbedding).toHaveBeenCalledWith(expect.anything(), id)
   })
 
+  it('applies the same date rules as the admin, and stores event details', async () => {
+    await seedContentType(getCurrentTestDb(), SITE, { slug: 'event', name: 'Events', singularName: 'Event' })
+    expect(await call('create_content', { title: 'No date', slug: 'mcp-no-date', type: 'event', status: 'published' })).toMatch(/start date/)
+    expect(await call('create_content', { title: 'No date', slug: 'mcp-sched', status: 'scheduled' })).toMatch(/Pick a date/)
+
+    const created = await call('create_content', { title: 'Meetup', slug: 'mcp-meetup', type: 'event', status: 'published', eventStartAt: '2031-05-01T18:00:00Z', eventLocation: 'Hall', eventRsvpEnabled: true })
+    expect(created).toMatch(/^Success/)
+    const id = created.match(/ID: (\S+)/)![1]!
+    expect(await call('update_content', { id, eventEndAt: '2031-05-01T17:00:00Z' })).toMatch(/can't end before/)
+    expect(await call('update_content', { id, eventRsvpCapacity: 20 })).toMatch(/^Success/)
+
+    const row = await getCurrentTestDb().query.contentItems.findFirst({ where: eq(contentItems.id, id) })
+    expect(row).toMatchObject({ eventLocation: 'Hall', eventRsvpEnabled: true, eventRsvpCapacity: 20, eventStartAt: '2031-05-01T18:00:00Z' })
+  })
+
   it('creating a published item purges its URL and embeds it', async () => {
     expect(await call('create_content', { title: 'Fresh', slug: 'mcp-fresh', status: 'published' })).toMatch(/^Success/)
 
