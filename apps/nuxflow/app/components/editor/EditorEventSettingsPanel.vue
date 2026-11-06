@@ -2,6 +2,8 @@
 // Event Details sidebar card for the `event` content type, extracted from
 // content/[id].vue for consistency with its other already-extracted sidebar sections
 // (PublishControls, SeoPanel, TermPicker, RevisionHistory, MediaPicker, TranslateModal).
+import { describeRecurrence, type EventRecurrence } from '@nuxflow/canvas/events'
+
 const eventStartAt = defineModel<string>('eventStartAt', { required: true })
 const eventEndAt = defineModel<string>('eventEndAt', { required: true })
 const eventAllDay = defineModel<boolean>('eventAllDay', { required: true })
@@ -10,6 +12,11 @@ const eventUrl = defineModel<string>('eventUrl', { required: true })
 const eventRsvpEnabled = defineModel<boolean>('eventRsvpEnabled', { required: true })
 const eventRsvpCapacity = defineModel<number | null>('eventRsvpCapacity', { required: true })
 const eventRsvpClosesAt = defineModel<string>('eventRsvpClosesAt', { required: true })
+const eventRecurrence = defineModel<EventRecurrence | null>('eventRecurrence', { required: true })
+const eventPrice = defineModel<number | null>('eventPrice', { required: true })
+const eventCurrency = defineModel<string>('eventCurrency', { required: true })
+const eventCancelHours = defineModel<number | null>('eventCancelHours', { required: true })
+const eventPassesAllowed = defineModel<boolean>('eventPassesAllowed', { required: true })
 
 defineProps<{
   /** The site's time zone, which the times here are in. */
@@ -31,6 +38,87 @@ watch(eventAllDay, (allDay) => {
     if (eventStartAt.value.length === 10) eventStartAt.value = `${eventStartAt.value}T09:00`
     if (eventEndAt.value.length === 10) eventEndAt.value = `${eventEndAt.value}T17:00`
   }
+})
+
+// ── Repeating ─────────────────────────────────────────────────────────────
+
+const WEEKDAYS = [
+  { value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' }, { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' }, { value: 6, label: 'Sat' }, { value: 0, label: 'Sun' },
+]
+const REPEAT_OPTIONS = [
+  { label: 'Does not repeat', value: 'none' },
+  { label: 'Daily', value: 'daily' },
+  { label: 'Weekly', value: 'weekly' },
+  { label: 'Monthly', value: 'monthly' },
+]
+const UNITS = { daily: 'days', weekly: 'weeks', monthly: 'months' } as const
+
+const startWeekday = () => {
+  const day = eventStartAt.value.slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(`${day}T00:00:00.000Z`).getUTCDay() : 1
+}
+
+const repeat = computed({
+  get: () => eventRecurrence.value?.freq ?? 'none',
+  set: (value: string) => {
+    if (value === 'none') {
+      eventRecurrence.value = null
+      return
+    }
+    const freq = value as EventRecurrence['freq']
+    eventRecurrence.value = {
+      ...eventRecurrence.value,
+      freq,
+      interval: eventRecurrence.value?.interval ?? 1,
+      weekdays: freq === 'weekly' ? (eventRecurrence.value?.weekdays?.length ? eventRecurrence.value.weekdays : [startWeekday()]) : undefined,
+    }
+  },
+})
+
+function setRule(patch: Partial<EventRecurrence>) {
+  if (eventRecurrence.value) eventRecurrence.value = { ...eventRecurrence.value, ...patch }
+}
+
+function toggleWeekday(day: number) {
+  const current = eventRecurrence.value?.weekdays ?? []
+  const next = current.includes(day) ? current.filter(d => d !== day) : [...current, day]
+  // A weekly rule with no days means nothing, so the last one stays.
+  if (next.length) setRule({ weekdays: next })
+}
+
+const untilText = computed({
+  get: () => eventRecurrence.value?.until ?? '',
+  set: (value: string) => setRule({ until: value || null }),
+})
+
+const intervalText = computed({
+  get: () => String(eventRecurrence.value?.interval ?? 1),
+  set: (value: string | number) => {
+    const n = Number(value)
+    setRule({ interval: Number.isInteger(n) && n >= 1 && n <= 52 ? n : 1 })
+  },
+})
+
+const skippedText = computed(() => (eventRecurrence.value?.skip ?? []).join(', '))
+const summary = computed(() => (eventRecurrence.value ? describeRecurrence(eventRecurrence.value) : ''))
+
+// ── Paid places ───────────────────────────────────────────────────────────
+
+const priceText = computed({
+  get: () => (eventPrice.value == null ? '' : String(eventPrice.value)),
+  set: (value: string | number) => {
+    const n = Number(value)
+    eventPrice.value = String(value).trim() === '' || !Number.isFinite(n) || n < 0 ? null : n
+  },
+})
+
+const cancelHoursText = computed({
+  get: () => (eventCancelHours.value == null ? '' : String(eventCancelHours.value)),
+  set: (value: string | number) => {
+    const n = Number(value)
+    eventCancelHours.value = String(value).trim() === '' || !Number.isInteger(n) || n < 0 ? null : n
+  },
 })
 
 const capacityText = computed({
@@ -71,6 +159,34 @@ const capacityText = computed({
       <p v-if="!eventAllDay" class="text-xs text-gray-400">
         Times are in {{ timeZone }}, the site's time zone (Settings → General).
       </p>
+      <div v-if="!isTranslation" class="space-y-2">
+        <UFormField label="Repeat" class="text-xs">
+          <USelect v-model="repeat" :items="REPEAT_OPTIONS" class="w-full text-sm" />
+        </UFormField>
+        <template v-if="eventRecurrence">
+          <UFormField :label="`Every how many ${UNITS[eventRecurrence.freq]}`" class="text-xs">
+            <UInput v-model="intervalText" type="number" min="1" max="52" class="w-20 text-sm" />
+          </UFormField>
+          <div v-if="eventRecurrence.freq === 'weekly'" class="flex flex-wrap gap-1" role="group" aria-label="Days of the week">
+            <UButton
+              v-for="day in WEEKDAYS"
+              :key="day.value"
+              size="xs"
+              :variant="eventRecurrence.weekdays?.includes(day.value) ? 'solid' : 'outline'"
+              :color="eventRecurrence.weekdays?.includes(day.value) ? 'primary' : 'neutral'"
+              :aria-pressed="eventRecurrence.weekdays?.includes(day.value)"
+              @click="toggleWeekday(day.value)"
+            >
+              {{ day.label }}
+            </UButton>
+          </div>
+          <UFormField label="Last date (optional)" class="text-xs">
+            <UInput v-model="untilText" type="date" class="text-sm" />
+          </UFormField>
+          <p class="text-xs text-gray-400">{{ summary }}, starting from the date above. Each date has its own places and its own list.</p>
+          <p v-if="skippedText" class="text-xs text-gray-400">Cancelled dates: {{ skippedText }}</p>
+        </template>
+      </div>
       <UFormField label="Location / Venue" class="text-xs">
         <UInput
           v-model="eventLocation"
@@ -105,7 +221,7 @@ const capacityText = computed({
               class="text-sm"
             />
           </UFormField>
-          <UFormField label="RSVPs close (optional)" hint="Otherwise when it starts" class="text-xs">
+          <UFormField v-if="!eventRecurrence" label="RSVPs close (optional)" hint="Otherwise when it starts" class="text-xs">
             <UInput
               v-model="eventRsvpClosesAt"
               type="datetime-local"
@@ -113,6 +229,24 @@ const capacityText = computed({
             />
           </UFormField>
           <p class="text-xs text-gray-400">When it's full, people join a waitlist and move up if someone cancels.</p>
+          <div class="grid grid-cols-[1fr_5rem] gap-2">
+            <UFormField label="Price per place" hint="Blank for free" class="text-xs">
+              <UInput v-model="priceText" type="number" min="0" step="0.01" placeholder="Free" class="text-sm" />
+            </UFormField>
+            <UFormField label="Currency" class="text-xs">
+              <UInput v-model="eventCurrency" maxlength="3" class="text-sm uppercase" />
+            </UFormField>
+          </div>
+          <template v-if="eventPrice">
+            <UFormField label="Refund if cancelled this many hours before" hint="Blank: any time before it starts" class="text-xs">
+              <UInput v-model="cancelHoursText" type="number" min="0" placeholder="Until it starts" class="text-sm" />
+            </UFormField>
+            <div class="flex items-center gap-2">
+              <USwitch id="event-passes" v-model="eventPassesAllowed" />
+              <label for="event-passes" class="text-xs text-gray-500 dark:text-gray-400 select-none cursor-pointer">Can be booked with a class pass</label>
+            </div>
+            <p class="text-xs text-gray-400">Card payments go through Stripe (Settings → Payments). Cancelling someone's place yourself always refunds them.</p>
+          </template>
         </template>
         <UButton
           v-if="itemId"

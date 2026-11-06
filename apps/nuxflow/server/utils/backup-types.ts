@@ -52,6 +52,11 @@ export interface BackupContentItem {
   eventRsvpEnabled?: boolean | null
   eventRsvpCapacity?: number | null
   eventRsvpClosesAt?: string | null
+  eventRecurrence?: { freq: 'daily' | 'weekly' | 'monthly'; interval: number; weekdays?: number[]; until?: string | null; skip?: string[] } | null
+  eventPrice?: number | null
+  eventCurrency?: string | null
+  eventCancelHours?: number | null
+  eventPassesAllowed?: boolean | null
 }
 
 /** A redirect rule (Admin → SEO → Redirects). Paths are site-relative, so they carry over to any domain. */
@@ -289,6 +294,17 @@ const backupContentItemSchema = z.object({
   eventRsvpEnabled: z.boolean().nullable().optional(),
   eventRsvpCapacity: z.number().int().nullable().optional(),
   eventRsvpClosesAt: z.string().nullable().optional(),
+  eventRecurrence: z.object({
+    freq: z.enum(['daily', 'weekly', 'monthly']),
+    interval: z.number().int().min(1).max(52),
+    weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+    until: z.string().nullable().optional(),
+    skip: z.array(z.string()).max(500).optional(),
+  }).nullable().optional(),
+  eventPrice: z.number().nullable().optional(),
+  eventCurrency: z.string().nullable().optional(),
+  eventCancelHours: z.number().int().nullable().optional(),
+  eventPassesAllowed: z.boolean().nullable().optional(),
 })
 
 const backupRedirectSchema = z.object({

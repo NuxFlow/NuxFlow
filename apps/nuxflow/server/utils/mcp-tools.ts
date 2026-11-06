@@ -7,6 +7,7 @@ import { checkPlanLimit, planLimitMessage } from './hosting-plans'
 import { contentItems, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { roleAtLeast, hasApiKeyScope, canEditContentItem, AUTHOR_SETTABLE_STATUSES, type Role, type ApiKeyScope } from './permissions'
 import { archiveReplacedTranslations, getContentItem, getContentTypeBySlug } from './content-queries'
+import { hasPaidUpcomingBookings, reconcileBookings } from './event-rsvp'
 import { scopedById } from './db-helpers'
 import { writeAuditLog } from './audit'
 import { semanticSearch, upsertContentEmbedding, deleteContentEmbedding } from './embeddings'
@@ -117,6 +118,22 @@ const DATE_INPUT_PROPERTIES = {
   eventRsvpEnabled: { type: 'boolean', description: 'Events: let visitors RSVP on the event page' },
   eventRsvpCapacity: { type: 'number', description: 'Events: places available; further RSVPs join a waitlist. Leave out for unlimited.' },
   eventRsvpClosesAt: { type: 'string', description: 'Events: when RSVPs close, as ISO 8601 with a time zone. Leave out to close when the event starts.' },
+  eventRecurrence: {
+    type: 'object',
+    description: 'Events: make it repeat, from its start date. weekdays are 0 (Sunday) to 6, weekly only; until and skip are YYYY-MM-DD dates in the site\'s time zone.',
+    properties: {
+      freq: { type: 'string', enum: ['daily', 'weekly', 'monthly'] },
+      interval: { type: 'number', description: 'Every this many days, weeks or months' },
+      weekdays: { type: 'array', items: { type: 'number' } },
+      until: { type: 'string' },
+      skip: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['freq', 'interval'],
+  },
+  eventPrice: { type: 'number', description: 'Events: price per place in major units (12.50), paid by card through Stripe. Leave out or 0 for free RSVPs.' },
+  eventCurrency: { type: 'string', description: 'Events: three-letter currency code for the price, such as GBP.' },
+  eventCancelHours: { type: 'number', description: 'Events: paid bookings cancelled at least this many hours before the start get their money or credits back. Leave out for any time before it starts.' },
+  eventPassesAllowed: { type: 'boolean', description: 'Events: whether a paid event can be booked with a class pass. Defaults to yes.' },
 }
 
 interface McpToolDefinition {
@@ -384,6 +401,11 @@ async function createContent(args: unknown, ctx: McpToolContext): Promise<McpToo
     eventRsvpEnabled: parsed.data.eventRsvpEnabled ?? null,
     eventRsvpCapacity: parsed.data.eventRsvpCapacity ?? null,
     eventRsvpClosesAt: parsed.data.eventRsvpClosesAt ?? null,
+    eventRecurrence: parsed.data.eventRecurrence ?? null,
+    eventPrice: parsed.data.eventPrice ?? null,
+    eventCurrency: parsed.data.eventCurrency ?? null,
+    eventCancelHours: parsed.data.eventCancelHours ?? null,
+    eventPassesAllowed: parsed.data.eventPassesAllowed ?? null,
   })
 
   await writeAuditLog(ctx.event, ctx.apiKeyUserId, {
@@ -442,15 +464,22 @@ async function updateContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   const site = await getSiteInfo(ctx.event, ctx.siteId)
   const dateCheck = await checkContentDates(ctx.db, ctx.siteId, parsedUpdate.data, { existing, timeZone: site?.timezone || 'UTC' })
   if (dateCheck.problem !== undefined) return textResult(`Error: ${dateCheck.problem}`)
-  const { scheduledAt, eventAllDay, eventLocation, eventUrl, eventRsvpEnabled, eventRsvpCapacity, eventRsvpClosesAt } = parsedUpdate.data
+  const { scheduledAt, eventAllDay, eventLocation, eventUrl, eventRsvpEnabled, eventRsvpCapacity, eventRsvpClosesAt, eventRecurrence, eventPrice, eventCurrency, eventCancelHours, eventPassesAllowed } = parsedUpdate.data
   Object.assign(updates, dateCheck.dates)
-  for (const [key, value] of Object.entries({ scheduledAt, eventAllDay, eventLocation, eventUrl, eventRsvpEnabled, eventRsvpCapacity, eventRsvpClosesAt })) {
+  for (const [key, value] of Object.entries({ scheduledAt, eventAllDay, eventLocation, eventUrl, eventRsvpEnabled, eventRsvpCapacity, eventRsvpClosesAt, eventRecurrence, eventPrice, eventCurrency, eventCancelHours, eventPassesAllowed })) {
     if (value !== undefined) Object.assign(updates, { [key]: value })
   }
 
   await ctx.db.update(contentItems)
     .set(updates)
     .where(scopedById(contentItems.id, id, contentItems.siteId, ctx.siteId))
+
+  // Same as PATCH /api/v1/content/:id: bookings follow new dates or a new place.
+  const timesChanged = dateCheck.dates.eventStartAt !== undefined || dateCheck.dates.eventEndAt !== undefined || eventAllDay !== undefined || eventRecurrence !== undefined
+  if (timesChanged || eventLocation !== undefined) {
+    waitUntil(ctx.event, reconcileBookings(ctx.event, id, { timesChanged, placeChanged: eventLocation !== undefined && eventLocation !== existing.eventLocation })
+      .catch(err => console.error('[event-rsvp] Updating bookings failed:', err)))
+  }
 
   await writeAuditLog(ctx.event, ctx.apiKeyUserId, {
     action: 'update',
@@ -485,6 +514,10 @@ async function deleteContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   // Same rule as PATCH /api/v1/content/:id — authors only touch their own unpublished items.
   if (!canEditContentItem((ctx.apiKeyRole ?? 'viewer') as Role, ctx.apiKeyUserId, existing)) {
     return textResult(`Error: Role "${ctx.apiKeyRole}" may only update its own draft or in-review content.`)
+  }
+
+  if (await hasPaidUpcomingBookings(ctx.db, ctx.siteId, id)) {
+    return textResult('Error: This event has paid bookings still to come. Cancel its dates from the attendee list first, so people get their money back.')
   }
 
   const termIds = await getContentTermIds(ctx.db, id)

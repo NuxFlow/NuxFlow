@@ -1,4 +1,4 @@
-import { eventDay, floatingDate, type IcsEvent } from '@nuxflow/canvas/events'
+import { eventDay, floatingDate, occurrencesBetween, type EventRecurrence, type IcsEvent } from '@nuxflow/canvas/events'
 import { and, eq, gte, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
 import { contentItems } from '@nuxflow/db/schema'
 
@@ -42,4 +42,23 @@ export function toIcsEvent(
     url: pageUrl || row.eventUrl,
     updatedAt: row.updatedAt,
   }
+}
+
+/**
+ * A repeating event's dates between two days, each as a copy of the row with that date's
+ * times. Calendar files list every date as its own entry rather than a repeat rule: a rule
+ * in UTC would drift by an hour at each clock change, and a subscribed feed rolls forward
+ * by itself anyway.
+ */
+export function expandSeries<T extends { id: string; eventStartAt: string | null; eventEndAt: string | null; eventAllDay: boolean | null; eventRecurrence: EventRecurrence | null }>(
+  row: T,
+  timeZone: string,
+  from: string,
+  to: string,
+  max?: number,
+): Array<T & { eventStartAt: string; date: string }> {
+  if (!row.eventRecurrence || !row.eventStartAt) return []
+  const times = { eventStartAt: row.eventStartAt, eventEndAt: row.eventEndAt, eventAllDay: row.eventAllDay }
+  return occurrencesBetween(times, row.eventRecurrence, timeZone, from, to, max)
+    .map(o => ({ ...row, eventStartAt: o.startAt, eventEndAt: o.endAt, date: o.date }))
 }

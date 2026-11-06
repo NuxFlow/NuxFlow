@@ -262,12 +262,52 @@ When an event is full, people join a waitlist. If someone cancels, or you add mo
 
 If your site has no email provider set up, RSVPs take effect straight away, with no email.
 
+The day before an event, everyone coming gets a reminder. If you change an event's time or place they're told, and if you call a date off they're told and refunded. (**Cancel event** or **Cancel this date** on the attendee list.)
+
+### Repeating classes
+For anything on a regular schedule, such as yoga every Tuesday and Thursday, set **Repeat** in the Event Details card instead of making an event for each date:
+- Choose daily, weekly or monthly and how often. For weekly, choose the days.
+- **Last date** is optional. Otherwise it carries on.
+- The start and end you set are the first date's. Every other date keeps the same time by the site's clock, including across a clock change.
+
+Each date has its own places and its own attendee list, with a date picker at the top of the list. Visitors choose a date on the event's page. To call off one date, such as a holiday, select it on the attendee list and choose **Cancel this date**. The series carries on without it.
+
+Changing the rule so a date no longer exists cancels that date's bookings and refunds them, the same as calling it off.
+
+### Paid bookings
+Give an event a **Price per place** to charge for it. Visitors book with no account: they enter their name and email, pay on Stripe's page, and get a confirmation email. It needs Stripe set up, with its webhook, in **Settings → Payments** (see the [Payments Setup Guide](./payments-setup.md)). Until then a paid event's page says booking isn't open.
+
+- **Places while someone pays:** a place is kept for about half an hour while someone is on Stripe's page, so it can't be sold twice. If they don't finish, it's released. Refreshing the page and starting again doesn't charge them twice.
+- **Refund if cancelled this many hours before:** people who cancel in time get their money back automatically. After that they can still give up their place so someone else can have it, but they keep nothing. Leave it blank to allow it any time before the start.
+- **If you cancel someone** from the attendee list, or call off the date, they're always refunded, whatever that setting says.
+- **A full paid event** has a waitlist. When a place opens it's kept for the next person for 24 hours, or until the event starts if that's sooner, and they get a link to pay. If they don't, it goes to the next person.
+- **Refunds made in Stripe's dashboard** are followed: a full refund cancels the booking and frees the place. A partial one leaves the booking alone.
+
+Payment goes to the Stripe account in your settings. Card payments only, as a place has to be certain straight away.
+
+### Class passes
+A class pass is a block of sessions bought in one go. Set them up in **Class passes** in the admin menu (admins only): a name, how many sessions, a price, and optionally how many days it lasts. Add the **Class Passes** block to a page to sell them. They're also at `/booking/passes`.
+
+No account is needed. A pass belongs to the email address it was bought with. To use it, a visitor chooses **Use my class pass** on a class and enters that address, and we email a link to confirm. That link is what stops someone else spending their sessions by typing their address.
+
+- One session is used per place. Cancelling in time puts it back.
+- A pass has to be valid on the date of the class, not just on the day they book.
+- Where someone has several passes, the one that runs out first is used first.
+- Turn off **Can be booked with a class pass** on any event that shouldn't take them.
+- **Add for someone** records a pass sold in person. No money is taken, and they're emailed how to use it.
+- **Refund unused sessions** gives money back for what's left, at its share of the price paid, and stops the pass.
+
+Visitors can see their bookings and passes at `/booking/my`: they enter their email and get a link that works for 7 days.
+
+Pass holders are personal data your site holds. They, and the attendee lists, aren't in site backups yet, and Stripe's tax features aren't switched on, so check what you need to charge. Mention both lists in your privacy policy.
+
 To see who is coming, open the event and select **View attendees** (editors and above). From there you can export a CSV, add someone by hand, move or cancel a booking (the person is emailed), and erase someone's details if they ask you to. Attendee lists are personal data that your site holds: mention them in your privacy policy. They aren't included in site backups yet.
 
 ### 2. Events Calendar Block
 To display events on your website:
 - Add the **Events Calendar** block to a Canvas page.
-- Choose between **List view** (a timeline of event cards, upcoming or past) and **Calendar Grid** (a month grid visitors can page through; selecting a date shows its events).
+- Choose between **List view** (a timeline of event cards, upcoming or past), **Calendar Grid** (a month grid visitors can page through; selecting a date shows its events) and **Weekly timetable** (the week laid out by day, for a class schedule).
+- On the timetable, **Filter buttons from taxonomy** turns a taxonomy's terms into buttons visitors can filter by. Make a taxonomy such as "Class type" that applies to events, tag each class, and enter its slug here.
 - Each event links to its own page. Visitors can select **Add to Calendar** to download a standard `.ics` file.
 
 ### 3. Subscription & Feeds
@@ -276,7 +316,7 @@ To display events on your website:
 ### 4. The Admin Calendar
 **Calendar** in the admin menu shows everything with a date: events, scheduled and published content, and drafts with a planned date. Dates are in your site's time zone.
 - Select **+** on a day to add an event or a post. Choose which, give it a title, and carry on in the editor with the date filled in.
-- Drag an item to another day to move it. Events keep their time and length, and scheduled posts keep their time. Published posts can't be moved, as the date they went out is a fact.
+- Drag an item to another day to move it. Events keep their time and length, and scheduled posts keep their time. Published posts can't be moved, as the date they went out is a fact, and nor can one date of a repeating event: change the series in its editor.
 - **Unscheduled** lists drafts with no date yet. Drag one onto a day to give it a planned date. It isn't published until its status is set to Scheduled.
 - Filter by type or status, switch to the **Agenda** list, and choose whether weeks start on Monday or Sunday.
 
@@ -481,7 +521,7 @@ Inject third-party scripts or HTML snippets into every public page without editi
 
 NuxFlow includes built-in membership and payment support. Manage it from **Admin → Memberships**.
 
-**Tiers tab**: Create and manage membership tiers with a name, price, billing interval (monthly, yearly, or one-time), and a list of features shown to visitors. When a payment provider is configured, tiers are automatically synced to that provider on creation and update — no manual product setup required.
+**Tiers tab**: Create and manage membership tiers with a name, price, billing interval (monthly, yearly, or one-time, which gives access with no end date and is Stripe only), and a list of features shown to visitors. When a payment provider is configured, tiers are automatically synced to that provider on creation and update — no manual product setup required.
 
 **Subscribers tab**: View all active and historical subscriptions across Stripe, Lemon Squeezy, and Paddle, with their status and renewal date.
 

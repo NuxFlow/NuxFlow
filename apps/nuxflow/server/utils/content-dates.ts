@@ -10,6 +10,8 @@ import type { Db } from './db'
 
 const instant = z.string().datetime({ offset: true, message: 'Expected an ISO 8601 date and time' })
 
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a date as YYYY-MM-DD')
+
 /** Largest number of places an event can offer. */
 export const RSVP_MAX_CAPACITY = 100_000
 
@@ -24,6 +26,18 @@ export const contentDateFields = {
   eventRsvpEnabled: z.boolean().nullish(),
   eventRsvpCapacity: z.number().int().min(1).max(RSVP_MAX_CAPACITY).nullish(),
   eventRsvpClosesAt: instant.nullish(),
+  eventRecurrence: z.object({
+    freq: z.enum(['daily', 'weekly', 'monthly']),
+    interval: z.number().int().min(1).max(52),
+    weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+    until: day.nullish(),
+    skip: z.array(day).max(500).optional(),
+  }).nullish(),
+  // Up to Stripe's own limit on a single charge, near enough.
+  eventPrice: z.number().min(0).max(999_999).nullish(),
+  eventCurrency: z.string().regex(/^[a-z]{3}$/i, 'Use a three-letter currency code, such as GBP').transform(c => c.toUpperCase()).nullish(),
+  eventCancelHours: z.number().int().min(0).max(8760).nullish(),
+  eventPassesAllowed: z.boolean().nullish(),
 }
 
 export interface ContentDateValues {
@@ -32,6 +46,7 @@ export interface ContentDateValues {
   eventStartAt?: string | null
   eventEndAt?: string | null
   eventAllDay?: boolean | null
+  eventRecurrence?: { until?: string | null } | null
 }
 
 export interface ContentDateContext {
@@ -78,6 +93,13 @@ export async function checkContentDates(db: Db, siteId: string, input: ContentDa
     if (startDate && endDate && endDate < startDate) return { problem: 'The event can\'t end before it starts.' }
     dates.eventStartAt = start
     dates.eventEndAt = end
+  }
+
+  const recurrence = merged('eventRecurrence')
+  if (recurrence) {
+    if (!start) return { problem: 'Add a start date for this event before making it repeat.' }
+    const first = eventDay(start, allDay, timeZone)
+    if (recurrence.until && first && recurrence.until < first) return { problem: 'The last date can\'t be before the first one.' }
   }
 
   const statusChanged = existing?.status !== status

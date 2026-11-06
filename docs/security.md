@@ -132,7 +132,19 @@ Both functions are called by the plugin installer, theme importer, and any other
 1. **D1 atomic upsert** — one `INSERT … ON CONFLICT DO UPDATE … RETURNING` per request, so concurrent requests across every Worker isolate share one exact counter (no read-then-write race).
 2. **Isolate-level block cache** — once a key is over its limit, that isolate rejects it without a database call until the window resets. It only ever holds keys D1 has already confirmed as blocked, so it can't under-count.
 
-Auth endpoints (`/api/auth/sign-in`, `/api/auth/sign-up`, password reset) apply rate limits by IP address and email address independently, making credential-stuffing attacks significantly more expensive. Public endpoints that cost real resources are limited too: comments and form submissions (10 a minute), "Listen to this article" (10 a minute), smart search (60 a minute), and each plugin's routes (120 a minute per visitor).
+Auth endpoints (`/api/auth/sign-in`, `/api/auth/sign-up`, password reset) apply rate limits by IP address and email address independently, making credential-stuffing attacks significantly more expensive. Public endpoints that cost real resources are limited too: comments and form submissions (10 a minute), "Listen to this article" (10 a minute), smart search (60 a minute), each plugin's routes (120 a minute per visitor), event bookings and pass purchases (5 a minute), emailed links to someone's bookings (3 a minute), and following a booking link (20 a minute).
+
+---
+
+## Guest bookings and class passes
+
+Visitors book and buy without an account, so an email address is their identity. Typing an address must never be enough to spend or see what belongs to it:
+
+- **Spending pass credits needs an emailed link**, signed with an HMAC of the booking's id. A booking that uses a pass does nothing until that link is used.
+- **`/booking/my` needs an emailed link too**, signed over the site, the address and an expiry date, and valid for 7 days. Asking for one answers the same whether or not the address has bookings.
+- **Links only act after a button press**, because mail scanners open links.
+- **Payments are confirmed by Stripe's signed webhook**, never by the browser returning from checkout. Delivering the same webhook twice can't grant a place or credits twice.
+- **Places can't be sold twice.** Whether a seat fits is decided in one SQL statement, including places held during checkout. A payment that lands after its place has gone is refunded.
 
 ---
 

@@ -64,6 +64,7 @@ export const BUILTIN_BLOCK_COMPONENTS: Record<string, Component> = {
   'canvas-accordion': lazyBlock(() => import('./CanvasBlockAccordion.vue')),
   'canvas-pricing': lazyBlock(() => import('./CanvasBlockPricing.vue')),
   'canvas-calendar': lazyBlock(() => import('./CanvasBlockCalendar.vue')),
+  'canvas-class-passes': lazyBlock(() => import('./CanvasBlockClassPasses.vue')),
   'canvas-posts': lazyBlock(() => import('./CanvasBlockPosts.vue')),
   'canvas-gdpr': lazyBlock(() => import('./CanvasBlockGdpr.vue')),
   'canvas-footer': lazyBlock(() => import('./CanvasBlockFooter.vue')),

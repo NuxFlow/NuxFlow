@@ -1,15 +1,18 @@
 import type { H3Event } from 'h3'
-import { buildIcsCalendar } from '@nuxflow/canvas/events'
+import { addDays, buildIcsCalendar, todayIn } from '@nuxflow/canvas/events'
 import { useReplicaDb } from '../utils/db'
 import { getContentTypeBySlug } from '../utils/content-queries'
 import { contentItems, sites } from '@nuxflow/db/schema'
-import { eq, and, gte, asc, isNull } from 'drizzle-orm'
+import { eq, and, gte, asc, isNotNull, isNull, or } from 'drizzle-orm'
 import { withEdgeCache } from '../utils/edge-cache'
-import { lastEventDate, toIcsEvent } from '../utils/event-feed'
+import { expandSeries, lastEventDate, toIcsEvent } from '../utils/event-feed'
 import { publicPathForItem } from '../utils/seo'
 
 /** Most events in the subscription feed — plenty for a calendar app. */
 const FEED_LIMIT = 500
+
+/** How far ahead a repeating event's dates are listed; the feed rolls forward by itself. */
+const SERIES_DAYS_AHEAD = 180
 
 export default defineEventHandler(async (event) => {
   const siteId = event.context.siteId
@@ -35,7 +38,8 @@ async function buildEventsIcs(event: H3Event, siteId: string) {
   ])
   if (!site) throw notFound()
 
-  const calendar = { domain: site.domain, timeZone: site.timezone || 'UTC', name: `${site.name} Events` }
+  const timeZone = site.timezone || 'UTC'
+  const calendar = { domain: site.domain, timeZone, name: `${site.name} Events` }
   if (!type) return buildIcsCalendar({ ...calendar, events: [] })
 
   const ninetyDaysAgo = new Date()
@@ -50,18 +54,23 @@ async function buildEventsIcs(event: H3Event, siteId: string) {
       eq(contentItems.visibility, 'public'),
       // A translation is the same event, not another one.
       isNull(contentItems.sourceItemId),
-      gte(lastEventDate, ninetyDaysAgo.toISOString()),
+      // A series' first date can be long gone with more still to come.
+      or(gte(lastEventDate, ninetyDaysAgo.toISOString()), isNotNull(contentItems.eventRecurrence)),
     ),
     // Earliest first with a LIMIT, so what a very long list drops is the furthest away
     // rather than the events coming up next.
     orderBy: [asc(contentItems.eventStartAt)],
     limit: FEED_LIMIT,
-    columns: { id: true, slug: true, title: true, excerpt: true, eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, updatedAt: true },
+    columns: { id: true, slug: true, title: true, excerpt: true, eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, eventRecurrence: true, updatedAt: true },
   })
 
   const origin = getRequestURL(event).origin
-  return buildIcsCalendar({
-    ...calendar,
-    events: rows.map(row => toIcsEvent(row, `${origin}${publicPathForItem({ slug: row.slug }, site.locale || 'en')}`)),
+  const today = todayIn(timeZone)
+  const pageUrl = (slug: string) => `${origin}${publicPathForItem({ slug }, site.locale || 'en')}`
+  const entries = rows.flatMap((row) => {
+    if (!row.eventRecurrence) return [toIcsEvent(row, pageUrl(row.slug))]
+    return expandSeries(row, timeZone, addDays(today, -30), addDays(today, SERIES_DAYS_AHEAD))
+      .map(date => toIcsEvent({ ...date, id: `${row.id}-${date.date}` }, `${pageUrl(row.slug)}?date=${date.date}`))
   })
+  return buildIcsCalendar({ ...calendar, events: entries.slice(0, FEED_LIMIT * 4) })
 }

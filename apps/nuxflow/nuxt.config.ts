@@ -63,6 +63,15 @@ export default defineNuxtConfig({
     // to be an output intro: an `import 'reflect-metadata'` at the top of
     // server/cloudflare-entry.ts is too late — Nitro's bundle runs its own code ahead of the
     // entry, and the Worker fails to start. Nitro v3 (Rolldown) needs its equivalent.
+    // Every route in Nitro's generated list makes each typed `$fetch` URL check more expensive,
+    // and TypeScript gives up past a limit (TS2589 on every call). Only /api is called through
+    // `$fetch`: feeds, sitemaps and /_nuxflow routes are visited or linked to, so they stay
+    // out of the types to leave room for the routes that are.
+    hooks: {
+      'types:extend'(types) {
+        types.routes = Object.fromEntries(Object.entries(types.routes).filter(([route]) => route.startsWith('/api/')))
+      },
+    },
     rollupConfig: {
       output: {
         intro: 'import "reflect-metadata";',
@@ -92,7 +101,8 @@ export default defineNuxtConfig({
       // customers' own domains that aren't live yet; rebuild the router's site directory
       // from the member pools (does nothing without pools); count minutes watched of the
       // platform's Stream video and pause sites over their plan (video-usage.ts).
-      '0 * * * *': ['reconcile-stuck-videos', 'plan-usage-alerts', 'custom-domain-check', 'pool-directory-sync', 'video-usage'],
+      // Also release places whose time has run out and send booking reminders (event-bookings.ts).
+      '0 * * * *': ['reconcile-stuck-videos', 'plan-usage-alerts', 'custom-domain-check', 'pool-directory-sync', 'video-usage', 'event-bookings'],
     },
     serverAssets: [
       { baseName: 'migrations', dir: resolve(_dirname, '../../packages/db/migrations') },

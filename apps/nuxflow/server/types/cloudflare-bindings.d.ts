@@ -46,6 +46,8 @@ declare module 'h3' {
     siteStatus?: 'active' | 'maintenance' | 'suspended' | null
     /** The site's main domain — differs from the request host on previews and extra domains. */
     siteDomain?: string | null
+    /** Scheduled work: where links in emails point, as there's no request to take it from. */
+    publicOrigin?: string
     setupCompleted?: boolean
     /** True on the central sign-in origin (NUXT_PUBLIC_ACCOUNTS_URL). */
     isAccountsHost?: boolean

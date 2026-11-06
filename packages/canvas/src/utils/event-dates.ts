@@ -192,6 +192,118 @@ function safeZone(timeZone: string): string {
   }
 }
 
+// ── Repeating events ────────────────────────────────────────────────────────
+// A repeating event is one content item plus a rule. Its stored start and end are the first
+// date's; every other date is worked out here, by the site's wall clock, so a class at 18:00
+// stays at 18:00 when the clocks change. A date is identified by its day (`YYYY-MM-DD` in
+// the site's zone): a rule produces at most one per day.
+
+export type RecurrenceFreq = 'daily' | 'weekly' | 'monthly'
+
+export interface EventRecurrence {
+  freq: RecurrenceFreq
+  /** Every this many days, weeks or months. */
+  interval: number
+  /** Weekly only: 0 = Sunday. Defaults to the weekday of the first date. */
+  weekdays?: number[]
+  /** The last date it can happen on, inclusive. */
+  until?: string | null
+  /** Dates taken out of the series, such as a holiday or a cancelled class. */
+  skip?: string[]
+}
+
+export interface EventOccurrence {
+  /** Identifies this date within the series. */
+  date: string
+  startAt: string
+  endAt: string | null
+}
+
+/** How far ahead a list of dates looks when the rule gives nothing sooner. */
+const OCCURRENCE_HORIZON_DAYS = 732
+
+const dayOfWeek = (day: string) => new Date(`${day}T00:00:00.000Z`).getUTCDay()
+
+function ruleIncludes(rule: EventRecurrence, first: string, day: string): boolean {
+  if (day < first) return false
+  if (rule.until && day > rule.until) return false
+  if (rule.skip?.includes(day)) return false
+  const interval = Math.max(1, Math.trunc(rule.interval) || 1)
+  if (rule.freq === 'daily') return daysBetween(first, day) % interval === 0
+  if (rule.freq === 'weekly') {
+    const weekdays = rule.weekdays?.length ? rule.weekdays : [dayOfWeek(first)]
+    if (!weekdays.includes(dayOfWeek(day))) return false
+    // Weeks count from the Monday on or before the first date, so "every 2 weeks on Tue and
+    // Thu" keeps both days in the same fortnight.
+    const monday = addDays(first, -((dayOfWeek(first) + 6) % 7))
+    return Math.floor(daysBetween(monday, day) / 7) % interval === 0
+  }
+  // A date this month doesn't have (the 31st) is simply missed, as a calendar app does.
+  if (day.slice(8) !== first.slice(8)) return false
+  const months = (Number(day.slice(0, 4)) - Number(first.slice(0, 4))) * 12 + Number(day.slice(5, 7)) - Number(first.slice(5, 7))
+  return months % interval === 0
+}
+
+/** One date of a series, or null when the rule doesn't include that day. */
+export function occurrenceOn(event: EventTimes, rule: EventRecurrence, day: string, timeZone: string): EventOccurrence | null {
+  const first = eventDay(event.eventStartAt, event.eventAllDay, timeZone)
+  if (!first || !ruleIncludes(rule, first, day)) return null
+  const shift = daysBetween(first, day)
+  if (event.eventAllDay) {
+    const lastDay = eventDay(event.eventEndAt, true, timeZone)
+    return { date: day, startAt: floatingDate(day), endAt: lastDay ? floatingDate(addDays(lastDay, shift)) : null }
+  }
+  const moved = (stored: string | null | undefined): string | null => {
+    const local = utcToZoned(stored, timeZone)
+    return local ? zonedToUtc(`${addDays(local.slice(0, 10), shift)}${local.slice(10)}`, timeZone) : null
+  }
+  const startAt = moved(event.eventStartAt)
+  return startAt ? { date: day, startAt, endAt: moved(event.eventEndAt) } : null
+}
+
+/** The series' dates from one day to another, inclusive, soonest first. */
+export function occurrencesBetween(event: EventTimes, rule: EventRecurrence, timeZone: string, from: string, to: string, max = 500): EventOccurrence[] {
+  const first = eventDay(event.eventStartAt, event.eventAllDay, timeZone)
+  if (!first) return []
+  const out: EventOccurrence[] = []
+  const end = rule.until && rule.until < to ? rule.until : to
+  for (let day = from > first ? from : first; day <= end && out.length < max; day = addDays(day, 1)) {
+    const occurrence = occurrenceOn(event, rule, day, timeZone)
+    if (occurrence) out.push(occurrence)
+  }
+  return out
+}
+
+/** The next dates of a series that haven't finished yet. */
+export function upcomingOccurrences(event: EventTimes, rule: EventRecurrence, timeZone: string, count: number, now: Date = new Date()): EventOccurrence[] {
+  const today = todayIn(timeZone, now)
+  // A day back, for a date that began yesterday and runs past midnight.
+  const dates = occurrencesBetween(event, rule, timeZone, addDays(today, -1), addDays(today, OCCURRENCE_HORIZON_DAYS), count + 2)
+  return dates
+    .filter(d => !eventHasEnded({ eventStartAt: d.startAt, eventEndAt: d.endAt, eventAllDay: event.eventAllDay }, timeZone, now))
+    .slice(0, count)
+}
+
+const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
+
+/** A rule in words: "Every week on Tue, Thu". */
+export function describeRecurrence(rule: EventRecurrence, locale?: string): string {
+  const interval = Math.max(1, Math.trunc(rule.interval) || 1)
+  const unit = { daily: 'day', weekly: 'week', monthly: 'month' }[rule.freq]
+  let text = interval === 1 ? `Every ${unit}` : `Every ${interval} ${unit}s`
+  if (rule.freq === 'weekly' && rule.weekdays?.length) {
+    // 2023-01-01 was a Sunday.
+    const names = WEEKDAY_ORDER.filter(d => rule.weekdays!.includes(d))
+      .map(d => new Date(Date.UTC(2023, 0, 1 + d)).toLocaleDateString(locale, { weekday: 'short', timeZone: 'UTC' }))
+    text += ` on ${names.join(', ')}`
+  }
+  if (rule.until) {
+    const until = new Date(`${rule.until}T00:00:00.000Z`).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+    text += ` until ${until}`
+  }
+  return text
+}
+
 // ── Calendar files (RFC 5545) ───────────────────────────────────────────────
 
 export interface IcsEvent extends EventTimes {

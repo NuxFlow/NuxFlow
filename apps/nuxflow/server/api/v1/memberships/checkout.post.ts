@@ -137,6 +137,17 @@ export default defineEventHandler(async (event) => {
     if (stripe && tier.stripePriceId) {
       const customerId = (await stripe.findCustomerForSite(userEmail, siteId))?.id
         ?? (await stripe.createCustomer(userEmail, userName, siteId)).id
+      // A one-time price can't go through a subscription checkout: Stripe refuses it.
+      if (tier.interval === 'one_time') {
+        const checkoutSession = await stripe.createPaymentCheckout({
+          customerId,
+          priceId: tier.stripePriceId,
+          successUrl: body.returnUrl,
+          cancelUrl: body.returnUrl,
+          metadata: { userId, siteId, tierId: tier.id },
+        })
+        return { url: checkoutSession.url }
+      }
       const checkoutSession = await stripe.createCheckoutSession({
         customerId,
         priceId: tier.stripePriceId,

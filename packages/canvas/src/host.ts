@@ -29,6 +29,23 @@ export interface CanvasEventItem {
   icsUrl?: string
   /** Visitors can RSVP on its page. */
   rsvp?: boolean
+  /** Which date of a repeating event this is. */
+  date?: string | null
+  /** Per place, when it's paid. */
+  price?: number | null
+  currency?: string | null
+  /** Its terms in the taxonomy asked for. */
+  terms?: Array<{ slug: string; name: string }>
+}
+
+export interface CanvasClassPass {
+  id: string
+  name: string
+  description?: string | null
+  credits: number
+  price: number
+  currency: string
+  validDays?: number | null
 }
 
 export interface CanvasEventsQuery {
@@ -37,6 +54,8 @@ export interface CanvasEventsQuery {
   from?: string
   to?: string
   past?: boolean
+  /** Adds each event's terms in this taxonomy. */
+  taxonomy?: string
 }
 
 export interface CanvasEventList {
@@ -70,6 +89,8 @@ export interface CanvasPageRequest {
 export interface CanvasHost {
   listPosts(query: CanvasPostsQuery): Promise<CanvasPostItem[]>
   listEvents(query: CanvasEventsQuery): Promise<CanvasEventList>
+  /** The class passes on sale, and where to go to buy one. */
+  listClassPasses?(): Promise<{ passes: CanvasClassPass[]; canBuy: boolean }>
   /** Alternative wordings of `text` for the inline AI menu. */
   improveText(text: string, instruction: AiInstruction): Promise<string[]>
   /** A whole Canvas page from a description (the editor's "Generate with AI"). */

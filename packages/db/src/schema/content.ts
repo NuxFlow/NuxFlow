@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 import { sites } from './sites'
@@ -79,6 +79,28 @@ export const contentItems = sqliteTable('content_items', {
   eventRsvpEnabled: integer('event_rsvp_enabled', { mode: 'boolean' }),
   eventRsvpCapacity: integer('event_rsvp_capacity'),
   eventRsvpClosesAt: text('event_rsvp_closes_at'),
+  // Repeating events: the stored start and end are the first date's, the other dates are
+  // worked out from this rule (`@nuxflow/canvas/events`). Bookings are per date.
+  eventRecurrence: text('event_recurrence', { mode: 'json' }).$type<{
+    freq: 'daily' | 'weekly' | 'monthly'
+    interval: number
+    weekdays?: number[]
+    until?: string | null
+    skip?: string[]
+  }>(),
+  // Paid bookings. No price, or 0, is a free RSVP. In major units, like membership tiers.
+  eventPrice: real('event_price'),
+  eventCurrency: text('event_currency'),
+  // Hours before the start that cancelling stops giving money or credits back. Null: until it starts.
+  eventCancelHours: integer('event_cancel_hours'),
+  // Whether a paid event can be booked with a class pass. Null counts as yes.
+  eventPassesAllowed: integer('event_passes_allowed', { mode: 'boolean' }),
+  // Reserved for docs/roadmap.md: nothing reads or writes these three yet.
+  // Sessions a pass pays per place. Null counts as 1.
+  eventPassCredits: integer('event_pass_credits'),
+  // event_resources rows. Plain columns with no FK: this table is a cascade target (see above).
+  eventTeacherId: text('event_teacher_id'),
+  eventRoomId: text('event_room_id'),
   // GEO/LLMO optimisation fields
   canonicalUrl: text('canonical_url'),
   focusKeyword: text('focus_keyword'),
@@ -114,6 +136,9 @@ export const contentItems = sqliteTable('content_items', {
   // once a minute. Partial, so it only ever holds the handful of scheduled items. A plain
   // CREATE INDEX — no table rebuild (see the landmine note on this table).
   index('idx_content_items_scheduled').on(t.scheduledAt).where(sql`${t.status} = 'scheduled'`),
+  // For a timetable filtered by teacher or room, and for finding a room booked twice.
+  index('idx_content_items_event_teacher').on(t.siteId, t.eventTeacherId).where(sql`event_teacher_id is not null`),
+  index('idx_content_items_event_room').on(t.siteId, t.eventRoomId).where(sql`event_room_id is not null`),
 ])
 
 // Who is coming to an event. The address is the identity, so one row per address per
@@ -126,7 +151,38 @@ export const eventRsvps = sqliteTable('event_rsvps', {
   email: text('email').notNull(),
   name: text('name').notNull(),
   seats: integer('seats').notNull().default(1),
-  status: text('status', { enum: ['pending', 'confirmed', 'waitlist', 'cancelled'] }).notNull().default('pending'),
+  // pending: waiting for the emailed link. held: seats kept during card checkout. offered:
+  // seats kept for someone off a paid event's waitlist, until they pay. Both of those count
+  // against capacity until hold_expires_at.
+  status: text('status', { enum: ['pending', 'held', 'offered', 'confirmed', 'waitlist', 'cancelled'] }).notNull().default('pending'),
+  // Which date of a repeating event, `YYYY-MM-DD` in the site's zone. Empty for a one-off.
+  occurrenceDate: text('occurrence_date').notNull().default(''),
+  // When this booking's date starts, so reminders and "upcoming" don't re-work out the rule.
+  startsAt: text('starts_at'),
+  holdExpiresAt: text('hold_expires_at'),
+  // How it's paid for. Null: free.
+  paymentMethod: text('payment_method', { enum: ['card', 'pass'] }),
+  paymentStatus: text('payment_status', { enum: ['paid', 'refunded'] }),
+  amountPaid: real('amount_paid'),
+  currency: text('currency'),
+  stripeSessionId: text('stripe_session_id'),
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+  // Plain column, no FK: erasing a holding's row must not touch the booking.
+  passHoldingId: text('pass_holding_id'),
+  creditsSpent: integer('credits_spent').notNull().default(0),
+  // Reserved for docs/roadmap.md: nothing reads or writes the next seven yet.
+  // Null: not marked. Only ever set on a confirmed booking.
+  attendance: text('attendance', { enum: ['attended', 'no_show'] }),
+  attendanceAt: text('attendance_at'),
+  // amount_paid stays what the customer actually paid; these say how it was made up.
+  amountDiscount: real('amount_discount'),
+  discountCode: text('discount_code'),
+  amountTax: real('amount_tax'),
+  // Null means Stripe, using the stripe_* columns. Another provider's single order id goes
+  // in provider_order_id.
+  paymentProvider: text('payment_provider'),
+  providerOrderId: text('provider_order_id'),
+  reminderSentAt: text('reminder_sent_at'),
   confirmSentAt: text('confirm_sent_at'),
   // When the address was confirmed — also the place in the waitlist queue.
   confirmedAt: text('confirmed_at'),
@@ -134,8 +190,34 @@ export const eventRsvps = sqliteTable('event_rsvps', {
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
-  uniqueIndex('uq_event_rsvps_item_email').on(t.contentItemId, t.email),
+  uniqueIndex('uq_event_rsvps_item_date_email').on(t.contentItemId, t.occurrenceDate, t.email),
   index('idx_event_rsvps_site_item_status').on(t.siteId, t.contentItemId, t.status),
+  index('idx_event_rsvps_site_email').on(t.siteId, t.email),
+  index('idx_event_rsvps_payment_intent').on(t.siteId, t.stripePaymentIntentId),
+  // What the hourly sweep looks for across every site (scheduled/event-bookings.ts).
+  index('idx_event_rsvps_holds').on(t.holdExpiresAt).where(sql`status in ('held', 'offered')`),
+  index('idx_event_rsvps_reminders').on(t.startsAt).where(sql`status = 'confirmed' and reminder_sent_at is null`),
+])
+
+// Teachers and rooms a class can have. Reserved for docs/roadmap.md: nothing uses it yet.
+// Never a target of an FK, so deleting one can't touch events or bookings.
+export const eventResources = sqliteTable('event_resources', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  kind: text('kind', { enum: ['teacher', 'room'] }).notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  imageUrl: text('image_url'),
+  // A room's places, for capping a class held in it. Null: no limit.
+  capacity: integer('capacity'),
+  // A teacher's account, if they have one. Plain column: most won't.
+  userId: text('user_id'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_event_resources_site_kind').on(t.siteId, t.kind, t.sortOrder),
 ])
 
 export const contentRevisions = sqliteTable('content_revisions', {

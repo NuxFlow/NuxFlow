@@ -135,6 +135,11 @@ export const ALLOWLIST: AllowlistEntry[] = [
 
   // ── Scheduled jobs that run once for the whole installation ──────────────────────
   {
+    file: 'server/scheduled/event-bookings.ts',
+    tables: ['event_rsvps', 'sites'],
+    reason: 'Hourly job across every site: places whose time has run out, and day-before reminders.',
+  },
+  {
     file: 'server/scheduled/publish-scheduled.ts',
     tables: ['content_items', 'content_types'],
     reason: 'Every-minute job that publishes scheduled items on every site.',

@@ -59,7 +59,7 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
         content: true, excerpt: true, seoTitle: true, seoDescription: true, ogImage: true,
         publishedAt: true, settings: true, locale: true, sourceItemId: true,
         canonicalUrl: true, metaRobots: true, focusKeyword: true, allowComments: true,
-        eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, eventRsvpEnabled: true, eventRsvpCapacity: true, eventRsvpClosesAt: true,
+        eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, eventRsvpEnabled: true, eventRsvpCapacity: true, eventRsvpClosesAt: true, eventRecurrence: true, eventPrice: true, eventCurrency: true, eventCancelHours: true, eventPassesAllowed: true,
       },
     }),
     db.query.taxonomies.findMany({ where: eq(taxonomies.siteId, siteId) }),
@@ -242,6 +242,11 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
       eventRsvpEnabled: item.eventRsvpEnabled,
       eventRsvpCapacity: item.eventRsvpCapacity,
       eventRsvpClosesAt: item.eventRsvpClosesAt,
+      eventRecurrence: item.eventRecurrence,
+      eventPrice: item.eventPrice,
+      eventCurrency: item.eventCurrency,
+      eventCancelHours: item.eventCancelHours,
+      eventPassesAllowed: item.eventPassesAllowed,
     })
   }
 

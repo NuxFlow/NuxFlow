@@ -20,6 +20,8 @@ export interface CalendarItem {
   /** First and last day it shows on, in the site's time zone. Absent while it has no date. */
   calendarDate?: string
   calendarEndDate?: string
+  /** One date of a repeating event, which is changed in the event's editor, not dragged. */
+  repeats?: boolean
 }
 
 export interface CalendarCell {
@@ -51,7 +53,7 @@ function moveKeepingTime(stored: string, shift: number, timeZone: string): strin
 
 /** Whether dragging can move it: when something was published is a fact, not a plan. */
 export function canMoveItem(item: CalendarItem): boolean {
-  if (!item.canEdit) return false
+  if (!item.canEdit || item.repeats) return false
   if (item.type?.slug === 'event' || item.eventStartAt) return true
   return item.status === 'draft' || item.status === 'review' || item.status === 'scheduled'
 }
