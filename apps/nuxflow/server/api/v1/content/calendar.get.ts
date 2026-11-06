@@ -2,9 +2,9 @@ import { useDb } from '../../../utils/db'
 import { canEditContentItem, requireRole } from '../../../utils/permissions'
 import { parseQuery } from '../../../utils/validate'
 import { contentItems, contentTypes } from '@nuxflow/db/schema'
-import { and, desc, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm'
 import { z } from 'zod'
-import { addDays, eventDayRange, floatingDate, utcToZoned } from '@nuxflow/canvas/events'
+import { addDays, eventDayRange, floatingDate, occurrencesBetween, utcToZoned } from '@nuxflow/canvas/events'
 import { lastEventDate } from '../../../utils/event-feed'
 import { requireSiteId } from '../../../utils/site-context'
 import { getSiteInfo } from '../../../utils/site-info'
@@ -32,6 +32,7 @@ const COLUMNS = {
   eventEndAt: true,
   eventAllDay: true,
   eventLocation: true,
+  eventRecurrence: true,
 } as const
 
 export default defineEventHandler(async (event) => {
@@ -62,6 +63,8 @@ export default defineEventHandler(async (event) => {
           and(gte(contentItems.scheduledAt, fromTs), lte(contentItems.scheduledAt, toTs)),
           // Anything overlapping the range, so a long event shows in each month it covers.
           and(lte(contentItems.eventStartAt, toTs), gte(lastEventDate, fromTs)),
+          // A repeating event's first date can be long before the range it has dates in.
+          and(lte(contentItems.eventStartAt, toTs), isNotNull(contentItems.eventRecurrence)),
         ),
       ),
       columns: COLUMNS,
@@ -83,7 +86,7 @@ export default defineEventHandler(async (event) => {
   const typeMap = Object.fromEntries(types.map(t => [t.id, t]))
 
   type Row = (typeof rows)[number]
-  const describe = ({ authorId, sourceItemId: _source, ...row }: Row) => ({
+  const describe = ({ authorId, sourceItemId: _source, eventRecurrence: _rule, ...row }: Row) => ({
     ...row,
     type: typeMap[row.typeId] ?? null,
     canEdit: canEditContentItem(role, userId, { authorId, status: row.status }),
@@ -92,6 +95,22 @@ export default defineEventHandler(async (event) => {
   const items = rows.flatMap((row) => {
     // A translation shares its original's date; it would only be the same event twice.
     if (row.eventStartAt && row.sourceItemId) return []
+    // Each date of a series is its own entry, and not something to drag: moving one date
+    // isn't what dragging would do. The event's editor changes the series.
+    if (row.eventRecurrence && row.eventStartAt) {
+      const times = { eventStartAt: row.eventStartAt, eventEndAt: row.eventEndAt, eventAllDay: row.eventAllDay }
+      return occurrencesBetween(times, row.eventRecurrence, timeZone, from, to).map((date) => {
+        const range = eventDayRange({ eventStartAt: date.startAt, eventEndAt: date.endAt, eventAllDay: row.eventAllDay }, timeZone)
+        return {
+          ...describe(row),
+          eventStartAt: date.startAt,
+          eventEndAt: date.endAt,
+          calendarDate: range?.first ?? date.date,
+          calendarEndDate: range?.last ?? date.date,
+          repeats: true,
+        }
+      })
+    }
     const { first, last } = calendarDays(row, timeZone)
     if (!first || first > to || last < from) return []
     return [{ ...describe(row), calendarDate: first, calendarEndDate: last }]

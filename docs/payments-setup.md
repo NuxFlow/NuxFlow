@@ -1,6 +1,6 @@
 # Payments & Memberships Setup
 
-NuxFlow has built-in support for subscription memberships and content gating. It connects to your choice of payment provider — Stripe, Lemon Squeezy, or Paddle — all configured through the admin dashboard with no code changes required.
+NuxFlow has built-in support for subscription memberships, content gating, and [paid class bookings](#paid-event-bookings-and-class-passes). It connects to your choice of payment provider — Stripe, Lemon Squeezy, or Paddle — all configured through the admin dashboard with no code changes required.
 
 ---
 
@@ -59,6 +59,7 @@ Go to **Admin → Settings → Payments** and fill in the credentials for at lea
    - `customer.subscription.created`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
+   - `checkout.session.expired` and `charge.refunded` (for paid event bookings and class passes)
 4. After saving, copy the **Signing secret** (`whsec_...`) and paste it into **Settings → Payments → Stripe Webhook Secret**.
 
 > [!WARNING]
@@ -186,6 +187,31 @@ Use your provider's test mode to verify end-to-end:
 4. Click **Subscribe** on the paywall while logged in — NuxFlow creates a Paddle transaction via the API and redirects to Paddle's hosted checkout.
 5. Complete checkout with a [Paddle test card](https://developer.paddle.com/concepts/payment-methods/credit-debit-card#test-cards) (e.g. `4242 4242 4242 4242`).
 6. Paddle fires `subscription.activated` → NuxFlow activates the subscription.
+
+---
+
+## Paid event bookings and class passes
+
+Visitors can pay for a place on an event or buy a block of sessions without an account. **This works with Stripe only.** Lemon Squeezy and Paddle set their prices in their own dashboards, which doesn't suit a price per event. To create events and passes, see [Events System](./user-guide.md#events-system) in the User Guide.
+
+Paid booking stays closed until the site has both the Stripe **secret key** and the **webhook secret**. Without the webhook, someone could pay and never get their place.
+
+The Stripe webhook also needs the `checkout.session.expired` and `charge.refunded` events from the list above. If your webhook was set up before you used bookings, add them:
+
+- `checkout.session.expired` frees a held place when an abandoned checkout expires. Without it, the place stays held until the hourly sweep after the hold runs out.
+- `charge.refunded` keeps a booking or pass correct when you refund from the Stripe Dashboard.
+
+There is nothing to sync: NuxFlow sends each price to Stripe at checkout, so no products or prices need creating there.
+
+**Test it in Stripe test mode:**
+1. Use your `sk_test_...` key and the test webhook's signing secret.
+2. Give an event a price and a capacity, and publish it.
+3. Book a place as a visitor, using card number `4242 4242 4242 4242`. The attendee list should show it as confirmed and paid.
+4. Cancel from the link in the confirmation email. Before the cut-off, the refund should appear in Stripe.
+5. Start another booking and leave Stripe Checkout without paying. The place should be free again once the session expires, about 30 minutes later.
+6. Buy a class pass, then book a class with it through the emailed link. The pass should show one session fewer.
+
+Refunds go back to the original card. Credits go back on the pass.
 
 ---
 

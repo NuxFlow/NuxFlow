@@ -41,8 +41,8 @@ All MCP requests must be authenticated.
 | `get_content` | `read:content` | Gets one item by `id` or `slug`, with its body and taxonomy terms. |
 | `search_content` | `read:content` | Finds published content by topic or keyword (semantic search when Vectorize is set up, keyword search otherwise). |
 | `list_taxonomies` | `read:content` | Lists the site's taxonomies and their terms as `taxonomy/term` paths. |
-| `create_content` | `write:content` | Creates a page or post. |
-| `update_content` | `write:content` | Changes an item's title, slug, content or status. |
+| `create_content` | `write:content` | Creates a page, post or event, including an event's dates, repeat rule, price and booking settings. |
+| `update_content` | `write:content` | Changes an item's title, slug, content or status, or an event's details. Moving or removing dates tells the people booked, and refunds them if a date is gone. |
 | `set_content_terms` | `write:content` | Replaces an item's categories/tags, given as `taxonomy/term` paths. |
 | `delete_content` | `write:content` | Permanently deletes an item. |
 

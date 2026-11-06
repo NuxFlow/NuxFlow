@@ -11,6 +11,7 @@ import { deleteContentEmbedding } from '../../../utils/embeddings'
 import { indexablePathsForItems, submitToIndexNow } from '../../../utils/indexnow'
 import { queueContentHook } from '../../../utils/plugin-hooks'
 import { requireSiteId } from '../../../utils/site-context'
+import { hasPaidUpcomingBookings } from '../../../utils/event-rsvp'
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
@@ -21,6 +22,10 @@ export default defineEventHandler(async (event) => {
   const existing = await getContentItemOrThrow(db, siteId, id, 'Not found', {
     id: true, title: true, slug: true, status: true, visibility: true, locale: true, sourceItemId: true, typeId: true, metaRobots: true,
   })
+  // Deleting the event would delete its bookings, and with them any record of who is owed what.
+  if (await hasPaidUpcomingBookings(db, siteId, id)) {
+    throw conflict('This event has paid bookings still to come. Cancel its dates from the attendee list first, so people get their money back.')
+  }
   const termRefs = await getTermRefsWithAncestors(db, siteId, await getContentTermIds(db, id))
   // Resolved before the delete — a translation's public path needs its source row.
   const wasLive = existing.status === 'published' && existing.visibility === 'public'

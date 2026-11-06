@@ -68,7 +68,7 @@ You can build pages, write posts, upload images, manage menus and taxonomies, sw
 
 ### Canvas Visual Page Builder
 - **Elementor-style drag-and-drop editor** — build pages visually without writing code
-- **Built-in block types**: Hero, Text, Image, Video, Columns, Container, Features, Testimonial, CTA Banner, Spacer, GDPR Banner, Footer, Button, Accordion, Pricing Table, Gallery, Carousel, Events Calendar, Posts, Contact Form, Form, HTML, Membership Pricing
+- **Built-in block types**: Hero, Text, Image, Video, Columns, Container, Features, Testimonial, CTA Banner, Spacer, GDPR Banner, Footer, Button, Accordion, Pricing Table, Gallery, Carousel, Events Calendar (with a weekly timetable view), Class Passes, Posts, Contact Form, Form, HTML, Membership Pricing
 - **Third-party blocks** — install dynamic plugins to add new block types (a countdown, a map, etc.)
 - **State-driven editing** — every property change updates live JSON, saved with a single API call
 - **Fully server-side rendered** — canvas pages are SSR'd at the edge for instant first paint and SEO
@@ -127,6 +127,15 @@ You can build pages, write posts, upload images, manage menus and taxonomies, sw
 - **Instant activation** — new theme takes effect immediately on activation
 - **Layout regions** — a plugin block can replace the built-in header or footer
 - CLI scaffolding: `npx @nuxflow/cli theme create`
+
+### Events & Class Booking
+- **Events** with their own pages, an admin calendar, and `.ics` calendar files
+- **Repeating classes** — daily, weekly or monthly, with a separate attendee list for each date
+- **Weekly timetable** — a view of the Events Calendar block, with optional filter buttons
+- **RSVPs and waitlists** — free bookings confirmed by an emailed link
+- **Paid bookings** — card payment through Stripe, with no account needed; a place is held during checkout
+- **Class passes** — sell blocks of sessions that belong to an email address, spent through emailed links
+- **Cancellation rules, refunds and reminders** — automatic refunds up to a cut-off you set, and an email the day before
 
 ### Membership & Payments
 - **Membership tiers** with recurring subscription pricing

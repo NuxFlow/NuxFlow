@@ -1,6 +1,7 @@
 import { useDb, useReplicaDb, type Db } from '../../../utils/db'
 import { contentItems, contentTypes, sites, users } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { describeRecurrence, upcomingOccurrences } from '@nuxflow/canvas/events'
 import { withEdgeCache } from '../../../utils/edge-cache'
 import { findRedirect } from '../../../utils/redirect-cache'
 import { findPreviewItem } from '../../../utils/preview'
@@ -118,7 +119,7 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
             eq(contentItems.siteId, siteId),
             eq(contentItems.status, 'published'),
           ),
-          columns: { locale: true, slug: true, eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, eventRsvpEnabled: true },
+          columns: { locale: true, slug: true, eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, eventRsvpEnabled: true, eventRecurrence: true, eventPrice: true, eventCurrency: true },
         })
       : Promise.resolve(null),
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true, timezone: true } }),
@@ -197,6 +198,11 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
   // are always the original's list, however many languages the event is in.
   const eventSource = page.eventStartAt ? page : sourcePageResolved
   const rsvpSource = sourcePageResolved ?? page
+  // A series is described by its rule; the dates shown and in structured data are the next one.
+  const recurrence = rsvpSource.eventRecurrence ?? null
+  const nextDate = recurrence && eventSource?.eventStartAt
+    ? upcomingOccurrences({ eventStartAt: eventSource.eventStartAt, eventEndAt: eventSource.eventEndAt, eventAllDay: eventSource.eventAllDay }, recurrence, site?.timezone || 'UTC', 1)[0]
+    : null
 
   return {
     id: page.id,
@@ -220,8 +226,11 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
     type: type ? { slug: type.slug, name: type.singularName || type.name } : null,
     event: eventSource?.eventStartAt
       ? {
-          startAt: eventSource.eventStartAt,
-          endAt: eventSource.eventEndAt,
+          startAt: nextDate?.startAt ?? eventSource.eventStartAt,
+          endAt: nextDate ? nextDate.endAt : eventSource.eventEndAt,
+          repeats: recurrence ? describeRecurrence(recurrence, site?.locale || undefined) : null,
+          price: (rsvpSource.eventPrice ?? 0) > 0 ? rsvpSource.eventPrice : null,
+          currency: (rsvpSource.eventPrice ?? 0) > 0 ? rsvpSource.eventCurrency || 'USD' : null,
           allDay: eventSource.eventAllDay,
           location: eventSource.eventLocation,
           url: eventSource.eventUrl,

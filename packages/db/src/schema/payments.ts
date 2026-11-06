@@ -79,3 +79,66 @@ export const subscriptions = sqliteTable('subscriptions', {
   uniqueIndex('idx_subscriptions_unique_free_tier').on(t.siteId, t.userId, t.tierId)
     .where(sql`substr(${t.providerSubscriptionId}, 1, 5) = 'free_'`),
 ])
+
+// Blocks of sessions a site sells, such as "10 classes". Never a target of an FK: a holding
+// copies what it needs, so changing or deleting a pass doesn't touch what people bought.
+export const classPasses = sqliteTable('class_passes', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  credits: integer('credits').notNull(),
+  price: real('price').notNull(),
+  currency: text('currency').notNull().default('USD'),
+  // Days from purchase. Null: never expires.
+  validDays: integer('valid_days'),
+  // Reserved for docs/roadmap.md: nothing reads or writes these two yet.
+  // Only for an address that has never bought from this site.
+  introOnly: integer('intro_only', { mode: 'boolean' }).notNull().default(false),
+  // Taxonomy terms of the classes it can be spent on. Null: every class.
+  allowedTermIds: text('allowed_term_ids', { mode: 'json' }).$type<string[]>(),
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_class_passes_site').on(t.siteId),
+])
+
+// A pass someone bought. It belongs to an email address, not an account: visitors buy and
+// use passes without signing up, and prove the address through emailed links.
+export const classPassHoldings = sqliteTable('class_pass_holdings', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  // Plain column, no FK: see class_passes.
+  passId: text('pass_id'),
+  passName: text('pass_name').notNull(),
+  email: text('email').notNull(),
+  name: text('name').notNull().default(''),
+  creditsTotal: integer('credits_total').notNull(),
+  creditsUsed: integer('credits_used').notNull().default(0),
+  expiresAt: text('expires_at'),
+  status: text('status', { enum: ['active', 'refunded'] }).notNull().default('active'),
+  amountPaid: real('amount_paid').notNull().default(0),
+  amountRefunded: real('amount_refunded').notNull().default(0),
+  currency: text('currency').notNull().default('USD'),
+  // Null when the team added it by hand, such as a pass sold at the desk.
+  stripeSessionId: text('stripe_session_id'),
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+  // Reserved for docs/roadmap.md: nothing reads or writes the next six yet.
+  // Copied from the pass when bought, as with its name. Null: every class.
+  allowedTermIds: text('allowed_term_ids', { mode: 'json' }).$type<string[]>(),
+  // amount_paid stays what the customer actually paid; these say how it was made up.
+  amountDiscount: real('amount_discount'),
+  discountCode: text('discount_code'),
+  amountTax: real('amount_tax'),
+  // Null means Stripe, using the stripe_* columns.
+  paymentProvider: text('payment_provider'),
+  providerOrderId: text('provider_order_id'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_class_pass_holdings_site_email').on(t.siteId, t.email),
+  index('idx_class_pass_holdings_payment_intent').on(t.siteId, t.stripePaymentIntentId),
+  // Stripe redelivers webhooks; a redelivery must not grant the credits twice.
+  uniqueIndex('uq_class_pass_holdings_session').on(t.siteId, t.stripeSessionId).where(sql`stripe_session_id is not null`),
+])

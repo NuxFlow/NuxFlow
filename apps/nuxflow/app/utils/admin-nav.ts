@@ -52,6 +52,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Mailing list', to: '/admin/mailing-list', icon: 'i-lucide-mail-plus', minRole: 'admin' },
   { label: 'Users', to: '/admin/users', icon: 'i-lucide-users', minRole: 'admin' },
   { label: 'Memberships', to: '/admin/memberships', icon: 'i-lucide-credit-card', minRole: 'admin' },
+  { label: 'Class passes', to: '/admin/class-passes', icon: 'i-lucide-ticket', minRole: 'admin' },
   { label: 'Themes', to: '/admin/themes', icon: 'i-lucide-palette', minRole: 'admin' },
   { label: 'Plugins', to: '/admin/plugins', icon: 'i-lucide-puzzle', minRole: 'admin' },
   // Editors get Redirects and the SEO audit; the settings tabs on that page are admin-only

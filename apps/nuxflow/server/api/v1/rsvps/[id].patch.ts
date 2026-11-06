@@ -5,14 +5,15 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { requireSiteId } from '../../../utils/site-context'
 import { writeAuditLog } from '../../../utils/audit'
-import { emailOrganiserChange, getRsvpEvent, setRsvpStatus } from '../../../utils/event-rsvp'
+import { emailOrganiserChange, getRsvpEvent, setRsvpStatus, slotOf } from '../../../utils/event-rsvp'
 
 const bodySchema = z.object({
   status: z.enum(['confirmed', 'waitlist', 'cancelled']),
 })
 
 // The organiser moves someone: off the waitlist (even past the capacity), back onto it, or
-// off the list. The person is told by email.
+// off the list. The person is told by email. Cancelling always gives back what they paid,
+// whatever the event's own cancellation rule says: that rule is for people cancelling themselves.
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'editor')
   const db = useDb(event)
@@ -26,9 +27,13 @@ export default defineEventHandler(async (event) => {
   const item = await getRsvpEvent(db, siteId, row?.contentItemId ?? '')
   if (!row || !item) notFound('That booking was not found.')
   if (row.status === status) return { id: row.id, status }
+  if (status === 'waitlist' && row.paymentStatus === 'paid') {
+    conflict('This person has paid for their place. Cancel it instead, so they get their money back.')
+  }
 
-  await setRsvpStatus(event, row, status)
-  await emailOrganiserChange(event, item, row, status)
-  await writeAuditLog(event, userId, { action: 'update', resource: 'event_rsvp', resourceId: row.id, before: { status: row.status }, after: { status } })
-  return { id: row.id, status }
+  const refund = await setRsvpStatus(event, row, status, { refund: true })
+  const slot = slotOf(item, row.occurrenceDate) ?? { ...item, occurrenceDate: row.occurrenceDate, eventStartAt: row.startsAt ?? item.eventStartAt, eventEndAt: null }
+  await emailOrganiserChange(event, slot, row, status, refund)
+  await writeAuditLog(event, userId, { action: 'update', resource: 'event_rsvp', resourceId: row.id, before: { status: row.status }, after: { status, refund } })
+  return { id: row.id, status, refund }
 })

@@ -251,7 +251,7 @@ export function blockedCrawlerTokens(mode: AiCrawlerMode): string[] {
  * setup, and internal search results (Google's guidance is to keep those out). Sent a
  * `X-Robots-Tag: noindex` header by 05.seo-headers.ts and disallowed in robots.txt.
  */
-export const NOINDEX_PATHS = ['/admin', '/login', '/register', '/forgot-password', '/reset-password', '/account', '/setup', '/search', '/mailing-list', '/rsvp'] as const
+export const NOINDEX_PATHS = ['/admin', '/login', '/register', '/forgot-password', '/reset-password', '/account', '/setup', '/search', '/mailing-list', '/rsvp', '/booking'] as const
 
 export function isNoindexPath(path: string): boolean {
   const p = path.split('?')[0] || '/'

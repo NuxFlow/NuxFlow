@@ -68,6 +68,7 @@ defineProps<{
           <code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded font-mono break-all select-all">
             https://{{ domain || 'yourdomain.com' }}/api/v1/memberships/webhooks/stripe
           </code>
+          Taking paid bookings or selling class passes also needs the events <code class="font-mono">checkout.session.expired</code> and <code class="font-mono">charge.refunded</code> on it.
         </p>
       </div>
 

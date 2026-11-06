@@ -5,7 +5,7 @@
  */
 
 import { defineAsyncComponent } from 'vue'
-import { canvasHostKey, type CanvasContent, type CanvasEventList, type CanvasHost, type CanvasPostItem } from '@nuxflow/canvas'
+import { canvasHostKey, type CanvasClassPass, type CanvasContent, type CanvasEventList, type CanvasHost, type CanvasPostItem } from '@nuxflow/canvas'
 
 // Every method rejects with an Error carrying the server's own message, which the package
 // shows to the user as-is.
@@ -23,9 +23,12 @@ export default defineNuxtPlugin((nuxtApp) => {
       const data = await call(() => $fetch<{ posts?: CanvasPostItem[] }>('/api/public/posts', { query }), 'Could not load posts')
       return data.posts ?? []
     },
-    async listEvents({ limit, from, to, past }) {
-      const data = await call(() => $fetch<Partial<CanvasEventList>>('/api/public/events', { query: { limit, from, to, past: past ? '1' : undefined } }), 'Could not load events')
+    async listEvents({ limit, from, to, past, taxonomy }) {
+      const data = await call(() => $fetch<Partial<CanvasEventList>>('/api/public/events', { query: { limit, from, to, past: past ? '1' : undefined, taxonomy } }), 'Could not load events')
       return { events: data.events ?? [], timeZone: data.timeZone ?? 'UTC', feedUrl: data.feedUrl }
+    },
+    async listClassPasses() {
+      return call(() => $fetch<{ passes: CanvasClassPass[]; canBuy: boolean }>('/api/public/class-passes'), 'Could not load passes')
     },
     async improveText(text, instruction) {
       const data = await call(() => $fetch<{ alternatives?: string[] }>('/api/v1/ai/improve', { method: 'POST', body: { text, instruction } }), 'AI request failed')

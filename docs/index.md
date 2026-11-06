@@ -30,6 +30,7 @@ If you are new to NuxFlow, start with these guides:
 - **Mailing List**: A polite signup popup (and an inline Signup box block) that collects email addresses with double opt-in, an optional incentive, CSV export and Brevo sync.
 - **Email Inbox**: Receive email at contact@, leads@ or any address on your domain, triaged by AI and answered from the admin — plus post-by-email drafts and security alerts.
 - **Payments & Memberships**: Subscription tiers and content gating via Stripe, Lemon Squeezy, or Paddle.
+- **Events & Class Booking**: Repeating classes, a weekly timetable, RSVPs and waitlists, paid bookings and blocks of sessions through Stripe, with no visitor account needed.
 - **Hot-Loading Plugins**: Install and activate dynamic plugins at runtime without redeploying — they run as isolated Cloudflare Workers spawned on demand.
 - **Photography Ready**: Responsive image Gallery block with full-screen lightbox, EXIF metadata display, live focal-point crop preview, and a dedicated Google Image Sitemap at `/sitemap-images.xml`.
 - **Video & Vlogging Ready**: Canvas Video block embeds YouTube (including Shorts), Vimeo (including unlisted videos), and Cloudflare Stream. Resumable uploads of films up to 30 GB, private videos on password and members-only pages, cookie-free players, and a Google Video Sitemap at `/sitemap-video.xml`.

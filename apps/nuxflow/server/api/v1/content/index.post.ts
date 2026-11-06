@@ -103,6 +103,11 @@ export default defineEventHandler(async (event) => {
     eventRsvpEnabled: body.eventRsvpEnabled || null,
     eventRsvpCapacity: body.eventRsvpCapacity ?? null,
     eventRsvpClosesAt: body.eventRsvpClosesAt || null,
+    eventRecurrence: body.eventRecurrence ?? null,
+    eventPrice: body.eventPrice ?? null,
+    eventCurrency: body.eventCurrency ?? null,
+    eventCancelHours: body.eventCancelHours ?? null,
+    eventPassesAllowed: body.eventPassesAllowed ?? null,
   })
 
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'create', resource: 'content_item', resourceId: id })

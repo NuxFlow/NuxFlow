@@ -370,7 +370,11 @@ Pages using the Canvas page builder render **full-width** with no outer containe
 | `.canvas-testimonial` | Testimonial / quote card |
 | `.canvas-cta` | Call-to-action banner |
 | `.canvas-spacer` | Vertical spacer / divider |
+| `.canvas-calendar` | Events Calendar. In its weekly view, `.canvas-timetable` wraps the week, each day is `.canvas-timetable-day`, and each class is `.canvas-timetable-class`. |
+| `.canvas-class-passes` | Class Passes. Each pass on sale is `.canvas-class-pass`. |
 | `.nux-blocks` | Outer wrapper for the entire canvas page |
+
+Event pages aren't Canvas blocks, but have the same kind of hook: `.nuxflow-event-details` for the date and place, and `.nuxflow-event-rsvp` for the booking form.
 
 Because Canvas pages are full-width, add `max-width` constraints inside your selectors to prevent elements from stretching on large viewports:
 

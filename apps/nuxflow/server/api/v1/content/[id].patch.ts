@@ -23,7 +23,7 @@ import type { BatchItem } from 'drizzle-orm/batch'
 import { requireSiteId } from '../../../utils/site-context'
 import { getSiteInfo } from '../../../utils/site-info'
 import { checkContentDates, contentDateFields } from '../../../utils/content-dates'
-import { promoteWaitlist } from '../../../utils/event-rsvp'
+import { promoteAllWaitlists, reconcileBookings } from '../../../utils/event-rsvp'
 
 const bodySchema = z.object({
   title: z.string().min(1).max(500).optional(),
@@ -260,7 +260,15 @@ export default defineEventHandler(async (event) => {
 
   // More places (or RSVPs switched on) can let people in off the waitlist.
   if (changedFields.has('eventRsvpCapacity') || changedFields.has('eventRsvpEnabled')) {
-    waitUntil(event, promoteWaitlist(event, id).catch(err => console.error('[event-rsvp] Waitlist update failed:', err)))
+    waitUntil(event, promoteAllWaitlists(event, id).catch(err => console.error('[event-rsvp] Waitlist update failed:', err)))
+  }
+
+  // New dates or a new place: bookings follow, people are told, and anyone whose date no
+  // longer exists gets what they paid back.
+  const timesChanged = ['eventStartAt', 'eventEndAt', 'eventAllDay', 'eventRecurrence'].some(key => changedFields.has(key as keyof typeof updateFields))
+  const placeChanged = changedFields.has('eventLocation')
+  if (timesChanged || placeChanged) {
+    waitUntil(event, reconcileBookings(event, id, { timesChanged, placeChanged }).catch(err => console.error('[event-rsvp] Updating bookings failed:', err)))
   }
 
   // Plugins granted content hooks hear about public items going live, changing, or leaving.

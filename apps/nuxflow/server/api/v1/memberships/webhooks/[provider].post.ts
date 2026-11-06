@@ -3,6 +3,7 @@ import type { StripeProvider } from '../../../../utils/payments/stripe'
 import { getStripeProvider, getLemonSqueezyProvider, getPaddleProvider } from '../../../../utils/payments/resolve'
 import { upsertSubscriptionFromWebhook, cancelSubscriptionFromWebhook, assertWebhookSiteMatch, requireWebhookSecret, WebhookForOtherSite } from '../../../../utils/payments/webhook-sync'
 import { rateLimit } from '../../../../utils/rate-limit'
+import { handleChargeRefunded, handleOneOffCheckoutCompleted, handleOneOffCheckoutExpired, type StripeCheckoutSession } from '../../../../utils/booking-webhooks'
 
 const STATUS_MAP_ACTIVE_TRIAL_PASTDUE_UNPAID = {
   active: 'active', trialing: 'trialing', past_due: 'past_due', unpaid: 'unpaid',
@@ -27,12 +28,22 @@ async function handleStripeWebhook(event: H3Event, rawBody: string) {
   }
 
   switch (stripeEvent.type) {
+    case 'checkout.session.expired': {
+      await handleOneOffCheckoutExpired(event, stripeEvent.data.object as StripeCheckoutSession)
+      break
+    }
+    case 'charge.refunded': {
+      await handleChargeRefunded(event, stripeEvent.data.object)
+      break
+    }
     case 'checkout.session.completed': {
       const session = stripeEvent.data.object as {
         id: string; customer: string | null; subscription: string | null
         metadata: Record<string, string>
         payment_status: string
       }
+      // One-off payments (bookings, class passes, one-time tiers) have no subscription.
+      if (await handleOneOffCheckoutCompleted(event, session)) break
       // Only handle subscription checkouts — and not the hosting platform's own sign-ups,
       // which have their own webhook (api/accounts/hosting/stripe-webhook.post.ts).
       if (!session.subscription || session.metadata?.nuxflowHosting === '1') break

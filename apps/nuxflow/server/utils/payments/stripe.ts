@@ -17,6 +17,14 @@ export function toStripeUnitAmount(amount: number, currency: string): number {
   return Math.round(amount * 100)
 }
 
+/** The other way round: what a webhook's smallest-unit amount is in major units. */
+export function fromStripeUnitAmount(amount: number, currency: string): number {
+  const code = currency.toUpperCase()
+  if (ZERO_DECIMAL.has(code)) return amount
+  if (THREE_DECIMAL.has(code)) return amount / 1000
+  return amount / 100
+}
+
 export class StripeProvider implements PaymentProvider {
   private client: Stripe
 
@@ -89,6 +97,71 @@ export class StripeProvider implements PaymentProvider {
         ...(opts.flexibleBilling ? { billing_mode: { type: 'flexible' as const } } : {}),
       },
     })
+  }
+
+  /**
+   * A one-off payment rather than a subscription: a one-time membership tier (`priceId`), or
+   * a booking or class pass (`item`, priced at the moment of checkout so nothing has to be
+   * synced to Stripe first). A guest gets `customerEmail`, with no Stripe customer made.
+   * `expiresInMinutes` can't be under Stripe's minimum of 30.
+   *
+   * Card only: a booking takes a place straight away, and slower methods such as bank debits
+   * would hold that place for days and could still fail after the class has happened.
+   */
+  async createPaymentCheckout(opts: {
+    customerId?: string
+    customerEmail?: string
+    priceId?: string
+    item?: { name: string; description?: string; amount: number; currency: string; quantity: number }
+    successUrl: string
+    cancelUrl: string
+    metadata: Record<string, string>
+    expiresInMinutes?: number
+  }) {
+    const params: Stripe.Checkout.SessionCreateParams = {
+      mode: 'payment',
+      allowed_payment_method_types: ['card'],
+      line_items: [opts.item
+        ? {
+            quantity: opts.item.quantity,
+            price_data: {
+              currency: opts.item.currency.toLowerCase(),
+              unit_amount: toStripeUnitAmount(opts.item.amount, opts.item.currency),
+              product_data: { name: opts.item.name, ...(opts.item.description ? { description: opts.item.description } : {}) },
+            },
+          }
+        : { price: opts.priceId, quantity: 1 }],
+      success_url: opts.successUrl,
+      cancel_url: opts.cancelUrl,
+      metadata: opts.metadata,
+      payment_intent_data: { metadata: opts.metadata },
+    }
+    if (opts.customerId) params.customer = opts.customerId
+    else params.customer_email = opts.customerEmail
+    if (opts.expiresInMinutes) params.expires_at = Math.floor(Date.now() / 1000) + opts.expiresInMinutes * 60
+    return this.client.checkout.sessions.create(params)
+  }
+
+  async getCheckoutSession(sessionId: string) {
+    return this.client.checkout.sessions.retrieve(sessionId)
+  }
+
+  async expireCheckoutSession(sessionId: string) {
+    return this.client.checkout.sessions.expire(sessionId)
+  }
+
+  /**
+   * Gives money back; the whole payment unless `amount` (major units) says otherwise.
+   * `idempotencyKey` makes a retry or a double click refund once, not twice.
+   */
+  async refundPayment(opts: { paymentIntentId: string; amount?: number; currency?: string; idempotencyKey: string }) {
+    return this.client.refunds.create(
+      {
+        payment_intent: opts.paymentIntentId,
+        ...(opts.amount !== undefined && opts.currency ? { amount: toStripeUnitAmount(opts.amount, opts.currency) } : {}),
+      },
+      { idempotencyKey: opts.idempotencyKey },
+    )
   }
 
   async createBillingPortalSession(customerId: string, returnUrl: string) {

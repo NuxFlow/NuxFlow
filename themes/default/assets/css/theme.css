@@ -122,6 +122,14 @@
      .canvas-testimonial   Testimonial / quote card block
      .canvas-cta           Call-to-action banner block
      .canvas-spacer        Vertical spacer / divider block
+     .canvas-calendar      Events Calendar block
+       .canvas-timetable                        the weekly view
+       .canvas-timetable-day                    one day of it
+       .canvas-timetable-class                  one class on that day
+     .canvas-class-passes  Class Passes block
+       .canvas-class-pass                       each pass on sale
+     .nuxflow-event-details The date and place on an event page
+     .nuxflow-event-rsvp   The booking form on an event page
      .canvas-signup        Signup box block (mailing list)
      .nuxflow-signup       Mailing-list signup popup — also carries
                            .nuxflow-signup--slide-in or .nuxflow-signup--modal

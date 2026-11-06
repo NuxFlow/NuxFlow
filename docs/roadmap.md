@@ -17,12 +17,31 @@ Admin → Analytics (page views per day, top pages, referrers, countries and dev
 
 ## Events: what's next
 
-The calendar, event pages, RSVPs and waitlists are built (see `docs/user-guide.md`). Still to come:
+The calendar, event pages, RSVPs, waitlists, repeating events, paid bookings, class passes, reminders and the weekly timetable are built (see `docs/user-guide.md`). Still to come:
 
-- **Repeating events.** A rule on an event (weekly, monthly) and its dates worked out for the calendar, the Calendar block and `/events.ics`. RSVPs would need a list per date.
-- **Reminders and change notices.** Emailing attendees the day before, and when an event's time or place changes or it's cancelled. Needs a scheduled task, with a marker on each booking so nobody is emailed twice.
-- **Attendees in the site backup.** Left out for now, like mailing-list subscribers, as they're personal data and restoring would need their links to the new event ids.
-- **Paid tickets**, through the existing payment providers.
+- **Attendees and class passes in the site backup.** Left out for now, like mailing-list subscribers, as they're personal data and restoring would need their links to the new event ids. The kinds of pass on sale could go in on their own.
+- **One date of a series changed on its own**, such as a different teacher or room for one week. Today a date can only be cancelled; a change like that means cancelling it and adding a one-off.
+- **Teachers and rooms**, as things a class has and a timetable can filter by, including stopping one room being booked twice.
+- **Attendance and no-shows**, marked from the attendee list.
+- **Discount codes and intro offers.** Stripe has promotion codes for this.
+- **Tax on bookings and passes** (VAT and the like), through Stripe Tax.
+- **Other payment providers for bookings.** Stripe only for now: Lemon Squeezy and Paddle set prices in their own dashboards, which doesn't suit a price per event.
+- **Passes for some classes only**, and classes that cost more than one session.
+
+**The database is ready for these.** Migration `0020` added what they need, so building them shouldn't need another migration. Nothing reads or writes these yet:
+
+| Feature | Where it goes |
+|---|---|
+| Teachers and rooms | `event_resources` table, `content_items.event_teacher_id`, `event_room_id` |
+| Attendance and no-shows | `event_rsvps.attendance`, `attendance_at` |
+| Discount codes | `amount_discount`, `discount_code` on `event_rsvps` and `class_pass_holdings` |
+| Intro offers | `class_passes.intro_only` |
+| Tax | `amount_tax` on `event_rsvps` and `class_pass_holdings`. Stripe Tax's on/off switch is a site setting. |
+| Other payment providers | `payment_provider`, `provider_order_id` on `event_rsvps` and `class_pass_holdings` |
+| Passes for some classes | `allowed_term_ids` on `class_passes` and `class_pass_holdings` |
+| Classes costing more than one session | `content_items.event_pass_credits` |
+| One date of a series changed | No new column: an optional `overrides` key inside the `event_recurrence` JSON, by date |
+| Attendees and passes in the backup | No new column: only the backup file changes |
 
 ---
 

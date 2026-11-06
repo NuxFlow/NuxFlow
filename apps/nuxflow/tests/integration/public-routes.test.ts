@@ -80,7 +80,7 @@ describe('GET /api/public/events', () => {
     expect(json).not.toContain('MEMBERS-ONLY-BODY')
     const first = (res as { events: Record<string, unknown>[] }).events[0]
     expect(Object.keys(first).sort()).toEqual(
-      ['eventAllDay', 'eventEndAt', 'eventLocation', 'eventStartAt', 'eventUrl', 'excerpt', 'icsUrl', 'id', 'path', 'rsvp', 'slug', 'title'],
+      ['currency', 'date', 'eventAllDay', 'eventEndAt', 'eventLocation', 'eventStartAt', 'eventUrl', 'excerpt', 'icsUrl', 'id', 'path', 'price', 'rsvp', 'slug', 'title'],
     )
   })
 

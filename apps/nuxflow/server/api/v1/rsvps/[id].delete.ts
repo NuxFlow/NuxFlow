@@ -16,12 +16,18 @@ export default defineEventHandler(async (event) => {
 
   const row = await db.query.eventRsvps.findFirst({
     where: and(eq(eventRsvps.id, rsvpId), eq(eventRsvps.siteId, siteId)),
-    columns: { id: true, status: true, contentItemId: true },
+    columns: { id: true, status: true, contentItemId: true, occurrenceDate: true, paymentStatus: true },
   })
   if (!row) notFound('That booking was not found.')
+  // Otherwise the record of what they're owed goes with it.
+  if (row.status !== 'cancelled' && row.paymentStatus === 'paid') {
+    conflict('This person has paid for their place. Cancel it first, so they get their money back.')
+  }
 
   await db.delete(eventRsvps).where(and(eq(eventRsvps.id, row.id), eq(eventRsvps.siteId, siteId)))
-  if (row.status === 'confirmed') await promoteWaitlist(event, row.contentItemId)
+  if (row.status === 'confirmed' || row.status === 'offered' || row.status === 'held') {
+    await promoteWaitlist(event, row.contentItemId, row.occurrenceDate)
+  }
   await writeAuditLog(event, userId, { action: 'delete', resource: 'event_rsvp', resourceId: row.id })
   return noContent(event)
 })

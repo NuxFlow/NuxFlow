@@ -28,6 +28,11 @@ function extraItemFields(item: NuxFlowBackup['content'][number]) {
   if (item.eventRsvpEnabled !== undefined) out.eventRsvpEnabled = item.eventRsvpEnabled
   if (item.eventRsvpCapacity !== undefined) out.eventRsvpCapacity = item.eventRsvpCapacity
   if (item.eventRsvpClosesAt !== undefined) out.eventRsvpClosesAt = item.eventRsvpClosesAt
+  if (item.eventRecurrence !== undefined) out.eventRecurrence = item.eventRecurrence
+  if (item.eventPrice !== undefined) out.eventPrice = item.eventPrice
+  if (item.eventCurrency !== undefined) out.eventCurrency = item.eventCurrency
+  if (item.eventCancelHours !== undefined) out.eventCancelHours = item.eventCancelHours
+  if (item.eventPassesAllowed !== undefined) out.eventPassesAllowed = item.eventPassesAllowed
   return out
 }
 

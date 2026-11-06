@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { eventDay, floatingDate, todayIn, utcToZoned, zonedToUtc } from '@nuxflow/canvas/events'
+import { eventDay, floatingDate, todayIn, utcToZoned, zonedToUtc, type EventRecurrence } from '@nuxflow/canvas/events'
 import { renderTipTap } from '#shared/lib/render-tiptap'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
@@ -27,6 +27,8 @@ const { data: item, error: loadError, refresh } = await useAsyncData(
     eventStartAt?: string | null; eventEndAt?: string | null; eventLocation?: string | null
     eventUrl?: string | null; eventAllDay?: boolean | null
     eventRsvpEnabled?: boolean | null; eventRsvpCapacity?: number | null; eventRsvpClosesAt?: string | null
+    eventRecurrence?: EventRecurrence | null; eventPrice?: number | null; eventCurrency?: string | null
+    eventCancelHours?: number | null; eventPassesAllowed?: boolean | null
     canEdit?: boolean
     sourceItemId?: string | null
     termIds?: string[]
@@ -69,6 +71,11 @@ const form = reactive({
   eventRsvpEnabled: false,
   eventRsvpCapacity: null as number | null,
   eventRsvpClosesAt: '',
+  eventRecurrence: null as EventRecurrence | null,
+  eventPrice: null as number | null,
+  eventCurrency: 'GBP',
+  eventCancelHours: null as number | null,
+  eventPassesAllowed: true,
   // Taxonomy term ids — saved with the rest of the item (see EditorTermPicker).
   termIds: [] as string[],
 })
@@ -138,6 +145,11 @@ watch(item, (val) => {
   form.eventRsvpEnabled = val.eventRsvpEnabled ?? false
   form.eventRsvpCapacity = val.eventRsvpCapacity ?? null
   form.eventRsvpClosesAt = utcToZoned(val.eventRsvpClosesAt, siteTimeZone.value)
+  form.eventRecurrence = val.eventRecurrence ?? null
+  form.eventPrice = val.eventPrice ?? null
+  form.eventCurrency = val.eventCurrency ?? 'GBP'
+  form.eventCancelHours = val.eventCancelHours ?? null
+  form.eventPassesAllowed = val.eventPassesAllowed ?? true
   form.termIds = val.termIds ?? []
 }, { immediate: true })
 
@@ -272,6 +284,12 @@ async function save(overrideStatus?: string) {
       eventRsvpEnabled: form.eventRsvpEnabled || null,
       eventRsvpCapacity: form.eventRsvpCapacity,
       eventRsvpClosesAt: form.eventRsvpClosesAt ? zonedToUtc(form.eventRsvpClosesAt, siteTimeZone.value) : null,
+      eventRecurrence: form.eventRecurrence,
+      eventPrice: form.eventPrice,
+      eventCurrency: form.eventPrice ? form.eventCurrency : null,
+      eventCancelHours: form.eventCancelHours,
+      // Unset means yes, so a post saved for the first time since this existed isn't a change.
+      eventPassesAllowed: form.eventPassesAllowed ? null : false,
       termIds: form.termIds,
       pagePassword: newPassword,
     }
@@ -517,6 +535,11 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
           v-model:event-rsvp-enabled="form.eventRsvpEnabled"
           v-model:event-rsvp-capacity="form.eventRsvpCapacity"
           v-model:event-rsvp-closes-at="form.eventRsvpClosesAt"
+          v-model:event-recurrence="form.eventRecurrence"
+          v-model:event-price="form.eventPrice"
+          v-model:event-currency="form.eventCurrency"
+          v-model:event-cancel-hours="form.eventCancelHours"
+          v-model:event-passes-allowed="form.eventPassesAllowed"
           :time-zone="siteTimeZone"
           :item-id="isNew ? undefined : (item?.sourceItemId ?? id)"
           :is-translation="Boolean(item?.sourceItemId)"
