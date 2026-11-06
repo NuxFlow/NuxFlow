@@ -173,7 +173,12 @@ function onRootUpdate(list: CanvasBlockData[]) {
 <template>
   <div class="flex flex-col h-full min-h-[500px]">
     <!-- Persistent toolbar -->
-    <div class="sticky top-0 z-10 flex items-center justify-between px-4 py-2 bg-white/90 dark:bg-gray-900/90 backdrop-blur border-b border-gray-200 dark:border-gray-800">
+    <!--
+      z-30: above the blocks' own z-20 action bars as they scroll beneath it. The negative top
+      cancels the admin <main>'s padding (p-4 md:p-6), which sticky offsets count from inside
+      of; at top-0 the page showed through a strip above the toolbar.
+    -->
+    <div class="sticky -top-4 md:-top-6 z-30 flex items-center justify-between px-4 py-2 bg-white/90 dark:bg-gray-900/90 backdrop-blur border-b border-gray-200 dark:border-gray-800">
       <div class="flex items-center gap-3">
         <span class="text-xs text-gray-400">
           {{ blockCount }} block{{ blockCount !== 1 ? 's' : '' }}
@@ -254,7 +259,7 @@ function onRootUpdate(list: CanvasBlockData[]) {
     </div>
 
     <!-- Editor body -->
-    <div class="relative flex flex-1 overflow-hidden">
+    <div class="relative flex flex-1 overflow-clip">
       <!-- Canvas area -->
       <div
         class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950"
@@ -314,7 +319,7 @@ function onRootUpdate(list: CanvasBlockData[]) {
       <!-- Backdrop overlay on mobile/tablet viewports -->
       <div
         v-if="selectedBlock && selectedDefinition"
-        class="lg:hidden absolute inset-0 z-20 bg-black/30 dark:bg-black/50 backdrop-blur-sm transition-opacity"
+        class="lg:hidden fixed inset-0 z-30 bg-black/30 dark:bg-black/50 backdrop-blur-sm transition-opacity"
         @click="selectBlock(null)"
       />
 

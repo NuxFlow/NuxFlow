@@ -59,7 +59,17 @@ async function suggestFocalPoint() {
 </script>
 
 <template>
-  <aside class="absolute lg:relative inset-y-0 right-0 z-30 flex flex-col h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 w-full sm:w-80 lg:w-72 shrink-0 shadow-2xl lg:shadow-none">
+  <!--
+    Sized to the screen, never to the canvas: the editor grows with the page, so a panel
+    sized to it was thousands of pixels tall, mostly blank, and its controls could be far
+    off screen from the block just selected.
+    Below lg it's a drawer pinned to the screen. From lg it stays beside the canvas as the
+    admin's <main> scrolls, directly under the editor's sticky toolbar. Sticky offsets count
+    from inside <main>'s padding (p-6), so top-6 is the toolbar's 3rem less that padding, and
+    7rem is the toolbar plus the admin header (h-16). Sticky needs every ancestor up to <main>
+    to be free of overflow-hidden/auto, so those wrappers use overflow-clip.
+  -->
+  <aside class="max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-40 max-lg:h-dvh max-lg:shadow-2xl lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100dvh-7rem)] flex flex-col bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 w-full sm:w-80 lg:w-72 shrink-0" data-testid="canvas-settings-panel">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
       <div class="flex items-center gap-2">
@@ -123,7 +133,8 @@ async function suggestFocalPoint() {
     </div>
 
     <!-- Fields -->
-    <div class="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+    <!-- Contained only in the drawer: from lg, a tall panel's end can be below the fold until the page scrolls too. -->
+    <div class="flex-1 overflow-y-auto max-lg:overscroll-contain px-4 py-3 space-y-4">
       <div v-for="field in visibleFields" :key="field.key">
         <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
           {{ field.label }}
