@@ -344,7 +344,23 @@ async function generatePreviewLink() {
 // (can happen in certain Nuxt 4 hydration edge cases), force it now.
 onMounted(() => { if (!item.value && !isNew.value) refresh() })
 
-onUnmounted(() => clearTimeout(autoSaveTimer))
+// Below Tailwind's lg, where the sidebar's Publish card stacks under the editor. False during
+// SSR and hydration, so the server and first client render agree.
+const isNarrowScreen = ref(false)
+let narrowQuery: MediaQueryList | undefined
+function onNarrowChange() {
+  isNarrowScreen.value = narrowQuery?.matches ?? false
+}
+onMounted(() => {
+  narrowQuery = window.matchMedia('(max-width: 1023.98px)')
+  onNarrowChange()
+  narrowQuery.addEventListener('change', onNarrowChange)
+})
+
+onUnmounted(() => {
+  clearTimeout(autoSaveTimer)
+  narrowQuery?.removeEventListener('change', onNarrowChange)
+})
 </script>
 
 <template>
@@ -370,12 +386,7 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <UButton :to="`/admin/content?type=${activeTypeSlug}`" variant="ghost" icon="i-lucide-arrow-left" size="sm" aria-label="Back to the list" />
-        <span class="text-sm text-gray-400">
-          <span v-if="saving">Saving…</span>
-          <span v-else-if="saveError" class="text-red-500">{{ saveError }}</span>
-          <span v-else-if="lastSaved">Saved {{ lastSaved.toLocaleTimeString() }}</span>
-          <span v-else class="text-gray-300">Unsaved</span>
-        </span>
+        <EditorSaveStatus :saving="saving" :error="saveError" :last-saved="lastSaved" />
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <!-- Editor mode switcher -->
@@ -453,7 +464,8 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
           <UInput v-model="form.slug" size="sm" class="font-mono" />
         </UFormField>
 
-        <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <!-- overflow-clip, not hidden: hidden would stop the Canvas toolbar and settings panel sticking. -->
+        <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-clip">
           <!-- TipTap rich-text editor -->
           <EditorContentEditor v-if="editorMode === 'tiptap'" v-model="form.content" />
 
@@ -589,6 +601,27 @@ onUnmounted(() => clearTimeout(autoSaveTimer))
           :content-id="id"
           @restored="onRevisionRestored"
         />
+      </div>
+    </div>
+
+    <!--
+      Below lg the Publish card sits under the whole editor, a long scroll away on a Canvas
+      page. Rendered only when narrow (not just hidden), so wide screens have one set of
+      these buttons and one save status. The negative offsets cancel <main>'s padding.
+    -->
+    <div
+      v-if="isNarrowScreen"
+      class="sticky -bottom-4 md:-bottom-6 z-20 -mx-4 -mb-4 md:-mx-6 md:-mb-6 flex items-center justify-between gap-3 px-4 py-2 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800"
+      data-testid="editor-save-bar"
+    >
+      <EditorSaveStatus class="min-w-0 truncate" :saving="saving" :error="saveError" :last-saved="lastSaved" />
+      <div class="flex shrink-0 gap-2">
+        <UButton variant="outline" size="sm" :loading="saving" @click="save()">
+          {{ form.status === 'draft' ? 'Save draft' : 'Save' }}
+        </UButton>
+        <UButton size="sm" :loading="saving" @click="publish()">
+          {{ form.status === 'scheduled' ? 'Schedule' : 'Publish' }}
+        </UButton>
       </div>
     </div>
 
