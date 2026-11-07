@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { slugify } from '#shared/lib/slug'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
-useHead({ title: 'Taxonomies' })
+useHead({ title: 'Categories & tags' })
 
 const route = useRoute()
 const router = useRouter()
@@ -180,8 +180,8 @@ function canMove(term: AdminTerm, direction: -1 | 1) {
   <div class="max-w-6xl mx-auto space-y-6">
     <div class="flex items-center justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Taxonomies</h1>
-        <p class="text-sm text-gray-500 mt-0.5">Manage categories, tags, and custom groupings for your content</p>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Categories &amp; tags</h1>
+        <p class="text-sm text-gray-500 mt-0.5">Manage categories, tags, and your own custom groupings (taxonomies) for your content</p>
       </div>
       <UButton icon="i-lucide-plus" @click="openTaxonomyModal(null)">New taxonomy</UButton>
     </div>

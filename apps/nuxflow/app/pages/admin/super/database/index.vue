@@ -244,7 +244,7 @@ async function downloadExport() {
               A plain SQL dump of every table in this D1 database — schema and data for
               <strong>all sites</strong>, not just the one you're currently viewing. This is the
               database-level equivalent of the offline backups you'd take of a VPS's own database;
-              it's separate from the per-site .zip backup under Admin → Import & Backup, which only
+              it's separate from the per-site .zip backup under Administration → Import & backup, which only
               covers the current site and is meant for moving/restoring content, not full disaster recovery.
             </span>
           </template>
@@ -279,7 +279,7 @@ async function downloadExport() {
           </template>
           <template #description>
             <span class="text-gray-800 dark:text-gray-200">
-              This is why the option only exists here, for super admins — a regular site admin's own backup (Admin → Import & Backup) never includes other tenants' rows. Store this file as securely as you would a full database credential.
+              This is why the option only exists here, for super admins — a regular site admin's own backup (Administration → Import & backup) never includes other tenants' rows. Store this file as securely as you would a full database credential.
             </span>
           </template>
         </UAlert>

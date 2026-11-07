@@ -14,6 +14,14 @@ export function useUncountedViewPath() {
   return useState<string | null>('nuxflow:uncounted-view-path', () => null)
 }
 
+/**
+ * The content type open in the admin editor (null elsewhere), set by the editor page and read
+ * by the sidebar so that editing a post lights Posts: an item's URL doesn't name its type.
+ */
+export function useEditingContentType() {
+  return useState<string | null>('admin:editing-content-type', () => null)
+}
+
 export interface ActiveLocale {
   locale: string
   slug: string

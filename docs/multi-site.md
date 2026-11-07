@@ -43,7 +43,7 @@ New sites are created from within the super admin panel of any existing NuxFlow 
 
 ### Step 1 — Open the Sites panel
 
-In the admin sidebar, scroll to the **Super Admin** section at the bottom and click **Sites**. This page lists every site in the deployment and their current status. The section is only visible to users with the `super_admin` role.
+In the admin sidebar, open the **Super Admin** group at the bottom and click **Sites**. This page lists every site in the deployment and their current status. The section is only visible to users with the `super_admin` role.
 
 ### Step 2 — Create the site
 

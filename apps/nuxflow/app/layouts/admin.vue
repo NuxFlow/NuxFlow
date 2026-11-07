@@ -2,6 +2,23 @@
 const sidebarOpen = ref(false)
 const sidebarCollapsed = ref(false)
 
+// Remembered per browser. Read once mounted because the server can't see it, so a collapsed
+// sidebar narrows just after the first paint rather than causing a hydration mismatch.
+const SIDEBAR_COLLAPSED_KEY = 'nuxflow:admin-sidebar-collapsed'
+onMounted(() => {
+  try {
+    sidebarCollapsed.value = localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'
+  }
+  catch { /* Storage blocked: start expanded. */ }
+})
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed.value ? '1' : '0')
+  }
+  catch { /* Storage blocked: it still collapses, it just won't be remembered. */ }
+}
+
 const route = useRoute()
 // Filled by AdminSidebar's fetchAdminAccess() during the same render.
 const adminAccess = useAdminAccessState()
@@ -33,7 +50,7 @@ watch(() => route.path, () => { sidebarOpen.value = false })
     >
       <AdminSidebar
         :collapsed="sidebarCollapsed"
-        @toggle-collapse="sidebarCollapsed = !sidebarCollapsed"
+        @toggle-collapse="toggleSidebar"
       />
     </aside>
 
