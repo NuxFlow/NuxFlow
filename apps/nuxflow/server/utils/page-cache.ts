@@ -83,6 +83,8 @@ const IGNORED_COOKIE_RES: RegExp[] = [
   // dismissal, which only matters to a signed-in visitor — who has a session cookie anyway.
   /^nuxflow_consent$/,
   /^nuxflow_push_dismissed$/,
+  // The sign-in handoff's state: only the callback route reads it, and that's never cached.
+  /^(?:__Host-)?nuxflow_auth_state$/,
   // Left in returning visitors' browsers by older versions; nothing reads them any more.
   // `i18n_redirected` came from the removed @nuxtjs/i18n module (set on every first visit),
   // `nuxflow_cookie_consent` is the consent cookie's old name. Each turned caching off for

@@ -112,8 +112,14 @@ describe('GET /api/v1/content', () => {
     expect(result.items.some(i => i.id === draftId)).toBe(true)
   })
 
-  it('shows drafts to an API-key-authenticated request (already scoped by 03.api-key-auth.ts)', async () => {
-    const result = await (listHandler as Handler)(mkEvent({ apiKeyUserId: memberId })) as ListResult
+  it('shows drafts to an API key with read:content (site already checked by 03.api-key-auth.ts)', async () => {
+    const result = await (listHandler as Handler)(createMockEvent({ siteId: SITE, session: null, apiKeyUserId: memberId, apiKeyScopes: ['read:content'] }) as unknown as H3Event) as ListResult
     expect(result.items.some(i => i.id === draftId)).toBe(true)
+  })
+
+  it('shows only published items to an API key without read:content', async () => {
+    const result = await (listHandler as Handler)(createMockEvent({ siteId: SITE, session: null, apiKeyUserId: memberId, apiKeyScopes: ['manage:themes'] }) as unknown as H3Event) as ListResult
+    expect(result.items.some(i => i.id === publishedId)).toBe(true)
+    expect(result.items.some(i => i.id === draftId)).toBe(false)
   })
 })

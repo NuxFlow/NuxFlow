@@ -39,6 +39,8 @@ interface ControlPlaneStub {
   // set-password emails sent, by the control plane.
   provisionAccount(input: { protocol: number; poolId: string; siteId: string; name: string; email: string }): Promise<{ user: PoolSignInUser; status: AccountProvisioningStatus }>
   sendSetPasswordEmail(input: { protocol: number; poolId: string; siteId: string; email: string; purpose: 'invite' | 'reset' }): Promise<{ emailDelivery: EmailDeliveryOutcome }>
+  // Whether billing is why a site is closed (hosting-hold.ts): subscriptions never live in a pool.
+  siteBillingHold(input: { protocol: number; poolId: string; siteId: string }): Promise<boolean>
 }
 
 /** A call to the control plane over this pool's CONTROL_PLANE binding, with a timeout. */

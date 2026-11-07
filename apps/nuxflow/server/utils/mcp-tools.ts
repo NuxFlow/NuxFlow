@@ -19,6 +19,7 @@ import { queueContentHook } from './plugin-hooks'
 import { queueContentPublishedPush } from './push-content'
 import { checkContentDates, contentDateFields } from './content-dates'
 import { getSiteInfo } from './site-info'
+import { settingsForEditor } from './page-password'
 import { contentSlugProblem, getContentTermIds, getPublicItemTerms, getTaxonomyContentTypeSlugs, getTermRefsWithAncestors, replaceContentTermsStatements } from './taxonomy'
 
 // Tool implementations for the MCP server (server/api/v1/mcp.ts). Extracted out of that
@@ -302,7 +303,10 @@ async function getContent(args: unknown, ctx: McpToolContext): Promise<McpToolRe
 
   if (!item) return textResult('Error: Content item not found.')
   const terms = (await getPublicItemTerms(ctx.db, ctx.siteId, item.id)).map(t => `${t.taxonomySlug}/${t.termSlug}`)
-  return textResult(JSON.stringify({ ...item, terms }, null, 2))
+  // Never the page password's hash or a live preview link: a read key can belong to anyone
+  // on the team, down to a viewer.
+  const { previewToken: _previewToken, previewTokenExpiresAt: _previewTokenExpiresAt, settings, ...visible } = item
+  return textResult(JSON.stringify({ ...visible, settings: settingsForEditor(settings), terms }, null, 2))
 }
 
 type ContentRow = typeof contentItems.$inferSelect

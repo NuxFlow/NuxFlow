@@ -7,6 +7,11 @@ interface RateLimitOptions {
   limit: number
   windowMs: number
   keyPrefix?: string
+  /**
+   * False for one limit shared by everyone on the site, for what a botnet could otherwise
+   * spread across many addresses. Anyone can use it up, so keep it well above honest use.
+   */
+  perVisitor?: boolean
 }
 
 // One atomic statement per request — INSERT ... ON CONFLICT DO UPDATE ... RETURNING against
@@ -34,9 +39,9 @@ function rememberBlocked(key: string, resetMs: number, now: number) {
 }
 
 export async function rateLimit(event: H3Event, opts: RateLimitOptions): Promise<void> {
-  const ip = getClientIp(event) ?? 'unknown'
+  const visitor = opts.perVisitor === false ? 'everyone' : getClientIp(event) ?? 'unknown'
   const siteId = event.context.siteId ?? 'global'
-  const key = `${opts.keyPrefix ?? 'rl'}:${siteId}:${ip}`
+  const key = `${opts.keyPrefix ?? 'rl'}:${siteId}:${visitor}`
   const now = Date.now()
 
   const blockedAt = blockedUntil.get(key)

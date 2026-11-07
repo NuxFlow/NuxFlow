@@ -41,6 +41,31 @@ describe('rateLimit', () => {
       .resolves.toBeUndefined()
   })
 
+  it('with perVisitor off, one address going over the limit blocks every address', async () => {
+    // This file's getHeader stub answers null, which would make every caller the same visitor.
+    const g = globalThis as Record<string, unknown>
+    const stub = g.getHeader
+    g.getHeader = (e: { _headers: Record<string, string> }, name: string) => e._headers[name] ?? null
+    try {
+      const opts = { limit: 1, windowMs: 60_000, keyPrefix: 'unit-shared', perVisitor: false }
+      mockGet.mockResolvedValueOnce({ count: 2, reset_at: farFutureResetAt() })
+      await expect(rateLimit(mkEvent('10.0.0.8'), opts)).rejects.toMatchObject({ statusCode: 429 })
+      // Refused from the isolate's memory, with no database round trip.
+      await expect(rateLimit(mkEvent('10.0.0.9'), opts)).rejects.toMatchObject({ statusCode: 429 })
+      expect(mockGet).toHaveBeenCalledTimes(1)
+
+      // Without the option, a different address is a different visitor.
+      const perAddress = { limit: 1, windowMs: 60_000, keyPrefix: 'unit-per-address' }
+      mockGet.mockResolvedValueOnce({ count: 2, reset_at: farFutureResetAt() })
+      await expect(rateLimit(mkEvent('10.0.0.8'), perAddress)).rejects.toMatchObject({ statusCode: 429 })
+      mockGet.mockResolvedValueOnce({ count: 1, reset_at: farFutureResetAt() })
+      await expect(rateLimit(mkEvent('10.0.0.9'), perAddress)).resolves.toBeUndefined()
+    }
+    finally {
+      g.getHeader = stub
+    }
+  })
+
   it('allows exactly N requests before blocking, then throws 429 on the N+1th', async () => {
     const ip = '10.0.0.2'
     const opts = { limit: 3, windowMs: 60_000, keyPrefix: 'unit-b' }

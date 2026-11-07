@@ -28,6 +28,20 @@ import { getCloudflareContext } from './cf-env'
 // plugin-hooks.ts). The public /_nuxflow/ext route refuses them.
 export const RESERVED_PLUGIN_PATH_PREFIX = '/__nuxflow'
 
+/**
+ * The URL a plugin sees for a visitor's request, or null for a reserved path. Sets
+ * `pathname` rather than parsing a string: `new URL('//x/__nuxflow/hooks/y', base)` reads
+ * `x` as a host and leaves the plugin a reserved path that a check on the raw string missed.
+ * Leading slashes are collapsed first so `//__nuxflow/...` counts as reserved too.
+ */
+export function pluginForwardUrl(pathname: string, search: string): URL | null {
+  const url = new URL('https://plugin.internal')
+  url.pathname = pathname.replace(/^\/+/, '/')
+  url.search = search
+  const reserved = url.pathname === RESERVED_PLUGIN_PATH_PREFIX || url.pathname.startsWith(`${RESERVED_PLUGIN_PATH_PREFIX}/`)
+  return reserved ? null : url
+}
+
 export interface PluginHostProps {
   siteId: string
   pluginId: string

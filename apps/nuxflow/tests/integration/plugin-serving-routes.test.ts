@@ -260,6 +260,22 @@ describe('/_nuxflow/ext/:pluginId/*', () => {
     expect(loader.get).not.toHaveBeenCalled()
   })
 
+  // `new URL('//x/__nuxflow/...', base)` reads `x` as a host, which handed the plugin the
+  // reserved path even though the check on the raw string had passed.
+  it('refuses the reserved hook path when spelled with extra leading slashes', async () => {
+    for (const path of ['//__nuxflow/hooks/form.submitted', '///__nuxflow']) {
+      await expect((extHandler as Handler)(extEv('com.ok', { method: 'POST', path: `/_nuxflow/ext/com.ok${path}` }))).rejects.toMatchObject({ statusCode: 404 })
+    }
+    expect(loader.get).not.toHaveBeenCalled()
+  })
+
+  it('never lets a double-slash path reach the plugin as a hook delivery', async () => {
+    await (extHandler as Handler)(extEv('com.ok', { method: 'POST', path: '/_nuxflow/ext/com.ok//x/__nuxflow/hooks/form.submitted' }))
+    const forwarded = new URL(lastForwarded!.url)
+    expect(forwarded.host).toBe('plugin.internal')
+    expect(forwarded.pathname).toBe('/x/__nuxflow/hooks/form.submitted')
+  })
+
   // ctx.exports as Cloudflare provides it: one factory per exported WorkerEntrypoint.
   const withExports = (e: H3Event) => {
     ;(e as unknown as { context: { cloudflare: Record<string, unknown> } }).context.cloudflare.context = {
