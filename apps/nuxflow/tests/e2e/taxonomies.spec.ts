@@ -1,5 +1,5 @@
 /**
- * E2E tests for taxonomies: Admin → Taxonomies management, the editor's term picker
+ * E2E tests for taxonomies: Admin → Categories & tags management, the editor's term picker
  * (terms saved with the post, including before its first save), and the public archive,
  * overview, and term links on a published post.
  */

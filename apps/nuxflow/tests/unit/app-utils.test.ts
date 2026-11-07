@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { ADMIN_NAV, SUPER_ADMIN_NAV, canAccessNavItem, findNavRule, isTeamRole, roleAtLeast, type Role } from '../../app/utils/admin-nav'
+import { ADMIN_NAV, ADMIN_NAV_GROUPS, SUPER_ADMIN_NAV, activeNavTo, canAccessNavItem, findNavRule, groupNavItems, isTeamRole, navGroupOf, roleAtLeast, type Role } from '../../app/utils/admin-nav'
 import { safeNextPath } from '../../app/composables/useAccounts'
 import { evaluateArithmeticExpression } from '../../app/utils/safe-math'
 import { formatBytes, formatDuration, formatPrice } from '../../app/utils/format'
@@ -56,12 +56,79 @@ describe('admin-nav', () => {
 
   it('matches the longest nav prefix for a path', () => {
     expect(findNavRule('/admin/content/generate')?.label).toBe('Generate with AI')
-    expect(findNavRule('/admin/content/01ABC')?.label).toBe('Content')
+    expect(findNavRule('/admin/content/01ABC')?.label).toBe('All content')
     expect(findNavRule('/admin/media/videos/x')?.label).toBe('Videos')
     expect(findNavRule('/admin')?.label).toBe('Dashboard')
     expect(findNavRule('/admin/contentious')?.label).toBe('Dashboard')
     expect(findNavRule('/admin/super/database')?.superAdminOnly).toBe(true)
     expect(findNavRule('/elsewhere')).toBeUndefined()
+  })
+
+  // Rows in the sidebar for a role, a group counted as one row.
+  function rowsFor(role: Role, isSuperAdmin = false) {
+    const visible = (items: typeof ADMIN_NAV) => items.filter(i => !i.hidden && canAccessNavItem(i, { role, isSuperAdmin, hostingPlatform: true }))
+    return groupNavItems([...visible(ADMIN_NAV), ...visible(SUPER_ADMIN_NAV)])
+  }
+
+  it('groups the menu in order, with nothing lost or repeated', () => {
+    const entries = groupNavItems(ADMIN_NAV.filter(i => !i.hidden))
+    expect(entries.map(e => (e.kind === 'group' ? e.label : e.item.label))).toEqual([
+      'Dashboard', 'Analytics', 'Content', 'Media', 'Audience', 'Sales', 'Site', 'Administration',
+    ])
+    const flattened = entries.flatMap(e => (e.kind === 'group' ? e.items : [e.item]))
+    expect(flattened.map(i => i.to)).toEqual(ADMIN_NAV.filter(i => !i.hidden).map(i => i.to))
+  })
+
+  it('shows each role a short menu holding only what it can use', () => {
+    expect(rowsFor('viewer')).toHaveLength(3)
+    expect(rowsFor('author')).toHaveLength(3)
+    expect(rowsFor('editor')).toHaveLength(6)
+    expect(rowsFor('admin')).toHaveLength(8)
+    expect(rowsFor('super_admin', true)).toHaveLength(9)
+    expect(rowsFor('author').map(e => (e.kind === 'group' ? e.label : e.item.label))).toEqual(['Dashboard', 'Content', 'Media'])
+  })
+
+  it('turns a group with one visible link into that link', () => {
+    const [only, ...rest] = groupNavItems([{ label: 'Inbox', to: '/admin/inbox', icon: 'x', group: 'audience' }])
+    expect(rest).toEqual([])
+    expect(only).toMatchObject({ kind: 'link', item: { label: 'Inbox' } })
+  })
+
+  it('lights exactly one link per page: a sub-page does not also light its parent', () => {
+    expect(activeNavTo('/admin/media')).toBe('/admin/media')
+    expect(activeNavTo('/admin/media/videos')).toBe('/admin/media/videos')
+    expect(activeNavTo('/admin/content/generate')).toBe('/admin/content/generate')
+    expect(activeNavTo('/admin/content')).toBe('/admin/content')
+    expect(activeNavTo('/admin/super/sites/new')).toBe('/admin/super/sites')
+  })
+
+  it('lights Posts or Events for that content type, listed or being edited', () => {
+    expect(activeNavTo('/admin/content', 'post')).toBe('/admin/content?type=post')
+    expect(activeNavTo('/admin/content/01ABC', 'post')).toBe('/admin/content?type=post')
+    expect(activeNavTo('/admin/content/new', 'event')).toBe('/admin/content?type=event')
+    expect(activeNavTo('/admin/content/01ABC', 'page')).toBe('/admin/content')
+    expect(activeNavTo('/admin/content/generate', 'post')).toBe('/admin/content/generate')
+  })
+
+  it('lights the parent link on a page that is not in the menu', () => {
+    expect(activeNavTo('/admin/events/01ABC')).toBe('/admin/content?type=event')
+    expect(activeNavTo('/admin/inbox/mailboxes')).toBe('/admin/inbox')
+    expect(navGroupOf(activeNavTo('/admin/inbox/mailboxes'))).toBe('audience')
+    for (const item of ADMIN_NAV.filter(i => i.highlights)) {
+      expect(ADMIN_NAV.find(i => i.to === item.highlights && !i.hidden), item.label).toBeDefined()
+    }
+  })
+
+  it('lights nothing rather than the Dashboard on a page outside the menu', () => {
+    expect(activeNavTo('/admin')).toBe('/admin')
+    expect(activeNavTo('/admin/forbidden')).toBeUndefined()
+    expect(activeNavTo('/elsewhere')).toBeUndefined()
+  })
+
+  it('has a label for every group in use', () => {
+    for (const item of [...ADMIN_NAV, ...SUPER_ADMIN_NAV]) {
+      if (item.group) expect(ADMIN_NAV_GROUPS[item.group].label, item.label).toBeTruthy()
+    }
   })
 
   // Each nav section → the server route its page can't work without.
@@ -72,7 +139,9 @@ describe('admin-nav', () => {
     // taxonomies, so its floor is the create route's.
     '/admin/taxonomies': 'server/api/v1/taxonomies/index.post.ts',
     '/admin/comments': 'server/api/v1/comments/index.get.ts',
-    '/admin/menus': 'server/api/v1/menus/index.get.ts',
+    // The GET is open to any team role, but the page only manages menus, so its floor is
+    // the create route's.
+    '/admin/menus': 'server/api/v1/menus/index.post.ts',
     '/admin/media': 'server/api/v1/media/index.get.ts',
     '/admin/media/videos': 'server/api/v1/media/video/index.get.ts',
     '/admin/forms': 'server/api/v1/forms/index.get.ts',

@@ -81,7 +81,7 @@ Content follows a simple workflow:
 
 ### Categories & Tags
 
-Group content with **taxonomies**. Every site starts with **Categories** (nestable) and **Tags** (flat), both offered on posts. Manage them under **Admin → Taxonomies** (editors and admins):
+Group content with **taxonomies**. Every site starts with **Categories** (nestable) and **Tags** (flat), both offered on posts. Manage them under **Admin → Content → Categories & tags** (editors and admins):
 
 - **Create your own taxonomy** (for example *Series* or *Regions*), choose which content types it applies to, and whether its terms can be nested.
 - **Edit terms**: rename them, change their URL slug, nest them under a parent, reorder them with the arrow buttons, and set an SEO title, description, and share image for their archive page. Changing a slug automatically redirects the old URL.
@@ -240,7 +240,7 @@ When editing an existing post or page, click the **Translate** button in the top
 Manage conferences, workshops, meetups, and webinars, displaying them on calendars and letting visitors subscribe or RSVP.
 
 ### 1. Creating Events
-Go to **Events** in the admin menu and select **New event**, or select **+** on a day in the **Calendar**. In the editor sidebar, fill out the **Event Details** card:
+Go to **Content → Events** in the admin menu and select **New event**, or select **+** on a day in the **Calendar**. In the editor sidebar, fill out the **Event Details** card:
 - **Start & End Times:** The date and time of the event, in your site's time zone (**Settings → General**). An event needs a start before it can be published. The end is optional.
 - **All Day Event Switch:** For an event with no set hours. You enter its first and last day instead.
 - **Location / Venue:** An address, or "Online".
@@ -286,7 +286,7 @@ Give an event a **Price per place** to charge for it. Visitors book with no acco
 Payment goes to the Stripe account in your settings. Card payments only, as a place has to be certain straight away.
 
 ### Class passes
-A class pass is a block of sessions bought in one go. Set them up in **Class passes** in the admin menu (admins only): a name, how many sessions, a price, and optionally how many days it lasts. Add the **Class Passes** block to a page to sell them. They're also at `/booking/passes`.
+A class pass is a block of sessions bought in one go. Set them up in **Sales → Class passes** in the admin menu (admins only): a name, how many sessions, a price, and optionally how many days it lasts. Add the **Class Passes** block to a page to sell them. They're also at `/booking/passes`.
 
 No account is needed. A pass belongs to the email address it was bought with. To use it, a visitor chooses **Use my class pass** on a class and enters that address, and we email a link to confirm. That link is what stops someone else spending their sessions by typing their address.
 
@@ -314,7 +314,7 @@ To display events on your website:
 - **Calendar Feed:** NuxFlow automatically hosts a standards-compliant iCal feed at `/events.ics`. The block's **Subscribe to this calendar** link opens it in the visitor's calendar app, or they can paste the address into Apple Calendar, Google Calendar, or Outlook.
 
 ### 4. The Admin Calendar
-**Calendar** in the admin menu shows everything with a date: events, scheduled and published content, and drafts with a planned date. Dates are in your site's time zone.
+**Content → Calendar** in the admin menu shows everything with a date: events, scheduled and published content, and drafts with a planned date. Dates are in your site's time zone.
 - Select **+** on a day to add an event or a post. Choose which, give it a title, and carry on in the editor with the date filled in.
 - Drag an item to another day to move it. Events keep their time and length, and scheduled posts keep their time. Published posts can't be moved, as the date they went out is a fact, and nor can one date of a repeating event: change the series in its editor.
 - **Unscheduled** lists drafts with no date yet. Drag one onto a day to give it a planned date. It isn't published until its status is set to Scheduled.
@@ -373,7 +373,7 @@ NuxFlow supports state-of-the-art **Passkeys (WebAuthn)** for passwordless, high
 ### Enabling Passkeys for your Account
 To register a passkey for passwordless sign-in:
 1. Log into the NuxFlow Admin dashboard (`/admin`) using your email and password.
-2. Go to **Settings** (click your profile in the sidebar) and navigate to the **Security** tab.
+2. Go to **Administration → Settings** in the admin menu and navigate to the **Security** tab.
 3. Locate the **Passkeys & Passwordless Login** card.
 4. Enter a memorable name for your device (e.g. "Work MacBook Pro", "Personal iPhone").
 5. Click **Register Passkey**; your browser will trigger a secure system prompt to set up biometrics.

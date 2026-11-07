@@ -30,7 +30,7 @@ function eventWhen(row: ContentRow): string {
 
 const selectedLocale = ref<string>('all')
 
-// ?term=<id>&termName=<label> — set by the term counts on Admin → Taxonomies.
+// ?term=<id>&termName=<label> — set by the term counts on Admin → Categories & tags.
 const router = useRouter()
 const termFilter = computed(() => (route.query.term as string | undefined) || undefined)
 const termFilterName = computed(() => (route.query.termName as string | undefined) || 'selected term')

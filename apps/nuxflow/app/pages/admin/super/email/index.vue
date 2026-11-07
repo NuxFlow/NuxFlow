@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
-useHead({ title: 'Email' })
+useHead({ title: 'Email log' })
 
 interface SiteUsage {
   siteId: string | null
@@ -48,7 +48,7 @@ const columns = [
   <div class="max-w-5xl mx-auto space-y-6">
     <div class="flex items-end justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Email</h1>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Email log</h1>
         <p class="text-sm text-gray-500 mt-0.5">Outbound email across every site, from NuxFlow's own send log</p>
       </div>
       <UButton variant="ghost" icon="i-lucide-refresh-cw" :loading="pending" @click="() => refresh()">Refresh</UButton>

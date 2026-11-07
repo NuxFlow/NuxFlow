@@ -78,7 +78,7 @@ async function createTerm(taxonomyId: string, nameArg?: string) {
   const name = (nameArg ?? newTermName.value[taxonomyId] ?? '').trim()
   if (!name) return
   if (!slugify(name)) {
-    toast.add({ title: 'Add this term from Admin → Taxonomies', description: 'The name has no letters or digits to build a URL slug from, so it needs a slug typed in.', color: 'warning' })
+    toast.add({ title: 'Add this term from Content → Categories & tags', description: 'The name has no letters or digits to build a URL slug from, so it needs a slug typed in.', color: 'warning' })
     return
   }
   const url: string = `/api/v1/taxonomies/${taxonomyId}/terms`

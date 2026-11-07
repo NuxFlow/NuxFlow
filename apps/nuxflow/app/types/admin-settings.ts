@@ -67,6 +67,8 @@ export interface AiState {
   deepseekApiKey: string
   ollamaBaseUrl: string
   ollamaModel: string
+  gatewayId: string
+  gatewayToken: string
 }
 
 export interface CloudflareMediaState {

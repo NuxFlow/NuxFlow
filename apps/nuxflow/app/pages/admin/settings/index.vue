@@ -111,13 +111,16 @@ const payments = reactive<PaymentsState>({
 })
 
 const ai = reactive<AiState>({
-  provider: 'openai',
+  // Unset means Workers AI (ai-sdk.ts), so that's what's shown until a site chooses.
+  provider: 'workers-ai',
   openaiApiKey: '',
   anthropicApiKey: '',
   geminiApiKey: '',
   deepseekApiKey: '',
   ollamaBaseUrl: 'http://localhost:11434',
-  ollamaModel: 'llama3',
+  ollamaModel: 'llama3.2',
+  gatewayId: '',
+  gatewayToken: '',
 })
 
 const cloudflare = reactive<CloudflareMediaState>({
@@ -194,13 +197,15 @@ watch(data, (d) => {
   payments.paddleWebhookSecret = (s['payments.paddle_webhook_secret'] as string) ?? ''
   payments.paddleSandbox = s['payments.paddle_sandbox'] === 'true'
 
-  ai.provider = (s['ai.provider'] as string) ?? 'openai'
+  ai.provider = (s['ai.provider'] as string) ?? 'workers-ai'
   ai.openaiApiKey = (s['ai.openai_api_key'] as string) ?? ''
   ai.anthropicApiKey = (s['ai.anthropic_api_key'] as string) ?? ''
   ai.geminiApiKey = (s['ai.gemini_api_key'] as string) ?? ''
   ai.deepseekApiKey = (s['ai.deepseek_api_key'] as string) ?? ''
   ai.ollamaBaseUrl = (s['ai.ollama_base_url'] as string) ?? 'http://localhost:11434'
-  ai.ollamaModel = (s['ai.ollama_model'] as string) ?? 'llama3'
+  ai.ollamaModel = (s['ai.ollama_model'] as string) ?? 'llama3.2'
+  ai.gatewayId = (s['ai.gateway_id'] as string) ?? ''
+  ai.gatewayToken = (s['ai.gateway_token'] as string) ?? ''
 
   push.vapidPublicKey = (s['push.vapid_public_key'] as string) || null
   push.eventsContentPublished = s['push.events.content_published'] === 'true'
@@ -221,7 +226,8 @@ watch(data, (d) => {
 }, { immediate: true })
 
 // The single shared save button, used by every tab except Push's event toggles (which
-// also uses it), Security (its own password-change action), and Danger zone (its own
+// also uses it), Security (its own password-change action), AI (its own save, so saving
+// anything else can never change which provider a site uses), and Danger zone (its own
 // delete action) — mirrors the single PATCH /api/v1/settings request the server always
 // expects: whatever's currently in these reactive objects, regardless of which tab is
 // visible, saves together in one call.
@@ -271,15 +277,6 @@ async function save() {
         timezone: general.timezone,
         status: general.status,
         settings: settingsMap,
-        ai: {
-          provider: ai.provider,
-          openaiApiKey: ai.openaiApiKey,
-          anthropicApiKey: ai.anthropicApiKey,
-          geminiApiKey: ai.geminiApiKey,
-          deepseekApiKey: ai.deepseekApiKey,
-          ollamaBaseUrl: ai.ollamaBaseUrl,
-          ollamaModel: ai.ollamaModel,
-        },
         cloudflare: {
           accountId: cloudflare.accountId,
           streamToken: cloudflare.streamToken,
@@ -347,7 +344,7 @@ async function save() {
         <AdminSettingsPaymentsTab v-if="active === 'Payments'" v-model:payments="payments" :domain="general.domain" :saving="saving" :on-save="save" />
         <AdminSettingsMediaTab v-if="active === 'Media'" v-model:cloudflare="cloudflare" v-model:r2="r2" :saving="saving" :on-save="save" :image-transformations-available="data?.imageTransformationsAvailable !== false" />
         <AdminSettingsIntegrationsTab v-if="active === 'Integrations'" v-model:integrations="integrations" v-model:social="social" :domain="general.domain" :is-primary="isPrimarySite" :saving="saving" :on-save="save" />
-        <AdminSettingsAiTab v-if="active === 'AI Settings'" v-model:ai="ai" :saving="saving" :on-save="save" :ollama-available="data?.ollamaAvailable !== false" />
+        <AdminSettingsAiTab v-if="active === 'AI Settings'" v-model:ai="ai" v-model:cloudflare="cloudflare" :ollama-available="data?.ollamaAvailable !== false" />
         <AdminSettingsPushTab v-if="active === 'Push'" v-model:push="push" :saving="saving" :on-save="save" />
         <AdminSettingsSecurityTab v-if="active === 'Security'" v-model:security="security" />
         <AdminSettingsDangerZoneTab

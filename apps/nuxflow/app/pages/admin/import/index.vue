@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
-useHead({ title: 'Import & Backup' })
+useHead({ title: 'Import & backup' })
 
 type Tab = 'wordpress' | 'restore' | 'backup'
 const activeTab = ref<Tab>('backup')
@@ -15,7 +15,7 @@ const tabs: { value: Tab; label: string; icon: string }[] = [
 <template>
   <div class="max-w-2xl mx-auto space-y-6">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Import & Backup</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Import &amp; backup</h1>
       <p class="text-sm text-gray-500 mt-0.5">Back up your site data, restore from a backup, or import from WordPress</p>
     </div>
 

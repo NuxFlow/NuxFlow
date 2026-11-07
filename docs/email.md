@@ -14,7 +14,7 @@ This guide covers setup and how each feature behaves. For the sending-provider o
 
 Cloudflare Email Service is for **transactional** email only: messages triggered by something a person did or something that happened to their account. Its terms exclude marketing and bulk mail. Don't use the Cloudflare provider for newsletters or announcements to a list. NuxFlow's own features only send transactional mail.
 
-Sending needs the Workers Paid plan, which NuxFlow already requires. Each Cloudflare account includes 3,000 emails a month, then $0.35 per 1,000. The quota and the daily sending limit belong to the **account**, so every site on your deployment shares them. New accounts start with a conservative daily limit that Cloudflare raises over time. **Admin → Super Admin → Email** shows how much each site sends and which sends failed.
+Sending needs the Workers Paid plan, which NuxFlow already requires. Each Cloudflare account includes 3,000 emails a month, then $0.35 per 1,000. The quota and the daily sending limit belong to the **account**, so every site on your deployment shares them. New accounts start with a conservative daily limit that Cloudflare raises over time. **Admin → Super Admin → Email log** shows how much each site sends and which sends failed.
 
 Receiving through Email Routing is free and unlimited (on a hosting platform, a plan can limit how much each site keeps — see [Where messages are stored](#where-messages-are-stored) below).
 

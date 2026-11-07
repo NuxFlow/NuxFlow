@@ -14,6 +14,7 @@
  */
 import { test, expect } from '@playwright/test'
 import { ADMIN_STORAGE_STATE_PATH } from './global-setup'
+import { gotoHydrated } from './helpers'
 
 test.use({ storageState: ADMIN_STORAGE_STATE_PATH })
 
@@ -153,9 +154,33 @@ test.describe('Admin settings pages', () => {
     await expect(page.getByText(/ai crawler access \(geo\)/i)).toBeVisible({ timeout: 10_000 })
   })
 
-  test('loads /admin/settings/ai without error', async ({ page }) => {
-    await page.goto('/admin/settings/ai')
-    await expect(page.locator('body')).not.toContainText('404')
+  test('the AI tab offers Workers AI, AI Gateway and a test button', async ({ page }) => {
+    await gotoHydrated(page, '/admin/settings?tab=AI%20Settings')
+    await expect(page.getByText('AI Gateway (optional)')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Test saved settings' })).toBeVisible()
+    await page.getByRole('combobox').first().click()
+    await expect(page.getByRole('option', { name: /Cloudflare Workers AI/ })).toBeVisible()
+  })
+
+  // The shared Save used to send the AI block too, and a site that had never chosen a provider
+  // was written as 'openai': saving the site's name quietly stopped its AI working.
+  test('saving another settings tab leaves the AI provider alone', async ({ page }) => {
+    await page.route('**/api/v1/settings', route => route.request().method() === 'PATCH' ? route.fulfill({ json: {} }) : route.fallback())
+    await gotoHydrated(page, '/admin/settings')
+    const patch = page.waitForRequest(r => r.url().endsWith('/api/v1/settings') && r.method() === 'PATCH')
+    await page.getByRole('button', { name: /save/i }).first().click()
+    expect((await patch).postDataJSON().ai).toBeUndefined()
+  })
+
+  test('the AI tab saves only AI settings', async ({ page }) => {
+    await page.route('**/api/v1/settings', route => route.request().method() === 'PATCH' ? route.fulfill({ json: {} }) : route.fallback())
+    await gotoHydrated(page, '/admin/settings?tab=AI%20Settings')
+    const patch = page.waitForRequest(r => r.url().endsWith('/api/v1/settings') && r.method() === 'PATCH')
+    await page.getByRole('button', { name: 'Save AI settings' }).click()
+    const body = (await patch).postDataJSON()
+    expect(Object.keys(body).sort()).toEqual(['ai', 'cloudflare'])
+    expect(Object.keys(body.cloudflare)).toEqual(['accountId'])
+    expect(body.ai).toHaveProperty('gatewayId')
   })
 })
 

@@ -674,7 +674,7 @@ wrangler email sending enable yourdomain.com
 
 This adds the SPF/DKIM DNS records receiving mail servers (Gmail, Outlook, etc.) check before trusting a message. Until the domain is onboarded, Cloudflare only delivers to *verified destination addresses* in your own Cloudflare account — so password resets, invites, and notifications to anyone else won't arrive. The domain must be a zone in the same Cloudflare account as this Worker. In a multi-site install, run it once per site's custom sending domain, not once per installation. Cloudflare treats every **subdomain** as a separate sending domain too, so a site at `site-a.yourplatform.com` needs `wrangler email sending enable site-a.yourplatform.com` of its own. A zone allows 30 sending/routing domains in total, apex included. If an invite or reset email can't be delivered, NuxFlow says so on the Users page (and **Super Admin → Email** lists the failure) rather than reporting the invite as sent.
 
-Cloudflare Email Service is for **transactional** mail only (its terms exclude marketing and bulk sends), and its sending quota is per Cloudflare account — shared by every site on the deployment. Admin → Super Admin → Email shows per-site usage from NuxFlow's own send log. See [Email](email.md) for receiving mail (inboxes, email-to-draft).
+Cloudflare Email Service is for **transactional** mail only (its terms exclude marketing and bulk sends), and its sending quota is per Cloudflare account — shared by every site on the deployment. Admin → Super Admin → Email log shows per-site usage from NuxFlow's own send log. See [Email](email.md) for receiving mail (inboxes, email-to-draft).
 
 Select **Cloudflare** as the email provider in **Admin → Settings → Email** — no redeploy needed for that part, since the binding is already present.
 
@@ -769,7 +769,7 @@ This applies if your site has a contact form or other forms.
 #### ☐ 9. Know where your backups are
 
 - **Already on:** Cloudflare keeps a restorable history of your database automatically (D1 Time Travel, 30 days on the Workers Paid plan). An operator can roll back to any minute in that window with `wrangler d1 time-travel restore`.
-- **Do this too:** download a backup from **Admin → Import → Backup** once your site has content, and again before big changes. It includes your content, settings, users' roles, and media, and it can be restored onto a fresh installation.
+- **Do this too:** download a backup from **Administration → Import & backup → Backup** once your site has content, and again before big changes. It includes your content, settings, users' roles, and media, and it can be restored onto a fresh installation.
 
 #### ☐ 10. Turn on IndexNow
 

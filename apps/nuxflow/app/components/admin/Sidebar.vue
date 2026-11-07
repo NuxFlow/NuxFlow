@@ -1,5 +1,7 @@
 <script setup lang="ts">
-defineProps<{ collapsed?: boolean }>()
+import type { NavigationMenuItem } from '@nuxt/ui'
+
+const props = defineProps<{ collapsed?: boolean }>()
 const emit = defineEmits<{ toggleCollapse: [] }>()
 
 const { user, signOutAndLeave } = useUserSession()
@@ -10,21 +12,91 @@ await fetchAdminAccess()
 // on another admin page (e.g. Super Admin → Platform showing or hiding Plans/Usage).
 const accessState = useAdminAccessState()
 const access = computed(() => accessState.value ?? null)
-const isSuperAdmin = computed(() => access.value?.isSuperAdmin ?? false)
 
-// Filtered against the same rule table 02.admin-role-guard.global.ts enforces server-side
-// navigation against — see app/utils/admin-nav.ts. A user only ever sees links to
-// sections their role can actually use.
-const coreNav = computed(() => ADMIN_NAV.filter(item => !item.hidden && canAccessNavItem(item, access.value)))
-const superAdminNav = computed(() => SUPER_ADMIN_NAV.filter(item => !item.hidden && canAccessNavItem(item, access.value)))
+// Filtered against the same rule table 02.admin-role-guard.global.ts enforces navigation
+// against — see app/utils/admin-nav.ts. A user only ever sees links to sections their role
+// can actually use.
+function visibleEntries(items: AdminNavItem[]) {
+  return groupNavItems(items.filter(item => !item.hidden && canAccessNavItem(item, access.value)))
+}
 
-function isActive(to: string) {
-  // Posts and Events are the content list with ?type=, so they light up by that; "Content"
-  // stays lit for everything else under it.
-  const [path, query] = to.split('?')
-  if (query) return route.path === path && route.query.type === new URLSearchParams(query).get('type')
-  if (to === '/admin/content' && route.path === to && (route.query.type === 'post' || route.query.type === 'event')) return false
-  return route.path === to || (to !== '/admin' && route.path.startsWith(to))
+// The editor reports what it's editing; the list says so in its URL.
+const editingType = useEditingContentType()
+const contentType = computed(() => (route.path === '/admin/content' ? route.query.type : editingType.value))
+const activeTo = computed(() => activeNavTo(route.path, contentType.value))
+const activeGroup = computed(() => navGroupOf(activeTo.value))
+
+// ── Which groups are open ────────────────────────────────────────────────────
+// The server can't see this browser's choice, so the first render uses the default and the
+// remembered groups follow once mounted (the same render on both sides, so no hydration mismatch).
+const OPEN_GROUPS_KEY = 'nuxflow:admin-nav-open'
+
+function withActiveGroup(groups: string[]) {
+  return activeGroup.value && !groups.includes(activeGroup.value) ? [...groups, activeGroup.value] : groups
+}
+
+const openGroups = ref<string[]>(withActiveGroup([DEFAULT_OPEN_NAV_GROUP]))
+
+onMounted(() => {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(OPEN_GROUPS_KEY) ?? 'null')
+    if (Array.isArray(saved)) openGroups.value = withActiveGroup(saved.filter(g => typeof g === 'string'))
+  }
+  catch { /* Nothing readable remembered: keep the default. */ }
+})
+
+function setOpenGroups(groups: string | string[] | undefined) {
+  openGroups.value = Array.isArray(groups) ? groups : []
+  try {
+    localStorage.setItem(OPEN_GROUPS_KEY, JSON.stringify(openGroups.value))
+  }
+  catch { /* Storage blocked: the menu still works, it just won't be remembered. */ }
+}
+
+// Arriving at a page opens its group. Only on arrival, so its group can still be closed.
+watch(activeGroup, () => { openGroups.value = withActiveGroup(openGroups.value) })
+
+// ── What the menu component draws ────────────────────────────────────────────
+function linkClass(active: boolean) {
+  return active ? 'nav-active' : 'text-gray-600 hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5'
+}
+
+function toMenuItem(entry: AdminNavEntry): NavigationMenuItem {
+  if (entry.kind === 'link') {
+    // `active` is always set, so exactly one link is lit: left to itself the component would
+    // also light every link whose path is a prefix of this page's.
+    const active = entry.item.to === activeTo.value
+    return { label: entry.item.label, icon: entry.item.icon, to: entry.item.to, active, class: linkClass(active) }
+  }
+  // A group is only lit when the link it holds can't be seen.
+  const holdsActive = entry.items.some(item => item.to === activeTo.value)
+  const active = holdsActive && (props.collapsed || !openGroups.value.includes(entry.group))
+  return {
+    label: entry.label,
+    icon: entry.icon,
+    value: entry.group,
+    active,
+    class: linkClass(active),
+    children: entry.items.map((item) => {
+      const childActive = item.to === activeTo.value
+      return { label: item.label, icon: item.icon, to: item.to, active: childActive, class: linkClass(childActive) }
+    }),
+  }
+}
+
+// Two lists, so the menu draws a line between this site and the platform as a whole.
+const menuItems = computed(() => [ADMIN_NAV, SUPER_ADMIN_NAV]
+  .map(items => visibleEntries(items).map(toMenuItem))
+  .filter(list => list.length > 0))
+
+const menuUi = {
+  link: 'gap-3 px-3 py-2 rounded-xl',
+  linkLeadingIcon: 'size-4 text-current group-hover:text-current',
+  linkTrailingIcon: 'size-4 text-current group-hover:text-current',
+  list: 'space-y-0.5',
+  childList: 'mt-0.5 space-y-0.5',
+  childLink: 'gap-3 items-center px-3 py-2 rounded-xl font-medium',
+  childLinkIcon: 'size-4 text-current group-hover:text-current',
 }
 </script>
 
@@ -53,43 +125,20 @@ function isActive(to: string) {
     </div>
 
     <!-- Nav -->
-    <nav class="flex-1 overflow-y-auto py-4 space-y-0.5" :class="collapsed ? 'px-2' : 'px-3'">
-      <NuxtLink
-        v-for="item in coreNav"
-        :key="item.to"
-        :to="item.to"
-        :title="collapsed ? item.label : undefined"
-        class="flex items-center gap-3 py-2 rounded-xl text-sm font-medium transition-colors"
-        :class="[
-          isActive(item.to) ? 'nav-active' : 'text-gray-600 hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5',
-          collapsed ? 'justify-center px-2' : 'px-3',
-        ]"
-      >
-        <UIcon :name="item.icon" class="w-4 h-4 shrink-0" />
-        <span v-if="!collapsed">{{ item.label }}</span>
-      </NuxtLink>
-
-      <!-- Super admin section -->
-      <template v-if="isSuperAdmin && superAdminNav.length">
-        <div v-if="!collapsed" class="px-3 pt-4 pb-1">
-          <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Super Admin</p>
-        </div>
-        <NuxtLink
-          v-for="item in superAdminNav"
-          :key="item.to"
-          :to="item.to"
-          :title="collapsed ? item.label : undefined"
-          class="flex items-center gap-3 py-2 rounded-xl text-sm font-medium transition-colors"
-          :class="[
-            isActive(item.to) ? 'nav-active' : 'text-gray-600 hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5',
-            collapsed ? 'justify-center px-2' : 'px-3',
-          ]"
-        >
-          <UIcon :name="item.icon" class="w-4 h-4 shrink-0" />
-          <span v-if="!collapsed">{{ item.label }}</span>
-        </NuxtLink>
-      </template>
-    </nav>
+    <div class="flex-1 overflow-y-auto py-4" :class="collapsed ? 'px-2' : 'px-3'">
+      <UNavigationMenu
+        :model-value="openGroups"
+        :items="menuItems"
+        :collapsed="collapsed"
+        :ui="menuUi"
+        orientation="vertical"
+        color="neutral"
+        variant="link"
+        tooltip
+        popover
+        @update:model-value="setOpenGroups"
+      />
+    </div>
 
     <!-- User footer -->
     <div class="shrink-0 p-3" style="border-top: 1px solid var(--glass-xl-border);">

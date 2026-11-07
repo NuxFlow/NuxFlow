@@ -349,6 +349,8 @@ var(--nuxflow-font)      /* font-family stack, e.g. 'Inter', system-ui */
 
 #### Admin sidebar active item
 
+Exactly one link has this class at a time. A closed group, or a group in the collapsed sidebar, has it while the current page is inside that group.
+
 ```css
 .nav-active       { background: …; color: …; }  /* light mode */
 .dark .nav-active { background: …; color: …; }  /* dark mode  */

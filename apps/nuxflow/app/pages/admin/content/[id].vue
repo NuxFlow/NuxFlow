@@ -85,6 +85,13 @@ const activeTypeSlug = computed(() => {
   return item.value?.typeSlug ?? 'page'
 })
 
+// Tell the sidebar, once mounted: it has already rendered by the time this page's data arrives
+// on the server, so setting it earlier would make the server and browser HTML disagree.
+const editingType = useEditingContentType()
+onMounted(() => { editingType.value = activeTypeSlug.value })
+watch(activeTypeSlug, (slug) => { if (import.meta.client) editingType.value = slug })
+onBeforeUnmount(() => { editingType.value = null })
+
 // All-day events are plain dates in the form (YYYY-MM-DD), timed ones the site's wall
 // clock (YYYY-MM-DDTHH:mm). The two functions below are exact opposites, so opening and
 // saving an event never moves it.

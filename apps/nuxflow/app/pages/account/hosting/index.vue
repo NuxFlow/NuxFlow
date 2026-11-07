@@ -143,7 +143,7 @@ async function openBilling(id: string) {
 
       <p class="text-xs text-gray-500 text-center">
         Billing opens Stripe, where you can update your card, download invoices, change plan or cancel.
-        You can always take your site with you: Admin → Import → Backup.
+        You can always take your site with you: Admin → Administration → Import & backup.
       </p>
     </div>
   </NuxtLayout>
