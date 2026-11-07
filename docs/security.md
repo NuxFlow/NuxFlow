@@ -44,7 +44,7 @@ Accounts are global, and each site's admins can add their own scripts to their o
 
 A site's own domain gets a **site session** through a one-time-code handoff, the same shape as an OAuth authorization code:
 
-- The site sets a short-lived `state` cookie and sends the browser to the sign-in domain's `/authorize`.
+- The site sets a short-lived `__Host-` prefixed `state` cookie (so a site on a sibling subdomain can't plant it) and sends the browser to the sign-in domain's `/authorize`.
 - Once the person is signed in there, the server stores a single-use code (hashed, valid ~60 seconds) bound to the person, the site and their sign-in session, and sends the browser to a callback URL built from the site's **stored** domain — never from the request.
 - The site's callback checks `state` against its cookie (so a code can't be pushed into someone else's browser), consumes the code server-side, and sets a `__Host-` prefixed, `HttpOnly` cookie valid on that site only.
 - A site that isn't one of the person's own gets an explicit "Continue to …" click first, so no site can learn who a visitor is by silently redirecting them through the sign-in domain.
@@ -72,7 +72,7 @@ Third-party dynamic plugins have both a server component (`src/server.ts`) and a
 
 Every plugin bundle must be signed with the author's Ed25519 private key before it can be installed. NuxFlow verifies the signature:
 - **On install** — the server rejects the bundle if the signature does not match the author's registered public key or if any SHA-256 checksum is wrong
-- **On every request** — the signature and checksums are re-verified each time the plugin Worker is spawned from KV, preventing silent tampering after installation
+- **Before running** — the code read from KV is checked against the signed checksums before a plugin Worker is loaded from it, preventing silent tampering after installation
 
 The signature covers every part of a plugin — server code, client code, block-definition metadata (`blocks.json`) and its requested permissions and settings form — so nothing in a deployment is unsigned, even the parts that are just data, and no one can add a permission to a signed plugin. Authors generate their keypair with `nuxflow plugin keygen`. The private key never leaves the author's machine. Only the public key is embedded in `nuxflow.plugin.json` and registered on the site at install time.
 
@@ -108,7 +108,7 @@ Database queries use **Drizzle ORM** with parameterized statements throughout �
 
 ## SSRF and Archive Safety
 
-Two utility functions in `server/utils/security.ts` protect endpoints that fetch external URLs or process uploaded archives:
+Two utility functions, in `server/utils/ssrf.ts` and `server/utils/zip-validate.ts`, protect endpoints that fetch external URLs or process uploaded archives:
 
 **`isSafeUrl(url)`** — blocks Server-Side Request Forgery by refusing URLs that resolve to:
 - Private IPv4 ranges (`10.x`, `172.16–31.x`, `192.168.x`)
@@ -132,7 +132,7 @@ Both functions are called by the plugin installer, theme importer, and any other
 1. **D1 atomic upsert** — one `INSERT … ON CONFLICT DO UPDATE … RETURNING` per request, so concurrent requests across every Worker isolate share one exact counter (no read-then-write race).
 2. **Isolate-level block cache** — once a key is over its limit, that isolate rejects it without a database call until the window resets. It only ever holds keys D1 has already confirmed as blocked, so it can't under-count.
 
-Auth endpoints (`/api/auth/sign-in`, `/api/auth/sign-up`, password reset) apply rate limits by IP address and email address independently, making credential-stuffing attacks significantly more expensive. Public endpoints that cost real resources are limited too: comments and form submissions (10 a minute), "Listen to this article" (10 a minute), smart search (60 a minute), each plugin's routes (120 a minute per visitor), event bookings and pass purchases (5 a minute), emailed links to someone's bookings (3 a minute), and following a booking link (20 a minute).
+Auth endpoints (sign-in, registration, password reset) apply rate limits by IP address and email address independently, making credential-stuffing attacks significantly more expensive. Better Auth's own `/api/auth/sign-up/email` and `/api/auth/send-verification-email` aren't reachable from outside at all: registration goes through NuxFlow's own route. Password guesses on a protected page are limited per page as well as per visitor, so spreading them over many addresses doesn't help. Public endpoints that cost real resources are limited too: comments and form submissions (10 a minute), "Listen to this article" (10 a minute), smart search (60 a minute), each plugin's routes (120 a minute per visitor), event bookings and pass purchases (5 a minute), emailed links to someone's bookings (3 a minute), and following a booking link (20 a minute).
 
 ---
 
@@ -152,7 +152,7 @@ Visitors book and buy without an account, so an email address is their identity.
 
 Accounts are shared across every site on a deployment, so a site's roles decide what someone can do there. **Team** roles (viewer, author, editor, admin, super admin) can use the admin area. **Member** is for visitors: public sign-up, joining from the accounts domain, and paid memberships. Members can read members-only content and manage their own account, nothing more.
 
-- `requireAuth` (and so `requireRole`) refuses members at every level. Only routes about the caller's own data (notifications, push, notification preferences) use `requireSiteUser`, which accepts any role.
+- `requireAuth` (and so `requireRole`) refuses members at every level. Only routes about the caller's own data (notifications, push, notification preferences, their post-by-email address) use `requireSiteUser`, which accepts any role.
 - An API key whose owner is now only a member is ignored.
 - The content list shows non-team callers only published, public items, so members-only, password-protected and private titles never leak through it.
 - Regression tests: `tests/integration/member-admin-boundary.test.ts`.
@@ -167,7 +167,7 @@ NuxFlow supports two authentication methods for server API access:
 
 **Session cookies** — the default for browser clients; `HttpOnly; Secure` cookie set by Better Auth.
 
-**API keys** — named bearer tokens for headless or external access. Keys are stored as salted hashes (not plaintext) in the `api_keys` table. On each request the `Authorization: Bearer <key>` header is verified by `server/middleware/03.api-key-auth.ts`, which sets `event.context.apiKeyUserId` and `event.context.apiKeyRole` for downstream handlers. Keys can be revoked instantly from the admin dashboard.
+**API keys** — named bearer tokens for headless or external access. Keys are long random values, stored only as SHA-256 hashes (never plaintext) in the `api_keys` table. On each request the `Authorization: Bearer <key>` header is verified by `server/middleware/03.api-key-auth.ts`, which sets `event.context.apiKeyUserId` and `event.context.apiKeyRole` for downstream handlers. Keys can be revoked instantly from the admin dashboard. Listing content with a key needs its `read:content` scope to see drafts, and MCP's `get_content` never returns a page's password hash or preview token.
 
 ---
 
@@ -175,7 +175,7 @@ NuxFlow supports two authentication methods for server API access:
 
 NuxFlow runs on Cloudflare Workers, which provides several security properties at the infrastructure level that would require significant effort to replicate on a traditional server:
 
-- **V8 isolates per request** — each Worker invocation runs in a fresh V8 isolate. There is no shared process memory between concurrent requests or between different tenants on a multi-site installation.
+- **V8 isolates** — a Worker runs in a V8 isolate, separated from every other Cloudflare customer's code. An isolate is reused for many requests, and on a multi-site installation one isolate serves every site, so tenant separation comes from the application: every in-memory cache is keyed by site, and every query is scoped as described next.
 - **Tenant separation in the shared database** — every site's rows live in one D1 database, tagged with a `site_id`. Every query is scoped to the current site, and the integration test suite enforces it: a server query that reads or changes a site's table without a `site_id` condition fails the tests, unless it's a reviewed, deliberately cross-site query (see [The tenant query guard](development.md#the-tenant-query-guard)).
 - **No filesystem access** — Workers have no access to a filesystem; there is no path for file-based attacks.
 - **Automatic TLS** — all traffic is TLS-terminated at Cloudflare's edge; there is no plaintext HTTP path in production.

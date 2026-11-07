@@ -5,148 +5,15 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1790848468790,
-      "tag": "0000_initial",
+      "when": 1794052204037,
+      "tag": "0000_schema",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "6",
-      "when": 1790848476522,
-      "tag": "0001_search_index",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1791978205168,
-      "tag": "0002_scheduled_index",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1791986250141,
-      "tag": "0003_site_usage_daily",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1791992277668,
-      "tag": "0004_hosting_plans",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1792051771024,
-      "tag": "0005_hosting_billing",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1792083793034,
-      "tag": "0006_site_domains",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1792389647417,
-      "tag": "0007_plugin_capabilities",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1792565545830,
-      "tag": "0008_resource_gating",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1792587469913,
-      "tag": "0009_mailing_list",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "6",
-      "when": 1792649534207,
-      "tag": "0010_search_unicode",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "6",
-      "when": 1792667733942,
-      "tag": "0011_platform_settings",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "6",
-      "when": 1792672916155,
-      "tag": "0012_site_directory",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "6",
-      "when": 1792676355048,
-      "tag": "0013_site_auth_codes_any_site",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "6",
-      "when": 1792687582863,
-      "tag": "0014_plan_default_pool",
-      "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "6",
-      "when": 1792693182124,
-      "tag": "0015_site_moves",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "6",
-      "when": 1792732303532,
-      "tag": "0016_site_move_files",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "6",
-      "when": 1792770375693,
-      "tag": "0017_video",
-      "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "6",
-      "when": 1793799535822,
-      "tag": "0018_greedy_angel",
-      "breakpoints": true
-    },
-    {
-      "idx": 19,
-      "version": "6",
-      "when": 1793902149389,
-      "tag": "0019_minor_mystique",
-      "breakpoints": true
-    },
-    {
-      "idx": 20,
-      "version": "6",
-      "when": 1793948374260,
-      "tag": "0020_empty_crystal",
+      "when": 1794052207094,
+      "tag": "0001_search",
       "breakpoints": true
     }
   ]

@@ -13,9 +13,11 @@ Once setup is complete, you can access the admin dashboard at `/admin`.
 ## The Dashboard
 
 The dashboard provides a high-level overview of your site's health and activity:
-- **Quick Actions**: Create a new post or page instantly.
-- **Recent Activity**: See recent content updates and user logins.
-- **Site Stats**: (If configured) View traffic and submission data.
+- **Finish setting up your site**: A checklist of what's still missing, such as storage or email. It ticks items off as you complete them.
+- **Your plan**: On a hosted site with limits, what you've used of each one.
+- **Quick actions**: Create a page, upload media, make a form or open Settings.
+
+The menu on the left is grouped into **Content**, **Media**, **Audience**, **Sales**, **Site** and **Administration**. Select a group to open or close it, and your browser remembers which are open. You only see the sections your role can use.
 
 ---
 
@@ -136,7 +138,7 @@ Once saved, the Videos tab in the media library becomes active immediately. If c
 ## SEO & Settings
 
 ### Global Settings
-In **Settings > Site**, you can update your site's title, description, and primary language.
+In **Settings → General**, you can update your site's name, language and time zone.
 
 ### Per-Page SEO
 Every Page and Post has an **SEO & Access** panel in the editor sidebar where you can:
@@ -379,6 +381,8 @@ To register a passkey for passwordless sign-in:
 5. Click **Register Passkey**; your browser will trigger a secure system prompt to set up biometrics.
 6. Once registered, your device will appear in the **Registered Passkeys** list. You can view, manage, or delete keys at any time.
 
+**On an install with several sites**, passwords, passkeys and connected accounts aren't in a site's Settings. They're on your account page on the sign-in domain (for example `https://accounts.yourplatform.com/account`), and **Settings → Security** links to it. A passkey made there works on every site.
+
 ### Signing In with a Passkey
 Once a passkey is registered:
 1. Go to the NuxFlow login page at `/login`.
@@ -411,7 +415,7 @@ Simply click **Google** on the login page. If the Google account's email matches
 If you want to link a social account whose email is *different* from your NuxFlow account email, or you prefer to do it explicitly:
 
 1. Sign in with your email and password
-2. Go to **Settings → Security**
+2. Go to **Settings → Security** (or, on an install with several sites, your account page on the sign-in domain)
 3. Find the **Connected Social Accounts** card
 4. Click **Connect** next to Google or GitHub and complete the OAuth flow
 
@@ -513,7 +517,7 @@ Inject third-party scripts or HTML snippets into every public page without editi
 | **Head code** | Before `</head>` | Analytics tags (GA4, Meta Pixel), early-loading scripts, custom font `<link>` tags |
 | **Body code** | Before `</body>` | Live chat widgets (Intercom, Crisp), deferred scripts, cookie consent overlays |
 
-> **Security note:** only paste code from sources you trust. The HTML you enter here is injected verbatim into your public pages. It is never shown to logged-in admin users browsing the dashboard, and it is skipped entirely on all `/admin` routes.
+> **Security note:** only paste code from sources you trust. The HTML you enter here is injected verbatim into your public pages. It is skipped entirely on all `/admin` routes, and on the sign-in, registration, password-reset, account and setup pages.
 
 ---
 
@@ -521,7 +525,7 @@ Inject third-party scripts or HTML snippets into every public page without editi
 
 NuxFlow includes built-in membership and payment support. Manage it from **Admin → Memberships**.
 
-**Tiers tab**: Create and manage membership tiers with a name, price, billing interval (monthly, yearly, or one-time, which gives access with no end date and is Stripe only), and a list of features shown to visitors. When a payment provider is configured, tiers are automatically synced to that provider on creation and update — no manual product setup required.
+**Tiers tab**: Create and manage membership tiers with a name, price, billing interval (monthly, yearly, or one-time, which gives access with no end date and is Stripe only), and a list of features shown to visitors. With Stripe configured, tiers are automatically synced on creation and update, with no manual product setup. Lemon Squeezy and Paddle need their product set up in their own dashboard first (see the [Payments Setup Guide](./payments-setup.md)).
 
 **Subscribers tab**: View all active and historical subscriptions across Stripe, Lemon Squeezy, and Paddle, with their status and renewal date.
 
@@ -531,7 +535,7 @@ NuxFlow includes built-in membership and payment support. Manage it from **Admin
 
 **Members aren't team.** Anyone who signs up on your site, joins it, or buys a membership gets the **member** role. Members can read members-only content and manage their own account at `/account`, but never see the admin area or its data: drafts, the media library, or other people's pages. Visiting `/admin` sends them to their account page.
 
-**Member account**: Subscribers can view their active plan and cancel at any time from `/account`. Stripe subscribers also get a **Manage billing** link that opens the Stripe Customer Portal for invoice history and payment method updates.
+**Member account**: Subscribers can view their active plan and cancel at any time from `/account`. Anyone on a paid plan also gets a **Manage billing** button that opens the payment provider's own page for invoice history and payment method updates.
 
 To accept payments, configure at least one payment provider in **Admin → Settings → Payments**. The checkout flow is fully handled server-side; no payment provider credentials are exposed to the browser. See the [Payments Setup Guide](./payments-setup.md) for full instructions.
 
@@ -541,7 +545,7 @@ To accept payments, configure at least one payment provider in **Admin → Setti
 
 Canvas is a visual drag-and-drop page builder built into NuxFlow. It adds a **Canvas** editor mode to any page or post, letting you build layouts from blocks without writing code.
 
-Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), Columns, **Container**, Feature grids, Testimonials, CTA banners, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), Contact Form, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
+Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), **Video gallery**, Columns, **Container**, Feature grids, Testimonials, CTA banners, Buttons, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), **Posts**, **Events Calendar**, **Class Passes**, Contact Form, Form, **Signup box**, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
 
 #### Nesting blocks
 
@@ -555,7 +559,7 @@ The Canvas toolbar has undo/redo buttons, and the standard keyboard shortcuts wo
 
 #### Gallery block
 
-The **Gallery** block renders a responsive image grid. Add images by pasting their URLs one at a time into the Images field in the settings panel. You can set alt text for each image individually. Configure the number of columns (2, 3, or 4), the gap between images, and whether corners are rounded.
+The **Gallery** block shows your photos as **Masonry** or **Rows** (whole, uncropped photos) or a **Grid** (every photo cropped to the same shape). Click **Add from library** to add a whole folder at once, or paste a single image URL. Each photo can have alt text and a caption. You can also set the columns, the gap, rounded corners, and whether visitors can download the photos. The [Photography & Portfolio Guide](./photography.md) covers every setting.
 
 Enable **Open lightbox on click** to let visitors view images full-screen. The lightbox supports keyboard navigation (← → arrow keys, Escape to close) and shows a position counter when the gallery has more than one image.
 

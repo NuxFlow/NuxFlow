@@ -226,7 +226,7 @@ For premium videos, consider publishing a short trailer or preview on YouTube po
 
 ### 6. Publish a video index page
 
-Create a Canvas page at a URL like `/videos` that acts as a video archive. Use the **Columns** block to create a grid of rows, each containing a thumbnail image (linking to the video page), a title in a **Text** block, and a short description. Update this page as you publish new videos.
+Create a Canvas page at a URL like `/videos` that acts as a video archive. The **Video gallery** block is the quickest way: one link per line gives you a grid of thumbnails that play in a full-screen player. To link each video to its own page instead, use the **Columns** block, with a thumbnail image, a title in a **Text** block and a short description in each row.
 
 ---
 

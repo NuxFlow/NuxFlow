@@ -334,6 +334,6 @@ export const consentLogs = sqliteTable('consent_logs', {
 
 // Virtual FTS5 table, backfill, and sync triggers — created via raw SQL in migration,
 // not via Drizzle (drizzle-kit can't express virtual tables or triggers).
-// See migrations/0001_search_index.sql. Kept in sync automatically by AFTER
+// See migrations/0001_search.sql. Kept in sync automatically by AFTER
 // INSERT/UPDATE/DELETE triggers on content_items — no application code indexes
 // content explicitly; only published + public items are searchable.

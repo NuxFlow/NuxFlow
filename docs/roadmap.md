@@ -28,7 +28,7 @@ The calendar, event pages, RSVPs, waitlists, repeating events, paid bookings, cl
 - **Other payment providers for bookings.** Stripe only for now: Lemon Squeezy and Paddle set prices in their own dashboards, which doesn't suit a price per event.
 - **Passes for some classes only**, and classes that cost more than one session.
 
-**The database is ready for these.** Migration `0020` added what they need, so building them shouldn't need another migration. Nothing reads or writes these yet:
+**The database is ready for these.** The schema already has what they need, so building them shouldn't need another migration. Nothing reads or writes these yet:
 
 | Feature | Where it goes |
 |---|---|
@@ -150,8 +150,6 @@ Recommended default order: **Brevo** (if already configured) → **Twilio** → 
 ### Groundwork already in place
 
 #### `phone` column on `users`
-
-(Present since `packages/db/migrations/0000_initial.sql` — earlier revisions of this doc cited migration `0008`, which is stale after a schema-history squash.)
 
 A nullable `phone` text column was added to the `users` table proactively. It stores the user's phone number in E.164 format (e.g. `+447700900123`). Because it is nullable with no unique constraint, it has zero impact on existing users and zero risk of breaking the auth flow (Better Auth does not touch this column).
 

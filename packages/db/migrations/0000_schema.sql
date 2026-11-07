@@ -19,7 +19,9 @@ CREATE TABLE `sites` (
 	`setup_completed` integer DEFAULT false NOT NULL,
 	`setup_token_hash` text,
 	`is_primary` integer DEFAULT false NOT NULL,
+	`hosting_plan_id` text,
 	`settings` text,
+	`move_state` text,
 	`created_at` text DEFAULT (datetime('now')) NOT NULL,
 	`updated_at` text DEFAULT (datetime('now')) NOT NULL
 );
@@ -102,7 +104,6 @@ CREATE TABLE `site_auth_codes` (
 	`expires_at` text NOT NULL,
 	`created_at` text DEFAULT (datetime('now')) NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`parent_session_id`) REFERENCES `sessions`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -221,6 +222,17 @@ CREATE TABLE `content_items` (
 	`event_location` text,
 	`event_url` text,
 	`event_all_day` integer,
+	`event_rsvp_enabled` integer,
+	`event_rsvp_capacity` integer,
+	`event_rsvp_closes_at` text,
+	`event_recurrence` text,
+	`event_price` real,
+	`event_currency` text,
+	`event_cancel_hours` integer,
+	`event_passes_allowed` integer,
+	`event_pass_credits` integer,
+	`event_teacher_id` text,
+	`event_room_id` text,
 	`canonical_url` text,
 	`focus_keyword` text,
 	`meta_robots` text,
@@ -241,6 +253,9 @@ CREATE INDEX `idx_content_items_site_updated` ON `content_items` (`site_id`,`upd
 CREATE INDEX `idx_content_items_event_start` ON `content_items` (`site_id`,`event_start_at`);--> statement-breakpoint
 CREATE INDEX `idx_content_items_site_status_visibility_published` ON `content_items` (`site_id`,`status`,`visibility`,`published_at`);--> statement-breakpoint
 CREATE INDEX `idx_content_items_site_type_status_updated` ON `content_items` (`site_id`,`type_id`,`status`,`updated_at`);--> statement-breakpoint
+CREATE INDEX `idx_content_items_scheduled` ON `content_items` (`scheduled_at`) WHERE "content_items"."status" = 'scheduled';--> statement-breakpoint
+CREATE INDEX `idx_content_items_event_teacher` ON `content_items` (`site_id`,`event_teacher_id`) WHERE event_teacher_id is not null;--> statement-breakpoint
+CREATE INDEX `idx_content_items_event_room` ON `content_items` (`site_id`,`event_room_id`) WHERE event_room_id is not null;--> statement-breakpoint
 CREATE TABLE `content_revisions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`item_id` text NOT NULL,
@@ -280,6 +295,65 @@ CREATE TABLE `content_types` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_content_types_site_slug` ON `content_types` (`site_id`,`slug`);--> statement-breakpoint
+CREATE TABLE `event_resources` (
+	`id` text PRIMARY KEY NOT NULL,
+	`site_id` text NOT NULL,
+	`kind` text NOT NULL,
+	`name` text NOT NULL,
+	`description` text,
+	`image_url` text,
+	`capacity` integer,
+	`user_id` text,
+	`sort_order` integer DEFAULT 0 NOT NULL,
+	`is_active` integer DEFAULT true NOT NULL,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL,
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_event_resources_site_kind` ON `event_resources` (`site_id`,`kind`,`sort_order`);--> statement-breakpoint
+CREATE TABLE `event_rsvps` (
+	`id` text PRIMARY KEY NOT NULL,
+	`site_id` text NOT NULL,
+	`content_item_id` text NOT NULL,
+	`email` text NOT NULL,
+	`name` text NOT NULL,
+	`seats` integer DEFAULT 1 NOT NULL,
+	`status` text DEFAULT 'pending' NOT NULL,
+	`occurrence_date` text DEFAULT '' NOT NULL,
+	`starts_at` text,
+	`hold_expires_at` text,
+	`payment_method` text,
+	`payment_status` text,
+	`amount_paid` real,
+	`currency` text,
+	`stripe_session_id` text,
+	`stripe_payment_intent_id` text,
+	`pass_holding_id` text,
+	`credits_spent` integer DEFAULT 0 NOT NULL,
+	`attendance` text,
+	`attendance_at` text,
+	`amount_discount` real,
+	`discount_code` text,
+	`amount_tax` real,
+	`payment_provider` text,
+	`provider_order_id` text,
+	`reminder_sent_at` text,
+	`confirm_sent_at` text,
+	`confirmed_at` text,
+	`cancelled_at` text,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL,
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`content_item_id`) REFERENCES `content_items`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `uq_event_rsvps_item_date_email` ON `event_rsvps` (`content_item_id`,`occurrence_date`,`email`);--> statement-breakpoint
+CREATE INDEX `idx_event_rsvps_site_item_status` ON `event_rsvps` (`site_id`,`content_item_id`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_event_rsvps_site_email` ON `event_rsvps` (`site_id`,`email`);--> statement-breakpoint
+CREATE INDEX `idx_event_rsvps_payment_intent` ON `event_rsvps` (`site_id`,`stripe_payment_intent_id`);--> statement-breakpoint
+CREATE INDEX `idx_event_rsvps_holds` ON `event_rsvps` (`hold_expires_at`) WHERE status in ('held', 'offered');--> statement-breakpoint
+CREATE INDEX `idx_event_rsvps_reminders` ON `event_rsvps` (`starts_at`) WHERE status = 'confirmed' and reminder_sent_at is null;--> statement-breakpoint
 CREATE TABLE `menus` (
 	`id` text PRIMARY KEY NOT NULL,
 	`site_id` text NOT NULL,
@@ -390,6 +464,9 @@ CREATE TABLE `video_assets` (
 	`thumbnail_url` text,
 	`status` text DEFAULT 'uploading' NOT NULL,
 	`size` integer,
+	`is_private` integer DEFAULT false NOT NULL,
+	`stream_account` text DEFAULT 'site' NOT NULL,
+	`watch_paused` integer DEFAULT false NOT NULL,
 	`created_at` text DEFAULT (datetime('now')) NOT NULL,
 	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`uploaded_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null
@@ -520,6 +597,11 @@ CREATE TABLE `dynamic_plugins` (
 	`publisher_public_key` text DEFAULT '' NOT NULL,
 	`signature` text DEFAULT '' NOT NULL,
 	`installed_at` text DEFAULT (datetime('now')) NOT NULL,
+	`capabilities` text,
+	`capabilities_checksum` text,
+	`granted_permissions` text,
+	`settings_values` text,
+	`updated_at` text,
 	PRIMARY KEY(`site_id`, `id`),
 	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade
 );
@@ -552,6 +634,25 @@ CREATE TABLE `notifications` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_notifications_user_site` ON `notifications` (`user_id`,`site_id`);--> statement-breakpoint
+CREATE TABLE `platform_settings` (
+	`key` text PRIMARY KEY NOT NULL,
+	`value` text,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `plugin_storage` (
+	`site_id` text NOT NULL,
+	`plugin_id` text NOT NULL,
+	`key` text NOT NULL,
+	`value` text NOT NULL,
+	`size` integer NOT NULL,
+	`expires_at` text,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL,
+	PRIMARY KEY(`site_id`, `plugin_id`, `key`),
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_plugin_storage_expires` ON `plugin_storage` (`expires_at`);--> statement-breakpoint
 CREATE TABLE `push_subscriptions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`site_id` text NOT NULL,
@@ -572,6 +673,46 @@ CREATE TABLE `rate_limits` (
 	`reset_at` text NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE `site_directory` (
+	`hostname` text PRIMARY KEY NOT NULL,
+	`pool_id` text NOT NULL,
+	`pool_site_id` text NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `site_moves` (
+	`id` text PRIMARY KEY NOT NULL,
+	`moved_site_id` text NOT NULL,
+	`site_name` text NOT NULL,
+	`site_domain` text NOT NULL,
+	`from_pool` text,
+	`to_pool` text,
+	`phase` text NOT NULL,
+	`cursor` text,
+	`counts` text,
+	`error` text,
+	`copy_files` integer DEFAULT false NOT NULL,
+	`started_by` text,
+	`locked_at` text,
+	`copy_started_at` text,
+	`switched_at` text,
+	`locked_until` text,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_site_moves_active` ON `site_moves` (`moved_site_id`) WHERE "site_moves"."phase" not in ('done', 'cancelled');--> statement-breakpoint
+CREATE TABLE `site_usage_daily` (
+	`site_id` text NOT NULL,
+	`day` text NOT NULL,
+	`metric` text NOT NULL,
+	`value` integer DEFAULT 0 NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL,
+	PRIMARY KEY(`site_id`, `day`, `metric`),
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_site_usage_daily_day` ON `site_usage_daily` (`day`);--> statement-breakpoint
 CREATE TABLE `themes` (
 	`id` text PRIMARY KEY NOT NULL,
 	`site_id` text NOT NULL,
@@ -587,6 +728,54 @@ CREATE TABLE `themes` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_themes_site` ON `themes` (`site_id`);--> statement-breakpoint
+CREATE TABLE `class_pass_holdings` (
+	`id` text PRIMARY KEY NOT NULL,
+	`site_id` text NOT NULL,
+	`pass_id` text,
+	`pass_name` text NOT NULL,
+	`email` text NOT NULL,
+	`name` text DEFAULT '' NOT NULL,
+	`credits_total` integer NOT NULL,
+	`credits_used` integer DEFAULT 0 NOT NULL,
+	`expires_at` text,
+	`status` text DEFAULT 'active' NOT NULL,
+	`amount_paid` real DEFAULT 0 NOT NULL,
+	`amount_refunded` real DEFAULT 0 NOT NULL,
+	`currency` text DEFAULT 'USD' NOT NULL,
+	`stripe_session_id` text,
+	`stripe_payment_intent_id` text,
+	`allowed_term_ids` text,
+	`amount_discount` real,
+	`discount_code` text,
+	`amount_tax` real,
+	`payment_provider` text,
+	`provider_order_id` text,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL,
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_class_pass_holdings_site_email` ON `class_pass_holdings` (`site_id`,`email`);--> statement-breakpoint
+CREATE INDEX `idx_class_pass_holdings_payment_intent` ON `class_pass_holdings` (`site_id`,`stripe_payment_intent_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `uq_class_pass_holdings_session` ON `class_pass_holdings` (`site_id`,`stripe_session_id`) WHERE stripe_session_id is not null;--> statement-breakpoint
+CREATE TABLE `class_passes` (
+	`id` text PRIMARY KEY NOT NULL,
+	`site_id` text NOT NULL,
+	`name` text NOT NULL,
+	`description` text,
+	`credits` integer NOT NULL,
+	`price` real NOT NULL,
+	`currency` text DEFAULT 'USD' NOT NULL,
+	`valid_days` integer,
+	`intro_only` integer DEFAULT false NOT NULL,
+	`allowed_term_ids` text,
+	`is_active` integer DEFAULT true NOT NULL,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL,
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_class_passes_site` ON `class_passes` (`site_id`);--> statement-breakpoint
 CREATE TABLE `membership_tiers` (
 	`id` text PRIMARY KEY NOT NULL,
 	`site_id` text NOT NULL,
@@ -671,6 +860,7 @@ CREATE TABLE `email_messages` (
 	`ai_summary` text,
 	`raw_key` text,
 	`size` integer DEFAULT 0 NOT NULL,
+	`stored_bytes` integer DEFAULT 0 NOT NULL,
 	`sent_by_user_id` text,
 	`content_item_id` text,
 	`created_at` text DEFAULT (datetime('now')) NOT NULL,
@@ -697,4 +887,106 @@ CREATE TABLE `mailboxes` (
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `uq_mailboxes_site_local` ON `mailboxes` (`site_id`,`local_part`);
+CREATE UNIQUE INDEX `uq_mailboxes_site_local` ON `mailboxes` (`site_id`,`local_part`);--> statement-breakpoint
+CREATE TABLE `mailing_list_subscribers` (
+	`id` text PRIMARY KEY NOT NULL,
+	`site_id` text NOT NULL,
+	`email` text NOT NULL,
+	`name` text,
+	`status` text DEFAULT 'pending' NOT NULL,
+	`source` text DEFAULT 'popup' NOT NULL,
+	`source_path` text,
+	`consent_text` text,
+	`ip_address` text,
+	`confirm_sent_at` text,
+	`confirmed_at` text,
+	`unsubscribed_at` text,
+	`synced_at` text,
+	`sync_error` text,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL,
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `uq_mailing_list_site_email` ON `mailing_list_subscribers` (`site_id`,`email`);--> statement-breakpoint
+CREATE INDEX `idx_mailing_list_site_status` ON `mailing_list_subscribers` (`site_id`,`status`,`created_at`);--> statement-breakpoint
+CREATE TABLE `hosting_plans` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`description` text DEFAULT '' NOT NULL,
+	`price_text` text DEFAULT '' NOT NULL,
+	`sort_order` integer DEFAULT 0 NOT NULL,
+	`max_storage_bytes` integer,
+	`max_content_items` integer,
+	`max_team_members` integer,
+	`max_site_members` integer,
+	`max_plugins` integer,
+	`max_ai_calls_per_month` integer,
+	`max_emails_per_month` integer,
+	`max_inbound_emails_per_month` integer,
+	`max_visitor_ai_credits_per_month` integer,
+	`max_views_per_month` integer,
+	`max_renders_per_month` integer,
+	`max_plugin_calls_per_month` integer,
+	`max_database_bytes` integer,
+	`max_custom_domains` integer,
+	`max_video_minutes` integer DEFAULT 0,
+	`max_video_minutes_watched_per_month` integer DEFAULT 0,
+	`allow_image_transformations` integer DEFAULT false NOT NULL,
+	`is_public` integer DEFAULT false NOT NULL,
+	`price_monthly` real,
+	`price_yearly` real,
+	`currency` text DEFAULT 'gbp' NOT NULL,
+	`trial_days` integer DEFAULT 0 NOT NULL,
+	`stripe_product_id` text,
+	`stripe_price_monthly_id` text,
+	`stripe_price_yearly_id` text,
+	`default_pool_id` text,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `hosting_subscriptions` (
+	`id` text PRIMARY KEY NOT NULL,
+	`owner_user_id` text NOT NULL,
+	`plan_id` text NOT NULL,
+	`interval` text NOT NULL,
+	`status` text DEFAULT 'checkout' NOT NULL,
+	`requested_subdomain` text NOT NULL,
+	`requested_site_name` text NOT NULL,
+	`template` text DEFAULT 'landing' NOT NULL,
+	`hosted_site_id` text,
+	`stripe_customer_id` text,
+	`stripe_subscription_id` text,
+	`stripe_checkout_session_id` text,
+	`current_period_end` text,
+	`cancel_at_period_end` integer DEFAULT false NOT NULL,
+	`past_due_since` text,
+	`paused_for_non_payment` integer DEFAULT false NOT NULL,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `hosting_subscriptions_stripe_subscription_id_unique` ON `hosting_subscriptions` (`stripe_subscription_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `hosting_subscriptions_stripe_checkout_session_id_unique` ON `hosting_subscriptions` (`stripe_checkout_session_id`);--> statement-breakpoint
+CREATE INDEX `idx_hosting_subscriptions_owner` ON `hosting_subscriptions` (`owner_user_id`);--> statement-breakpoint
+CREATE INDEX `idx_hosting_subscriptions_site` ON `hosting_subscriptions` (`hosted_site_id`);--> statement-breakpoint
+CREATE INDEX `idx_hosting_subscriptions_subdomain` ON `hosting_subscriptions` (`requested_subdomain`);--> statement-breakpoint
+CREATE TABLE `site_domains` (
+	`id` text PRIMARY KEY NOT NULL,
+	`site_id` text NOT NULL,
+	`hostname` text NOT NULL,
+	`kind` text NOT NULL,
+	`cf_custom_hostname_id` text,
+	`status` text DEFAULT 'pending' NOT NULL,
+	`ssl_status` text,
+	`verification_errors` text,
+	`last_checked_at` text,
+	`live_notified_at` text,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL,
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_site_domains_hostname` ON `site_domains` (`hostname`);--> statement-breakpoint
+CREATE INDEX `idx_site_domains_site` ON `site_domains` (`site_id`);
