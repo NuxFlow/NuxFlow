@@ -10,6 +10,7 @@ import { useDb, type Db } from '../utils/db'
 import { isMemberPool } from '../utils/control-plane'
 import { ensureMigrations } from '../utils/migrations'
 import { endSession, provisionAccount, redeemSignInCode, sendSetPasswordEmailForPool, sessionStatus } from '../utils/pool-sign-in'
+import { siteBillingHold } from '../utils/hosting-hold'
 
 type DbInput<F> = F extends (db: Db, input: infer I) => unknown ? I : never
 type EventInput<F> = F extends (event: H3Event, input: infer I) => unknown ? I : never
@@ -35,4 +36,5 @@ export class NuxflowControlPlane extends WorkerEntrypoint<Record<string, unknown
   endSession(input: DbInput<typeof endSession>) { return this.run('endSession', e => endSession(useDb(e), input)) }
   provisionAccount(input: EventInput<typeof provisionAccount>) { return this.run('provisionAccount', e => provisionAccount(e, input)) }
   sendSetPasswordEmail(input: EventInput<typeof sendSetPasswordEmailForPool>) { return this.run('sendSetPasswordEmail', e => sendSetPasswordEmailForPool(e, input)) }
+  siteBillingHold(input: DbInput<typeof siteBillingHold>) { return this.run('siteBillingHold', e => siteBillingHold(useDb(e), input)) }
 }

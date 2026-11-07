@@ -386,3 +386,27 @@ describe('POST /api/v1/mcp — content writes keep the edge cache and search ind
     expect(upsertContentEmbedding).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ status: 'published', title: 'Fresh' }))
   })
 })
+
+describe('POST /api/v1/mcp — get_content leaves secrets out', () => {
+  it('returns neither a page password\'s hash nor a live preview link', async () => {
+    const db = getCurrentTestDb()
+    const id = await seedContentItem(db, SITE, pageTypeId, { slug: 'mcp-protected', title: 'Protected' })
+    await db.update(contentItems).set({
+      visibility: 'password',
+      settings: { access: 'password', passwordHash: '$argon2id$secret-hash' },
+      previewToken: 'secret-preview-token',
+      previewTokenExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+    }).where(eq(contentItems.id, id))
+
+    const event = mkMcpEvent({
+      apiKeyRole: 'viewer',
+      apiKeyScopes: ['read:content'],
+      body: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_content', arguments: { id } } },
+    })
+    const response = await (mcpHandler as HandlerFn)(event) as { result: { content: { text: string }[] } }
+    const text = response.result.content[0]!.text
+    expect(text).not.toContain('secret-hash')
+    expect(text).not.toContain('secret-preview-token')
+    expect(JSON.parse(text)).toMatchObject({ id, title: 'Protected', settings: { access: 'password', hasPassword: true } })
+  })
+})

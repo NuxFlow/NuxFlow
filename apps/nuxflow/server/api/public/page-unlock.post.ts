@@ -17,8 +17,8 @@ export default defineEventHandler(async (event) => {
   const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
 
-  // Guessing is slowed per visitor across all of the site's pages, and per page. Each check
-  // is an Argon2 verify (~150 ms of CPU), so this also caps what one visitor can spend.
+  // Guessing is slowed per visitor across all of the site's pages. Each check is an Argon2
+  // verify (~150 ms of CPU), so this also caps what one visitor can spend.
   await rateLimit(event, { limit: 10, windowMs: 60_000, keyPrefix: 'page-unlock' })
   await rateLimit(event, { limit: 30, windowMs: 60 * 60_000, keyPrefix: 'page-unlock-hour' })
 
@@ -27,6 +27,12 @@ export default defineEventHandler(async (event) => {
   const { locale, slug } = await parseLocalePath(db, siteId, slugPath)
   const page = await findPublishedPage(db, siteId, slug, locale)
   if (!page || page.visibility !== 'password') throw notFound()
+
+  // And per page, whoever's asking: limits per address don't slow a botnet guessing one
+  // short password. A page and its translations share a password, so they share this too.
+  // High enough that only a sustained attack reaches it, which then also locks out real
+  // visitors for the rest of the hour: the better outcome for a private gallery.
+  await rateLimit(event, { limit: 300, windowMs: 60 * 60_000, keyPrefix: `page-unlock-page:${page.sourceItemId || page.id}`, perVisitor: false })
 
   const ok = await unlockPage(event, siteId, page, body.password)
   if (!ok) throw unauthorized('That password isn\'t right')

@@ -35,7 +35,6 @@ export const SITE_SESSION_TTL_MS = 7 * 86_400_000
 // Sliding expiry is refreshed at most this often (mirrors Better Auth's updateAge default).
 const SITE_SESSION_REFRESH_MS = 86_400_000
 const AUTH_CODE_TTL_MS = 60_000
-export const AUTH_STATE_COOKIE = 'nuxflow_auth_state'
 const AUTH_STATE_TTL_SECONDS = 600
 
 
@@ -46,6 +45,15 @@ function isSecureDeployment(): boolean {
 /** `__Host-` needs Secure, which a plain-http local dev origin can't set. */
 export function siteSessionCookieName(): string {
   return isSecureDeployment() ? '__Host-nuxflow_site' : 'nuxflow_site'
+}
+
+/**
+ * `__Host-` for the same reason. Tenants run their own script, and one on a sibling subdomain
+ * could otherwise set this cookie for the whole parent domain, then send a visitor to another
+ * site's callback with its own state and code, signing them in to the attacker's account there.
+ */
+function authStateCookieName(): string {
+  return isSecureDeployment() ? '__Host-nuxflow_auth_state' : 'nuxflow_auth_state'
 }
 
 /**
@@ -81,19 +89,22 @@ export function safeReturnPath(value: unknown, fallback = '/admin'): string {
 
 export function beginSiteSignIn(event: H3Event, returnTo: string): string {
   const state = randomToken()
-  setCookie(event, AUTH_STATE_COOKIE, JSON.stringify({ state, returnTo }), {
+  setCookie(event, authStateCookieName(), JSON.stringify({ state, returnTo }), {
     httpOnly: true,
     secure: isSecureDeployment(),
     sameSite: 'lax',
-    path: '/_nuxflow/auth',
+    // `__Host-` requires the root path. page-cache.ts ignores this cookie, so an abandoned
+    // sign-in doesn't turn the page cache off for this visitor.
+    path: '/',
     maxAge: AUTH_STATE_TTL_SECONDS,
   })
   return state
 }
 
 export function readSiteSignInState(event: H3Event): { state: string; returnTo: string } | null {
-  const raw = getCookie(event, AUTH_STATE_COOKIE)
-  deleteCookie(event, AUTH_STATE_COOKIE, { path: '/_nuxflow/auth' })
+  const name = authStateCookieName()
+  const raw = getCookie(event, name)
+  deleteCookie(event, name, { path: '/', secure: isSecureDeployment() })
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw) as { state?: unknown; returnTo?: unknown }

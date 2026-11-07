@@ -32,6 +32,9 @@ This allows you to host an unlimited number of custom domains with absolute data
 
 Accounts are shared across every site — one login, one password. Because each site's admins can add their own code to their own pages, nobody types their password on a site's domain. Sign-in, passkeys and account settings live on a separate **sign-in domain** (for example `accounts.yourplatform.com`) that never runs any site's code; each site receives a login that works on that site only. NuxFlow won't create a second site until this is set up — see [Installation → Hosting several sites](./installation.md#hosting-several-sites) for the three steps.
 
+> [!IMPORTANT]
+> **If you host other people's sites, don't put them under your sign-in domain's parent domain.** A site's code can set a cookie for its whole parent domain, so a customer at `site-a.yourplatform.com` could plant their own login in a visitor's browser for `accounts.yourplatform.com`. Give customer sites a domain of their own (`yourplatform-sites.com`) and add that domain to the [Public Suffix List](https://publicsuffix.org/submit/), so browsers treat each customer's subdomain as separate. Subdomains for sites you run yourself are fine.
+
 ---
 
 ## Adding a new site

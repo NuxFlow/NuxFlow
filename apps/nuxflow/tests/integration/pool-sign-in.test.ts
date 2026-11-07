@@ -179,13 +179,13 @@ function fakeControlPlane(opts: { alive?: () => boolean; psa?: boolean } = {}) {
 async function signInOnPool(cp: ReturnType<typeof fakeControlPlane>, code = 'good-code'): Promise<string | null> {
   const start = createMockEvent({ siteId: POOL_SITE, headers: { host: 'client.example' }, query: { return_to: '/admin' } }) as MockEvent
   await (startHandler as Handler)(withEnv(start, { CONTROL_PLANE: cp.stub }))
-  const stateCookie = start._cookies.nuxflow_auth_state!
+  const stateCookie = start._cookies['__Host-nuxflow_auth_state']!
   const { state } = JSON.parse(stateCookie) as { state: string }
   const callback = createMockEvent({
     siteId: POOL_SITE,
     headers: { host: 'client.example' },
     query: { code, state },
-    cookies: { nuxflow_auth_state: stateCookie },
+    cookies: { '__Host-nuxflow_auth_state': stateCookie },
   }) as MockEvent
   await (callbackHandler as Handler)(withEnv(callback, { CONTROL_PLANE: cp.stub }))
   return callback._cookies[siteSessionCookieName()] ?? null

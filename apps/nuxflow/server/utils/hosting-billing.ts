@@ -5,6 +5,7 @@ import { ulid } from 'ulid'
 import { auditLogs, contentTypes, hostingPlans, hostingSubscriptions, sites, userSiteRoles, users } from '@nuxflow/db/schema'
 import { useDb, type Db } from './db'
 import { isHostingPlatform } from './hosting-platform'
+import { ENDED_SUBSCRIPTION_STATUSES } from './hosting-hold'
 import { refreshSitesAfterPlanChange, type HostingPlan } from './hosting-plans'
 import { accountsUrl, isAccountsHost, isCentralAuth } from './accounts-origin'
 import { eventForSite, getPrimarySite, type SiteInfo } from './site-info'
@@ -41,7 +42,7 @@ export const HOSTING_WEBHOOK_SECRET_KEY = 'hosting.stripe_webhook_secret'
 /** Stripe statuses where the site should be open. */
 const LIVE_STATUSES = new Set(['active', 'trialing'])
 /** Stripe statuses where NuxFlow pauses the site. */
-const ENDED_STATUSES = new Set(['paused', 'unpaid', 'canceled', 'incomplete_expired'])
+const ENDED_STATUSES = new Set(ENDED_SUBSCRIPTION_STATUSES)
 /** A sign-up that hasn't paid yet holds its subdomain this long. */
 const RESERVATION_MS = 24 * 60 * 60 * 1000
 

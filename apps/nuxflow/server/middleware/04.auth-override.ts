@@ -45,7 +45,11 @@ export default defineEventHandler(async (event) => {
   // internal adapter (user-provisioning.ts), which never passes through this middleware. Leaving it open
   // let anyone pre-register an email address before its real owner was invited — the
   // invite would then attach its role to the attacker-controlled account.
-  if (pathname === '/api/auth/sign-up/email') {
+  //
+  // Same for sending verification emails: registration calls it in-process, nothing calls
+  // it over HTTP, and it needs no sign-in. Left open, anyone could send unlimited email to
+  // any unverified account, spending the Cloudflare quota every tenant shares.
+  if (pathname === '/api/auth/sign-up/email' || pathname === '/api/auth/send-verification-email') {
     throw notFound()
   }
 

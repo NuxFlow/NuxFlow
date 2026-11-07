@@ -30,6 +30,7 @@ const bodySchema = z.object({
 // own declared fields rather than trusting an arbitrary z.record(). Blocks extra/unexpected
 // keys, missing required fields, and oversized/deeply-nested payloads.
 const MAX_FIELD_VALUE_LENGTH = 10_000
+const MAX_CHECKBOX_VALUES = 100
 
 function validateSubmissionData(data: Record<string, unknown>, fields: FormField[]): string | null {
   const known = new Map(fields.map(f => [f.name, f]))
@@ -46,8 +47,12 @@ function validateSubmissionData(data: Record<string, unknown>, fields: FormField
     if (value === undefined || value === null) continue
 
     if (field.type === 'checkbox' && Array.isArray(value)) {
+      if (value.length > MAX_CHECKBOX_VALUES) return `Too many values for field: ${field.name}`
       if (value.some(v => typeof v !== 'string' && typeof v !== 'number' && typeof v !== 'boolean')) {
         return `Invalid value for field: ${field.name}`
+      }
+      if (value.some(v => typeof v === 'string' && v.length > MAX_FIELD_VALUE_LENGTH)) {
+        return `Value too long for field: ${field.name}`
       }
       continue
     }

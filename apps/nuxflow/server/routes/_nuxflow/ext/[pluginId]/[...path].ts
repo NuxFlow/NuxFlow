@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { useDb } from '../../../../utils/db'
-import { invokePlugin, RESERVED_PLUGIN_PATH_PREFIX } from '../../../../utils/plugin-runtime'
+import { invokePlugin, pluginForwardUrl } from '../../../../utils/plugin-runtime'
 import { PLUGIN_EXT_CORS_HEADERS, confinePluginResponseHeaders } from '../../../../utils/plugin-response'
 import { getAuthSession } from '../../../../utils/auth'
 import { getUserSiteRole } from '../../../../utils/permissions'
@@ -77,10 +77,8 @@ export default defineEventHandler(async (event) => {
   const url = getRequestURL(event)
   const pluginPath = url.pathname.replace(/^\/_nuxflow\/ext\/[^/]+/, '') || '/'
   // Reserved for NuxFlow's own calls (event hooks) — a visitor can't forge a hook delivery.
-  if (pluginPath === RESERVED_PLUGIN_PATH_PREFIX || pluginPath.startsWith(`${RESERVED_PLUGIN_PATH_PREFIX}/`)) {
-    throw notFound()
-  }
-  const forwardUrl = new URL(pluginPath + (url.search || ''), 'https://plugin.internal')
+  const forwardUrl = pluginForwardUrl(pluginPath, url.search)
+  if (!forwardUrl) throw notFound()
 
   const headers = pickForwardableHeaders(event)
   const identity = plugin.grantedPermissions?.includes('user:read') ? await identityHeaders(event, siteId) : {}

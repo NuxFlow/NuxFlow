@@ -186,6 +186,29 @@ describe('POST /api/v1/forms/:formIdentifier/submit (public)', () => {
     expect((submission!.data as Record<string, unknown>).fullName).toBe('Jane Doe')
   })
 
+  describe('checkbox values', () => {
+    const fields: FormField[] = [{ id: 'c1', type: 'checkbox', label: 'Pick', name: 'pick', required: false }]
+    const submit = (slug: string, pick: unknown) => (submitHandler as Handler)(publicEvent({
+      params: { formIdentifier: slug },
+      body: { data: { pick } },
+    }))
+
+    it('accepts an ordinary selection', async () => {
+      const { slug } = await seedForm({ fields })
+      await expect(submit(slug, ['a', 'b'])).resolves.toMatchObject({ success: true })
+    })
+
+    it('rejects too many values', async () => {
+      const { slug } = await seedForm({ fields })
+      await expect(submit(slug, Array.from({ length: 101 }, (_, i) => String(i)))).rejects.toMatchObject({ statusCode: 422 })
+    })
+
+    it('rejects an oversized value, as it would in any other field', async () => {
+      const { slug } = await seedForm({ fields })
+      await expect(submit(slug, ['x'.repeat(10_001)])).rejects.toMatchObject({ statusCode: 422 })
+    })
+  })
+
   it('rejects a submission with an unknown field', async () => {
     const { slug } = await seedForm({ status: 'active' })
     const event = publicEvent({

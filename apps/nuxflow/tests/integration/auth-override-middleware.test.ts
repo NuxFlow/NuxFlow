@@ -60,6 +60,15 @@ describe('04.auth-override middleware', () => {
     expect(authHandlerMock).not.toHaveBeenCalled()
   })
 
+  // Needs no sign-in and emails any unverified account; registration calls it in-process,
+  // which never passes through this middleware.
+  it('blocks the public verification-email endpoint, with or without a query string', async () => {
+    for (const path of ['/api/auth/send-verification-email', '/api/auth/send-verification-email?x=1', '/api/auth/send-verification-email/']) {
+      await expect((middleware as Handler)(mkEvent(path))).rejects.toMatchObject({ statusCode: 404 })
+    }
+    expect(authHandlerMock).not.toHaveBeenCalled()
+  })
+
   it('passes other auth routes through to Better Auth', async () => {
     await expect((middleware as Handler)(mkEvent('/api/auth/get-session', 'GET'))).resolves.toBe('handled-by-better-auth')
   })

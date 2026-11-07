@@ -62,7 +62,7 @@ function onAccounts(userId: string | null, opts: Parameters<typeof createMockEve
 async function signInToSiteA(userId: string, returnTo = '/admin'): Promise<{ cookie: string; site: MockEvent }> {
   const start = onSite(SITE_A, 'a.example.test', { query: { return_to: returnTo } })
   await (startHandler as Handler)(start as unknown as H3Event)
-  const stateCookie = start._cookies.nuxflow_auth_state!
+  const stateCookie = start._cookies['__Host-nuxflow_auth_state']!
   const { state } = JSON.parse(stateCookie) as { state: string }
 
   const { redirect } = await (authorizePost as Handler)(onAccounts(userId, { body: { site: SITE_A, state } }) as unknown as H3Event) as { redirect: string }
@@ -70,7 +70,7 @@ async function signInToSiteA(userId: string, returnTo = '/admin'): Promise<{ coo
 
   const callback = onSite(SITE_A, 'a.example.test', {
     query: Object.fromEntries(url.searchParams),
-    cookies: { nuxflow_auth_state: stateCookie },
+    cookies: { '__Host-nuxflow_auth_state': stateCookie },
   })
   await (callbackHandler as Handler)(callback as unknown as H3Event)
   return { cookie: callback._cookies['__Host-nuxflow_site']!, site: callback }
@@ -112,7 +112,7 @@ describe('the handoff', () => {
     expect(target.origin).toBe(ACCOUNTS)
     expect(target.pathname).toBe('/authorize')
     expect(target.searchParams.get('site')).toBe(SITE_A)
-    const cookie = JSON.parse(event._cookies.nuxflow_auth_state!) as { state: string; returnTo: string }
+    const cookie = JSON.parse(event._cookies['__Host-nuxflow_auth_state']!) as { state: string; returnTo: string }
     expect(cookie.state).toBe(target.searchParams.get('state'))
     expect(cookie.returnTo).toBe('/admin/content')
   })
@@ -186,7 +186,7 @@ describe('the handoff', () => {
   it('callback: a code works once, only with this browser\'s state, and only on its own site', async () => {
     const start = onSite(SITE_A, 'a.example.test')
     await (startHandler as Handler)(start as unknown as H3Event)
-    const stateCookie = start._cookies.nuxflow_auth_state!
+    const stateCookie = start._cookies['__Host-nuxflow_auth_state']!
     const { state } = JSON.parse(stateCookie) as { state: string }
     const { redirect } = await (authorizePost as Handler)(onAccounts(memberId, { body: { site: SITE_A, state } }) as unknown as H3Event) as { redirect: string }
     const query = Object.fromEntries(new URL(redirect).searchParams)
@@ -201,11 +201,11 @@ describe('the handoff', () => {
     expect(noCookie._cookies['__Host-nuxflow_site']).toBeUndefined()
 
     // Another site's callback can't redeem it.
-    const otherSite = onSite(SITE_B, 'b.example.test', { query, cookies: { nuxflow_auth_state: stateCookie } })
+    const otherSite = onSite(SITE_B, 'b.example.test', { query, cookies: { '__Host-nuxflow_auth_state': stateCookie } })
     await (callbackHandler as Handler)(otherSite as unknown as H3Event)
     expect(otherSite._cookies['__Host-nuxflow_site']).toBeUndefined()
     // …and that attempt consumed it, so the real site can't replay it either.
-    const replay = onSite(SITE_A, 'a.example.test', { query, cookies: { nuxflow_auth_state: stateCookie } })
+    const replay = onSite(SITE_A, 'a.example.test', { query, cookies: { '__Host-nuxflow_auth_state': stateCookie } })
     await (callbackHandler as Handler)(replay as unknown as H3Event)
     expect(replay._cookies['__Host-nuxflow_site']).toBeUndefined()
   })
@@ -213,12 +213,27 @@ describe('the handoff', () => {
   it('callback: an expired code is refused', async () => {
     const start = onSite(SITE_A, 'a.example.test')
     await (startHandler as Handler)(start as unknown as H3Event)
-    const stateCookie = start._cookies.nuxflow_auth_state!
+    const stateCookie = start._cookies['__Host-nuxflow_auth_state']!
     const { state } = JSON.parse(stateCookie) as { state: string }
     const { redirect } = await (authorizePost as Handler)(onAccounts(memberId, { body: { site: SITE_A, state } }) as unknown as H3Event) as { redirect: string }
     await getCurrentTestDb().update(siteAuthCodes).set({ expiresAt: '2000-01-01T00:00:00.000Z' })
 
-    const callback = onSite(SITE_A, 'a.example.test', { query: Object.fromEntries(new URL(redirect).searchParams), cookies: { nuxflow_auth_state: stateCookie } })
+    const callback = onSite(SITE_A, 'a.example.test', { query: Object.fromEntries(new URL(redirect).searchParams), cookies: { '__Host-nuxflow_auth_state': stateCookie } })
+    await (callbackHandler as Handler)(callback as unknown as H3Event)
+    expect(callback._cookies['__Host-nuxflow_site']).toBeUndefined()
+  })
+
+  // A tenant's script can set an unprefixed cookie for the whole parent domain, but not a
+  // `__Host-` one. If the callback read the old name, a sibling site could supply both the
+  // state and a code from its own account, and sign the visitor in as that account.
+  it('ignores a state cookie a sibling subdomain could have planted', async () => {
+    const attackerState = 'attacker-chosen-state-value'
+    const { redirect } = await (authorizePost as Handler)(onAccounts(strangerId, { body: { site: SITE_A, state: attackerState } }) as unknown as H3Event) as { redirect: string }
+
+    const callback = onSite(SITE_A, 'a.example.test', {
+      query: Object.fromEntries(new URL(redirect).searchParams),
+      cookies: { nuxflow_auth_state: JSON.stringify({ state: attackerState, returnTo: '/' }) },
+    })
     await (callbackHandler as Handler)(callback as unknown as H3Event)
     expect(callback._cookies['__Host-nuxflow_site']).toBeUndefined()
   })

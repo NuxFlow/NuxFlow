@@ -15,6 +15,7 @@ import getHandler from '../../server/api/v1/content/[id].get'
 import postHandler from '../../server/api/v1/content/index.post'
 import publicPageHandler from '../../server/api/public/pages/[...slug].get'
 import unlockHandler from '../../server/api/public/page-unlock.post'
+import { rateLimit } from '../../server/utils/rate-limit'
 import commentsGetHandler from '../../server/api/v1/content/[id]/comments.get'
 import { getIndexableEntries } from '../../server/utils/sitemap-entries'
 import { getSeoSettings } from '../../server/utils/seo'
@@ -116,6 +117,24 @@ describe('editor write path', () => {
   it('rejects a too-short password', async () => {
     const id = await seedContentItem(getCurrentTestDb(), SITE, typeId, { slug: 'short-pw', status: 'draft' })
     await expect(run(patchHandler, editor({ settings: { access: 'password' }, pagePassword: 'abc' }, id))).rejects.toMatchObject({ statusCode: 422 })
+  })
+})
+
+describe('limits on guessing', () => {
+  it('counts guesses per page across every visitor, which a botnet can\'t spread out', async () => {
+    const id = await makeProtectedPage('botnet-target')
+    vi.mocked(rateLimit).mockClear()
+    await expect(run(unlockHandler, unlockEvent('botnet-target', 'wrong'))).rejects.toMatchObject({ statusCode: 401 })
+    expect(rateLimit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      keyPrefix: `page-unlock-page:${id}`,
+      perVisitor: false,
+    }))
+  })
+
+  it('does not spend the page limit on a page that isn\'t protected', async () => {
+    vi.mocked(rateLimit).mockClear()
+    await expect(run(unlockHandler, unlockEvent('no-such-page', 'wrong'))).rejects.toMatchObject({ statusCode: 404 })
+    expect(rateLimit).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ perVisitor: false }))
   })
 })
 

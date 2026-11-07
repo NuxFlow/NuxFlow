@@ -74,6 +74,13 @@ describe('isPageCacheEligible', () => {
     }))).toBe(false)
   })
 
+  // On the root path because `__Host-` requires it; an abandoned sign-in mustn't turn the
+  // cache off for ten minutes.
+  it('ignores the sign-in state cookie, which pages never read', () => {
+    expect(isPageCacheEligible(mkEvent({ cookies: { '__Host-nuxflow_auth_state': '{}' } }))).toBe(true)
+    expect(isPageCacheEligible(mkEvent({ cookies: { nuxflow_auth_state: '{}' } }))).toBe(true)
+  })
+
   it('rejects a request carrying multiple cookies', () => {
     expect(isPageCacheEligible(mkEvent({
       cookies: { __nuxflow_theme_preview: 'theme-1', foo: 'bar' },

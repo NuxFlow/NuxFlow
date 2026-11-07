@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { useDb } from '../../../utils/db'
 import { getContentTypeBySlugOrThrow } from '../../../utils/content-queries'
 import { parsePagination } from '../../../utils/pagination'
-import { isSiteTeamMember } from '../../../utils/permissions'
+import { hasApiKeyScope, isSiteTeamMember } from '../../../utils/permissions'
 import { paginate, countRows } from '@nuxflow/db/queries'
 import { contentItems, contentTaxonomyTerms, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { and, eq, desc, gt, inArray } from 'drizzle-orm'
@@ -45,9 +45,11 @@ export default defineEventHandler(async (event) => {
   // global across this multi-tenant install, so a bare session check would let anyone
   // with an account on ANY site list another tenant's drafts. API-key requests are
   // already scoped: 03.api-key-auth.ts only sets apiKeyUserId for a live team role on
-  // this exact site.
-  const apiKeyUserId = event.context.apiKeyUserId
-  const isTeam = Boolean(apiKeyUserId) || (await isSiteTeamMember(event))
+  // this exact site, and a key also needs read:content: one made only to deploy themes or
+  // plugins gets what the public gets.
+  const isTeam = event.context.apiKeyUserId
+    ? hasApiKeyScope(event, 'read:content')
+    : await isSiteTeamMember(event)
 
   const type = await getContentTypeBySlugOrThrow(db, siteId, typeSlug, `Content type "${typeSlug}" not found`)
 

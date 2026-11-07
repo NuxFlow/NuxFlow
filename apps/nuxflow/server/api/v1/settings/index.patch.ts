@@ -20,6 +20,7 @@ import { requireSiteId } from '../../../utils/site-context'
 import { isMemberPool, POOL_PLATFORM_SETTINGS, requireControlPlane } from '../../../utils/control-plane'
 import { pushSettingsToPools } from '../../../utils/pools'
 import { assertDemoAllowsSettings } from '../../../utils/demo-mode'
+import { assertSiteMayReopen } from '../../../utils/hosting-hold'
 
 const bodySchema = z.object({
   // Site columns
@@ -102,6 +103,8 @@ export default defineEventHandler(async (event) => {
       body.domain = normalized
     }
   }
+
+  if (body.status === 'active') await assertSiteMayReopen(event, siteId, userId)
 
   const siteUpdate = {
     ...(body.name !== undefined && { name: body.name }),

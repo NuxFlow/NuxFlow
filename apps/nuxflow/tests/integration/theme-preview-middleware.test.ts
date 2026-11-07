@@ -69,11 +69,21 @@ describe('theme-preview middleware', () => {
     expect(ctx.themePreviewId).toBeUndefined()
   })
 
-  it('falls back to an existing preview cookie when no __theme_id is in the query', async () => {
-    const event = mkThemePreviewEvent({ cookies: { __nuxflow_theme_preview: 'theme-from-cookie' } })
+  it('falls back to an existing preview cookie for an admin when no __theme_id is in the query', async () => {
+    const event = mkThemePreviewEvent({ userId: previewAdmin, cookies: { __nuxflow_theme_preview: 'theme-from-cookie' } })
     await (themePreviewMiddleware as MiddlewareFn)(event)
     const ctx = (event as unknown as { context: Record<string, unknown> }).context
     expect(ctx.themePreviewId).toBe('theme-from-cookie')
+  })
+
+  // Anyone can set a cookie in their own browser, so holding one proves nothing.
+  it('ignores the preview cookie for a visitor or a non-admin', async () => {
+    for (const userId of [undefined, previewEditor]) {
+      const event = mkThemePreviewEvent({ userId, cookies: { __nuxflow_theme_preview: 'theme-from-cookie' } })
+      await (themePreviewMiddleware as MiddlewareFn)(event)
+      const ctx = (event as unknown as { context: Record<string, unknown> }).context
+      expect(ctx.themePreviewId).toBeUndefined()
+    }
   })
 
   it('leaves themePreviewId unset when there is neither a query param nor a cookie', async () => {
