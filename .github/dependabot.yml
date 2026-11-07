@@ -12,11 +12,18 @@ updates:
     #   (TypeScript 6 failed `pnpm typecheck` in Oct 2026).
     # - @types/node: must match the minimum supported Node version (engines: >=22), or
     #   code could use APIs Node 22 doesn't have. Raise together with that floor.
+    # One broken release we skip:
+    # - vue-tsc 3.3.14: `//` in a template attribute value (any URL placeholder) produces
+    #   invalid code, so typecheck fails with TS2339 "Property 'value' does not exist"
+    #   (vuejs/language-tools#6322). Later versions still come through; delete this
+    #   entry once one has landed.
     ignore:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      - dependency-name: "vue-tsc"
+        versions: ["3.3.14"]
     groups:
       # Security-sensitive dependencies get their own ungrouped PRs so they're never
       # buried inside a big batched update and easy to review/merge on their own —
