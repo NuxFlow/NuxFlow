@@ -233,6 +233,7 @@ nuxflow/
 │   ├── canvas/                 # Canvas page builder — block components + editor (@nuxflow/canvas)
 │   ├── db/                     # Drizzle schema + migrations — D1-only, no client factory
 │   ├── cli/                    # `nuxflow` CLI — scaffold/build/deploy plugins and themes
+│   ├── router/                 # Optional front-door Worker for hosting platforms with member pools
 │   └── create-nuxflow-app/     # `pnpm create nuxflow-app` scaffolder
 └── themes/
     └── default/                # theme.css — reference for every token and selector a theme can use
@@ -260,7 +261,7 @@ For detailed information on how to install and use NuxFlow, please refer to our 
 
 | Tool | Version | Install |
 |---|---|---|
-| Node.js | 22+ | `nvm install 22` |
+| Node.js | 22.22+ | `nvm install 22` |
 | pnpm | 9+ | `npm install -g pnpm` |
 | Wrangler | 4+ | included as a project dependency (`pnpm exec wrangler`), or `pnpm add -g wrangler` |
 
@@ -381,7 +382,7 @@ pnpm dev
 pnpm test
 
 # Run unit tests in watch mode
-pnpm test:watch
+pnpm --filter @nuxflow/app test:watch
 
 # Run end-to-end tests (requires running dev server)
 pnpm test:e2e

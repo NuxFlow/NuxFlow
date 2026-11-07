@@ -26,7 +26,7 @@ The scaffolder clones the project, installs dependencies, and creates `wrangler.
 
 Install the following tools before you begin:
 
-- **Node.js** 22 or higher
+- **Node.js** 22.22 or higher
 - **pnpm** 9 or higher — `npm install -g pnpm`
 - **Wrangler** v4 (Cloudflare CLI). It's already a project dependency, so after `pnpm install` you can run it as `pnpm exec wrangler …` from `apps/nuxflow`. This guide writes commands as plain `wrangler …`: either install it globally (`pnpm add -g wrangler`) or put `pnpm exec` in front.
 - A **Cloudflare Workers Paid plan** ($5/month minimum) — NuxFlow requires this to run at all, not just for optional features like dynamic plugins. The Free plan's CPU time limit is too tight for a full Nuxt SSR CMS.
@@ -87,6 +87,8 @@ Database migrations run automatically on the first request. Visit `http://localh
 
 ::note
 **How migrations work:** NuxFlow bundles all database migration files into the deployed Worker. On the very first request after a fresh install or an upgrade, any migrations that have not yet been applied are executed automatically. A `_nuxflow_migrations` table in your database tracks which files have already run, so no migration is ever applied twice. You never need to run a migration command manually.
+
+A database created by a NuxFlow beta from before November 2026 can't be upgraded, because the migration history was squashed before the first release. Download each site's backup (**Administration → Import & backup → Backup**), create a fresh D1 database, and restore the backups onto it.
 ::
 
 ---
@@ -230,16 +232,16 @@ Finally, in the Cloudflare dashboard for the domain, open **Caching → Configur
 
 ### Step 9: Verify Cron Triggers
 
-NuxFlow runs scheduled jobs for timed publishing, nightly cleanup and usage totals, and stuck-video checks. The triggers are defined in `wrangler.toml`:
+NuxFlow runs scheduled jobs for timed publishing, nightly cleanup and usage totals, booking reminders and more. The triggers are defined in `wrangler.toml`:
 
 ```toml
 [triggers]
 crons = ["* * * * *", "0 3 * * *", "0 * * * *"]
 ```
 
-- Every minute: publish scheduled content.
+- Every minute: publish scheduled content, and add pages to the smart search index after that index changes.
 - Nightly at 3 AM UTC: prune old logs and revisions, flag stale content, and record each site's usage totals (see [Usage](multi-site.md#usage)).
-- Hourly: mark failed video uploads, and check sites on a hosting plan against their monthly limits (see [Hosting plans](multi-site.md#hosting-plans)).
+- Hourly: release booking places whose time has run out and send the day-before reminders, mark failed video uploads, and, on a hosting platform, check sites against their monthly limits (see [Hosting plans](multi-site.md#hosting-plans)), check customers' own domains, count video minutes watched and update the routing to member pools.
 
 After deploying, confirm all three are active in **Workers & Pages → nuxflow → Settings → Triggers → Cron Triggers**.
 
@@ -689,6 +691,16 @@ Add the relevant secret for your chosen provider, then select it in **Admin → 
 | ZeptoMail | `NUXT_ZEPTO_API_KEY` |
 
 If no provider is configured, NuxFlow logs emails to the console in development.
+
+### Housekeeping (optional)
+
+The nightly jobs use these defaults. To change one, add it under `[vars]` in `wrangler.toml`:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `NUXT_AUDIT_LOG_RETENTION_DAYS` | `90` | Days of audit log to keep |
+| `NUXT_REVISION_RETENTION_COUNT` | `20` | Revisions to keep for each page or post |
+| `NUXT_STALE_CONTENT_DAYS` | `180` | Days without an update before an author is reminded to review a published page (30 at the least) |
 
 ---
 

@@ -5,12 +5,13 @@
 -- stays indexed with no application code. Only published, public items are indexed; the
 -- body is the excerpt, falling back to the SEO description — not the full content.
 -- content_item_id/site_id are UNINDEXED: stored for lookups/filtering, never tokenized.
+-- unicode61 with remove_diacritics 2 folds case and accents for every script.
 CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
   content_item_id UNINDEXED,
   site_id UNINDEXED,
   title,
   body,
-  tokenize = 'porter ascii'
+  tokenize = 'porter unicode61 remove_diacritics 2'
 );
 --> statement-breakpoint
 CREATE TRIGGER IF NOT EXISTS search_index_ai AFTER INSERT ON content_items

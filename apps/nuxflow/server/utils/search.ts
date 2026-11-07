@@ -31,7 +31,7 @@ export interface SearchIndexHit {
 
 /**
  * Keyword search over a site's `search_index` (published, public items only — see
- * migrations/0001_search_index.sql), best match first. Returns [] when `text` has nothing
+ * migrations/0001_search.sql), best match first. Returns [] when `text` has nothing
  * searchable.
  */
 export async function searchIndex(db: Db, siteId: string, text: string, limit: number): Promise<SearchIndexHit[]> {

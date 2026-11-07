@@ -95,7 +95,7 @@ Sites in a pool work like any other: billing, plans and limits, usage, invitatio
 ## Moving a site to another pool
 
 Super Admin → Sites → the **Move** button (two arrows) on the site's row. Choose where
-it goes: another pool, or the control panel itself. A move takes a few minutes:
+it goes: another pool, or the control plane itself. A move takes a few minutes:
 
 1. **Pause changes.** Visitors see the "down for maintenance" page. The site's team can
    look around the admin but can't save. NuxFlow waits about 35 seconds, so every server

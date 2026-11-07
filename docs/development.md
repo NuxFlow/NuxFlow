@@ -6,9 +6,10 @@ This guide is for contributors and developers working on NuxFlow itself — modi
 
 Install the following tools before you begin:
 
-- **Node.js** 20 or higher
+- **Node.js** 22.22 or higher
 - **pnpm** 9 or higher — `npm install -g pnpm`
 - **Wrangler** v4 (Cloudflare CLI) — `pnpm add -g wrangler`
+
 ---
 
 ## Monorepo Structure
@@ -23,6 +24,7 @@ nuxflow/
 │   ├── canvas/           # Canvas page builder engine (blocks, editor, types)
 │   ├── db/               # Drizzle schema and migrations — D1-only, no client factory
 │   ├── cli/              # NuxFlow CLI tool
+│   ├── router/           # Optional front-door Worker for hosting platforms with member pools
 │   └── create-nuxflow-app/  # `pnpm create nuxflow-app` scaffolder
 ├── themes/
 │   └── default/          # Default CSS theme
@@ -78,7 +80,7 @@ The following scripts are available from the repo root and run across all packag
 
 | Command | Description |
 |---|---|
-| `pnpm dev` | Start the Nuxt dev server |
+| `pnpm dev` | Build the app and start `wrangler dev` (http://localhost:8787) |
 | `pnpm build` | Build all packages and the app |
 | `pnpm lint` | Run ESLint across the monorepo |
 | `pnpm typecheck` | Run TypeScript type checking |
@@ -104,14 +106,15 @@ The database schema lives in `packages/db/src/schema/`. Each file groups related
 
 | File | Contents |
 |---|---|
-| `sites.ts` | Sites, settings, redirects |
-| `users.ts` | Users, sessions, accounts, roles |
-| `content.ts` | Content types, items, revisions, taxonomies |
-| `media.ts` | Media library, folders |
+| `sites.ts` | Sites, site settings |
+| `users.ts` | Users, sessions, accounts, API keys, passkeys, roles, invitations, site sessions |
+| `content.ts` | Content types, items, revisions, taxonomies, menus, redirects, comments, event RSVPs and resources |
+| `media.ts` | Media library, folders, video assets |
 | `forms.ts` | Forms, submissions |
-| `payments.ts` | Membership tiers, subscriptions |
-| `system.ts` | Plugins, themes, audit logs, notifications, crawler activity, per-site usage counters |
-| `hosting.ts` | Hosting plans (the limits a site can be put on) |
+| `payments.ts` | Membership tiers, subscriptions, class passes and holdings |
+| `email.ts` | Mailboxes, email messages, email log, mailing list subscribers |
+| `hosting.ts` | Hosting plans, hosting subscriptions, a site's extra domains |
+| `system.ts` | Plugins, themes, audit logs, notifications, rate limits, AI jobs, crawler activity, per-site usage counters, pool settings and the site directory, site moves |
 
 All schema files are re-exported from `packages/db/src/schema/index.ts`.
 
@@ -129,7 +132,7 @@ pnpm --filter @nuxflow/db generate
 
 This creates a new numbered file in `packages/db/migrations/` (e.g. `0002_your_description.sql`) and updates `meta/_journal.json`.
 
-**3 — Review the generated SQL.** Open the new file and confirm it contains exactly what you expect before committing.
+**3 — Review the generated SQL.** Open the new file and confirm it contains exactly what you expect before committing. **If it contains `PRAGMA foreign_keys = OFF;`, stop:** drizzle-kit is rebuilding a table, and on D1 the rebuild's `DROP TABLE` can silently delete rows in every table that references it. Rewrite the change so it doesn't need a rebuild.
 
 **4 — Commit the migration alongside the schema change.** Migration files are source code. Every schema change should be committed with its corresponding migration in the same commit so the two are always in sync.
 
@@ -148,7 +151,7 @@ When a Worker receives its first request after a deploy (or cold start), the mig
 All subsequent requests skip this entirely — the result is cached in a module-level promise for the lifetime of the Worker isolate.
 
 ::note
-**Existing installs are handled gracefully.** If the tracking table is empty but the `sites` table already exists (indicating a prior manual installation), the middleware seeds the tracking table without re-running any SQL. No data is lost.
+**A database from before the squash has to be recreated.** The history was squashed into `0000_schema.sql` and `0001_search.sql` before the first release. A database built by the older files has filenames recorded that this build doesn't ship, so the migration step logs an error and applies nothing, and the app keeps running on the old tables, where anything new fails. Locally, stop the dev server and delete `apps/nuxflow/.wrangler/state/v3/d1` (your local test data goes with it). On a deployed site, download each site's backup, create a fresh D1 database and restore.
 ::
 
 ### Drizzle Studio
@@ -242,9 +245,11 @@ The CLI prompts you to select a bump type (`patch`, `minor`, or `major`) and wri
 When it is time to cut a release, a maintainer runs:
 
 ```bash
-pnpm version   # consumes all pending changesets and bumps package.json versions
-pnpm release   # builds everything and publishes to npm
+pnpm run version   # consumes all pending changesets and bumps package.json versions
+pnpm release       # builds everything and publishes to npm
 ```
+
+Use `pnpm run version`: plain `pnpm version` is npm's own command, not this script. The **Release** GitHub Action normally does both steps, through its "chore: release packages" pull request.
 
 ### Commit message convention
 
@@ -416,7 +421,7 @@ Windows zip utilities write backslash paths (`images\photo.png`). NuxFlow normal
 
 ### demo.json format
 
-`demo.json` follows the `NuxFlowBackup` schema (`server/utils/backup.ts`). The easiest way to generate one is to build your content in the admin and export it from **Admin → Settings → Export**. If you write it by hand, the top-level shape is:
+`demo.json` follows the `NuxFlowBackup` schema (`server/utils/backup.ts`). The easiest way to generate one is to build your content in the admin and export it from **Administration → Import & backup → Backup**. If you write it by hand, the top-level shape is:
 
 ```json
 {
@@ -489,7 +494,7 @@ Don't include `seo.indexnow_key`, since each site generates its own when IndexNo
 ## Developer Reference: Multilingual & Events
 
 ### 1. Multilingual Serving & Backups
-- **Routing Resolution:** The public route `[slug].get.ts` extracts optional locale prefixes (e.g. `/es/post-slug`). If a prefix is present, the handler queries `content_items` for the matching slug. If a translation is linked via `sourceItemId` for the requested locale, it is served; otherwise, it falls back to the original source item.
+- **Routing Resolution:** The public route `server/api/public/pages/[...slug].get.ts` extracts optional locale prefixes (e.g. `/es/post-slug`). If a prefix is present, the handler queries `content_items` for the matching slug. If a translation is linked via `sourceItemId` for the requested locale, it is served; otherwise, it falls back to the original source item.
 - **Header Swapper Integration:** The page returns `availableLocales: Array<{ locale, slug, rawSlug }>` which is loaded into `useState('active-locales')`.
 - **Database Backup & Restoration Mappings:** The backup schema preserves translations using `locale` and `sourceItemSlug` (the parent slug). When applying a restore, NuxFlow stores the newly created SQLite ULIDs mapped by their slugs. After the initial database inserts, a second-pass routine runs to resolve the new parent `sourceItemId` foreign keys, preventing integrity constraint violations.
 
@@ -501,8 +506,10 @@ Don't include `seo.indexnow_key`, since each site generates its own when IndexNo
   - `eventUrl` (text)
   - `eventAllDay` (boolean flag)
   - `eventRsvpEnabled`, `eventRsvpCapacity`, `eventRsvpClosesAt`
+  - `eventRecurrence` (repeat rule, as JSON; the stored start and end are the first date's)
+  - `eventPrice`, `eventCurrency`, `eventCancelHours`, `eventPassesAllowed` (paid bookings and class passes)
 - **Date format:** a timed event is a UTC instant, entered and shown in the site's time zone. An all-day event is its date at midnight UTC and is never converted between zones; its end is the last day, inclusive. All conversion is in `@nuxflow/canvas/events` (`packages/canvas/src/utils/event-dates.ts`), shared by the server, admin and block.
-- **Attendees:** the `event_rsvps` table and `server/utils/event-rsvp.ts`.
+- **Attendees:** the `event_rsvps` table and `server/utils/event-rsvp.ts`. Each repeating date has its own list (`occurrence_date`). Class passes are in `class_passes` and `class_pass_holdings` (`server/utils/class-passes.ts`).
 - **Database Indexes:** Query ranges are optimized using the composite index `idx_content_items_event_start` on `(site_id, event_start_at)`.
 - **Public & iCal Feeds:**
   - `GET /api/public/events` returning list responses.

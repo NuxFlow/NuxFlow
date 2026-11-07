@@ -9,12 +9,12 @@ NuxFlow has built-in support for subscription memberships, content gating, and [
 | Feature | Details |
 |---|---|
 | Providers | Stripe, Lemon Squeezy, Paddle (one or more simultaneously) |
-| Billing intervals | Monthly, yearly, one-time |
+| Billing intervals | Monthly, yearly, one-time (Stripe only) |
 | Free tiers | Supported — no provider required |
 | Content gating | Per-page: public / members-only / specific tier |
 | Auto-sync | Stripe: Tier creation/update automatically creates products and prices. Lemon Squeezy/Paddle: Requires manual variant/product mapping |
 | Webhooks | All three providers supported; subscriptions updated in real time |
-| Member portal | Stripe: Customer Portal link; LS/Paddle: cancel from `/account` |
+| Member portal | **Manage billing** on `/account` opens the provider's own billing page, for all three providers |
 
 ---
 
@@ -27,7 +27,7 @@ Fill in:
 - **Name** — displayed on the paywall and in the subscriber table
 - **Price** — set to `0` for a free tier (no provider needed)
 - **Currency** — ISO 4217 code, e.g. `USD`, `EUR`, `GBP`
-- **Interval** — `Monthly`, `Yearly`, or `One-time`
+- **Interval** — `Monthly`, `Yearly`, or `One-time` (Stripe only; it gives access with no end date)
 - **Features** — bullet points shown to visitors on the paywall
 
 If Stripe is configured when you save, NuxFlow automatically creates the matching product and price. The tier card will show a **Synced** badge when this succeeds.
@@ -116,6 +116,8 @@ NuxFlow verifies the HMAC-SHA256 `X-Signature` header on every request.
    - `subscription.created`
    - `subscription.updated`
    - `subscription.activated`
+   - `subscription.resumed`
+   - `subscription.paused`
    - `subscription.canceled`
 4. After saving, open the notification destination's details and copy its **secret key** (`pdl_ntfset_...`) into **Settings → Payments → Paddle Webhook Secret**.
 
@@ -128,7 +130,7 @@ NuxFlow verifies the HMAC-SHA256 signature in the `Paddle-Signature` header, key
 There is no hardcoded `/pricing` route in NuxFlow. Instead, you embed your live membership tiers anywhere on your site using the **Membership Pricing** canvas block.
 
 1. In the admin go to **Content → New page** and set the slug to `/pricing` (or any path you prefer).
-2. Switch the editor to **Canvas editor** and add the **Membership Pricing** block from the block picker (under the **Plugin** category).
+2. Switch the editor to **Canvas editor** and add the **Membership Pricing** block from the block picker (under the **Commerce** category).
 3. In the block settings panel you can configure:
 
 | Setting | Description |
@@ -222,7 +224,7 @@ Refunds go back to the original card. Credits go back on the pass.
 Members can view and manage their subscription from `/account`:
 
 - **Active subscription**: plan name, renewal date, included features.
-- **Manage billing** (Stripe only): opens the Stripe Customer Portal for invoice history and payment method updates.
+- **Manage billing** (paid subscriptions, all three providers): opens the provider's own billing page for invoice history and payment method updates.
 - **Cancel subscription**: available for all providers. Access continues through the end of the period already paid for; the provider's own end-of-period webhook is what finally marks the subscription cancelled in the background.
 
 ### Admins
@@ -234,7 +236,7 @@ Members can view and manage their subscription from `/account`:
 ## Frequently asked questions
 
 **Can I use multiple providers at once?**
-Yes. Configure all three if you want to give customers a choice. At checkout, NuxFlow uses the first configured provider in order: Stripe → Lemon Squeezy → Paddle.
+Yes. Configure more than one if you like, but visitors don't choose between them. Checkout uses the provider the tier is set up with, and if a tier is set up with several, the first in this order: Stripe → Lemon Squeezy → Paddle.
 
 **What happens when I change a tier's price?**
 NuxFlow creates a new product/price in the provider (matching Stripe's own behaviour). Existing subscribers remain on the old price until they cancel and re-subscribe. The **Subscribers** tab shows which tier each subscriber is on.
@@ -246,4 +248,4 @@ Yes. Free tiers (price = 0) skip the payment provider entirely and activate imme
 NuxFlow returns HTTP 200 on success or 400/503 on permanent errors. Providers retry on network-level failures. If a subscription state gets out of sync, you can manually check the subscription in your provider dashboard — the status will reconcile on the next webhook delivery.
 
 **Do I need a paid Cloudflare Workers plan for payments?**
-No. Payments are a core NuxFlow feature and work on both the free and paid Workers plans. The Workers Paid plan is only required for *dynamic plugins*.
+NuxFlow itself needs the Workers Paid plan ($5 a month), whichever features you use: the Free plan's CPU limit is too tight for it. Payments don't add any further Cloudflare cost.

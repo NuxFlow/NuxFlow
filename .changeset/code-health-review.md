@@ -6,7 +6,7 @@
 
 Pre-release code health pass.
 
-- Search works for every language: queries in non-Latin scripts no longer fail, and case and accents are ignored (the search index is rebuilt by migration `0010_search_unicode.sql`). Search results and RSS/Atom items link to each page's public address, so translations open at `/{language}/{page}`.
+- Search works for every language: queries in non-Latin scripts no longer fail, and case and accents are ignored (the search index now folds them for every script). Search results and RSS/Atom items link to each page's public address, so translations open at `/{language}/{page}`.
 - The Atom feed blocks `javascript:` links, and both feeds render posts with the same renderer as the site.
 - Dates in the admin and on public pages show correctly in Safari and in the viewer's own timezone.
 - A signed-in visitor who sends the contact form now gets the "message received" notification when that push event is switched on.

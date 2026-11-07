@@ -22,7 +22,7 @@ The older HTTP+SSE transport (a `GET` stream plus `POST ?sessionId=`) is no long
 All MCP requests must be authenticated. 
 
 1. Navigate to your NuxFlow Dashboard at `/admin`.
-2. Go to **Settings > API Keys** (or **Developer Settings**).
+2. Go to **Settings → API keys**.
 3. Generate a new API key with the following minimum scopes:
    - `read:content` (required to list or get content)
    - `write:content` (required to create, update, or delete content)
@@ -44,7 +44,7 @@ All MCP requests must be authenticated.
 | `create_content` | `write:content` | Creates a page, post or event, including an event's dates, repeat rule, price and booking settings. |
 | `update_content` | `write:content` | Changes an item's title, slug, content or status, or an event's details. Moving or removing dates tells the people booked, and refunds them if a date is gone. |
 | `set_content_terms` | `write:content` | Replaces an item's categories/tags, given as `taxonomy/term` paths. |
-| `delete_content` | `write:content` | Permanently deletes an item. |
+| `delete_content` | `write:content` | Permanently deletes an item. Refused for an event with paid upcoming bookings. |
 
 Each tool also checks the key owner's role on the site, the same as the admin API: an `author` can only edit their own drafts and can't publish, and deleting needs `editor` or above. `tools/list` returns every tool's exact input schema.
 

@@ -432,7 +432,7 @@ If your block does not appear, check:
 
 ### Local development
 
-Dynamic Workers are not available in `pnpm dev` (Node.js). Use `wrangler dev` from `apps/nuxflow` to get real KV and Worker Loader bindings locally:
+Use `pnpm dev`, or `wrangler dev` from `apps/nuxflow`, to get KV and Worker Loader bindings locally:
 
 ```bash
 cd apps/nuxflow
@@ -450,7 +450,8 @@ Note that `wrangler dev` uses a local KV simulation — you will need to deploy 
 | `nuxflow.plugin.json` | Yes | — | Manifest read by CLI commands: id, version, `permissions`, `settings` |
 | `src/server.ts` | No | Cloudflare Worker (sandboxed) | Handles `/_nuxflow/ext/{id}/*` HTTP requests and event hooks |
 | `src/nuxflow.ts` | No | — | Types for `env.NUXFLOW` (written by `plugin create`) |
-| `src/client.ts` | No | Browser | Registers Canvas blocks on app boot |
+| `src/blocks.json` | No | — | Canvas block metadata, read as plain data and never executed |
+| `src/client.ts` | No | Browser (sandboxed iframe) | Renders each Canvas block |
 | `dist/plugin.json` | Generated | — | Build artefact uploaded by `deploy`/`update` |
 
 ---
@@ -478,10 +479,6 @@ You are using Wrangler 3. Wrangler 3 silently ignores `[[worker_loaders]]` in `w
 pnpm add -D wrangler@^4 --filter @nuxflow/app
 cd apps/nuxflow && npx wrangler deploy
 ```
-
-### Authentication failed (403): Missing or null Origin
-
-The NuxFlow CLI was not sending the `Origin` header required by Better Auth. Upgrade the CLI to the version that includes this fix (`@nuxflow/cli` 0.1.1 or later).
 
 ### 503 — Dynamic Workers not available in this environment
 
@@ -520,4 +517,3 @@ First check `src/blocks.json` — the block picker only lists ids declared there
 - `import 'vue'` inside `src/client.ts` — remove it and use the `vue` argument passed to `renderBlock` instead
 - A runtime error in the `defineComponent` setup function
 - `renderBlock()` returning `null` for a valid id — check the id comparison matches exactly what's in `blocks.json`
-- The Canvas plugin is not enabled (dynamic plugin Canvas blocks require the Canvas plugin to be active)
