@@ -27,7 +27,7 @@
     "@ai-sdk/anthropic": "^4.0.96",
     "@ai-sdk/google": "^4.0.111",
     "@ai-sdk/openai": "^4.0.108",
-    "@better-auth/passkey": "^1.7.16",
+    "@better-auth/passkey": "^1.7.17",
     "@noble/hashes": "^2.3.0",
     "@nuxflow/canvas": "workspace:*",
     "@nuxflow/db": "workspace:*",
