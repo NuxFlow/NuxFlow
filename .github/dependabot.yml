@@ -29,6 +29,12 @@ updates:
       # buried inside a big batched update and easy to review/merge on their own —
       # see CLAUDE.md's account of the kysely SQL-injection CVEs this exact class of
       # drift let ship (a pnpm.overrides pin with no automated update path).
+      # better-auth and its plugins are the exception: they release in lockstep and
+      # passkey peers on the same better-auth version, so they share one PR.
+      better-auth:
+        patterns:
+          - "better-auth"
+          - "@better-auth/*"
       minor-and-patch:
         patterns:
           - "*"
