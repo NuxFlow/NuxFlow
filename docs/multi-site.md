@@ -66,7 +66,7 @@ Creating the site immediately shows a **setup link**: a URL of the form `https:/
 The token only works as part of that exact URL — there's no field anywhere to type or paste the token by itself. Visiting the bare domain (`https://example.com/setup` with no `?token=...` in the address) fails with **"Invalid or missing setup token."** Copy the full link and paste it directly into your browser's address bar.
 ::
 
-Send that link to whoever will configure the site, or paste it into your own browser if that's you. Opening it runs the same Setup Wizard as a first install — site details, admin account and a starter template (Landing, Blog, Portfolio, Blank); email uses Cloudflare Email by default, changeable later in Settings → Email — — and fully seeds the new site's content types, homepage, and taxonomies automatically. If whoever completes it already has an account (on any site), they enter that account's existing email and password in the admin-account step rather than creating a new one — NuxFlow checks the password and makes that account the new site's `admin`. (Not `super_admin`: that stays with the platform operator. A super admin can still grant it deliberately.)
+Send that link to whoever will configure the site, or paste it into your own browser if that's you. Opening it runs the same Setup Wizard as a first install — site details, admin account and a starter template (Landing, Blog, Portfolio, Blank); email uses Cloudflare Email by default, changeable later in Settings → Email — and fully seeds the new site's content types, homepage, and taxonomies automatically. If whoever completes it already has an account (on any site), they enter that account's existing email and password in the admin-account step rather than creating a new one — NuxFlow checks the password and makes that account the new site's `admin`. (Not `super_admin`: that stays with the platform operator. A super admin can still grant it deliberately.)
 
 A setup attempt that fails or is abandoned partway through doesn't consume the token, so the same link can be reused until setup completes successfully.
 
@@ -236,13 +236,18 @@ Good to know:
 | **Renders** | Pages the server had to build (cache misses, admin pages). Rendering is most of a Worker's CPU time, which a Worker can't measure itself, so this is the closest stand-in. | About once a minute |
 | **API** | Requests to the site's `/api` routes | About once a minute |
 | **AI calls** | Every call to an AI model: writing tools, page generation, images, dictation, "Listen to this article", spam checks. Includes calls on a site's own API key. | About once a minute |
-| **AI credits** | AI you pay for (see [AI on a hosting platform](#ai-on-a-hosting-platform)), weighted by cost. This is what plans limit. | About once a minute |
+| **AI credits** | AI you pay for (see [AI on a hosting platform](#ai-on-a-hosting-platform)) that the site's team set off, weighted by cost. This is what plans limit. | About once a minute |
+| **Visitor AI** | AI you pay for that visitors, incoming mail and plugins set off | About once a minute |
 | **Emails** | Recipients an email provider accepted (failures and console-only sends aren't counted) | About once a minute |
-| **Storage** | Total size of the media library | Nightly, 3 AM UTC |
+| **Received** | Emails received at the site's own addresses | About once a minute |
+| **Plugin calls** | Requests and events handled by the site's plugins | About once a minute |
+| **Video watched** | Minutes watched of the site's videos in your Stream account | Hourly |
+| **Storage** | The media library plus received email kept in storage | Nightly, 3 AM UTC |
 | **Pages** | Pages, posts and other content, in any status | Nightly |
 | **Team** | People with any role except member (viewer and above), not counting super admins | Nightly |
 | **Members** | People with the member role | Nightly |
 | **Plugins** | Installed plugins | Nightly |
+| **Database** | Roughly how much of the shared database the site takes | Nightly |
 
 A **—** means no nightly total has been taken for that site yet.
 
@@ -373,7 +378,7 @@ Send a `DELETE` request to `/api/v1/admin/sites/:id`, or use **Super Admin → S
 curl -X DELETE https://yourdomain.com/api/v1/admin/sites/SITE_ID
 ```
 
-You must be viewing a *different* site's domain than the one you're deleting — this endpoint refuses to delete the site you're currently on. It always fully removes the row, regardless of how many other sites exist. There's no confirmation step here and no undo. Sites in member pools are deleted from here too: the pool first cancels the members' subscriptions (and refuses if it can't), then the control panel cancels the site's hosting subscription, removes its own domains from Cloudflare, has the pool delete the site, updates the routing, and removes the accounts nothing needs any more.
+You must be viewing a *different* site's domain than the one you're deleting — this endpoint refuses to delete the site you're currently on. It always fully removes the row, regardless of how many other sites exist. There's no confirmation step here and no undo. Sites in member pools are deleted from here too: the pool first cancels the members' subscriptions (and refuses if it can't), then the control plane cancels the site's hosting subscription, removes its own domains from Cloudflare, has the pool delete the site, updates the routing, and removes the accounts nothing needs any more.
 
 If some files or domains couldn't be removed, the response lists them (`failedMediaDeletes`, `leftoverDomains`) instead of an empty `204`, and **Super Admin → Sites** shows them until you close the notice. Remove those by hand in your storage provider or under **SSL/TLS → Custom Hostnames** in Cloudflare.
 
@@ -383,13 +388,13 @@ After deleting, remove its Custom Domain (Option B) from the Cloudflare dashboar
 
 The Danger Zone tab in **Admin → Settings** always targets whichever site's domain you're currently on, and behaves differently depending on whether that site is the **main** site — the primary site, set by the first-ever install — or an **addon** site:
 
-- **Site in a member pool:** refused. Delete it from **Super Admin → Sites** on the control panel, which also cancels its hosting subscription and removes its domains.
+- **Site in a member pool:** refused. Delete it from **Super Admin → Sites** on the control plane, which also cancels its hosting subscription and removes its domains.
 - **Only site in the deployment:** fully deleted, exactly like the cross-site path above. You're signed out and taken to the ordinary fresh-install `/setup` wizard.
 - **Main site, while addon sites still exist:** blocked with a 409 and the list of addon domains that must be deleted first — including sites in member pools, which depend on the main site's settings just as much. The UI shows this list up front so you don't have to attempt the delete to find out.
 - **Addon site:** fully deleted, same as the cross-site path — the row is dropped entirely rather than kept around in any reset state, so it doesn't linger as a phantom entry that would block a later main-site deletion. You're signed out here too: this delete only ever targets the domain you're currently on, and once that domain no longer has a site, a session cookie for it is meaningless — cookies don't carry over to your other domains anyway, since they're genuinely separate origins, not subdomains of one parent. You land on this domain's home page. To bring the deleted domain back, create it again from **Super Admin → Sites → New** on a site you can still reach — the same flow as adding any other new site — which issues a fresh one-time setup link.
 
 ::warning
-Whichever path you use, ensure you have taken a D1 backup via **Cloudflare Dashboard → D1 → your database → Backups** before deleting a site with live content — a full delete has no undo.
+Whichever path you use, download the site's backup (**Administration → Import & backup → Backup**) before deleting a site with live content — a full delete has no undo. D1 Time Travel can also restore the database to an earlier moment, but that rolls back every site in it, and it doesn't bring back deleted files.
 ::
 
 ---

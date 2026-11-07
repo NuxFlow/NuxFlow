@@ -12,8 +12,11 @@ If you are new to NuxFlow, start with these guides:
 - **[Photography & Portfolio Guide](./photography.md)**: Build a photography portfolio with the Gallery block, lightbox, EXIF display, focal point editor, and image sitemap.
 - **[Video & Vlogging Guide](./video.md)**: Publish video content with Cloudflare Stream (self-hosted, ad-free, membership-gateable) or embed from YouTube and Vimeo — and understand when to choose each.
 - **[Email](./email.md)**: Receive mail at addresses like contact@ in an admin inbox, post drafts by email, and get security and system alerts — built on Cloudflare Email Routing and Email Sending.
+- **[Payments & Memberships Setup](./payments-setup.md)**: Connect Stripe, Lemon Squeezy or Paddle, sell memberships, and take paid event bookings.
+- **[Multi-Site Hosting](./multi-site.md)**: Run several sites from one install, or sell sites with plans, limits and billing.
 - **[Release Rings](./release-rings.md)**: Optional, for operators with several deployments. Send new code to your own sites first and to customers two days later, with two commands.
 - **[Member Pools](./pools.md)**: Optional, for hosting platforms. Spread sites over several Workers and databases, keep a client's sites apart, and move a site between them from Super Admin.
+- **[Development Guide](./development.md)**: Work on NuxFlow itself, change the database schema, write tests, and build themes.
 - **[External Plugin Development](./plugins.md)**: Build, deploy, and publish dynamic plugins using the NuxFlow CLI and Cloudflare Dynamic Workers.
 - **[Model Context Protocol (MCP)](./mcp.md)**: Connect AI coding assistants and agents (like Claude Desktop) to manage your site's content securely.
 - **[Roadmap](./roadmap.md)**: Planned features and the preparatory groundwork already in place for them.
@@ -41,5 +44,5 @@ If you are new to NuxFlow, start with these guides:
 
 ## 🤝 Community & Support
 
-- **GitHub Repository**: [Report issues or contribute code](https://github.com/mattmacmillan76/Nuxflow)
+- **GitHub Repository**: [Report issues or contribute code](https://github.com/NuxFlow/NuxFlow)
 - **License**: NuxFlow is open-source software licensed under the MIT License.

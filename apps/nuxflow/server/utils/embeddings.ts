@@ -118,7 +118,7 @@ export async function embedTextsForRebuild(event: H3Event, texts: string[], info
 }
 
 /**
- * Same searchable text FTS5 already indexes (see migrations/0001_search_index.sql's
+ * Same searchable text FTS5 already indexes (see migrations/0001_search.sql's
  * `COALESCE(excerpt, seo_description, '')`) — kept identical so semantic search and keyword
  * search cover the same content, not two subtly different corpora.
  */

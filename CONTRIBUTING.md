@@ -32,10 +32,7 @@ This project follows our [Code of Conduct](CODE_OF_CONDUCT.md). By participating
 | Feature request   | Open a [feature request issue](.github/ISSUE_TEMPLATE/feature_request.md) |
 | Fix a bug         | Fork → branch → PR                                                        |
 | Add a feature     | Discuss in an issue first, then PR                                        |
-| Documentation     | PRs to `README.md`, `CONTRIBUTING.md`, or `specs/`                        |
-| Plugin submission | PR adding your plugin to the bundled list or registry                     |
-| Theme submission  | PR adding your theme to the registry                                      |
-| Translation       | PRs to `apps/nuxflow/app/locales/`                                        |
+| Documentation     | PRs to `README.md`, `CONTRIBUTING.md`, or `docs/`                         |
 
 ---
 
@@ -45,7 +42,7 @@ This project follows our [Code of Conduct](CODE_OF_CONDUCT.md). By participating
 
 | Tool      | Version |
 | --------- | ------- |
-| Node.js   | 20+     |
+| Node.js   | 22.22+  |
 | pnpm      | 9+      |
 | Wrangler  | 4+      |
 | Git       | any     |
@@ -63,9 +60,8 @@ pnpm install
 # Copy environment template
 cp apps/nuxflow/.env.example apps/nuxflow/.env
 
-# Copy wrangler config and add a D1 database (see README's Quick Start for details)
+# Copy wrangler config. No Cloudflare resources are needed for local development.
 cp apps/nuxflow/wrangler.toml.example apps/nuxflow/wrangler.toml
-wrangler d1 create nuxflow-dev   # paste the returned database_id into wrangler.toml
 
 # Start dev server. Runs `wrangler dev`, which auto-provisions
 # D1 locally and applies migrations automatically on first request.
@@ -78,7 +74,7 @@ Visit `http://localhost:8787/setup` to complete onboarding.
 
 ```bash
 pnpm test           # unit tests (all packages)
-pnpm test:watch     # unit tests in watch mode
+pnpm --filter @nuxflow/app test:watch     # unit tests in watch mode
 pnpm test:e2e       # Playwright e2e (requires running dev server)
 pnpm typecheck      # TypeScript across all packages
 pnpm lint           # ESLint
@@ -264,7 +260,7 @@ All queries must be scoped to `event.context.site.id`. Do not write queries with
 
 ### Multi-site isolation
 
-Every database table that stores site-specific data has a `site_id` column. The `server/middleware/site.ts` middleware resolves the current site from the `Host` header and attaches it to `event.context.site`. All handlers use `event.context.site.id` — never hardcode a site ID.
+Every database table that stores site-specific data has a `site_id` column. The `server/middleware/02.multi-site.ts` middleware resolves the current site from the `Host` header and sets `event.context.siteId`. Handlers read it with `requireSiteId(event)` — never hardcode a site ID.
 
 ---
 

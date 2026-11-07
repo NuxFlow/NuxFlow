@@ -122,7 +122,7 @@ When you upload a JPEG image that contains EXIF data (captured by a camera or sm
 
 The metadata is stored in the database alongside the image record. No additional configuration is required — it is extracted automatically at upload time.
 
-> EXIF extraction only applies to JPEG and TIFF files. PNG, WebP, and AVIF images do not carry EXIF data and will not show the metadata panel.
+> EXIF details are only read from JPEG files. Other formats, such as PNG, WebP and AVIF, won't show the metadata panel.
 
 ---
 
