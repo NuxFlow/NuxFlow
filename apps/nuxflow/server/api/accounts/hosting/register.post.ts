@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { hostingContext } from '../../../utils/hosting-billing'
 import { createPasswordAccount } from '../../../utils/registration'
 import { rateLimit } from '../../../utils/rate-limit'
+import { assertHostingSignupsOpen } from '../../../utils/hosting-platform'
 
 const bodySchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -15,7 +16,8 @@ const bodySchema = z.object({
  * account gets the same answer (no enumeration), and the page then asks them to sign in.
  */
 export default defineEventHandler(async (event) => {
-  await hostingContext(event)
+  const { db } = await hostingContext(event)
+  await assertHostingSignupsOpen(db)
   await rateLimit(event, { limit: 5, windowMs: 60 * 60_000, keyPrefix: 'hosting-register' })
   const body = await parseBody(event, bodySchema)
   await createPasswordAccount(event, body, `/login?${new URLSearchParams({ verified: '1', next: '/account/hosting/new' })}`)

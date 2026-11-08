@@ -201,6 +201,8 @@ With the switch on, people can sign up, pay and get a site without you doing any
 
 Plans without a price still work as before: give them to sites by hand in Super Admin → Sites.
 
+To stop taking new customers for a while, turn off **Accept new sign-ups** under **Super Admin → Platform → Customer sign-up**. The sign-up page then says sign-ups are paused and takes no new accounts or payments. Existing customers keep their sites, billing and My hosting, and the rest of your site stays open (no maintenance mode needed).
+
 ### Customers' own domains
 
 Every customer starts on a subdomain of your sites domain (`cafe.example-sites.com`), which works the moment they've paid. They can then connect a domain they own (`www.cafe.co.uk`) from **My hosting → Addresses**:

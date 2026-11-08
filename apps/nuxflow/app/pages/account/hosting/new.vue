@@ -32,8 +32,8 @@ if (!isAccountsHost) await navigateTo(accountsLink('/account/hosting/new'), { ex
 
 const route = useRoute()
 const { loggedIn, user } = useUserSession()
-const { data } = await useFetch<{ enabled: boolean; sitesDomain: string | null; plans: PublicPlan[] }>('/api/accounts/hosting', {
-  default: () => ({ enabled: false, sitesDomain: null, plans: [] }),
+const { data } = await useFetch<{ enabled: boolean; signupsOpen: boolean; sitesDomain: string | null; plans: PublicPlan[] }>('/api/accounts/hosting', {
+  default: () => ({ enabled: false, signupsOpen: false, sitesDomain: null, plans: [] }),
 })
 const plans = computed(() => data.value.plans)
 
@@ -182,7 +182,15 @@ async function continueToPayment() {
         <p class="text-sm text-gray-500">Pick a plan, choose your address, and your site is ready in seconds. Cancel any time.</p>
       </div>
 
-      <UCard v-if="!data.enabled || !plans.length">
+      <UCard v-if="data.enabled && !data.signupsOpen">
+        <div class="text-center py-6 space-y-2">
+          <p class="font-medium text-gray-900 dark:text-white">New sign-ups are paused</p>
+          <p class="text-sm text-gray-500">We're not taking new sites at the moment. Please check back soon.</p>
+          <UButton v-if="loggedIn" to="/account/hosting" variant="link">Go to My hosting</UButton>
+        </div>
+      </UCard>
+
+      <UCard v-else-if="!data.enabled || !plans.length">
         <div class="text-center py-6 space-y-2">
           <p class="font-medium text-gray-900 dark:text-white">Sign-up isn't open yet</p>
           <p class="text-sm text-gray-500">Please check back soon.</p>

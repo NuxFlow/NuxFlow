@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { and, eq } from 'drizzle-orm'
-import { accounts, contentItems, hostingPlans, hostingSubscriptions, notifications, sites, userSiteRoles, users } from '@nuxflow/db/schema'
+import { accounts, contentItems, hostingPlans, hostingSubscriptions, notifications, sites, siteSettings, userSiteRoles, users } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedSetting } from '../helpers/seed'
@@ -248,6 +248,26 @@ describe('sign-up', () => {
     await (patchPlan as Handler)(onPrimary({ session: operator(), params: { id: plan.id }, body: { isPublic: true } }))
     await expect((checkout as Handler)(onAccounts({ method: 'POST', session: customer(), body: { planId: plan.id, interval: 'month', subdomain: 'admin', siteName: 'X' } })))
       .rejects.toMatchObject({ statusCode: 422 })
+  })
+
+  it('takes no new accounts or checkouts while the operator has paused sign-ups', async () => {
+    await makePlan()
+    const db = getCurrentTestDb()
+    await seedSetting(db, PRIMARY, 'platform.hosting_signups_closed', true)
+    clearHostingPlatformCache()
+    try {
+      // Still "enabled" (existing customers need My hosting), but closed and listing no plans.
+      expect(await (hostingInfo as Handler)(onAccounts())).toMatchObject({ enabled: true, signupsOpen: false, plans: [] })
+      await expect(signUp()).rejects.toMatchObject({ statusCode: 403, data: { code: 'hosting_signups_closed' } })
+      await expect((register as Handler)(onAccounts({ method: 'POST', body: { name: 'P', email: 'paused@hb.test', password: 'a-long-password' } })))
+        .rejects.toMatchObject({ statusCode: 403 })
+      expect(await db.query.hostingSubscriptions.findFirst()).toBeUndefined()
+      expect(await db.query.users.findFirst({ where: eq(users.email, 'paused@hb.test') })).toBeUndefined()
+    } finally {
+      await db.delete(siteSettings).where(and(eq(siteSettings.siteId, PRIMARY), eq(siteSettings.key, 'platform.hosting_signups_closed')))
+      clearHostingPlatformCache()
+    }
+    expect(await (hostingInfo as Handler)(onAccounts())).toMatchObject({ signupsOpen: true })
   })
 })
 

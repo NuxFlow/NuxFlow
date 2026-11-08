@@ -155,6 +155,8 @@ export const SERVER_MANAGED_SETTING_KEYS: ReadonlySet<string> = new Set([
   'email.inbound_handle',
   // The hosting-platform switch (hosting-platform.ts) — super admin only, never restored.
   'platform.hosting_enabled',
+  // "Pause new hosting sign-ups" (hosting-platform.ts) — super admin only.
+  'platform.hosting_signups_closed',
   // Platform-wide daily AI credit cap (ai-allowance.ts) — super admin only.
   'platform.ai_daily_credit_cap',
   'hosting.stripe_webhook_secret',

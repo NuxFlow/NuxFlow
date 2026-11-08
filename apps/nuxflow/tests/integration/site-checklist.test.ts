@@ -69,6 +69,12 @@ describe('GET /api/v1/site-checklist', () => {
     const ev = createMockEvent({ siteId: SITE, session: { user: { id: editorId, name: 'Editor', email: 'editor@checklist.test' } } }) as unknown as H3Event
     await expect((getHandler as Handler)(ev)).rejects.toMatchObject({ statusCode: 403 })
   })
+
+  it('shows no card at all on the public demo', async () => {
+    const ev = asAdmin() as unknown as { context: Record<string, unknown> }
+    ev.context.cloudflare = { env: { NUXT_IS_DEMO: 'true' } }
+    expect(await (getHandler as Handler)(ev as unknown as H3Event)).toEqual({ disabled: true })
+  })
 })
 
 describe('PATCH /api/v1/site-checklist', () => {

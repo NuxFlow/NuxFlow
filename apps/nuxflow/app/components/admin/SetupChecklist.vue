@@ -17,9 +17,11 @@ interface ChecklistItem {
 }
 
 interface ChecklistResponse {
-  items: ChecklistItem[]
-  summary: { essentialOpen: number; recommendedOpen: number; problems: number; total: number; done: number }
-  hidden: boolean
+  items?: ChecklistItem[]
+  summary?: { essentialOpen: number; recommendedOpen: number; problems: number; total: number; done: number }
+  hidden?: boolean
+  /** The public demo: no card at all (site-checklist.get.ts). */
+  disabled?: true
 }
 
 const DOCS_URL = 'https://github.com/NuxFlow/NuxFlow/blob/main/docs/installation.md'
@@ -70,7 +72,7 @@ async function update(body: { skip?: string; unskip?: string; hidden?: boolean }
 </script>
 
 <template>
-  <div v-if="isAdmin && data">
+  <div v-if="isAdmin && data && !data.disabled">
     <!-- Hidden: a single quiet link to bring it back -->
     <div v-if="data.hidden" class="text-right">
       <UButton size="xs" variant="link" color="neutral" icon="i-lucide-list-checks" :loading="busy" @click="update({ hidden: false })">

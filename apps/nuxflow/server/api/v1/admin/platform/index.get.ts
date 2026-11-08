@@ -1,6 +1,6 @@
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
-import { isHostingPlatform } from '../../../../utils/hosting-platform'
+import { hostingSignupsOpen, isHostingPlatform } from '../../../../utils/hosting-platform'
 import { eventForSite, getPrimarySite } from '../../../../utils/site-info'
 import { accountsUrl, isCentralAuth } from '../../../../utils/accounts-origin'
 import { HOSTING_WEBHOOK_SECRET_KEY, hostingSitesDomain } from '../../../../utils/hosting-billing'
@@ -17,8 +17,9 @@ export default defineEventHandler(async (event) => {
   const primary = await getPrimarySite(event)
   const primaryEvent = primary ? eventForSite(event, primary.id) : null
   const db = useDb(event)
-  const [hostingEnabled, stripeKey, webhookSecret, cfZoneId, cfToken, target, aiDailyCap, aiCreditsToday, analyticsToken, accountId] = await Promise.all([
+  const [hostingEnabled, signupsOpen, stripeKey, webhookSecret, cfZoneId, cfToken, target, aiDailyCap, aiCreditsToday, analyticsToken, accountId] = await Promise.all([
     isHostingPlatform(db),
+    hostingSignupsOpen(db),
     primaryEvent ? resolveStringSetting(primaryEvent, 'payments.stripe_secret_key', 'stripeSecretKey') : '',
     primaryEvent ? resolveStringSetting(primaryEvent, HOSTING_WEBHOOK_SECRET_KEY) : '',
     primaryEvent ? resolveStringSetting(primaryEvent, SAAS_ZONE_KEY) : '',
@@ -40,6 +41,8 @@ export default defineEventHandler(async (event) => {
       pool: getPoolId(),
     },
     hostingEnabled,
+    // Off = "Pause new hosting sign-ups": existing customers are unaffected.
+    signupsOpen,
     primarySite: primary ? { id: primary.id, name: primary.name, domain: primary.domain } : null,
     centralAuth: central,
     sitesDomain: hostingSitesDomain() || null,
