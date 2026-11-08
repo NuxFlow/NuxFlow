@@ -445,7 +445,16 @@ The binding names that the application actually uses (`DB`, `PLUGIN_KV`, `LOADER
 
 ### Setting up a second deployment
 
-Start from `apps/nuxflow/wrangler.toml.example` and update the following before deploying:
+The quickest way is a second copy of the project (a new `git clone` in another folder), then from that copy:
+
+```bash
+pnpm install
+pnpm nuxflow:install --name my-blog-platform
+```
+
+It creates the new Worker's own D1 database, KV namespace and R2 bucket (`my-blog-platform`, `my-blog-platform-plugin-kv`, `my-blog-platform-media`), its own auth secret, and deploys it. Use a separate copy because each copy's `apps/nuxflow/wrangler.toml` belongs to one deployment: the command refuses to point an already filled-in one at a different name.
+
+To do it by hand instead, start from `apps/nuxflow/wrangler.toml.example` and update the following before deploying:
 
 **1. Change the worker name**
 
