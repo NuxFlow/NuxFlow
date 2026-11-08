@@ -1,8 +1,8 @@
 # Release Rings
 
 **Optional.** This is only for operators who run **more than one NuxFlow deployment**
-(separate Workers, each with its own D1). A single install keeps using `pnpm run deploy`
-and can skip this page.
+(separate Workers, each with its own D1). A single install keeps using `pnpm nuxflow:install`
+(or `pnpm run deploy`) and can skip this page.
 
 Release rings let new code reach your own sites first, and your customers only after it
 has run there for two days:

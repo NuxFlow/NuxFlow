@@ -308,7 +308,15 @@ This runs `wrangler dev`, which auto-provisions a local D1 database — there's 
 
 ### Cloudflare Workers
 
-The full walkthrough is in the **[Installation Guide](docs/installation.md#2-cloudflare-deployment)**. In short, from `apps/nuxflow` (no `.env` needed — that's local-only):
+One command, from the repository root, puts NuxFlow on your own Cloudflare account (Workers Paid plan):
+
+```bash
+pnpm nuxflow:install
+```
+
+It logs you in, creates the D1 database, KV namespace and R2 bucket, fills in `apps/nuxflow/wrangler.toml` (keeping its comments), creates the auth secret, deploys, and prints the link to your setup wizard. It's safe to run again, and rerunning it is also how you deploy updates. See [The quick way](docs/installation.md#the-quick-way-one-command).
+
+To do the same by hand, the full walkthrough is in the **[Installation Guide](docs/installation.md#2-cloudflare-deployment)**. In short, from `apps/nuxflow` (no `.env` needed — that's local-only):
 
 ```bash
 wrangler login

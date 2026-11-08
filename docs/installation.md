@@ -15,7 +15,13 @@ pnpm create nuxflow-app@beta
 > The `@beta` tag is required while NuxFlow is in pre-release. It will be dropped once a stable `1.0` is published.
 
 
-The scaffolder clones the project, installs dependencies, and creates `wrangler.toml` and a local `.env` with a generated secret. It does **not** create anything on Cloudflare. To go live, continue from [2. Cloudflare Deployment](#2-cloudflare-deployment). The sections below cover every step in detail if you'd rather set things up by hand or want to contribute to NuxFlow itself.
+The scaffolder clones the project, installs dependencies, and creates `wrangler.toml` and a local `.env` with a generated secret. It does **not** create anything on Cloudflare. To go live, run this from the project folder:
+
+```bash
+pnpm nuxflow:install
+```
+
+It logs you in to Cloudflare, creates the database, the KV namespace and the file storage bucket, fills in `wrangler.toml`, creates the sign-in secret, deploys, and prints the link to your setup wizard. See [The quick way](#the-quick-way-one-command) for details, or follow [2. Cloudflare Deployment](#2-cloudflare-deployment) step by step. The sections below cover every step in detail if you'd rather set things up by hand or want to contribute to NuxFlow itself.
 
 > [!IMPORTANT]
 > **A site that loads isn't necessarily set up properly.** NuxFlow is designed to start working even when some pieces are missing. For example, without file storage it keeps images inside the database, and without an email provider it quietly doesn't send emails. Once your site is up, work through the **[After-installation checklist](#5-after-installation-checklist)** at the end of this guide. It takes about 15 minutes.
@@ -106,6 +112,34 @@ NuxFlow deploys as a **Cloudflare Worker** using the `cloudflare-module` Nitro p
 > You do **not** need a `.env` file to deploy. Only the local dev server reads it; the live site's secret is added in [Step 6](#step-6-add-the-auth-secret).
 
 Run every command in this section from the `apps/nuxflow` directory.
+
+### The quick way: one command
+
+From the repository root:
+
+```bash
+pnpm nuxflow:install
+```
+
+This does Steps 1 to 6 for you:
+
+1. Logs you in to Cloudflare if needed (a browser window opens), and asks which account to use if you have several.
+2. Asks what to call your Worker (press Enter for `nuxflow`). The database, KV namespace and bucket are named after it: `nuxflow`, `nuxflow-plugin-kv`, `nuxflow-media`.
+3. Shows its plan, including anything that already exists and will be reused, and waits for you to type `yes`.
+4. Creates the D1 database, KV namespace and R2 bucket, and writes their IDs into `apps/nuxflow/wrangler.toml` (made from `wrangler.toml.example` if you don't have one). The file's explanatory comments stay. It also switches on Workers AI and visitor analytics, which need nothing created.
+5. Creates the sign-in secret (only if the Worker doesn't have one, so it never replaces yours) and deploys.
+6. Prints `https://<your-worker>.<your-subdomain>.workers.dev/setup`. Open it straight away and finish [Step 7](#step-7-run-the-setup-wizard).
+
+Options: `--name <name>` skips the question, `--location weur` (or `eeur`, `apac`, `oc`, `wnam`, `enam`) says where D1 keeps your data, `--dry-run` shows the plan without creating anything, and `--yes` accepts the defaults without asking.
+
+It's safe to run again. If something fails part-way, fix it and rerun: whatever was created is found and reused. Once `wrangler.toml` is filled in, rerunning it just deploys, which is also how you deploy updates (`git pull`, `pnpm install`, `pnpm nuxflow:install`).
+
+Things it can't do for you, because they need a decision or a domain: the Workers Paid plan itself, switching on R2 once in a brand-new account (Cloudflare dashboard → **R2 Object Storage**), [a custom domain](#step-8-add-a-custom-domain), email sending, and the optional extras under [4. Additional Configuration](#4-additional-configuration). Your dashboard's "Finish setting up your site" list reminds you of these.
+
+> [!NOTE]
+> This is for running NuxFlow on your own account. Running a hosting platform with pools and release rings starts from an install like this one, then uses `pnpm pool:create` and the `ring:*` commands: see [multi-site.md](multi-site.md) and [pools.md](pools.md).
+
+The rest of this section does the same thing by hand.
 
 ### Step 1: Log In to Cloudflare
 
