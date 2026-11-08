@@ -12,11 +12,12 @@
 // Publishing: serve the bucket at the catalog's address (default https://starters.nuxflow.dev,
 // an R2 custom domain). Files sit under <id>/<version>/, so a new version never changes
 // what an install already under way is downloading.
+import { spawnSync } from 'node:child_process'
 import { createHash, webcrypto } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 import { catalogSigningInput, type StarterCatalogFile } from '../../shared/lib/starters'
-import { APP_DIR, REPO_ROOT, fail, heading, runMain, wranglerLive } from '../release/shell'
+import { APP_DIR, REPO_ROOT, fail, heading, runMain } from '../release/shell'
 import { parseStarterDemo } from '../../server/utils/starters/demo'
 import { CATALOG_CACHE, buildStarter, catalogPayload, readStarterMeta, type OutputFile, type SourceFile } from './lib'
 
@@ -82,10 +83,26 @@ async function sign(payload: string, keyFile: string): Promise<string> {
   return b64url(await webcrypto.subtle.sign({ name: 'Ed25519' }, key, catalogSigningInput(payload)))
 }
 
+/**
+ * Runs wrangler's own script with Node directly — no shell. The release scripts' helper goes
+ * through a shell on Windows (pnpm is a .cmd there) and so refuses arguments like a
+ * `C:\…` path or `public, max-age=…`; here every argument reaches wrangler exactly as written.
+ */
+function wrangler(args: string[]): boolean {
+  // Wrangler's package exports don't include its bin script, so it's found by path (pnpm
+  // links the package into apps/nuxflow/node_modules).
+  const bin = join(APP_DIR, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
+  if (!existsSync(bin)) fail(`wrangler not found at ${bin} — run pnpm install`)
+  const res = spawnSync(process.execPath, [bin, ...args], { cwd: APP_DIR, stdio: 'inherit' })
+  if (res.error) fail(`Couldn't run wrangler: ${res.error.message}`)
+  return res.status === 0
+}
+
 function upload(bucket: string, outDir: string, files: OutputFile[]) {
   heading(`Uploading ${files.length} files to R2 bucket ${bucket}`)
-  for (const f of files) {
-    const ok = wranglerLive([
+  files.forEach((f, i) => {
+    console.log(`  [${i + 1}/${files.length}] ${f.key}`)
+    const ok = wrangler([
       'r2', 'object', 'put', `${bucket}/${f.key}`,
       '--file', join(outDir, f.key),
       '--content-type', f.contentType,
@@ -93,7 +110,9 @@ function upload(bucket: string, outDir: string, files: OutputFile[]) {
       '--remote',
     ])
     if (!ok) fail(`Upload of ${f.key} failed — run again to retry (uploads are safe to repeat)`)
-  }
+  })
+  console.log(`
+Done. Check it at the catalog address, e.g. https://starters.nuxflow.dev/catalog.json`)
 }
 
 async function main() {
