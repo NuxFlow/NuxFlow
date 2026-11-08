@@ -159,6 +159,8 @@ async function seedDemo(db: Db) {
 
   await db.insert(siteSettings).values([
     { id: ulid(), siteId, key: 'email.provider', value: 'console' },
+    // The public demo is shown without the built-in site header.
+    { id: ulid(), siteId, key: 'frontend.show_header', value: false },
   ])
 
   const passwordHash = await nuxflowPasswordHasher.hash(DEMO_PASSWORD)

@@ -8,7 +8,7 @@ import * as schema from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { seedSite } from '../helpers/seed'
 import { demoFirstBoot, demoNightlyReset, DEMO_WIPE_TABLES } from '../../server/scheduled/demo-reset'
-import { sites, users, contentItems, taxonomies, userSiteRoles } from '@nuxflow/db/schema'
+import { sites, users, contentItems, taxonomies, userSiteRoles, siteSettings } from '@nuxflow/db/schema'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -109,6 +109,9 @@ describe('demoNightlyReset()', () => {
 
     const taxRows = await db.select().from(taxonomies).where(sql`site_id = ${allSites[0]!.id}`)
     expect(taxRows.length).toBeGreaterThanOrEqual(2) // category + tag
+
+    const header = await db.select().from(siteSettings).where(sql`site_id = ${allSites[0]!.id} AND key = 'frontend.show_header'`)
+    expect(header[0]?.value).toBe(false)
   })
 
   it('reseeding twice in a row does not leave duplicate or orphaned rows', async () => {
