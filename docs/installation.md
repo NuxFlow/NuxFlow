@@ -94,7 +94,7 @@ Database migrations run automatically on the first request. Visit `http://localh
 ::note
 **How migrations work:** NuxFlow bundles all database migration files into the deployed Worker. On the very first request after a fresh install or an upgrade, any migrations that have not yet been applied are executed automatically. A `_nuxflow_migrations` table in your database tracks which files have already run, so no migration is ever applied twice. You never need to run a migration command manually.
 
-A database created by a NuxFlow beta from before November 2026 can't be upgraded, because the migration history was squashed before the first release. Download each site's backup (**Administration → Import & backup → Backup**), create a fresh D1 database, and restore the backups onto it.
+A database created by a NuxFlow beta from before November 2026 can't be upgraded, because the migration history was squashed before the first release. Download each site's backup (**Administration → Import & backup → Backup**, with **Include passwords and API keys** ticked), create a fresh D1 database, and restore the backups onto it (tick **Passwords & API keys** and **Tied to the original site** under the restore's settings).
 ::
 
 ---
@@ -815,7 +815,7 @@ This applies if your site has a contact form or other forms.
 #### ☐ 9. Know where your backups are
 
 - **Already on:** Cloudflare keeps a restorable history of your database automatically (D1 Time Travel, 30 days on the Workers Paid plan). An operator can roll back to any minute in that window with `wrangler d1 time-travel restore`.
-- **Do this too:** download a backup from **Administration → Import & backup → Backup** once your site has content, and again before big changes. It includes your content, settings, users' roles, and media, and it can be restored onto a fresh installation.
+- **Do this too:** download a backup from **Administration → Import & backup → Backup** once your site has content, and again before big changes. It includes your content, settings, users' roles, and media, and it can be restored onto a fresh installation. Passwords and API keys (Stripe, email, AI) are left out unless you tick **Include passwords and API keys**. Tick it for a backup you'd restore after losing the database, and keep that file somewhere safe.
 
 #### ☐ 10. Turn on IndexNow
 

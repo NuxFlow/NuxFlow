@@ -9,6 +9,7 @@
 
 import { ASSIGNABLE_ROLES } from '@nuxflow/db/roles'
 import { z } from 'zod'
+import type { SettingGroupId } from '../../shared/lib/setting-groups'
 
 // ── Backup format types ───────────────────────────────────────────────────────
 
@@ -499,6 +500,13 @@ export interface RestoreOptions {
   // (restore.post.ts) opts into 'site'.
   what: ('content' | 'settings' | 'menus' | 'taxonomies' | 'forms' | 'site' | 'themes' | 'plugins' | 'users' | 'membershipTiers' | 'redirects')[]
   conflictMode: 'skip' | 'overwrite' | 'archive'
+  /**
+   * Settings the site already has: 'replace' with the backup's or 'keep' them. Unset =
+   * follow conflictMode ('overwrite' replaces), as before this option existed.
+   */
+  settingsMode?: 'keep' | 'replace'
+  /** Which setting groups (shared/lib/setting-groups.ts) to restore. Unset = all of them. */
+  settingsGroups?: SettingGroupId[]
   /** Author of newly created content items (a starter site's installer). Unset = none, as before. */
   authorId?: string
 }
@@ -510,7 +518,8 @@ export interface RestoreResult {
   terms: { created: number }
   menus: { created: number }
   forms: { created: number }
-  settings: { updated: number }
+  /** `kept`: the site's own value stayed (settingsMode 'keep'); `skipped`: in a group not restored. */
+  settings: { updated: number; kept?: number; skipped?: number }
   themes: { created: number; updated: number; skipped: number }
   plugins: { created: number; updated: number; skipped: number; rejected: number }
   users: { created: number; updated: number; skipped: number }
