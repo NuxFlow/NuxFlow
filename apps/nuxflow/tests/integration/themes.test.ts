@@ -2,8 +2,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
-import { seedSite, seedUser, seedRole } from '../helpers/seed'
-import { themes, auditLogs, contentItems } from '@nuxflow/db/schema'
+import { seedSite, seedUser, seedRole, seedSetting } from '../helpers/seed'
+import { themes, auditLogs, contentItems, siteSettings } from '@nuxflow/db/schema'
 import type { NuxFlowBackup } from '../../server/utils/backup'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -380,6 +380,67 @@ describe('POST /api/v1/themes/:id/demo-import', () => {
     const db = getCurrentTestDb()
     const row = await db.query.themes.findFirst({ where: eq(themes.id, id) })
     expect(row?.isActive).toBe(true)
+  })
+
+  // A Settings save writes every field, defaults included, so "fill only" left a bundle's
+  // look unapplied on any site whose Settings had ever been saved.
+  it("applies a bundle's design settings over saved ones, keeps the owner's brand, and clears the last bundle's leftovers", async () => {
+    const db = getCurrentTestDb()
+    const setting = async (key: string) => (await db.query.siteSettings.findFirst({
+      where: and(eq(siteSettings.siteId, SITE), eq(siteSettings.key, key)),
+    }))?.value ?? null
+    await seedSetting(db, SITE, 'frontend.show_header', true)
+    await seedSetting(db, SITE, 'theme.primary_color', '#ff0000')
+    await seedSetting(db, SITE, 'appearance.logo_url', '/my-logo.png')
+    await seedSetting(db, SITE, 'seo.ai_crawlers', 'allow')
+
+    const first = await seedTheme()
+    getThemeDemoMock.mockResolvedValueOnce(JSON.stringify({
+      ...MINIMAL_BACKUP,
+      settings: {
+        'frontend.show_header': false,
+        'frontend.show_search': false,
+        'theme.primary_color': '#00dc82',
+        'appearance.logo_url': '/bundle-logo.png',
+        'seo.ai_crawlers': 'block-training',
+        'seo.llms_enabled': true,
+      },
+    }))
+    const res = await (demoImportHandler as Handler)(adminEvent({ params: { id: first }, body: {} })) as { settingsKept: string[] }
+
+    expect(await setting('frontend.show_header')).toBe(false)
+    expect(await setting('frontend.show_search')).toBe(false)
+    expect(await setting('theme.primary_color')).toBe('#00dc82')
+    // The owner's logo stays and is reported.
+    expect(await setting('appearance.logo_url')).toBe('/my-logo.png')
+    expect(res.settingsKept).toContain('appearance.logo_url')
+    // Non-design settings keep the conflict-mode rule: an existing value stays, a new one fills.
+    expect(await setting('seo.ai_crawlers')).toBe('allow')
+    expect(await setting('seo.llms_enabled')).toBe(true)
+
+    // A second bundle without the header/search settings: the first one's values go back to default.
+    const second = await seedTheme()
+    getThemeDemoMock.mockResolvedValueOnce(JSON.stringify({
+      ...MINIMAL_BACKUP,
+      settings: { 'theme.primary_color': '#0b5f5a' },
+    }))
+    await (demoImportHandler as Handler)(adminEvent({ params: { id: second }, body: {} }))
+
+    expect(await setting('theme.primary_color')).toBe('#0b5f5a')
+    expect(await setting('frontend.show_header')).toBeNull()
+    expect(await setting('frontend.show_search')).toBeNull()
+    expect(await setting('starters.applied')).toMatchObject({ id: `theme:${second}`, source: 'theme' })
+  })
+
+  it('leaves settings alone when settings are not requested', async () => {
+    const db = getCurrentTestDb()
+    await seedSetting(db, SITE, 'theme.font_sans', 'Inter')
+    const id = await seedTheme()
+    getThemeDemoMock.mockResolvedValueOnce(JSON.stringify({ ...MINIMAL_BACKUP, settings: { 'theme.font_sans': 'Geist' } }))
+    await (demoImportHandler as Handler)(adminEvent({ params: { id }, body: { what: ['content'] } }))
+
+    const row = await db.query.siteSettings.findFirst({ where: and(eq(siteSettings.siteId, SITE), eq(siteSettings.key, 'theme.font_sans')) })
+    expect(row?.value).toBe('Inter')
   })
 
   it('throws 404 when the theme has no demo content', async () => {

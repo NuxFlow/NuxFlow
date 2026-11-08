@@ -249,7 +249,7 @@ export async function seedVideoAsset(
 // Settings
 // ---------------------------------------------------------------------------
 
-export async function seedSetting(db: TestDb, siteId: string, key: string, value: string) {
+export async function seedSetting(db: TestDb, siteId: string, key: string, value: unknown) {
   await db.insert(siteSettings).values({
     id: ulid(),
     siteId,

@@ -15,6 +15,7 @@ import {
 } from '@nuxflow/db/schema'
 import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
 import { SENSITIVE_SETTING_KEYS, SERVER_MANAGED_SETTING_KEYS } from './settings'
+import { PUSH_KEY_SETTINGS } from '../../shared/lib/setting-groups'
 import { getTaxonomyContentTypeSlugs } from './taxonomy'
 import { decryptText } from './encryption'
 import { getThemeCSS, getThemeDemo } from './cf-theme-kv'
@@ -42,7 +43,17 @@ function nonSecretPluginSettings(capabilities: string | null, stored: Record<str
   return Object.keys(out).length ? out : null
 }
 
-export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFlowBackup> {
+export interface BuildBackupOptions {
+  /**
+   * Include passwords and API keys (SENSITIVE_SETTING_KEYS), decrypted. Off by default: a
+   * backup is often kept or reused as a template, and a file holding live Stripe/email/AI
+   * keys in plain text is a liability. Moving a site to another deployment is when to turn
+   * it on.
+   */
+  includeSecrets?: boolean
+}
+
+export async function buildBackup(event: H3Event, siteId: string, options: BuildBackupOptions = {}): Promise<NuxFlowBackup> {
   const db = useDb(event)
 
   const [site, settingRows, ctRows, itemRows, taxRows, menuRows, formRows, mediaRows, themeRows, pluginRows, roleRows, tierRows, redirectRows] = await Promise.all([
@@ -262,6 +273,9 @@ export async function buildBackup(event: H3Event, siteId: string): Promise<NuxFl
   for (const row of settingRows) {
     // Deployment-specific identifiers (the inbound email handle) never travel in a backup.
     if (SERVER_MANAGED_SETTING_KEYS.has(row.key)) continue
+    // Without secrets, both push keys stay out: the public key alone would replace the
+    // target's pair with half of one.
+    if (!options.includeSecrets && (SENSITIVE_SETTING_KEYS.has(row.key) || (PUSH_KEY_SETTINGS as readonly string[]).includes(row.key))) continue
     let val = row.value
     if (SENSITIVE_SETTING_KEYS.has(row.key) && typeof val === 'string') {
       try {

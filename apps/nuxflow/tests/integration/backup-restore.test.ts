@@ -14,7 +14,7 @@ import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedContentType, seedContentItem, seedTier } from '../helpers/seed'
 import { taxonomies, taxonomyTerms, contentTaxonomyTerms, contentItems, menus, forms, siteSettings, themes, dynamicPlugins, users, userSiteRoles, membershipTiers } from '@nuxflow/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { resolveSetting, saveSetting } from '../../server/utils/settings'
 
@@ -176,16 +176,82 @@ describe('buildBackup()', () => {
     expect(backup.forms.map(f => f.slug)).toContain('contact')
   })
 
-  it('decrypts sensitive settings back to plaintext for portability', async () => {
-    const backup = await buildBackup(mkEvent(SOURCE_SITE), SOURCE_SITE)
+  it('decrypts sensitive settings back to plaintext for portability when asked to include them', async () => {
+    const backup = await buildBackup(mkEvent(SOURCE_SITE), SOURCE_SITE, { includeSecrets: true })
     expect(backup.settings['seo.title']).toBe('My Site')
     expect(backup.settings['payments.stripe_secret_key']).toBe('sk_test_supersecret123')
+  })
+
+  it('leaves passwords, API keys and both push keys out by default', async () => {
+    await saveSetting(mkEvent(SOURCE_SITE), 'push.vapid_public_key', 'pub-key')
+    await saveSetting(mkEvent(SOURCE_SITE), 'push.vapid_private_key', 'priv-key')
+    const backup = await buildBackup(mkEvent(SOURCE_SITE), SOURCE_SITE)
+    expect(backup.settings['seo.title']).toBe('My Site')
+    expect(backup.settings).not.toHaveProperty('payments.stripe_secret_key')
+    expect(backup.settings).not.toHaveProperty('push.vapid_public_key')
+    expect(backup.settings).not.toHaveProperty('push.vapid_private_key')
+
+    const full = await buildBackup(mkEvent(SOURCE_SITE), SOURCE_SITE, { includeSecrets: true })
+    expect(full.settings['push.vapid_public_key']).toBe('pub-key')
+    expect(full.settings['push.vapid_private_key']).toBe('priv-key')
+    const db = getCurrentTestDb()
+    await db.delete(siteSettings).where(and(eq(siteSettings.siteId, SOURCE_SITE), inArray(siteSettings.key, ['push.vapid_public_key', 'push.vapid_private_key'])))
+  })
+})
+
+describe('applyBackup() — settings mode and groups', () => {
+  const SETTINGS_SITE = 'site-backup-settings'
+  const backupWith = (settings: Record<string, unknown>) => ({
+    version: '1', exportedAt: new Date().toISOString(),
+    site: { name: 'x', locale: 'en', timezone: 'UTC' },
+    settings,
+    contentTypes: [], content: [], taxonomies: [], menus: [], forms: [], media: [],
+    themes: [], plugins: [], users: [], membershipTiers: [], redirects: [],
+  })
+  const read = async (key: string) => (await getCurrentTestDb().query.siteSettings.findFirst({
+    where: and(eq(siteSettings.siteId, SETTINGS_SITE), eq(siteSettings.key, key)),
+  }))?.value ?? null
+
+  beforeAll(async () => {
+    await seedSite(getCurrentTestDb(), { id: SETTINGS_SITE, domain: 'settings.backup.localhost' })
+    await saveSetting(mkEvent(SETTINGS_SITE), 'frontend.show_header', true)
+    await saveSetting(mkEvent(SETTINGS_SITE), 'seo.title', 'Own title')
+  })
+
+  it("replaces the site's settings without overwriting content, and skips unticked groups", async () => {
+    const result = await applyBackup(mkEvent(SETTINGS_SITE), SETTINGS_SITE, backupWith({
+      'frontend.show_header': false,
+      'seo.title': 'Backup title',
+      'seo.canonical_url': 'https://elsewhere.example',
+      'payments.stripe_secret_key': 'sk_from_backup',
+    }), {
+      what: ['settings'],
+      conflictMode: 'skip',
+      settingsMode: 'replace',
+      settingsGroups: ['appearance', 'seo'],
+    })
+    expect(await read('frontend.show_header')).toBe(false)
+    expect(await read('seo.title')).toBe('Backup title')
+    // 'site' and 'credentials' groups weren't ticked.
+    expect(await read('seo.canonical_url')).toBeNull()
+    expect(await read('payments.stripe_secret_key')).toBeNull()
+    expect(result.settings).toMatchObject({ updated: 2, skipped: 2 })
+  })
+
+  it("keeps the site's own values and only fills missing ones in 'keep' mode", async () => {
+    const result = await applyBackup(mkEvent(SETTINGS_SITE), SETTINGS_SITE, backupWith({
+      'frontend.show_header': true,
+      'frontend.logo_size': 'lg',
+    }), { what: ['settings'], conflictMode: 'overwrite', settingsMode: 'keep' })
+    expect(await read('frontend.show_header')).toBe(false)
+    expect(await read('frontend.logo_size')).toBe('lg')
+    expect(result.settings).toMatchObject({ updated: 1, kept: 1 })
   })
 })
 
 describe('applyBackup() — first restore onto an empty site', () => {
   it('creates content, taxonomies/terms, menus, forms, and re-encrypts settings', async () => {
-    const backup = await buildBackup(mkEvent(SOURCE_SITE), SOURCE_SITE)
+    const backup = await buildBackup(mkEvent(SOURCE_SITE), SOURCE_SITE, { includeSecrets: true })
     const result = await applyBackup(mkEvent(TARGET_SITE), TARGET_SITE, backup, {
       what: ['content', 'taxonomies', 'menus', 'forms', 'settings'],
       conflictMode: 'skip',

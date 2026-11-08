@@ -1,12 +1,13 @@
 <script setup lang="ts">
 const downloading = ref(false)
+const includeSecrets = ref(false)
 const toast = useToast()
 // Not useAdminAction(): a raw fetch() (streamed download), whose interrupted-download
 // error needs its own wording rather than the browser's "Failed to fetch".
 async function downloadBackup() {
   downloading.value = true
   try {
-    const res = await fetch('/api/v1/backup')
+    const res = await fetch(includeSecrets.value ? '/api/v1/backup?includeSecrets=1' : '/api/v1/backup')
     if (!res.ok) {
       const body = await res.json().catch(() => null) as { message?: string } | null
       throw new Error(body?.message || 'The backup could not be created.')
@@ -69,20 +70,31 @@ async function downloadBackup() {
         </div>
       </div>
 
-      <UAlert
-        icon="i-lucide-shield-alert"
-        color="warning"
-        variant="soft"
-      >
-        <template #title>
-          <span class="font-semibold">Contains live credentials — treat it like a password</span>
-        </template>
-        <template #description>
-          <span class="text-gray-800 dark:text-gray-200">
-            "Site settings" includes decrypted API keys and secrets (Stripe, email/AI providers, OAuth client secrets, etc.), stored in plain text inside the .zip so they can be restored on a differently-configured deployment. Store this file securely and never send it over an unencrypted channel.
+      <div class="space-y-2">
+        <label class="flex items-start gap-2 text-sm cursor-pointer text-gray-700 dark:text-gray-300">
+          <input v-model="includeSecrets" type="checkbox" class="mt-0.5 rounded text-primary-500">
+          <span>
+            <span class="font-medium text-gray-900 dark:text-white">Include passwords and API keys</span>
+            <span class="block text-xs text-gray-500 dark:text-gray-400">Stripe, email and AI keys, sign-in secrets and push keys. Only needed when moving this site to another NuxFlow install. Without it, restoring leaves the target site's own keys alone.</span>
           </span>
-        </template>
-      </UAlert>
+        </label>
+
+        <UAlert
+          v-if="includeSecrets"
+          icon="i-lucide-shield-alert"
+          color="warning"
+          variant="soft"
+        >
+          <template #title>
+            <span class="font-semibold">Contains live credentials — treat it like a password</span>
+          </template>
+          <template #description>
+            <span class="text-gray-800 dark:text-gray-200">
+              The keys are stored in plain text inside the .zip so they can be restored on a differently-configured deployment. Store this file securely and never send it over an unencrypted channel.
+            </span>
+          </template>
+        </UAlert>
+      </div>
 
       <UAlert icon="i-lucide-info" color="neutral" variant="soft">
         <template #title>

@@ -441,11 +441,17 @@ Windows zip utilities write backslash paths (`images\photo.png`). NuxFlow normal
 }
 ```
 
-**Settings** are applied only where the site doesn't already have a value, so importing demo content never overwrites what an admin has configured. `seo.*` settings are validated the same way as on Admin → SEO: an unknown key or an invalid value is skipped rather than failing the import. Useful ones to ship:
+**Settings** are applied in two ways:
+
+- **Design settings** (`theme.*`, `frontend.*`, `layout.*` and custom head/body HTML) follow the theme. Importing replaces the site's values, so a theme can switch the header off, hide search or change the colours even when the site's Settings have been saved before. Settings the previously imported theme (or starter site) set but this theme doesn't are cleared back to their defaults. Two exceptions: custom head/body HTML is only replaced while it's empty or unchanged since the last import, and the logo, favicon, `seo.title`, `seo.description` and `seo.og_image` are only filled in when the site has none. These are usually the owner's own.
+- **Everything else** is applied only where the site doesn't already have a value, so importing demo content never overwrites what an admin has configured.
+
+A theme only changes the design settings it lists. To carry a whole look, include every design setting that matters, not just the ones that differ from the defaults. The easiest way is to set the site up, take a settings-only backup and copy the `theme.*`, `frontend.*` and `layout.*` keys across. `seo.*` settings are validated the same way as on Admin → SEO: an unknown key or an invalid value is skipped rather than failing the import. Useful ones to ship:
 
 ```json
 "settings": {
   "theme.dark_mode": "dark",
+  "frontend.show_header": false,
   "seo.title": "My Site — what it does",
   "seo.description": "One or two sentences for search results.",
   "seo.og_image": "images/share.png",

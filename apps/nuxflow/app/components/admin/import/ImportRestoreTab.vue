@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { SETTING_GROUPS } from '#shared/lib/setting-groups'
+
 const restoreFile = ref<File | null>(null)
 const restoreWhat = ref(['content', 'taxonomies', 'menus', 'forms', 'redirects'])
 const restoreConflict = ref<'skip' | 'overwrite' | 'archive'>('skip')
+const settingsMode = ref<'replace' | 'keep'>('replace')
+const settingsGroups = ref<string[]>(SETTING_GROUPS.filter(g => g.defaultOn).map(g => g.id))
 const restoring = ref(false)
 const restoreResult = ref<{
   result: {
@@ -11,7 +15,7 @@ const restoreResult = ref<{
     terms: { created: number }
     menus: { created: number }
     forms: { created: number }
-    settings: { updated: number }
+    settings: { updated: number; kept?: number; skipped?: number }
     themes: { created: number; updated: number; skipped: number }
     plugins: { created: number; updated: number; skipped: number; rejected: number }
     users: { created: number; updated: number; skipped: number }
@@ -55,6 +59,8 @@ async function runRestore() {
     const params = new URLSearchParams({
       what: restoreWhat.value.join(','),
       conflictMode: restoreConflict.value,
+      settingsMode: settingsMode.value,
+      settingsGroups: settingsGroups.value.join(','),
     })
     const res = await $fetch<typeof restoreResult.value>(`/api/v1/restore?${params}`, {
       method: 'POST',
@@ -125,6 +131,37 @@ async function runRestore() {
         description="For any team member not already on this site, restoring creates a real account and emails them a set-password link — same as a normal invite. Never restores super admin access."
       />
 
+      <div v-if="restoreWhat.includes('settings')" class="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-4">
+        <UFormField label="Settings this site already has">
+          <div class="flex flex-wrap gap-4">
+            <label class="flex items-center gap-2 text-sm cursor-pointer text-gray-700 dark:text-gray-300">
+              <input v-model="settingsMode" type="radio" value="replace" class="text-primary-500">
+              Replace with the backup's
+            </label>
+            <label class="flex items-center gap-2 text-sm cursor-pointer text-gray-700 dark:text-gray-300">
+              <input v-model="settingsMode" type="radio" value="keep" class="text-primary-500">
+              Keep this site's (only fill in missing ones)
+            </label>
+          </div>
+        </UFormField>
+
+        <UFormField label="Which settings">
+          <div class="space-y-2">
+            <label
+              v-for="group in SETTING_GROUPS"
+              :key="group.id"
+              class="flex items-start gap-2 text-sm cursor-pointer text-gray-700 dark:text-gray-300"
+            >
+              <input v-model="settingsGroups" type="checkbox" :value="group.id" class="mt-0.5 rounded text-primary-500">
+              <span>
+                {{ group.label }}
+                <span class="block text-xs text-gray-500 dark:text-gray-400">{{ group.description }}</span>
+              </span>
+            </label>
+          </div>
+        </UFormField>
+      </div>
+
       <UFormField label="Conflict handling" hint="What to do when a slug already exists">
         <div class="flex flex-wrap gap-4">
           <label class="flex items-center gap-2 text-sm cursor-pointer text-gray-700 dark:text-gray-300">
@@ -158,7 +195,9 @@ async function runRestore() {
             <li>Taxonomies: {{ restoreResult.result.taxonomies.created }} created, {{ restoreResult.result.terms.created }} terms</li>
             <li>Menus: {{ restoreResult.result.menus.created }} created</li>
             <li>Forms: {{ restoreResult.result.forms.created }} created</li>
-            <li v-if="restoreResult.result.settings.updated">Settings: {{ restoreResult.result.settings.updated }} updated</li>
+            <li v-if="restoreResult.result.settings.updated || restoreResult.result.settings.kept || restoreResult.result.settings.skipped">
+              Settings: {{ restoreResult.result.settings.updated }} updated<span v-if="restoreResult.result.settings.kept">, {{ restoreResult.result.settings.kept }} kept as they were</span><span v-if="restoreResult.result.settings.skipped">, {{ restoreResult.result.settings.skipped }} not restored (group not ticked)</span>
+            </li>
             <li v-if="restoreResult.result.themes.created || restoreResult.result.themes.updated || restoreResult.result.themes.skipped">
               Themes: {{ restoreResult.result.themes.created }} created<span v-if="restoreResult.result.themes.updated">, {{ restoreResult.result.themes.updated }} updated</span><span v-if="restoreResult.result.themes.skipped">, {{ restoreResult.result.themes.skipped }} skipped</span> (installed inactive — activate from Admin → Themes)
             </li>

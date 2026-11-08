@@ -17,12 +17,18 @@ import { waitUntil } from '../../utils/cf-env'
 import { writeAuditLog } from '../../utils/audit'
 import { rateLimit } from '../../utils/rate-limit'
 import { requireSiteId } from '../../utils/site-context'
+import { isSettingGroupId } from '../../../shared/lib/setting-groups'
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB
 
 const querySchema = z.object({
   what: z.string().default('content,taxonomies,menus,forms,settings,site,redirects'),
   conflictMode: z.enum(['skip', 'overwrite', 'archive']).default('skip'),
+  // Settings get their own choice: replacing the site's look shouldn't mean overwriting its
+  // pages too. Unset = follow conflictMode, as before.
+  settingsMode: z.enum(['keep', 'replace']).optional(),
+  // Comma-separated setting groups (shared/lib/setting-groups.ts). Unset = all.
+  settingsGroups: z.string().max(200).optional(),
 })
 
 // A .zip always starts with a "PK" local-file-header signature; anything else uploaded
@@ -229,7 +235,15 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  const result = await applyBackup(event, siteId, backup, { what, conflictMode: query.conflictMode })
+  const settingsGroups = query.settingsGroups === undefined
+    ? undefined
+    : query.settingsGroups.split(',').filter(isSettingGroupId)
+  const result = await applyBackup(event, siteId, backup, {
+    what,
+    conflictMode: query.conflictMode,
+    settingsMode: query.settingsMode,
+    settingsGroups,
+  })
 
   // Restored content, settings (SEO, appearance) and redirects all feed cached pages,
   // sitemaps, robots.txt and llms.txt — clear them now rather than serve pre-restore

@@ -218,4 +218,9 @@ export interface AppliedStarter {
   at: string
   /** Fingerprints of the settings it wrote, by key. */
   settings: Record<string, string>
+  /**
+   * What wrote them: a starter, or a theme bundle's demo import (id `theme:<themeId>`).
+   * Absent on records written before theme bundles shared this record = a starter.
+   */
+  source?: 'starter' | 'theme'
 }

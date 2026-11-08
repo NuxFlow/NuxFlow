@@ -1,4 +1,5 @@
 import { sendStream } from 'h3'
+import { z } from 'zod'
 import { Zip, ZipDeflate, ZipPassThrough } from 'fflate'
 import { requireRole } from '../../utils/permissions'
 import { buildBackup } from '../../utils/backup'
@@ -8,6 +9,11 @@ import { getCfBindings } from '../../utils/cf-env'
 import { workerMediaKey } from '../../utils/media-url'
 import { requireSiteId } from '../../utils/site-context'
 import { utcDay } from '../../utils/utc-day'
+
+const querySchema = z.object({
+  // '1' = include passwords and API keys (decrypted). Off unless asked for.
+  includeSecrets: z.enum(['0', '1']).optional(),
+})
 
 // Matches restore.post.ts's upload limit — a bigger backup couldn't be restored.
 const MAX_RAW_MEDIA_BYTES = 100 * 1024 * 1024
@@ -21,7 +27,8 @@ export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const siteId = requireSiteId(event)
 
-  const backup = await buildBackup(event, siteId)
+  const { includeSecrets } = await parseQuery(event, querySchema)
+  const backup = await buildBackup(event, siteId, { includeSecrets: includeSecrets === '1' })
 
   // data: URIs are already embedded in backup.json as text; everything else is bundled.
   const bundled = backup.media.filter(item => !item.url.startsWith('data:'))
@@ -33,10 +40,13 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // The export always contains every site setting decrypted to plaintext (API keys,
-  // OAuth secrets, etc. — see buildBackup) — worth its own audit trail entry distinct
+  // With includeSecrets the export holds every site setting decrypted to plaintext (API
+  // keys, OAuth secrets, etc. — see buildBackup) — worth its own audit trail entry distinct
   // from ordinary reads, since downloading one is effectively exporting live credentials.
-  await writeAuditLog(event, userId, { action: 'export', resource: 'site', resourceId: siteId })
+  await writeAuditLog(event, userId, {
+    action: 'export', resource: 'site', resourceId: siteId,
+    after: { includeSecrets: includeSecrets === '1' },
+  })
 
   const filename = `nuxflow-backup-${utcDay()}.zip`
   setHeader(event, 'Content-Type', 'application/zip')
