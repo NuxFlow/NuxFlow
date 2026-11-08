@@ -21,6 +21,7 @@
     "ring:canary": "tsx scripts/release/canary.ts",
     "ring:promote": "tsx scripts/release/promote.ts",
     "ring:status": "tsx scripts/release/status.ts",
+    "nuxflow:install": "tsx scripts/install/install.ts",
     "pool:create": "tsx scripts/pools/create.ts",
     "starters:build": "tsx scripts/starters/build.ts"
   },

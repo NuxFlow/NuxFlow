@@ -1,6 +1,6 @@
 // Release rings — everything that touches the outside world: git, wrangler, the targets
 // file, the live sites, and the terminal. The decisions are in lib.ts.
-import { spawnSync } from 'node:child_process'
+import { spawn as spawnAsync, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline/promises'
@@ -86,6 +86,28 @@ export function wranglerCapture(args: string[]): { ok: boolean; out: string; err
 /** `wrangler …` in apps/nuxflow, output shown live. */
 export function wranglerLive(args: string[]): boolean {
   return live('pnpm', ['exec', 'wrangler', ...args], APP_DIR)
+}
+
+/**
+ * `wrangler …` in apps/nuxflow with its output shown live *and* kept, for when the script
+ * needs something Wrangler only prints (the workers.dev address after a deploy).
+ */
+export function wranglerTee(args: string[]): Promise<{ ok: boolean; out: string }> {
+  const full = ['exec', 'wrangler', ...args]
+  if (isWindows) {
+    const unsafe = full.find(a => !PLAIN_ARG_RE.test(a))
+    if (unsafe !== undefined) fail(`Refusing to pass "${unsafe}" to pnpm through the shell.`)
+  }
+  return new Promise((resolvePromise) => {
+    const child = isWindows
+      ? spawnAsync(['pnpm', ...full].join(' '), { cwd: APP_DIR, stdio: ['inherit', 'pipe', 'pipe'], shell: true })
+      : spawnAsync('pnpm', full, { cwd: APP_DIR, stdio: ['inherit', 'pipe', 'pipe'] })
+    let out = ''
+    child.stdout?.on('data', (chunk: Buffer) => { out += chunk.toString(); process.stdout.write(chunk) })
+    child.stderr?.on('data', (chunk: Buffer) => { out += chunk.toString(); process.stderr.write(chunk) })
+    child.on('error', err => fail(`Couldn't run pnpm: ${err.message}`))
+    child.on('close', code => resolvePromise({ ok: code === 0, out }))
+  })
 }
 
 export function git(args: string[]): string {

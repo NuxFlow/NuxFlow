@@ -204,7 +204,7 @@ export interface PoolFlags {
 }
 
 // D1's location hints (wrangler d1 create --help).
-const LOCATIONS = new Set(['weur', 'eeur', 'apac', 'oc', 'wnam', 'enam'])
+export const D1_LOCATIONS: ReadonlySet<string> = new Set(['weur', 'eeur', 'apac', 'oc', 'wnam', 'enam'])
 
 export function parsePoolFlags(argv: readonly string[]): PoolFlags {
   const flags: PoolFlags = { poolId: null, ring: 2, from: 'wrangler.toml', location: null, bucket: null, jurisdiction: null, dryRun: false, yes: false, help: false }
@@ -238,7 +238,7 @@ export function parsePoolFlags(argv: readonly string[]): PoolFlags {
       }
       case '--location': {
         const location = value()
-        if (!LOCATIONS.has(location)) throw new Error(`--location must be one of: ${[...LOCATIONS].join(', ')}.`)
+        if (!D1_LOCATIONS.has(location)) throw new Error(`--location must be one of: ${[...D1_LOCATIONS].join(', ')}.`)
         flags.location = location
         break
       }
