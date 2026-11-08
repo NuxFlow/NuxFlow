@@ -26,7 +26,10 @@ export default defineEventHandler(async (event) => {
     starterStorageReady(event),
     resolveSetting(event, APPLIED_STARTER_SETTING),
   ])
-  const last = applied && typeof applied === 'object' ? applied as AppliedStarter : null
+  // The record is shared with theme bundles (applyDesignSettings) — only a starter is
+  // "last installed" here.
+  const record = applied && typeof applied === 'object' ? applied as AppliedStarter : null
+  const last = record && record.source !== 'theme' ? record : null
   return {
     starters,
     catalogError,

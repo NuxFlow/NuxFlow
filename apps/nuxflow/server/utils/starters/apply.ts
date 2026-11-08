@@ -162,6 +162,27 @@ async function applyStarterSettings(
 }
 
 /**
+ * Applies a design's settings by the starter rules (planStarterSettings): its look replaces the
+ * site's, the owner's logo/SEO wording and custom HTML are kept, and what the previous design
+ * wrote but this one doesn't is cleared. Records what it wrote in `starters.applied`, which
+ * starters and theme bundles share, so switching from one to the other leaves nothing behind.
+ * Keys that aren't design settings (starterSettingKind() null) are ignored here.
+ */
+export async function applyDesignSettings(
+  event: H3Event,
+  siteId: string,
+  settings: Record<string, unknown>,
+  design: Omit<AppliedStarter, 'at' | 'settings'>,
+): Promise<{ written: number; kept: string[] }> {
+  const db = useDb(event)
+  const previous = await readAppliedStarter(db, siteId)
+  const result = await applyStarterSettings(event, db, siteId, settings, previous)
+  const applied: AppliedStarter = { ...design, at: new Date().toISOString(), settings: result.written }
+  await saveSetting(event, APPLIED_STARTER_SETTING, applied)
+  return { written: Object.keys(result.written).length, kept: result.kept }
+}
+
+/**
  * A starter with CSS installs (or updates) its own theme and makes it active. One without
  * CSS switches off a theme an earlier starter installed, so the site goes back to the
  * default look rather than keeping the old starter's — a theme the owner installed
@@ -206,18 +227,13 @@ export async function applyStarter(event: H3Event, input: ApplyStarterInput): Pr
     authorId: input.userId ?? undefined,
   })
 
-  const previous = await readAppliedStarter(db, siteId)
-  const settings = await applyStarterSettings(event, db, siteId, content.settings ?? {}, previous)
-  await applyStarterTheme(event, db, siteId, input.starter, input.css)
-
-  const applied: AppliedStarter = {
+  const settings = await applyDesignSettings(event, siteId, content.settings ?? {}, {
     id: input.starter.id,
     name: input.starter.name,
     version: input.starter.version,
-    at: new Date().toISOString(),
-    settings: settings.written,
-  }
-  await saveSetting(event, APPLIED_STARTER_SETTING, applied)
+    source: 'starter',
+  })
+  await applyStarterTheme(event, db, siteId, input.starter, input.css)
 
   await writeAuditLog(event, input.userId, {
     action: 'apply',
@@ -235,7 +251,7 @@ export async function applyStarter(event: H3Event, input: ApplyStarterInput): Pr
     menus: restored.menus.created,
     forms: restored.forms.created,
     draftedItems,
-    settingsWritten: Object.keys(settings.written).length,
+    settingsWritten: settings.written,
     settingsKept: settings.kept,
     planLimits: restored.planLimits,
   }
