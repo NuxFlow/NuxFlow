@@ -6,7 +6,7 @@ import type { Db } from '../db'
 import { checkPlanLimit } from '../hosting-plans'
 import { noteLimit } from './plan-limits'
 import type { NuxFlowBackup, RestoreOptions, RestoreResult } from '../backup-types'
-import { archiveSuffix } from './shared'
+import { archiveSuffix, freeArchiveSlug } from './shared'
 
 const META_ROBOTS_VALUES = new Set(['index,follow', 'noindex,follow', 'noindex,nofollow', 'index,nofollow'])
 
@@ -112,8 +112,12 @@ export async function restoreContent(
       if (opts.conflictMode === 'archive') {
         // Smart Archiving: Rename existing conflicting page slug & title, mark as draft
         const timestamp = archiveSuffix()
+        const slug = await freeArchiveSlug(`${backupItem.slug}-backup-${timestamp}`, async s => !!(await db.query.contentItems.findFirst({
+          where: and(eq(contentItems.siteId, siteId), eq(contentItems.slug, s)),
+          columns: { id: true },
+        })))
         await db.update(contentItems).set({
-          slug: `${backupItem.slug}-backup-${timestamp}`,
+          slug,
           title: `${existing.title} (Backup — ${timestamp})`,
           status: 'draft',
         }).where(and(eq(contentItems.id, existing.id), eq(contentItems.siteId, siteId)))
@@ -158,6 +162,7 @@ export async function restoreContent(
     idBySlug.set(backupItem.slug, id)
     await db.insert(contentItems).values({
       id, siteId, typeId,
+      authorId: opts.authorId ?? null,
       slug: backupItem.slug,
       title: backupItem.title,
       status: backupItem.status as 'draft' | 'published' | 'scheduled' | 'archived' | 'review',

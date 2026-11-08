@@ -59,6 +59,8 @@ const BLOCKED_WRITE_PREFIXES = [
   '/api/public/rsvp',
   '/api/public/class-passes',
   '/api/public/bookings',
+  // Installing a starter downloads from the catalog and fills storage.
+  '/api/v1/starters',
   // The demo is seeded by demo-reset.ts; the first visitor to a fresh database must not
   // be able to run the setup wizard and make themselves super admin.
   '/api/v1/setup/complete',

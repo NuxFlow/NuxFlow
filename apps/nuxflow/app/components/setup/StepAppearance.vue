@@ -1,105 +1,50 @@
 <script setup lang="ts">
-const templateModel = defineModel<string>({ default: 'landing' })
+import type { StarterSummary } from '#shared/lib/starters'
 
-defineProps<{ loading?: boolean; error?: string; mediaStorage?: 'r2' | 'none' }>()
+const templateModel = defineModel<string>({ default: 'landing' })
+/** Whether the chosen starter comes from the catalog (installed after sign-in). */
+const fromCatalog = defineModel<boolean>('fromCatalog', { default: false })
+
+const props = defineProps<{ loading?: boolean; error?: string; mediaStorage?: 'r2' | 'none' }>()
 defineEmits<{ next: []; back: [] }>()
 
-const templates = [
-  {
-    id: 'landing',
-    name: 'SaaS / Business Landing',
-    desc: 'High-conversion page with hero, feature grids, and contact forms.',
-    icon: 'i-lucide-rocket',
-    gradient: 'from-blue-500 to-indigo-600',
-    tag: 'Popular'
-  },
-  {
-    id: 'blog',
-    name: 'Publisher Blog',
-    desc: 'Content-first layout listing post categories, tags, and comment features.',
-    icon: 'i-lucide-book-open',
-    gradient: 'from-emerald-400 to-teal-600',
-    tag: 'Writers'
-  },
-  {
-    id: 'portfolio',
-    name: 'Creative Portfolio',
-    desc: 'Designed for developers and designers with project showcases.',
-    icon: 'i-lucide-folder-open',
-    gradient: 'from-amber-400 to-orange-500',
-    tag: 'Creatives'
-  },
-  {
-    id: 'blank',
-    name: 'Blank Canvas',
-    desc: 'Completely empty template containing only a simple title header.',
-    icon: 'i-lucide-drafting-compass',
-    gradient: 'from-gray-400 to-gray-600',
-    tag: 'Minimal'
+const { data } = await useFetch<{ starters: StarterSummary[]; catalogError: string | null }>('/api/v1/setup/starters')
+const starters = computed(() => data.value?.starters ?? [])
+const storageReady = computed(() => props.mediaStorage === undefined ? undefined : props.mediaStorage === 'r2')
+const chosen = computed(() => starters.value.find(s => s.id === templateModel.value) ?? null)
+
+watch(chosen, (s) => { fromCatalog.value = s?.source === 'catalog' }, { immediate: true })
+// A choice that's no longer offered (or needs storage that isn't there) falls back to the first built-in.
+watch(starters, (list) => {
+  if (list.length && !list.some(s => s.id === templateModel.value && !(storageReady.value === false && s.needsStorage))) {
+    templateModel.value = list.find(s => s.source === 'builtin')?.id ?? list[0]!.id
   }
-]
+}, { immediate: true })
 </script>
 
 <template>
   <div class="space-y-6">
     <div>
-      <h2 class="text-xl font-bold text-gray-900 dark:text-white">Choose a Starter Template</h2>
+      <h2 class="text-xl font-bold text-gray-900 dark:text-white">Choose a starter site</h2>
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-        Select a structured layout to pre-seed your website. You can customize, delete, or change everything later.
+        Pick a ready-made site to start from. You can change everything later, or switch to another starter in Admin → Starter sites.
       </p>
     </div>
 
-    <!-- Template List -->
-    <div class="grid grid-cols-1 gap-3">
-      <div
-        v-for="t in templates"
-        :key="t.id"
-        class="relative group rounded-xl border p-4 transition-all duration-300 hover:scale-[1.01] hover:shadow-md cursor-pointer flex flex-col justify-between overflow-hidden bg-white dark:bg-gray-900"
-        :class="templateModel === t.id
-          ? 'border-primary-500 ring-2 ring-primary-500 bg-primary-50/20 dark:bg-primary-950/10'
-          : 'border-gray-200 dark:border-gray-800 hover:border-primary-400 dark:hover:border-primary-600'"
-        @click="templateModel = t.id"
-      >
-        <!-- Gradient card preview -->
-        <div class="flex items-start gap-4 z-10">
-          <div
-            class="flex items-center justify-center w-12 h-12 rounded-xl text-white shadow-md bg-gradient-to-br flex-shrink-0"
-            :class="t.gradient"
-          >
-            <UIcon :name="t.icon" class="w-6 h-6 animate-pulse-slow" />
-          </div>
-          <div class="space-y-1 pr-6">
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-gray-900 dark:text-white text-base group-hover:text-primary-500 dark:group-hover:text-primary-400 transition-colors">
-                {{ t.name }}
-              </span>
-              <UBadge
-                v-if="t.tag"
-                size="xs"
-                :color="templateModel === t.id ? 'primary' : 'neutral'"
-                variant="subtle"
-                class="rounded-full font-medium"
-              >
-                {{ t.tag }}
-              </UBadge>
-            </div>
-            <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-              {{ t.desc }}
-            </p>
-          </div>
-        </div>
-
-        <!-- Selected badge / checkmark -->
-        <div
-          class="absolute top-4 right-4 flex items-center justify-center w-6 h-6 rounded-full transition-transform duration-300"
-          :class="templateModel === t.id
-            ? 'bg-primary-500 text-white scale-100'
-            : 'bg-gray-100 dark:bg-gray-800 text-gray-400 scale-0 group-hover:scale-75'"
-        >
-          <UIcon name="i-lucide-check" class="w-4 h-4 font-bold" />
-        </div>
-      </div>
+    <div class="max-h-[28rem] overflow-y-auto pr-1">
+      <StarterPicker :starters="starters" :selected="templateModel" :storage-ready="storageReady" compact @select="templateModel = $event" />
     </div>
+
+    <p v-if="data?.catalogError" class="text-xs text-gray-500 dark:text-gray-400">
+      More starter sites couldn't be loaded right now. You can pick one later from Admin → Starter sites.
+    </p>
+    <UAlert
+      v-if="chosen?.source === 'catalog'"
+      color="info"
+      variant="soft"
+      icon="i-lucide-info"
+      :description="`${chosen.name}'s pages${chosen.imageCount ? ' and images' : ''} are added once you're signed in — your dashboard will show a button to finish installing it.`"
+    />
 
     <!-- A status line, not a form: nothing to fill in, just what will happen to uploads. -->
     <div v-if="mediaStorage" class="flex items-start gap-2 rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-2 text-sm">

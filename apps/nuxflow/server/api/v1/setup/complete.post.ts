@@ -3,7 +3,7 @@ import type { H3Event } from 'h3'
 import { useDb } from '../../../utils/db'
 import { auditLogs } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
-import { created, httpError } from '../../../utils/response'
+import { badRequest, created, httpError } from '../../../utils/response'
 import { rateLimit } from '../../../utils/rate-limit'
 import { isHttpError } from '../../../utils/errors'
 import { clearSiteCache } from '../../../utils/site-resolution'
@@ -22,6 +22,8 @@ import { requireControlPlane } from '../../../utils/control-plane'
 import { getClientIp } from '../../../utils/client-ip'
 import { getEmailBinding } from '../../../utils/cf-env'
 import { siteLocaleSchema, siteTimezoneSchema } from '../../../utils/site-fields'
+import { starterIdSchema } from '../../../../shared/lib/starters'
+import { isKnownStarter } from '../../../utils/starters/install'
 
 const bodySchema = z.object({
   site: z.object({
@@ -38,7 +40,8 @@ const bodySchema = z.object({
   email: z.object({
     provider: z.enum(['console', 'cloudflare', 'resend', 'brevo', 'zepto']),
   }).optional(),
-  template: z.enum(['landing', 'blog', 'portfolio', 'blank']).default('landing'),
+  // A starter site id: built in, or from the starter catalog (installed after sign-in).
+  template: starterIdSchema.default('landing'),
   setupToken: z.string().optional(),
 })
 
@@ -66,6 +69,7 @@ async function _handleSetup(event: H3Event) {
   await rateLimit(event, { limit: 10, windowMs: 10 * 60_000, keyPrefix: 'setup-complete' })
   const db = useDb(event)
   const body = await parseBody(event, bodySchema)
+  if (!(await isKnownStarter(event, body.template))) throw badRequest('That starter site is no longer available. Go back and pick another.')
 
   let host = getHeader(event, 'host')?.split(':')[0] ?? ''
   if (host === '127.0.0.1' || host === '::1') {

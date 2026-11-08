@@ -81,6 +81,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Class passes', to: '/admin/class-passes', icon: 'i-lucide-ticket', minRole: 'admin', group: 'sales' },
 
   { label: 'Themes', to: '/admin/themes', icon: 'i-lucide-palette', minRole: 'admin', group: 'site' },
+  { label: 'Starter sites', to: '/admin/starters', icon: 'i-lucide-layout-template', minRole: 'admin', group: 'site' },
   // The GET is open to any team role, but all this page does is manage menus, so its floor is
   // the create route's.
   { label: 'Navigation', to: '/admin/menus', icon: 'i-lucide-navigation', minRole: 'editor', group: 'site' },

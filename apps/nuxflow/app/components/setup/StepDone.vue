@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const props = defineProps<{ finishInAdmin?: boolean }>()
 const { onSiteDomain } = useAccounts()
 
 onMounted(() => {
@@ -6,7 +7,7 @@ onMounted(() => {
   // A full page reload ensures fresh auth session + setup status checks. Under central
   // sign-in the new admin isn't signed in on this domain yet, so /admin sends them
   // through the accounts origin first.
-  setTimeout(() => { window.location.href = onSiteDomain ? '/admin' : '/' }, 2500)
+  setTimeout(() => { window.location.href = onSiteDomain || props.finishInAdmin ? '/admin' : '/' }, 2500)
 })
 </script>
 
@@ -18,7 +19,7 @@ onMounted(() => {
 
     <div>
       <h2 class="text-xl font-bold text-gray-900 dark:text-white">You're all set!</h2>
-      <p class="text-sm text-gray-500 mt-2">Your NuxFlow site is ready. Taking you to your homepage…</p>
+      <p class="text-sm text-gray-500 mt-2">{{ finishInAdmin ? 'Taking you to your dashboard to finish installing your starter site…' : 'Your NuxFlow site is ready. Taking you to your homepage…' }}</p>
     </div>
 
     <UProgress animation="carousel" class="max-w-xs mx-auto" />

@@ -21,7 +21,8 @@
     "ring:canary": "tsx scripts/release/canary.ts",
     "ring:promote": "tsx scripts/release/promote.ts",
     "ring:status": "tsx scripts/release/status.ts",
-    "pool:create": "tsx scripts/pools/create.ts"
+    "pool:create": "tsx scripts/pools/create.ts",
+    "starters:build": "tsx scripts/starters/build.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.96",

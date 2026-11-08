@@ -294,6 +294,8 @@ Build your theme into a zip package and upload it through the admin:
 2. Go to **Admin → Themes → Install theme**
 3. Activate the theme and inspect the result on the public site
 
+A theme bundle can also be published as a **starter site** that every install can pick (Admin → Starter sites and the setup wizard) — see [Starter sites](./starter-sites.md#making-a-starter-site).
+
 To include starter content images in `demo.json`, place them in an `images/` folder inside the zip. NuxFlow uploads them to your configured media provider and rewrites the references automatically.
 
 > **Keep bundled images under 512 KB.** If the installing site hasn't connected R2 or Cloudflare Images (common on a fresh install, before any provider setup), uploads fall back to storing the image as base64 directly in a D1 column — capped at 512 KB, since D1 rows have a hard 1 MB limit and base64 inflates size by ~33%. An image over that cap fails to upload; the theme installs anyway, but that image reference in `demo.json` is left as the raw zip-relative path and renders as a broken image on the page. Compress/resize theme images to comfortably clear 512 KB so the demo content works out of the box regardless of what the installing site has configured.
