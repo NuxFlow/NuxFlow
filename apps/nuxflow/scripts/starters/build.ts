@@ -52,8 +52,10 @@ function listFiles(dir: string, root = dir): string[] {
 /** A starter folder has a demo.json; any other folder is searched one level down. */
 function starterFolders(paths: string[]): string[] {
   return paths.flatMap((p) => {
-    const dir = resolve(CALLER_DIR, p)
-    if (!existsSync(dir)) fail(`${p} doesn't exist`)
+    // Relative to where the command was run, else to the repo root (so `MYSTUFF/…` works
+    // from apps/nuxflow too).
+    const dir = [resolve(CALLER_DIR, p), resolve(REPO_ROOT, p)].find(d => existsSync(d))
+    if (!dir) fail(`${p} doesn't exist (looked in ${CALLER_DIR} and ${REPO_ROOT})`)
     if (existsSync(join(dir, 'demo.json'))) return [dir]
     return readdirSync(dir).map(n => join(dir, n)).filter(d => statSync(d).isDirectory() && existsSync(join(d, 'demo.json')))
   })
