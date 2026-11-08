@@ -18,6 +18,8 @@ const ACCOUNTS_API_PREFIXES = [
   '/api/accounts/',
   '/api/v1/auth/session',
   '/api/v1/auth/captcha',
+  // The hosting sign-up page's starter-site picker.
+  '/api/v1/setup/starters',
   '/api/v1/account/data-export',
   '/api/_nuxt_icon/',
   '/api/health',

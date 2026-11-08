@@ -80,6 +80,8 @@ const statCards = computed(() => [
 
     <!-- Covers file storage along with email, domain, SEO, etc. (the media library keeps
          its own storage-only AdminMediaFallbackWarning). -->
+    <AdminStarterInstallBanner />
+
     <AdminSetupChecklist />
 
     <AdminPlanUsageCard />

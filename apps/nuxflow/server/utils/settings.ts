@@ -164,6 +164,8 @@ export const SERVER_MANAGED_SETTING_KEYS: ReadonlySet<string> = new Set([
   'hosting.custom_domain_target',
   // Visitor analytics API token (analytics.ts), set on Super Admin → Platform.
   'analytics.cf_api_token',
+  // Which starter site was installed last and the settings it wrote (starters/apply.ts).
+  'starters.applied',
 ])
 
 /**

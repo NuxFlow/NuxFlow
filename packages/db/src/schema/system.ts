@@ -273,6 +273,36 @@ export const aiGenerationJobs = sqliteTable('ai_generation_jobs', {
   index('idx_ai_gen_jobs_user_site').on(t.userId, t.siteId),
 ])
 
+// A starter site being installed on a site (apps/nuxflow/server/utils/starters/install.ts).
+// Starters with images are installed a few files per request by the admin page, the same
+// way AI site generation is, so this row carries the progress between requests. 'fresh'
+// rows are made by seedNewSite() when a new site picks a catalog starter (its placeholder
+// homepage is replaced); 'switch' rows by Admin → Starter sites (old pages become drafts).
+// `manifest` is the starter's entry from the signed catalog, stored once verified, so
+// every later step checks files against the same checksums.
+export const starterInstalls = sqliteTable('starter_installs', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  // Plain column: whoever started it (or the new site's owner). Only used for authorship
+  // of the starter's pages and the audit log, so a deleted account just leaves it dangling.
+  userId: text('user_id'),
+  starterId: text('starter_id').notNull(),
+  mode: text('mode', { enum: ['fresh', 'switch'] }).notNull().default('switch'),
+  status: text('status', { enum: ['pending', 'running', 'done', 'failed', 'cancelled'] }).notNull().default('pending'),
+  manifest: text('manifest', { mode: 'json' }).$type<Record<string, unknown>>(),
+  // demo.json image reference → uploaded URL, filled in as images are copied.
+  imageUrls: text('image_urls', { mode: 'json' }).$type<Record<string, string>>(),
+  imagesDone: integer('images_done').notNull().default(0),
+  imagesTotal: integer('images_total').notNull().default(0),
+  lockedUntil: text('locked_until'),
+  error: text('error'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  // One unfinished install per site.
+  uniqueIndex('idx_starter_installs_open').on(t.siteId).where(sql`${t.status} in ('pending', 'running')`),
+])
+
 // Per-site usage, one row per site + UTC day + metric (apps/nuxflow/server/utils/usage.ts).
 // Two kinds of metric share it: events (page views, server renders, API requests, AI calls,
 // emails) are added to through the day, buffered per isolate and upserted at most once a

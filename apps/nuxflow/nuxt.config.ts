@@ -159,6 +159,11 @@ export default defineNuxtConfig({
     // Super Admin → Platform. Private, not `public`: public config is sent to every
     // visitor, and the exact commit tells an attacker which fixes a deployment lacks.
     buildCommit: '',
+    // Starter sites catalog (server/utils/starters/catalog.ts): NUXT_STARTERS_CATALOG_URL
+    // ('' or 'off' = built-in starters only) and the Ed25519 public key it's signed with,
+    // NUXT_STARTERS_PUBLIC_KEY. Both default to the NuxFlow project's own catalog.
+    startersCatalogUrl: 'https://starters.nuxflow.dev/catalog.json',
+    startersPublicKey: '',
     buildRelease: '',
     // NUXT_POOL_ID — set only on a hosting platform's member pools (a Worker + D1 holding
     // some of its sites); unset on every ordinary install. See server/utils/control-plane.ts.

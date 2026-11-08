@@ -9,6 +9,7 @@ If you are new to NuxFlow, start with these guides:
 - **[Installation Guide](./installation.md)**: How to set up NuxFlow locally and deploy to Cloudflare.
 - **[After-installation checklist](./installation.md#5-after-installation-checklist)**: The settings every new site should have: file storage, email, domain, search, and more. Start here if your site is already running.
 - **[User Guide](./user-guide.md)**: Learn how to manage content, media, and site settings.
+- **[Starter Sites](./starter-sites.md)**: Start a site from a ready-made design, switch an existing site to another one, and make and publish your own starter sites.
 - **[Photography & Portfolio Guide](./photography.md)**: Build a photography portfolio with the Gallery block, lightbox, EXIF display, focal point editor, and image sitemap.
 - **[Video & Vlogging Guide](./video.md)**: Publish video content with Cloudflare Stream (self-hosted, ad-free, membership-gateable) or embed from YouTube and Vimeo — and understand when to choose each.
 - **[Email](./email.md)**: Receive mail at addresses like contact@ in an admin inbox, post drafts by email, and get security and system alerts — built on Cloudflare Email Routing and Email Sending.

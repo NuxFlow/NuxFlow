@@ -17,7 +17,8 @@
     "ring:canary": "pnpm -C apps/nuxflow ring:canary",
     "ring:promote": "pnpm -C apps/nuxflow ring:promote",
     "ring:status": "pnpm -C apps/nuxflow ring:status",
-    "pool:create": "pnpm -C apps/nuxflow pool:create"
+    "pool:create": "pnpm -C apps/nuxflow pool:create",
+    "starters:build": "pnpm -C apps/nuxflow starters:build"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",

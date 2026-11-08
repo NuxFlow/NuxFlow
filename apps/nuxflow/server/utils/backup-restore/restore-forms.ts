@@ -5,7 +5,7 @@ import type { FormField } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
 import type { Db } from '../db'
 import type { NuxFlowBackup, RestoreOptions, RestoreResult } from '../backup-types'
-import { archiveSuffix } from './shared'
+import { archiveSuffix, freeArchiveSlug } from './shared'
 
 export async function restoreForms(
   db: Db,
@@ -31,8 +31,12 @@ export async function restoreForms(
     if (existing) {
       if (opts.conflictMode === 'archive') {
         const timestamp = archiveSuffix()
+        const slug = await freeArchiveSlug(`${existing.slug}-backup-${timestamp}`, async s => !!(await db.query.forms.findFirst({
+          where: and(eq(forms.siteId, siteId), eq(forms.slug, s)),
+          columns: { id: true },
+        })))
         await db.update(forms).set({
-          slug: `${existing.slug}-backup-${timestamp}`,
+          slug,
           name: `${existing.name} (Backup — ${timestamp})`,
           status: 'closed',
         }).where(and(eq(forms.siteId, siteId), eq(forms.slug, backupForm.slug)))

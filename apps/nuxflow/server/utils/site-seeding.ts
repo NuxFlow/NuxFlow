@@ -1,13 +1,16 @@
 import { ulid } from 'ulid'
 import { contentTypes, contentItems, taxonomies, taxonomyContentTypes } from '@nuxflow/db/schema'
 import type { Db } from './db'
-import { getTemplateBlocks, getHelloWorldPostContent, getPrivacyPageContent } from './setup-templates'
+import { getPrivacyPageContent } from './setup-templates'
+import { getBuiltinStarter } from './starters/builtin'
+import { createPendingInstall } from './starters/install'
 
-export type SiteTemplate = 'landing' | 'blog' | 'portfolio' | 'blank'
+/** A starter site id: one of the built-in ones, or one from the starter catalog. */
+export type SiteTemplate = string
 
 /**
  * Everything a brand-new site starts with: the built-in content types, a homepage from the
- * chosen template, a privacy page (a welcome post too for the blog template), and the
+ * chosen starter site, a privacy page (a welcome post too for the blog starter), and the
  * Categories/Tags taxonomies. Shared by the setup wizard and the hosting platform's
  * automatic sign-up (hosting-billing.ts), so both make the same site.
  */
@@ -52,47 +55,36 @@ export async function seedNewSite(db: Db, opts: { siteId: string; siteName: stri
     },
   ])
 
-  const blocks = getTemplateBlocks(template, siteName)
-
-  // Insert the homepage row synchronously with populated Canvas content blocks
-  const homepageId = ulid()
-  await db.insert(contentItems).values({
-    id: homepageId,
-    siteId,
-    typeId: pageTypeId,
-    authorId: authorId,
-    slug: 'home',
-    title: siteName,
-    status: 'published',
-    visibility: 'public',
-    content: {
-      type: 'canvas',
-      blocks,
-    },
-    seoTitle: siteName,
-    seoDescription: `Welcome to ${siteName}`,
-    publishedAt: new Date().toISOString(),
-  })
-
-  // If the user selected the Blog template, seed a welcome post as well
-  if (template === 'blog') {
+  // The homepage (and, for the blog starter, a welcome post) comes from the chosen built-in
+  // starter. A catalog starter can't be installed here — its images are copied a few per
+  // request by the admin page — so the site starts with the blank one and a pending install
+  // that the dashboard offers to finish (starters/install.ts); its pages then replace these.
+  const builtin = getBuiltinStarter(template)
+  const starter = builtin ?? getBuiltinStarter('blank')!
+  const typeIdBySlug: Record<string, string> = { page: pageTypeId, post: postTypeId }
+  for (const item of starter.build(siteName).content) {
+    const typeId = typeIdBySlug[item.typeSlug]
+    if (!typeId) continue
     await db.insert(contentItems).values({
       id: ulid(),
       siteId,
-      typeId: postTypeId,
-      authorId: authorId,
-      slug: 'hello-world',
-      title: 'Hello World!',
+      typeId,
+      authorId,
+      slug: item.slug,
+      title: item.title,
       status: 'published',
       visibility: 'public',
-      content: getHelloWorldPostContent(),
-      seoTitle: 'Hello World! - Welcome to NuxFlow',
-      seoDescription: 'This is the first seeded post on your new edge-native blog.',
+      content: item.content,
+      seoTitle: item.seoTitle,
+      seoDescription: item.seoDescription,
       publishedAt: new Date().toISOString(),
     })
   }
+  if (!builtin) {
+    await createPendingInstall(db, { siteId, userId: authorId, starterId: template, mode: 'fresh' })
+  }
 
-  // Seeded unconditionally regardless of template — see getPrivacyPageContent()'s doc
+  // Seeded unconditionally regardless of starter — see getPrivacyPageContent()'s doc
   // comment in setup-templates.ts for why this page needs to exist on every fresh site.
   await db.insert(contentItems).values({
     id: ulid(),

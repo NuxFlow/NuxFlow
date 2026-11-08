@@ -60,6 +60,8 @@ apps/nuxflow/wrangler.cloud.toml
 apps/nuxflow/release-targets.json
 # Member pools' wrangler configs (pnpm pool:create)
 apps/nuxflow/wrangler.pool-*.jsonc
+# Built starter catalog (pnpm starters:build) — published to R2, not committed
+apps/nuxflow/.starters-out/
 # Front-door router's config (packages/router/wrangler.toml.example)
 packages/router/wrangler.toml
 

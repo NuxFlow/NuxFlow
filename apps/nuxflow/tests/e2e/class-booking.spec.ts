@@ -131,8 +131,13 @@ test.describe.serial('Booking classes', () => {
     await expect(timetable).toBeVisible({ timeout: 15_000 })
     await expect(timetable.locator('.canvas-timetable-day')).toHaveCount(7)
 
-    // The date a week on from the one called off is there, with a link naming its date.
-    await timetable.getByRole('button', { name: 'Next week' }).click()
+    // The date a week on from the one called off is there, with a link naming its date. The
+    // timetable's weeks start on Monday, so that date is one week ahead — or two when the
+    // test runs on a Sunday (next week then holds only the date that was called off).
+    const mondayOf = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7))
+    const target = new Date(Date.now() + 8 * DAY)
+    const weeksAhead = Math.round((mondayOf(target) - mondayOf(new Date())) / (7 * DAY))
+    for (let i = 0; i < weeksAhead; i++) await timetable.getByRole('button', { name: 'Next week' }).click()
     const link = timetable.getByRole('link', { name: new RegExp(CLASS_TITLE) }).first()
     await expect(link).toBeVisible({ timeout: 15_000 })
     await expect(link).toHaveAttribute('href', new RegExp(`/${CLASS_SLUG}\\?date=\\d{4}-\\d{2}-\\d{2}`))

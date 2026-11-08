@@ -8,3 +8,16 @@
 export function archiveSuffix(): string {
   return new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
 }
+
+/**
+ * An archived slug no other row uses: `base`, else `base-2`, `base-3`… The timestamp is
+ * only to the second, so two archives of the same slug within one second (switching
+ * starter sites twice in a row, a retried restore) would otherwise hit the unique index.
+ */
+export async function freeArchiveSlug(base: string, isTaken: (slug: string) => Promise<boolean>): Promise<string> {
+  if (!(await isTaken(base))) return base
+  for (let n = 2; n < 100; n++) {
+    if (!(await isTaken(`${base}-${n}`))) return `${base}-${n}`
+  }
+  return `${base}-${Date.now().toString(36)}`
+}

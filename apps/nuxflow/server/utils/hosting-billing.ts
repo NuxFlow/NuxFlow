@@ -46,8 +46,6 @@ const ENDED_STATUSES = new Set(ENDED_SUBSCRIPTION_STATUSES)
 /** A sign-up that hasn't paid yet holds its subdomain this long. */
 const RESERVATION_MS = 24 * 60 * 60 * 1000
 
-export const SITE_TEMPLATES = ['landing', 'blog', 'portfolio', 'blank'] as const satisfies readonly SiteTemplate[]
-
 export type HostingSubscription = typeof hostingSubscriptions.$inferSelect
 
 export interface HostingContext {

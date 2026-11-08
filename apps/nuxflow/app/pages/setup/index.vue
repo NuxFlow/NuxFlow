@@ -14,6 +14,8 @@ const form = reactive({
   admin: { name: '', email: '', password: '' },
   template: 'landing',
 })
+// A catalog starter is installed from the dashboard once the new admin is signed in.
+const starterFromCatalog = ref(false)
 
 const { data: status } = await useFetch<{
   hasSite: boolean
@@ -38,7 +40,7 @@ const error = ref('')
 const steps = [
   { id: 1, label: 'Site details', icon: 'i-lucide-globe' },
   { id: 2, label: 'Admin account', icon: 'i-lucide-user' },
-  { id: 3, label: 'Template', icon: 'i-lucide-layout' },
+  { id: 3, label: 'Starter site', icon: 'i-lucide-layout' },
   { id: 4, label: 'All done!', icon: 'i-lucide-check-circle' },
 ]
 
@@ -127,8 +129,8 @@ async function complete() {
     <div class="glass rounded-2xl p-6">
       <SetupStepSite v-if="step === 1" v-model="form.site" @next="next" />
       <SetupStepAdmin v-else-if="step === 2" v-model="form.admin" :has-global-admin="status?.hasAdmin" @next="next" @back="back" />
-      <SetupStepAppearance v-else-if="step === 3" v-model="form.template" :loading="loading" :error="error" :media-storage="status?.mediaStorage" @next="complete" @back="back" />
-      <SetupStepDone v-else-if="step === 4" />
+      <SetupStepAppearance v-else-if="step === 3" v-model="form.template" v-model:from-catalog="starterFromCatalog" :loading="loading" :error="error" :media-storage="status?.mediaStorage" @next="complete" @back="back" />
+      <SetupStepDone v-else-if="step === 4" :finish-in-admin="starterFromCatalog" />
     </div>
   </div>
 </template>

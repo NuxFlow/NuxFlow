@@ -499,6 +499,8 @@ export interface RestoreOptions {
   // (restore.post.ts) opts into 'site'.
   what: ('content' | 'settings' | 'menus' | 'taxonomies' | 'forms' | 'site' | 'themes' | 'plugins' | 'users' | 'membershipTiers' | 'redirects')[]
   conflictMode: 'skip' | 'overwrite' | 'archive'
+  /** Author of newly created content items (a starter site's installer). Unset = none, as before. */
+  authorId?: string
 }
 
 export interface RestoreResult {

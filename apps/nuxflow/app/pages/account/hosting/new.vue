@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { slugify } from '#shared/lib/slug'
+import type { StarterSummary } from '#shared/lib/starters'
 // Hosting sign-up, on the accounts origin: choose a plan, a name and an address, then pay
 // through Stripe Checkout. Someone without an account creates one here first (the only
 // place passwords are typed), signs in, and comes straight back to this form.
@@ -83,15 +84,13 @@ function features(plan: PublicPlan): string[] {
 const siteName = ref(typeof route.query.name === 'string' ? route.query.name.slice(0, 100) : '')
 const subdomain = ref(typeof route.query.sub === 'string' ? route.query.sub.slice(0, 32) : '')
 const subdomainTouched = ref(!!subdomain.value)
-const TEMPLATE_VALUES = ['landing', 'blog', 'portfolio', 'blank'] as const
-type Template = typeof TEMPLATE_VALUES[number]
-const template = ref<Template>(TEMPLATE_VALUES.find(t => t === route.query.template) ?? 'landing')
-const TEMPLATES = [
-  { value: 'landing', label: 'Business', icon: 'i-lucide-store', description: 'A home page with services and a contact section' },
-  { value: 'blog', label: 'Blog', icon: 'i-lucide-pen-line', description: 'Posts first, with a welcome post to edit' },
-  { value: 'portfolio', label: 'Portfolio', icon: 'i-lucide-images', description: 'Show your work in a gallery' },
-  { value: 'blank', label: 'Blank', icon: 'i-lucide-file', description: 'Start from an empty page' },
-] as const
+// Starter sites: the built-in ones plus the starter catalog (shared with the setup wizard).
+const { data: starterData } = await useFetch<{ starters: StarterSummary[] }>('/api/v1/setup/starters')
+const starters = computed(() => starterData.value?.starters ?? [])
+const template = ref<string>(typeof route.query.template === 'string' ? route.query.template : 'landing')
+watch(starters, (list) => {
+  if (list.length && !list.some(s => s.id === template.value)) template.value = list.find(s => s.source === 'builtin')?.id ?? list[0]!.id
+}, { immediate: true })
 
 function subdomainFor(name: string): string {
   return slugify(name).slice(0, 32).replace(/-+$/, '')
@@ -249,23 +248,10 @@ async function continueToPayment() {
             </UFormField>
             <div>
               <p class="text-sm font-medium text-gray-900 dark:text-white mb-2">Start with</p>
-              <div class="grid gap-2 sm:grid-cols-2">
-                <button
-                  v-for="t in TEMPLATES"
-                  :key="t.value"
-                  type="button"
-                  class="flex gap-3 text-left rounded-lg border p-3 transition"
-                  :class="template === t.value ? 'border-primary-500 bg-primary-50/60 dark:bg-primary-950/30' : 'border-gray-200 dark:border-gray-800 hover:border-gray-300'"
-                  :aria-pressed="template === t.value"
-                  @click="template = t.value"
-                >
-                  <UIcon :name="t.icon" class="size-5 text-primary-500 shrink-0 mt-0.5" />
-                  <span>
-                    <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t.label }}</span>
-                    <span class="block text-xs text-gray-500">{{ t.description }}</span>
-                  </span>
-                </button>
+              <div class="max-h-[32rem] overflow-y-auto pr-1">
+                <StarterPicker :starters="starters" :selected="template" compact @select="template = $event" />
               </div>
+              <p class="text-xs text-gray-400 mt-2">You can switch to another starter site at any time from your site's admin.</p>
             </div>
           </div>
         </UCard>
