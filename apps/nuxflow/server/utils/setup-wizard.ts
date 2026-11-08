@@ -154,13 +154,14 @@ export async function claimSecondarySite(db: Db, host: string, site: SetupSiteFi
   return existing.id
 }
 
-/** Initial site settings from the wizard's choices. */
-/** `emailProvider` null = store none (the env default, or the server log, applies). */
+/**
+ * Initial site settings from the wizard's choices. `emailProvider` null = store none (the
+ * env default, or the server log, applies). The site header is left unset, which means
+ * shown — it used to be stored as off, so new sites started without a header.
+ */
 export async function saveSetupSettings(db: Db, siteId: string, emailProvider: string | null): Promise<void> {
-  await db.insert(siteSettings).values([
-    ...(emailProvider ? [{ id: ulid(), siteId, key: 'email.provider', value: emailProvider }] : []),
-    { id: ulid(), siteId, key: 'frontend.show_header', value: false },
-  ])
+  if (!emailProvider) return
+  await db.insert(siteSettings).values({ id: ulid(), siteId, key: 'email.provider', value: emailProvider })
 }
 
 /** Creates the admin's account directly (email verified, password credential). */

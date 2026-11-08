@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { requireSuperAdmin } from '../../../../utils/permissions'
 import { requireControlPlane } from '../../../../utils/control-plane'
-import { clearHostingPlatformCache, HOSTING_PLATFORM_SETTING_KEY } from '../../../../utils/hosting-platform'
+import { clearHostingPlatformCache, HOSTING_PLATFORM_SETTING_KEY, HOSTING_SIGNUPS_CLOSED_KEY } from '../../../../utils/hosting-platform'
 import { clearHostingPlanCache } from '../../../../utils/hosting-plans'
 import { HOSTING_WEBHOOK_SECRET_KEY } from '../../../../utils/hosting-billing'
 import { SAAS_TARGET_KEY, SAAS_TOKEN_KEY, SAAS_ZONE_KEY } from '../../../../utils/hosting-domains'
@@ -16,6 +16,8 @@ import { ANALYTICS_TOKEN_KEY, clearAnalyticsCache } from '../../../../utils/anal
 
 const bodySchema = z.object({
   hostingEnabled: z.boolean().optional(),
+  /** false pauses new hosting sign-ups (accounts + checkout); existing customers are unaffected. */
+  signupsOpen: z.boolean().optional(),
   /** Stripe's signing secret for the hosting webhook (whsec_…); '' removes it. */
   stripeWebhookSecret: z.string().trim().max(200).optional(),
   /** Cloudflare for SaaS on the sites domain's zone: its zone id, an API token, the CNAME target. '' removes. */
@@ -48,6 +50,11 @@ export default defineEventHandler(async (event) => {
     clearHostingPlatformCache()
     clearHostingPlanCache()
   }
+  if (body.signupsOpen !== undefined) {
+    // Stored as "closed", so unset keeps meaning open.
+    await saveSetting(primaryEvent, HOSTING_SIGNUPS_CLOSED_KEY, body.signupsOpen ? null : true)
+    clearHostingPlatformCache()
+  }
   if (body.stripeWebhookSecret !== undefined) {
     if (body.stripeWebhookSecret && !body.stripeWebhookSecret.startsWith('whsec_')) {
       throw validationError('That doesn\'t look like a Stripe signing secret. It starts with whsec_.')
@@ -79,6 +86,7 @@ export default defineEventHandler(async (event) => {
     resourceId: primary.id,
     after: {
       hostingEnabled: body.hostingEnabled,
+      signupsOpen: body.signupsOpen,
       stripeWebhookSecret: body.stripeWebhookSecret === undefined ? undefined : (body.stripeWebhookSecret ? 'set' : 'removed'),
       cfZoneId: body.cfZoneId,
       cfApiToken: body.cfApiToken === undefined ? undefined : (body.cfApiToken ? 'set' : 'removed'),

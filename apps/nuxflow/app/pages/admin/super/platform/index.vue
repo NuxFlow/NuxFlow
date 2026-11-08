@@ -5,6 +5,7 @@ useHead({ title: 'Platform' })
 interface PlatformState {
   build: { commit: string | null; release: string | null; pool: string | null }
   hostingEnabled: boolean
+  signupsOpen: boolean
   primarySite: { id: string; name: string; domain: string } | null
   centralAuth: boolean
   sitesDomain: string | null
@@ -42,6 +43,10 @@ async function setHosting(enabled: boolean) {
   confirmOpen.value = false
   // The sidebar reads the shared access state, so Plans/Usage appear or go at once.
   if (ok && access.value) access.value = { ...access.value, hostingPlatform: enabled }
+}
+
+function setSignupsOpen(open: boolean) {
+  void save({ signupsOpen: open }, open ? 'New sign-ups reopened' : 'New sign-ups paused')
 }
 
 function onToggle(enabled: boolean) {
@@ -212,6 +217,23 @@ async function copy(text: string) {
             </div>
           </li>
         </ul>
+
+        <div class="mt-5 flex items-start justify-between gap-4 border-t border-gray-100 dark:border-gray-800 pt-4">
+          <div class="space-y-1">
+            <p class="text-sm font-medium text-gray-900 dark:text-white">Accept new sign-ups</p>
+            <p class="text-xs text-gray-500">
+              Turn off to pause new customers: the sign-up page says sign-ups are paused and no new accounts or checkouts are taken.
+              Existing customers keep their sites, billing and My hosting. The rest of your site stays open.
+            </p>
+          </div>
+          <USwitch
+            :model-value="data.signupsOpen"
+            :loading="saving"
+            :disabled="saving"
+            aria-label="Accept new hosting sign-ups"
+            @update:model-value="setSignupsOpen"
+          />
+        </div>
 
         <div v-if="data.signUpUrl" class="mt-5 text-sm text-gray-500">
           Sign-up page:

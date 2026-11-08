@@ -1,4 +1,5 @@
 import { requireRole } from '../../utils/permissions'
+import { isDemoMode } from '../../utils/demo-mode'
 import { buildSetupChecklist, gatherSetupChecklistInputs, getChecklistPreferences } from '../../utils/setup-checklist'
 
 /**
@@ -8,6 +9,9 @@ import { buildSetupChecklist, gatherSetupChecklistInputs, getChecklistPreference
  */
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
+  // The public demo shares one login and can't configure storage, email, a domain and so
+  // on (demo-mode.ts blocks them), so the card would only ever be a list of dead ends.
+  if (isDemoMode(event)) return { disabled: true as const }
 
   const [inputs, prefs] = await Promise.all([gatherSetupChecklistInputs(event, userId), getChecklistPreferences(event)])
   const items = buildSetupChecklist(inputs)

@@ -4,6 +4,7 @@ import { rateLimit } from '../../../utils/rate-limit'
 import { starterIdSchema } from '../../../../shared/lib/starters'
 import { isKnownStarter } from '../../../utils/starters/install'
 import { badRequest } from '../../../utils/response'
+import { assertHostingSignupsOpen } from '../../../utils/hosting-platform'
 
 const bodySchema = z.object({
   planId: z.string().min(1),
@@ -17,6 +18,7 @@ const bodySchema = z.object({
 /** Starts a hosting sign-up and returns the Stripe Checkout page to send the customer to. */
 export default defineEventHandler(async (event) => {
   const ctx = await hostingContext(event)
+  await assertHostingSignupsOpen(ctx.db)
   const session = await requireSession(event)
   await rateLimit(event, { limit: 10, windowMs: 60 * 60_000, keyPrefix: 'hosting-checkout' })
   const body = await parseBody(event, bodySchema)

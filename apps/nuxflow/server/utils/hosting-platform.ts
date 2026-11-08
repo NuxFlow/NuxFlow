@@ -42,6 +42,33 @@ export async function isHostingPlatform(db: Db): Promise<boolean> {
   return enabled
 }
 
+/**
+ * "Pause new hosting sign-ups" — also server-managed, on the primary site, set from Super
+ * Admin → Platform. Stored as *closed* so that unset (every install so far) means open.
+ * It only stops new accounts and new checkouts on the sign-up page: existing customers
+ * keep My hosting, billing, plan changes and their domains.
+ */
+export const HOSTING_SIGNUPS_CLOSED_KEY = 'platform.hosting_signups_closed'
+
+export async function hostingSignupsOpen(db: Db): Promise<boolean> {
+  const cached = cache.get('signupsOpen')
+  if (cached !== undefined) return cached
+  const [row] = await db.select({ value: siteSettings.value })
+    .from(siteSettings)
+    .innerJoin(sites, eq(sites.id, siteSettings.siteId))
+    .where(and(eq(sites.isPrimary, true), eq(siteSettings.key, HOSTING_SIGNUPS_CLOSED_KEY)))
+    .limit(1)
+  const open = !(row?.value === true || row?.value === 'true')
+  cache.set('signupsOpen', open)
+  return open
+}
+
+/** 403 `data.code: 'hosting_signups_closed'` while the operator has paused sign-ups. */
+export async function assertHostingSignupsOpen(db: Db): Promise<void> {
+  if (await hostingSignupsOpen(db)) return
+  throw httpError({ status: 403, message: 'New sign-ups are paused at the moment. Please check back soon.', data: { code: 'hosting_signups_closed' } })
+}
+
 /** 404 unless the switch is on — for routes that only exist on a hosting platform. */
 export async function requireHostingPlatform(event: H3Event): Promise<void> {
   if (!(await isHostingPlatform(useDb(event)))) throw notFound()
