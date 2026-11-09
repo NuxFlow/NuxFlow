@@ -10,6 +10,8 @@ const { data, refresh } = await useFetch<{ sites: SiteRow[]; pools: string[]; un
 const showPools = computed(() => (data.value?.pools.length ?? 0) > 0 || (data.value?.sites ?? []).some(s => s.poolId))
 // Plans only exist while Super Admin → Platform's hosting switch is on (the API 404s otherwise).
 const hostingPlatform = (await fetchAdminAccess())?.hostingPlatform ?? false
+// Creating a site needs the central sign-in domain (the API refuses otherwise).
+const { central } = useAccounts()
 const { data: planData } = await useFetch<{ plans: { id: string; name: string }[] }>('/api/v1/admin/plans', { immediate: hostingPlatform })
 
 // The select can't hold null, so the built-in unlimited plan is this sentinel in the form.
@@ -147,8 +149,11 @@ async function deleteSite() {
   <div class="space-y-4">
     <div class="flex items-center justify-between">
       <h1 class="text-xl font-bold text-gray-900 dark:text-white">All sites</h1>
-      <UButton to="/admin/super/sites/new" icon="i-lucide-plus">New site</UButton>
+      <UButton v-if="central" to="/admin/super/sites/new" icon="i-lucide-plus">New site</UButton>
+      <UButton v-else icon="i-lucide-plus" disabled>New site</UButton>
     </div>
+
+    <AdminCentralSignInRequired v-if="!central" />
 
     <UAlert
       v-if="data?.unreachablePools.length"

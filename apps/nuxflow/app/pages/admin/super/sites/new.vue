@@ -95,7 +95,9 @@ function done() {
   router.push('/admin/super/sites')
 }
 
-const canCreate = computed(() => !!form.name.trim() && !!domain.value && (!inPool.value || (!!form.ownerName && !!form.ownerEmail)))
+// The API refuses a new site until sign-in has its own domain (NUXT_PUBLIC_ACCOUNTS_URL).
+const { central } = useAccounts()
+const canCreate = computed(() => central && !!form.name.trim() && !!domain.value && (!inPool.value || (!!form.ownerName && !!form.ownerEmail)))
 </script>
 
 <template>
@@ -154,6 +156,8 @@ const canCreate = computed(() => !!form.name.trim() && !!domain.value && (!inPoo
     </template>
 
     <template v-else>
+      <AdminCentralSignInRequired v-if="!central" />
+
       <UCard>
         <template #header>
           <p class="text-sm font-semibold text-gray-900 dark:text-white">Site details</p>
