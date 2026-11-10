@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { and, count, desc, eq, gt, gte, ne, notInArray, sql } from 'drizzle-orm'
-import { contentItems, dynamicPlugins, emailMessages, hostingPlans, media, siteDomains, siteInvitations, sites, siteUsageDaily, userSiteRoles, videoAssets } from '@nuxflow/db/schema'
+import { contentItems, dynamicPlugins, emailMessages, hostingPlans, media, products, siteDomains, siteInvitations, sites, siteUsageDaily, userSiteRoles, videoAssets } from '@nuxflow/db/schema'
 import { PLAN_LIMITS, planFeature, planLimit, type PlanFeatureKey, type PlanLimitKey } from '../../shared/lib/hosting-plan-limits'
 import { useDb, type Db } from './db'
 import { createIsolateCache } from './isolate-cache'
@@ -128,6 +128,10 @@ export async function planUsage(db: Db, siteId: string, key: PlanLimitKey, now =
       ])
       return (roles?.n ?? 0) + (invites?.n ?? 0)
     }
+    case 'products': {
+      const [r] = await db.select({ n: count() }).from(products).where(eq(products.siteId, siteId))
+      return r?.n ?? 0
+    }
     case 'domains': {
       const [r] = await db.select({ n: count() }).from(siteDomains).where(and(eq(siteDomains.siteId, siteId), eq(siteDomains.kind, 'custom')))
       return r?.n ?? 0
@@ -188,6 +192,7 @@ export function planLimitMessage(key: PlanLimitKey, max: number): string {
     case 'team': return `Your plan allows ${max.toLocaleString('en')} team members.`
     case 'members': return "This site isn't accepting new members."
     case 'domains': return max === 0 ? "Your plan doesn't include your own domain. Ask about a bigger plan." : `Your plan allows ${max.toLocaleString('en')} of your own domains.`
+    case 'products': return max === 0 ? "Your plan doesn't include a shop." : `Your plan allows ${max.toLocaleString('en')} products.`
     case 'plugins': return max === 0 ? "Your plan doesn't include plugins." : `Your plan allows ${max.toLocaleString('en')} plugins.`
     case 'video_watch': return "This month's video watching allowance is used up, so uploaded videos are paused until the 1st. YouTube and Vimeo videos still play."
     case 'video': return max === 0 ? "Your plan doesn't include video uploads. YouTube and Vimeo links still work in the Video block." : `Your plan's video storage is full (${max.toLocaleString('en')} minutes). Delete some videos, or ask about a bigger plan.`

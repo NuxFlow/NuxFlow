@@ -5,7 +5,7 @@
  */
 
 import { defineAsyncComponent } from 'vue'
-import { canvasHostKey, type CanvasClassPass, type CanvasContent, type CanvasEventList, type CanvasHost, type CanvasPostItem } from '@nuxflow/canvas'
+import { canvasHostKey, type CanvasClassPass, type CanvasContent, type CanvasEventList, type CanvasHost, type CanvasPostItem, type CanvasProductCard } from '@nuxflow/canvas'
 
 // Every method rejects with an Error carrying the server's own message, which the package
 // shows to the user as-is.
@@ -26,6 +26,17 @@ export default defineNuxtPlugin((nuxtApp) => {
     async listEvents({ limit, from, to, past, taxonomy }) {
       const data = await call(() => $fetch<Partial<CanvasEventList>>('/api/public/events', { query: { limit, from, to, past: past ? '1' : undefined, taxonomy } }), 'Could not load events')
       return { events: data.events ?? [], timeZone: data.timeZone ?? 'UTC', feedUrl: data.feedUrl }
+    },
+    async listProducts({ limit, collection, slugs }) {
+      try {
+        const data = await $fetch<{ products?: CanvasProductCard[] }>('/api/public/shop', { query: { limit, collection, slugs: slugs?.join(',') } })
+        return data.products ?? []
+      }
+      catch (e: unknown) {
+        // 404: the site's shop is off, which is nothing to sell rather than a failure.
+        if ((e as { statusCode?: number } | null)?.statusCode === 404) return []
+        throw new Error(getErrorMessage(e, 'Could not load products'), { cause: e })
+      }
     },
     async listClassPasses() {
       return call(() => $fetch<{ passes: CanvasClassPass[]; canBuy: boolean }>('/api/public/class-passes'), 'Could not load passes')

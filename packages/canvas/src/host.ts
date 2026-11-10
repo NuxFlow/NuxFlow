@@ -66,6 +66,28 @@ export interface CanvasEventList {
   feedUrl?: string
 }
 
+/** A product as the Products and Product blocks show it (GET /api/public/shop in NuxFlow). */
+export interface CanvasProductCard {
+  id: string
+  title: string
+  path: string
+  excerpt: string | null
+  image: string | null
+  /** Ready to show, in the shop's currency: "£12.00" or "From £12.00". */
+  price: string
+  /** The "was" price, struck through. */
+  compareAt: string | null
+  available: boolean
+}
+
+export interface CanvasProductsQuery {
+  limit: number
+  /** A collection's slug; its sub-collections' products are included. */
+  collection?: string
+  /** Particular products, by slug, in this order. */
+  slugs?: string[]
+}
+
 export interface CanvasPostsQuery {
   limit: number
   type?: string
@@ -91,6 +113,8 @@ export interface CanvasHost {
   listEvents(query: CanvasEventsQuery): Promise<CanvasEventList>
   /** The class passes on sale, and where to go to buy one. */
   listClassPasses?(): Promise<{ passes: CanvasClassPass[]; canBuy: boolean }>
+  /** Products on sale; an empty list where the site has no shop. */
+  listProducts?(query: CanvasProductsQuery): Promise<CanvasProductCard[]>
   /** Alternative wordings of `text` for the inline AI menu. */
   improveText(text: string, instruction: AiInstruction): Promise<string[]>
   /** A whole Canvas page from a description (the editor's "Generate with AI"). */

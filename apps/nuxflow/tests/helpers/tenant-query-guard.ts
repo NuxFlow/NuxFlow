@@ -46,6 +46,12 @@ interface AllowlistEntry {
  * filter instead.
  */
 export const ALLOWLIST: AllowlistEntry[] = [
+  // ── Product variants (products.ts): ids are made in the editor and are global keys ──
+  {
+    match: /^select "id" from "product_variants" where "product_variants"\."id" in \(/,
+    tables: ['product_variants'],
+    reason: 'planProductSave(): a variant id sent for a new variant must not already belong to any product on any site, or saving would take that row over.',
+  },
   // ── Customers' own domains (hosting-domains.ts): a hostname belongs to one site at most ──
   {
     match: /from "site_domains" "siteDomains" where "siteDomains"\."hostname" = \?/,

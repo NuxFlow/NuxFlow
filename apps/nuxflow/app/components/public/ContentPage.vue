@@ -4,6 +4,7 @@ import Paywall from '~/components/memberships/Paywall.vue'
 import { NuxImage } from '@nuxflow/canvas'
 import type { JsonLdVideo, PublicSiteInfo } from '~/utils/seo'
 import type { PublicEventInfo } from '~/components/public/EventDetails.vue'
+import type { PublicProductInfo } from '~/components/public/ProductDetails.vue'
 
 /**
  * A published content item rendered at `slugPath` (e.g. `about`, `es/about`, `es`).
@@ -48,6 +49,7 @@ interface PublicPage {
   defaultLocale?: string | null
   type?: { slug: string; name: string } | null
   event?: PublicEventInfo | null
+  product?: PublicProductInfo | null
   availableLocales?: Array<{ locale: string; slug: string; rawSlug?: string }> | null
   alternates?: Array<{ locale: string; path: string }> | null
   terms?: PublicTerm[] | null
@@ -210,6 +212,7 @@ useHead({
       author: page.value.author,
       type: page.value.type,
       event: page.value.event,
+      product: page.value.product,
       terms: page.value.terms ?? [],
       content: page.value.content,
       isHome: isHome.value,
@@ -288,15 +291,24 @@ const formattedDate = computed(() => formatDate(page.value?.publishedAt, '') || 
         <div v-if="page.event" class="max-w-4xl mx-auto px-6 pt-8">
           <PublicEventDetails :event="page.event" :item-id="page.id" :locale="page.locale ?? undefined" />
         </div>
+        <div v-if="page.product" class="max-w-5xl mx-auto px-6 pt-8">
+          <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">{{ page.title }}</h1>
+          <PublicProductDetails :product="page.product" :title="page.title" :image="page.ogImage" />
+        </div>
         <NuxBlock :content="page.content" />
         <CommentSection v-if="page.hasComments" :item-id="page.id" class="max-w-4xl mx-auto px-6 py-12" />
       </template>
 
       <!-- Rich-text / other content: contained with title -->
-      <div v-else class="max-w-4xl mx-auto px-6 py-12">
+      <div v-else class="mx-auto px-6 py-12" :class="page.product ? 'max-w-5xl' : 'max-w-4xl'">
+        <!-- A product: its pictures, price and options, then the description below. -->
+        <template v-if="page.product">
+          <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">{{ page.title }}</h1>
+          <PublicProductDetails :product="page.product" :title="page.title" :image="page.ogImage" class="mb-10" />
+        </template>
         <!-- Featured image — likely the page's LCP element, so eager not lazy -->
         <NuxImage
-          v-if="page.ogImage"
+          v-if="page.ogImage && !page.product"
           :src="page.ogImage"
           :alt="page.title"
           :width="1200"
@@ -306,13 +318,13 @@ const formattedDate = computed(() => formatDate(page.value?.publishedAt, '') || 
           class="w-full h-64 object-cover rounded-2xl mb-8"
         />
 
-        <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+        <h1 v-if="!page.product" class="text-4xl font-bold text-gray-900 dark:text-white mb-4">
           {{ page.title }}
         </h1>
 
         <!-- Author + date meta -->
         <PublicEventDetails v-if="page.event" :event="page.event" :item-id="page.id" :locale="page.locale ?? undefined" class="mb-8" />
-        <div v-else-if="page.author || formattedDate" class="flex items-center gap-3 mb-8 text-sm text-gray-500">
+        <div v-else-if="!page.product && (page.author || formattedDate)" class="flex items-center gap-3 mb-8 text-sm text-gray-500">
           <template v-if="page.author">
             <UAvatar
               :src="page.author.image ?? undefined"

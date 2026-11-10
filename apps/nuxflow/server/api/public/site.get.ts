@@ -3,6 +3,8 @@ import { useDb } from '../../utils/db'
 import { sites, siteSettings, dynamicPlugins, taxonomies } from '@nuxflow/db/schema'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { withEdgeCache } from '../../utils/edge-cache'
+import { parseShopConfig, SHOP_CONFIG_KEY, SHOP_ENABLED_KEY } from '../../utils/shop'
+import { settingToBoolean } from '../../utils/settings'
 import { notFound } from '../../utils/response'
 import { getSeoSettings, siteBaseUrl } from '../../utils/seo'
 import { getActiveLocales } from '../../utils/locale-cache'
@@ -12,7 +14,7 @@ import { planIncludes } from '../../utils/hosting-plans'
 import { SIGNUP_SETTING_KEY } from '../../utils/mailing-list'
 import { parseSignupSettings, publicSignupSettings } from '../../../shared/lib/signup-prompt'
 
-const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations', SIGNUP_SETTING_KEY] as const
+const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations', SIGNUP_SETTING_KEY, SHOP_ENABLED_KEY, SHOP_CONFIG_KEY] as const
 
 const CACHE_MAX_AGE = 300
 
@@ -41,14 +43,17 @@ async function buildPayload(event: H3Event, siteId: string) {
     columns: { id: true },
   })
 
-  const [seo, locales, taxonomyRows, transformsIncluded] = await Promise.all([
+  const [seo, locales, taxonomyRows, transformsIncluded, shopIncluded] = await Promise.all([
     getSeoSettings(db, siteId),
     getActiveLocales(db, siteId),
     db.select({ slug: taxonomies.slug, name: taxonomies.name }).from(taxonomies)
       .where(eq(taxonomies.siteId, siteId)).orderBy(asc(taxonomies.name)),
     // A site moved to a plan without them stops using them even if the setting is still on.
     planIncludes(db, siteId, 'imageTransformations'),
+    planIncludes(db, siteId, 'shop'),
   ])
+  const shopOn = shopIncluded && settingToBoolean(kvMap[SHOP_ENABLED_KEY])
+  const shopConfig = parseShopConfig(kvMap[SHOP_CONFIG_KEY])
   const canonicalBase = siteBaseUrl(seo, site.domain)
 
   return {
@@ -88,6 +93,8 @@ async function buildPayload(event: H3Event, siteId: string) {
     // Mailing-list signup texts for the popup and the Signup box block (Admin → Mailing
     // list). The reward and list-sync settings are left out — see publicSignupSettings().
     signup: publicSignupSettings(parseSignupSettings(kvMap[SIGNUP_SETTING_KEY])),
+    // The shop (Admin → Shop), for the cart and product pages; null while it's off.
+    shop: shopOn ? { currency: shopConfig.currency, pricesIncludeTax: shopConfig.pricesIncludeTax } : null,
     // Site-wide SEO defaults (Admin → SEO) consumed by app.vue / layouts / pages.
     seo: {
       title: seo.title,

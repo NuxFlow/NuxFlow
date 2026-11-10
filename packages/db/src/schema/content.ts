@@ -26,7 +26,7 @@ export const contentTypes = sqliteTable('content_types', {
 ])
 
 // Target of ON DELETE CASCADE from contentRevisions.itemId, contentTaxonomyTerms.contentItemId,
-// eventRsvps.contentItemId and comments.itemId — same DROP-TABLE-triggers-FK-actions landmine documented in full
+// eventRsvps.contentItemId, comments.itemId and (shop.ts) products/productVariants.contentItemId — same DROP-TABLE-triggers-FK-actions landmine documented in full
 // on `sites` in sites.ts. Also self-referenced by sourceItemId below (ON DELETE SET
 // NULL, used for translation/duplication tracking) — unlike taxonomyTerms.parentId/
 // comments.parentId elsewhere in this schema, that self-FK genuinely exists at the DB

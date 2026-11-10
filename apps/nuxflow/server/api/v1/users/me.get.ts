@@ -2,16 +2,18 @@ import { useDb } from '../../../utils/db'
 import { getUserSiteRole, hasSuperAdminRole } from '../../../utils/permissions'
 import { isHostingPlatform } from '../../../utils/hosting-platform'
 import { isDemoMode } from '../../../utils/demo-mode'
+import { isShopOn } from '../../../utils/shop'
 
 export default defineEventHandler(async (event) => {
   const session = await requireSession(event)
   const db = useDb(event)
   const siteId = event.context.siteId
 
-  const [siteRole, hasAnySuperAdminGrant, hostingPlatform] = await Promise.all([
+  const [siteRole, hasAnySuperAdminGrant, hostingPlatform, shop] = await Promise.all([
     siteId ? getUserSiteRole(db, session.user.id, siteId) : Promise.resolve(null),
     hasSuperAdminRole(db, session.user.id),
     isHostingPlatform(db),
+    siteId ? isShopOn(event) : Promise.resolve(false),
   ])
   // Matches requireSuperAdmin(): platform actions are only accepted on a site where the
   // caller holds super_admin, so the super-admin UI is only shown there too.
@@ -27,6 +29,8 @@ export default defineEventHandler(async (event) => {
     isSuperAdmin,
     /** The Super Admin hosting-platform switch (hosting-platform.ts) — shows Plans/Usage. */
     hostingPlatform,
+    /** The site's shop is on (shop.ts) — shows Products in the admin menu. */
+    shop,
     /** The public demo (demo-mode.ts) — the admin shows a banner saying what's switched off. */
     demo: isDemoMode(event),
   }

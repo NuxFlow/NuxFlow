@@ -13,6 +13,8 @@ import { requireSiteId } from '../../../utils/site-context'
 import { markPrivateVideos } from '../../../utils/stream'
 import { describePageVideos, hasVideoBlocks } from '../../../utils/video-seo'
 import { eventIcsPath } from '../../../utils/event-feed'
+import { loadProduct, toPublicProduct } from '../../../utils/products'
+import { getShopSettingsFromDb } from '../../../utils/shop'
 
 type ContentItemRow = typeof contentItems.$inferSelect
 
@@ -137,6 +139,13 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
   ])
   const defaultLocale = site?.locale || 'en'
 
+  // A product's options and prices; a translation shows its original's. Only while the shop
+  // is on, so switching it off hides every product's price and buy button at once.
+  const shop = type?.slug === 'product' ? await getShopSettingsFromDb(db, siteId) : null
+  const product = shop?.enabled
+    ? toPublicProduct(page.sourceItemId ?? page.id, await loadProduct(db, siteId, page.sourceItemId ?? page.id), shop, defaultLocale)
+    : null
+
   // A translation that hasn't been tagged itself shows its original's terms — the
   // archives it links to are shared across languages.
   const termRows = ownTerms.length === 0 && page.sourceItemId && sourcePageResolved
@@ -244,6 +253,7 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
     author,
     terms,
     videos,
+    product,
     availableLocales,
     alternates,
   }
