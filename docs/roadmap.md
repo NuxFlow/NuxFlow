@@ -15,6 +15,33 @@ Admin → Analytics (page views per day, top pages, referrers, countries and dev
 
 ---
 
+## Shop: what's next
+
+The shop's first three stages are built (see `docs/shop.md`): one orders table for everything a site sells, products with variants and stock, and the basket, Stripe Checkout, stock holds and digital downloads. The plan is in stages; still to come:
+
+**Running a shop day to day**
+- Delivery zones (countries or US states), weight-based rates, and more than one delivery option.
+- Fulfilment: mark an order shipped, add a tracking number, send a "shipped" email.
+- Partial refunds of single lines, with stock put back.
+- Low-stock notifications, and a sales summary on the dashboard.
+- CSV export of orders, including courier formats (Royal Mail Click & Drop, ShipStation).
+- An outgoing order webhook, for Zapier, Make or n8n.
+- Products and orders in the per-site backup.
+
+**Growth**
+- Discount codes, gift cards and store credit.
+- Order history on a customer's account.
+- Product import from CSV and from WooCommerce through the WordPress importer.
+- A Google Merchant product feed, and MCP tools for products and orders.
+
+**Later, maybe**
+- Abandoned-basket emails (marketing mail, so a third-party email provider only).
+- More than one currency, product reviews, subscription products, and Lemon Squeezy or Paddle as merchant of record for downloads.
+
+**Deliberately not planned:** point-of-sale card readers, marketplaces with many sellers, our own card form or tax calculation, taking a cut of sales or Stripe Connect.
+
+**Not yet tested against real Stripe.** Like paid bookings and class passes, the shop has so far only been tested against a mocked Stripe. A test-mode run with a UK, an EU and a US address comes first.
+
 ## Events: what's next
 
 The calendar, event pages, RSVPs, waitlists, repeating events, paid bookings, class passes, reminders and the weekly timetable are built (see `docs/user-guide.md`). Still to come:

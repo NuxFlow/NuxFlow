@@ -137,6 +137,13 @@ You can build pages, write posts, upload images, manage menus and taxonomies, sw
 - **Class passes** — sell blocks of sessions that belong to an email address, spent through emailed links
 - **Cancellation rules, refunds and reminders** — automatic refunds up to a cut-off you set, and an email the day before
 
+### Shop
+- **Products** with options (size, colour…), variants, stock and pictures — ordinary pages, so they get the editor, SEO, translations and search
+- **Digital downloads** — private files behind signed, limited links
+- **Basket and Stripe Checkout** — guest checkout, delivery rates, Stripe Tax, prices with or without tax; stock is held while someone pays so the last one can't be sold twice
+- **Orders** — one page for every shop order, booking, pass and one-time membership, with full and part refunds
+- Off until you turn it on; payments go to your own Stripe account, with no cut taken
+
 ### Membership & Payments
 - **Membership tiers** with recurring subscription pricing
 - **Auto-sync** — saving a tier automatically creates the matching product and price in your configured provider(s); no manual setup in the provider dashboard required
@@ -250,6 +257,7 @@ For detailed information on how to install and use NuxFlow, please refer to our 
 - **[Installation Guide](docs/installation.md)** — Step-by-step setup for local development and Cloudflare deployment.
 - **[User Guide](docs/user-guide.md)** — A comprehensive manual for managing content and site settings.
 - **[Payments & Memberships Setup](docs/payments-setup.md)** — Configure Stripe, Lemon Squeezy, or Paddle; set up webhooks; gate content.
+- **[Shop Guide](docs/shop.md)** — Sell products and downloads: setup, delivery, tax, orders, refunds and testing.
 - **[Documentation Index](docs/index.md)** — The entry point for all documentation.
 - **[Security](docs/security.md)** — Algorithms, design decisions, and infrastructure properties that protect user data.
 

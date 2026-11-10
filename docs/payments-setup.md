@@ -217,6 +217,14 @@ Refunds go back to the original card. Credits go back on the pass.
 
 ---
 
+## The shop
+
+The shop uses the same Stripe keys and webhook as memberships and bookings: there's nothing extra to connect. It needs `checkout.session.completed`, `checkout.session.expired` and `charge.refunded` in the webhook's events (step 2 above). Turn it on and set it up in **Sales → Shop**; see the **[Shop Guide](./shop.md)**.
+
+## Orders
+
+Every one-off payment on the site (a shop order, a paid booking, a class pass, a membership bought in one go) is recorded as an order in **Sales → Orders** (admins only), where you can refund all or part of it. Subscriptions aren't orders; they stay under Memberships. Refunds made in Stripe's dashboard are shown there too. Details are in the [User Guide](./user-guide.md#orders).
+
 ## Subscription management
 
 ### Members

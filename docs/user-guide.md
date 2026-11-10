@@ -328,6 +328,8 @@ Dragging needs a mouse or trackpad. On a phone or tablet, change the date in the
 
 ## Shop
 
+> The full guide, with setup, testing and troubleshooting, is the **[Shop Guide](./shop.md)**. This is the short version.
+
 Sell physical and digital products from your site. The shop is off until you turn it on in **Sales → Shop** (admins only). On a hosting platform, your plan has to include it.
 
 Turning it on adds **Products** to the admin menu and a **Collections** taxonomy for grouping products (it can nest: Bags → Totes). Turning it off hides prices and products from visitors straight away and deletes nothing.
