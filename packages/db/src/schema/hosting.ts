@@ -32,6 +32,8 @@ export const hostingPlans = sqliteTable('hosting_plans', {
   maxDatabaseBytes: integer('max_database_bytes'),
   // Hard limit: customers' own domains on a site (0 = not included in this plan).
   maxCustomDomains: integer('max_custom_domains'),
+  // Hard limit: products in the site's shop.
+  maxProducts: integer('max_products'),
   // Hard limit: minutes of video kept in the operator's Cloudflare Stream account (0 = not
   // included). Defaults to 0 so plans made before video existed don't hand it out unlimited.
   maxVideoMinutes: integer('max_video_minutes').default(0),
@@ -40,6 +42,7 @@ export const hostingPlans = sqliteTable('hosting_plans', {
   maxVideoMinutesWatchedPerMonth: integer('max_video_minutes_watched_per_month').default(0),
   // Yes/no features (shared/lib/hosting-plan-limits.ts, PLAN_FEATURES). Off by default.
   allowImageTransformations: integer('allow_image_transformations', { mode: 'boolean' }).notNull().default(false),
+  allowShop: integer('allow_shop', { mode: 'boolean' }).notNull().default(false),
   // Selling the plan (the hosting-platform sign-up, apps/nuxflow/server/utils/hosting-billing.ts).
   // Prices are in major units (5 = £5); null = not offered at that interval. NuxFlow
   // creates the Stripe product/prices from these and keeps their ids here — a changed

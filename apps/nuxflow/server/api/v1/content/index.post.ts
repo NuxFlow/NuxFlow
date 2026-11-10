@@ -18,6 +18,7 @@ import { contentItems } from '@nuxflow/db/schema'
 import { PAGE_PASSWORD_MAX_LENGTH, resolvePageSettings } from '../../../utils/page-password'
 import { sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
+import { defaultProductInput, planProductSave, productInputSchema } from '../../../utils/products'
 import { requireSiteId } from '../../../utils/site-context'
 import { getSiteInfo } from '../../../utils/site-info'
 import { checkContentDates, contentDateFields } from '../../../utils/content-dates'
@@ -38,13 +39,15 @@ const bodySchema = z.object({
   termIds: z.array(z.string()).max(200).optional(),
   // Write-only password for a password-protected page — see [id].patch.ts.
   pagePassword: z.string().max(PAGE_PASSWORD_MAX_LENGTH).optional(),
+  // A product's options and variants (products.ts). Only for the `product` type.
+  product: productInputSchema.optional(),
 })
 
 export default defineEventHandler(async (event) => {
   const { userId, role } = await requireRole(event, 'author')
   const db = useDb(event)
   const siteId = requireSiteId(event)
-  const { pagePassword, ...body } = await parseBody(event, bodySchema)
+  const { pagePassword, product: productInput, ...body } = await parseBody(event, bodySchema)
   assertDemoAllowsContent(event, body.content)
   body.settings = await resolvePageSettings(body.settings, null, pagePassword)
 
@@ -76,6 +79,11 @@ export default defineEventHandler(async (event) => {
 
   await assertWithinPlan(event, 'content')
   const id = ulid()
+  // A product (not a translation of one, which shows its original's) gets its variants with
+  // it, a single default one if the request sent none.
+  const productPlan = type.slug === 'product' && !body.sourceItemId
+    ? await planProductSave(event, db, siteId, id, productInput ?? defaultProductInput(ulid()))
+    : null
   const itemInsert = db.insert(contentItems).values({
     id,
     siteId,
@@ -113,7 +121,7 @@ export default defineEventHandler(async (event) => {
   const auditInsert = buildAuditLogInsert(event, userId, { action: 'create', resource: 'content_item', resourceId: id })
 
   // Only the inserts — a brand-new item has no assignments to clear.
-  await batchWithAudit(db, [itemInsert, ...replaceContentTermsStatements(db, id, termIds).slice(1)], auditInsert)
+  await batchWithAudit(db, [itemInsert, ...replaceContentTermsStatements(db, id, termIds).slice(1), ...(productPlan?.statements ?? [])], auditInsert)
 
   if (body.status === 'published') {
     await archiveReplacedTranslations(db, siteId, { id, sourceItemId: body.sourceItemId, locale: body.locale })

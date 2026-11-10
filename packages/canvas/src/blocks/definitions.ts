@@ -989,6 +989,68 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     },
   },
 
+  // ── Shop ────────────────────────────────────────────────────────────────────
+  {
+    id: 'canvas-products',
+    name: 'Products',
+    description: 'A grid of products from the shop, all of them or one collection',
+    icon: 'i-lucide-shopping-bag',
+    category: 'commerce',
+    component: 'CanvasBlockProducts',
+    // Shows nothing until the shop is on and has products, which AI can't tell.
+    ai: { exclude: true },
+    thumbnailColor: '#fdf4ff',
+    fields: [
+      { key: 'title', label: 'Title', type: 'text', placeholder: 'Shop' },
+      { key: 'description', label: 'Description', type: 'textarea' },
+      { key: 'collection', translatable: false, label: 'Collection slug', type: 'text', placeholder: 'Leave empty for every product' },
+      {
+        key: 'columns',
+        label: 'Columns',
+        type: 'select',
+        options: [
+          { label: '2', value: '2' },
+          { label: '3', value: '3' },
+          { label: '4', value: '4' },
+        ],
+      },
+      { key: 'limit', label: 'Number of products', type: 'number', min: 1, max: 48, step: 1 },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      title: 'Shop',
+      description: '',
+      collection: '',
+      columns: '3',
+      limit: 12,
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+  {
+    id: 'canvas-product',
+    name: 'Product',
+    description: 'One product, large, with its price and a button to buy it',
+    icon: 'i-lucide-package',
+    category: 'commerce',
+    component: 'CanvasBlockProduct',
+    ai: { exclude: true },
+    thumbnailColor: '#fdf4ff',
+    fields: [
+      { key: 'product', translatable: false, label: 'Product slug', type: 'text', placeholder: 'e.g. linen-tote' },
+      { key: 'buttonText', label: 'Button text', type: 'text', placeholder: 'View product' },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      product: '',
+      buttonText: 'View product',
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
   // ── Posts ───────────────────────────────────────────────────────────────────
   {
     id: 'canvas-posts',

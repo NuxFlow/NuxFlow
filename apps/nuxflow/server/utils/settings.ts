@@ -168,6 +168,9 @@ export const SERVER_MANAGED_SETTING_KEYS: ReadonlySet<string> = new Set([
   'analytics.cf_api_token',
   // Which starter site was installed last and the settings it wrote (starters/apply.ts).
   'starters.applied',
+  // The shop switch (shop.ts): only through Admin → Shop, which checks the plan includes it,
+  // and never restored, as a backup can land on a site whose plan doesn't.
+  'shop.enabled',
 ])
 
 /**

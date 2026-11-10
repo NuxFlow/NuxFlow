@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { eventDay, floatingDate, todayIn, utcToZoned, zonedToUtc, type EventRecurrence } from '@nuxflow/canvas/events'
 import { renderTipTap } from '#shared/lib/render-tiptap'
+import { ulid } from 'ulid'
+import type { ProductForm, ProductFormVariant } from '~/components/editor/EditorProductSettingsPanel.vue'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const route = useRoute()
@@ -32,6 +34,8 @@ const { data: item, error: loadError, refresh } = await useAsyncData(
     canEdit?: boolean
     sourceItemId?: string | null
     termIds?: string[]
+    product?: Omit<ProductForm, 'variants'> & { variants: Omit<ProductFormVariant, 'stockWas'>[] } | null
+    shopCurrency?: string | null
   }>(`/api/v1/content/${id.value}`),
   { server: false },
 )
@@ -78,7 +82,17 @@ const form = reactive({
   eventPassesAllowed: true,
   // Taxonomy term ids — saved with the rest of the item (see EditorTermPicker).
   termIds: [] as string[],
+  // A product's options and variants (EditorProductSettingsPanel); null for anything else.
+  product: null as ProductForm | null,
 })
+
+/** A product's starting point: one variant, no options. */
+function newProductForm(): ProductForm {
+  return { optionNames: [], images: [], variants: [{ id: ulid(), sku: null, options: [], priceMinor: 0, compareAtMinor: null, stock: null, stockWas: null, weightGrams: null, kind: 'physical', imageUrl: null, isActive: true }] }
+}
+
+// Product prices are in the shop's currency. A new product reads it from Admin → Shop.
+const shopCurrency = ref('GBP')
 
 const activeTypeSlug = computed(() => {
   if (isNew.value) return (route.query.type as string) || 'page'
@@ -102,6 +116,14 @@ function eventDateForForm(stored: string | null | undefined, allDay: boolean): s
 function eventDateForSave(value: string, allDay: boolean): string | null {
   if (!value) return null
   return allDay ? floatingDate(value.slice(0, 10)) : zonedToUtc(value, siteTimeZone.value)
+}
+
+// A new product starts with one variant, in the shop's currency.
+if (isNew.value && activeTypeSlug.value === 'product') {
+  form.product = newProductForm()
+  if (import.meta.client) {
+    $fetch<{ settings: { currency: string } }>('/api/v1/shop').then((r) => { shopCurrency.value = r.settings.currency }).catch(() => null)
+  }
 }
 
 // A new item started from a day on the calendar: /admin/content/new?type=…&date=…&title=…
@@ -158,6 +180,10 @@ watch(item, (val) => {
   form.eventCancelHours = val.eventCancelHours ?? null
   form.eventPassesAllowed = val.eventPassesAllowed ?? true
   form.termIds = val.termIds ?? []
+  form.product = val.product
+    ? { ...val.product, variants: val.product.variants.map(v => ({ ...v, stockWas: v.stock })) }
+    : val.typeSlug === 'product' && !val.sourceItemId ? newProductForm() : null
+  if (val.shopCurrency) shopCurrency.value = val.shopCurrency
 }, { immediate: true })
 
 // ── Editor mode (TipTap vs Canvas) ───────────────────────────────────────────
@@ -299,6 +325,7 @@ async function save(overrideStatus?: string) {
       eventPassesAllowed: form.eventPassesAllowed ? null : false,
       termIds: form.termIds,
       pagePassword: newPassword,
+      ...(form.product ? { product: form.product } : {}),
     }
     if (isNew.value) {
       const result = await $fetch<{ id: string }>('/api/v1/content', {
@@ -319,6 +346,8 @@ async function save(overrideStatus?: string) {
       const contentUrl: string = `/api/v1/content/${id.value}`
       await $fetch(contentUrl, { method: 'PATCH', body })
       lastSaved.value = new Date()
+      // Stock just saved is the new starting point for the next change (sent as a difference).
+      if (form.product) for (const v of form.product.variants) v.stockWas = v.stock
       // Or the next autosave would send the old status and quietly unpublish the item.
       if (overrideStatus) form.status = overrideStatus
     }
@@ -562,6 +591,12 @@ onUnmounted(() => {
           :time-zone="siteTimeZone"
           :item-id="isNew ? undefined : (item?.sourceItemId ?? id)"
           :is-translation="Boolean(item?.sourceItemId)"
+        />
+
+        <EditorProductSettingsPanel
+          v-if="form.product"
+          v-model:product="form.product"
+          :currency="shopCurrency"
         />
 
         <!-- Excerpt & featured image -->

@@ -1,6 +1,7 @@
 import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 import { sites } from './sites'
+import { contentItems } from './content'
 
 /**
  * Everything a site sells for money in one place: shop products, but also class bookings,
@@ -92,4 +93,50 @@ export const orderRefunds = sqliteTable('order_refunds', {
 }, (t) => [
   index('idx_order_refunds_order').on(t.orderId),
   uniqueIndex('uq_order_refunds_stripe').on(t.siteId, t.stripeRefundId),
+])
+
+/**
+ * A product is a content item of the `product` type, so it has the editor, revisions,
+ * translations, collections (a taxonomy), search, the sitemap and the page cache like any
+ * page. What's shop-specific lives here, never as columns on content_items. Every product
+ * has at least one variant; a product with no options has exactly one, with no options.
+ */
+export const products = sqliteTable('products', {
+  contentItemId: text('content_item_id').primaryKey().references(() => contentItems.id, { onDelete: 'cascade' }),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  // The option names in order, e.g. ["Size", "Colour"]. Each variant has a value for each.
+  optionNames: text('option_names', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  // More pictures after the featured image (the item's og_image), from the media library.
+  images: text('images', { mode: 'json' }).$type<{ url: string; alt?: string }[]>().notNull().default([]),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_products_site').on(t.siteId),
+])
+
+export const productVariants = sqliteTable('product_variants', {
+  // Made in the editor (a ULID), so autosave can't create a variant twice.
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  contentItemId: text('content_item_id').notNull().references(() => contentItems.id, { onDelete: 'cascade' }),
+  sku: text('sku'),
+  // One value per option name, in the same order, e.g. ["M", "Blue"].
+  options: text('options', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  // In the shop's currency (setting shop.currency), minor units.
+  priceMinor: integer('price_minor').notNull(),
+  // "Was" price, shown struck through. Null: none.
+  compareAtMinor: integer('compare_at_minor'),
+  // How many can still be sold. Null: not tracked, never runs out. Checkout takes from it
+  // while someone pays and gives it back if they don't, so it never goes below 0.
+  stock: integer('stock'),
+  weightGrams: integer('weight_grams'),
+  kind: text('kind', { enum: ['physical', 'digital'] }).notNull().default('physical'),
+  imageUrl: text('image_url'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_product_variants_item').on(t.contentItemId),
+  index('idx_product_variants_site_sku').on(t.siteId, t.sku),
 ])

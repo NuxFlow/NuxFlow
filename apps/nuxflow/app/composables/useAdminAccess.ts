@@ -5,6 +5,8 @@ export interface AdminAccess {
   isSuperAdmin: boolean
   /** Super Admin → Platform's "run as a hosting platform" switch. */
   hostingPlatform?: boolean
+  /** The site's shop is on (Admin → Shop) — shows Products. */
+  shop?: boolean
   /** The public demo deployment — some features are switched off. */
   demo?: boolean
 }

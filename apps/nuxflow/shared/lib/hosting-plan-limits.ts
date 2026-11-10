@@ -13,6 +13,7 @@ export const PLAN_LIMITS = [
   { key: 'team', column: 'maxTeamMembers', kind: 'hard', monthly: false, unit: 'count', label: 'Team members', hint: 'People with a viewer, author, editor or admin role, including pending invitations.' },
   { key: 'members', column: 'maxSiteMembers', kind: 'hard', monthly: false, unit: 'count', label: 'Site members', hint: 'Visitors who signed up or joined as members.' },
   { key: 'plugins', column: 'maxPlugins', kind: 'hard', monthly: false, unit: 'count', label: 'Plugins', hint: '0 means no plugins.' },
+  { key: 'products', column: 'maxProducts', kind: 'hard', monthly: false, unit: 'count', label: 'Products', hint: 'Products in the site’s shop, in any status. Only matters when the plan includes the shop.' },
   { key: 'domains', column: 'maxCustomDomains', kind: 'hard', monthly: false, unit: 'count', label: 'Own domains', hint: 'Domains the customer connects themselves, like cafe.co.uk. 0 means not included.' },
   // Only videos kept in your Cloudflare Stream account count — a customer on their own Stream account is never limited.
   { key: 'video', column: 'maxVideoMinutes', kind: 'hard', monthly: false, unit: 'count', label: 'Video minutes stored', hint: 'Videos uploaded to your Cloudflare Stream account, in minutes. Stream bills $5 a month per 1,000 minutes stored, plus $1 per 1,000 minutes watched. 0 means no video uploads (YouTube and Vimeo links always work). Customers who add their own Stream account in Settings → Media aren’t counted.' },
@@ -42,6 +43,7 @@ export function planLimit(key: PlanLimitKey) {
  */
 export const PLAN_FEATURES = [
   { key: 'imageTransformations', column: 'allowImageTransformations', label: 'Image resizing (Cloudflare Image Transformations)', hint: 'Lets the site resize and convert images on the fly. Billed to your Cloudflare zone: 5,000 unique transformations a month free, then $0.50 per 1,000.' },
+  { key: 'shop', column: 'allowShop', label: 'Shop', hint: 'Lets the site sell products: the Shop switch, product pages, the cart and checkout. Payments go to the customer’s own Stripe account; you never handle their money.' },
 ] as const
 
 export type PlanFeatureKey = typeof PLAN_FEATURES[number]['key']

@@ -303,17 +303,6 @@ Visitors can see their bookings and passes at `/booking/my`: they enter their em
 
 Pass holders are personal data your site holds. They, and the attendee lists, aren't in site backups yet, and Stripe's tax features aren't switched on, so check what you need to charge. Mention both lists in your privacy policy.
 
-### Orders
-**Sales → Orders** (admins only) lists everything people have paid for on your site in one place: paid bookings, class passes, and memberships bought in one go. Subscriptions aren't orders; they stay under **Memberships**.
-
-- **Sales** (the default view) shows paid orders, including refunded ones. **Everything** also shows checkouts people started and didn't finish. Unfinished ones are cleared away after 90 days; paid orders are always kept.
-- Search by name, email or order number (`1042` or `#1042`).
-- Open an order to see what was bought, the total, tax, and any refunds.
-- **Refund** gives back all of what's left, or part of it. A part refund only returns money. A full refund also ends what was bought: the booking is cancelled and its place freed, a class pass stops, or one-time membership access ends.
-- Refunds made anywhere are shown: from here, from cancelling a booking, from **Refund unused sessions**, or in Stripe's dashboard.
-
-Orders hold names and email addresses, so mention them in your privacy policy. Erasing someone's details from an attendee list or a pass leaves their orders, which are your record of the sale.
-
 To see who is coming, open the event and select **View attendees** (editors and above). From there you can export a CSV, add someone by hand, move or cancel a booking (the person is emailed), and erase someone's details if they ask you to. Attendee lists are personal data that your site holds: mention them in your privacy policy. They aren't included in site backups yet.
 
 ### 2. Events Calendar Block
@@ -336,6 +325,41 @@ To display events on your website:
 Dragging needs a mouse or trackpad. On a phone or tablet, change the date in the editor.
 
 ---
+
+## Shop
+
+Sell physical and digital products from your site. The shop is off until you turn it on in **Sales → Shop** (admins only). On a hosting platform, your plan has to include it.
+
+Turning it on adds **Products** to the admin menu and a **Collections** taxonomy for grouping products (it can nest: Bags → Totes). Turning it off hides prices and products from visitors straight away and deletes nothing.
+
+### Shop settings
+- **Currency:** every price in the shop is in it. Changing it doesn't convert prices you've already typed.
+- **Prices you enter:** either they include tax (usual in the UK and EU), or tax is added at checkout (usual in the US).
+- **Collect tax with Stripe Tax:** Stripe works out and collects VAT or sales tax at checkout. It costs an extra Stripe fee per sale, and only collects where you've told Stripe you're registered. Registering is your job; leave this off if you aren't registered.
+
+### Products
+A product is a page like any other, so it has the editor, revisions, translations, SEO and search. The **Product** card in the editor's sidebar holds what's specific to it:
+
+- **Options** such as Size and Colour. Type the values separated by commas (`S, M, L`), then press **Update variants** to make one variant for each combination. Variants you already had keep their price and stock.
+- Each **variant** has a price, an optional "was" price shown struck through, an optional SKU, and whether it's **Posted** (physical) or a **Download**. Posted ones can track stock and have a weight.
+- **Track stock** counts down as people buy. Change the number whenever new stock arrives: it's saved as a change from what you saw, so anything sold while you were editing isn't put back.
+- A variant can have its own picture, shown when a visitor picks it. **More pictures** adds to the featured image.
+- Turn **On sale** off to stop selling one variant without deleting it.
+
+The product page shows the pictures, price, a choice for each option and whether it's in stock. Stock is checked fresh when the page opens, so a cached page never shows something as available that has sold out.
+
+Two blocks show products on other pages: **Products** (a grid, all products or one collection) and **Product** (one product, large, by its slug).
+
+### Orders
+**Sales → Orders** (admins only) lists everything people have paid for on your site in one place: paid bookings, class passes, and memberships bought in one go. Subscriptions aren't orders; they stay under **Memberships**.
+
+- **Sales** (the default view) shows paid orders, including refunded ones. **Everything** also shows checkouts people started and didn't finish. Unfinished ones are cleared away after 90 days; paid orders are always kept.
+- Search by name, email or order number (`1042` or `#1042`).
+- Open an order to see what was bought, the total, tax, and any refunds.
+- **Refund** gives back all of what's left, or part of it. A part refund only returns money. A full refund also ends what was bought: the booking is cancelled and its place freed, a class pass stops, or one-time membership access ends.
+- Refunds made anywhere are shown: from here, from cancelling a booking, from **Refund unused sessions**, or in Stripe's dashboard.
+
+Orders hold names and email addresses, so mention them in your privacy policy. Erasing someone's details from an attendee list or a pass leaves their orders, which are your record of the sale.
 
 ## AI Features
 

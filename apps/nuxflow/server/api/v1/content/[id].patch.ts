@@ -5,7 +5,8 @@ import { requireRole, roleAtLeast, AUTHOR_SETTABLE_STATUSES, assertCanEditConten
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { queueContentPublishedPush } from '../../../utils/push-content'
 import { getContentItemOrThrow, deriveVisibilityFromSettings, archiveReplacedTranslations } from '../../../utils/content-queries'
-import { contentItems, contentRevisions } from '@nuxflow/db/schema'
+import { contentItems, contentRevisions, contentTypes } from '@nuxflow/db/schema'
+import { planProductSave, productInputSchema } from '../../../utils/products'
 import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { scopedById } from '../../../utils/db-helpers'
@@ -45,6 +46,8 @@ const bodySchema = z.object({
   // Replaces the item's whole taxonomy-term set when present (the editor sends it with
   // every save, so tagging follows the same save/autosave flow as every other field).
   termIds: z.array(z.string()).max(200).optional(),
+  // A product's options and variants (products.ts), saved with the post like termIds.
+  product: productInputSchema.optional(),
   // Write-only: a new password for a password-protected page (settings.access 'password').
   // Hashed into settings.passwordHash, never stored or returned as given.
   pagePassword: z.string().max(PAGE_PASSWORD_MAX_LENGTH).optional(),
@@ -77,7 +80,7 @@ export default defineEventHandler(async (event) => {
     await getContentItemOrThrow(db, siteId, body.sourceItemId, 'Source item not found', { id: true })
   }
 
-  const { expectedVersion, termIds: requestedTermIds, pagePassword, ...updateFields } = body
+  const { expectedVersion, termIds: requestedTermIds, pagePassword, product: productInput, ...updateFields } = body
 
   const site = await getSiteInfo(event, siteId)
   const dateCheck = await checkContentDates(db, siteId, updateFields, { existing, sourceItemId: updateFields.sourceItemId, timeZone: site?.timezone || 'UTC' })
@@ -102,6 +105,12 @@ export default defineEventHandler(async (event) => {
   const termsChanged = requestedTermIds !== undefined
     && (nextTermIds.length !== previousTermIds.length || nextTermIds.some(t => !previousTermIds.includes(t)))
 
+  // Only a product that isn't a translation keeps variants of its own.
+  const isProduct = productInput !== undefined && !existing.sourceItemId
+    && (await db.query.contentTypes.findFirst({ where: and(eq(contentTypes.id, existing.typeId), eq(contentTypes.siteId, siteId)), columns: { slug: true } }))?.slug === 'product'
+  const productPlan = isProduct ? await planProductSave(event, db, siteId, id, productInput) : null
+  const productChanged = productPlan?.changed ?? false
+
   const nextVersion = existing.version + 1
 
   // `settings.access` (the editor's "Content access" control) is the source of truth for
@@ -118,7 +127,7 @@ export default defineEventHandler(async (event) => {
   const changedFields = new Set((Object.keys(updateFields) as (keyof typeof updateFields)[])
     .filter(key => updateFields[key] !== undefined && !sameStoredValue(updateFields[key], existing[key])))
   const visibilityChanged = visibility !== undefined && visibility !== existing.visibility
-  if (changedFields.size === 0 && !termsChanged && !visibilityChanged) {
+  if (changedFields.size === 0 && !termsChanged && !visibilityChanged && !productChanged) {
     return { id, version: existing.version }
   }
 
@@ -149,7 +158,7 @@ export default defineEventHandler(async (event) => {
     resource: 'content_item',
     resourceId: id,
     before: existing,
-    after: termsChanged ? { ...updateFields, termIds: nextTermIds } : updateFields,
+    after: { ...updateFields, ...(termsChanged ? { termIds: nextTermIds } : {}), ...(productChanged ? { product: productInput } : {}) },
   })
 
   // One D1 round trip instead of three — none of these writes depend on
@@ -164,6 +173,7 @@ export default defineEventHandler(async (event) => {
       }), itemUpdate]
     : [itemUpdate]
   if (termsChanged) writes.push(...replaceContentTermsStatements(db, id, nextTermIds))
+  if (productChanged) writes.push(...productPlan!.statements)
   await batchWithAudit(db, writes, auditInsert)
 
   // Publishing a translation retires any other live one in its language (an AI

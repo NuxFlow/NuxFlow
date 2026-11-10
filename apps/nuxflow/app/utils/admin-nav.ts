@@ -26,6 +26,8 @@ export interface AdminNavItem {
   superAdminOnly?: boolean
   /** Only exists while Super Admin → Platform's hosting-platform switch is on. */
   hostingOnly?: boolean
+  /** Only while the site's shop is on (Admin → Shop). */
+  shopOnly?: boolean
   /** Route-guard rule only — not listed in the sidebar (a sub-page reached from its parent). */
   hidden?: boolean
   /** The sidebar group this link sits in. Omit for a link at the top level. */
@@ -53,6 +55,7 @@ export const DEFAULT_OPEN_NAV_GROUP: AdminNavGroup = 'content'
 
 const POSTS_TO = '/admin/content?type=post'
 const EVENTS_TO = '/admin/content?type=event'
+const PRODUCTS_TO = '/admin/content?type=product'
 
 export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Dashboard', to: '/admin', icon: 'i-lucide-layout-dashboard' },
@@ -77,7 +80,9 @@ export const ADMIN_NAV: AdminNavItem[] = [
   // Admin only: it's a list of visitors' email addresses (personal data).
   { label: 'Mailing list', to: '/admin/mailing-list', icon: 'i-lucide-mail-plus', minRole: 'admin', group: 'audience' },
 
+  { label: 'Products', to: PRODUCTS_TO, icon: 'i-lucide-shopping-bag', minRole: 'editor', shopOnly: true, group: 'sales' },
   { label: 'Orders', to: '/admin/orders', icon: 'i-lucide-receipt', minRole: 'admin', group: 'sales' },
+  { label: 'Shop', to: '/admin/shop', icon: 'i-lucide-store', minRole: 'admin', group: 'sales' },
   { label: 'Memberships', to: '/admin/memberships', icon: 'i-lucide-badge-check', minRole: 'admin', group: 'sales' },
   { label: 'Class passes', to: '/admin/class-passes', icon: 'i-lucide-ticket', minRole: 'admin', group: 'sales' },
 
@@ -150,9 +155,10 @@ export function navGroupOf(to: string | undefined): AdminNavGroup | undefined {
   return [...ADMIN_NAV, ...SUPER_ADMIN_NAV].find(item => item.to === to)?.group
 }
 
-export function canAccessNavItem(item: AdminNavItem, access: { role: Role | null; isSuperAdmin: boolean; hostingPlatform?: boolean } | null | undefined): boolean {
+export function canAccessNavItem(item: AdminNavItem, access: { role: Role | null; isSuperAdmin: boolean; hostingPlatform?: boolean; shop?: boolean } | null | undefined): boolean {
   if (!isTeamRole(access?.role) && !access?.isSuperAdmin) return false
   if (item.hostingOnly && !access?.hostingPlatform) return false
+  if (item.shopOnly && !access?.shop) return false
   if (item.superAdminOnly) return access?.isSuperAdmin ?? false
   return roleAtLeast(access?.role, item.minRole ?? 'viewer')
 }

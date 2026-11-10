@@ -111,6 +111,13 @@ export interface JsonLdPage {
   author?: { name: string; image: string | null } | null
   type?: { slug: string; name: string } | null
   event?: { startAt: string; endAt?: string | null; allDay?: boolean | null; location?: string | null; url?: string | null } | null
+  /** A product's variants (the page API's `product`). */
+  product?: {
+    currency: string
+    images?: { url: string }[]
+    /** `amount` is the price as a schema.org decimal string, e.g. "12.50". */
+    variants: { id: string; label: string; priceMinor: number; amount: string; available: boolean; imageUrl?: string | null }[]
+  } | null
   /** Taxonomy terms — hierarchical ones become articleSection, flat ones keywords. */
   terms?: { isHierarchical: boolean; termName: string }[]
   content?: unknown
@@ -144,6 +151,38 @@ type Json = Record<string, unknown>
  * - plus a VideoObject per public video, FAQPage when the page has accordion Q&As, and a
  *   BreadcrumbList (Home › [Blog ›] page)
  */
+const AVAILABILITY = { yes: 'https://schema.org/InStock', no: 'https://schema.org/OutOfStock' }
+
+/**
+ * Product with an Offer, or an AggregateOffer over its variants' prices. Prices are decimal
+ * strings in the shop's currency; availability is as of when the page was cached.
+ */
+function productJsonLd(page: JsonLdPage, product: NonNullable<JsonLdPage['product']>, seller: Json | undefined): Json {
+  const images = [page.image, ...(product.images ?? []).map(i => i.url)].filter(Boolean)
+  const byPrice = product.variants.slice().sort((a, b) => a.priceMinor - b.priceMinor)
+  const anyAvailable = product.variants.some(v => v.available)
+  const offers: Json = product.variants.length === 1
+    ? { '@type': 'Offer', price: byPrice[0]!.amount, priceCurrency: product.currency, availability: anyAvailable ? AVAILABILITY.yes : AVAILABILITY.no, url: page.url, seller }
+    : {
+        '@type': 'AggregateOffer',
+        lowPrice: byPrice[0]!.amount,
+        highPrice: byPrice.at(-1)!.amount,
+        priceCurrency: product.currency,
+        offerCount: product.variants.length,
+        availability: anyAvailable ? AVAILABILITY.yes : AVAILABILITY.no,
+      }
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: page.title,
+    description: page.description || undefined,
+    image: images.length ? images : undefined,
+    url: page.url,
+    brand: seller ? { '@type': 'Brand', name: seller.name } : undefined,
+    offers,
+  }
+}
+
 export function buildPageJsonLd(page: JsonLdPage, site: JsonLdSite): Json[] {
   const out: Json[] = []
   const publisher: Json | undefined = site.name
@@ -179,6 +218,8 @@ export function buildPageJsonLd(page: JsonLdPage, site: JsonLdSite): Json[] {
         : e.location ? { '@type': 'Place', name: e.location, address: e.location } : undefined,
       organizer: publisher,
     })
+  } else if (typeSlug === 'product' && page.product?.variants.length) {
+    out.push(productJsonLd(page, page.product, publisher))
   } else if (typeSlug === 'post') {
     out.push({
       '@context': 'https://schema.org',
