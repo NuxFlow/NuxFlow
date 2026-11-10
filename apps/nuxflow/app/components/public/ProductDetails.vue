@@ -6,6 +6,7 @@ export interface PublicProductVariant {
   priceMinor: number
   compareAtMinor: number | null
   price: string
+  amount: string
   compareAt: string | null
   kind: 'physical' | 'digital'
   imageUrl: string | null

@@ -4,7 +4,7 @@ import type { BatchItem } from 'drizzle-orm/batch'
 import { z } from 'zod'
 import { contentItems, contentTaxonomyTerms, contentTypes, products, productVariants, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { MAX_OPTION_VALUES, MAX_OPTIONS, MAX_VARIANTS, priceLabel, productProblem, sellableVariants, stockMessage, stockState, variantLabel, type StockState } from '../../shared/lib/shop'
-import { formatMoney } from '../../shared/lib/money'
+import { currencyDecimals, formatMoney, fromMinorUnits } from '../../shared/lib/money'
 import type { Db } from './db'
 import { assertWithinPlan } from './hosting-plans'
 import { assertPlanIncludesShop } from './shop'
@@ -187,6 +187,8 @@ export interface PublicVariant {
   priceMinor: number
   compareAtMinor: number | null
   price: string
+  /** The price as a decimal string ("12.50"), for structured data. */
+  amount: string
   compareAt: string | null
   kind: VariantRow['kind']
   imageUrl: string | null
@@ -214,6 +216,7 @@ export function toPublicProduct(itemId: string, loaded: { product: ProductRow | 
     priceMinor: v.priceMinor,
     compareAtMinor: v.compareAtMinor,
     price: formatMoney(v.priceMinor, shop.currency, locale),
+    amount: fromMinorUnits(v.priceMinor, shop.currency).toFixed(currencyDecimals(shop.currency)),
     compareAt: v.compareAtMinor ? formatMoney(v.compareAtMinor, shop.currency, locale) : null,
     kind: v.kind,
     imageUrl: v.imageUrl,

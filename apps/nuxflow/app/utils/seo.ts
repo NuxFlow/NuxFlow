@@ -1,4 +1,3 @@
-import { currencyDecimals, fromMinorUnits } from '../../shared/lib/money'
 /**
  * Pure helpers for public-page SEO: ISO dates, absolute URLs, FAQ extraction from Canvas
  * accordions, and schema.org JSON-LD. Kept free of Vue/Nuxt APIs so they're unit-testable
@@ -116,7 +115,8 @@ export interface JsonLdPage {
   product?: {
     currency: string
     images?: { url: string }[]
-    variants: { id: string; label: string; priceMinor: number; available: boolean; imageUrl?: string | null }[]
+    /** `amount` is the price as a schema.org decimal string, e.g. "12.50". */
+    variants: { id: string; label: string; priceMinor: number; amount: string; available: boolean; imageUrl?: string | null }[]
   } | null
   /** Taxonomy terms — hierarchical ones become articleSection, flat ones keywords. */
   terms?: { isHierarchical: boolean; termName: string }[]
@@ -159,15 +159,14 @@ const AVAILABILITY = { yes: 'https://schema.org/InStock', no: 'https://schema.or
  */
 function productJsonLd(page: JsonLdPage, product: NonNullable<JsonLdPage['product']>, seller: Json | undefined): Json {
   const images = [page.image, ...(product.images ?? []).map(i => i.url)].filter(Boolean)
-  const amount = (minor: number) => fromMinorUnits(minor, product.currency).toFixed(currencyDecimals(product.currency))
-  const prices = product.variants.map(v => v.priceMinor)
+  const byPrice = product.variants.slice().sort((a, b) => a.priceMinor - b.priceMinor)
   const anyAvailable = product.variants.some(v => v.available)
   const offers: Json = product.variants.length === 1
-    ? { '@type': 'Offer', price: amount(prices[0]!), priceCurrency: product.currency, availability: anyAvailable ? AVAILABILITY.yes : AVAILABILITY.no, url: page.url, seller }
+    ? { '@type': 'Offer', price: byPrice[0]!.amount, priceCurrency: product.currency, availability: anyAvailable ? AVAILABILITY.yes : AVAILABILITY.no, url: page.url, seller }
     : {
         '@type': 'AggregateOffer',
-        lowPrice: amount(Math.min(...prices)),
-        highPrice: amount(Math.max(...prices)),
+        lowPrice: byPrice[0]!.amount,
+        highPrice: byPrice.at(-1)!.amount,
         priceCurrency: product.currency,
         offerCount: product.variants.length,
         availability: anyAvailable ? AVAILABILITY.yes : AVAILABILITY.no,
