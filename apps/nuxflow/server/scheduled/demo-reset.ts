@@ -1,6 +1,9 @@
 import { useDb } from '../utils/db'
 import {
   sites,
+  orders,
+  orderLines,
+  orderRefunds,
   siteSettings,
   users,
   accounts,
@@ -95,6 +98,9 @@ export const DEMO_WIPE_TABLES = [
   mailboxes,
   emailLog,
   mailingListSubscribers,
+  orderRefunds,
+  orderLines,
+  orders,
   eventRsvps,
   eventResources,
   classPasses,

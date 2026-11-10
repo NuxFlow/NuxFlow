@@ -4,7 +4,9 @@ import { ulid } from 'ulid'
 import { classPasses, classPassHoldings } from '@nuxflow/db/schema'
 import { useDb, type Db } from './db'
 import { resolveStringSetting } from './settings'
-import { getStripeProvider, resolveStripeProvider } from './payments/resolve'
+import { resolveStripeProvider } from './payments/resolve'
+import { refundPayment, withPendingOrder } from './orders'
+import { toMinorUnits } from '../../shared/lib/money'
 import { normalizeEmail } from './mailing-list'
 import { hmacSha256Hex, constantTimeEqualHex } from './webhook-crypto'
 import { requireSiteId } from './site-context'
@@ -100,19 +102,26 @@ export async function createPassCheckout(event: H3Event, pass: ClassPassRow, buy
   const email = normalizeEmail(buyer.email)
   let url: string | null
   try {
-    const session = await stripe.createPaymentCheckout({
+    const description = `${pass.credits} ${pass.credits === 1 ? 'session' : 'sessions'}`
+    const order = {
+      email,
+      name: buyer.name,
+      currency: pass.currency,
+      lines: [{ kind: 'pass' as const, refId: pass.id, name: pass.name, description, quantity: 1, unitMinor: toMinorUnits(pass.price, pass.currency) }],
+    }
+    const session = await withPendingOrder(event, order, ({ id: orderId }) => stripe.createPaymentCheckout({
       customerEmail: email,
       item: {
         name: pass.name,
-        description: `${pass.credits} ${pass.credits === 1 ? 'session' : 'sessions'}`,
+        description,
         amount: pass.price,
         currency: pass.currency,
         quantity: 1,
       },
       successUrl: `${origin}/booking/thanks?type=pass`,
       cancelUrl: `${origin}/booking/passes`,
-      metadata: { nuxflowBooking: 'pass', siteId, passId: pass.id, email, name: buyer.name.slice(0, 100) },
-    })
+      metadata: { nuxflowKind: 'pass', siteId, passId: pass.id, email, name: buyer.name.slice(0, 100), orderId },
+    }))
     url = session.url
   }
   catch (err) {
@@ -195,13 +204,13 @@ export async function refundUnusedCredits(event: H3Event, holding: HoldingRow): 
 
   const paidBack = Math.round(((holding.amountPaid - holding.amountRefunded) * left / holding.creditsTotal) * 100) / 100
   if (holding.stripePaymentIntentId && paidBack > 0) {
-    const stripe = await getStripeProvider(event)
     try {
-      await stripe.refundPayment({
+      await refundPayment(event, {
         paymentIntentId: holding.stripePaymentIntentId,
-        amount: paidBack,
+        amountMinor: toMinorUnits(paidBack, holding.currency),
         currency: holding.currency,
         idempotencyKey: `pass-refund-${holding.id}-${holding.creditsUsed}`,
+        reason: 'Unused credits refunded',
       })
     }
     catch (err) {

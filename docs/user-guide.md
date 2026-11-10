@@ -303,6 +303,17 @@ Visitors can see their bookings and passes at `/booking/my`: they enter their em
 
 Pass holders are personal data your site holds. They, and the attendee lists, aren't in site backups yet, and Stripe's tax features aren't switched on, so check what you need to charge. Mention both lists in your privacy policy.
 
+### Orders
+**Sales → Orders** (admins only) lists everything people have paid for on your site in one place: paid bookings, class passes, and memberships bought in one go. Subscriptions aren't orders; they stay under **Memberships**.
+
+- **Sales** (the default view) shows paid orders, including refunded ones. **Everything** also shows checkouts people started and didn't finish. Unfinished ones are cleared away after 90 days; paid orders are always kept.
+- Search by name, email or order number (`1042` or `#1042`).
+- Open an order to see what was bought, the total, tax, and any refunds.
+- **Refund** gives back all of what's left, or part of it. A part refund only returns money. A full refund also ends what was bought: the booking is cancelled and its place freed, a class pass stops, or one-time membership access ends.
+- Refunds made anywhere are shown: from here, from cancelling a booking, from **Refund unused sessions**, or in Stripe's dashboard.
+
+Orders hold names and email addresses, so mention them in your privacy policy. Erasing someone's details from an attendee list or a pass leaves their orders, which are your record of the sale.
+
 To see who is coming, open the event and select **View attendees** (editors and above). From there you can export a CSV, add someone by hand, move or cancel a booking (the person is emailed), and erase someone's details if they ask you to. Attendee lists are personal data that your site holds: mention them in your privacy policy. They aren't included in site backups yet.
 
 ### 2. Events Calendar Block

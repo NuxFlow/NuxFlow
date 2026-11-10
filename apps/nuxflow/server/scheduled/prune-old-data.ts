@@ -1,5 +1,5 @@
 import { useDb } from '../utils/db'
-import { aiGenerationJobs, auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits, siteUsageDaily, siteInvitations, siteAuthCodes, siteSessions, pluginStorage } from '@nuxflow/db/schema'
+import { aiGenerationJobs, auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits, siteUsageDaily, siteInvitations, siteAuthCodes, siteSessions, pluginStorage, orders } from '@nuxflow/db/schema'
 import { and, count, eq, inArray, lt, ne, notInArray, sql, isNotNull, or } from 'drizzle-orm'
 import { chunk } from '../../shared/lib/array'
 import { utcDayAgo } from '../utils/utc-day'
@@ -195,7 +195,20 @@ export const pruneOldData = async () => {
     .where(and(inArray(aiGenerationJobs.status, ['complete', 'failed']), lt(aiGenerationJobs.updatedAt, sqliteNow(90))))
     .returning({ id: aiGenerationJobs.id })
 
+  // Orders nobody paid for. A Stripe checkout lasts at most a day, so one still pending after
+  // two never will be (its expiry webhook went missing). Unpaid ones are only clutter on the
+  // Orders page after 90 days; paid orders are records of a sale and are always kept.
+  const lapsedOrders = await db.update(orders)
+    .set({ status: 'expired', updatedAt: new Date().toISOString() })
+    .where(and(eq(orders.status, 'pending'), sql`datetime(${orders.createdAt}) < datetime(${sqliteNow(2)})`))
+    .returning({ id: orders.id })
+  const unpaidOrders = await db.delete(orders)
+    .where(and(inArray(orders.status, ['expired', 'cancelled']), sql`datetime(${orders.updatedAt}) < datetime(${sqliteNow(90)})`))
+    .returning({ id: orders.id })
+
   return {
+    lapsedOrders: lapsedOrders.length,
+    prunedUnpaidOrders: unpaidOrders.length,
     prunedAuditLogs,
     prunedRevisions,
     prunedRateLimits,
