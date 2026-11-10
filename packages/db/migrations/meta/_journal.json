@@ -36,6 +36,13 @@
       "when": 1794310709137,
       "tag": "0004_products",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794312531239,
+      "tag": "0005_checkout",
+      "breakpoints": true
     }
   ]
 }

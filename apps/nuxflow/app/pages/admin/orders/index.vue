@@ -23,6 +23,7 @@ interface Order {
   stripePaymentIntentId: string | null
   paidAt: string | null
   createdAt: string
+  shippingAddress?: { name?: string | null; phone?: string | null; line1?: string | null; line2?: string | null; city?: string | null; state?: string | null; postalCode?: string | null; country?: string | null } | null
   lines: { kind: LineKind; name: string; quantity: number }[]
 }
 
@@ -34,6 +35,8 @@ interface OrderLine {
   quantity: number
   unitMinor: number
   totalMinor: number
+  isDigital: boolean
+  downloads: number
 }
 
 interface OrderRefund {
@@ -150,6 +153,11 @@ async function openOrder(order: Order) {
   await loadDetail(order.id)
 }
 
+const addressLines = computed(() => {
+  const a = detail.value?.order.shippingAddress
+  return a ? [a.name, a.line1, a.line2, a.city, a.state, a.postalCode, a.country, a.phone].filter((p): p is string => Boolean(p)) : []
+})
+
 const refundLeft = computed(() => detail.value ? detail.value.order.totalMinor - detail.value.order.refundedMinor : 0)
 const canRefund = computed(() => {
   const o = detail.value?.order
@@ -186,7 +194,7 @@ async function confirmRefund() {
   <div class="max-w-6xl mx-auto space-y-6">
     <div>
       <h1 class="text-xl font-bold text-gray-900 dark:text-white">Orders</h1>
-      <p class="text-sm text-gray-500 dark:text-gray-400">Everything people have paid for on this site: bookings, class passes and memberships bought in one go.</p>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Everything people have paid for on this site: shop orders, bookings, class passes and memberships bought in one go.</p>
     </div>
 
     <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-circle-alert" :description="getErrorMessage(error, 'Could not load orders')" />
@@ -245,11 +253,19 @@ async function confirmRefund() {
             <p class="text-sm text-gray-500">{{ detail.order.email || 'No email' }}</p>
           </div>
 
+          <div v-if="addressLines.length" class="text-sm">
+            <p class="font-medium">Post to</p>
+            <p v-for="(part, i) in addressLines" :key="i" class="text-gray-600 dark:text-gray-400">{{ part }}</p>
+          </div>
+
           <div class="divide-y divide-gray-100 dark:divide-gray-800 border-y border-gray-100 dark:border-gray-800">
             <div v-for="line in detail.lines" :key="line.id" class="flex justify-between gap-3 py-2">
               <div>
                 <p class="text-sm font-medium">{{ line.name }}<span v-if="line.quantity > 1" class="text-gray-500"> × {{ line.quantity }}</span></p>
-                <p class="text-xs text-gray-400">{{ KIND_LABELS[line.kind] }}<template v-if="line.description"> · {{ line.description }}</template></p>
+                <p class="text-xs text-gray-400">
+                  {{ line.isDigital ? 'Download' : KIND_LABELS[line.kind] }}<template v-if="line.description"> · {{ line.description }}</template>
+                  <template v-if="line.isDigital"> · downloaded {{ line.downloads === 1 ? 'once' : `${line.downloads} times` }}</template>
+                </p>
               </div>
               <span class="text-sm">{{ money(line.totalMinor, detail.order.currency) }}</span>
             </div>

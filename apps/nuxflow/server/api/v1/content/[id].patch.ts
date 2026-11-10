@@ -7,6 +7,7 @@ import { queueContentPublishedPush } from '../../../utils/push-content'
 import { getContentItemOrThrow, deriveVisibilityFromSettings, archiveReplacedTranslations } from '../../../utils/content-queries'
 import { contentItems, contentRevisions, contentTypes } from '@nuxflow/db/schema'
 import { planProductSave, productInputSchema } from '../../../utils/products'
+import { deleteShopFiles } from '../../../utils/shop-downloads'
 import { and, eq, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { scopedById } from '../../../utils/db-helpers'
@@ -175,6 +176,7 @@ export default defineEventHandler(async (event) => {
   if (termsChanged) writes.push(...replaceContentTermsStatements(db, id, nextTermIds))
   if (productChanged) writes.push(...productPlan!.statements)
   await batchWithAudit(db, writes, auditInsert)
+  if (productPlan?.filesToDelete.length) await deleteShopFiles(event, productPlan.filesToDelete)
 
   // Publishing a translation retires any other live one in its language (an AI
   // re-translation of a live page is a separate draft until this moment).

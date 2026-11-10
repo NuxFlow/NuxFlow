@@ -95,7 +95,8 @@ export default defineNuxtConfig({
       // wrangler.demo.toml and is NOT available as process.env during the build step.
       // search-index-rebuild re-embeds pages into Vectorize after the index changes (a
       // KV read a minute otherwise — search-index-rebuild.ts).
-      '* * * * *': ['publish-scheduled', 'demo-reset', 'search-index-rebuild'],
+      // shop-holds gives back stock kept for shop checkouts that were never paid (shop-holds.ts).
+      '* * * * *': ['publish-scheduled', 'demo-reset', 'search-index-rebuild', 'shop-holds'],
       // Nightly at 3 AM UTC — prune old data; demo instances also wipe and reseed; flag
       // long-untouched published content for its author to review; record each site's
       // usage totals (Super Admin → Usage).

@@ -59,7 +59,7 @@ Go to **Admin → Settings → Payments** and fill in the credentials for at lea
    - `customer.subscription.created`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
-   - `checkout.session.expired` and `charge.refunded` (for paid event bookings and class passes)
+   - `checkout.session.expired` and `charge.refunded` (for the shop, paid event bookings and class passes)
 4. After saving, copy the **Signing secret** (`whsec_...`) and paste it into **Settings → Payments → Stripe Webhook Secret**.
 
 > [!WARNING]

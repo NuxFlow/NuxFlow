@@ -1040,6 +1040,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     fields: [
       { key: 'product', translatable: false, label: 'Product slug', type: 'text', placeholder: 'e.g. linen-tote' },
       { key: 'buttonText', label: 'Button text', type: 'text', placeholder: 'View product' },
+      { key: 'addText', label: 'Add to basket text', type: 'text', placeholder: 'Add to basket' },
       { key: 'bgColor', label: 'Background colour', type: 'color' },
       { key: 'textColor', label: 'Text colour', type: 'color' },
       { key: 'padding', label: 'Padding', type: 'spacing' },
@@ -1047,6 +1048,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     defaultProps: {
       product: '',
       buttonText: 'View product',
+      addText: 'Add to basket',
       padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
     },
   },

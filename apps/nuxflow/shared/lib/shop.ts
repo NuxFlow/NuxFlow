@@ -36,6 +36,19 @@ export interface ShopSettings {
   pricesIncludeTax: boolean
   /** Stripe Tax works out and collects tax (an extra Stripe fee per sale). */
   stripeTax: boolean
+  /** Two-letter country codes posted to. Empty: posted goods can't be bought. */
+  shippingCountries: string[]
+  /** What the one delivery option is called at checkout. */
+  shippingLabel: string
+  /** Its price per order, minor units. */
+  shippingRateMinor: number
+  /** Free delivery from this subtotal up. Null: never free. */
+  freeShippingOverMinor: number | null
+  /** Slug of the page with the returns policy, linked from a box to tick before paying. */
+  returnsPage: string
+  /** Times each download link works, and for how many days after paying. */
+  downloadLimit: number
+  downloadDays: number
 }
 
 export const DEFAULT_SHOP_SETTINGS: ShopSettings = {
@@ -43,6 +56,49 @@ export const DEFAULT_SHOP_SETTINGS: ShopSettings = {
   currency: 'GBP',
   pricesIncludeTax: true,
   stripeTax: false,
+  shippingCountries: ['GB'],
+  shippingLabel: 'Standard delivery',
+  shippingRateMinor: 0,
+  freeShippingOverMinor: null,
+  returnsPage: '',
+  downloadLimit: 5,
+  downloadDays: 30,
+}
+
+/** Most of one variant in a basket, and most lines in one. */
+export const MAX_LINE_QUANTITY = 20
+export const MAX_BASKET_LINES = 50
+
+export interface BasketLine {
+  quantity: number
+  unitMinor: number
+  isDigital: boolean
+}
+
+export interface BasketTotals {
+  subtotalMinor: number
+  /** Something in it has to be posted. */
+  needsShipping: boolean
+  /** Delivery for the whole order; tax is added by Stripe where the shop collects it. */
+  shippingMinor: number
+}
+
+/** A basket's money before tax: what Stripe is asked to charge for goods and delivery. */
+export function basketTotals(lines: readonly BasketLine[], shipping: Pick<ShopSettings, 'shippingRateMinor' | 'freeShippingOverMinor'>): BasketTotals {
+  const subtotalMinor = lines.reduce((sum, l) => sum + l.unitMinor * l.quantity, 0)
+  const needsShipping = lines.some(l => !l.isDigital)
+  const free = shipping.freeShippingOverMinor !== null && subtotalMinor >= shipping.freeShippingOverMinor
+  return { subtotalMinor, needsShipping, shippingMinor: needsShipping && !free ? shipping.shippingRateMinor : 0 }
+}
+
+/** Adds a variant to a stored basket, merging with a line already there, within the limits. */
+export function addToBasket<T extends { variantId: string; quantity: number }>(lines: readonly T[], line: T): T[] {
+  const existing = lines.find(l => l.variantId === line.variantId)
+  if (existing) {
+    return lines.map(l => (l === existing ? { ...l, quantity: Math.min(MAX_LINE_QUANTITY, l.quantity + line.quantity) } : l))
+  }
+  if (lines.length >= MAX_BASKET_LINES) return lines.slice()
+  return [...lines, { ...line, quantity: Math.min(MAX_LINE_QUANTITY, Math.max(1, line.quantity)) }]
 }
 
 /** "M / Blue", or "" for a product with no options. */

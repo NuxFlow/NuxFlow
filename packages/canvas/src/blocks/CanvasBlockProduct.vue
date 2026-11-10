@@ -8,12 +8,14 @@ import NuxImage from './NuxImage.vue'
 const props = withDefaults(defineProps<{
   product?: string
   buttonText?: string
+  addText?: string
   bgColor?: string
   textColor?: string
   padding?: SpacingValue
 }>(), {
   product: '',
   buttonText: 'View product',
+  addText: 'Add to basket',
   bgColor: undefined,
   textColor: undefined,
   padding: undefined,
@@ -21,6 +23,13 @@ const props = withDefaults(defineProps<{
 
 const host = useCanvasHost()
 const item = ref<CanvasProductCard | null>(null)
+const added = ref(false)
+
+function add() {
+  if (!item.value) return
+  host.addToBasket?.(item.value)
+  added.value = true
+}
 const loaded = ref(false)
 
 const containerStyle = computed(() => ({
@@ -66,9 +75,24 @@ watch(() => props.product, load)
             <s v-if="item.compareAt" class="ml-2 text-base text-gray-400">{{ item.compareAt }}</s>
           </p>
           <p v-if="item.excerpt" class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ item.excerpt }}</p>
-          <a :href="item.path" class="canvas-product-button inline-flex items-center rounded-lg bg-primary-600 px-5 py-3 font-semibold text-white hover:bg-primary-700">
-            {{ item.available ? buttonText : 'Sold out' }}
-          </a>
+          <div class="flex flex-wrap items-center gap-3">
+            <button
+              v-if="item.available && item.variantId && host.addToBasket"
+              type="button"
+              class="canvas-product-button inline-flex items-center rounded-lg bg-primary-600 px-5 py-3 font-semibold text-white hover:bg-primary-700"
+              @click="add"
+            >
+              {{ addText }}
+            </button>
+            <a
+              :href="item.path"
+              class="inline-flex items-center rounded-lg px-5 py-3 font-semibold"
+              :class="item.available && item.variantId && host.addToBasket ? 'border border-gray-300 dark:border-gray-700' : 'canvas-product-button bg-primary-600 text-white hover:bg-primary-700'"
+            >
+              {{ item.available ? buttonText : 'Sold out' }}
+            </a>
+          </div>
+          <p v-if="added" class="text-sm" role="status">Added to your basket. <a href="/checkout" class="underline font-medium">View basket</a></p>
         </div>
       </div>
     </div>

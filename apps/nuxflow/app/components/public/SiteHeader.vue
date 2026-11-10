@@ -18,6 +18,7 @@ interface SitePublic {
   logoSize: 'sm' | 'md' | 'lg'
   logoUrl: string | null
   canonicalBase: string
+  shop?: { currency: string } | null
 }
 
 const logoHeightClass = computed(() => {
@@ -33,6 +34,8 @@ const { data: site } = await useFetch<SitePublic>('/api/public/site', {
 const { data: menu } = await useFetch<{ items: unknown[] } | null>('/api/public/menus/header', {
   headers: useRequestHeaders(['host']),
 })
+
+const cart = useCart()
 
 const navItems = computed<MenuItem[]>(() => (menu.value?.items ?? []) as MenuItem[])
 
@@ -269,6 +272,17 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <NuxtLink
+          v-if="site?.shop"
+          to="/checkout"
+          class="relative flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+          :aria-label="cart.count.value ? `Basket, ${cart.count.value} ${cart.count.value === 1 ? 'item' : 'items'}` : 'Basket'"
+        >
+          <UIcon name="i-lucide-shopping-bag" class="w-4 h-4" />
+          <ClientOnly>
+            <span v-if="cart.count.value" class="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-primary-600 text-white text-[10px] leading-4 text-center font-semibold">{{ cart.count.value }}</span>
+          </ClientOnly>
+        </NuxtLink>
         <NuxtLink
           v-if="site?.showSearch !== false"
           to="/search"

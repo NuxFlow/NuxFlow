@@ -348,10 +348,27 @@ A product is a page like any other, so it has the editor, revisions, translation
 
 The product page shows the pictures, price, a choice for each option and whether it's in stock. Stock is checked fresh when the page opens, so a cached page never shows something as available that has sold out.
 
-Two blocks show products on other pages: **Products** (a grid, all products or one collection) and **Product** (one product, large, by its slug).
+Two blocks show products on other pages: **Products** (a grid, all products or one collection) and **Product** (one product, large, by its slug). A product with only one variant can go straight into the basket from the Product block.
+
+### Delivery, returns and downloads (Sales → Shop)
+- **Countries you post to:** two-letter codes such as `GB, IE, FR, US`. Leave it empty to sell downloads only. Visitors give their address on Stripe's page.
+- **Delivery:** one option, with a name, a price per order, and optionally free delivery from a basket total. It's only charged when something in the basket is posted.
+- **Returns policy page:** the slug of a page you've written. Buyers have to tick a box to say they've read it before paying. In the UK and EU, people buying online can usually cancel within 14 days; NuxFlow gives you the page and the box, not legal advice.
+- **Downloads:** how many times each download link works and for how many days after paying (5 times and 30 days to start with).
+
+A **Download** variant needs its file: once the product has been saved, use **Upload file** on that variant in the editor (up to 100 MB). The file is kept privately and only reached through the signed link in the buyer's receipt. Download files count towards your storage.
+
+### Buying
+The basket icon in the header opens `/checkout`. The basket is kept in the visitor's browser, so it works without an account. Every time the basket opens, prices and stock are checked again, and anything that can't be bought as it is gets a note.
+
+**Pay securely** sends them to Stripe's checkout, which asks for card details, the delivery address and, with Stripe Tax on, works out the tax. While they pay, the stock for their order is kept for them, about half an hour, so the last one can't be sold twice. If they don't finish, it goes back on sale within a minute or so. If a payment arrives after their stock went back and it's sold out by then, they're refunded in full automatically and emailed to say so.
+
+Afterwards they get a receipt by email, with a link to their order. That link shows the order and any downloads; no account is needed.
+
+Card payments only, as with paid bookings. Stripe needs the `checkout.session.expired` and `charge.refunded` webhook events as well as `checkout.session.completed` (see the [Payments Setup Guide](./payments-setup.md)).
 
 ### Orders
-**Sales → Orders** (admins only) lists everything people have paid for on your site in one place: paid bookings, class passes, and memberships bought in one go. Subscriptions aren't orders; they stay under **Memberships**.
+**Sales → Orders** (admins only) lists everything people have paid for on your site in one place: shop orders, paid bookings, class passes, and memberships bought in one go. A shop order shows where to post it and how often each download has been used. Subscriptions aren't orders; they stay under **Memberships**.
 
 - **Sales** (the default view) shows paid orders, including refunded ones. **Everything** also shows checkouts people started and didn't finish. Unfinished ones are cleared away after 90 days; paid orders are always kept.
 - Search by name, email or order number (`1042` or `#1042`).
