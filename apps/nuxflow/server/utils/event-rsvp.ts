@@ -15,6 +15,8 @@ import { waitUntil } from './cf-env'
 import { hmacSha256Hex, constantTimeEqualHex } from './webhook-crypto'
 import { getStripeProvider, resolveStripeProvider } from './payments/resolve'
 import { bookingAccessLink, bookingOrigin, bookingPaymentsReady, creditsLeft, returnCredits, spendCredits } from './class-passes'
+import { refundPayment, withPendingOrder } from './orders'
+import { toMinorUnits } from '../../shared/lib/money'
 
 /**
  * Bookings for events (`event_rsvps`), free and paid, one-off and repeating.
@@ -598,26 +600,33 @@ const FRESH_BOOKING = {
 } as const
 
 /** Sends someone to Stripe for seats already kept for them. */
-async function openCheckout(event: H3Event, slot: RsvpSlot, row: Pick<RsvpRow, 'id' | 'email' | 'seats'>): Promise<string> {
+async function openCheckout(event: H3Event, slot: RsvpSlot, row: Pick<RsvpRow, 'id' | 'email' | 'seats'> & { name?: string }): Promise<string> {
   const siteId = requireSiteId(event)
   const stripe = await getStripeProvider(event)
   const origin = bookingOrigin(event)
   const when = formatEventWhen(eventTimes(slot), slot.timeZone, slot.locale)
   const dateQuery = slot.occurrenceDate ? `?date=${slot.occurrenceDate}` : ''
-  const session = await stripe.createPaymentCheckout({
+  const currency = slot.eventCurrency || 'USD'
+  const order = {
+    email: row.email,
+    name: row.name ?? '',
+    currency,
+    lines: [{ kind: 'booking' as const, refId: slot.id, recordId: row.id, name: slot.title, description: when, quantity: row.seats, unitMinor: toMinorUnits(slot.eventPrice ?? 0, currency) }],
+  }
+  const session = await withPendingOrder(event, order, ({ id: orderId }) => stripe.createPaymentCheckout({
     customerEmail: row.email,
     item: {
       name: slot.title,
       description: when,
       amount: slot.eventPrice ?? 0,
-      currency: slot.eventCurrency || 'USD',
+      currency,
       quantity: row.seats,
     },
     successUrl: `${origin}/booking/thanks?type=class`,
     cancelUrl: `${origin}${publicPathForItem({ slug: slot.slug }, slot.locale)}${dateQuery}`,
-    metadata: { nuxflowBooking: 'rsvp', siteId, rsvpId: row.id },
+    metadata: { nuxflowKind: 'booking', siteId, rsvpId: row.id, orderId },
     expiresInMinutes: CHECKOUT_MINUTES,
-  })
+  }))
   await useDb(event).update(eventRsvps)
     .set({ stripeSessionId: session.id, paymentMethod: 'card', updatedAt: new Date().toISOString() })
     .where(and(eq(eventRsvps.id, row.id), eq(eventRsvps.siteId, siteId)))
@@ -697,7 +706,7 @@ export async function submitRsvp(event: H3Event, item: RsvpSlot, input: RsvpInpu
 
   if (method === 'card' && await holdSeats(db, siteId, item, id)) {
     try {
-      return { status: 'checkout', url: await openCheckout(event, item, { id, email, seats: input.seats }) }
+      return { status: 'checkout', url: await openCheckout(event, item, { id, email, name, seats: input.seats }) }
     }
     catch (err) {
       console.error('[event-rsvp] Checkout failed:', err)
@@ -945,9 +954,8 @@ async function refundBooking(event: H3Event, row: RsvpRow): Promise<RefundNote> 
   const now = new Date().toISOString()
 
   if (row.paymentMethod === 'card' && row.paymentStatus === 'paid' && row.stripePaymentIntentId) {
-    const stripe = await getStripeProvider(event)
     try {
-      await stripe.refundPayment({ paymentIntentId: row.stripePaymentIntentId, idempotencyKey: `booking-refund-${row.id}-${row.stripePaymentIntentId}` })
+      await refundPayment(event, { paymentIntentId: row.stripePaymentIntentId, idempotencyKey: `booking-refund-${row.id}-${row.stripePaymentIntentId}`, reason: 'Booking cancelled' })
     }
     catch (err) {
       console.error('[event-rsvp] Refund failed:', err)
@@ -1209,8 +1217,7 @@ export async function settleBookingPayment(event: H3Event, payment: { rsvpId: st
     }
   }
   if (payment.paymentIntentId) {
-    const stripe = await getStripeProvider(event)
-    await stripe.refundPayment({ paymentIntentId: payment.paymentIntentId, idempotencyKey: `booking-refund-${payment.rsvpId}-${payment.paymentIntentId}` })
+    await refundPayment(event, { paymentIntentId: payment.paymentIntentId, idempotencyKey: `booking-refund-${payment.rsvpId}-${payment.paymentIntentId}`, reason: 'Paid after the place had gone' })
   }
   if (row && slot) {
     await sendRsvpEmail(event, slot, row, 'no_place_refunded').catch(err => console.error('[event-rsvp] Refund email failed:', err))

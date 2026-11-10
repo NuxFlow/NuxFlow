@@ -3,6 +3,11 @@ import { resolve } from 'node:path'
 
 const _dirname = fileURLToPath(new URL('.', import.meta.url))
 
+// API routes only ever called from outside the app (payment providers' webhooks, MCP
+// clients), never through typed `$fetch` — kept out of the generated route types with the
+// non-/api routes, for the same TS2589 headroom.
+const UNTYPED_API_ROUTES = [/\/webhooks?\//, /webhook$/, /^\/api\/v1\/mcp$/]
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2026-08-27',
@@ -69,7 +74,7 @@ export default defineNuxtConfig({
     // out of the types to leave room for the routes that are.
     hooks: {
       'types:extend'(types) {
-        types.routes = Object.fromEntries(Object.entries(types.routes).filter(([route]) => route.startsWith('/api/')))
+        types.routes = Object.fromEntries(Object.entries(types.routes).filter(([route]) => route.startsWith('/api/') && !UNTYPED_API_ROUTES.some(re => re.test(route))))
       },
     },
     rollupConfig: {

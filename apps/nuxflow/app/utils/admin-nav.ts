@@ -77,6 +77,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   // Admin only: it's a list of visitors' email addresses (personal data).
   { label: 'Mailing list', to: '/admin/mailing-list', icon: 'i-lucide-mail-plus', minRole: 'admin', group: 'audience' },
 
+  { label: 'Orders', to: '/admin/orders', icon: 'i-lucide-receipt', minRole: 'admin', group: 'sales' },
   { label: 'Memberships', to: '/admin/memberships', icon: 'i-lucide-badge-check', minRole: 'admin', group: 'sales' },
   { label: 'Class passes', to: '/admin/class-passes', icon: 'i-lucide-ticket', minRole: 'admin', group: 'sales' },
 

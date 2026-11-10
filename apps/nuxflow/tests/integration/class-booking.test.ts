@@ -299,7 +299,7 @@ describe('paying by card', () => {
     expect(mockSend).not.toHaveBeenCalled()
 
     const args = stripe.createPaymentCheckout.mock.calls[0]![0]
-    expect(args).toMatchObject({ customerEmail: a, item: { amount: 12, currency: 'GBP', quantity: 2 }, metadata: { nuxflowBooking: 'rsvp', siteId: SITE, rsvpId: held.id } })
+    expect(args).toMatchObject({ customerEmail: a, item: { amount: 12, currency: 'GBP', quantity: 2 }, metadata: { nuxflowKind: 'booking', siteId: SITE, rsvpId: held.id } })
     // Stripe's minimum, and the place outlasts it.
     expect(args.expiresInMinutes).toBeGreaterThanOrEqual(30)
     expect(Date.parse(held.holdExpiresAt!)).toBeGreaterThan(Date.now() + args.expiresInMinutes * 60_000)
@@ -890,7 +890,7 @@ describe('one-time membership tiers', () => {
       headers: { host: 'book.localhost' },
     }) as unknown as H3Event) as { url: string }
     expect(result.url).toContain('checkout.stripe.test')
-    expect(stripe.createPaymentCheckout).toHaveBeenCalledWith(expect.objectContaining({ priceId: 'price_once', metadata: { userId, siteId: SITE, tierId } }))
+    expect(stripe.createPaymentCheckout).toHaveBeenCalledWith(expect.objectContaining({ priceId: 'price_once', metadata: expect.objectContaining({ nuxflowKind: 'tier', userId, siteId: SITE, tierId }) }))
 
     const session = { id: 'cs_once', mode: 'payment', payment_status: 'paid', payment_intent: 'pi_once', amount_total: 10000, currency: 'gbp', metadata: { userId, siteId: SITE, tierId } }
     expect(await handleOneOffCheckoutCompleted(ev(), session)).toBe(true)

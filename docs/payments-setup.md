@@ -201,7 +201,7 @@ Paid booking stays closed until the site has both the Stripe **secret key** and 
 The Stripe webhook also needs the `checkout.session.expired` and `charge.refunded` events from the list above. If your webhook was set up before you used bookings, add them:
 
 - `checkout.session.expired` frees a held place when an abandoned checkout expires. Without it, the place stays held until the hourly sweep after the hold runs out.
-- `charge.refunded` keeps a booking or pass correct when you refund from the Stripe Dashboard.
+- `charge.refunded` keeps a booking, pass and its order correct when you refund from the Stripe Dashboard.
 
 There is nothing to sync: NuxFlow sends each price to Stripe at checkout, so no products or prices need creating there.
 

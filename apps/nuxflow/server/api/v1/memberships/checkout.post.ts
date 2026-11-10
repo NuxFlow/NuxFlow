@@ -12,6 +12,8 @@ import { rethrowAsProviderError } from '../../../utils/errors'
 import { rateLimit } from '../../../utils/rate-limit'
 import { writeAuditLog } from '../../../utils/audit'
 import { requireSiteId } from '../../../utils/site-context'
+import { withPendingOrder } from '../../../utils/orders'
+import { toMinorUnits } from '../../../../shared/lib/money'
 
 const bodySchema = z.object({
   tierId: z.string(),
@@ -139,13 +141,21 @@ export default defineEventHandler(async (event) => {
         ?? (await stripe.createCustomer(userEmail, userName, siteId)).id
       // A one-time price can't go through a subscription checkout: Stripe refuses it.
       if (tier.interval === 'one_time') {
-        const checkoutSession = await stripe.createPaymentCheckout({
+        const priceId = tier.stripePriceId
+        const order = {
+          email: userEmail,
+          name: userName,
+          userId,
+          currency: tier.currency,
+          lines: [{ kind: 'tier' as const, refId: tier.id, name: tier.name, quantity: 1, unitMinor: toMinorUnits(tier.price, tier.currency) }],
+        }
+        const checkoutSession = await withPendingOrder(event, order, ({ id: orderId }) => stripe.createPaymentCheckout({
           customerId,
-          priceId: tier.stripePriceId,
+          priceId,
           successUrl: body.returnUrl,
           cancelUrl: body.returnUrl,
-          metadata: { userId, siteId, tierId: tier.id },
-        })
+          metadata: { nuxflowKind: 'tier', userId, siteId, tierId: tier.id, orderId },
+        }))
         return { url: checkoutSession.url }
       }
       const checkoutSession = await stripe.createCheckoutSession({
