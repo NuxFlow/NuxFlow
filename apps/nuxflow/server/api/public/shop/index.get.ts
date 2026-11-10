@@ -4,10 +4,14 @@ import { requireSiteId } from '../../../utils/site-context'
 import { getSiteInfo } from '../../../utils/site-info'
 import { getShopSettings, requireShopOn } from '../../../utils/shop'
 import { listProductCards, liveStock } from '../../../utils/products'
+import { customerOrderView } from '../../../utils/shop-checkout'
 
 const querySchema = z.object({
   // Live stock for one product's page, which is cached whole.
   product: z.string().min(1).max(64).optional(),
+  // A customer's own order, from the signed link in their email.
+  order: z.string().min(1).max(64).optional(),
+  token: z.string().max(128).optional(),
   // Otherwise a list for the Products and Product blocks.
   collection: z.string().trim().max(200).optional(),
   // Comma-separated product slugs, in the order to show them.
@@ -22,6 +26,14 @@ export default defineEventHandler(async (event) => {
   const query = parseQuery(event, querySchema)
   const db = useReplicaDb(event)
   const siteId = requireSiteId(event)
+
+  if (query.order) {
+    setHeader(event, 'Cache-Control', 'private, no-store')
+    setHeader(event, 'X-Robots-Tag', 'noindex')
+    const view = await customerOrderView(event, query.order, query.token ?? '')
+    if (!view) notFound("This order link isn't valid.")
+    return { order: view }
+  }
 
   if (query.product) {
     setHeader(event, 'Cache-Control', 'no-store')

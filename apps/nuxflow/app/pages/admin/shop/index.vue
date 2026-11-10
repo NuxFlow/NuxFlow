@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { fromMinorUnits, toMinorUnits } from '#shared/lib/money'
+
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Shop' })
 
@@ -7,6 +9,13 @@ interface ShopSettings {
   currency: string
   pricesIncludeTax: boolean
   stripeTax: boolean
+  shippingCountries: string[]
+  shippingLabel: string
+  shippingRateMinor: number
+  freeShippingOverMinor: number | null
+  returnsPage: string
+  downloadLimit: number
+  downloadDays: number
 }
 
 interface ShopStatus {
@@ -21,9 +30,33 @@ const { data, error, refresh } = useFetch<ShopStatus>('/api/v1/shop', { server: 
 const { run, isRunning } = useAdminAction()
 const access = useAdminAccessState()
 
-const form = reactive({ currency: 'GBP', pricesIncludeTax: true, stripeTax: false })
+const form = reactive({
+  currency: 'GBP',
+  pricesIncludeTax: true,
+  stripeTax: false,
+  // Typed as text ("GB, IE, US"); sent as a list.
+  countries: 'GB',
+  shippingLabel: 'Standard delivery',
+  shippingRate: 0,
+  freeOver: null as number | null,
+  returnsPage: '',
+  downloadLimit: 5,
+  downloadDays: 30,
+})
 watch(() => data.value?.settings, (s) => {
-  if (s) Object.assign(form, { currency: s.currency, pricesIncludeTax: s.pricesIncludeTax, stripeTax: s.stripeTax })
+  if (!s) return
+  Object.assign(form, {
+    currency: s.currency,
+    pricesIncludeTax: s.pricesIncludeTax,
+    stripeTax: s.stripeTax,
+    countries: s.shippingCountries.join(', '),
+    shippingLabel: s.shippingLabel,
+    shippingRate: fromMinorUnits(s.shippingRateMinor, s.currency),
+    freeOver: s.freeShippingOverMinor === null ? null : fromMinorUnits(s.freeShippingOverMinor, s.currency),
+    returnsPage: s.returnsPage,
+    downloadLimit: s.downloadLimit,
+    downloadDays: s.downloadDays,
+  })
 }, { immediate: true })
 
 const taxItems = [
@@ -45,7 +78,19 @@ async function setEnabled(enabled: boolean) {
 
 async function saveSettings() {
   await run(async () => {
-    await $fetch<unknown, string>('/api/v1/shop', { method: 'POST', body: { action: 'settings', config: { ...form } } })
+    const config = {
+      currency: form.currency,
+      pricesIncludeTax: form.pricesIncludeTax,
+      stripeTax: form.stripeTax,
+      shippingCountries: form.countries.split(/[\s,]+/).map(c => c.trim().toUpperCase()).filter(Boolean),
+      shippingLabel: form.shippingLabel,
+      shippingRateMinor: toMinorUnits(Number(form.shippingRate) || 0, form.currency),
+      freeShippingOverMinor: form.freeOver === null || String(form.freeOver) === '' ? null : toMinorUnits(Number(form.freeOver), form.currency),
+      returnsPage: form.returnsPage.trim(),
+      downloadLimit: Number(form.downloadLimit),
+      downloadDays: Number(form.downloadDays),
+    }
+    await $fetch<unknown, string>('/api/v1/shop', { method: 'POST', body: { action: 'settings', config } })
     await refresh()
   }, { key: 'save', successTitle: 'Shop settings saved', errorTitle: 'Couldn\'t save the shop settings' })
 }
@@ -112,6 +157,28 @@ async function saveSettings() {
               Stripe charges an extra fee per sale for this. It only collects tax where you've told Stripe you're registered, which is your job to arrange. Leave it off if you aren't registered for VAT or sales tax.
             </template>
           </UFormField>
+
+          <h2 class="font-semibold pt-2">Delivery</h2>
+          <UFormField label="Countries you post to" hint="Two-letter codes, separated by commas, such as GB, IE, FR, US. Leave empty to sell downloads only.">
+            <UInput v-model="form.countries" class="w-full uppercase" />
+          </UFormField>
+          <div class="grid gap-3 sm:grid-cols-3">
+            <UFormField label="Delivery name" required><UInput v-model="form.shippingLabel" maxlength="100" required class="w-full" /></UFormField>
+            <UFormField :label="`Price per order (${form.currency})`"><UInput v-model.number="form.shippingRate" type="number" min="0" step="0.01" class="w-full" /></UFormField>
+            <UFormField :label="`Free from (${form.currency})`" hint="Blank: never free"><UInput v-model.number="form.freeOver" type="number" min="0" step="0.01" class="w-full" /></UFormField>
+          </div>
+
+          <h2 class="font-semibold pt-2">Returns</h2>
+          <UFormField label="Returns policy page" hint="The slug of a page you've written, such as returns. Buyers tick a box to say they've read it. In the UK and EU people buying online can usually cancel within 14 days; this isn't legal advice, so check what applies to you.">
+            <UInput v-model="form.returnsPage" placeholder="returns" class="w-64" />
+          </UFormField>
+
+          <h2 class="font-semibold pt-2">Downloads</h2>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <UFormField label="Downloads per purchase" required><UInput v-model.number="form.downloadLimit" type="number" min="1" max="100" required class="w-32" /></UFormField>
+            <UFormField label="Link works for (days)" required><UInput v-model.number="form.downloadDays" type="number" min="1" max="3650" required class="w-32" /></UFormField>
+          </div>
+
           <div class="flex justify-end">
             <UButton type="submit" :loading="isRunning('save')">Save</UButton>
           </div>

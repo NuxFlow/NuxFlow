@@ -85,6 +85,21 @@ const stock = computed(() => {
 })
 
 const canBuy = computed(() => stock.value.state !== 'out')
+
+// ── Basket ────────────────────────────────────────────────────────────────
+
+const cart = useCart()
+const route = useRoute()
+const quantity = ref(1)
+const added = ref(false)
+watch(variant, () => { added.value = false })
+
+function addToBasket() {
+  const v = variant.value
+  if (!v) return
+  cart.add({ variantId: v.id, quantity: quantity.value, title: props.title, label: v.label, price: v.price, image: v.imageUrl || props.image || null, path: route.path })
+  added.value = true
+}
 defineExpose({ variant, canBuy })
 
 // ── Pictures ──────────────────────────────────────────────────────────────
@@ -151,6 +166,14 @@ watch(variant, () => { if (variant.value?.imageUrl) shown.value = -1 })
 
       <p class="text-sm" :class="stock.state === 'out' ? 'text-red-600' : stock.state === 'low' ? 'text-amber-600' : 'text-green-700 dark:text-green-500'">
         {{ stock.message }}<template v-if="variant?.kind === 'digital' && canBuy"> · Download straight after paying</template>
+      </p>
+
+      <div v-if="canBuy && variant" class="flex flex-wrap items-center gap-3">
+        <UInputNumber v-model="quantity" :min="1" :max="20" class="w-28" aria-label="Quantity" />
+        <UButton size="lg" icon="i-lucide-shopping-bag" @click="addToBasket">Add to basket</UButton>
+      </div>
+      <p v-if="added" class="text-sm text-gray-600 dark:text-gray-400" role="status">
+        Added to your basket. <NuxtLink to="/checkout" class="underline font-medium">View basket</NuxtLink>
       </p>
 
       <slot :variant="variant" :can-buy="canBuy" />

@@ -278,6 +278,7 @@ Good to know:
 | **Emails a month** | Hard | Ordinary emails (form notifications, notices, inbox replies) are held back until the 1st. **Sign-in, password, invitation and security emails always go out.** |
 | **Emails received a month** | Hard | Mail to the site's own addresses (inbox and post-by-email) is no longer kept until the 1st. Mail set to forward still forwards. The site's admins are told once that month. |
 | **Own domains** | Hard | Connecting another of the customer's own domains is refused. 0 means not included. |
+| **Products** | Hard | A new product is refused once the site has this many, in any status. Only matters when the plan includes the shop (below). |
 | **Video minutes stored** | Hard | Uploading to your Cloudflare Stream account is refused once the site's videos add up to this many minutes, and an upload longer than what's left is stopped by Stream itself. 0 (the default, also for plans made before this existed) means no video uploads; YouTube and Vimeo links always work. Customers who add their own Stream account in Settings → Media aren't counted. Stream bills you $5 a month per 1,000 minutes stored, plus $1 per 1,000 minutes watched (limited by the row above). |
 | **Video minutes watched a month** | Hard | Minutes of the site's videos in your Stream account that visitors watch, counted hourly from Stream's analytics. **Needs the analytics API token** (Account Analytics Read) on Super Admin → Platform → Visitor analytics; without it nothing is counted, so nothing is enforced. At the limit the site's uploaded videos pause until the 1st (Stream is told to require signed links, and none are given out), its admins are told, and you get the usual 80% and 100% notices. Raising the plan plays them again within the hour. 0 (the default) means none, so set it whenever you set **Video minutes stored**. Analytics arrive a few minutes late, so a site can go slightly over before it's paused. |
 | **Page views a month** | Soft | Nothing is blocked. |
@@ -289,6 +290,7 @@ A plan also has **included features**: things that cost you money per use and ar
 
 | Feature | What it does |
 |---|---|
+| **Shop** | Lets the site turn on its shop in Sales → Shop: products, the basket, checkout and downloads. Customers are paid into their own Stripe account; you never handle their money and take no cut. Download files count towards the plan's storage and receipts towards its emails a month. Without it the switch is locked; a site moved to a plan without it has its shop hidden straight away (nothing is deleted). |
 | **Image resizing (Cloudflare Image Transformations)** | Lets the site turn on Image Transformations in Settings → Media. They're billed to your Cloudflare zone (5,000 unique transformations a month free, then $0.50 per 1,000), whichever domain the site uses. Without it the switch is locked; a site moved to a plan without it stops using it straight away. |
 
 Monthly limits reset on the 1st of the month (UTC).

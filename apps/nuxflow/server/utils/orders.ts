@@ -36,6 +36,9 @@ export interface NewOrderLine {
   description?: string | null
   quantity: number
   unitMinor: number
+  /** Product lines: the product's content item, and whether it's downloaded. */
+  productId?: string | null
+  isDigital?: boolean
 }
 
 export interface NewOrder {
@@ -46,6 +49,10 @@ export interface NewOrder {
   lines: NewOrderLine[]
   /** 'paid' only for a payment that arrived with no order behind it (see booking-webhooks.ts). */
   status?: 'pending' | 'paid'
+  /** Shop orders: when the stock kept for this checkout goes back. */
+  holdExpiresAt?: string | null
+  shippingMinor?: number
+  termsAcceptedAt?: string | null
   stripeSessionId?: string | null
   stripePaymentIntentId?: string | null
   totalMinor?: number
@@ -78,6 +85,9 @@ export async function createOrder(db: Db, siteId: string, input: NewOrder): Prom
         stripeSessionId: input.stripeSessionId ?? null,
         stripePaymentIntentId: input.stripePaymentIntentId ?? null,
         paidAt: input.status === 'paid' ? now : null,
+        holdExpiresAt: input.holdExpiresAt ?? null,
+        shippingMinor: input.shippingMinor ?? 0,
+        termsAcceptedAt: input.termsAcceptedAt ?? null,
       }).returning()
     }
     catch (err) {
@@ -98,6 +108,8 @@ export async function createOrder(db: Db, siteId: string, input: NewOrder): Prom
       unitMinor: line.unitMinor,
       totalMinor: line.unitMinor * line.quantity,
       sortOrder: i,
+      productId: line.productId ?? null,
+      isDigital: line.isDigital ?? false,
     })))
   }
   return order!
@@ -111,7 +123,7 @@ export async function attachCheckoutSession(db: Db, siteId: string, orderId: str
 
 /** An order whose checkout never opened (the provider refused or was unreachable). */
 export async function discardOrder(db: Db, siteId: string, orderId: string): Promise<void> {
-  await db.delete(orders).where(and(eq(orders.id, orderId), eq(orders.siteId, siteId), eq(orders.status, 'pending')))
+  await db.delete(orders).where(and(eq(orders.id, orderId), eq(orders.siteId, siteId), inArray(orders.status, ['pending', 'cancelled'])))
 }
 
 /**

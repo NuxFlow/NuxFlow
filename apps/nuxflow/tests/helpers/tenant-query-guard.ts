@@ -171,6 +171,11 @@ export const ALLOWLIST: AllowlistEntry[] = [
     reason: 'Nightly retention clean-up for every site.',
   },
   {
+    file: 'server/scheduled/shop-holds.ts',
+    tables: ['orders'],
+    reason: 'The every-minute sweep: shop checkouts on every site whose stock hold has run out without payment. The stock of each one is then given back by its own site_id.',
+  },
+  {
     file: 'server/scheduled/reconcile-stuck-videos.ts',
     tables: ['video_assets'],
     reason: 'Marks video uploads stuck in processing as failed, on every site.',

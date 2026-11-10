@@ -2,7 +2,9 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { getContentItemOrThrow } from '../../../utils/content-queries'
-import { contentItems } from '@nuxflow/db/schema'
+import { contentItems, productVariants } from '@nuxflow/db/schema'
+import { and, eq, isNotNull } from 'drizzle-orm'
+import { deleteShopFiles } from '../../../utils/shop-downloads'
 import { scopedById } from '../../../utils/db-helpers'
 import { purgeContentCache } from '../../../utils/edge-cache'
 import { getContentTermIds, getTermRefsWithAncestors } from '../../../utils/taxonomy'
@@ -41,7 +43,11 @@ export default defineEventHandler(async (event) => {
     before: existing,
   })
 
+  // A product's download files: the variant rows go with the item (FK cascade), the files don't.
+  const files = await db.select({ key: productVariants.fileKey }).from(productVariants)
+    .where(and(eq(productVariants.contentItemId, id), eq(productVariants.siteId, siteId), isNotNull(productVariants.fileKey)))
   await batchWithAudit(db, [itemDelete], auditInsert)
+  if (files.length) await deleteShopFiles(event, files.map(f => f.key!))
 
   await purgeContentCache(event, {
     published: existing.status === 'published',

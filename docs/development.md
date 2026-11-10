@@ -499,6 +499,44 @@ Don't include `seo.indexnow_key`, since each site generates its own when IndexNo
 
 ---
 
+## Developer Reference: Orders & Shop
+
+### Money
+Every shop table stores money as **whole minor units**: integers in pence or cents, or whole yen for zero-decimal currencies. These are exactly the numbers Stripe uses. The rules are in `shared/lib/money.ts` (`toMinorUnits`, `fromMinorUnits`, `formatMoney`, `currencyDecimals`). The older booking and pass columns hold decimals and are converted at the edges. Don't add a new decimal money column.
+
+### Orders
+`orders`, `order_lines` and `order_refunds` (`packages/db/src/schema/shop.ts`, `server/utils/orders.ts`) record every one-off payment: shop orders, card bookings, class passes and one-time membership tiers. To sell something new for money:
+
+1. Make a pending order before going to Stripe, with `withPendingOrder()` (or `createOrder()`). A line's `kind` says what it is, `ref_id` what was bought, and `record_id` what buying it made (the booking, the holding, the subscription).
+2. Put `metadata.nuxflowKind` and `metadata.orderId` on the Checkout session.
+3. Handle that kind in `server/utils/booking-webhooks.ts`. `markOrderPaid()` is safe to run twice, because Stripe redelivers.
+4. Give money back only through `refundPayment()`, with an idempotency key of your own. It records the refund against the order. `applyRefundToRecords()` is where what was bought follows a full refund.
+
+`refunded_minor` is the larger of our own recorded refunds and the total Stripe last reported in `charge.refunded`, so refunds made here and in Stripe's dashboard never count twice.
+
+### Products
+A product is a content item of type `product`, with its shop data in the side tables `products` and `product_variants`, never as columns on `content_items`. The editor sends it as `product` on content POST/PATCH, and `planProductSave()` (`server/utils/products.ts`) turns it into batch statements.
+
+- Variant ids are ULIDs made in the browser, so autosave can't create one twice.
+- Stock is changed by difference (`stockWas`), never overwritten.
+
+The pure rules (option combinations, stock messages, basket totals) are in `shared/lib/shop.ts`, with unit tests in `tests/unit/shop-rules.test.ts`.
+
+Don't import `shared/lib` from `app/utils/*.ts` by a relative path. Typecheck and the unit tests pass, but the production build can't resolve it. Use `#shared/lib/…` in components and composables, or keep the util free of it.
+
+### Checkout and stock
+`server/utils/shop-checkout.ts`:
+
+- Each line takes stock with one conditional `UPDATE … WHERE stock >= qty` and records it in `order_lines.stock_taken`.
+- `releaseOrderStock()` gives it back. It claims each line in a statement that also requires the order to be unpaid, so a payment landing mid-sweep keeps its stock.
+- The `shop-holds` task (every minute, on the partial index `idx_orders_pending_hold`) releases checkouts whose hold has run out.
+- `settleShopOrder()` handles payment, including late payments that retake stock or are refunded.
+
+Integration tests: `tests/integration/orders.test.ts`, `products.test.ts`, `shop-checkout.test.ts`.
+
+### Downloads
+`server/utils/shop-downloads.ts`. Files are stored at `_private/<siteId>/shop/<variantId>/…`, outside the public media route, and served by `server/routes/_nuxflow/download/[lineId].get.ts` with an HMAC token. The download count goes up in the same statement that checks the limit.
+
 ## Developer Reference: Multilingual & Events
 
 ### 1. Multilingual Serving & Backups

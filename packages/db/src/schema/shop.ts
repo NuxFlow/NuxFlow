@@ -43,10 +43,19 @@ export const orders = sqliteTable('orders', {
   stripeSessionId: text('stripe_session_id'),
   stripePaymentIntentId: text('stripe_payment_intent_id'),
   paidAt: text('paid_at'),
+  // Shop orders: stock is kept for them until this passes (the checkout's end plus a margin),
+  // then given back by the every-minute sweep if they haven't paid.
+  holdExpiresAt: text('hold_expires_at'),
+  // Where to post it, as Stripe Checkout collected it. Null for anything with nothing to post.
+  shippingAddress: text('shipping_address', { mode: 'json' }).$type<{ name?: string | null; phone?: string | null; line1?: string | null; line2?: string | null; city?: string | null; state?: string | null; postalCode?: string | null; country?: string | null }>(),
+  // When the customer ticked "I've read the returns policy".
+  termsAcceptedAt: text('terms_accepted_at'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   uniqueIndex('uq_orders_site_number').on(t.siteId, t.number),
+  // The hold sweep runs every minute across every site.
+  index('idx_orders_pending_hold').on(t.holdExpiresAt).where(sql`status = 'pending' and hold_expires_at is not null`),
   index('idx_orders_site_created').on(t.siteId, t.createdAt),
   index('idx_orders_site_status').on(t.siteId, t.status),
   index('idx_orders_site_email').on(t.siteId, t.email),
@@ -70,6 +79,14 @@ export const orderLines = sqliteTable('order_lines', {
   unitMinor: integer('unit_minor').notNull(),
   totalMinor: integer('total_minor').notNull(),
   sortOrder: integer('sort_order').notNull().default(0),
+  // Product lines: the product (content item) and whether it's posted or downloaded.
+  productId: text('product_id'),
+  isDigital: integer('is_digital', { mode: 'boolean' }).notNull().default(false),
+  // How many were taken from the variant's stock for this line: while the customer pays,
+  // and kept once paid. Given back (and set to 0) when an unpaid checkout lapses.
+  stockTaken: integer('stock_taken').notNull().default(0),
+  // Times a digital line has been downloaded (see shop-downloads.ts).
+  downloads: integer('downloads').notNull().default(0),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_order_lines_order').on(t.orderId),
@@ -132,6 +149,11 @@ export const productVariants = sqliteTable('product_variants', {
   weightGrams: integer('weight_grams'),
   kind: text('kind', { enum: ['physical', 'digital'] }).notNull().default('physical'),
   imageUrl: text('image_url'),
+  // A digital variant's file, in the private part of the media bucket
+  // (_private/<siteId>/shop/…), handed out only through signed download links.
+  fileKey: text('file_key'),
+  fileName: text('file_name'),
+  fileSize: integer('file_size'),
   sortOrder: integer('sort_order').notNull().default(0),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),

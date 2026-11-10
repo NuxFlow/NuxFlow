@@ -25,16 +25,27 @@ export const shopConfigSchema = z.object({
   currency: z.string().trim().toUpperCase().regex(CURRENCY_RE, 'Use a three-letter currency code, such as GBP'),
   pricesIncludeTax: z.boolean(),
   stripeTax: z.boolean(),
+  shippingCountries: z.array(z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, 'Use two-letter country codes, such as GB')).max(250),
+  shippingLabel: z.string().trim().min(1).max(100),
+  shippingRateMinor: z.number().int().min(0).max(10_000_000),
+  freeShippingOverMinor: z.number().int().min(0).max(100_000_000).nullable(),
+  returnsPage: z.string().trim().max(500).regex(/^[a-z0-9-]*$/, "Use the page's slug, such as returns"),
+  downloadLimit: z.number().int().min(1).max(100),
+  downloadDays: z.number().int().min(1).max(3650),
 })
 
 export type ShopConfig = z.infer<typeof shopConfigSchema>
 
-/** The stored config, read leniently: anything missing or broken is the default. */
+/** The stored config, read leniently: anything missing or broken is the default, field by field. */
 export function parseShopConfig(value: unknown): ShopConfig {
-  const base = { currency: DEFAULT_SHOP_SETTINGS.currency, pricesIncludeTax: DEFAULT_SHOP_SETTINGS.pricesIncludeTax, stripeTax: DEFAULT_SHOP_SETTINGS.stripeTax }
-  if (!value || typeof value !== 'object') return base
-  const parsed = shopConfigSchema.partial().safeParse(value)
-  return parsed.success ? { ...base, ...Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined)) } : base
+  const { enabled: _, ...base } = DEFAULT_SHOP_SETTINGS
+  if (!value || typeof value !== 'object') return { ...base }
+  const out: ShopConfig = { ...base }
+  for (const [key, field] of Object.entries(shopConfigSchema.shape)) {
+    const parsed = field.safeParse((value as Record<string, unknown>)[key])
+    if (parsed.success) (out as Record<string, unknown>)[key] = parsed.data
+  }
+  return out
 }
 
 /** Whether the shop is on for this site: switched on, and (on a hosting platform) in its plan. */
@@ -107,7 +118,7 @@ export async function ensureShopContent(db: Db, siteId: string): Promise<{ produ
 }
 
 /** Admin → Shop: switch on or off, and save the settings. */
-export async function saveShopSettings(event: H3Event, input: { enabled?: boolean; config?: ShopConfig }): Promise<ShopSettings> {
+export async function saveShopSettings(event: H3Event, input: { enabled?: boolean; config?: Partial<ShopConfig> }): Promise<ShopSettings> {
   const db = useDb(event)
   const siteId = requireSiteId(event)
   const entries: [string, unknown][] = []
@@ -116,7 +127,11 @@ export async function saveShopSettings(event: H3Event, input: { enabled?: boolea
     await ensureShopContent(db, siteId)
   }
   if (input.enabled !== undefined) entries.push([SHOP_ENABLED_KEY, input.enabled])
-  if (input.config) entries.push([SHOP_CONFIG_KEY, input.config])
+  if (input.config) {
+    // Merged with what's stored, so a form that sends some fields keeps the rest.
+    const current = parseShopConfig(await resolveSetting(event, SHOP_CONFIG_KEY))
+    entries.push([SHOP_CONFIG_KEY, { ...current, ...Object.fromEntries(Object.entries(input.config).filter(([, v]) => v !== undefined)) }])
+  }
   if (entries.length) {
     await batchSaveSettings(event, entries)
     // Prices, the cart and product pages all change with these, and they're cached whole.

@@ -597,6 +597,7 @@ onUnmounted(() => {
           v-if="form.product"
           v-model:product="form.product"
           :currency="shopCurrency"
+          :saved="!isNew"
         />
 
         <!-- Excerpt & featured image -->

@@ -59,6 +59,9 @@ const BLOCKED_WRITE_PREFIXES = [
   '/api/public/rsvp',
   '/api/public/class-passes',
   '/api/public/bookings',
+  // Checkout takes stock and opens Stripe; the shop's admin uploads go to storage.
+  '/api/public/shop',
+  '/api/v1/shop',
   // Installing a starter downloads from the catalog and fills storage.
   '/api/v1/starters',
   // The demo is seeded by demo-reset.ts; the first visitor to a fresh database must not

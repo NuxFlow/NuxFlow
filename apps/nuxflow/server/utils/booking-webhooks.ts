@@ -8,6 +8,7 @@ import { requireSiteId } from './site-context'
 import { assertWebhookSiteMatch } from './payments/webhook-sync'
 import { recordPassPurchase, sendPassPurchasedEmail } from './class-passes'
 import { applyStripeRefundToBookings, releaseExpiredCheckout, settleBookingPayment } from './event-rsvp'
+import { expireShopOrder, settleShopOrder } from './shop-checkout'
 import {
   createOrder,
   findOrderByPaymentIntent,
@@ -24,8 +25,8 @@ import {
 } from './orders'
 
 /**
- * The one-off payments on a site's Stripe webhook: bookings, class passes and one-time
- * membership tiers. Subscriptions stay in the webhook route. Each payment has an order (see
+ * The one-off payments on a site's Stripe webhook: shop orders (shop-checkout.ts), bookings,
+ * class passes and one-time membership tiers. Subscriptions stay in the webhook route. Each payment has an order (see
  * orders.ts), which is marked paid first; then what was bought is handed over. Every handler
  * can run twice for one payment, since Stripe redelivers.
  */
@@ -40,7 +41,7 @@ export interface StripeCheckoutSession {
   currency?: string | null
   metadata?: Record<string, string> | null
   total_details?: { amount_tax?: number | null; amount_shipping?: number | null; amount_discount?: number | null } | null
-  customer_details?: { email?: string | null; name?: string | null } | null
+  customer_details?: { email?: string | null; name?: string | null; phone?: string | null } | null
 }
 
 type OneOffKind = Exclude<NuxflowKind, 'order'>
@@ -133,6 +134,12 @@ async function settleOrder(event: H3Event, session: StripeCheckoutSession, kind:
 /** Handles a completed one-off checkout. False when it's a subscription's, for the route to handle. */
 export async function handleOneOffCheckoutCompleted(event: H3Event, session: StripeCheckoutSession): Promise<boolean> {
   const metadata = session.metadata ?? {}
+  if (metadata.nuxflowKind === 'order') {
+    assertWebhookSiteMatch(event, metadata.siteId)
+    if (session.payment_status === 'paid') await settleShopOrder(event, session)
+    else console.warn(`[shop-webhook] Checkout ${session.id} completed unpaid (${session.payment_status})`)
+    return true
+  }
   const kind = oneOffKind(session)
   if (!kind) return false
   assertWebhookSiteMatch(event, metadata.siteId)
@@ -211,6 +218,11 @@ async function activateOneTimeTier(event: H3Event, userId: string, tierId: strin
 
 /** A checkout closed unpaid: its order expires, and a booking's held place is let go. */
 export async function handleOneOffCheckoutExpired(event: H3Event, session: StripeCheckoutSession): Promise<void> {
+  if (session.metadata?.nuxflowKind === 'order') {
+    assertWebhookSiteMatch(event, session.metadata.siteId)
+    await expireShopOrder(event, session)
+    return
+  }
   const kind = oneOffKind(session)
   if (!kind) return
   const metadata = session.metadata ?? {}

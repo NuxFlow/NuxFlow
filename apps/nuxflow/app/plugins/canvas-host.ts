@@ -38,6 +38,18 @@ export default defineNuxtPlugin((nuxtApp) => {
         throw new Error(getErrorMessage(e, 'Could not load products'), { cause: e })
       }
     },
+    addToBasket(product) {
+      if (!product.variantId) return
+      nuxtApp.runWithContext(() => useCart().add({
+        variantId: product.variantId!,
+        quantity: 1,
+        title: product.title,
+        label: product.variantLabel ?? '',
+        price: product.price,
+        image: product.image,
+        path: product.path,
+      }))
+    },
     async listClassPasses() {
       return call(() => $fetch<{ passes: CanvasClassPass[]; canBuy: boolean }>('/api/public/class-passes'), 'Could not load passes')
     },

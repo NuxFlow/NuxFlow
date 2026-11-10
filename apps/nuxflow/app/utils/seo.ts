@@ -27,6 +27,8 @@ export interface PublicSiteInfo {
   /** The site's taxonomies — /{slug} renders that taxonomy's overview page. */
   taxonomies?: { slug: string; name: string }[]
   seo?: PublicSiteSeo
+  /** The shop, when it's on (Admin → Shop). */
+  shop?: { currency: string; pricesIncludeTax: boolean } | null
 }
 
 /**

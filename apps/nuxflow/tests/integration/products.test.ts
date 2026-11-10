@@ -104,7 +104,7 @@ describe('the shop switch', () => {
     expect(await (me as Handler)(ev({ userId: adminId }))).toMatchObject({ shop: true })
     await (shopPost as Handler)(ev({ userId: adminId, body: { action: 'settings', config: { currency: 'eur', pricesIncludeTax: false, stripeTax: true } } }))
     const { settings } = await (shopGet as Handler)(ev({ userId: editorId })) as { settings: Record<string, unknown> }
-    expect(settings).toEqual({ enabled: true, currency: 'EUR', pricesIncludeTax: false, stripeTax: true })
+    expect(settings).toMatchObject({ enabled: true, currency: 'EUR', pricesIncludeTax: false, stripeTax: true, shippingCountries: ['GB'] })
     await (shopPost as Handler)(ev({ userId: adminId, body: { action: 'settings', config: { currency: 'GBP', pricesIncludeTax: true, stripeTax: false } } }))
   })
 

@@ -78,6 +78,9 @@ export interface CanvasProductCard {
   /** The "was" price, struck through. */
   compareAt: string | null
   available: boolean
+  /** Its one variant, when it has exactly one, so it can go straight in the basket. */
+  variantId?: string | null
+  variantLabel?: string | null
 }
 
 export interface CanvasProductsQuery {
@@ -115,6 +118,8 @@ export interface CanvasHost {
   listClassPasses?(): Promise<{ passes: CanvasClassPass[]; canBuy: boolean }>
   /** Products on sale; an empty list where the site has no shop. */
   listProducts?(query: CanvasProductsQuery): Promise<CanvasProductCard[]>
+  /** Puts a one-variant product in the visitor's basket. */
+  addToBasket?(product: CanvasProductCard): void
   /** Alternative wordings of `text` for the inline AI menu. */
   improveText(text: string, instruction: AiInstruction): Promise<string[]>
   /** A whole Canvas page from a description (the editor's "Generate with AI"). */

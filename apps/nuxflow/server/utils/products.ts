@@ -79,6 +79,9 @@ export function productForEditor(loaded: { product: ProductRow | null; variants:
       kind: v.kind,
       imageUrl: v.imageUrl,
       isActive: v.isActive,
+      // A download's file (uploaded on its own, not saved with the post).
+      fileName: v.fileName,
+      fileSize: v.fileSize,
     })),
   }
 }
@@ -88,6 +91,8 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stri
 export interface ProductSavePlan {
   changed: boolean
   statements: BatchItem<'sqlite'>[]
+  /** Download files of variants this save removes, to delete once it has gone through. */
+  filesToDelete: string[]
 }
 
 /**
@@ -171,11 +176,12 @@ export async function planProductSave(event: H3Event, db: Db, siteId: string, it
   })
 
   const keep = input.variants.map(v => v.id)
-  if (existing.variants.some(v => !keep.includes(v.id))) {
+  const removed = existing.variants.filter(v => !keep.includes(v.id))
+  if (removed.length) {
     changed = true
     statements.push(db.delete(productVariants).where(and(eq(productVariants.contentItemId, itemId), eq(productVariants.siteId, siteId), notInArray(productVariants.id, keep))))
   }
-  return { changed, statements }
+  return { changed, statements, filesToDelete: removed.map(v => v.fileKey).filter((k): k is string => Boolean(k)) }
 }
 
 // ── What visitors see ───────────────────────────────────────────────────────
@@ -252,6 +258,8 @@ export interface ProductCard {
   price: string
   compareAt: string | null
   available: boolean
+  variantId: string | null
+  variantLabel: string | null
 }
 
 /**
@@ -306,6 +314,9 @@ export async function listProductCards(db: Db, siteId: string, opts: { limit: nu
       price: priceLabel(own, opts.currency, opts.locale),
       compareAt: cheapest?.compareAtMinor ? formatMoney(cheapest.compareAtMinor, opts.currency, opts.locale) : null,
       available: own.some(v => stockState(v.stock) !== 'out'),
+      // One thing to buy, so a block can put it straight in the basket.
+      variantId: own.length === 1 ? own[0]!.id : null,
+      variantLabel: own.length === 1 ? variantLabel(own[0]!.options) : null,
       hasVariants: own.length > 0,
     }
   })

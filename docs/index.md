@@ -14,6 +14,7 @@ If you are new to NuxFlow, start with these guides:
 - **[Video & Vlogging Guide](./video.md)**: Publish video content with Cloudflare Stream (self-hosted, ad-free, membership-gateable) or embed from YouTube and Vimeo — and understand when to choose each.
 - **[Email](./email.md)**: Receive mail at addresses like contact@ in an admin inbox, post drafts by email, and get security and system alerts — built on Cloudflare Email Routing and Email Sending.
 - **[Payments & Memberships Setup](./payments-setup.md)**: Connect Stripe, Lemon Squeezy or Paddle, sell memberships, and take paid event bookings.
+- **[Shop Guide](./shop.md)**: Sell physical products and digital downloads, with variants, stock, delivery, Stripe Tax, orders and refunds.
 - **[Multi-Site Hosting](./multi-site.md)**: Run several sites from one install, or sell sites with plans, limits and billing.
 - **[Release Rings](./release-rings.md)**: Optional, for operators with several deployments. Send new code to your own sites first and to customers two days later, with two commands.
 - **[Member Pools](./pools.md)**: Optional, for hosting platforms. Spread sites over several Workers and databases, keep a client's sites apart, and move a site between them from Super Admin.
@@ -34,6 +35,7 @@ If you are new to NuxFlow, start with these guides:
 - **Mailing List**: A polite signup popup (and an inline Signup box block) that collects email addresses with double opt-in, an optional incentive, CSV export and Brevo sync.
 - **Email Inbox**: Receive email at contact@, leads@ or any address on your domain, triaged by AI and answered from the admin — plus post-by-email drafts and security alerts.
 - **Payments & Memberships**: Subscription tiers and content gating via Stripe, Lemon Squeezy, or Paddle.
+- **Shop**: Products with options and stock, digital downloads, a basket and Stripe Checkout with delivery and tax, receipts, and one Orders page for everything the site sells. Off until you turn it on.
 - **Events & Class Booking**: Repeating classes, a weekly timetable, RSVPs and waitlists, paid bookings and blocks of sessions through Stripe, with no visitor account needed.
 - **Hot-Loading Plugins**: Install and activate dynamic plugins at runtime without redeploying — they run as isolated Cloudflare Workers spawned on demand.
 - **Photography Ready**: Responsive image Gallery block with full-screen lightbox, EXIF metadata display, live focal-point crop preview, and a dedicated Google Image Sitemap at `/sitemap-images.xml`.

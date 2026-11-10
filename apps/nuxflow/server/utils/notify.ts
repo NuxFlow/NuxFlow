@@ -50,6 +50,7 @@ export const NOTIFICATION_TYPES: Record<string, NotificationTypeDef> = {
   'security.api_key_created': { label: 'API key created', description: 'A new API key was created for your account.', email: true, push: true, mandatoryEmail: true },
   'security.role_changed': { label: 'Role changed', description: 'Your role on this site changed.', email: true, push: true, mandatoryEmail: true },
   'event.rsvp': { label: 'Event RSVPs', description: 'Someone said they\'re coming to an event, joined its waitlist or cancelled.', email: false, push: false, minRole: 'editor' },
+  'shop.order': { label: 'Shop orders', description: 'Someone bought something from the shop, or an order had to be refunded automatically.', email: true, push: true, minRole: 'admin' },
   'inbox.message': { label: 'New inbox email', description: 'An email arrived at one of this site\'s inbox addresses.', email: true, push: true, minRole: 'editor' },
   'content.post_by_email': { label: 'Draft from email', description: 'An email you sent to your posting address became a draft.', email: true, push: false, minRole: 'author' },
   'system.plugin_installed': { label: 'Plugin installed', description: 'A dynamic plugin was installed or updated on this site.', email: true, push: false, minRole: 'admin' },

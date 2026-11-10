@@ -19,6 +19,9 @@ export interface ProductFormVariant {
   kind: ProductKind
   imageUrl: string | null
   isActive: boolean
+  /** A download's file, uploaded on its own rather than saved with the post. */
+  fileName?: string | null
+  fileSize?: number | null
 }
 
 export interface ProductForm {
@@ -32,7 +35,38 @@ const product = defineModel<ProductForm>('product', { required: true })
 const props = defineProps<{
   /** The shop's currency (Admin → Shop). */
   currency: string
+  /** False until the product's first save: a file can only go on a saved variant. */
+  saved: boolean
 }>()
+
+// ── Download files ────────────────────────────────────────────────────────
+
+const { run, isRunning } = useAdminAction()
+
+async function uploadFile(v: ProductFormVariant, event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  const form = new FormData()
+  form.append('variantId', v.id)
+  form.append('file', file)
+  await run(async () => {
+    const stored = await $fetch<{ fileName: string; fileSize: number }, string>('/api/v1/shop', { method: 'POST', body: form })
+    v.fileName = stored.fileName
+    v.fileSize = stored.fileSize
+  }, { key: `file:${v.id}`, successTitle: 'File uploaded', errorTitle: "Couldn't upload the file" })
+}
+
+async function removeFile(v: ProductFormVariant) {
+  await run(async () => {
+    await $fetch<unknown, string>('/api/v1/shop', { method: 'POST', body: { action: 'remove-file', variantId: v.id } })
+    v.fileName = null
+    v.fileSize = null
+  }, { key: `file:${v.id}`, successTitle: 'File removed', errorTitle: "Couldn't remove the file" })
+}
+
+const megabytes = (bytes: number | null | undefined) => (bytes ? `${(bytes / 1_048_576).toFixed(1)} MB` : '')
 
 // ── Options ────────────────────────────────────────────────────────────────
 
@@ -231,6 +265,20 @@ function removeImage(i: number) {
               <UFormField label="Weight (g)" class="text-xs">
                 <UInput :model-value="v.weightGrams ?? undefined" type="number" min="0" step="1" size="xs" @update:model-value="setWeight(v, $event)" />
               </UFormField>
+            </div>
+            <div v-if="v.kind === 'digital'" class="space-y-1">
+              <p class="text-xs text-gray-600 dark:text-gray-300">
+                <template v-if="v.fileName">File: <span class="font-medium">{{ v.fileName }}</span> {{ megabytes(v.fileSize) }}</template>
+                <template v-else>No file yet. Buyers get a download link once they've paid.</template>
+              </p>
+              <div v-if="saved" class="flex gap-2">
+                <label class="inline-flex">
+                  <input type="file" class="sr-only" @change="uploadFile(v, $event)">
+                  <UButton as="span" size="xs" variant="outline" color="neutral" icon="i-lucide-upload" :loading="isRunning(`file:${v.id}`)">{{ v.fileName ? 'Replace file' : 'Upload file' }}</UButton>
+                </label>
+                <UButton v-if="v.fileName" size="xs" variant="ghost" color="neutral" @click="removeFile(v)">Remove file</UButton>
+              </div>
+              <p v-else class="text-xs text-gray-500">Save the product first, then add its file (up to 100 MB).</p>
             </div>
             <div v-if="product.optionNames.length" class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-2">

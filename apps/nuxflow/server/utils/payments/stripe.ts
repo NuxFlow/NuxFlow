@@ -129,6 +129,67 @@ export class StripeProvider implements PaymentProvider {
     return this.client.checkout.sessions.create(params)
   }
 
+  /**
+   * A shop basket: several lines priced now (nothing is synced to Stripe first), one delivery
+   * option when something has to be posted, and optionally Stripe Tax. Amounts are minor
+   * units. Card only, like bookings: stock is kept while they pay, and a slow bank payment
+   * would keep it for days and could still fail.
+   */
+  async createOrderCheckout(opts: {
+    customerEmail?: string
+    currency: string
+    lines: { name: string; description?: string; image?: string; unitMinor: number; quantity: number }[]
+    /** Null: nothing to post, so no address is asked for. */
+    shipping: { countries: string[]; label: string; amountMinor: number } | null
+    automaticTax: boolean
+    pricesIncludeTax: boolean
+    successUrl: string
+    cancelUrl: string
+    metadata: Record<string, string>
+    expiresInMinutes: number
+  }) {
+    const currency = opts.currency.toLowerCase()
+    const taxBehavior = opts.pricesIncludeTax ? 'inclusive' as const : 'exclusive' as const
+    const params: Stripe.Checkout.SessionCreateParams = {
+      mode: 'payment',
+      allowed_payment_method_types: ['card'],
+      line_items: opts.lines.map(line => ({
+        quantity: line.quantity,
+        price_data: {
+          currency,
+          unit_amount: line.unitMinor,
+          tax_behavior: taxBehavior,
+          product_data: {
+            name: line.name,
+            ...(line.description ? { description: line.description } : {}),
+            ...(line.image ? { images: [line.image] } : {}),
+          },
+        },
+      })),
+      success_url: opts.successUrl,
+      cancel_url: opts.cancelUrl,
+      metadata: opts.metadata,
+      payment_intent_data: { metadata: opts.metadata },
+      expires_at: Math.floor(Date.now() / 1000) + opts.expiresInMinutes * 60,
+      automatic_tax: { enabled: opts.automaticTax },
+    }
+    if (opts.customerEmail) params.customer_email = opts.customerEmail
+    if (opts.shipping) {
+      params.shipping_address_collection = { allowed_countries: opts.shipping.countries as Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry[] }
+      params.shipping_options = [{
+        shipping_rate_data: {
+          type: 'fixed_amount',
+          fixed_amount: { amount: opts.shipping.amountMinor, currency },
+          display_name: opts.shipping.label,
+          tax_behavior: taxBehavior,
+        },
+      }]
+    }
+    // Stripe Tax needs to know where the buyer is; with nothing posted, that's their billing address.
+    else if (opts.automaticTax) params.billing_address_collection = 'required'
+    return this.client.checkout.sessions.create(params)
+  }
+
   async getCheckoutSession(sessionId: string) {
     return this.client.checkout.sessions.retrieve(sessionId)
   }
