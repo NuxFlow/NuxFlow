@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { and, count, desc, eq, gt, gte, ne, notInArray, sql } from 'drizzle-orm'
-import { contentItems, dynamicPlugins, emailMessages, hostingPlans, media, products, productVariants, siteDomains, siteInvitations, sites, siteUsageDaily, userSiteRoles, videoAssets } from '@nuxflow/db/schema'
+import { contentItems, dynamicPlugins, emailMessages, formSubmissions, hostingPlans, media, products, productVariants, siteDomains, siteInvitations, sites, siteUsageDaily, userSiteRoles, videoAssets } from '@nuxflow/db/schema'
 import { PLAN_LIMITS, planFeature, planLimit, type PlanFeatureKey, type PlanLimitKey } from '../../shared/lib/hosting-plan-limits'
 import { useDb, type Db } from './db'
 import { createIsolateCache } from './isolate-cache'
@@ -98,14 +98,15 @@ const NOT_TEAM_ROLES: ('member' | 'super_admin')[] = ['member', 'super_admin']
 export async function planUsage(db: Db, siteId: string, key: PlanLimitKey, now = new Date()): Promise<number> {
   switch (key) {
     case 'storage': {
-      // The media library, inbound email (raw messages and attachments) and the shop's
-      // download files, all kept in R2.
-      const [[m], [e], [f]] = await Promise.all([
+      // The media library, inbound email (raw messages and attachments), the shop's
+      // download files and files sent with forms, all kept in R2.
+      const [[m], [e], [f], [s]] = await Promise.all([
         db.select({ n: sql<number>`coalesce(sum(${media.size}), 0)` }).from(media).where(eq(media.siteId, siteId)),
         db.select({ n: sql<number>`coalesce(sum(${emailMessages.storedBytes}), 0)` }).from(emailMessages).where(eq(emailMessages.siteId, siteId)),
         db.select({ n: sql<number>`coalesce(sum(${productVariants.fileSize}), 0)` }).from(productVariants).where(eq(productVariants.siteId, siteId)),
+        db.select({ n: sql<number>`coalesce(sum(${formSubmissions.storedBytes}), 0)` }).from(formSubmissions).where(eq(formSubmissions.siteId, siteId)),
       ])
-      return Number(m?.n ?? 0) + Number(e?.n ?? 0) + Number(f?.n ?? 0)
+      return Number(m?.n ?? 0) + Number(e?.n ?? 0) + Number(f?.n ?? 0) + Number(s?.n ?? 0)
     }
     case 'database': {
       // Measured nightly (usage-snapshot.ts) — too costly to add up on demand.

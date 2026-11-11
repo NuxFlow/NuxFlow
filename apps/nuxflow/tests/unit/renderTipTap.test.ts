@@ -53,18 +53,36 @@ describe('renderTipTap', () => {
   describe('headings', () => {
     it('renders h1 through h6', () => {
       for (let l = 1; l <= 6; l++) {
-        expect(renderTipTap(h(l, text('Title')))).toBe(`<h${l}>Title</h${l}>`)
+        expect(renderTipTap(h(l, text('Title')))).toBe(`<h${l} id="title">Title</h${l}>`)
       }
     })
 
     it('clamps heading level to 1 when below range', () => {
       expect(renderTipTap({ type: 'heading', attrs: { level: 0 }, content: [text('X')] }))
-        .toBe('<h1>X</h1>')
+        .toBe('<h1 id="x">X</h1>')
     })
 
     it('clamps heading level to 6 when above range', () => {
       expect(renderTipTap({ type: 'heading', attrs: { level: 9 }, content: [text('X')] }))
-        .toBe('<h6>X</h6>')
+        .toBe('<h6 id="x">X</h6>')
+    })
+
+    it('gives each heading an anchor id, unique within the document', () => {
+      const doc = { type: 'doc', content: [h(2, text('Costs & VAT')), h(2, text('FAQ')), h(3, text('FAQ')), h(2, text('Prix: été'))] }
+      const html = renderTipTap(doc)
+      expect(html).toContain('<h2 id="costs-vat">')
+      expect(html).toContain('<h2 id="faq">')
+      expect(html).toContain('<h3 id="faq-2">')
+      expect(html).toContain('<h2 id="prix-été">')
+    })
+
+    it('starts the count again for each document', () => {
+      expect(renderTipTap(h(2, text('FAQ')))).toBe('<h2 id="faq">FAQ</h2>')
+      expect(renderTipTap(h(2, text('FAQ')))).toBe('<h2 id="faq">FAQ</h2>')
+    })
+
+    it('escapes the id and never lets heading text break out of it', () => {
+      expect(renderTipTap(h(2, text('"><script>')))).toBe('<h2 id="script">&quot;&gt;&lt;script&gt;</h2>')
     })
   })
 

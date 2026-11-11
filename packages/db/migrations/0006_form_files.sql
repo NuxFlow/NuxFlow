@@ -1,0 +1,1 @@
+ALTER TABLE `form_submissions` ADD `stored_bytes` integer DEFAULT 0 NOT NULL;

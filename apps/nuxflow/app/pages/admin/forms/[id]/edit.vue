@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { FORM_FILE_RULES_TEXT } from '#shared/lib/form-files'
+
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const route = useRoute()
@@ -223,6 +225,10 @@ async function save() {
       <UFormField v-if="selectedField.type === 'computed'" label="Formula" hint="Use {{fieldName}} to reference other fields">
         <UInput v-model="selectedField.formula" size="sm" placeholder="{{price}} * {{qty}}" />
       </UFormField>
+
+      <p v-if="selectedField.type === 'file'" class="text-xs text-gray-500">
+        {{ FORM_FILE_RULES_TEXT }} Files are kept privately on your site and count towards its storage. Open a submission to download them.
+      </p>
 
       <UFormField v-if="selectedField.type === 'hidden'" label="Default value" hint="Used as this hidden field's fixed value">
         <UInput v-model="selectedField.placeholder" size="sm" />

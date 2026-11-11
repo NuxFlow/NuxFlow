@@ -575,6 +575,12 @@ Upload a logo image to replace the site name text in the public navigation bar. 
 
 ---
 
+### Reading time and table of contents
+
+Blog posts show how long they take to read ("5 min read") next to the date, worked out at 230 words a minute. Any post or page with three or more section headings (Heading 2 or Heading 3) gets an **On this page** list at the top that jumps to each section, and every heading has its own link (for example `/my-post#costs`) you can share. Turn either off at **Admin → Settings → Appearance → Posts and pages**.
+
+---
+
 ### Custom code injection
 
 Inject third-party scripts or HTML snippets into every public page without editing any files or redeploying. Configure it at **Admin → Settings → Appearance → Custom code**.
@@ -612,7 +618,7 @@ To accept payments, configure at least one payment provider in **Admin → Setti
 
 Canvas is a visual drag-and-drop page builder built into NuxFlow. It adds a **Canvas** editor mode to any page or post, letting you build layouts from blocks without writing code.
 
-Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), **Video gallery**, Columns, **Container**, Feature grids, Testimonials, CTA banners, Buttons, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), **Posts**, **Events Calendar**, **Class Passes**, Contact Form, Form, **Signup box**, **Opening Hours**, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
+Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), **Video gallery**, Columns, **Container**, Feature grids, Testimonials, CTA banners, Buttons, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), **Posts**, **Events Calendar**, **Class Passes**, Contact Form, Form, **Signup box**, **Before & After**, **Logo Strip**, **Map**, **Opening Hours**, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
 
 #### Nesting blocks
 
@@ -633,6 +639,20 @@ Enable **Open lightbox on click** to let visitors view images full-screen. The l
 #### Opening Hours block
 
 Shows your week's opening hours with an **Open now** / **Closed** badge that tells visitors when you close or next open, worked out in your site's time zone. Today's row is highlighted, and upcoming holiday hours are listed underneath. The hours come from **Admin → Settings → Business** (below), so every Opening Hours block on the site shows the same thing — change them in one place. The block's settings only choose what to show: the badge, holiday hours, the address, and the phone number.
+
+#### Before & After block
+
+Shows two photos of the same thing — a room before and after work, a garden, an edit — with a slider visitors drag to compare them. It works with a mouse, a finger or the keyboard. Choose a **Before photo** and an **After photo** (use two photos of the same shape, taken from the same spot), give each a short description for screen readers, and optionally change the labels, where the slider starts, and a caption.
+
+#### Logo Strip block
+
+A row of logos — clients, partners, or accreditations such as Gas Safe or NICEIC. Add the logos like Gallery photos, set their height, and choose **Show in grey** for a calmer look (each logo turns to colour when pointed at). Use transparent PNG or SVG logos for the best result.
+
+#### Map block
+
+Shows a map of an address or the area you work in. Type the **Address or place**, and pick how close to zoom in (around 14 for a street, 9–10 for a whole area you serve). Use **Note under the map** for something like "We cover York and 20 miles around." Google Maps is used by default and needs no API key. OpenStreetMap is the alternative, and needs the latitude and longitude (right-click the spot on openstreetmap.org and choose **Show address** to get them).
+
+By default the map is only loaded when a visitor clicks **Show map**, so nothing is fetched from Google or OpenStreetMap — and no cookies are set — just for opening your page. Turn that off if you'd rather the map show straight away. There's always an "Open in Google Maps" link underneath.
 
 #### Carousel block
 
@@ -698,6 +718,14 @@ All forms live under **Admin → Forms**, and every form's messages are collecte
 - **Form block** — any form you build in Admin → Forms with **New form**: dates, choices, file uploads, signatures and more. Use it when you need to ask different questions, such as a booking enquiry.
 
 Submissions are protected by Cloudflare Turnstile spam detection (when configured), rate-limited, and checked by AI moderation when an AI provider is set up — anything it flags is moved to **Spam** automatically.
+
+### File uploads
+
+A **File upload** field lets visitors send photos, PDFs or documents with their message — a picture of the job for a quote, a CV, a signed form. Each field takes up to 5 files of up to 10 MB each (25 MB per message in all). Photos from iPhones (HEIC) are fine; web pages, scripts and SVG drawings are refused.
+
+- Files are kept **privately** on your site's storage: only people with the Editor role or higher can open them, from the message in the Submissions inbox. They're never on a public link.
+- They count towards your site's storage. If storage is full, the visitor is asked to send their message without files, and the site's admins get a notice.
+- File uploads need file storage (R2). Without it, visitors who attach a file are asked to send their message without it.
 
 ### The submissions inbox
 

@@ -811,6 +811,66 @@ describe('canvas-hero background video', () => {
   })
 })
 
+describe('starter blocks: before & after, logo strip, map', () => {
+  it('registers each with a component', async () => {
+    const { BUILTIN_BLOCK_COMPONENTS } = await import('../../../../packages/canvas/src/blocks/components')
+    for (const id of ['canvas-before-after', 'canvas-logos', 'canvas-map']) {
+      expect(getBlockDefinition(id), id).toBeDefined()
+      expect(BUILTIN_BLOCK_COMPONENTS[id], id).toBeDefined()
+    }
+  })
+
+  it('only offers photo blocks to the AI when the library has images', () => {
+    expect(getBlockDefinition('canvas-before-after')!.ai?.requires).toContain('media')
+    expect(getBlockDefinition('canvas-logos')!.ai?.requires).toContain('media')
+  })
+
+  it('never translates the map address, and shows coordinates only for OpenStreetMap', () => {
+    const def = getBlockDefinition('canvas-map')!
+    expect(def.fields.find(f => f.key === 'address')!.translatable).toBe(false)
+    const lat = def.fields.find(f => f.key === 'latitude')!
+    expect(lat.condition!({ provider: 'osm' })).toBe(true)
+    expect(lat.condition!({ provider: 'google' })).toBe(false)
+    expect(def.defaultProps.clickToLoad).toBe(true)
+  })
+})
+
+describe('map URLs', async () => {
+  const { mapEmbedUrl, mapLinkUrl, mapCoordinates } = await import('../../../../packages/canvas/src/utils/map')
+
+  it('embeds Google Maps by address with no API key', () => {
+    expect(mapEmbedUrl({ provider: 'google', address: '10 High St, York', zoom: 15 }))
+      .toBe('https://maps.google.com/maps?q=10%20High%20St%2C%20York&z=15&output=embed')
+    expect(mapLinkUrl({ provider: 'google', address: '10 High St, York' }))
+      .toBe('https://www.google.com/maps/search/?api=1&query=10%20High%20St%2C%20York')
+  })
+
+  it('prefers coordinates over the address when both are set', () => {
+    expect(mapEmbedUrl({ address: 'ignored', latitude: 53.96, longitude: -1.08 })).toContain('q=53.96%2C-1.08')
+  })
+
+  it('needs coordinates for OpenStreetMap, and centres the box on them', () => {
+    expect(mapEmbedUrl({ provider: 'osm', address: 'York' })).toBeNull()
+    const url = mapEmbedUrl({ provider: 'osm', latitude: 53.96, longitude: -1.08, zoom: 10 })!
+    expect(url).toContain('marker=53.96000%2C-1.08000')
+    const bbox = decodeURIComponent(url.match(/bbox=([^&]+)/)![1]!).split(',').map(Number)
+    expect((bbox[0]! + bbox[2]!) / 2).toBeCloseTo(-1.08, 4)
+    expect((bbox[1]! + bbox[3]!) / 2).toBeCloseTo(53.96, 4)
+  })
+
+  it('treats empty, default or out-of-range coordinates as unset', () => {
+    expect(mapEmbedUrl({ provider: 'google', address: '  ' })).toBeNull()
+    expect(mapCoordinates({ latitude: 0, longitude: 0 })).toBeNull()
+    expect(mapCoordinates({ latitude: 95, longitude: 0 })).toBeNull()
+    expect(mapCoordinates({ latitude: '51.5', longitude: '-0.12' })).toEqual({ lat: 51.5, lng: -0.12 })
+  })
+
+  it('clamps the zoom', () => {
+    expect(mapEmbedUrl({ address: 'x', zoom: 99 })).toContain('z=19')
+    expect(mapEmbedUrl({ address: 'x', zoom: 'abc' })).toContain('z=14')
+  })
+})
+
 describe('canvas-hours block', () => {
   it('is registered with a component and takes its hours from settings, not fields', async () => {
     const { BUILTIN_BLOCK_COMPONENTS } = await import('../../../../packages/canvas/src/blocks/components')

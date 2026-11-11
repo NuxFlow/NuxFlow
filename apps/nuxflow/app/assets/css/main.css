@@ -131,6 +131,8 @@ body {
   word-break: break-word;
 }
 .dark .nux-content { color: #f3f4f6; }
+/* Table-of-contents links land below the sticky header, not under it. */
+.nux-content [id] { scroll-margin-top: 5rem; }
 
 .nux-content h1, .nux-content h2, .nux-content h3,
 .nux-content h4, .nux-content h5, .nux-content h6 {
