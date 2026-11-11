@@ -13,8 +13,10 @@ import { getAnalyticsEngine } from '../../utils/cf-env'
 import { planIncludes } from '../../utils/hosting-plans'
 import { SIGNUP_SETTING_KEY } from '../../utils/mailing-list'
 import { parseSignupSettings, publicSignupSettings } from '../../../shared/lib/signup-prompt'
+import { parseBusinessInfo } from '@nuxflow/canvas/business'
+import { BUSINESS_SETTING_KEY, hasBusinessDetails } from '../../utils/business'
 
-const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.show_reading_time', 'frontend.show_toc', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations', SIGNUP_SETTING_KEY, SHOP_ENABLED_KEY, SHOP_CONFIG_KEY] as const
+const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.show_reading_time', 'frontend.show_toc', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations', SIGNUP_SETTING_KEY, SHOP_ENABLED_KEY, SHOP_CONFIG_KEY, BUSINESS_SETTING_KEY] as const
 
 const CACHE_MAX_AGE = 300
 
@@ -62,6 +64,8 @@ async function buildPayload(event: H3Event, siteId: string) {
     showColorToggle: (kvMap['frontend.show_color_toggle'] as boolean | undefined) !== false,
     showSearch: (kvMap['frontend.show_search'] as boolean | undefined) !== false,
     showStickyHeader: (kvMap['frontend.show_sticky_header'] as boolean | undefined) !== false,
+    // Settings → Business: the Opening Hours block and the layout's LocalBusiness data.
+    business: (() => { const info = parseBusinessInfo(kvMap[BUSINESS_SETTING_KEY]); return hasBusinessDetails(info) ? info : null })(),
     showReadingTime: (kvMap['frontend.show_reading_time'] as boolean | undefined) !== false,
     showToc: (kvMap['frontend.show_toc'] as boolean | undefined) !== false,
     logoSize: (kvMap['frontend.logo_size'] as string | undefined) ?? 'md',

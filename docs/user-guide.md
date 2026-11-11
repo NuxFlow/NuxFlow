@@ -551,6 +551,19 @@ These settings are separate from the active theme CSS file — you can set an ac
 
 ---
 
+### Business details and opening hours
+
+**Admin → Settings → Business** (admins only) holds your address, phone number and opening hours. They're used in two places:
+
+- the **Opening Hours** block on your pages, and
+- the information search engines read on every page (schema.org LocalBusiness data), so Google can show your address, phone and hours in search results and Maps, and AI assistants can answer "is it open now?".
+
+Pick the **Type of business** closest to yours (café, plumber, solicitor…). For each day, switch it on and set the times; use **Add hours** for a break in the day (for example 12:00–14:30 and 18:00–22:00), and **Copy to Tuesday–Friday** to fill in the week from Monday. For hours past midnight, set the closing time earlier than the opening time (18:00 – 02:00). Under **Holiday and special hours**, add days that differ from the usual week, such as bank holidays — closed all day, or different times. Past dates drop off by themselves.
+
+Times are in your site's time zone (Settings → General). Anything you leave empty isn't published. This has its own **Save business details** button.
+
+---
+
 ### Site logo
 
 Upload a logo image to replace the site name text in the public navigation bar. Configure it at **Admin → Settings → Appearance → Site logo**.
@@ -605,7 +618,7 @@ To accept payments, configure at least one payment provider in **Admin → Setti
 
 Canvas is a visual drag-and-drop page builder built into NuxFlow. It adds a **Canvas** editor mode to any page or post, letting you build layouts from blocks without writing code.
 
-Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), **Video gallery**, Columns, **Container**, Feature grids, Testimonials, CTA banners, Buttons, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), **Posts**, **Events Calendar**, **Class Passes**, Contact Form, Form, **Signup box**, **Before & After**, **Logo Strip**, **Map**, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
+Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), **Video gallery**, Columns, **Container**, Feature grids, Testimonials, CTA banners, Buttons, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), **Posts**, **Events Calendar**, **Class Passes**, Contact Form, Form, **Signup box**, **Before & After**, **Logo Strip**, **Map**, **Opening Hours**, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
 
 #### Nesting blocks
 
@@ -622,6 +635,10 @@ The Canvas toolbar has undo/redo buttons, and the standard keyboard shortcuts wo
 The **Gallery** block shows your photos as **Masonry** or **Rows** (whole, uncropped photos) or a **Grid** (every photo cropped to the same shape). Click **Add from library** to add a whole folder at once, or paste a single image URL. Each photo can have alt text and a caption. You can also set the columns, the gap, rounded corners, and whether visitors can download the photos. The [Photography & Portfolio Guide](./photography.md) covers every setting.
 
 Enable **Open lightbox on click** to let visitors view images full-screen. The lightbox supports keyboard navigation (← → arrow keys, Escape to close) and shows a position counter when the gallery has more than one image.
+
+#### Opening Hours block
+
+Shows your week's opening hours with an **Open now** / **Closed** badge that tells visitors when you close or next open, worked out in your site's time zone. Today's row is highlighted, and upcoming holiday hours are listed underneath. The hours come from **Admin → Settings → Business** (below), so every Opening Hours block on the site shows the same thing — change them in one place. The block's settings only choose what to show: the badge, holiday hours, the address, and the phone number.
 
 #### Before & After block
 

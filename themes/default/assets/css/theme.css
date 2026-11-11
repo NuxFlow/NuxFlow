@@ -120,6 +120,12 @@
      .canvas-text          Rich text / prose block
      .canvas-columns       Multi-column layout block
      .canvas-testimonial   Testimonial / quote card block
+     .canvas-hours         Opening Hours block
+       .canvas-hours-status[data-open="true|false"]  the "Open now" / "Closed" badge
+       .canvas-hours-table                      the week
+       .canvas-hours-today                      today's row
+       .canvas-hours-exceptions                 upcoming holiday hours
+       .canvas-hours-contact                    address and phone
      .canvas-before-after  Before & After comparison slider
        .canvas-before-after-frame               the photo area
        .canvas-before-after-handle              the divider line and its knob
