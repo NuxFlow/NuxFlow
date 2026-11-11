@@ -870,3 +870,13 @@ describe('map URLs', async () => {
     expect(mapEmbedUrl({ address: 'x', zoom: 'abc' })).toContain('z=14')
   })
 })
+
+describe('canvas-hours block', () => {
+  it('is registered with a component and takes its hours from settings, not fields', async () => {
+    const { BUILTIN_BLOCK_COMPONENTS } = await import('../../../../packages/canvas/src/blocks/components')
+    const def = getBlockDefinition('canvas-hours')!
+    expect(BUILTIN_BLOCK_COMPONENTS['canvas-hours']).toBeDefined()
+    expect(def.fields.map(f => f.key)).not.toContain('hours')
+    expect(def.defaultProps.showStatus).toBe(true)
+  })
+})

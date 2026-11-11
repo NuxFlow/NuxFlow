@@ -566,6 +566,38 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     },
   },
 
+  // ── Opening Hours ──────────────────────────────────────────────────────────
+  {
+    id: 'canvas-hours',
+    name: 'Opening Hours',
+    description: 'Your weekly hours with an "Open now" badge, from Settings → Business',
+    icon: 'i-lucide-clock',
+    category: 'content',
+    component: 'CanvasBlockHours',
+    ai: { hint: 'The business\'s opening hours (taken from the site\'s settings — nothing to fill in). Use on contact, visit-us or home pages of shops, cafés and local businesses.' },
+    thumbnailColor: '#fefce8',
+    fields: [
+      { key: 'title', label: 'Heading', type: 'text', placeholder: 'Opening hours' },
+      { key: 'showStatus', label: 'Show "Open now" / "Closed"', type: 'toggle', ai: false },
+      { key: 'showExceptions', label: 'Show upcoming holiday hours', type: 'toggle', ai: false },
+      { key: 'showAddress', label: 'Show the address', type: 'toggle', ai: false },
+      { key: 'showPhone', label: 'Show the phone number', type: 'toggle', ai: false },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      title: 'Opening hours',
+      showStatus: true,
+      showExceptions: true,
+      showAddress: true,
+      showPhone: true,
+      bgColor: '',
+      textColor: '',
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
   // ── CTA Banner ────────────────────────────────────────────────────────────
   {
     id: 'canvas-cta',
@@ -944,6 +976,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       { key: 'rowHeight', label: 'Row height (px)', type: 'number', min: 120, max: 600, step: 10, condition: p => p.layout === 'justified' },
       { key: 'gap', label: 'Gap (px)', type: 'number', min: 0, max: 48, step: 2 },
       { key: 'showCaptions', label: 'Show captions', type: 'toggle' },
+      { key: 'showCameraDetails', label: 'Show camera details (camera, lens, settings — from the photo file)', type: 'toggle', ai: false },
       { key: 'rounded', label: 'Rounded corners', type: 'toggle' },
       { key: 'lightbox', label: 'Open lightbox on click', type: 'toggle' },
       // Client galleries: a "Download all" button (zip) and a download button per photo in
@@ -961,6 +994,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       rowHeight: 280,
       gap: 6,
       showCaptions: false,
+      showCameraDetails: false,
       rounded: false,
       lightbox: true,
       allowDownload: false,

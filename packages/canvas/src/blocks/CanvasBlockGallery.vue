@@ -32,6 +32,7 @@ const props = withDefaults(defineProps<{
   rowHeight?: number
   gap?: number
   showCaptions?: boolean
+  showCameraDetails?: boolean
   rounded?: boolean
   lightbox?: boolean
   allowDownload?: boolean
@@ -44,6 +45,7 @@ const props = withDefaults(defineProps<{
   rowHeight: 280,
   gap: 8,
   showCaptions: false,
+  showCameraDetails: false,
   rounded: false,
   lightbox: true,
   allowDownload: false,
@@ -51,6 +53,15 @@ const props = withDefaults(defineProps<{
 })
 
 const parsedImages = computed<ImageListItem[]>(() => parseImageList(props.images))
+
+function hasCaption(img: ImageListItem): boolean {
+  return Boolean((props.showCaptions && img.caption) || (props.showCameraDetails && img.camera))
+}
+// The lightbox has always shown captions; camera details join them when switched on.
+const lightboxImages = computed(() => parsedImages.value.map(img => ({
+  ...img,
+  caption: [img.caption, props.showCameraDetails ? img.camera : ''].filter(Boolean).join(' · ') || undefined,
+})))
 
 const gridCols = computed(() => ({
   '2': 'grid-cols-2',
@@ -149,8 +160,9 @@ function openLightbox(i: number) {
               class="block w-full h-auto transition-transform duration-500 ease-out group-hover:scale-[1.03]"
             />
           </button>
-          <figcaption v-if="showCaptions && img.caption" class="canvas-gallery-caption mt-1.5 text-sm opacity-75">
-            {{ img.caption }}
+          <figcaption v-if="hasCaption(img)" class="canvas-gallery-caption mt-1.5 text-sm opacity-75">
+            <template v-if="showCaptions && img.caption">{{ img.caption }}</template>
+            <span v-if="showCameraDetails && img.camera" class="canvas-gallery-camera block text-xs opacity-80">{{ img.camera }}</span>
           </figcaption>
         </figure>
       </div>
@@ -184,10 +196,11 @@ function openLightbox(i: number) {
             />
           </button>
           <figcaption
-            v-if="showCaptions && img.caption"
+            v-if="hasCaption(img)"
             class="canvas-gallery-caption pointer-events-none absolute inset-x-0 bottom-0 px-3 py-2 text-sm text-white bg-gradient-to-t from-black/70 to-transparent"
           >
-            {{ img.caption }}
+            <template v-if="showCaptions && img.caption">{{ img.caption }}</template>
+            <span v-if="showCameraDetails && img.camera" class="canvas-gallery-camera block text-xs opacity-80">{{ img.camera }}</span>
           </figcaption>
         </figure>
       </div>
@@ -212,8 +225,9 @@ function openLightbox(i: number) {
               class="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-105"
             />
           </button>
-          <figcaption v-if="showCaptions && img.caption" class="canvas-gallery-caption mt-1.5 text-sm opacity-75">
-            {{ img.caption }}
+          <figcaption v-if="hasCaption(img)" class="canvas-gallery-caption mt-1.5 text-sm opacity-75">
+            <template v-if="showCaptions && img.caption">{{ img.caption }}</template>
+            <span v-if="showCameraDetails && img.camera" class="canvas-gallery-camera block text-xs opacity-80">{{ img.camera }}</span>
           </figcaption>
         </figure>
       </div>
@@ -231,7 +245,7 @@ function openLightbox(i: number) {
 
     <NuxLightbox
       v-if="lightboxOpen"
-      :images="parsedImages"
+      :images="lightboxImages"
       :initial-index="lightboxIndex"
       :download-url="downloadBase ? photoDownloadUrl : undefined"
       @close="lightboxOpen = false"

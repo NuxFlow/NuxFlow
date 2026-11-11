@@ -25,6 +25,10 @@ export interface ImageListItem {
   /** Optional visible caption (Gallery shows it under the photo and in the lightbox).
    * Seeded from the media library's own caption when picked from there. */
   caption?: string
+  /** Camera details from the photo's EXIF ("Canon EOS R5 · 85 mm · f/1.8 · 1/250 s ·
+   * ISO 100"). Never stored: the public page API adds it to Gallery images when the block's
+   * "Show camera details" is on (server/utils/gallery-camera.ts). */
+  camera?: string
 }
 
 /**
