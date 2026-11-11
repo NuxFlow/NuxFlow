@@ -68,6 +68,8 @@ const appearance = reactive<AppearanceState>({
   showHeader: true,
   showSearch: true,
   showStickyHeader: true,
+  showReadingTime: true,
+  showToc: true,
   logoSize: 'md',
   faviconUrl: '',
   logoUrl: '',
@@ -179,6 +181,8 @@ watch(data, (d) => {
   appearance.showHeader = (s['frontend.show_header'] as boolean | undefined) !== false
   appearance.showSearch = (s['frontend.show_search'] as boolean | undefined) !== false
   appearance.showStickyHeader = (s['frontend.show_sticky_header'] as boolean | undefined) !== false
+  appearance.showReadingTime = (s['frontend.show_reading_time'] as boolean | undefined) !== false
+  appearance.showToc = (s['frontend.show_toc'] as boolean | undefined) !== false
   appearance.logoSize = ((s['frontend.logo_size'] as string | undefined) ?? 'md') as 'sm' | 'md' | 'lg'
   appearance.faviconUrl = (s['appearance.favicon_url'] as string) ?? ''
   appearance.logoUrl = (s['appearance.logo_url'] as string) ?? ''
@@ -246,6 +250,8 @@ async function save() {
       'frontend.show_header': appearance.showHeader,
       'frontend.show_search': appearance.showSearch,
       'frontend.show_sticky_header': appearance.showStickyHeader,
+      'frontend.show_reading_time': appearance.showReadingTime,
+      'frontend.show_toc': appearance.showToc,
       'frontend.logo_size': appearance.logoSize,
       'appearance.favicon_url': appearance.faviconUrl || null,
       'appearance.logo_url': appearance.logoUrl || null,

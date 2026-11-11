@@ -562,6 +562,12 @@ Upload a logo image to replace the site name text in the public navigation bar. 
 
 ---
 
+### Reading time and table of contents
+
+Blog posts show how long they take to read ("5 min read") next to the date, worked out at 230 words a minute. Any post or page with three or more section headings (Heading 2 or Heading 3) gets an **On this page** list at the top that jumps to each section, and every heading has its own link (for example `/my-post#costs`) you can share. Turn either off at **Admin → Settings → Appearance → Posts and pages**.
+
+---
+
 ### Custom code injection
 
 Inject third-party scripts or HTML snippets into every public page without editing any files or redeploying. Configure it at **Admin → Settings → Appearance → Custom code**.

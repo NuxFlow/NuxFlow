@@ -5,6 +5,7 @@ import { NuxImage } from '@nuxflow/canvas'
 import type { JsonLdVideo, PublicSiteInfo } from '~/utils/seo'
 import type { PublicEventInfo } from '~/components/public/EventDetails.vue'
 import type { PublicProductInfo } from '~/components/public/ProductDetails.vue'
+import { postOutline, tocHeadings } from '#shared/lib/post-outline'
 
 /**
  * A published content item rendered at `slugPath` (e.g. `about`, `es/about`, `es`).
@@ -241,6 +242,13 @@ const isCanvasPage = computed(() => {
   return typeof c === 'object' && c !== null && (c as { type: string }).type === 'canvas'
 })
 
+// Reading time (posts) and an "On this page" list (any prose page with three or more
+// sections), both from the stored document; heading ids match render-tiptap.ts. Each can be
+// switched off in Settings → Appearance.
+const outline = computed(() => (page.value && !isCanvasPage.value ? postOutline(page.value.content) : null))
+const readingMinutes = computed(() => (isArticle.value && site.value?.showReadingTime !== false ? outline.value?.readingMinutes ?? 0 : 0))
+const toc = computed(() => (outline.value && site.value?.showToc !== false && !page.value?.product ? tocHeadings(outline.value) : []))
+
 // "Listen to this article" — generates audio on demand (see api/public/listen/[slug].post.ts)
 // rather than pre-fetching on every page load, since most visitors never click it and each
 // click costs a real Workers AI TTS call.
@@ -335,6 +343,10 @@ const formattedDate = computed(() => formatDate(page.value?.publishedAt, '') || 
           </template>
           <span v-if="page.author && formattedDate" class="text-gray-300 dark:text-gray-600">·</span>
           <time v-if="formattedDate" :datetime="toIsoDate(page.publishedAt)">{{ formattedDate }}</time>
+          <template v-if="readingMinutes">
+            <span class="text-gray-300 dark:text-gray-600">·</span>
+            <span class="nux-reading-time">{{ readingMinutes }} min read</span>
+          </template>
         </div>
 
         <!-- Listen to this article (AI text-to-speech) -->
@@ -352,6 +364,17 @@ const formattedDate = computed(() => formatDate(page.value?.publishedAt, '') || 
           </UButton>
           <p v-if="listenError" class="text-xs text-red-500 mt-1">Couldn't generate audio for this article.</p>
         </div>
+
+        <nav v-if="toc.length" class="nux-toc mb-8 rounded-xl border border-gray-200 dark:border-gray-800 p-4 text-sm" aria-label="On this page">
+          <details open>
+            <summary class="cursor-pointer font-semibold text-gray-900 dark:text-white">On this page</summary>
+            <ol class="mt-3 space-y-1.5">
+              <li v-for="h in toc" :key="h.id" :class="h.level === 3 ? 'pl-4' : ''">
+                <a :href="`#${h.id}`" class="text-gray-600 dark:text-gray-400 hover:text-primary-500">{{ h.text }}</a>
+              </li>
+            </ol>
+          </details>
+        </nav>
 
         <NuxBlock :content="page.content" />
 
