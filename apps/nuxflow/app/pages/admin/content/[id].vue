@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { CustomFieldDef, CustomFieldValues } from '#shared/lib/custom-fields'
 import { eventDay, floatingDate, todayIn, utcToZoned, zonedToUtc, type EventRecurrence } from '@nuxflow/canvas/events'
 import { renderTipTap } from '#shared/lib/render-tiptap'
 import { ulid } from 'ulid'
@@ -31,6 +32,7 @@ const { data: item, error: loadError, refresh } = await useAsyncData(
     eventRsvpEnabled?: boolean | null; eventRsvpCapacity?: number | null; eventRsvpClosesAt?: string | null
     eventRecurrence?: EventRecurrence | null; eventPrice?: number | null; eventCurrency?: string | null
     eventCancelHours?: number | null; eventPassesAllowed?: boolean | null
+    fields?: CustomFieldValues | null
     canEdit?: boolean
     sourceItemId?: string | null
     termIds?: string[]
@@ -80,6 +82,7 @@ const form = reactive({
   eventCurrency: 'GBP',
   eventCancelHours: null as number | null,
   eventPassesAllowed: true,
+  fields: {} as CustomFieldValues,
   // Taxonomy term ids — saved with the rest of the item (see EditorTermPicker).
   termIds: [] as string[],
   // A product's options and variants (EditorProductSettingsPanel); null for anything else.
@@ -98,6 +101,10 @@ const activeTypeSlug = computed(() => {
   if (isNew.value) return (route.query.type as string) || 'page'
   return item.value?.typeSlug ?? 'page'
 })
+
+// The content type's own fields (Admin → Content types), shown in the Details panel.
+const { data: contentTypesData } = useFetch<{ types: Array<{ slug: string; fields: CustomFieldDef[] }> }>('/api/v1/content-types', { server: false })
+const fieldDefs = computed(() => contentTypesData.value?.types.find(t => t.slug === activeTypeSlug.value)?.fields ?? [])
 
 // Tell the sidebar, once mounted: it has already rendered by the time this page's data arrives
 // on the server, so setting it earlier would make the server and browser HTML disagree.
@@ -179,6 +186,7 @@ watch(item, (val) => {
   form.eventCurrency = val.eventCurrency ?? 'GBP'
   form.eventCancelHours = val.eventCancelHours ?? null
   form.eventPassesAllowed = val.eventPassesAllowed ?? true
+  form.fields = { ...(val.fields ?? {}) }
   form.termIds = val.termIds ?? []
   form.product = val.product
     ? { ...val.product, variants: val.product.variants.map(v => ({ ...v, stockWas: v.stock })) }
@@ -323,6 +331,8 @@ async function save(overrideStatus?: string) {
       eventCancelHours: form.eventCancelHours,
       // Unset means yes, so a post saved for the first time since this existed isn't a change.
       eventPassesAllowed: form.eventPassesAllowed ? null : false,
+      // Only sent when the type has fields, so other types' saves stay exactly as before.
+      ...(fieldDefs.value.length ? { fields: form.fields } : {}),
       termIds: form.termIds,
       pagePassword: newPassword,
       ...(form.product ? { product: form.product } : {}),
@@ -570,6 +580,10 @@ onUnmounted(() => {
               Reset to type default
             </UButton>
           </div>
+        </UCard>
+
+        <UCard v-if="fieldDefs.length">
+          <EditorCustomFieldsPanel v-model="form.fields" :defs="fieldDefs" :disabled="!canEdit" />
         </UCard>
 
         <!-- Event Settings Panel -->

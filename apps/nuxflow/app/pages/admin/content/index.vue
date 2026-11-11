@@ -5,7 +5,14 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 const route = useRoute()
 const typeSlug = computed(() => (route.query.type as string) || 'page')
 
-useHead({ title: computed(() => typeSlug.value.charAt(0).toUpperCase() + typeSlug.value.slice(1) + 's') })
+// The type's own names (Admin → Content types), so a site's "Properties" reads right; the
+// key with an "s" while they load.
+const { data: typesData } = useFetch<{ types: Array<{ slug: string; name: string; singularName: string }> }>('/api/v1/content-types', { server: false })
+const currentType = computed(() => typesData.value?.types.find(t => t.slug === typeSlug.value))
+const typeTitle = computed(() => currentType.value?.name ?? `${typeSlug.value.charAt(0).toUpperCase()}${typeSlug.value.slice(1)}s`)
+const typeSingular = computed(() => (currentType.value?.singularName ?? typeSlug.value).toLowerCase())
+
+useHead({ title: typeTitle })
 
 type ContentRow = {
   id: string
@@ -162,7 +169,7 @@ async function doDelete() {
   <div class="space-y-4">
     <div class="flex items-center justify-between gap-3">
       <div class="flex items-center gap-3">
-        <h1 class="text-xl font-bold text-gray-900 dark:text-white capitalize">{{ typeSlug }}s</h1>
+        <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ typeTitle }}</h1>
         <USelect
           v-model="selectedLocale"
           :items="localeOptions"
@@ -177,7 +184,7 @@ async function doDelete() {
         </UBadge>
       </div>
       <UButton :to="`/admin/content/new?type=${typeSlug}`" icon="i-lucide-plus">
-        New {{ typeSlug }}
+        New {{ typeSingular }}
       </UButton>
     </div>
 

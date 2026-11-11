@@ -1,6 +1,7 @@
 // ── Content types + content items restore ─────────────────────────────────────
 import { and, eq, inArray } from 'drizzle-orm'
 import { contentTypes, contentItems, contentTaxonomyTerms } from '@nuxflow/db/schema'
+import { parseFieldDefs } from '../../../shared/lib/custom-fields'
 import { ulid } from 'ulid'
 import type { Db } from '../db'
 import { checkPlanLimit } from '../hosting-plans'
@@ -33,6 +34,7 @@ function extraItemFields(item: NuxFlowBackup['content'][number]) {
   if (item.eventCurrency !== undefined) out.eventCurrency = item.eventCurrency
   if (item.eventCancelHours !== undefined) out.eventCancelHours = item.eventCancelHours
   if (item.eventPassesAllowed !== undefined) out.eventPassesAllowed = item.eventPassesAllowed
+  if (item.fields !== undefined) out.fields = item.fields
   return out
 }
 
@@ -73,17 +75,25 @@ export async function restoreContent(
   const ctRows = await db.query.contentTypes.findMany({ where: eq(contentTypes.siteId, siteId) })
   for (const t of ctRows) typeIdBySlug.set(t.slug, t.id)
 
-  // Create any non-built-in content types from backup
+  // Create any non-built-in content types from backup, with their custom fields. A type that
+  // already exists here gets the backup's fields only if it has none of its own.
   for (const backupType of backup.contentTypes ?? []) {
-    if (!typeIdBySlug.has(backupType.slug)) {
+    const fields = parseFieldDefs({ fields: backupType.fields })
+    const existingType = ctRows.find(t => t.slug === backupType.slug)
+    if (!existingType) {
       const id = ulid()
       await db.insert(contentTypes).values({
         id, siteId,
         slug: backupType.slug, name: backupType.name, singularName: backupType.singularName,
         icon: backupType.icon, isBuiltIn: false, hasRevisions: backupType.hasRevisions,
         hasComments: backupType.hasComments,
+        schema: { fields },
       })
       typeIdBySlug.set(backupType.slug, id)
+    }
+    else if (fields.length && !parseFieldDefs(existingType.schema).length) {
+      await db.update(contentTypes).set({ schema: { ...(existingType.schema ?? {}), fields } })
+        .where(and(eq(contentTypes.id, existingType.id), eq(contentTypes.siteId, siteId)))
     }
   }
 

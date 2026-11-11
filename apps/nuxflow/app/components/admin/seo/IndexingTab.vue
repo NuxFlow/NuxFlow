@@ -2,7 +2,7 @@
 const { form, saving, save, siteDomain } = inject(SEO_FORM_KEY)!
 const { run, isRunning, toast } = useAdminAction()
 
-const { data: typesData } = await useFetch<{ types: { slug: string; name: string }[] }>('/api/v1/seo/content-types', {
+const { data: typesData } = await useFetch<{ types: { slug: string; name: string }[] }>('/api/v1/content-types', {
   default: () => ({ types: [] }),
 })
 const typeItems = computed(() => (typesData.value?.types ?? []).map(t => ({ label: t.name, value: t.slug })))

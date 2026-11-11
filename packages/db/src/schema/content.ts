@@ -60,6 +60,9 @@ export const contentItems = sqliteTable('content_items', {
   previewToken: text('preview_token'),
   previewTokenExpiresAt: text('preview_token_expires_at'),
   settings: text('settings', { mode: 'json' }).$type<Record<string, unknown>>(),
+  // Values of the content type's custom fields (Admin → Content types), keyed by field key —
+  // apps/nuxflow/shared/lib/custom-fields.ts. Filtered with json_extract().
+  fields: text('fields', { mode: 'json' }).$type<Record<string, string | number | boolean | string[]>>(),
   allowComments: integer('allow_comments', { mode: 'boolean' }),
   locale: text('locale').notNull().default('en'),
   sourceItemId: text('source_item_id').references((): AnySQLiteColumn => contentItems.id, { onDelete: 'set null' }),

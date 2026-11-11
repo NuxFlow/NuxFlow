@@ -13,6 +13,7 @@ import {
   themes, dynamicPlugins, pluginStorage,
   userSiteRoles, membershipTiers, redirects,
 } from '@nuxflow/db/schema'
+import { parseFieldDefs } from '../../shared/lib/custom-fields'
 import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
 import { SENSITIVE_SETTING_KEYS, SERVER_MANAGED_SETTING_KEYS } from './settings'
 import { PUSH_KEY_SETTINGS } from '../../shared/lib/setting-groups'
@@ -70,7 +71,7 @@ export async function buildBackup(event: H3Event, siteId: string, options: Build
         content: true, excerpt: true, seoTitle: true, seoDescription: true, ogImage: true,
         publishedAt: true, settings: true, locale: true, sourceItemId: true,
         canonicalUrl: true, metaRobots: true, focusKeyword: true, allowComments: true,
-        eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, eventRsvpEnabled: true, eventRsvpCapacity: true, eventRsvpClosesAt: true, eventRecurrence: true, eventPrice: true, eventCurrency: true, eventCancelHours: true, eventPassesAllowed: true,
+        eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, eventRsvpEnabled: true, eventRsvpCapacity: true, eventRsvpClosesAt: true, eventRecurrence: true, eventPrice: true, eventCurrency: true, eventCancelHours: true, eventPassesAllowed: true, fields: true,
       },
     }),
     db.query.taxonomies.findMany({ where: eq(taxonomies.siteId, siteId) }),
@@ -258,6 +259,7 @@ export async function buildBackup(event: H3Event, siteId: string, options: Build
       eventCurrency: item.eventCurrency,
       eventCancelHours: item.eventCancelHours,
       eventPassesAllowed: item.eventPassesAllowed,
+      fields: item.fields,
     })
   }
 
@@ -295,6 +297,7 @@ export async function buildBackup(event: H3Event, siteId: string, options: Build
     contentTypes: ctRows.map(t => ({
       slug: t.slug, name: t.name, singularName: t.singularName,
       icon: t.icon, isBuiltIn: t.isBuiltIn, hasRevisions: t.hasRevisions, hasComments: t.hasComments,
+      fields: parseFieldDefs(t.schema),
     })),
     content: backupContent,
     taxonomies: backupTaxonomies,

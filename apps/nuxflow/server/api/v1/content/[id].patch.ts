@@ -25,6 +25,7 @@ import type { BatchItem } from 'drizzle-orm/batch'
 import { requireSiteId } from '../../../utils/site-context'
 import { getSiteInfo } from '../../../utils/site-info'
 import { checkContentDates, contentDateFields } from '../../../utils/content-dates'
+import { checkFieldValues, fieldDefsForType } from '../../../utils/content-type-fields'
 import { promoteAllWaitlists, reconcileBookings } from '../../../utils/event-rsvp'
 
 const bodySchema = z.object({
@@ -38,6 +39,8 @@ const bodySchema = z.object({
   focusKeyword: z.string().max(200).nullish(),
   metaRobots: z.enum(['index,follow', 'noindex,follow', 'noindex,nofollow', 'index,nofollow']).nullish(),
   settings: z.record(z.string(), z.unknown()).optional(),
+  // The content type's custom fields (Admin → Content types), checked against its definitions.
+  fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).nullable().optional(),
   excerpt: z.string().max(2000).nullish(),
   ogImage: z.string().max(2048).nullish(),
   allowComments: z.boolean().nullable().optional(),
@@ -87,6 +90,12 @@ export default defineEventHandler(async (event) => {
   const dateCheck = await checkContentDates(db, siteId, updateFields, { existing, sourceItemId: updateFields.sourceItemId, timeZone: site?.timezone || 'UTC' })
   if (dateCheck.problem !== undefined) throw validationError(dateCheck.problem)
   Object.assign(updateFields, dateCheck.dates)
+
+  // Required custom fields only have to be filled in to publish; a draft can be half-done.
+  if (updateFields.fields !== undefined) {
+    const defs = await fieldDefsForType(db, siteId, existing.typeId)
+    updateFields.fields = updateFields.fields === null ? null : checkFieldValues(defs, updateFields.fields, (updateFields.status ?? existing.status) === 'published')
+  }
 
   // The editor sends settings without the hash (GET never returns it): keep the stored
   // hash, hash a new password, or refuse a password page that has none.

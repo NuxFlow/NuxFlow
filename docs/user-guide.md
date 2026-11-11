@@ -62,6 +62,26 @@ The full instructions, including how to check it's working, are in the [Installa
 - **Pages**: Static content like "About Us", "Contact", or your Homepage.
 - **Posts**: Dynamic, date-ordered content like blog entries or news updates.
 
+### Content types and custom fields
+
+**Admin → Content types** (admins only) lists the kinds of content on your site: pages, posts, events and so on. Add your own with **New content type**, for example "Properties", "Menu items" or "Team members". Give it a name (Properties), a name for one of them (Property) and a key (`property`, which can't be changed later). Open it from its **Open** button to list, add and edit its items like posts.
+
+Any type, built-in or your own, can have extra **fields**. Click **Fields** and add as many as you need:
+
+| Type | For | Shows as |
+|---|---|---|
+| Short text / Long text | A reference, a description | The text |
+| Number | Price, bedrooms, square feet. Add something to go before (£) or after (sq ft). | £250,000 · 1,200 sq ft |
+| Yes / no | Garden, pets allowed | Yes / No |
+| One choice | Property type: House, Flat, Bungalow | The choice |
+| Several choices | Amenities: Parking, Garden, EV charger | Parking, Garden |
+| Date | Available from | 12 Mar 2027 |
+| Link | A virtual tour, a booking page | A link |
+
+In the editor, the fields appear in a **Details** panel in the sidebar and are saved with the item. Fields marked **Must be filled in to publish** can be left empty on a draft, but not on a published item. On the public page, they're listed in a box near the top (or under the content on a Canvas page). Untick **Show on the page** for anything just for you, such as an internal reference.
+
+Removing a field hides it, but the values already saved are kept, and they come back if you add a field with the same key. Your own content types, their fields and every item's values are included in the site backup. A content type can only be deleted once it has no items.
+
 ### The Block Editor
 NuxFlow features a powerful, visual block editor. You can build complex layouts by stacking blocks:
 - **Text Blocks**: Paragraphs, Headings (H1-H6), and Blockquotes.

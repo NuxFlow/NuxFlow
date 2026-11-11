@@ -21,6 +21,8 @@ export interface BackupContentType {
   isBuiltIn: boolean
   hasRevisions: boolean
   hasComments: boolean
+  /** Custom fields (Admin → Content types). Absent in older backups. */
+  fields?: unknown[]
 }
 
 export interface BackupContentItem {
@@ -58,6 +60,8 @@ export interface BackupContentItem {
   eventCurrency?: string | null
   eventCancelHours?: number | null
   eventPassesAllowed?: boolean | null
+  /** Values of the type's custom fields. Absent in older backups. */
+  fields?: Record<string, string | number | boolean | string[]> | null
 }
 
 /** A redirect rule (Admin → SEO → Redirects). Paths are site-relative, so they carry over to any domain. */
@@ -265,6 +269,7 @@ const backupContentTypeSchema = z.object({
   isBuiltIn: z.boolean(),
   hasRevisions: z.boolean(),
   hasComments: z.boolean(),
+  fields: z.array(z.unknown()).max(40).optional(),
 })
 
 const backupContentItemSchema = z.object({
@@ -306,6 +311,7 @@ const backupContentItemSchema = z.object({
   eventCurrency: z.string().nullable().optional(),
   eventCancelHours: z.number().int().nullable().optional(),
   eventPassesAllowed: z.boolean().nullable().optional(),
+  fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).nullable().optional(),
 })
 
 const backupRedirectSchema = z.object({

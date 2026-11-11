@@ -12,6 +12,7 @@ import { checkContentAccess } from '../../../utils/content-access'
 import { requireSiteId } from '../../../utils/site-context'
 import { markPrivateVideos } from '../../../utils/stream'
 import { addGalleryCameraDetails } from '../../../utils/gallery-camera'
+import { pageDetails, parseFieldDefs } from '../../../../shared/lib/custom-fields'
 import { describePageVideos, hasVideoBlocks } from '../../../utils/video-seo'
 import { eventIcsPath } from '../../../utils/event-feed'
 import { loadProduct, toPublicProduct } from '../../../utils/products'
@@ -104,7 +105,7 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
     page.typeId
       ? db.query.contentTypes.findFirst({
           where: and(eq(contentTypes.id, page.typeId), eq(contentTypes.siteId, siteId)),
-          columns: { hasComments: true, slug: true, name: true, singularName: true },
+          columns: { hasComments: true, slug: true, name: true, singularName: true, schema: true },
         })
       : Promise.resolve(null),
     page.authorId
@@ -122,7 +123,7 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
             eq(contentItems.siteId, siteId),
             eq(contentItems.status, 'published'),
           ),
-          columns: { locale: true, slug: true, eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, eventRsvpEnabled: true, eventRecurrence: true, eventPrice: true, eventCurrency: true },
+          columns: { locale: true, slug: true, eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, eventRsvpEnabled: true, eventRecurrence: true, eventPrice: true, eventCurrency: true, fields: true },
         })
       : Promise.resolve(null),
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true, timezone: true } }),
@@ -257,6 +258,9 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
     terms,
     videos,
     product,
+    // The type's custom fields (Admin → Content types), formatted for reading. A translation
+    // without values of its own shows its original's.
+    details: pageDetails(parseFieldDefs(type?.schema), page.fields ?? sourcePageResolved?.fields, page.locale || defaultLocale),
     availableLocales,
     alternates,
   }

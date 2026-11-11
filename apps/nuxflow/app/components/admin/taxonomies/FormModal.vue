@@ -6,7 +6,7 @@ const open = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ saved: [] }>()
 const { run, isRunning } = useAdminAction()
 
-const { data: typesData } = await useFetch<{ types: { slug: string; name: string }[] }>('/api/v1/seo/content-types', {
+const { data: typesData } = await useFetch<{ types: { slug: string; name: string }[] }>('/api/v1/content-types', {
   default: () => ({ types: [] }),
 })
 const typeItems = computed(() => (typesData.value?.types ?? []).map(t => ({ label: t.name, value: t.slug })))
