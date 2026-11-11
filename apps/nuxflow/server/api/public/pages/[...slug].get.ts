@@ -11,6 +11,7 @@ import { getPublicItemTerms, termArchivePath } from '../../../utils/taxonomy'
 import { checkContentAccess } from '../../../utils/content-access'
 import { requireSiteId } from '../../../utils/site-context'
 import { markPrivateVideos } from '../../../utils/stream'
+import { addGalleryCameraDetails } from '../../../utils/gallery-camera'
 import { describePageVideos, hasVideoBlocks } from '../../../utils/video-seo'
 import { eventIcsPath } from '../../../utils/event-feed'
 import { loadProduct, toPublicProduct } from '../../../utils/products'
@@ -127,7 +128,9 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true, timezone: true } }),
     getSeoSettings(db, siteId),
     getPublicItemTerms(db, siteId, page.id),
-    hasVideo ? markPrivateVideos(db, siteId, page.content) : Promise.resolve(page.content),
+    (hasVideo ? markPrivateVideos(db, siteId, page.content) : Promise.resolve(page.content))
+      // Gallery blocks with "Show camera details" get each photo's EXIF line (never stored).
+      .then(c => addGalleryCameraDetails(db, siteId, c)),
     hasVideo
       ? describePageVideos(db, siteId, page.content, {
           title: page.title,

@@ -43,6 +43,7 @@ Each photo in the list has:
 | **Row height** | Rows only: the target height of each row in pixels. Phones use shorter rows. |
 | **Gap** | Spacing between images in pixels (0–48). |
 | **Show captions** | Shows each photo's caption under it (over it, in the Rows layout). Captions always show in the lightbox. |
+| **Show camera details** | Adds the camera, lens and settings under each photo and in the lightbox — for example "Canon EOS R5 · 85 mm · f/1.8 · 1/250 s · ISO 100". They're read from the photo file when you upload it, so they only appear for photos from your Media Library whose files still carry them (some editing apps and phones strip them). |
 | **Rounded corners** | Rounds the corners of each photo. |
 | **Open lightbox on click** | When enabled, clicking any image opens it full-screen in the lightbox. Enabled by default. |
 | **Allow downloads** | Shows a **Download all** button above the gallery (a zip of every photo, at full size) and a download button on each photo in the lightbox. Off by default. Anyone who can view the page can download, so on a client gallery only people with the password can. |

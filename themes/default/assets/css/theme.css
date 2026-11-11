@@ -112,6 +112,7 @@
      .canvas-gallery[data-layout="grid|masonry|justified"]  Gallery block
        .canvas-gallery-item                     each photo (<figure>)
        .canvas-gallery-caption                  its caption, when shown
+       .canvas-gallery-camera                   its camera details line, when shown
        .canvas-gallery-download                 the "Download all" button (downloads on)
      .canvas-carousel      Image carousel / slider
        .canvas-carousel-caption                 a slide's caption
