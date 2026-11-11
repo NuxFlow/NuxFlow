@@ -825,6 +825,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       { key: 'rowHeight', label: 'Row height (px)', type: 'number', min: 120, max: 600, step: 10, condition: p => p.layout === 'justified' },
       { key: 'gap', label: 'Gap (px)', type: 'number', min: 0, max: 48, step: 2 },
       { key: 'showCaptions', label: 'Show captions', type: 'toggle' },
+      { key: 'showCameraDetails', label: 'Show camera details (camera, lens, settings — from the photo file)', type: 'toggle', ai: false },
       { key: 'rounded', label: 'Rounded corners', type: 'toggle' },
       { key: 'lightbox', label: 'Open lightbox on click', type: 'toggle' },
       // Client galleries: a "Download all" button (zip) and a download button per photo in
@@ -842,6 +843,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       rowHeight: 280,
       gap: 6,
       showCaptions: false,
+      showCameraDetails: false,
       rounded: false,
       lightbox: true,
       allowDownload: false,
