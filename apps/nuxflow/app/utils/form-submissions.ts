@@ -1,7 +1,17 @@
 // Helpers for Admin → Forms → Submissions (the inbox every form shares, including the
 // built-in contact form).
 
+import { storedFormFiles, type StoredFormFile } from '#shared/lib/form-files'
+
 export type SubmissionStatus = 'new' | 'read' | 'spam' | 'archived'
+
+/** Files sent in one field, each with its staff-only download link. */
+export function submissionFiles(submissionId: string, key: string, value: unknown): Array<StoredFormFile & { url: string }> {
+  return storedFormFiles(value).map((file, n) => ({
+    ...file,
+    url: `/_nuxflow/form-file/${encodeURIComponent(submissionId)}?field=${encodeURIComponent(key)}&n=${n}`,
+  }))
+}
 
 export interface InboxField { id?: string; name?: string; label?: string; type?: string }
 export interface InboxSubmission {
@@ -45,6 +55,8 @@ export function submissionColumns(fields: InboxField[] | null | undefined, submi
 export function displayValue(value: unknown): string {
   if (value === null || value === undefined) return ''
   if (typeof value === 'string') return value
+  const files = storedFormFiles(value)
+  if (files.length) return files.map(f => f.name).join(', ')
   if (Array.isArray(value)) return value.map(displayValue).join(', ')
   if (typeof value === 'boolean') return value ? 'Yes' : 'No'
   return typeof value === 'object' ? JSON.stringify(value) : String(value)

@@ -121,6 +121,18 @@
      .canvas-text          Rich text / prose block
      .canvas-columns       Multi-column layout block
      .canvas-testimonial   Testimonial / quote card block
+     .canvas-before-after  Before & After comparison slider
+       .canvas-before-after-frame               the photo area
+       .canvas-before-after-handle              the divider line and its knob
+       .canvas-before-after-label               the Before / After tags
+       .canvas-before-after-caption             the caption under it
+     .canvas-logos         Logo Strip block
+       .canvas-logos-list                       the row of logos
+       .canvas-logos-item                       each logo
+     .canvas-map           Map block
+       .canvas-map-frame                        the map area (iframe or placeholder)
+       .canvas-map-placeholder                  "Show map" panel before it's loaded
+       .canvas-map-caption                      note and "Open in …" link underneath
      .canvas-cta           Call-to-action banner block
      .canvas-spacer        Vertical spacer / divider block
      .canvas-calendar      Events Calendar block

@@ -2,6 +2,7 @@
 import { computed, ref, watch, watchEffect } from 'vue'
 import type { Component } from 'vue'
 import { spacingToCss, type SpacingValue } from '@nuxflow/canvas'
+import { formFilePartName } from '#shared/lib/form-files'
 import TextField from './fields/TextField.vue'
 import TextareaField from './fields/TextareaField.vue'
 import EmailField from './fields/EmailField.vue'
@@ -78,7 +79,7 @@ const { data: formData, pending, error } = await useFetch<{ id: string; name: st
 const fields = computed(() => formData.value?.fields ?? [])
 
 function defaultValueFor(field: RenderableField): unknown {
-  if (field.type === 'checkbox') return []
+  if (field.type === 'checkbox' || field.type === 'file') return []
   if (field.type === 'hidden') return field.placeholder ?? ''
   return ''
 }
@@ -160,27 +161,29 @@ async function submit() {
   if (!formData.value) return
   loading.value = true
   try {
-    // File inputs can't travel as JSON — form_submissions.data is a plain JSON
-    // column with no binary storage, and wiring a real upload would go through
-    // the media provider system (out of scope here), so only the file's name
-    // is recorded, same as every other primitive field value.
+    // Files travel as multipart parts (`file:<field name>`) next to a `payload` part holding
+    // the usual JSON body; the server keeps them in R2 (server/utils/form-files.ts). A form
+    // with no files attached posts plain JSON as before.
     const data: Record<string, unknown> = {}
+    const attached: Array<{ field: string; file: File }> = []
     for (const f of fields.value) {
       if (f.type === 'file') {
-        const file = values.value[f.name] as File | null
-        data[f.name] = file ? file.name : ''
+        for (const file of (values.value[f.name] as File[] | null) ?? []) attached.push({ field: f.name, file })
       } else {
         data[f.name] = values.value[f.name]
       }
     }
+    const payload = { data, turnstileToken: turnstileToken.value || undefined }
+    let body: FormData | typeof payload = payload
+    if (attached.length) {
+      const multipart = new FormData()
+      multipart.append('payload', JSON.stringify(payload))
+      for (const { field, file } of attached) multipart.append(formFilePartName(field), file, file.name)
+      body = multipart
+    }
 
-    await $fetch(`/api/v1/forms/${encodeURIComponent(props.formSlug)}/submit`, {
-      method: 'POST',
-      body: {
-        data,
-        turnstileToken: turnstileToken.value || undefined,
-      },
-    })
+    const url: string = `/api/v1/forms/${encodeURIComponent(props.formSlug)}/submit`
+    await $fetch<unknown>(url, { method: 'POST', body })
     submitted.value = true
   } catch (e: unknown) {
     const msg = getErrorMessage(e, 'Could not submit the form. Please try again.')

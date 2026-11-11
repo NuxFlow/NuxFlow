@@ -29,6 +29,9 @@ export interface PublicSiteInfo {
   seo?: PublicSiteSeo
   /** The shop, when it's on (Admin → Shop). */
   shop?: { currency: string; pricesIncludeTax: boolean } | null
+  /** Settings → Appearance → Posts: "5 min read" on posts, "On this page" on long pages. */
+  showReadingTime?: boolean
+  showToc?: boolean
 }
 
 /**

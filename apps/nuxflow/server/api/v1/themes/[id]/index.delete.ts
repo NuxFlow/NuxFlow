@@ -13,6 +13,7 @@ import type { NuxFlowBackup } from '../../../../utils/backup'
 import { purgeAllPublicPages } from '../../../../utils/edge-cache'
 import { requireSiteId } from '../../../../utils/site-context'
 import { parseQuery } from '../../../../utils/validate'
+import { deleteFormFiles } from '../../../../utils/form-files'
 
 const querySchema = z.object({
   deleteDemo: z.enum(['true', 'false']).optional().transform(v => v === 'true'),
@@ -65,9 +66,11 @@ export default defineEventHandler(async (event) => {
       if (backup.forms?.length) {
         const slugs = backup.forms.map(f => f.slug).filter(Boolean)
         if (slugs.length) {
-          await db.delete(forms).where(
-            and(eq(forms.siteId, siteId), inArray(forms.slug, slugs))
-          )
+          const formScope = and(eq(forms.siteId, siteId), inArray(forms.slug, slugs))
+          const removed = await db.select({ id: forms.id }).from(forms).where(formScope)
+          await db.delete(forms).where(formScope)
+          // Submissions cascade with the form; the files people sent with them are in R2.
+          await deleteFormFiles(event, siteId, removed.map(f => f.id))
         }
       }
     }

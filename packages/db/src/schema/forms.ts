@@ -1,4 +1,4 @@
-import { sqliteTable, text, index } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 import { sites } from './sites'
 import { users } from './users'
@@ -32,6 +32,9 @@ export const formSubmissions = sqliteTable('form_submissions', {
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
   status: text('status', { enum: ['new', 'read', 'spam', 'archived'] }).notNull().default('new'),
+  // Bytes of uploaded files kept in R2 for this submission (`_private/<siteId>/forms/…`),
+  // counted towards the storage plan limit like media and inbound email.
+  storedBytes: integer('stored_bytes').notNull().default(0),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_form_submissions_form').on(t.formId),
