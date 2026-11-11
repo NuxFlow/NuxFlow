@@ -682,6 +682,14 @@ All forms live under **Admin → Forms**, and every form's messages are collecte
 
 Submissions are protected by Cloudflare Turnstile spam detection (when configured), rate-limited, and checked by AI moderation when an AI provider is set up — anything it flags is moved to **Spam** automatically.
 
+### File uploads
+
+A **File upload** field lets visitors send photos, PDFs or documents with their message — a picture of the job for a quote, a CV, a signed form. Each field takes up to 5 files of up to 10 MB each (25 MB per message in all). Photos from iPhones (HEIC) are fine; web pages, scripts and SVG drawings are refused.
+
+- Files are kept **privately** on your site's storage: only people with the Editor role or higher can open them, from the message in the Submissions inbox. They're never on a public link.
+- They count towards your site's storage. If storage is full, the visitor is asked to send their message without files, and the site's admins get a notice.
+- File uploads need file storage (R2). Without it, visitors who attach a file are asked to send their message without it.
+
 ### The submissions inbox
 
 Open a form's inbox from the **Submissions** count in the Forms list (the badge shows unread messages).
