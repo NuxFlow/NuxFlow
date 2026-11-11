@@ -3,12 +3,14 @@ import {
   displayValue,
   replyAddress,
   submissionColumns,
+  submissionFiles,
   submissionPreview,
   submissionsToCsv,
   type InboxField,
   type InboxSubmission,
   type SubmissionStatus,
 } from '~/utils/form-submissions'
+import { formatFileSize } from '#shared/lib/form-files'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
@@ -217,7 +219,18 @@ async function downloadCsv() {
           <dl class="space-y-3">
             <div v-for="col in columns" :key="col.key">
               <dt class="text-xs font-medium text-gray-500">{{ col.label }}</dt>
-              <dd class="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">{{ displayValue(selected.data[col.key]) || '—' }}</dd>
+              <dd v-if="submissionFiles(selected.id, col.key, selected.data[col.key]).length" class="text-sm space-y-1">
+                <a
+                  v-for="file in submissionFiles(selected.id, col.key, selected.data[col.key])"
+                  :key="file.url"
+                  :href="file.url"
+                  class="flex items-center gap-1.5 text-primary-600 dark:text-primary-400 hover:underline break-all"
+                >
+                  <UIcon name="i-lucide-paperclip" class="w-4 h-4 shrink-0" />
+                  {{ file.name }} <span class="text-gray-500">({{ formatFileSize(file.size) }})</span>
+                </a>
+              </dd>
+              <dd v-else class="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">{{ displayValue(selected.data[col.key]) || '—' }}</dd>
             </div>
           </dl>
           <div class="flex flex-wrap gap-2 pt-3 border-t border-gray-100 dark:border-gray-800">

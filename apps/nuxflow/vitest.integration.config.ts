@@ -8,6 +8,9 @@ export default defineConfig({
       '@nuxflow/db/queries': resolve(import.meta.dirname, '../../packages/db/src/queries/index.ts'),
       '@nuxflow/db/roles': resolve(import.meta.dirname, '../../packages/db/src/roles.ts'),
       '@nuxflow/db': resolve(import.meta.dirname, '../../packages/db/src/index.ts'),
+      // Nuxt's alias for shared/ — app code must use it (a relative import of shared/lib
+      // from app/utils breaks the production build).
+      '#shared': resolve(import.meta.dirname, 'shared'),
     },
   },
   test: {

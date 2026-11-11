@@ -1,5 +1,5 @@
 import { useDb } from '../utils/db'
-import { comments, contentItems, contentRevisions, dynamicPlugins, emailMessages, formSubmissions, media, pluginStorage, sites, userSiteRoles } from '@nuxflow/db/schema'
+import { comments, contentItems, contentRevisions, dynamicPlugins, emailMessages, formSubmissions, media, pluginStorage, productVariants, sites, userSiteRoles } from '@nuxflow/db/schema'
 import { count, eq, sql } from 'drizzle-orm'
 import type { Db } from '../utils/db'
 import { writeUsageSnapshot, type UsageCount, type UsageSnapshotMetric } from '../utils/usage'
@@ -48,11 +48,14 @@ export const snapshotUsage = async (now = new Date()) => {
   const db = useDb()
   const day = utcDay(now)
 
-  const [siteRows, storage, emailStorage, items, roles, plugins, database] = await Promise.all([
+  const [siteRows, storage, emailStorage, shopStorage, formStorage, items, roles, plugins, database] = await Promise.all([
     db.select({ id: sites.id }).from(sites),
     db.select({ siteId: media.siteId, value: sql<number>`coalesce(sum(${media.size}), 0)` }).from(media).groupBy(media.siteId),
-    // Inbound email kept in R2 counts towards storage too (hosting-plans.ts).
+    // Inbound email, shop downloads and form files kept in R2 count towards storage too
+    // (the same parts as planUsage() in hosting-plans.ts).
     db.select({ siteId: emailMessages.siteId, value: sql<number>`coalesce(sum(${emailMessages.storedBytes}), 0)` }).from(emailMessages).groupBy(emailMessages.siteId),
+    db.select({ siteId: productVariants.siteId, value: sql<number>`coalesce(sum(${productVariants.fileSize}), 0)` }).from(productVariants).groupBy(productVariants.siteId),
+    db.select({ siteId: formSubmissions.siteId, value: sql<number>`coalesce(sum(${formSubmissions.storedBytes}), 0)` }).from(formSubmissions).groupBy(formSubmissions.siteId),
     db.select({ siteId: contentItems.siteId, value: count() }).from(contentItems).groupBy(contentItems.siteId),
     db.select({
       siteId: userSiteRoles.siteId,
@@ -70,7 +73,7 @@ export const snapshotUsage = async (now = new Date()) => {
     return out
   }
   const values: Record<UsageSnapshotMetric, Map<string, number>> = {
-    storage_bytes: addUp(bySite(storage), bySite(emailStorage)),
+    storage_bytes: addUp(addUp(addUp(bySite(storage), bySite(emailStorage)), bySite(shopStorage)), bySite(formStorage)),
     content_items: bySite(items),
     team_members: new Map(roles.map(r => [r.siteId, Number(r.team)])),
     site_members: new Map(roles.map(r => [r.siteId, Number(r.members)])),
