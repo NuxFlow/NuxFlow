@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { FORM_FILE_RULES_TEXT } from '#shared/lib/form-files'
+import { SHOW_IF_OPS, describeShowIf, parseShowIf, type ShowIf } from '#shared/lib/form-logic'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
@@ -23,6 +24,8 @@ const fieldTypes = [
   // {{fieldName}} with sibling field values — see FormsFieldsComputedField.vue
   // and DynamicFormBlock.vue's evaluateFormula().
   { label: 'Computed', type: 'computed', icon: 'i-lucide-function-square' },
+  // Not a question: starts the next page of a multi-step form (shared/lib/form-logic.ts).
+  { label: 'Step (new page)', type: 'step', icon: 'i-lucide-square-split-vertical' },
 ]
 
 // Field types whose value editing UI is a free-text option list (label/value pairs).
@@ -40,6 +43,7 @@ interface FormField {
   placeholder?: string
   options?: FormFieldOption[]
   formula?: string
+  showIf?: ShowIf | null
 }
 
 interface NotificationsConfig {
@@ -92,6 +96,39 @@ function addField(type: string) {
   if (OPTION_TYPES.includes(type)) field.options = []
   fields.value.push(field)
   selectedField.value = field
+}
+
+function moveField(index: number, by: -1 | 1) {
+  const to = index + by
+  if (to < 0 || to >= fields.value.length) return
+  const list = [...fields.value]
+  const [moved] = list.splice(index, 1)
+  list.splice(to, 0, moved!)
+  fields.value = list
+}
+
+// ── "Show this field only when…" ────────────────────────────────────────────
+// A condition can only look at questions above this one (steps and computed fields can't
+// be answered by the visitor), which also rules out loops.
+const conditionTargets = computed(() => {
+  const sel = selectedField.value
+  if (!sel) return []
+  const index = fields.value.findIndex(f => f.id === sel.id)
+  return fields.value.slice(0, Math.max(0, index)).filter(f => !['step', 'computed', 'hidden', 'signature', 'file'].includes(f.type))
+})
+const conditionTarget = computed(() => fields.value.find(f => f.name === selectedField.value?.showIf?.field) ?? null)
+const conditionNeedsValue = computed(() => SHOW_IF_OPS.find(o => o.value === selectedField.value?.showIf?.op)?.needsValue ?? false)
+
+function toggleCondition(on: boolean) {
+  if (!selectedField.value) return
+  selectedField.value.showIf = on && conditionTargets.value[0]
+    ? { field: conditionTargets.value[0].name, op: 'equals', value: '' }
+    : null
+}
+
+function conditionText(field: FormField): string {
+  const cond = parseShowIf(field.showIf)
+  return cond ? describeShowIf(cond, fields.value) : ''
 }
 
 function removeField(id: string) {
@@ -160,7 +197,7 @@ async function save() {
 
       <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 min-h-96 p-4 space-y-3">
         <div
-          v-for="field in fields"
+          v-for="(field, index) in fields"
           :key="field.id"
           class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
           :class="selectedField?.id === field.id
@@ -168,10 +205,17 @@ async function save() {
             : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'"
           @click="selectedField = field"
         >
-          <UIcon name="i-lucide-grip-vertical" class="w-4 h-4 text-gray-300 cursor-grab" />
+          <div class="flex flex-col">
+            <UButton variant="ghost" size="xs" color="neutral" icon="i-lucide-chevron-up" :disabled="index === 0" :aria-label="`Move ${field.label} up`" @click.stop="moveField(index, -1)" />
+            <UButton variant="ghost" size="xs" color="neutral" icon="i-lucide-chevron-down" :disabled="index === fields.length - 1" :aria-label="`Move ${field.label} down`" @click.stop="moveField(index, 1)" />
+          </div>
           <div class="flex-1">
+            <p v-if="field.type === 'step'" class="text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-400">
+              New step
+            </p>
             <p class="text-sm font-medium text-gray-900 dark:text-white">{{ field.label }}</p>
-            <p class="text-xs text-gray-400">{{ field.type }}<span v-if="field.required" class="text-red-400 ml-1">*</span></p>
+            <p v-if="field.type !== 'step'" class="text-xs text-gray-400">{{ field.type }}<span v-if="field.required" class="text-red-400 ml-1">*</span></p>
+            <p v-if="conditionText(field)" class="text-xs text-amber-600 dark:text-amber-400 mt-0.5">{{ conditionText(field) }}</p>
           </div>
           <UButton variant="ghost" size="xs" icon="i-lucide-trash-2" color="error" @click.stop="removeField(field.id)" />
         </div>
@@ -198,15 +242,55 @@ async function save() {
     <!-- Field settings panel -->
     <aside v-if="selectedField" class="w-64 shrink-0 space-y-3">
       <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Field settings</p>
-      <UFormField label="Label">
+      <UFormField :label="selectedField.type === 'step' ? 'Step heading' : 'Label'">
         <UInput v-model="selectedField.label" size="sm" />
       </UFormField>
-      <UFormField label="Field name">
-        <UInput v-model="selectedField.name" size="sm" />
-      </UFormField>
-      <UFormField label="Required">
-        <USwitch v-model="selectedField.required" />
-      </UFormField>
+      <p v-if="selectedField.type === 'step'" class="text-xs text-gray-500">
+        Everything below this, up to the next step, is shown on its own page with Next and Back buttons.
+      </p>
+      <template v-else>
+        <UFormField label="Field name">
+          <UInput v-model="selectedField.name" size="sm" />
+        </UFormField>
+        <UFormField label="Required">
+          <USwitch v-model="selectedField.required" />
+        </UFormField>
+
+        <div class="space-y-2 rounded-lg border border-gray-200 dark:border-gray-800 p-2">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-medium text-gray-700 dark:text-gray-300">Show only when…</span>
+            <USwitch
+              :model-value="Boolean(selectedField.showIf)"
+              :disabled="!selectedField.showIf && !conditionTargets.length"
+              aria-label="Show this field only when an earlier answer matches"
+              @update:model-value="toggleCondition"
+            />
+          </div>
+          <p v-if="!selectedField.showIf && !conditionTargets.length" class="text-xs text-gray-400">Add a question above this one first.</p>
+          <template v-if="selectedField.showIf">
+            <USelect
+              v-model="selectedField.showIf.field"
+              size="sm"
+              class="w-full"
+              :items="conditionTargets.map(f => ({ label: f.label || f.name, value: f.name }))"
+              aria-label="Question"
+            />
+            <USelect v-model="selectedField.showIf.op" size="sm" class="w-full" :items="SHOW_IF_OPS.map(o => ({ label: o.label, value: o.value }))" aria-label="Condition" />
+            <template v-if="conditionNeedsValue">
+              <USelect
+                v-if="conditionTarget?.options?.length"
+                v-model="selectedField.showIf.value"
+                size="sm"
+                class="w-full"
+                :items="conditionTarget.options.map(o => ({ label: o.label || o.value, value: o.value }))"
+                aria-label="Answer"
+              />
+              <UInput v-else v-model="selectedField.showIf.value" size="sm" placeholder="Answer" aria-label="Answer" />
+            </template>
+            <p class="text-xs text-gray-400">Hidden questions aren't required, and their answers aren't kept.</p>
+          </template>
+        </div>
+      </template>
 
       <UFormField v-if="PLACEHOLDER_TYPES.includes(selectedField.type)" label="Placeholder">
         <UInput v-model="selectedField.placeholder" size="sm" />

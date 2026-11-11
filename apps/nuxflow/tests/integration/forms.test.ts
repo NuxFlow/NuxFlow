@@ -388,3 +388,36 @@ describe('submissions inbox', () => {
       .rejects.toMatchObject({ statusCode: 422 })
   })
 })
+
+describe('POST /api/v1/forms/:formIdentifier/submit — steps and conditional questions', () => {
+  const LOGIC_FIELDS = [
+    { id: 'l1', type: 'select', label: 'Service', name: 'service', required: true, options: [{ label: 'Boiler repair', value: 'boiler' }, { label: 'Plumbing', value: 'plumbing' }] },
+    { id: 'l2', type: 'step', label: 'About your boiler', name: 'step_1' },
+    { id: 'l3', type: 'text', label: 'Boiler make', name: 'boilerMake', required: true, showIf: { field: 'service', op: 'equals', value: 'boiler' } },
+    { id: 'l4', type: 'text', label: 'Postcode', name: 'postcode', required: true },
+  ] as unknown as FormField[]
+
+  async function latest(formId: string) {
+    const db = getCurrentTestDb()
+    const rows = await db.select().from(formSubmissions).where(eq(formSubmissions.formId, formId))
+    return rows.at(-1)!
+  }
+
+  it('requires a shown question', async () => {
+    const { slug } = await seedForm({ fields: LOGIC_FIELDS })
+    await expect((submitHandler as Handler)(publicEvent({ params: { formIdentifier: slug }, body: { data: { service: 'boiler', postcode: 'YO1' } } })))
+      .rejects.toMatchObject({ statusCode: 422 })
+  })
+
+  it('doesn\'t require a hidden question, and drops its stale answer', async () => {
+    const { id, slug } = await seedForm({ fields: LOGIC_FIELDS })
+    await (submitHandler as Handler)(publicEvent({ params: { formIdentifier: slug }, body: { data: { service: 'plumbing', boilerMake: 'left over', postcode: 'YO1' } } }))
+    expect((await latest(id)).data).toEqual({ service: 'plumbing', postcode: 'YO1' })
+  })
+
+  it('keeps a shown answer, and never stores the step heading', async () => {
+    const { id, slug } = await seedForm({ fields: LOGIC_FIELDS })
+    await (submitHandler as Handler)(publicEvent({ params: { formIdentifier: slug }, body: { data: { service: 'boiler', boilerMake: 'Worcester', postcode: 'YO1', step_1: 'x' } } }))
+    expect((await latest(id)).data).toEqual({ service: 'boiler', boilerMake: 'Worcester', postcode: 'YO1' })
+  })
+})

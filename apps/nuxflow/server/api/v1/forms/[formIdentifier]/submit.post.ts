@@ -30,6 +30,7 @@ import {
   type MultipartPart,
 } from '../../../../utils/form-files'
 import { formatFileSize, storedFormFiles } from '../../../../../shared/lib/form-files'
+import { hiddenFieldNames, parseShowIf } from '../../../../../shared/lib/form-logic'
 
 interface FormNotificationsConfig {
   enabled?: boolean
@@ -47,7 +48,7 @@ const bodySchema = z.object({
 const MAX_FIELD_VALUE_LENGTH = 10_000
 const MAX_CHECKBOX_VALUES = 100
 
-function validateSubmissionData(data: Record<string, unknown>, fields: FormField[], files: Map<string, IncomingFormFile[]>): string | null {
+function validateSubmissionData(data: Record<string, unknown>, fields: FormField[], files: Map<string, IncomingFormFile[]>, hidden: Set<string>): string | null {
   const known = new Map(fields.map(f => [f.name, f]))
 
   for (const key of Object.keys(data)) {
@@ -55,6 +56,9 @@ function validateSubmissionData(data: Record<string, unknown>, fields: FormField
   }
 
   for (const field of fields) {
+    // A step heading has no answer, and a question hidden by its condition is never
+    // required — its answer, if any, is dropped (shared/lib/form-logic.ts).
+    if (field.type === 'step' || hidden.has(field.name)) continue
     const value = data[field.name]
     // File fields arrive as multipart parts, never in `data`. A page cached before files
     // worked sends the bare file name (or '' when empty): '' is dropped, a name refused.
@@ -131,12 +135,19 @@ export default defineEventHandler(async (event) => {
   const { files, error: fileError } = collectFormFiles(parts, form.fields)
   if (fileError) throw validationError(fileError)
 
-  const validationErr = validateSubmissionData(body.data, form.fields, files)
+  // "Show this field only when…": worked out from the answers as sent (files count as
+  // answers), exactly as the visitor's browser did. Hidden questions keep nothing.
+  const answers: Record<string, unknown> = { ...body.data, ...Object.fromEntries(files) }
+  const hidden = hiddenFieldNames(form.fields.map(f => ({ ...f, showIf: parseShowIf(f.showIf) })), answers)
+  for (const name of hidden) files.delete(name)
+
+  const validationErr = validateSubmissionData(body.data, form.fields, files, hidden)
   if (validationErr) throw validationError(validationErr)
 
-  // File fields' empty leftovers from older pages are dropped; the files go in below.
-  const fileFieldNames = new Set(form.fields.filter(f => f.type === 'file').map(f => f.name))
-  const data: Record<string, unknown> = Object.fromEntries(Object.entries(body.data).filter(([key]) => !fileFieldNames.has(key)))
+  // File fields' empty leftovers from older pages, step headings and hidden questions are
+  // dropped; the files go in below.
+  const dropped = new Set([...hidden, ...form.fields.filter(f => f.type === 'file' || f.type === 'step').map(f => f.name)])
+  const data: Record<string, unknown> = Object.fromEntries(Object.entries(body.data).filter(([key]) => !dropped.has(key)))
 
   const ip = getClientIp(event) ?? undefined
   const valid = await verifyTurnstile(body.turnstileToken ?? '', ip)

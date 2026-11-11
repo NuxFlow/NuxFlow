@@ -45,7 +45,8 @@ export const formSubmissions = sqliteTable('form_submissions', {
 // Type definitions for form field schema
 export interface FormField {
   id: string
-  type: 'text' | 'email' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'number' | 'date' | 'file' | 'computed' | 'hidden' | 'signature'
+  // 'step' isn't a question: it starts a new page of a multi-step form, its label the page's heading.
+  type: 'text' | 'email' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'number' | 'date' | 'file' | 'computed' | 'hidden' | 'signature' | 'step'
   label: string
   name: string
   placeholder?: string
@@ -53,4 +54,6 @@ export interface FormField {
   options?: Array<{ label: string; value: string }>
   validation?: Record<string, unknown>
   formula?: string
+  /** Show this field only when an earlier answer matches (apps/nuxflow/shared/lib/form-logic.ts). */
+  showIf?: { field: string; op: 'equals' | 'not_equals' | 'contains' | 'filled' | 'empty'; value?: string } | null
 }

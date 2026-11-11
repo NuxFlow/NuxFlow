@@ -3,6 +3,7 @@ import { computed, ref, watch, watchEffect } from 'vue'
 import type { Component } from 'vue'
 import { spacingToCss, type SpacingValue } from '@nuxflow/canvas'
 import { formFilePartName } from '#shared/lib/form-files'
+import { formSteps, hiddenFieldNames, isFilled, type ShowIf } from '#shared/lib/form-logic'
 import TextField from './fields/TextField.vue'
 import TextareaField from './fields/TextareaField.vue'
 import EmailField from './fields/EmailField.vue'
@@ -25,6 +26,7 @@ interface RenderableField {
   required?: boolean
   options?: { label: string; value: string }[]
   formula?: string
+  showIf?: ShowIf
 }
 
 // Mirrors apps/nuxflow/app/components/forms/fields/index.ts's FIELD_COMPONENTS
@@ -134,6 +136,38 @@ function fieldProp(field: RenderableField) {
 const loading = ref(false)
 const submitted = ref(false)
 
+// ── Steps and conditional questions (shared/lib/form-logic.ts — the server applies the
+// same rules on submit). A form with no Step fields is a single step.
+const steps = computed(() => formSteps(fields.value))
+const stepIndex = ref(0)
+const stepError = ref('')
+const hidden = computed(() => hiddenFieldNames(fields.value, values.value))
+const isLastStep = computed(() => stepIndex.value >= steps.value.length - 1)
+const currentStep = computed(() => steps.value[Math.min(stepIndex.value, Math.max(0, steps.value.length - 1))])
+const visibleFields = computed(() => (currentStep.value?.fields ?? []).filter(f => !hidden.value.has(f.name)))
+const formEl = ref<HTMLFormElement | null>(null)
+
+/** The first required question on this step left unanswered, by label. */
+function missingOnStep(): string | null {
+  const field = visibleFields.value.find(f => f.required && f.type !== 'computed' && f.type !== 'hidden' && !isFilled(values.value[f.name]))
+  return field ? field.label || field.name : null
+}
+
+function goTo(index: number) {
+  stepIndex.value = Math.max(0, Math.min(index, steps.value.length - 1))
+  stepError.value = ''
+  formEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function next() {
+  const missing = missingOnStep()
+  if (missing) {
+    stepError.value = `Please answer "${missing}" before going on.`
+    return
+  }
+  goTo(stepIndex.value + 1)
+}
+
 const { data: _siteData } = useFetch('/api/public/site', {
   key: 'nuxflow-turnstile-key',
   headers: useRequestHeaders(['host']),
@@ -155,10 +189,18 @@ function resetForm() {
   for (const f of fields.value) next[f.name] = defaultValueFor(f)
   values.value = next
   turnstileToken.value = ''
+  stepIndex.value = 0
+  stepError.value = ''
 }
 
 async function submit() {
   if (!formData.value) return
+  if (!isLastStep.value) return next()
+  const missing = missingOnStep()
+  if (missing) {
+    stepError.value = `Please answer "${missing}".`
+    return
+  }
   loading.value = true
   try {
     // Files travel as multipart parts (`file:<field name>`) next to a `payload` part holding
@@ -167,6 +209,8 @@ async function submit() {
     const data: Record<string, unknown> = {}
     const attached: Array<{ field: string; file: File }> = []
     for (const f of fields.value) {
+      // Step headings have no answer; questions hidden by their condition send nothing.
+      if (f.type === 'step' || hidden.value.has(f.name)) continue
       if (f.type === 'file') {
         for (const file of (values.value[f.name] as File[] | null) ?? []) attached.push({ field: f.name, file })
       } else {
@@ -225,10 +269,19 @@ async function submit() {
         </UButton>
       </div>
 
-      <form v-else class="space-y-4" @submit.prevent="submit">
+      <form v-else ref="formEl" class="space-y-4 scroll-mt-24" @submit.prevent="submit">
+        <div v-if="steps.length > 1" class="dynamic-form-progress space-y-2">
+          <p class="text-sm font-medium opacity-80">
+            Step {{ stepIndex + 1 }} of {{ steps.length }}<template v-if="currentStep?.title"> · {{ currentStep.title }}</template>
+          </p>
+          <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" role="progressbar" :aria-valuenow="stepIndex + 1" aria-valuemin="1" :aria-valuemax="steps.length">
+            <div class="h-full rounded-full bg-primary-500 transition-all" :style="{ width: `${((stepIndex + 1) / steps.length) * 100}%` }" />
+          </div>
+        </div>
+
         <component
           :is="FIELD_RENDERERS[field.type]"
-          v-for="field in fields"
+          v-for="field in visibleFields"
           :key="field.id"
           :field="fieldProp(field)"
           :model-value="values[field.name]"
@@ -236,11 +289,18 @@ async function submit() {
           @update:model-value="values[field.name] = $event"
         />
 
-        <NuxtTurnstile v-if="hasTurnstile" v-model="turnstileToken" :site-key="turnstileSiteKey" />
+        <p v-if="stepError" class="text-sm text-red-600 dark:text-red-400" role="alert">{{ stepError }}</p>
 
-        <UButton type="submit" :loading="loading" block>
-          {{ submitLabel }}
-        </UButton>
+        <NuxtTurnstile v-if="hasTurnstile && isLastStep" v-model="turnstileToken" :site-key="turnstileSiteKey" />
+
+        <div class="flex gap-3">
+          <UButton v-if="stepIndex > 0" type="button" variant="outline" color="neutral" icon="i-lucide-arrow-left" @click="goTo(stepIndex - 1)">
+            Back
+          </UButton>
+          <UButton type="submit" :loading="loading" class="flex-1 justify-center" :trailing-icon="isLastStep ? undefined : 'i-lucide-arrow-right'">
+            {{ isLastStep ? submitLabel : 'Next' }}
+          </UButton>
+        </div>
       </form>
     </div>
   </section>
