@@ -4,6 +4,7 @@
 
 import { parseVideoUrl, videoEmbedUrl, videoWatchUrl } from '@nuxflow/canvas/video'
 import { escapeHtml } from './html-text'
+import { headingId, nodeText } from './post-outline'
 
 interface TipTapNode {
   type: string
@@ -106,7 +107,9 @@ function renderNode(node: TipTapNode): string {
 
     case 'heading': {
       const l = Math.min(Math.max(Number(node.attrs?.level ?? 1), 1), 6)
-      return `<h${l}>${children(node)}</h${l}>`
+      // Same ids, in the same order, as postOutline() gives the table of contents.
+      const id = headingIds ? ` id="${esc(headingId(nodeText(node).trim(), headingIds))}"` : ''
+      return `<h${l}${id}>${children(node)}</h${l}>`
     }
 
     case 'text': {
@@ -208,9 +211,19 @@ function renderVideo(node: TipTapNode): string {
   return `<figure class="nux-video">${inner}${caption}</figure>`
 }
 
+// Heading ids already given out in the document being rendered (one renderTipTap() call is
+// one document; rendering is synchronous, so a module variable is safe).
+let headingIds: Map<string, number> | null = null
+
 export function renderTipTap(doc: unknown): string {
   if (!doc || typeof doc !== 'object') return ''
-  const node = doc as TipTapNode
-  if (Array.isArray(doc)) return (doc as TipTapNode[]).map(renderNode).join('')
-  return renderNode(node)
+  const outer = headingIds
+  headingIds = new Map()
+  try {
+    if (Array.isArray(doc)) return (doc as TipTapNode[]).map(renderNode).join('')
+    return renderNode(doc as TipTapNode)
+  }
+  finally {
+    headingIds = outer
+  }
 }

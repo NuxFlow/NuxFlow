@@ -138,6 +138,31 @@ async function removeFavicon() {
   </UCard>
 
   <UCard>
+    <template #header><p class="text-sm font-semibold text-gray-900 dark:text-white">Posts and pages</p></template>
+    <div class="space-y-5">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">Show reading time</p>
+          <p class="mt-0.5 text-xs text-gray-400">Adds "5 min read" next to the date on blog posts.</p>
+        </div>
+        <USwitch v-model="appearance.showReadingTime" />
+      </div>
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">Show table of contents</p>
+          <p class="mt-0.5 text-xs text-gray-400">Adds an "On this page" list of sections to posts and pages with three or more headings.</p>
+        </div>
+        <USwitch v-model="appearance.showToc" />
+      </div>
+    </div>
+    <template #footer>
+      <div class="flex justify-end">
+        <UButton :loading="saving" @click="onSave">Save changes</UButton>
+      </div>
+    </template>
+  </UCard>
+
+  <UCard>
     <template #header><p class="text-sm font-semibold text-gray-900 dark:text-white">Frontend header</p></template>
     <div class="space-y-5">
       <div class="flex items-start justify-between gap-4">

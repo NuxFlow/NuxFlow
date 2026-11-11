@@ -16,6 +16,8 @@ export interface AppearanceState {
   showHeader: boolean
   showSearch: boolean
   showStickyHeader: boolean
+  showReadingTime: boolean
+  showToc: boolean
   logoSize: 'sm' | 'md' | 'lg'
   faviconUrl: string
   logoUrl: string
