@@ -38,7 +38,7 @@ export function submissionColumns(fields: InboxField[] | null | undefined, submi
   const seen = new Set<string>()
   for (const f of fields ?? []) {
     const key = fieldKey(f)
-    if (!key || seen.has(key) || f.type === 'hidden') continue
+    if (!key || seen.has(key) || f.type === 'hidden' || f.type === 'step') continue
     seen.add(key)
     cols.push({ key, label: f.label || key })
   }

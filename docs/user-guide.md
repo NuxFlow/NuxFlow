@@ -719,6 +719,12 @@ All forms live under **Admin → Forms**, and every form's messages are collecte
 
 Submissions are protected by Cloudflare Turnstile spam detection (when configured), rate-limited, and checked by AI moderation when an AI provider is set up — anything it flags is moved to **Spam** automatically.
 
+### Steps and conditional questions
+
+Long forms, such as a quote request, are easier to fill in a page at a time. In the form builder, add a **Step (new page)** field where a new page should start, and give it a heading ("About your property"). Visitors then see one step at a time with **Next** and **Back** buttons and "Step 2 of 3" at the top. **Next** won't move on until that step's required questions are answered. Use the arrows on each field to put the fields in order.
+
+Any question can be shown only when an earlier answer matches. Select the question, turn on **Show only when…**, and pick the earlier question, a condition (**is**, **is not**, **contains**, **is filled in** or **is empty**) and the answer. For example, show "Boiler make and model" only when "Service" is "Boiler repair". A question that's hidden isn't required, and if a visitor answered it and then changed their mind, that answer isn't kept. The same rules are checked again when the form is sent.
+
 ### File uploads
 
 A **File upload** field lets visitors send photos, PDFs or documents with their message — a picture of the job for a quote, a CV, a signed form. Each field takes up to 5 files of up to 10 MB each (25 MB per message in all). Photos from iPhones (HEIC) are fine; web pages, scripts and SVG drawings are refused.

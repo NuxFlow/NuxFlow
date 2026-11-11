@@ -4,6 +4,7 @@ import { getFormBySlugOrThrow } from '../../../utils/resource-queries'
 import { notFound } from '../../../utils/response'
 import type { FormField } from '@nuxflow/db/schema'
 import { withEdgeCache } from '../../../utils/edge-cache'
+import { parseShowIf } from '../../../../shared/lib/form-logic'
 
 async function loadForm(event: H3Event, siteId: string, formIdentifier: string) {
   const db = useDb(event)
@@ -20,6 +21,8 @@ async function loadForm(event: H3Event, siteId: string, formIdentifier: string) 
     options: f.options,
     // Only 'computed' fields need their formula on the client to render a value.
     formula: f.type === 'computed' ? f.formula : undefined,
+    // Multi-step forms and conditional questions (shared/lib/form-logic.ts).
+    showIf: parseShowIf(f.showIf) ?? undefined,
   }))
 
   return { id: form.id, name: form.name, fields }
