@@ -59,6 +59,7 @@ export const BUILTIN_BLOCK_COMPONENTS: Record<string, Component> = {
   'canvas-video': lazyBlock(() => import('./CanvasBlockVideo.vue')),
   'canvas-video-gallery': lazyBlock(() => import('./CanvasBlockVideoGallery.vue')),
   'canvas-testimonial': lazyBlock(() => import('./CanvasBlockTestimonial.vue')),
+  'canvas-hours': lazyBlock(() => import('./CanvasBlockHours.vue')),
   'canvas-features': lazyBlock(() => import('./CanvasBlockFeatures.vue')),
   'canvas-button': lazyBlock(() => import('./CanvasBlockButton.vue')),
   'canvas-accordion': lazyBlock(() => import('./CanvasBlockAccordion.vue')),

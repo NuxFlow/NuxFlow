@@ -21,6 +21,7 @@ import { isMemberPool, POOL_PLATFORM_SETTINGS, requireControlPlane } from '../..
 import { pushSettingsToPools } from '../../../utils/pools'
 import { assertDemoAllowsSettings } from '../../../utils/demo-mode'
 import { assertSiteMayReopen } from '../../../utils/hosting-hold'
+import { BUSINESS_SETTING_KEY, normalizeBusinessSetting } from '../../../utils/business'
 
 const bodySchema = z.object({
   // Site columns
@@ -132,6 +133,8 @@ export default defineEventHandler(async (event) => {
     // seo.* keys are validated/normalized (seo-settings-schema.ts); everything else
     // passes through unchanged.
     const normalized = normalizeSeoSettings(Object.entries(body.settings))
+      // Settings → Business is checked here too (it has no route of its own).
+      .map(([k, v]): [string, unknown] => (k === BUSINESS_SETTING_KEY ? [k, normalizeBusinessSetting(v)] : [k, v]))
     settingEntries.push(...normalized)
 
     // Turning IndexNow on generates the site's key the first time — it's served at

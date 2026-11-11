@@ -810,3 +810,13 @@ describe('canvas-hero background video', () => {
     expect(dim.condition!({ bgVideo: 'https://youtu.be/dQw4w9WgXcQ' })).toBe(true)
   })
 })
+
+describe('canvas-hours block', () => {
+  it('is registered with a component and takes its hours from settings, not fields', async () => {
+    const { BUILTIN_BLOCK_COMPONENTS } = await import('../../../../packages/canvas/src/blocks/components')
+    const def = getBlockDefinition('canvas-hours')!
+    expect(BUILTIN_BLOCK_COMPONENTS['canvas-hours']).toBeDefined()
+    expect(def.fields.map(f => f.key)).not.toContain('hours')
+    expect(def.defaultProps.showStatus).toBe(true)
+  })
+})

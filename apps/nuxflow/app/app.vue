@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { imageTransformsEnabledKey } from '@nuxflow/canvas'
+import { businessContextKey, imageTransformsEnabledKey } from '@nuxflow/canvas'
+import type { BusinessInfo } from '@nuxflow/canvas/business'
 import type { PublicSiteSeo } from '~/utils/seo'
 
 const { data: siteInfo } = useFetch<{
   name?: string
   locale?: string | null
+  timezone?: string | null
+  business?: BusinessInfo | null
   faviconUrl?: string | null
   imageTransformsEnabled?: boolean
   hasPlugins?: boolean
@@ -21,6 +24,14 @@ const { data: siteInfo } = useFetch<{
 // Provided once at the app root and inject()ed by every NuxImage.vue instance — see
 // image-transforms.ts's own doc comment for why this can't be each image's own fetch.
 provide(imageTransformsEnabledKey, computed(() => siteInfo.value?.imageTransformsEnabled ?? false))
+// Settings → Business, for the Opening Hours block — same reason: SSR and hydration need it
+// without each block fetching on its own.
+provide(businessContextKey, computed(() => ({
+  info: siteInfo.value?.business ?? null,
+  siteName: siteInfo.value?.name ?? '',
+  timeZone: siteInfo.value?.timezone || 'UTC',
+  locale: siteInfo.value?.locale || 'en',
+})))
 
 const route = useRoute()
 const isAdminRoute = computed(() => route.path === '/admin' || route.path.startsWith('/admin/'))

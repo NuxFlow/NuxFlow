@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { PublicSiteInfo } from '~/utils/seo'
+import { localBusinessJsonLd, siteClock } from '@nuxflow/canvas/business'
 
 const route = useRoute()
 
@@ -58,6 +59,10 @@ useHead({
           name: siteName.value,
           url: canonicalBase.value,
           ...(logoUrl.value ? { logo: logoUrl.value } : {}),
+          // Settings → Business: the organization becomes a LocalBusiness (or a subtype —
+          // Restaurant, Plumber…) with its address, phone and opening hours, for Google's
+          // local results and AI assistants answering "is it open now?".
+          ...(site.value?.business ? localBusinessJsonLd(site.value.business, siteClock(new Date(), site.value.timezone || 'UTC').date) : {}),
           // Social profiles (Admin → SEO → Social & verification) — how search engines and
           // AI assistants tie this site to its accounts elsewhere.
           ...(site.value?.seo?.socialProfiles?.length ? { sameAs: site.value.seo.socialProfiles } : {}),

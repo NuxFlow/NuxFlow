@@ -447,6 +447,38 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     },
   },
 
+  // ── Opening Hours ──────────────────────────────────────────────────────────
+  {
+    id: 'canvas-hours',
+    name: 'Opening Hours',
+    description: 'Your weekly hours with an "Open now" badge, from Settings → Business',
+    icon: 'i-lucide-clock',
+    category: 'content',
+    component: 'CanvasBlockHours',
+    ai: { hint: 'The business\'s opening hours (taken from the site\'s settings — nothing to fill in). Use on contact, visit-us or home pages of shops, cafés and local businesses.' },
+    thumbnailColor: '#fefce8',
+    fields: [
+      { key: 'title', label: 'Heading', type: 'text', placeholder: 'Opening hours' },
+      { key: 'showStatus', label: 'Show "Open now" / "Closed"', type: 'toggle', ai: false },
+      { key: 'showExceptions', label: 'Show upcoming holiday hours', type: 'toggle', ai: false },
+      { key: 'showAddress', label: 'Show the address', type: 'toggle', ai: false },
+      { key: 'showPhone', label: 'Show the phone number', type: 'toggle', ai: false },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      title: 'Opening hours',
+      showStatus: true,
+      showExceptions: true,
+      showAddress: true,
+      showPhone: true,
+      bgColor: '',
+      textColor: '',
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
   // ── CTA Banner ────────────────────────────────────────────────────────────
   {
     id: 'canvas-cta',

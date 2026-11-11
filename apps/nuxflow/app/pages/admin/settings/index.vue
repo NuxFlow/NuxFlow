@@ -28,6 +28,7 @@ const { data, error: loadError, refresh } = await useFetch<SiteData>('/api/v1/se
 const tabs = [
   { label: 'General', icon: 'i-lucide-settings' },
   { label: 'Appearance', icon: 'i-lucide-palette' },
+  { label: 'Business', icon: 'i-lucide-store' },
   { label: 'Email', icon: 'i-lucide-mail' },
   { label: 'Payments', icon: 'i-lucide-credit-card' },
   { label: 'Media', icon: 'i-lucide-hard-drive' },
@@ -340,6 +341,7 @@ async function save() {
       <div class="flex-1 space-y-4">
         <AdminSettingsGeneralTab v-if="active === 'General'" v-model:general="general" :saving="saving" :on-save="save" />
         <AdminSettingsAppearanceTab v-if="active === 'Appearance'" v-model:appearance="appearance" :saving="saving" :on-save="save" />
+        <AdminSettingsBusinessTab v-if="active === 'Business'" />
         <AdminSettingsEmailTab v-if="active === 'Email'" v-model:email="email" :default-from="data?.emailDefaults?.fromAddress" :saving="saving" :on-save="save" />
         <AdminSettingsPaymentsTab v-if="active === 'Payments'" v-model:payments="payments" :domain="general.domain" :saving="saving" :on-save="save" />
         <AdminSettingsMediaTab v-if="active === 'Media'" v-model:cloudflare="cloudflare" v-model:r2="r2" :saving="saving" :on-save="save" :image-transformations-available="data?.imageTransformationsAvailable !== false" />

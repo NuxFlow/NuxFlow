@@ -1,3 +1,4 @@
+import type { BusinessInfo } from '@nuxflow/canvas/business'
 /**
  * Pure helpers for public-page SEO: ISO dates, absolute URLs, FAQ extraction from Canvas
  * accordions, and schema.org JSON-LD. Kept free of Vue/Nuxt APIs so they're unit-testable
@@ -29,6 +30,8 @@ export interface PublicSiteInfo {
   seo?: PublicSiteSeo
   /** The shop, when it's on (Admin → Shop). */
   shop?: { currency: string; pricesIncludeTax: boolean } | null
+  /** Settings → Business (address, phone, opening hours), when any is set. */
+  business?: BusinessInfo | null
 }
 
 /**
