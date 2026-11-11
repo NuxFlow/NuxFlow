@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import type { SpacingValue } from '../types'
 import { spacingToCss } from '../utils/spacing'
-import { normalizeImageValue } from '../utils/json'
+import { normalizeImageValue, type ImageFieldValue } from '../utils/json'
 import NuxImage from './NuxImage.vue'
 
 // Theme hooks: .canvas-before-after, .canvas-before-after-frame, .canvas-before-after-handle,
@@ -13,10 +13,10 @@ import NuxImage from './NuxImage.vue'
 // The "after" photo sets the size; the "before" photo is drawn over it and clipped.
 
 const props = withDefaults(defineProps<{
-  before?: unknown
+  before?: string | ImageFieldValue
   beforeAlt?: string
   beforeLabel?: string
-  after?: unknown
+  after?: string | ImageFieldValue
   afterAlt?: string
   afterLabel?: string
   start?: number | string
