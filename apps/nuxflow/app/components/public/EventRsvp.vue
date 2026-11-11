@@ -1,6 +1,11 @@
 <script setup lang="ts">
 // The booking form on an event page. The page itself is cached whole, so whether places are
 // left is fetched here in the browser, and nothing about a visitor is in the cached HTML.
+// An event can ask for an intake form (a waiver, a health questionnaire), answered here
+// before the booking goes through — server/utils/booking-intake.ts.
+import FormFieldList from '~/components/forms/FormFieldList.vue'
+import type { RenderableField } from '~/components/forms/FormFieldList.vue'
+import { hiddenFieldNames, isFilled } from '#shared/lib/form-logic'
 
 const props = defineProps<{ itemId: string }>()
 
@@ -26,6 +31,8 @@ interface RsvpState {
   cancelHours: number | null
   /** A repeating event's next dates. Null for a one-off. */
   dates: BookableDate[] | null
+  /** The questions to answer before booking, when the event asks for them. */
+  intake: { name: string; fields: RenderableField[] } | null
 }
 
 type Answer = { status: 'pending' | 'confirmed' | 'waitlist' | 'checkout'; url?: string }
@@ -50,6 +57,27 @@ const loading = ref(false)
 const errorMessage = ref('')
 const result = ref<'pending' | 'confirmed' | 'waitlist' | null>(null)
 const uid = useId()
+
+// ── Intake form ─────────────────────────────────────────────────────────────
+const intakeValues = ref<Record<string, unknown>>({})
+const intakeFields = computed(() => state.value?.intake?.fields ?? [])
+const intakeHidden = computed(() => hiddenFieldNames(intakeFields.value, intakeValues.value))
+const shownIntakeFields = computed(() => intakeFields.value.filter(f => !intakeHidden.value.has(f.name)))
+
+function seedIntake(fields: RenderableField[]) {
+  intakeValues.value = Object.fromEntries(fields.map(f => [f.name, f.type === 'checkbox' ? [] : f.type === 'hidden' ? f.placeholder ?? '' : '']))
+}
+
+/** The first shown required question left unanswered, by label. */
+function missingIntake(): string | null {
+  const field = shownIntakeFields.value.find(f => f.required && f.type !== 'step' && f.type !== 'computed' && !isFilled(intakeValues.value[f.name]))
+  return field ? field.label || field.name : null
+}
+
+function intakeAnswers(): Record<string, unknown> | undefined {
+  if (!state.value?.intake) return undefined
+  return Object.fromEntries(shownIntakeFields.value.filter(f => f.type !== 'step').map(f => [f.name, intakeValues.value[f.name]]))
+}
 
 const rsvpUrl = computed<string>(() => `/api/public/rsvp/${props.itemId}`)
 
@@ -95,6 +123,7 @@ onMounted(async () => {
   try {
     const loaded = await $fetch<RsvpState, string>(rsvpUrl.value)
     state.value = loaded
+    seedIntake(loaded.intake?.fields ?? [])
     method.value = loaded.canPayByCard ? 'card' : 'pass'
     // A link from a timetable names its date; otherwise, the next one.
     const asked = typeof route.query.date === 'string' ? route.query.date : ''
@@ -112,6 +141,11 @@ watch(maxSeats, (max) => {
 
 async function submit() {
   errorMessage.value = ''
+  const missing = missingIntake()
+  if (missing) {
+    errorMessage.value = `Please answer "${missing}".`
+    return
+  }
   loading.value = true
   try {
     const answer = await $fetch<Answer, string>(rsvpUrl.value, {
@@ -124,6 +158,7 @@ async function submit() {
         method: paid.value ? method.value : undefined,
         website: website.value || undefined,
         turnstileToken: turnstileToken.value || undefined,
+        intake: intakeAnswers(),
       },
     })
     if (answer.status === 'checkout' && answer.url) {
@@ -190,6 +225,11 @@ async function submit() {
         :items="methodOptions"
         legend="How would you like to pay?"
       />
+      <fieldset v-if="state.intake && shownIntakeFields.length" class="nuxflow-event-intake space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+        <legend class="px-1 text-sm font-semibold">{{ state.intake.name }}</legend>
+        <p class="text-xs opacity-70">Please fill this in before booking.</p>
+        <FormFieldList :fields="shownIntakeFields" :values="intakeValues" @update="(fieldName, value) => { intakeValues[fieldName] = value }" />
+      </fieldset>
       <div class="absolute -left-[9999px] w-px h-px overflow-hidden" aria-hidden="true">
         <label :for="`${uid}-website`">Website</label>
         <input :id="`${uid}-website`" v-model="website" type="text" name="website" tabindex="-1" autocomplete="off">
