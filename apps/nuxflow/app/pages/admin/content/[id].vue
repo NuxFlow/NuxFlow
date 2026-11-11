@@ -80,6 +80,7 @@ const form = reactive({
   eventCurrency: 'GBP',
   eventCancelHours: null as number | null,
   eventPassesAllowed: true,
+  intakeFormId: '',
   // Taxonomy term ids — saved with the rest of the item (see EditorTermPicker).
   termIds: [] as string[],
   // A product's options and variants (EditorProductSettingsPanel); null for anything else.
@@ -179,6 +180,7 @@ watch(item, (val) => {
   form.eventCurrency = val.eventCurrency ?? 'GBP'
   form.eventCancelHours = val.eventCancelHours ?? null
   form.eventPassesAllowed = val.eventPassesAllowed ?? true
+  form.intakeFormId = String((val.settings as Record<string, unknown> | null)?.intakeFormId ?? '')
   form.termIds = val.termIds ?? []
   form.product = val.product
     ? { ...val.product, variants: val.product.variants.map(v => ({ ...v, stockWas: v.stock })) }
@@ -307,7 +309,8 @@ async function save(overrideStatus?: string) {
       metaRobots: (form.metaRobots || null) as 'index,follow' | 'noindex,follow' | 'noindex,nofollow' | 'index,nofollow' | null,
       excerpt: form.excerpt || null,
       ogImage: form.ogImage || null,
-      settings: { access: form.access },
+      // The whole settings object is replaced on save, so everything kept in it is sent.
+      settings: { access: form.access, ...(form.intakeFormId ? { intakeFormId: form.intakeFormId } : {}) },
       allowComments: form.allowComments,
       eventStartAt: eventDateForSave(form.eventStartAt, form.eventAllDay),
       eventEndAt: eventDateForSave(form.eventEndAt, form.eventAllDay),
@@ -588,6 +591,7 @@ onUnmounted(() => {
           v-model:event-currency="form.eventCurrency"
           v-model:event-cancel-hours="form.eventCancelHours"
           v-model:event-passes-allowed="form.eventPassesAllowed"
+          v-model:intake-form-id="form.intakeFormId"
           :time-zone="siteTimeZone"
           :item-id="isNew ? undefined : (item?.sourceItemId ?? id)"
           :is-translation="Boolean(item?.sourceItemId)"

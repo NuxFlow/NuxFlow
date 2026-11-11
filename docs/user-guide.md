@@ -264,6 +264,12 @@ When an event is full, people join a waitlist. If someone cancels, or you add mo
 
 If your site has no email provider set up, RSVPs take effect straight away, with no email.
 
+#### A form to fill in when booking
+
+For a health waiver, a "before your first session" questionnaire or anything else you need from everyone who books, build the form under **Admin → Forms** and choose it under **Form to fill in when booking** in the event's settings. The questions then appear in the booking box on the event page, and **nobody can book or pay until the required ones are answered**. "Show only when…" questions and signatures work as they do on any form; file uploads aren't offered here.
+
+Each person's answers are saved as a submission of that form, so you'll find them in its **Submissions** inbox with two extra columns: **Booking** (the event and date) and **Booked by** (their name and email). The form's notification email and any plugins listening for form submissions are triggered as usual. For a repeating class, the same form is used for every date.
+
 The day before an event, everyone coming gets a reminder. If you change an event's time or place they're told, and if you call a date off they're told and refunded. (**Cancel event** or **Cancel this date** on the attendee list.)
 
 ### Repeating classes

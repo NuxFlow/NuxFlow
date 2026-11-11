@@ -4,26 +4,14 @@ import { getFormBySlugOrThrow } from '../../../utils/resource-queries'
 import { notFound } from '../../../utils/response'
 import type { FormField } from '@nuxflow/db/schema'
 import { withEdgeCache } from '../../../utils/edge-cache'
-import { parseShowIf } from '../../../../shared/lib/form-logic'
+import { publicFormField } from '../../../utils/form-submission'
 
 async function loadForm(event: H3Event, siteId: string, formIdentifier: string) {
   const db = useDb(event)
   const form = await getFormBySlugOrThrow(db, siteId, formIdentifier, 'Form not found')
   if (form.status !== 'active') notFound('Form not found')
 
-  const fields = (form.fields as FormField[]).map(f => ({
-    id: f.id,
-    type: f.type,
-    label: f.label,
-    name: f.name,
-    placeholder: f.placeholder,
-    required: f.required,
-    options: f.options,
-    // Only 'computed' fields need their formula on the client to render a value.
-    formula: f.type === 'computed' ? f.formula : undefined,
-    // Multi-step forms and conditional questions (shared/lib/form-logic.ts).
-    showIf: parseShowIf(f.showIf) ?? undefined,
-  }))
+  const fields = (form.fields as FormField[]).map(publicFormField)
 
   return { id: form.id, name: form.name, fields }
 }

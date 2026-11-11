@@ -17,6 +17,9 @@ const eventPrice = defineModel<number | null>('eventPrice', { required: true })
 const eventCurrency = defineModel<string>('eventCurrency', { required: true })
 const eventCancelHours = defineModel<number | null>('eventCancelHours', { required: true })
 const eventPassesAllowed = defineModel<boolean>('eventPassesAllowed', { required: true })
+// A Form Builder form people fill in before their booking goes through (a waiver, a health
+// questionnaire) — server/utils/booking-intake.ts. Kept in the item's settings.
+const intakeFormId = defineModel<string>('intakeFormId', { required: true })
 
 defineProps<{
   /** The site's time zone, which the times here are in. */
@@ -37,6 +40,28 @@ watch(eventAllDay, (allDay) => {
   else {
     if (eventStartAt.value.length === 10) eventStartAt.value = `${eventStartAt.value}T09:00`
     if (eventEndAt.value.length === 10) eventEndAt.value = `${eventEndAt.value}T17:00`
+  }
+})
+
+// ── Intake form ─────────────────────────────────────────────────────────────
+// Listing forms needs the editor role; an author sees the choice already made, if any.
+const NO_FORM = 'none'
+// The select can't hold an empty value, so "none" stands in for no form.
+const intakeChoice = computed({
+  get: () => intakeFormId.value || NO_FORM,
+  set: (v: string) => { intakeFormId.value = v === NO_FORM ? '' : v },
+})
+const formOptions = ref<Array<{ label: string; value: string }>>([])
+onMounted(async () => {
+  try {
+    const res = await $fetch<{ forms: Array<{ id: string; name: string; status: string }> }>('/api/v1/forms')
+    formOptions.value = [
+      { label: 'None', value: NO_FORM },
+      ...res.forms.filter(f => f.status === 'active').map(f => ({ label: f.name, value: f.id })),
+    ]
+  }
+  catch {
+    formOptions.value = []
   }
 })
 
@@ -229,6 +254,15 @@ const capacityText = computed({
             />
           </UFormField>
           <p class="text-xs text-gray-400">When it's full, people join a waitlist and move up if someone cancels.</p>
+          <UFormField
+            v-if="formOptions.length > 1"
+            label="Form to fill in when booking"
+            hint="Optional"
+            description="A waiver or questionnaire people must answer before their booking goes through. Answers go to that form's Submissions."
+            class="text-xs"
+          >
+            <USelect v-model="intakeChoice" :items="formOptions" class="w-full text-sm" />
+          </UFormField>
           <div class="grid grid-cols-[1fr_5rem] gap-2">
             <UFormField label="Price per place" hint="Blank for free" class="text-xs">
               <UInput v-model="priceText" type="number" min="0" step="0.01" placeholder="Free" class="text-sm" />
