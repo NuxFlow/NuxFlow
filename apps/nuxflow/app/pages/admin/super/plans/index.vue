@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AdminSitesResponse } from '#shared/lib/admin-site-types'
 import { PLAN_FEATURES, PLAN_LIMITS, type PlanFeatureColumn, type PlanLimitColumn } from '#shared/lib/hosting-plan-limits'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
@@ -23,7 +24,7 @@ type Plan = {
 
 const { data, pending, error, refresh } = await useFetch<{ plans: Plan[] }>('/api/v1/admin/plans')
 // Member pools a plan's sign-ups can get their site in (Super Admin → Pools).
-const { data: siteData } = await useFetch<{ pools: string[] }>('/api/v1/admin/sites')
+const { data: siteData } = await useFetch<AdminSitesResponse>('/api/v1/admin/sites')
 const HERE = '__control_panel__'
 const poolItems = computed(() => [
   { label: 'This control panel', value: HERE },

@@ -1,12 +1,12 @@
 <script setup lang="ts">
+import type { AdminSitesResponse, SiteListing } from '#shared/lib/admin-site-types'
 import type { SiteMoveRow } from '~/components/admin/SiteMoveModal.vue'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 // poolId: the member pool the site lives in (null = this control panel's own).
 // moving: locked while being moved to another pool (Move, below).
-type SiteRow = { id: string; name: string; domain: string; status: string; locale?: string; hostingPlanId: string | null; createdAt: string; poolId: string | null; moving?: boolean }
-const { data, refresh } = await useFetch<{ sites: SiteRow[]; pools: string[]; unreachablePools: string[] }>('/api/v1/admin/sites')
+const { data, refresh } = await useFetch<AdminSitesResponse>('/api/v1/admin/sites')
 const showPools = computed(() => (data.value?.pools.length ?? 0) > 0 || (data.value?.sites ?? []).some(s => s.poolId))
 // Plans only exist while Super Admin → Platform's hosting switch is on (the API 404s otherwise).
 const hostingPlatform = (await fetchAdminAccess())?.hostingPlatform ?? false
@@ -27,9 +27,9 @@ const unfinishedMoves = computed(() => (moveData.value?.moves ?? []).filter(m =>
 const MOVE_FAILED_TEXT = "The copy didn't match, so nothing was switched. Open it to cancel the move."
 const MOVE_PAUSED_TEXT = "The site is locked until the move finishes or is cancelled. Open it to continue."
 const isMoveOpen = ref(false)
-const moveSite = ref<SiteRow | null>(null)
+const moveSite = ref<SiteListing | null>(null)
 const resumeMove = ref<SiteMoveRow | null>(null)
-function openMove(site: SiteRow) {
+function openMove(site: SiteListing) {
   moveSite.value = site
   resumeMove.value = null
   isMoveOpen.value = true
@@ -49,7 +49,7 @@ const planName = (id: string | null) => (id && planData.value?.plans.find(p => p
 // only in the browser left it blank in the server render, so the current site's delete
 // button was rendered enabled and hydration never corrected it (the API still refuses).
 const currentDomain = useRequestURL().hostname
-const isCurrentSite = (site: SiteRow) => site.domain === currentDomain
+const isCurrentSite = (site: SiteListing) => site.domain === currentDomain
 const items = computed(() => data.value?.sites ?? [])
 
 type Color = 'success' | 'warning' | 'error' | 'primary' | 'neutral'
@@ -67,7 +67,7 @@ const columns = computed(() => [
 
 // Modal & Form States
 const isEditOpen = ref(false)
-const selectedSite = ref<SiteRow | null>(null)
+const selectedSite = ref<SiteListing | null>(null)
 const editForm = reactive({
   id: '',
   name: '',
@@ -87,7 +87,7 @@ const deleteLeftovers = ref<{ domain: string; failedMediaDeletes: string[]; left
 const saving = ref(false)
 const saveError = ref('')
 
-function openEdit(site: SiteRow) {
+function openEdit(site: SiteListing) {
   selectedSite.value = site
   editForm.id = site.id
   editForm.name = site.name
@@ -99,7 +99,7 @@ function openEdit(site: SiteRow) {
   isEditOpen.value = true
 }
 
-function openDelete(site: SiteRow) {
+function openDelete(site: SiteListing) {
   selectedSite.value = site
   deleteConfirmText.value = ''
   isDeleteOpen.value = true

@@ -23,6 +23,7 @@ import { clearSiteCache } from './site-resolution'
 import { poolBindingName } from '../../shared/lib/pool-id'
 import { httpError } from './response'
 import { httpErrorStatus } from './errors'
+import type { SiteListing } from '../../shared/lib/admin-site-types'
 
 /**
  * Sites in member pools (control-plane.ts), managed from the control plane's Super Admin →
@@ -339,31 +340,19 @@ export async function createSiteInPool(event: H3Event, input: CreateInPoolInput,
   return { id, domain, pending, emailDelivery }
 }
 
-export interface SiteListing {
-  id: string
-  name: string
-  domain: string
-  status: string
-  locale?: string
-  hostingPlanId: string | null
-  createdAt: string
-  /** The member pool it lives in, or null for this control plane's own sites. */
-  poolId: string | null
-  /** Locked while being moved to another pool (site-move-job.ts). */
-  moving?: boolean
-}
+export type { SiteListing }
 
 /** Every site: the control plane's own, then each reachable pool's. */
 export async function listAllSites(event: H3Event): Promise<{ sites: SiteListing[]; unreachablePools: string[] }> {
   const own = (await useDb(event).query.sites.findMany({ limit: 1000 })).filter(s => isServedCopy(s.moveState))
-  const listed: SiteListing[] = own.map(s => ({ id: s.id, name: s.name, domain: s.domain, status: s.status, locale: s.locale ?? undefined, hostingPlanId: s.hostingPlanId ?? null, createdAt: s.createdAt, poolId: null, moving: !!s.moveState }))
+  const listed: SiteListing[] = own.map(s => ({ id: s.id, name: s.name, domain: s.domain, status: s.status, locale: s.locale ?? undefined, hostingPlanId: s.hostingPlanId ?? null, createdAt: s.createdAt, poolId: null, isPrimary: s.isPrimary, moving: !!s.moveState }))
   const unreachablePools: string[] = []
   await Promise.all(poolBindings(event).map(async ({ binding, stub }) => {
     try {
       const status = await callPool(stub.status(), binding)
       const poolSites = await callPool(stub.listSites(), binding)
       for (const s of poolSites) {
-        listed.push({ id: s.id, name: s.name, domain: s.domain, status: s.status, locale: s.locale, hostingPlanId: s.hostingPlanId ?? null, createdAt: s.createdAt, poolId: status.poolId, moving: !!s.moving })
+        listed.push({ id: s.id, name: s.name, domain: s.domain, status: s.status, locale: s.locale, hostingPlanId: s.hostingPlanId ?? null, createdAt: s.createdAt, poolId: status.poolId, isPrimary: false, moving: !!s.moving })
       }
     } catch (err) {
       console.error(`[pool-sites] Couldn't list ${binding}'s sites:`, err)

@@ -97,6 +97,22 @@ describe('GET /api/v1/admin/sites', () => {
     const ids = res.sites.map(s => s.id)
     expect(ids).toEqual(expect.arrayContaining([PRIMARY, TENANT]))
   })
+
+  // Settings → Danger zone reads it to warn up front that the primary site can't be deleted
+  // while others exist. The list dropped it when pool sites were added, so the warning
+  // never showed.
+  it('says which site is the primary one', async () => {
+    const flagged = await seedSite(getCurrentTestDb(), { domain: 'listed-primary.localhost', isPrimary: true })
+    try {
+      const res = await (listHandler as Handler)(ev(superId)) as { sites: { id: string; isPrimary: boolean }[] }
+      expect(res.sites.find(s => s.id === flagged)?.isPrimary).toBe(true)
+      expect(res.sites.find(s => s.id === TENANT)?.isPrimary).toBe(false)
+    }
+    finally {
+      // Only one site may be primary, and a later test makes its own.
+      await getCurrentTestDb().delete(sites).where(eq(sites.id, flagged))
+    }
+  })
 })
 
 describe('POST /api/v1/admin/sites', () => {
