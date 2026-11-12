@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { requireRole } from '../../../utils/permissions'
 import { parsePagination } from '../../../utils/pagination'
 import { getOrderDetail, listOrders, refundConsequences } from '../../../utils/order-admin'
+import type { AdminOrderDetail, AdminOrderList } from '../../../../shared/lib/shop-types'
 
 const querySchema = z.object({
   // One order, with its lines and refunds.
@@ -20,9 +21,9 @@ export default defineEventHandler(async (event) => {
   const query = parseQuery(event, querySchema)
   if (query.id) {
     const detail = await getOrderDetail(event, query.id)
-    return { ...detail, refundNotes: refundConsequences(detail.lines) }
+    return { ...detail, refundNotes: refundConsequences(detail.lines) } satisfies AdminOrderDetail
   }
   const { page, perPage, offset } = parsePagination(query, 50, 200)
   const result = await listOrders(event, { filter: query.filter, kind: query.kind, search: query.search, limit: perPage, offset })
-  return { ...result, page, perPage }
+  return { ...result, page, perPage } satisfies AdminOrderList
 })

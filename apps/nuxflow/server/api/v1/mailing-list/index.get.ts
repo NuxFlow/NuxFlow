@@ -9,6 +9,7 @@ import { loadEmailConfig } from '../../../utils/email'
 import { canSendListEmail, subscriberCounts } from '../../../utils/mailing-list'
 import { requireSiteId } from '../../../utils/site-context'
 import { utcDay } from '../../../utils/utc-day'
+import type { MailingListResponse } from '../../../../shared/lib/mailing-list-types'
 
 const querySchema = z.object({
   status: z.enum(['pending', 'subscribed', 'unsubscribed']).optional(),
@@ -89,5 +90,5 @@ export default defineEventHandler(async (event) => {
       dismissed: usage.signup_prompt_dismissed ?? 0,
       signups: Number(popupSignups[0]?.total ?? 0),
     },
-  }
+  } satisfies MailingListResponse
 })

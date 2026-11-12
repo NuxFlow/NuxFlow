@@ -1,42 +1,8 @@
 <script setup lang="ts">
 import { formatEventWhen } from '@nuxflow/canvas/events'
+import type { AdminRsvp, AdminRsvpList, RsvpStatus } from '#shared/lib/booking-types'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
-
-type RsvpStatus = 'pending' | 'held' | 'offered' | 'confirmed' | 'waitlist' | 'cancelled'
-
-interface Rsvp {
-  id: string
-  name: string
-  email: string
-  seats: number
-  status: RsvpStatus
-  occurrenceDate: string
-  paymentMethod: 'card' | 'pass' | null
-  paymentStatus: 'paid' | 'refunded' | null
-  amountPaid: number | null
-  currency: string | null
-  creditsSpent: number
-  createdAt: string
-}
-
-interface RsvpList {
-  event: {
-    id: string
-    title: string
-    eventStartAt: string | null
-    eventEndAt: string | null
-    eventAllDay: boolean | null
-    eventRsvpEnabled: boolean | null
-    eventRsvpCapacity: number | null
-    eventPrice: number | null
-    timeZone: string
-  }
-  rsvps: Rsvp[]
-  counts: Record<RsvpStatus, number>
-  /** A repeating event's dates. Null for a one-off. */
-  dates: Array<{ date: string; when: string }> | null
-}
 
 const route = useRoute()
 const id = computed(() => route.params.id as string)
@@ -44,7 +10,7 @@ const id = computed(() => route.params.id as string)
 // The date being looked at, for a repeating event. Empty until its dates have loaded.
 const date = ref('')
 
-const { data, error, refresh } = useFetch<RsvpList>('/api/v1/rsvps', {
+const { data, error, refresh } = useFetch<AdminRsvpList>('/api/v1/rsvps', {
   query: computed(() => ({ event: id.value, date: date.value || undefined })),
   server: false,
 })
@@ -81,7 +47,7 @@ const rows = computed(() => (data.value?.rsvps ?? []).filter(r => statusFilter.v
 const statusLabel: Record<RsvpStatus, string> = { pending: 'Not yet confirmed', held: 'Paying now', offered: 'Place offered', confirmed: 'Coming', waitlist: 'Waitlist', cancelled: 'Cancelled' }
 const statusColor: Record<RsvpStatus, 'neutral' | 'success' | 'warning' | 'error'> = { pending: 'neutral', held: 'warning', offered: 'warning', confirmed: 'success', waitlist: 'warning', cancelled: 'error' }
 
-function paymentLabel(row: Rsvp): string {
+function paymentLabel(row: AdminRsvp): string {
   if (row.paymentStatus === 'refunded') return row.paymentMethod === 'pass' ? 'Sessions returned' : 'Refunded'
   if (row.paymentStatus !== 'paid') return row.status === 'confirmed' && data.value?.event.eventPrice ? 'Not paid online' : ''
   if (row.paymentMethod === 'pass') return row.creditsSpent === 1 ? 'Class pass (1 session)' : `Class pass (${row.creditsSpent} sessions)`
@@ -100,7 +66,7 @@ const columns = [
 
 const { run, isRunning } = useAdminAction()
 
-async function setStatus(row: Rsvp, status: 'confirmed' | 'waitlist' | 'cancelled') {
+async function setStatus(row: AdminRsvp, status: 'confirmed' | 'waitlist' | 'cancelled') {
   const url: string = `/api/v1/rsvps/${row.id}`
   await run(() => $fetch<unknown, string>(url, { method: 'PATCH', body: { status } }), {
     key: `row:${row.id}`,
@@ -110,7 +76,7 @@ async function setStatus(row: Rsvp, status: 'confirmed' | 'waitlist' | 'cancelle
   await refresh()
 }
 
-function rowActions(row: Rsvp) {
+function rowActions(row: AdminRsvp) {
   const actions = []
   if (row.status !== 'confirmed') actions.push({ label: 'Mark as coming', icon: 'i-lucide-check', onSelect: () => setStatus(row, 'confirmed') })
   if (row.status === 'confirmed' && row.paymentStatus !== 'paid') actions.push({ label: 'Move to waitlist', icon: 'i-lucide-clock', onSelect: () => setStatus(row, 'waitlist') })
@@ -122,7 +88,7 @@ function rowActions(row: Rsvp) {
 }
 
 // Erasing removes the row for good, for when someone asks for their details to be removed.
-const eraseRow = ref<Rsvp | null>(null)
+const eraseRow = ref<AdminRsvp | null>(null)
 const eraseOpen = computed({
   get: () => Boolean(eraseRow.value),
   set: (open) => {

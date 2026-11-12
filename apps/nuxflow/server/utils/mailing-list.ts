@@ -27,8 +27,6 @@ export const SIGNUP_SETTING_KEY = 'mailing_list.signup'
 /** A confirmation email isn't resent to the same address more often than this. */
 const CONFIRM_RESEND_INTERVAL_MS = 10 * 60_000
 
-export type SubscriberRow = typeof mailingListSubscribers.$inferSelect
-
 export async function getSignupSettings(event: H3Event): Promise<SignupSettings> {
   return parseSignupSettings(await resolveSetting(event, SIGNUP_SETTING_KEY))
 }

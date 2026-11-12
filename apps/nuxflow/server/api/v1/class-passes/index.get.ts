@@ -5,6 +5,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { requireSiteId } from '../../../utils/site-context'
 import type { AdminClassPass } from '../../../../shared/lib/membership-types'
+import type { ClassPassHolding } from '../../../../shared/lib/booking-types'
 
 const querySchema = z.object({
   // Part of a holder's name or address.
@@ -30,5 +31,5 @@ export default defineEventHandler(async (event) => {
       limit: 500,
     }),
   ])
-  return { passes: passes satisfies AdminClassPass[], holdings }
+  return { passes: passes satisfies AdminClassPass[], holdings: holdings satisfies ClassPassHolding[] }
 })

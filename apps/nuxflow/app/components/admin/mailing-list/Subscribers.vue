@@ -1,32 +1,8 @@
 <script setup lang="ts">
-type Status = 'pending' | 'subscribed' | 'unsubscribed'
-
-interface Subscriber {
-  id: string
-  email: string
-  name: string | null
-  status: Status
-  source: string
-  sourcePath: string | null
-  confirmSentAt: string | null
-  confirmedAt: string | null
-  unsubscribedAt: string | null
-  syncError: string | null
-  createdAt: string
-}
-
-interface ListResponse {
-  items: Subscriber[]
-  total: number
-  page: number
-  perPage: number
-  counts: Record<Status, number>
-  canSendListEmail: boolean
-  stats: { days: number; shown: number; dismissed: number; signups: number }
-}
+import type { MailingListResponse, MailingListStatus, MailingListSubscriber } from '#shared/lib/mailing-list-types'
 
 const { run, isRunning } = useAdminAction()
-const status = ref<Status | 'all'>('all')
+const status = ref<MailingListStatus | 'all'>('all')
 const q = ref('')
 const search = ref('')
 let searchTimer: ReturnType<typeof setTimeout> | undefined
@@ -39,7 +15,7 @@ const page = ref(1)
 
 watch([status, search], () => { page.value = 1 })
 
-const { data, pending, refresh } = await useFetch<ListResponse>('/api/v1/mailing-list', {
+const { data, pending, refresh } = await useFetch<MailingListResponse>('/api/v1/mailing-list', {
   query: computed(() => ({
     status: status.value === 'all' ? undefined : status.value,
     q: search.value || undefined,
@@ -61,7 +37,7 @@ const conversion = computed(() => {
 })
 
 type Color = 'success' | 'warning' | 'neutral'
-const STATUS_UI: Record<Status, { label: string; color: Color }> = {
+const STATUS_UI: Record<MailingListStatus, { label: string; color: Color }> = {
   subscribed: { label: 'Subscribed', color: 'success' },
   pending: { label: 'Waiting to confirm', color: 'warning' },
   unsubscribed: { label: 'Unsubscribed', color: 'neutral' },
@@ -78,7 +54,7 @@ const columns = [
 const exportUrl = computed(() => `/api/v1/mailing-list/export${status.value === 'all' ? '' : `?status=${status.value}`}`)
 
 // Runs are keyed by subscriber id, so each row's menu button shows its own spinner.
-async function resend(row: Subscriber) {
+async function resend(row: MailingListSubscriber) {
   const url: string = `/api/v1/mailing-list/${row.id}/resend`
   await run(async () => {
     await $fetch<unknown>(url, { method: 'POST' })
@@ -86,7 +62,7 @@ async function resend(row: Subscriber) {
   }, { successTitle: `Confirmation email sent to ${row.email}`, errorTitle: "Couldn't send the email", key: row.id })
 }
 
-async function markUnsubscribed(row: Subscriber) {
+async function markUnsubscribed(row: MailingListSubscriber) {
   const url: string = `/api/v1/mailing-list/${row.id}`
   await run(async () => {
     await $fetch<unknown>(url, { method: 'PATCH', body: { status: 'unsubscribed' } })
@@ -94,7 +70,7 @@ async function markUnsubscribed(row: Subscriber) {
   }, { successTitle: `${row.email} unsubscribed`, errorTitle: "Couldn't unsubscribe", key: row.id })
 }
 
-const confirmDelete = ref<Subscriber | null>(null)
+const confirmDelete = ref<MailingListSubscriber | null>(null)
 
 async function remove() {
   const row = confirmDelete.value
@@ -107,7 +83,7 @@ async function remove() {
   }, { successTitle: `${row.email} deleted`, errorTitle: "Couldn't delete subscriber", key: row.id })
 }
 
-function rowActions(row: Subscriber) {
+function rowActions(row: MailingListSubscriber) {
   const items = []
   if (row.status === 'pending') {
     items.push({ label: 'Resend confirmation email', icon: 'i-lucide-send', onSelect: () => resend(row) })

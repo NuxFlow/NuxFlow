@@ -3,6 +3,7 @@ import { requireRole } from '../../../utils/permissions'
 import { userSiteRoles, sessions, siteInvitations } from '@nuxflow/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
+import type { SiteUsersResponse } from '../../../../shared/lib/team-types'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
@@ -52,5 +53,5 @@ export default defineEventHandler(async (event) => {
         invitationExpiresAt: i.expiresAt,
       })),
     ],
-  }
+  } satisfies SiteUsersResponse
 })

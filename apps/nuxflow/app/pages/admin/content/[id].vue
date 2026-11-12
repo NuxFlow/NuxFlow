@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ShopStatus } from '#shared/lib/shop-types'
 import type { ContentTypesResponse } from '#shared/lib/content-type-types'
 import type { PublicSite } from '#shared/lib/public-site-types'
 import { parseEpisode } from '#shared/lib/podcast'
@@ -143,7 +144,7 @@ function eventDateForSave(value: string, allDay: boolean): string | null {
 if (isNew.value && activeTypeSlug.value === 'product') {
   form.product = newProductForm()
   if (import.meta.client) {
-    $fetch<{ settings: { currency: string } }>('/api/v1/shop').then((r) => { shopCurrency.value = r.settings.currency }).catch(() => null)
+    $fetch<ShopStatus>('/api/v1/shop').then((r) => { shopCurrency.value = r.settings.currency }).catch(() => null)
   }
 }
 

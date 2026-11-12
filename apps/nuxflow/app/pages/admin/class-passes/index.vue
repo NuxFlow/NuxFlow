@@ -1,26 +1,11 @@
 <script setup lang="ts">
 import type { AdminClassPass } from '#shared/lib/membership-types'
+import type { ClassPassHolding } from '#shared/lib/booking-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Class passes' })
 
-interface Holding {
-  id: string
-  passName: string
-  email: string
-  name: string
-  creditsTotal: number
-  creditsUsed: number
-  expiresAt: string | null
-  status: 'active' | 'refunded'
-  amountPaid: number
-  amountRefunded: number
-  currency: string
-  stripePaymentIntentId: string | null
-  createdAt: string
-}
-
 const search = ref('')
-const { data, error, refresh } = useFetch<{ passes: AdminClassPass[]; holdings: Holding[] }>('/api/v1/class-passes', {
+const { data, error, refresh } = useFetch<{ passes: AdminClassPass[]; holdings: ClassPassHolding[] }>('/api/v1/class-passes', {
   query: computed(() => ({ search: search.value || undefined })),
   server: false,
   watch: false,
@@ -127,7 +112,7 @@ async function grant() {
   }, { key: 'grant', successTitle: 'Pass added, and they\'ve been emailed', errorTitle: 'Couldn\'t add the pass' })
 }
 
-const refundHolding = ref<Holding | null>(null)
+const refundHolding = ref<ClassPassHolding | null>(null)
 const refundOpen = computed({
   get: () => Boolean(refundHolding.value),
   set: (open) => {
@@ -135,7 +120,7 @@ const refundOpen = computed({
   },
 })
 
-const left = (h: Holding) => Math.max(0, h.creditsTotal - h.creditsUsed)
+const left = (h: ClassPassHolding) => Math.max(0, h.creditsTotal - h.creditsUsed)
 const refundValue = computed(() => {
   const h = refundHolding.value
   return h ? Math.round(((h.amountPaid - h.amountRefunded) * left(h) / h.creditsTotal) * 100) / 100 : 0
@@ -154,7 +139,7 @@ async function confirmRefund() {
   await refresh()
 }
 
-const eraseHolding = ref<Holding | null>(null)
+const eraseHolding = ref<ClassPassHolding | null>(null)
 const eraseOpen = computed({
   get: () => Boolean(eraseHolding.value),
   set: (open) => {
@@ -175,7 +160,7 @@ async function confirmErase() {
   await refresh()
 }
 
-function holdingActions(h: Holding) {
+function holdingActions(h: ClassPassHolding) {
   const actions = []
   if (h.status === 'active' && left(h) > 0) {
     actions.push({ label: h.stripePaymentIntentId ? 'Refund unused sessions' : 'Close this pass', icon: 'i-lucide-undo-2', onSelect: () => { refundHolding.value = h } })

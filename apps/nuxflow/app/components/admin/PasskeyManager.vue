@@ -2,12 +2,8 @@
 const client = useAuthClient()
 const { run, isRunning, toast } = useAdminAction()
 
-interface Passkey {
-  id: string
-  name?: string
-  createdAt: Date | string
-  deviceType: string
-}
+// Better Auth's own shape for a passkey, not a copy of it.
+type Passkey = NonNullable<Awaited<ReturnType<NonNullable<typeof client.passkey>['listUserPasskeys']>>['data']>[number]
 
 const passkeys = ref<Passkey[]>([])
 // Starts true (not isRunning('load')) so the first render shows the spinner, not an empty list.
@@ -29,7 +25,7 @@ async function fetchPasskeys() {
   const list = await run(async () => {
     const res = await passkeyClient.listUserPasskeys()
     throwIfAuthError(res)
-    return (res?.data || []) as Passkey[]
+    return res?.data ?? []
   }, { errorTitle: "Couldn't load passkeys", key: 'load' })
   passkeys.value = list ?? []
   loadFailed.value = !list

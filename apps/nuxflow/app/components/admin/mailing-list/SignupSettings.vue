@@ -1,13 +1,9 @@
 <script setup lang="ts">
 import { DEFAULT_SIGNUP_SETTINGS, type SignupSettings } from '#shared/lib/signup-prompt'
-
-interface SettingsResponse {
-  settings: SignupSettings
-  email: { provider: string; canSendListEmail: boolean; brevoKeyConfigured: boolean }
-}
+import type { SignupSettingsResponse } from '#shared/lib/mailing-list-types'
 
 const { run, isRunning, toast } = useAdminAction()
-const { data, error: loadError } = await useFetch<SettingsResponse>('/api/v1/mailing-list/settings')
+const { data, error: loadError } = await useFetch<SignupSettingsResponse>('/api/v1/mailing-list/settings')
 
 const form = reactive<SignupSettings>({ ...DEFAULT_SIGNUP_SETTINGS, ...(data.value?.settings ?? {}) })
 // Edited as one path per line.

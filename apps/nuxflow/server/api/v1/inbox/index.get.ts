@@ -7,6 +7,7 @@ import { countUnreadInbox } from '../../../utils/inbox'
 import { emailMessages, mailboxes } from '@nuxflow/db/schema'
 import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
+import type { InboxListResponse } from '../../../../shared/lib/inbox-types'
 
 const querySchema = z.object({
   // 'inbox' = everything not yet archived or marked spam.
@@ -76,5 +77,5 @@ export default defineEventHandler(async (event) => {
     countUnreadInbox(db, siteId),
   ])
 
-  return { messages: rows, total: total?.n ?? 0, unread, page, limit }
+  return { messages: rows, total: total?.n ?? 0, unread, page, limit } satisfies InboxListResponse
 })

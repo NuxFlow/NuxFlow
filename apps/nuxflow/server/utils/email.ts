@@ -262,7 +262,7 @@ async function dispatch(config: EmailConfig, msg: EmailMessage, event: H3Event):
  * Best-effort email_log write. Never throws — a logging failure must not turn a delivered
  * email into a reported failure, or mask the real error of a failed one.
  */
-export type EmailDeliveryOutcome = { sent: true } | { sent: false; reason: string }
+export type { EmailDeliveryOutcome } from '../../shared/lib/team-types'
 
 /** `datetime('now')`-shaped timestamp (what email_log.created_at holds), `skewSeconds` in the past. */
 export function emailLogTimestamp(skewSeconds = 2): string {

@@ -1,23 +1,7 @@
 <script setup lang="ts">
+import type { InboxListResponse, InboxMessage, MailboxesResponse } from '#shared/lib/inbox-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Inbox' })
-
-interface InboxMessage {
-  id: string
-  threadId: string
-  mailboxId: string | null
-  mailboxName: string
-  fromAddress: string
-  fromName: string | null
-  toAddress: string
-  subject: string
-  snippet: string
-  status: 'new' | 'read' | 'archived' | 'spam'
-  category: string | null
-  aiSummary: string | null
-  attachmentCount: number
-  createdAt: string
-}
 
 type Folder = 'inbox' | 'new' | 'archived' | 'spam'
 const folders: { label: string; value: Folder; icon: string }[] = [
@@ -45,15 +29,15 @@ const selectedId = computed<string | null>(() => (typeof route.query.message ===
 const access = await fetchAdminAccess()
 const isAdmin = computed(() => roleAtLeast(access?.role, 'admin') || !!access?.isSuperAdmin)
 
-const { data, pending, error, refresh } = await useFetch<{ messages: InboxMessage[]; total: number; unread: number; limit: number }>('/api/v1/inbox', {
+const { data, pending, error, refresh } = await useFetch<InboxListResponse>('/api/v1/inbox', {
   query: computed(() => ({ folder: folder.value, category: category.value, q: debouncedSearch.value || undefined, page: page.value })),
   watch: [folder, category, debouncedSearch, page],
-  default: () => ({ messages: [], total: 0, unread: 0, limit: 50 }),
+  default: () => ({ messages: [], total: 0, unread: 0, page: 1, limit: 50 }),
 })
 
 watch([folder, category, debouncedSearch], () => { page.value = 1 })
 
-const { data: mailboxData } = await useFetch<{ mailboxes: unknown[] }>('/api/v1/mailboxes', {
+const { data: mailboxData } = await useFetch<Pick<MailboxesResponse, 'mailboxes'>>('/api/v1/mailboxes', {
   default: () => ({ mailboxes: [] }),
   // Only admins can list mailboxes; editors just see the empty-state copy without the setup link.
   immediate: isAdmin.value,

@@ -8,6 +8,7 @@ import { requireSiteId } from '../../../utils/site-context'
 import { writeAuditLog } from '../../../utils/audit'
 import { csvField } from '../../../utils/mailing-list'
 import { getRsvpEvent, rsvpCounts, slotOf } from '../../../utils/event-rsvp'
+import type { AdminRsvpList } from '../../../../shared/lib/booking-types'
 
 const querySchema = z.object({
   event: z.string().min(1).max(64),
@@ -59,5 +60,5 @@ export default defineEventHandler(async (event) => {
       return { date: day, when: slot ? formatEventWhen({ eventStartAt: slot.eventStartAt ?? '', eventEndAt: slot.eventEndAt, eventAllDay: slot.eventAllDay }, item.timeZone, item.locale) : `${day} (no longer on the schedule)` }
     })
   }
-  return { event: item, rsvps, counts, dates }
+  return { event: item, rsvps, counts, dates } satisfies AdminRsvpList
 })

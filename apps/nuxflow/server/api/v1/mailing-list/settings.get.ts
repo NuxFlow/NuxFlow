@@ -2,6 +2,7 @@ import { requireRole } from '../../../utils/permissions'
 import { loadEmailConfig } from '../../../utils/email'
 import { resolveStringSetting } from '../../../utils/settings'
 import { canSendListEmail, getSignupSettings } from '../../../utils/mailing-list'
+import type { SignupSettingsResponse } from '../../../../shared/lib/mailing-list-types'
 
 // Admin → Mailing list → Signup popup. Also reports whether the site can send list mail,
 // so the form can explain why double opt-in or Brevo sync isn't available yet.
@@ -19,5 +20,5 @@ export default defineEventHandler(async (event) => {
       canSendListEmail: canSendListEmail(emailConfig),
       brevoKeyConfigured: Boolean(brevoKey),
     },
-  }
+  } satisfies SignupSettingsResponse
 })
