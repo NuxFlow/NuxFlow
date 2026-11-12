@@ -1,15 +1,9 @@
 <script setup lang="ts">
+import type { RevisionSummary } from '#shared/lib/editor-types'
 const props = defineProps<{ contentId: string }>()
 const emit = defineEmits<{ restored: [] }>()
 
-interface Revision {
-  id: string
-  title: string
-  summary?: string | null
-  createdAt: string
-}
-
-const { data, refresh } = await useFetch<{ revisions?: Revision[] }>(() => `/api/v1/content/${props.contentId}/revisions`)
+const { data, refresh } = await useFetch<{ revisions?: RevisionSummary[] }>(() => `/api/v1/content/${props.contentId}/revisions`)
 const revisions = computed(() => data.value?.revisions ?? [])
 const { run, isRunning } = useAdminAction()
 

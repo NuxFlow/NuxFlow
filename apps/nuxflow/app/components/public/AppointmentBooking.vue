@@ -6,13 +6,13 @@ import type { PublicSite } from '#shared/lib/public-site-types'
 // /_nuxflow/appointments (not /api; see that route). The page's intake form, when it has one,
 // is answered here before the booking goes through — server/utils/booking-intake.ts.
 import FormFieldList from '~/components/forms/FormFieldList.vue'
-import type { RenderableField } from '~/components/forms/FormFieldList.vue'
+import type { PublicFormField, PublicIntakeForm } from '#shared/lib/form-types'
 import { hiddenFieldNames, isFilled } from '#shared/lib/form-logic'
 
 const props = defineProps<{ block: string; askPhone?: boolean }>()
 
 /** The free times, plus the intake form the route adds when the page asks for one. */
-type FreeTimes = AppointmentFreeTimes & { intake: { name: string; fields: RenderableField[] } | null }
+type FreeTimes = AppointmentFreeTimes & { intake: PublicIntakeForm | null }
 
 const { data: site } = useFetch<PublicSite>('/api/public/site', {
   key: 'nuxflow-public-site',
@@ -92,7 +92,7 @@ const intakeValues = ref<Record<string, unknown>>({})
 const intakeFields = computed(() => free.value?.intake?.fields ?? [])
 const intakeHidden = computed(() => hiddenFieldNames(intakeFields.value, intakeValues.value))
 const shownIntakeFields = computed(() => intakeFields.value.filter(f => !intakeHidden.value.has(f.name)))
-function seedIntake(fields: RenderableField[]) {
+function seedIntake(fields: PublicFormField[]) {
   intakeValues.value = Object.fromEntries(fields.map(f => [f.name, f.type === 'checkbox' ? [] : f.type === 'hidden' ? f.placeholder ?? '' : '']))
 }
 function missingIntake(): string | null {

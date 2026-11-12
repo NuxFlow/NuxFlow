@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import { contentItems, forms } from '@nuxflow/db/schema'
 import type { Db } from './db'
 import { publicFormField } from './form-submission'
+import type { PublicIntakeForm } from '../../shared/lib/form-types'
 
 /**
  * An event's intake form: a Form Builder form (a health waiver, a questionnaire) a visitor
@@ -36,6 +37,6 @@ export function intakeFields(form: FormRow) {
   return form.fields.filter(f => f.type !== 'file')
 }
 
-export function publicIntakeForm(form: FormRow) {
+export function publicIntakeForm(form: FormRow): PublicIntakeForm {
   return { name: form.name, fields: intakeFields(form).map(publicFormField) }
 }

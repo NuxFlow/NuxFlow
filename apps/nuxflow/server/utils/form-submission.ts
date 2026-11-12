@@ -11,6 +11,7 @@ import { siteNotificationEmail } from './notify'
 import { formValueText, publicSubmissionData, type IncomingFormFile } from './form-files'
 import { formatFileSize, storedFormFiles } from '../../shared/lib/form-files'
 import { hiddenFieldNames, parseShowIf } from '../../shared/lib/form-logic'
+import type { PublicFormField } from '../../shared/lib/form-types'
 
 /**
  * Checking and saving a Form Builder submission — shared by the form's own submit route and
@@ -184,7 +185,7 @@ export async function saveFormSubmission(event: H3Event, form: FormRow, input: {
  * What a visitor's browser gets of a field: enough to render it, never the form's
  * notification settings or anything else internal.
  */
-export function publicFormField(f: FormField) {
+export function publicFormField(f: FormField): PublicFormField {
   return {
     id: f.id,
     type: f.type,

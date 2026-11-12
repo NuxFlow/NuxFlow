@@ -4,6 +4,7 @@ import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { contentRevisions } from '@nuxflow/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { requireSiteId } from '../../../../utils/site-context'
+import type { RevisionSummary } from '../../../../../shared/lib/editor-types'
 
 // The nightly prune-old-data task caps stored revisions at 20/item, but that only runs
 // once a day — a single active editing session (autosave every 10s idle) can put far more
@@ -26,5 +27,5 @@ export default defineEventHandler(async (event) => {
     limit: MAX_REVISIONS_RETURNED,
   })
 
-  return { revisions }
+  return { revisions: revisions satisfies RevisionSummary[] }
 })

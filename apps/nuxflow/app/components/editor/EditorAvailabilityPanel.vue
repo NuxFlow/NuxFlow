@@ -1,26 +1,17 @@
 <script setup lang="ts">
+import type { AvailabilityFeed, AvailabilityOwnBlock, EditorAvailability } from '#shared/lib/editor-types'
 // Holiday lets (server/utils/availability.ts): the calendars this page follows (Airbnb,
 // Booking.com… export links, synced hourly), the nights blocked by hand, and this page's own
 // export link to paste back into those sites. Shown when the page has an Availability
 // calendar block. Read and changed through /_nuxflow/availability (not /api; see that route).
 
-interface Feed {
-  id: string
-  url: string
-  label: string
-  lastSyncedAt: string | null
-  lastError: string | null
-  eventCount: number
-}
-interface OwnBlock { id: string; startDate: string; endDate: string; note: string }
-interface Availability { itemId: string; feeds: Feed[]; blocks: OwnBlock[]; exportUrl: string }
 
 const props = defineProps<{ itemId: string; disabled?: boolean }>()
 const { run, isRunning } = useAdminAction()
 const toast = useToast()
 
 const url: string = `/_nuxflow/availability?item=${encodeURIComponent(props.itemId)}`
-const { data, refresh, pending, error } = useFetch<Availability>(url, { server: false })
+const { data, refresh, pending, error } = useFetch<EditorAvailability>(url, { server: false })
 const feeds = computed(() => data.value?.feeds ?? [])
 const blocks = computed(() => data.value?.blocks ?? [])
 const exportUrl = computed(() => data.value?.exportUrl ?? '')
@@ -49,7 +40,7 @@ async function addFeed() {
   await refresh()
 }
 
-async function removeFeed(f: Feed) {
+async function removeFeed(f: AvailabilityFeed) {
   const ok = await run(() => post<{ success: boolean }>({ action: 'remove-feed', id: f.id }), { successTitle: 'Calendar removed', errorTitle: 'Couldn\'t remove the calendar', key: `feed:${f.id}` })
   if (ok) await refresh()
 }
@@ -76,7 +67,7 @@ async function addBlock() {
   await refresh()
 }
 
-async function removeBlock(b: OwnBlock) {
+async function removeBlock(b: AvailabilityOwnBlock) {
   const ok = await run(() => post<{ success: boolean }>({ action: 'remove-block', id: b.id }), { successTitle: 'Dates freed', errorTitle: 'Couldn\'t remove those dates', key: `block:${b.id}` })
   if (ok) await refresh()
 }
@@ -93,7 +84,7 @@ async function copyExport() {
   }
 }
 
-function feedName(f: Feed): string {
+function feedName(f: AvailabilityFeed): string {
   if (f.label) return f.label
   try {
     return new URL(f.url).hostname.replace(/^www\./, '')
@@ -104,7 +95,7 @@ function feedName(f: Feed): string {
 }
 
 /** "3 Dec 2026 → 7 Dec (4 nights)" */
-function rangeText(b: OwnBlock): string {
+function rangeText(b: AvailabilityOwnBlock): string {
   const nights = Math.round((Date.parse(`${b.endDate}T00:00:00Z`) - Date.parse(`${b.startDate}T00:00:00Z`)) / 86_400_000)
   return `${formatDate(b.startDate)} → ${formatDate(b.endDate)} (${nights} ${nights === 1 ? 'night' : 'nights'})`
 }

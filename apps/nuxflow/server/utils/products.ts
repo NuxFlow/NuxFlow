@@ -9,7 +9,7 @@ import type { Db } from './db'
 import { assertWithinPlan } from './hosting-plans'
 import { assertPlanIncludesShop } from './shop'
 import { publicPathForItem } from './seo'
-import type { PublicProduct, PublicVariant } from '../../shared/lib/product-types'
+import type { EditorProduct, PublicProduct, PublicVariant } from '../../shared/lib/product-types'
 
 export type { PublicProduct, PublicVariant }
 
@@ -66,7 +66,7 @@ export async function loadProduct(db: Db, siteId: string, itemId: string): Promi
 }
 
 /** The editor's view of a product (GET /api/v1/content/:id), or null for a non-product. */
-export function productForEditor(loaded: { product: ProductRow | null; variants: VariantRow[] }) {
+export function productForEditor(loaded: { product: ProductRow | null; variants: VariantRow[] }): EditorProduct | null {
   if (!loaded.product) return null
   return {
     optionNames: loaded.product.optionNames,
