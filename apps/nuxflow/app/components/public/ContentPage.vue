@@ -52,6 +52,8 @@ interface PublicPage {
   type?: { slug: string; name: string } | null
   event?: PublicEventInfo | null
   product?: PublicProductInfo | null
+  /** A podcast episode's audio (Settings → Podcast), played by the site-wide player. */
+  episode?: { audioUrl: string; duration: string; episode: number | null; season: number | null } | null
   /** The type's custom fields, formatted (Admin → Content types). */
   details?: FieldDetail[]
   availableLocales?: Array<{ locale: string; slug: string; rawSlug?: string }> | null
@@ -252,6 +254,12 @@ const outline = computed(() => (page.value && !isCanvasPage.value ? postOutline(
 const readingMinutes = computed(() => (isArticle.value && site.value?.showReadingTime !== false ? outline.value?.readingMinutes ?? 0 : 0))
 const toc = computed(() => (outline.value && site.value?.showToc !== false && !page.value?.product ? tocHeadings(outline.value) : []))
 
+const audioTrack = useAudioTrack()
+function playEpisode() {
+  if (!page.value?.episode) return
+  audioTrack.value = { src: page.value.episode.audioUrl, title: page.value.title, link: page.value.path ?? undefined, duration: page.value.episode.duration || undefined }
+}
+
 // "Listen to this article" — generates audio on demand (see api/public/listen/[slug].post.ts)
 // rather than pre-fetching on every page load, since most visitors never click it and each
 // click costs a real Workers AI TTS call.
@@ -353,6 +361,18 @@ const formattedDate = computed(() => formatDate(page.value?.publishedAt, '') || 
             <span class="text-gray-300 dark:text-gray-600">·</span>
             <span class="nux-reading-time">{{ readingMinutes }} min read</span>
           </template>
+        </div>
+
+        <!-- A podcast episode: plays in the site-wide player, which keeps going between pages. -->
+        <div v-if="page.episode" class="nux-episode mb-8 flex flex-wrap items-center gap-3">
+          <UButton icon="i-lucide-play" size="lg" @click="playEpisode">Play episode</UButton>
+          <span class="text-sm text-gray-500">
+            <template v-if="page.episode.season">Season {{ page.episode.season }} · </template>
+            <template v-if="page.episode.episode">Episode {{ page.episode.episode }}</template>
+            <template v-if="page.episode.episode && page.episode.duration"> · </template>
+            {{ page.episode.duration }}
+          </span>
+          <a v-if="site?.podcast" :href="site.podcast.feedUrl" class="text-sm text-gray-500 underline hover:text-primary-500">Subscribe (RSS)</a>
         </div>
 
         <!-- Listen to this article (AI text-to-speech) -->

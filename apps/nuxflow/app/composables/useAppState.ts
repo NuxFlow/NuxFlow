@@ -32,3 +32,20 @@ export interface ActiveLocale {
 export function useActiveLocales() {
   return useState<ActiveLocale[]>('active-locales', () => [])
 }
+
+export interface AudioTrack {
+  src: string
+  title: string
+  /** The page it's from, linked from the player. */
+  link?: string
+  /** "45:10", shown before the audio has loaded. */
+  duration?: string
+}
+
+/**
+ * What the site-wide audio player (PublicAudioPlayer, in the default layout) is playing. The
+ * layout stays mounted as visitors move between pages, so the audio keeps going.
+ */
+export function useAudioTrack() {
+  return useState<AudioTrack | null>('nuxflow:audio-track', () => null)
+}
