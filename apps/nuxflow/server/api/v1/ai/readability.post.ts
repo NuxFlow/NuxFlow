@@ -4,6 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 import { fleschScores, gradeLabel, isLikelyEnglish } from '../../../utils/readability'
+import type { ReadabilityResult } from '../../../../shared/lib/editor-types'
 
 // The editor sends the whole rendered body, and a long post's HTML easily passes 20,000
 // characters — that cap used to reject every long article with a validation error. The
@@ -50,7 +51,7 @@ export default defineEventHandler(async (event) => {
 
   const { html } = await parseBody(event, bodySchema)
   const text = stripHtml(html)
-  if (!text) return { score: 100, gradeLevel: 'N/A', issues: [], summary: 'No text content to analyze.' }
+  if (!text) return { score: 100, gradeLevel: 'N/A', issues: [], summary: 'No text content to analyze.' } satisfies ReadabilityResult
 
   const { object } = await callAiOrThrow(() =>
     generateObject({
@@ -62,8 +63,8 @@ export default defineEventHandler(async (event) => {
     }),
   )
 
-  if (!isLikelyEnglish(text)) return { ...object, method: 'ai-estimate' as const }
+  if (!isLikelyEnglish(text)) return { ...object, method: 'ai-estimate' as const } satisfies ReadabilityResult
 
   const scores = fleschScores(text)!
-  return { ...object, score: scores.readingEase, gradeLevel: gradeLabel(scores.grade), method: 'flesch' as const }
+  return { ...object, score: scores.readingEase, gradeLevel: gradeLabel(scores.grade), method: 'flesch' as const } satisfies ReadabilityResult
 })

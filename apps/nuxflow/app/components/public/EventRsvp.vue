@@ -6,14 +6,14 @@ import type { PublicSite } from '#shared/lib/public-site-types'
 // An event can ask for an intake form (a waiver, a health questionnaire), answered here
 // before the booking goes through — server/utils/booking-intake.ts.
 import FormFieldList from '~/components/forms/FormFieldList.vue'
-import type { RenderableField } from '~/components/forms/FormFieldList.vue'
+import type { PublicFormField, PublicIntakeForm } from '#shared/lib/form-types'
 import { hiddenFieldNames, isFilled } from '#shared/lib/form-logic'
 
 const props = defineProps<{ itemId: string }>()
 
 
 /** The booking form's state, plus the intake form the route adds when the event asks for one. */
-type FormState = RsvpPublicState & { intake: { name: string; fields: RenderableField[] } | null }
+type FormState = RsvpPublicState & { intake: PublicIntakeForm | null }
 
 
 const { data: site } = useFetch<PublicSite>('/api/public/site', {
@@ -43,7 +43,7 @@ const intakeFields = computed(() => state.value?.intake?.fields ?? [])
 const intakeHidden = computed(() => hiddenFieldNames(intakeFields.value, intakeValues.value))
 const shownIntakeFields = computed(() => intakeFields.value.filter(f => !intakeHidden.value.has(f.name)))
 
-function seedIntake(fields: RenderableField[]) {
+function seedIntake(fields: PublicFormField[]) {
   intakeValues.value = Object.fromEntries(fields.map(f => [f.name, f.type === 'checkbox' ? [] : f.type === 'hidden' ? f.placeholder ?? '' : '']))
 }
 

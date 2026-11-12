@@ -7,6 +7,7 @@ import { sha256Hex } from './buffer'
 import { galleryImageUrls, resolvePublicGallery } from './gallery-download'
 import { notifySiteRole } from './notify'
 import { notFound } from './response'
+import type { PickerSummary } from '../../shared/lib/editor-types'
 
 /**
  * Client proofing: a Gallery block with "Let clients pick favourites" (usually on a
@@ -102,15 +103,7 @@ export async function savePicks(event: H3Event, siteId: string, input: SavePicks
   return { count: photos.length, submitted: Boolean(input.submit) }
 }
 
-export interface PickerSummary {
-  id: string
-  blockId: string
-  name: string
-  note: string | null
-  submittedAt: string | null
-  updatedAt: string
-  photos: Array<{ url: string; fileName: string }>
-}
+export type { PickerSummary }
 
 /** Everyone's picks on a page, for its editor — with each photo's original file name. */
 export async function listPicksForItem(event: H3Event, siteId: string, itemId: string): Promise<PickerSummary[]> {

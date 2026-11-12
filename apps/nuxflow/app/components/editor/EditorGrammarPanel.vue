@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { GrammarCorrection, GrammarResult } from '#shared/lib/editor-types'
 import type { Editor } from '@tiptap/vue-3'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 
@@ -6,12 +7,6 @@ const props = defineProps<{ editor: Editor | undefined }>()
 const emit = defineEmits<{ close: [] }>()
 
 const { run, isRunning } = useAdminAction()
-
-interface Correction {
-  original: string
-  corrected: string
-  reason: string
-}
 
 /**
  * `/api/v1/ai/grammar` (server/api/v1/ai/grammar.post.ts) returns corrections as plain
@@ -27,7 +22,7 @@ interface Correction {
  * what let this silently correct the wrong occurrence before. If the API is ever extended to
  * return a real offset, prefer that over this heuristic.
  */
-interface IndexedCorrection extends Correction {
+interface IndexedCorrection extends GrammarCorrection {
   occurrenceIndex: number
 }
 
@@ -40,7 +35,7 @@ function extractPlainText(): string {
   return props.editor.getText()
 }
 
-function withOccurrenceIndex(list: Correction[]): IndexedCorrection[] {
+function withOccurrenceIndex(list: GrammarCorrection[]): IndexedCorrection[] {
   const seen = new Map<string, number>()
   return list.map((c) => {
     const occurrenceIndex = seen.get(c.original) ?? 0
@@ -54,7 +49,7 @@ async function checkGrammar() {
   if (!text.trim()) return
   corrections.value = []
   grammarChecked.value = false
-  const res = await run(() => $fetch<{ corrections: Correction[] }>('/api/v1/ai/grammar', {
+  const res = await run(() => $fetch<GrammarResult>('/api/v1/ai/grammar', {
     method: 'POST',
     body: { text },
   }), { errorTitle: "Couldn't check grammar", key: 'grammar' })

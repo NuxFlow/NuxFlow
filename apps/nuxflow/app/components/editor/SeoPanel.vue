@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ReadabilityResult } from '#shared/lib/editor-types'
 const props = defineProps<{
   modelValue: {
     seoTitle?: string
@@ -110,8 +111,6 @@ const metaRobotsSelectValue = computed({
   set: (v: string) => { local.metaRobots = v === ROBOTS_DEFAULT ? '' : v },
 })
 
-interface ReadabilityIssue { type: string; excerpt: string; suggestion: string }
-interface ReadabilityResult { score: number; gradeLevel: string; issues: ReadabilityIssue[]; summary: string }
 
 const readabilityLoading = computed(() => isRunning('readability'))
 const readability = ref<ReadabilityResult | null>(null)

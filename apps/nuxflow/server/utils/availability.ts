@@ -11,6 +11,7 @@ import { checkContentAccess } from './content-access'
 import { notFound, validationError } from './response'
 import { chunk } from '../../shared/lib/array'
 import { addIsoDays, isValidIsoDate, mergeRanges, parseIcalRanges } from '../../shared/lib/ical-import'
+import type { EditorAvailability } from '../../shared/lib/editor-types'
 
 /**
  * Holiday lets: which nights a property (any content item, usually a page with the
@@ -94,7 +95,7 @@ async function ownerItem(db: Db, siteId: string, itemId: string) {
 }
 
 /** What the editor's Availability panel shows. */
-export async function getEditorAvailability(event: H3Event, siteId: string, itemId: string) {
+export async function getEditorAvailability(event: H3Event, siteId: string, itemId: string): Promise<EditorAvailability> {
   const db = useDb(event)
   const item = await ownerItem(db, siteId, itemId)
   const [feeds, blocks] = await Promise.all([

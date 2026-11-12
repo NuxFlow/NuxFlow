@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { TermSuggestions } from '#shared/lib/editor-types'
 import { slugify } from '#shared/lib/slug'
 // Categories/tags for the item being edited. Controlled: the selection is part of the
 // editor's form and is saved with the post (POST/PATCH /api/v1/content `termIds`), so
@@ -91,11 +92,7 @@ async function createTerm(taxonomyId: string, nameArg?: string) {
 }
 
 // ── AI suggestions ────────────────────────────────────────────────────────────
-interface Suggestions {
-  matchedTerms: { id: string; name: string; taxonomyId: string; taxonomySlug: string }[]
-  newTermSuggestions: { taxonomySlug: string; name: string }[]
-}
-const suggestions = ref<Suggestions | null>(null)
+const suggestions = ref<TermSuggestions | null>(null)
 const suggesting = computed(() => isRunning('suggest'))
 
 async function suggest() {
@@ -103,7 +100,7 @@ async function suggest() {
     toast.add({ title: 'Add a title first', color: 'warning' })
     return
   }
-  const s = await run(() => $fetch<Suggestions>('/api/v1/ai/suggest-terms', {
+  const s = await run(() => $fetch<TermSuggestions>('/api/v1/ai/suggest-terms', {
     method: 'POST',
     body: { title: props.title, body: props.bodyText?.slice(0, 8000), contentType: props.contentType },
   }), { errorTitle: "Couldn't get suggestions", key: 'suggest' })

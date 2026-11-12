@@ -3,6 +3,7 @@ import { generateObject } from 'ai'
 import { requireRole } from '../../../utils/permissions'
 import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
+import type { GrammarResult } from '../../../../shared/lib/editor-types'
 
 const bodySchema = z.object({
   text: z.string().min(1).max(10000),
@@ -41,5 +42,5 @@ export default defineEventHandler(async (event) => {
       prompt: `Check this text for grammar and style issues:\n\n${text}`,
     }),
   )
-  return object
+  return object satisfies GrammarResult
 })

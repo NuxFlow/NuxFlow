@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import type { PublicFormField } from '#shared/lib/form-types'
 import type { Component } from 'vue'
-import type { ShowIf } from '#shared/lib/form-logic'
 import TextField from './fields/TextField.vue'
 import TextareaField from './fields/TextareaField.vue'
 import EmailField from './fields/EmailField.vue'
@@ -18,20 +18,8 @@ import HiddenField from './fields/HiddenField.vue'
 // intake form in an event's booking box (EventRsvp.vue). The caller decides which fields to
 // pass (one step's, the shown ones); a `step` field passed here is drawn as a heading.
 
-export interface RenderableField {
-  id: string
-  type: string
-  label: string
-  name: string
-  placeholder?: string
-  required?: boolean
-  options?: { label: string; value: string }[]
-  formula?: string
-  showIf?: ShowIf
-}
-
 defineProps<{
-  fields: RenderableField[]
+  fields: PublicFormField[]
   values: Record<string, unknown>
 }>()
 const emit = defineEmits<{ update: [name: string, value: unknown] }>()
@@ -53,7 +41,7 @@ const FIELD_RENDERERS: Record<string, Component> = {
 
 // Only the props each field component declares — passing the raw field would leak `formula`
 // etc. onto the DOM as fallthrough attributes.
-function fieldProp(field: RenderableField) {
+function fieldProp(field: PublicFormField) {
   return {
     label: field.label,
     placeholder: field.placeholder,

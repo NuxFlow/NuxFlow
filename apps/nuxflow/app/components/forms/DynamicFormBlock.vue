@@ -5,7 +5,7 @@ import { spacingToCss, type SpacingValue } from '@nuxflow/canvas'
 import { formFilePartName } from '#shared/lib/form-files'
 import { formSteps, hiddenFieldNames, isFilled } from '#shared/lib/form-logic'
 import FormFieldList from './FormFieldList.vue'
-import type { RenderableField } from './FormFieldList.vue'
+import type { PublicFormField } from '#shared/lib/form-types'
 
 const toast = useToast()
 
@@ -27,7 +27,7 @@ const props = withDefaults(defineProps<{
   padding: undefined,
 })
 
-const { data: formData, pending, error } = await useFetch<{ id: string; name: string; fields: RenderableField[] }>(
+const { data: formData, pending, error } = await useFetch<{ id: string; name: string; fields: PublicFormField[] }>(
   () => `/api/public/forms/${encodeURIComponent(props.formSlug)}`,
   {
     headers: useRequestHeaders(['host']),
@@ -38,7 +38,7 @@ const { data: formData, pending, error } = await useFetch<{ id: string; name: st
 
 const fields = computed(() => formData.value?.fields ?? [])
 
-function defaultValueFor(field: RenderableField): unknown {
+function defaultValueFor(field: PublicFormField): unknown {
   if (field.type === 'checkbox' || field.type === 'file') return []
   if (field.type === 'hidden') return field.placeholder ?? ''
   return ''

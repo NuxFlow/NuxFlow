@@ -8,6 +8,7 @@ import { taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 import { getTaxonomyContentTypeSlugs } from '../../../utils/taxonomy'
 import { requireSiteId } from '../../../utils/site-context'
+import type { TermSuggestions } from '../../../../shared/lib/editor-types'
 
 const bodySchema = z.object({
   title: z.string().min(1),
@@ -54,7 +55,7 @@ export default defineEventHandler(async (event) => {
         return types.length === 0 || types.includes(contentType)
       })
     : allTaxonomies
-  if (!siteTaxonomies.length) return { matchedTerms: [], newTermSuggestions: [] }
+  if (!siteTaxonomies.length) return { matchedTerms: [], newTermSuggestions: [] } satisfies TermSuggestions
 
   const taxonomyIds = siteTaxonomies.map(t => t.id)
   // Capped so a site with thousands of tags can't blow the prompt past the model's
@@ -90,5 +91,5 @@ export default defineEventHandler(async (event) => {
   const allowedSlugs = new Set(siteTaxonomies.map(t => t.slug))
   const newTermSuggestions = object.newTermSuggestions.filter(s => allowedSlugs.has(s.taxonomySlug))
 
-  return { matchedTerms, newTermSuggestions }
+  return { matchedTerms, newTermSuggestions } satisfies TermSuggestions
 })

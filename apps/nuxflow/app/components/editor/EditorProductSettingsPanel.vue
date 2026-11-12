@@ -4,29 +4,16 @@
 // the content PATCH), like the event card's fields.
 import { ulid } from 'ulid'
 import { fromMinorUnits, toMinorUnits } from '#shared/lib/money'
-import { MAX_OPTIONS, optionCombinations, sameOptions, variantLabel, type ProductKind } from '#shared/lib/shop'
+import { MAX_OPTIONS, optionCombinations, sameOptions, variantLabel } from '#shared/lib/shop'
+import type { EditorProduct, EditorProductVariant } from '#shared/lib/product-types'
 
-export interface ProductFormVariant {
-  id: string
-  sku: string | null
-  options: string[]
-  priceMinor: number
-  compareAtMinor: number | null
-  stock: number | null
+/** A variant in the form: as the server sent it, plus the stock it had when the editor opened. */
+export interface ProductFormVariant extends EditorProductVariant {
   /** What was loaded, so a stock change is saved as a difference (see products.ts). */
   stockWas: number | null
-  weightGrams: number | null
-  kind: ProductKind
-  imageUrl: string | null
-  isActive: boolean
-  /** A download's file, uploaded on its own rather than saved with the post. */
-  fileName?: string | null
-  fileSize?: number | null
 }
 
-export interface ProductForm {
-  optionNames: string[]
-  images: { url: string; alt?: string }[]
+export interface ProductForm extends Omit<EditorProduct, 'variants'> {
   variants: ProductFormVariant[]
 }
 

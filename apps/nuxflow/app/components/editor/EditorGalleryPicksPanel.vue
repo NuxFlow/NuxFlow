@@ -1,17 +1,8 @@
 <script setup lang="ts">
+import type { PickerSummary } from '#shared/lib/editor-types'
 // Client proofing: everyone's favourites from this page's galleries ("Let clients pick
 // favourites" — server/utils/gallery-picks.ts), with their photos' file names to copy into
 // Lightroom or Capture One. Read from /_nuxflow/gallery-picks (not /api; see that route).
-
-interface Picker {
-  id: string
-  blockId: string
-  name: string
-  note: string | null
-  submittedAt: string | null
-  updatedAt: string
-  photos: Array<{ url: string; fileName: string }>
-}
 
 const props = defineProps<{ itemId: string }>()
 const { run, isRunning } = useAdminAction()
@@ -19,16 +10,16 @@ const { confirm } = useConfirm()
 const toast = useToast()
 
 const url: string = `/_nuxflow/gallery-picks?item=${encodeURIComponent(props.itemId)}`
-const { data, refresh, pending } = useFetch<{ pickers: Picker[] }>(url, { server: false })
+const { data, refresh, pending } = useFetch<{ pickers: PickerSummary[] }>(url, { server: false })
 const pickers = computed(() => data.value?.pickers ?? [])
 const open = ref<string | null>(null)
 
 /** "DSC_0012, DSC_0031" — names without extensions, which Lightroom's text filter matches. */
-function namesFor(p: Picker): string {
+function namesFor(p: PickerSummary): string {
   return p.photos.map(ph => ph.fileName.replace(/\.[^.]+$/, '')).join(', ')
 }
 
-async function copyNames(p: Picker) {
+async function copyNames(p: PickerSummary) {
   try {
     await navigator.clipboard.writeText(namesFor(p))
     toast.add({ title: `Copied ${p.photos.length} file names`, color: 'success' })
@@ -40,7 +31,7 @@ async function copyNames(p: Picker) {
   }
 }
 
-function downloadCsv(p: Picker) {
+function downloadCsv(p: PickerSummary) {
   // Not useAdminAction(): a file made in the browser, no request.
   const rows = [['File name', 'Photo link'], ...p.photos.map(ph => [ph.fileName, ph.url])]
   const csv = rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -50,7 +41,7 @@ function downloadCsv(p: Picker) {
   a.click()
 }
 
-async function remove(p: Picker) {
+async function remove(p: PickerSummary) {
   if (!await confirm({ title: `Remove ${p.name}'s picks?`, description: 'They can pick again from the gallery.', confirmLabel: 'Remove', color: 'error' })) return
   const ok = await run(() => $fetch<{ success: boolean }>('/_nuxflow/gallery-picks', {
     method: 'POST',
