@@ -178,6 +178,22 @@ describe('GET /api/v1/content/:id/comments (public)', () => {
     }
   })
 
+  // A signed-in commenter is stored with no guest name, only their account. The public list
+  // used to send raw rows without the account's name, so they all showed as "Anonymous".
+  it('names a signed-in commenter, without their email or account id', async () => {
+    const id = await seedComment({ status: 'approved', body: 'From an account', guestName: null, guestEmail: null, authorId })
+    const event = createMockEvent({ siteId: SITE, session: null, params: { id: itemId } }) as unknown as H3Event
+    const result = await (publicListHandler as Handler)(event) as { comments: Record<string, unknown>[] }
+
+    const comment = result.comments.find(c => c.id === id)
+    expect(comment).toMatchObject({ authorName: 'Author', guestName: null })
+    for (const c of result.comments) {
+      expect(c).not.toHaveProperty('authorEmail')
+      expect(c).not.toHaveProperty('authorId')
+      expect(c).not.toHaveProperty('siteId')
+    }
+  })
+
   it('returns pending comments too when the caller is a real site member', async () => {
     const pendingId = await seedComment({ status: 'pending', body: 'Visible to editor' })
     const event = createMockEvent({
