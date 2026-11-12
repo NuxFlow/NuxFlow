@@ -598,6 +598,42 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     },
   },
 
+  // ── Google Reviews ─────────────────────────────────────────────────────────
+  {
+    id: 'canvas-google-reviews',
+    name: 'Google Reviews',
+    description: 'Your Google rating and recent reviews, from Settings → Business',
+    icon: 'i-lucide-star',
+    category: 'content',
+    component: 'CanvasBlockGoogleReviews',
+    ai: { exclude: true },
+    thumbnailColor: '#fefce8',
+    fields: [
+      { key: 'title', label: 'Heading', type: 'text', placeholder: 'What our customers say' },
+      { key: 'maxReviews', label: 'Reviews to show (Google gives up to 5)', type: 'number', min: 0, max: 5, step: 1 },
+      {
+        key: 'layout',
+        label: 'Layout',
+        type: 'select',
+        options: [
+          { label: 'Cards in a row', value: 'grid' },
+          { label: 'One under another', value: 'list' },
+        ],
+      },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      title: 'What our customers say',
+      maxReviews: 3,
+      layout: 'grid',
+      bgColor: '',
+      textColor: '',
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
   // ── Menu ────────────────────────────────────────────────────────────────────
   {
     id: 'canvas-menu',

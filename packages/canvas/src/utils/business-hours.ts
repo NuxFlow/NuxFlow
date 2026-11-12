@@ -44,6 +44,8 @@ export interface BusinessInfo {
   exceptions: HoursException[]
   /** A line shown under the hours, e.g. "Kitchen closes 30 minutes earlier." */
   hoursNote?: string
+  /** Google Maps Place ID, for the Google Reviews block. */
+  googlePlaceId?: string
 }
 
 /** The schema.org types offered in Settings → Business, by label. */
@@ -132,6 +134,7 @@ export function parseBusinessInfo(value: unknown): BusinessInfo | null {
     hours,
     exceptions,
     hoursNote: str(v.hoursNote, 200),
+    googlePlaceId: /^[\w-]{10,300}$/.test(String(v.googlePlaceId ?? '')) ? String(v.googlePlaceId) : undefined,
   }
 }
 
