@@ -72,6 +72,17 @@ The calendar, event pages, RSVPs, waitlists, repeating events, paid bookings, cl
 
 ---
 
+## Appointments and holiday lets: what's next
+
+One-to-one appointments (Book an Appointment block, Settings → Appointments) and holiday-let availability (Availability Calendar block, synced with Airbnb and Booking.com) are built; see `docs/user-guide.md`. Still to come:
+
+- **Several practitioners on one site.** Today a site has one diary, so two appointments never overlap whoever they're with. A practitioner (or room) per Appointment block, each with their own hours, would let a clinic with several therapists use one site.
+- **Changing an appointment's time** from the customer's link or Admin → Appointments. Today it's cancel and book again.
+- **Appointments, followed calendars and blocked dates in the per-site backup.** Left out for now, like event attendees, as they're personal or point at other sites.
+- **Holiday-let booking with payment.** Today the calendar sits next to an enquiry form; taking a deposit for chosen nights would be the next step.
+- **Appointment slots in the admin calendar**, next to events and scheduled posts.
+- **Not yet tested against real Stripe or real Airbnb / Booking.com links.** Both have been tested with mocks and locally only.
+
 ## Browser Rendering for dynamic OG/social cards
 
 **What**: Use the `@cloudflare/puppeteer` binding to screenshot a public page or Canvas layout at the edge and save the PNG to the active media provider, for automatic social-share images instead of relying on a manually-set `ogImage`.

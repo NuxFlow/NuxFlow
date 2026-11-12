@@ -31,15 +31,20 @@ If you are new to NuxFlow, start with these guides:
 - **Block-Based Editor**: Create rich content without coding.
 - **Canvas Page Builder**: Visual drag-and-drop layout editor built into core, with nestable blocks (Columns, Container), undo/redo, and AI page generation.
 - **Visual Customizer**: No-code style editor with a live site preview — change fonts, colours, backgrounds, spacing density, content width, and corner shapes without touching CSS. Site logo and custom `<head>`/`<body>` code injection are also available from Settings → Appearance.
-- **Forms**: A built-in contact form plus a form builder (dates, choices, file uploads, signatures), all spam-protected, with a submissions inbox for every form.
+- **Forms**: A built-in contact form plus a form builder (dates, choices, file uploads, signatures, steps, and questions that only show when they apply), all spam-protected, with a submissions inbox for every form.
+- **Content Types & Custom Fields**: Your own kinds of content (properties, treatments, team members) with their own fields — prices, numbers, choices, links — shown on each page and used to filter and sort listings.
 - **Mailing List**: A polite signup popup (and an inline Signup box block) that collects email addresses with double opt-in, an optional incentive, CSV export and Brevo sync.
 - **Email Inbox**: Receive email at contact@, leads@ or any address on your domain, triaged by AI and answered from the admin — plus post-by-email drafts and security alerts.
 - **Payments & Memberships**: Subscription tiers and content gating via Stripe, Lemon Squeezy, or Paddle.
-- **Shop**: Products with options and stock, digital downloads, a basket and Stripe Checkout with delivery and tax, receipts, and one Orders page for everything the site sells. Off until you turn it on.
-- **Events & Class Booking**: Repeating classes, a weekly timetable, RSVPs and waitlists, paid bookings and blocks of sessions through Stripe, with no visitor account needed.
+- **Shop**: Products with options and stock, digital downloads, a basket and Stripe Checkout with delivery and tax, click and collect, receipts, and one Orders page for everything the site sells. Off until you turn it on.
+- **Events & Class Booking**: Repeating classes, a weekly timetable, RSVPs and waitlists, paid bookings and blocks of sessions through Stripe, and a form (a waiver or questionnaire) to fill in when booking, with no visitor account needed.
+- **Appointments**: One-to-one bookings from your own working hours: visitors pick a free time, pay by card or confirm by email, and get reminders and a calendar file.
+- **Holiday Lets**: An availability calendar per property, kept in step with Airbnb and Booking.com through their calendar links.
+- **Local Business**: Opening hours with "Open now", your address and map, a food menu, Google reviews, and the business details search engines show.
 - **Hot-Loading Plugins**: Install and activate dynamic plugins at runtime without redeploying — they run as isolated Cloudflare Workers spawned on demand.
-- **Photography Ready**: Responsive image Gallery block with full-screen lightbox, EXIF metadata display, live focal-point crop preview, and a dedicated Google Image Sitemap at `/sitemap-images.xml`.
+- **Photography Ready**: Responsive image Gallery block with full-screen lightbox, EXIF metadata display, live focal-point crop preview, client proofing (clients heart their favourites and send their picks), and a dedicated Google Image Sitemap at `/sitemap-images.xml`.
 - **Video & Vlogging Ready**: Canvas Video block embeds YouTube (including Shorts), Vimeo (including unlisted videos), and Cloudflare Stream. Resumable uploads of films up to 30 GB, private videos on password and members-only pages, cookie-free players, and a Google Video Sitemap at `/sitemap-video.xml`.
+- **Podcasting**: A podcast feed for Apple Podcasts and Spotify, and an audio player that keeps playing as visitors move between pages.
 - **Multi-Site**: Manage multiple sites from a single installation.
 - **Privacy-Friendly Analytics**: Page views, top pages, referrers, countries and devices for every site, on Cloudflare Analytics Engine — no cookies, no consent banner, no third-party script.
 - **SEO & GEO Built In**: Sitemaps, structured data, hreflang, redirects (with automatic redirects when a page is renamed), IndexNow, an SEO audit, and AI-crawler controls, plus `llms.txt` and Markdown versions of every page for AI assistants.
