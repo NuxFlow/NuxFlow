@@ -68,6 +68,12 @@ function setFilter(name: string, value: string) {
   const rest = Object.fromEntries(Object.entries(filterValues.value).filter(([k]) => k !== name))
   filterValues.value = value.trim() ? { ...rest, [name]: value.trim() } : rest
 }
+// What's typed in a number box before it's confirmed (on change). Kept here because the box's
+// value is bound: any redraw before then (a list finishing loading) would put the old value back.
+const typed = ref<Record<string, string>>({})
+function typing(name: string, value: string) {
+  typed.value = { ...typed.value, [name]: value }
+}
 function toggleChoice(key: string, option: string, on: boolean) {
   const current = (filterValues.value[`f.${key}`] ?? '').split(',').filter(Boolean)
   setFilter(`f.${key}`, (on ? [...current, option] : current.filter(o => o !== option)).join(','))
@@ -77,6 +83,7 @@ function isChosen(key: string, option: string): boolean {
 }
 function clearFilters() {
   filterValues.value = {}
+  typed.value = {}
   sort.value = ''
 }
 const hasActiveFilters = computed(() => Object.keys(filterValues.value).length > 0 || Boolean(sort.value))
@@ -105,17 +112,24 @@ const query = computed(() => {
   return q
 })
 
+// Filters can change faster than the list loads (Clear, then a price straight away): only the
+// latest request's answer is shown, or a slow earlier one could overwrite it.
+let latest = 0
 async function load() {
+  const mine = ++latest
   loading.value = true
   failed.value = false
   try {
-    posts.value = await host.listPosts(query.value)
+    const result = await host.listPosts(query.value)
+    if (mine !== latest) return
+    posts.value = result
   } catch (err) {
+    if (mine !== latest) return
     console.error('Failed to load posts:', err)
     failed.value = true
     posts.value = []
   } finally {
-    loading.value = false
+    if (mine === latest) loading.value = false
   }
 }
 
@@ -157,8 +171,9 @@ function formatDate(d: string) {
               type="number"
               inputmode="decimal"
               :placeholder="`${f.prefix ?? ''}Min`"
-              :value="filterValues[`f.${f.key}.min`] ?? ''"
+              :value="typed[`f.${f.key}.min`] ?? filterValues[`f.${f.key}.min`] ?? ''"
               class="w-28 rounded-md border border-current/20 bg-transparent px-2 py-1.5"
+              @input="typing(`f.${f.key}.min`, ($event.target as HTMLInputElement).value)"
               @change="setFilter(`f.${f.key}.min`, ($event.target as HTMLInputElement).value)"
             >
             <span aria-hidden="true" class="pb-1.5 opacity-60">–</span>
@@ -168,8 +183,9 @@ function formatDate(d: string) {
               type="number"
               inputmode="decimal"
               :placeholder="`${f.prefix ?? ''}Max`"
-              :value="filterValues[`f.${f.key}.max`] ?? ''"
+              :value="typed[`f.${f.key}.max`] ?? filterValues[`f.${f.key}.max`] ?? ''"
               class="w-28 rounded-md border border-current/20 bg-transparent px-2 py-1.5"
+              @input="typing(`f.${f.key}.max`, ($event.target as HTMLInputElement).value)"
               @change="setFilter(`f.${f.key}.max`, ($event.target as HTMLInputElement).value)"
             >
           </fieldset>
