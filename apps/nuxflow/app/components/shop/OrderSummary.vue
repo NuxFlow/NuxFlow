@@ -1,28 +1,6 @@
 <script setup lang="ts">
+import type { CustomerOrder } from '#shared/lib/shop-types'
 // A customer's order as their signed link shows it: on the thank-you page and the order page.
-export interface CustomerOrder {
-  number: number
-  status: 'pending' | 'paid' | 'partially_refunded' | 'refunded' | 'expired' | 'cancelled'
-  email: string
-  paidAt: string | null
-  subtotal: string
-  shipping: string | null
-  tax: string | null
-  total: string
-  refunded: string | null
-  shippingAddress: { name?: string | null; line1?: string | null; line2?: string | null; city?: string | null; state?: string | null; postalCode?: string | null; country?: string | null } | null
-  /** Click and collect: when, what the shop calls it, and where/how. */
-  collection?: { when: string; label: string; instructions: string } | null
-  lines: {
-    id: string
-    name: string
-    description: string | null
-    quantity: number
-    total: string
-    download: { url: string; left: number; expiresAt: string; available: boolean } | null
-  }[]
-}
-
 const props = defineProps<{ order: CustomerOrder }>()
 
 const address = computed(() => {

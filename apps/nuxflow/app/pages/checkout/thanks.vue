@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CustomerOrder } from '~/components/shop/OrderSummary.vue'
+import type { CustomerOrder } from '#shared/lib/shop-types'
 
 // Where Stripe sends someone after paying. The payment is confirmed by Stripe's webhook,
 // which can land a moment after this page, so it waits a little for the order to say paid.

@@ -1,33 +1,9 @@
 <script setup lang="ts">
+import type { BasketQuote } from '#shared/lib/shop-types'
 import type { PublicSite } from '#shared/lib/public-site-types'
 // The basket. What's in it lives in this browser (useCart); every time the page opens, the
 // server prices it again and says what can't be had any more.
 useSeoMeta({ title: 'Your basket', robots: 'noindex,nofollow' })
-
-interface QuoteLine {
-  variantId: string
-  title: string
-  label: string
-  quantity: number
-  unit: string
-  total: string
-  isDigital: boolean
-  problem: string | null
-}
-
-interface Quote {
-  lines: QuoteLine[]
-  subtotal: string
-  shipping: string | null
-  pricesIncludeTax: boolean
-  taxAtCheckout: boolean
-  cannotShip: boolean
-  canDeliver: boolean
-  /** Click and collect: the days and quarter-hours on offer (shared/lib/shop-collection.ts). */
-  collection: { label: string; instructions: string; days: Array<{ date: string; label: string; times: string[] }> } | null
-  returnsPath: string | null
-  paymentsReady: boolean
-}
 
 const cart = useCart()
 const { data: site } = useFetch<PublicSite>('/api/public/site', { key: 'nuxflow-public-site', headers: useRequestHeaders(['host']) })
@@ -45,7 +21,7 @@ function previousCheckout(): { orderId: string; token: string } | undefined {
   }
 }
 
-const quote = ref<Quote | null>(null)
+const quote = ref<BasketQuote | null>(null)
 const loadError = ref('')
 const email = ref('')
 const acceptedTerms = ref(false)
@@ -81,7 +57,7 @@ async function load() {
   }
   try {
     // Not useAdminAction(): a visitor page, with its messages shown inline.
-    quote.value = await $fetch<Quote, string>('/api/public/shop', { method: 'POST', body: { action: 'quote', lines: lines() } })
+    quote.value = await $fetch<BasketQuote, string>('/api/public/shop', { method: 'POST', body: { action: 'quote', lines: lines() } })
   }
   catch (e: unknown) {
     loadError.value = getErrorMessage(e, 'We couldn\'t load your basket. Please try again.')

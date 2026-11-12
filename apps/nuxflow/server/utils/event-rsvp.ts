@@ -18,6 +18,9 @@ import { bookingAccessLink, bookingOrigin, bookingPaymentsReady, creditsLeft, re
 import { refundPayment, withPendingOrder } from './orders'
 import { listAppointmentsFor } from './appointments'
 import { toMinorUnits } from '../../shared/lib/money'
+import type { BookingMethod, CancelTerms, MyBookings, RsvpAnswer, RsvpLinkDetails, RsvpLinkResult, RsvpPublicState, RsvpState } from '../../shared/lib/booking-types'
+
+export type { BookingMethod, CancelTerms, RsvpAnswer, RsvpLinkResult, RsvpState }
 
 /**
  * Bookings for events (`event_rsvps`), free and paid, one-off and repeating.
@@ -66,8 +69,6 @@ const MAX_BOOKINGS_PER_CHANGE = 200
 
 export type RsvpRow = typeof eventRsvps.$inferSelect
 export type RsvpStatus = RsvpRow['status']
-export type RsvpState = 'open' | 'waitlist' | 'closed'
-export type BookingMethod = 'card' | 'pass'
 
 // ── Signed links ────────────────────────────────────────────────────────────
 // Same scheme as the mailing list: nothing stored, and bound to its purpose so a link for
@@ -253,7 +254,7 @@ function slotState(slot: RsvpSlot, counts: Record<RsvpStatus, number>, now: Date
 }
 
 /** What the event page shows: no personal data, just whether places are left, and how to pay. */
-export async function publicRsvpState(event: H3Event, item: RsvpEvent) {
+export async function publicRsvpState(event: H3Event, item: RsvpEvent): Promise<RsvpPublicState> {
   const db = useDb(event)
   const siteId = requireSiteId(event)
   const now = new Date()
@@ -579,12 +580,6 @@ export interface RsvpInput {
   method?: BookingMethod
 }
 
-export interface RsvpAnswer {
-  status: 'pending' | 'confirmed' | 'waitlist' | 'checkout'
-  /** Where to send the visitor to pay, with `checkout`. */
-  url?: string
-}
-
 /** Everything about a previous attempt that a new one starts over. */
 const FRESH_BOOKING = {
   status: 'pending',
@@ -742,17 +737,6 @@ export async function submitRsvp(event: H3Event, item: RsvpSlot, input: RsvpInpu
   return { status: 'pending' }
 }
 
-export interface RsvpLinkResult {
-  status: RsvpStatus | 'closed' | 'no_pass' | 'checkout'
-  title: string
-  when: string
-  path: string
-  /** Where to send the visitor to pay, with `checkout`. */
-  url?: string
-  /** How to pay for a place being kept for them. */
-  payUrl?: string
-}
-
 function linkResult(item: RsvpSlot, status: RsvpLinkResult['status'], extra: Partial<RsvpLinkResult> = {}): RsvpLinkResult {
   const dateQuery = item.occurrenceDate ? `?date=${item.occurrenceDate}` : ''
   return {
@@ -827,15 +811,6 @@ export async function confirmRsvp(event: H3Event, id: string, token: string): Pr
   return linkResult(item, status, status === 'offered' ? { payUrl: await rsvpLink(event, 'pay', siteId, row.id) } : {})
 }
 
-export interface CancelTerms {
-  /** What cancelling now gives back. Null when nothing was paid, or it's too late. */
-  refund: BookingMethod | null
-  /** Paid, but past the point of getting anything back. */
-  tooLate: boolean
-  /** Last moment to cancel for a refund, when that's before the start. */
-  deadline: string | null
-}
-
 /** What a visitor gets back if they cancel now. The organiser cancelling always gives it all back. */
 export function cancellationTerms(item: RsvpSlot, row: Pick<RsvpRow, 'paymentStatus' | 'paymentMethod'>, now: Date = new Date()): CancelTerms {
   if (row.paymentStatus !== 'paid' || !row.paymentMethod) return { refund: null, tooLate: false, deadline: null }
@@ -855,7 +830,7 @@ function holdEnds(row: Pick<RsvpRow, 'holdExpiresAt'>): number {
 }
 
 /** What the cancel and pay pages show before anything is pressed. Null for a bad link. */
-export async function describeRsvpLink(event: H3Event, purpose: 'cancel' | 'pay', id: string, token: string) {
+export async function describeRsvpLink(event: H3Event, purpose: 'cancel' | 'pay', id: string, token: string): Promise<RsvpLinkDetails | null> {
   const found = await rowFromLink(event, purpose, id, token)
   if (!found) return null
   const { row, item } = found
@@ -1291,7 +1266,7 @@ export async function sendBookingReminder(event: H3Event, row: RsvpRow): Promise
 // ── A visitor's own list ────────────────────────────────────────────────────
 
 /** What's on someone's list, for /booking/my. Only reached through a signed link. */
-export async function listBookingsFor(event: H3Event, email: string) {
+export async function listBookingsFor(event: H3Event, email: string): Promise<MyBookings> {
   const db = useDb(event)
   const siteId = requireSiteId(event)
   const address = normalizeEmail(email)

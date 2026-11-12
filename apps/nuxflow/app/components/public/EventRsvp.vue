@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { RsvpAnswer, RsvpPublicState, RsvpState } from '#shared/lib/booking-types'
 import type { PublicSite } from '#shared/lib/public-site-types'
 // The booking form on an event page. The page itself is cached whole, so whether places are
 // left is fetched here in the browser, and nothing about a visitor is in the cached HTML.
@@ -10,33 +11,10 @@ import { hiddenFieldNames, isFilled } from '#shared/lib/form-logic'
 
 const props = defineProps<{ itemId: string }>()
 
-type SlotState = 'open' | 'waitlist' | 'closed'
 
-interface BookableDate {
-  date: string
-  when: string
-  state: SlotState
-  spotsLeft: number | null
-  maxSeats: number
-}
+/** The booking form's state, plus the intake form the route adds when the event asks for one. */
+type FormState = RsvpPublicState & { intake: { name: string; fields: RenderableField[] } | null }
 
-interface RsvpState {
-  enabled: boolean
-  state: SlotState
-  spotsLeft: number | null
-  maxSeats: number
-  price: number | null
-  currency: string | null
-  canPayByCard: boolean
-  canUsePass: boolean
-  cancelHours: number | null
-  /** A repeating event's next dates. Null for a one-off. */
-  dates: BookableDate[] | null
-  /** The questions to answer before booking, when the event asks for them. */
-  intake: { name: string; fields: RenderableField[] } | null
-}
-
-type Answer = { status: 'pending' | 'confirmed' | 'waitlist' | 'checkout'; url?: string }
 
 const { data: site } = useFetch<PublicSite>('/api/public/site', {
   key: 'nuxflow-public-site',
@@ -45,7 +23,7 @@ const { data: site } = useFetch<PublicSite>('/api/public/site', {
 
 const route = useRoute()
 const { user } = useUserSession()
-const state = ref<RsvpState | null>(null)
+const state = ref<FormState | null>(null)
 const name = ref('')
 const email = ref('')
 const seats = ref(1)
@@ -89,7 +67,7 @@ const dateOptions = computed(() => (state.value?.dates ?? []).map(d => ({
 const selected = computed(() => state.value?.dates?.find(d => d.date === date.value) ?? null)
 
 // The chosen date's state for a series, the event's own for a one-off.
-const slotState = computed<SlotState>(() => selected.value?.state ?? state.value?.state ?? 'closed')
+const slotState = computed<RsvpState>(() => selected.value?.state ?? state.value?.state ?? 'closed')
 const spotsLeft = computed(() => (state.value?.dates ? selected.value?.spotsLeft ?? null : state.value?.spotsLeft ?? null))
 const maxSeats = computed(() => selected.value?.maxSeats ?? state.value?.maxSeats ?? 1)
 const seatOptions = computed(() => Array.from({ length: maxSeats.value }, (_, i) => ({ label: String(i + 1), value: i + 1 })))
@@ -122,7 +100,7 @@ onMounted(async () => {
   name.value = user.value?.name ?? ''
   email.value = user.value?.email ?? ''
   try {
-    const loaded = await $fetch<RsvpState, string>(rsvpUrl.value)
+    const loaded = await $fetch<FormState, string>(rsvpUrl.value)
     state.value = loaded
     seedIntake(loaded.intake?.fields ?? [])
     method.value = loaded.canPayByCard ? 'card' : 'pass'
@@ -149,7 +127,7 @@ async function submit() {
   }
   loading.value = true
   try {
-    const answer = await $fetch<Answer, string>(rsvpUrl.value, {
+    const answer = await $fetch<RsvpAnswer, string>(rsvpUrl.value, {
       method: 'POST',
       body: {
         name: name.value,

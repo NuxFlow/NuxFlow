@@ -22,6 +22,9 @@ import type { StripeCheckoutSession } from './booking-webhooks'
 import { downloadLink, downloadState } from './shop-downloads'
 import { getBusinessInfo } from './business'
 import { collectionDays, formatCollectAt, isCollectionChoice, type CollectionDay } from '../../shared/lib/shop-collection'
+import type { BasketQuote, CustomerOrder, PricedLine } from '../../shared/lib/shop-types'
+
+export type { BasketQuote, CustomerOrder, PricedLine }
 
 /**
  * The shop's basket and checkout. The basket lives in the visitor's browser (a cookie would
@@ -44,22 +47,6 @@ const SWEEP_BATCH = 100
 export interface BasketRequestLine {
   variantId: string
   quantity: number
-}
-
-export interface PricedLine {
-  variantId: string
-  productId: string
-  title: string
-  label: string
-  path: string
-  image: string | null
-  unitMinor: number
-  quantity: number
-  isDigital: boolean
-  /** Null: not tracked. */
-  stock: number | null
-  /** Why it can't be bought as asked, in words fit to show; null when it can. */
-  problem: string | null
 }
 
 /**
@@ -119,27 +106,6 @@ export async function priceBasket(db: Db, siteId: string, lines: readonly Basket
       problem,
     }
   })
-}
-
-export interface BasketQuote {
-  lines: (Omit<PricedLine, 'stock'> & { unit: string; total: string })[]
-  subtotal: string
-  shipping: string | null
-  subtotalMinor: number
-  shippingMinor: number
-  currency: string
-  pricesIncludeTax: boolean
-  /** Tax is added at checkout (Stripe Tax on, prices without it). */
-  taxAtCheckout: boolean
-  /** Something has to be posted and the shop neither posts it nor offers collection. */
-  cannotShip: boolean
-  /** The shop posts somewhere (delivery can be chosen for posted goods). */
-  canDeliver: boolean
-  /** Click and collect, when it's on and something in the basket isn't a download. */
-  collection: { label: string; instructions: string; days: CollectionDay[] } | null
-  /** The returns-policy page to agree to, when the shop has one. */
-  returnsPath: string | null
-  paymentsReady: boolean
 }
 
 function shippingSettings(shop: ShopSettings) {
@@ -580,7 +546,7 @@ export async function sendOrderConfirmation(event: H3Event, order: OrderRow): Pr
  * What the signed order link shows its customer: the order, where it's going, and a download
  * link for each digital line once paid. Null for a wrong token or an unknown order.
  */
-export async function customerOrderView(event: H3Event, orderId: string, token: string) {
+export async function customerOrderView(event: H3Event, orderId: string, token: string): Promise<CustomerOrder | null> {
   const db = useDb(event)
   const siteId = requireSiteId(event)
   if (!(await verifyOrderToken(siteId, orderId, token))) return null

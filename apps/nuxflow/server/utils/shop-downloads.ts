@@ -9,6 +9,9 @@ import { assertWithinPlan } from './hosting-plans'
 import { getShopSettings } from './shop'
 import { bookingOrigin } from './class-passes'
 import { hmacSha256Hex, constantTimeEqualHex } from './webhook-crypto'
+import type { DownloadState } from '../../shared/lib/shop-types'
+
+export type { DownloadState }
 
 /**
  * Digital products. A variant's file sits in the media bucket under `_private/<siteId>/shop/`,
@@ -84,13 +87,6 @@ export function downloadToken(siteId: string, lineId: string): Promise<string> {
 
 export async function downloadLink(event: H3Event, siteId: string, lineId: string): Promise<string> {
   return `${bookingOrigin(event)}/_nuxflow/download/${lineId}?token=${await downloadToken(siteId, lineId)}`
-}
-
-export interface DownloadState {
-  /** Downloads left on the link, and until when it works. */
-  left: number
-  expiresAt: string
-  available: boolean
 }
 
 /** How a paid digital line's download stands, for the order page. */

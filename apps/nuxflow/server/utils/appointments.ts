@@ -35,6 +35,9 @@ import {
   type Busy,
   type TimeRange,
 } from '../../shared/lib/appointments'
+import type { AppointmentFreeTimes, AppointmentLinkResult, BookingAnswer, PublicService } from '../../shared/lib/booking-types'
+
+export type { AppointmentLinkResult, BookingAnswer, PublicService }
 
 /**
  * One-to-one appointments: a visitor picks a free time from an Appointment block and books
@@ -194,18 +197,8 @@ async function busyBetween(db: Db, siteId: string, from: string, to: string, now
   return rows
 }
 
-export interface PublicService {
-  name: string
-  duration: number
-  durationText: string
-  price: number | null
-  currency: string
-  cancelHours: number
-  canPayByCard: boolean
-}
-
 /** What the block shows: the service and the free times for DAYS_PER_PAGE days from `from`. */
-export async function listFreeTimes(event: H3Event, ctx: ServiceContext, from?: string) {
+export async function listFreeTimes(event: H3Event, ctx: ServiceContext, from?: string): Promise<AppointmentFreeTimes> {
   const db = useDb(event)
   const now = new Date()
   const nowIso = now.toISOString()
@@ -294,12 +287,6 @@ export interface BookingInput {
   email: string
   phone?: string
   note?: string
-}
-
-export interface BookingAnswer {
-  status: 'pending' | 'confirmed' | 'checkout'
-  url?: string
-  id: string
 }
 
 /** Books a time. The start must be one the block offers; the slot is taken atomically. */
@@ -497,16 +484,6 @@ async function sendAppointmentEmail(event: H3Event, row: AppointmentRow, kind: A
 }
 
 // ── Links from emails ───────────────────────────────────────────────────────
-
-export interface AppointmentLinkResult {
-  status: AppointmentRow['status'] | 'taken'
-  service: string
-  when: string
-  path: string
-  /** Cancel page: what cancelling now gives back. */
-  refund?: boolean
-  tooLate?: boolean
-}
 
 async function rowFromLink(event: H3Event, purpose: LinkPurpose, id: string, token: string): Promise<AppointmentRow | null> {
   const siteId = requireSiteId(event)

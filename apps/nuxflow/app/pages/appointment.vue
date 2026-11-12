@@ -1,31 +1,23 @@
 <script setup lang="ts">
+import type { AppointmentLinkResult } from '#shared/lib/booking-types'
 // Where an appointment email's links land (server/utils/appointments.ts):
 // ?do=confirm|cancel&id=&token=. Nothing happens until the button is pressed, because mail
 // scanners open links. Reads and posts /_nuxflow/appointments (not /api; see that route).
 useSeoMeta({ title: 'Your appointment', robots: 'noindex,nofollow' })
-
-interface LinkInfo {
-  status: 'draft' | 'pending' | 'held' | 'confirmed' | 'cancelled' | 'taken'
-  service: string
-  when: string
-  path: string
-  refund?: boolean
-  tooLate?: boolean
-}
 
 const route = useRoute()
 const action = computed(() => (route.query.do === 'cancel' ? 'cancel' : 'confirm'))
 const id = computed(() => String(route.query.id ?? ''))
 const token = computed(() => String(route.query.token ?? ''))
 
-const info = ref<LinkInfo | null>(null)
-const done = ref<LinkInfo | null>(null)
+const info = ref<AppointmentLinkResult | null>(null)
+const done = ref<AppointmentLinkResult | null>(null)
 const failed = ref('')
 const busy = ref(false)
 
 onMounted(async () => {
   try {
-    info.value = await $fetch<LinkInfo>('/_nuxflow/appointments', { query: { do: action.value, id: id.value, token: token.value } })
+    info.value = await $fetch<AppointmentLinkResult>('/_nuxflow/appointments', { query: { do: action.value, id: id.value, token: token.value } })
   }
   catch (e: unknown) {
     failed.value = getErrorMessage(e, 'This link isn\'t valid.')
@@ -36,7 +28,7 @@ async function press() {
   busy.value = true
   failed.value = ''
   try {
-    done.value = await $fetch<LinkInfo>('/_nuxflow/appointments', { method: 'POST', body: { action: action.value, id: id.value, token: token.value } })
+    done.value = await $fetch<AppointmentLinkResult>('/_nuxflow/appointments', { method: 'POST', body: { action: action.value, id: id.value, token: token.value } })
   }
   catch (e: unknown) {
     failed.value = getErrorMessage(e, 'Something went wrong. Please try again.')

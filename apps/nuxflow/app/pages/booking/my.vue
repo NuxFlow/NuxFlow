@@ -1,14 +1,9 @@
 <script setup lang="ts">
+import type { MyBookings } from '#shared/lib/booking-types'
 import type { PublicSite } from '#shared/lib/public-site-types'
 // Someone's bookings and passes, with no account: an emailed, signed link is what proves
 // the address. Without one, the page offers to send it.
 useSeoMeta({ title: 'My bookings and passes', robots: 'noindex,nofollow' })
-
-interface MyList {
-  bookings: Array<{ id: string; seats: number; status: string; title: string; when: string; location: string | null; cancelUrl: string; payUrl: string | null }>
-  appointments: Array<{ id: string; service: string; when: string; status: string; cancelUrl: string }>
-  passes: Array<{ id: string; name: string; creditsLeft: number; creditsTotal: number; expiresAt: string | null; status: string }>
-}
 
 const { data: site } = useFetch<PublicSite>('/api/public/site', {
   key: 'nuxflow-public-site',
@@ -21,7 +16,7 @@ const linkExpires = computed(() => Number(route.query.expires))
 const linkToken = computed(() => (typeof route.query.token === 'string' ? route.query.token : ''))
 const hasLink = computed(() => Boolean(linkEmail.value && linkToken.value))
 
-const list = ref<MyList | null>(null)
+const list = ref<MyBookings | null>(null)
 const listError = ref('')
 const loading = ref(false)
 
@@ -36,7 +31,7 @@ onMounted(async () => {
   if (!hasLink.value) return
   loading.value = true
   try {
-    list.value = await $fetch<MyList, string>('/api/public/bookings', {
+    list.value = await $fetch<MyBookings, string>('/api/public/bookings', {
       method: 'POST',
       body: { action: 'list', email: linkEmail.value, expires: linkExpires.value, token: linkToken.value },
     })
@@ -69,7 +64,7 @@ async function requestLink() {
 
 const statusLabel: Record<string, string> = { confirmed: 'Booked', waitlist: 'On the waitlist', offered: 'Place kept for you', held: 'Payment in progress' }
 
-function passDetail(pass: MyList['passes'][number]): string {
+function passDetail(pass: MyBookings['passes'][number]): string {
   if (pass.status === 'refunded') return 'Refunded'
   const left = `${pass.creditsLeft} of ${pass.creditsTotal} ${pass.creditsTotal === 1 ? 'session' : 'sessions'} left`
   if (!pass.expiresAt) return left

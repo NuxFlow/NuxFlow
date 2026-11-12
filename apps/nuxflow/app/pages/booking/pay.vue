@@ -1,36 +1,16 @@
 <script setup lang="ts">
+import type { RsvpLinkDetails, RsvpLinkResult } from '#shared/lib/booking-types'
 // A place kept for someone off a paid event's waitlist. The emailed link went to their own
 // address, so they can use a pass from here with no second email. Paying takes a button
 // press, as on /rsvp/confirm, because mail scanners open every link.
 useSeoMeta({ title: 'Book your place', robots: 'noindex,nofollow' })
 
-interface Details {
-  status: string
-  title: string
-  when: string
-  path: string
-  seats: number
-  amount: number | null
-  currency: string
-  canPayByCard: boolean
-  canUsePass: boolean
-  holdExpiresAt: string | null
-}
-
-interface PayResult {
-  status: string
-  title: string
-  when: string
-  path: string
-  url?: string
-}
-
 const route = useRoute()
 const id = computed(() => (typeof route.query.id === 'string' ? route.query.id : ''))
 const token = computed(() => (typeof route.query.token === 'string' ? route.query.token : ''))
 
-const details = ref<Details | null>(null)
-const done = ref<PayResult | null>(null)
+const details = ref<RsvpLinkDetails | null>(null)
+const done = ref<RsvpLinkResult | null>(null)
 const busy = ref<'card' | 'pass' | null>(null)
 const loaded = ref(false)
 const error = ref('')
@@ -44,7 +24,7 @@ onMounted(async () => {
     return
   }
   try {
-    details.value = await $fetch<Details>('/api/public/rsvp/link', {
+    details.value = await $fetch<RsvpLinkDetails>('/api/public/rsvp/link', {
       method: 'POST',
       body: { action: 'describe-pay', id: id.value, token: token.value },
     })
@@ -61,7 +41,7 @@ async function pay(method: 'card' | 'pass') {
   error.value = ''
   busy.value = method
   try {
-    const result = await $fetch<PayResult>('/api/public/rsvp/link', {
+    const result = await $fetch<RsvpLinkResult>('/api/public/rsvp/link', {
       method: 'POST',
       body: { action: 'pay', id: id.value, token: token.value, method },
     })
