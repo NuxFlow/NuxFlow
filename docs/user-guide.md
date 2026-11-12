@@ -82,6 +82,18 @@ In the editor, the fields appear in a **Details** panel in the sidebar and are s
 
 Removing a field hides it, but the values already saved are kept, and they come back if you add a field with the same key. Your own content types, their fields and every item's values are included in the site backup. A content type can only be deleted once it has no items.
 
+#### Listing and filtering them
+
+To show a type's items on a page, add a **Posts** block and set its **Content type** to the type's key (for example `property`). Each card shows the item's details (turn off **Show details** to hide them).
+
+To let visitors narrow the list, tick **Use as a filter on listings** on the fields that matter (numbers, yes/no and choices), then turn on **Show filters and sorting** in the Posts block. Visitors get:
+
+- a **from / to** range for each number ("Price £100,000 – £300,000", "Bedrooms 3 –"),
+- a tick box for each yes/no field ("Garden"),
+- a list for each one-choice field ("Kind: Any / House / Flat"),
+- tick boxes for several-choice fields, where only items with every ticked option are shown ("Parking" and "EV charger"),
+- **Sort by** each number field, low to high or high to low.
+
 ### The Block Editor
 NuxFlow features a powerful, visual block editor. You can build complex layouts by stacking blocks:
 - **Text Blocks**: Paragraphs, Headings (H1-H6), and Blockquotes.

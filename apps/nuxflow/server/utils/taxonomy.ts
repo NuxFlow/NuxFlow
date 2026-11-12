@@ -290,7 +290,7 @@ export async function getPublicItemsForTerms(
   db: Db,
   siteId: string,
   termIds: string[],
-  opts: { limit: number; offset: number },
+  opts: { limit: number; offset: number; order?: SQL[]; withFields?: boolean },
   extra?: SQL,
 ): Promise<{ items: PublicListItem[]; total: number }> {
   if (termIds.length === 0) return { items: [], total: 0 }
@@ -309,6 +309,9 @@ export interface PublicListItem {
   ogImage: string | null
   publishedAt: string | null
   typeSlug: string | null
+  /** The type's custom-field values (Admin → Content types) — only with `withFields`, since
+   * they include fields not meant for the page; callers format what's shown (pageDetails). */
+  fields?: Record<string, string | number | boolean | string[]> | null
 }
 
 /**
@@ -319,7 +322,7 @@ export async function listPublicItems(
   db: Db,
   siteId: string,
   extra: SQL | undefined,
-  opts: { limit: number; offset: number },
+  opts: { limit: number; offset: number; order?: SQL[]; withFields?: boolean },
 ): Promise<{ items: PublicListItem[]; total: number }> {
   const where = and(
     eq(contentItems.siteId, siteId),
@@ -340,20 +343,23 @@ export async function listPublicItems(
       ogImage: contentItems.ogImage,
       publishedAt: contentItems.publishedAt,
       typeSlug: contentTypes.slug,
+      fields: contentItems.fields,
     })
       .from(contentItems)
       .leftJoin(sourceItems, eq(sourceItems.id, contentItems.sourceItemId))
       .leftJoin(contentTypes, eq(contentTypes.id, contentItems.typeId))
       .where(where)
-      .orderBy(sql`${contentItems.publishedAt} DESC`, asc(contentItems.id))
+      // A custom-field sort (field-filters.ts) comes first; newest first breaks ties.
+      .orderBy(...(opts.order ?? []), sql`${contentItems.publishedAt} DESC`, asc(contentItems.id))
       .limit(opts.limit)
       .offset(opts.offset),
   ])
   const defaultLocale = site?.locale || 'en'
   return {
     total: Number(countRow?.total ?? 0),
-    items: rows.map(({ locale, sourceSlug, ...r }) => ({
+    items: rows.map(({ locale, sourceSlug, fields, ...r }) => ({
       ...r,
+      ...(opts.withFields ? { fields } : {}),
       path: publicPathForItem({ slug: r.slug, locale, sourceSlug }, defaultLocale),
     })),
   }
