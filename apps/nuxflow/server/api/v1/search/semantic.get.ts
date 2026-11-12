@@ -7,6 +7,7 @@ import { semanticSearch } from '../../../utils/embeddings'
 import { parseQuery } from '../../../utils/validate'
 import { withPublicPaths } from '../../../utils/seo'
 import { requireSiteId } from '../../../utils/site-context'
+import type { SemanticResponse } from '../../../../shared/lib/search-types'
 
 const querySchema = z.object({ q: z.string().optional() })
 
@@ -58,5 +59,5 @@ export default defineEventHandler(async (event) => {
       path: itemMap.get(m.contentItemId)!.path,
     }))
 
-  return { available: true, results }
+  return { available: true, results } satisfies SemanticResponse
 })

@@ -3,6 +3,7 @@ import { classPasses } from '@nuxflow/db/schema'
 import { useDb } from '../../../utils/db'
 import { requireSiteId } from '../../../utils/site-context'
 import { bookingPaymentsReady } from '../../../utils/class-passes'
+import type { PublicClassPass } from '../../../../shared/lib/membership-types'
 
 // The passes on sale. Whether they can be bought is live, so this isn't edge-cached.
 export default defineEventHandler(async (event) => {
@@ -16,5 +17,5 @@ export default defineEventHandler(async (event) => {
     }),
     bookingPaymentsReady(event),
   ])
-  return { passes, canBuy }
+  return { passes: passes satisfies PublicClassPass[], canBuy }
 })

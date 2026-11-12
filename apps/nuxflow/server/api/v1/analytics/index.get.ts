@@ -3,21 +3,13 @@ import { requireRole } from '../../../utils/permissions'
 import { getAnalyticsEngine } from '../../../utils/cf-env'
 import { useDb } from '../../../utils/db'
 import { getPlatformSetting } from '../../../utils/control-plane'
-import { ANALYTICS_RANGES, ANALYTICS_TOKEN_KEY, AnalyticsQueryError, querySiteAnalytics, type AnalyticsRange, type SiteAnalytics } from '../../../utils/analytics'
+import { ANALYTICS_RANGES, ANALYTICS_TOKEN_KEY, AnalyticsQueryError, querySiteAnalytics, type AnalyticsRange } from '../../../utils/analytics'
 import { requireSiteId } from '../../../utils/site-context'
+import type { AnalyticsResponse } from '../../../../shared/lib/analytics-types'
 
 const querySchema = z.object({
   days: z.coerce.number().int().refine((d): d is AnalyticsRange => (ANALYTICS_RANGES as readonly number[]).includes(d)).default(30),
 })
-
-export interface AnalyticsResponse {
-  /** The `AE` binding is in wrangler.toml, so views are being recorded. */
-  recording: boolean
-  /** The operator has saved an API token and account ID, so they can be read back. */
-  readable: boolean
-  report: SiteAnalytics | null
-  error: string | null
-}
 
 /** Admin → Analytics: this site's page views, from Analytics Engine (utils/analytics.ts). */
 export default defineEventHandler(async (event): Promise<AnalyticsResponse> => {

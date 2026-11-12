@@ -40,3 +40,20 @@ const INTERVAL_LABELS: Record<TierInterval, string> = { month: 'mo', year: 'yr',
 export function tierIntervalLabel(interval: string): string {
   return INTERVAL_LABELS[interval as TierInterval] ?? interval
 }
+
+/** A class pass on sale, as GET /api/public/class-passes lists it (/booking/passes). */
+export interface PublicClassPass {
+  id: string
+  name: string
+  description: string | null
+  credits: number
+  price: number
+  currency: string
+  /** Days from purchase; null = never expires. */
+  validDays: number | null
+}
+
+/** A class pass as Admin → Class passes edits it (GET /api/v1/class-passes). */
+export interface AdminClassPass extends PublicClassPass {
+  isActive: boolean
+}

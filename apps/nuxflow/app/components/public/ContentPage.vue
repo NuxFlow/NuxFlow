@@ -2,9 +2,8 @@
 import type { TierSummary } from '#shared/lib/membership-types'
 import Paywall from '~/components/memberships/Paywall.vue'
 import { NuxImage } from '@nuxflow/canvas'
-import type { JsonLdVideo, PublicSiteInfo } from '~/utils/seo'
-import type { PublicEventInfo } from '~/components/public/EventDetails.vue'
-import type { PublicProductInfo } from '~/components/public/ProductDetails.vue'
+import type { PublicSiteInfo } from '~/utils/seo'
+import type { PublicPage, PublicTerm } from '#shared/lib/public-page-types'
 import type { FieldDetail } from '#shared/lib/custom-fields'
 import { postOutline, tocHeadings } from '#shared/lib/post-outline'
 
@@ -16,51 +15,6 @@ import { postOutline, tocHeadings } from '#shared/lib/post-outline'
  * without this a translated URL could never reach the page renderer at all.
  */
 const props = defineProps<{ slugPath: string }>()
-
-interface Author {
-  name: string
-  image: string | null
-}
-
-interface PublicPage {
-  id: string
-  title: string
-  slug: string
-  path?: string
-  seoTitle?: string | null
-  seoDescription?: string | null
-  content: unknown
-  excerpt?: string | null
-  ogImage?: string | null
-  canonicalUrl?: string | null
-  robots?: string | null
-  publishedAt?: string | null
-  updatedAt?: string | null
-  hasComments?: boolean | null
-  author?: Author | null
-  locale?: string | null
-  defaultLocale?: string | null
-  type?: { slug: string; name: string } | null
-  event?: PublicEventInfo | null
-  product?: PublicProductInfo | null
-  /** A podcast episode's audio (Settings → Podcast), played by the site-wide player. */
-  episode?: { audioUrl: string; duration: string; episode: number | null; season: number | null } | null
-  /** The type's custom fields, formatted (Admin → Content types). */
-  details?: FieldDetail[]
-  availableLocales?: Array<{ locale: string; slug: string; rawSlug?: string }> | null
-  alternates?: Array<{ locale: string; path: string }> | null
-  terms?: PublicTerm[] | null
-  videos?: JsonLdVideo[] | null
-}
-
-interface PublicTerm {
-  taxonomySlug: string
-  taxonomyName: string
-  isHierarchical: boolean
-  termSlug: string
-  termName: string
-  path: string
-}
 
 interface GateData {
   gated: true

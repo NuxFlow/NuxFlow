@@ -1,21 +1,8 @@
 <script lang="ts">
-export interface PublicEventInfo {
-  startAt: string
-  endAt?: string | null
-  allDay?: boolean | null
-  location?: string | null
-  url?: string | null
-  timeZone?: string
-  rsvp?: boolean
-  icsUrl?: string | null
-  /** A repeating event's rule, in words. */
-  repeats?: string | null
-  price?: number | null
-  currency?: string | null
-}
 </script>
 
 <script setup lang="ts">
+import type { PublicEventInfo } from '#shared/lib/public-page-types'
 import { formatEventWhen } from '@nuxflow/canvas/events'
 
 // What an event page shows up top: when, where, and how to come. Time is in the site's own

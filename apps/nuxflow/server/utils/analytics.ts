@@ -4,6 +4,7 @@ import { isPageCachePath } from './page-cache'
 import { detectCrawler, isNoindexPath } from './seo'
 import { createIsolateCache } from './isolate-cache'
 import { utcDayAgo } from './utc-day'
+import { ANALYTICS_RANGES, type AnalyticsRange, type SiteAnalytics } from '../../shared/lib/analytics-types'
 
 /**
  * Visitor analytics (Admin → Analytics), on Cloudflare Analytics Engine.
@@ -28,8 +29,8 @@ import { utcDayAgo } from './utc-day'
  */
 
 export const ANALYTICS_TOKEN_KEY = 'analytics.cf_api_token'
-export const ANALYTICS_RANGES = [7, 30, 90] as const
-export type AnalyticsRange = typeof ANALYTICS_RANGES[number]
+export { ANALYTICS_RANGES }
+export type { AnalyticsRange, SiteAnalytics }
 
 // ─── Recording ────────────────────────────────────────────────────────────────
 
@@ -112,18 +113,6 @@ export interface AnalyticsQueryConfig {
   accountId: string
   token: string
   dataset: string
-}
-
-export interface SiteAnalytics {
-  days: AnalyticsRange
-  views: number
-  /** Views in the period before this one; null when that's past Cloudflare's 3-month retention. */
-  previousViews: number | null
-  series: { day: string; views: number }[]
-  pages: { path: string; views: number }[]
-  referrers: { host: string; views: number }[]
-  countries: { code: string; views: number }[]
-  devices: { device: string; views: number }[]
 }
 
 const SAFE_ID = /^[\w-]{1,64}$/

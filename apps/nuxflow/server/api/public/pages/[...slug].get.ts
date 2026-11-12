@@ -18,6 +18,7 @@ import { describePageVideos, hasVideoBlocks } from '../../../utils/video-seo'
 import { eventIcsPath } from '../../../utils/event-feed'
 import { loadProduct, toPublicProduct } from '../../../utils/products'
 import { getShopSettingsFromDb } from '../../../utils/shop'
+import type { PublicPage } from '../../../../shared/lib/public-page-types'
 
 type ContentItemRow = typeof contentItems.$inferSelect
 
@@ -94,7 +95,7 @@ export default defineEventHandler(async (event) => {
   return withEdgeCache(event, 3600, () => assemblePageResponse(db, page, siteId))
 })
 
-async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string) {
+async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string): Promise<PublicPage> {
   // Content type, author, source-page, site-locale, and SEO-settings lookups are all
   // independent of each other (they only need `page`, already resolved above), so run
   // them as one round trip each in parallel instead of sequentially.
