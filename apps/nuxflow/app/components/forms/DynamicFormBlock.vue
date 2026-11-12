@@ -1,53 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch, watchEffect } from 'vue'
-import type { Component } from 'vue'
 import { spacingToCss, type SpacingValue } from '@nuxflow/canvas'
 import { formFilePartName } from '#shared/lib/form-files'
-import { formSteps, hiddenFieldNames, isFilled, type ShowIf } from '#shared/lib/form-logic'
-import TextField from './fields/TextField.vue'
-import TextareaField from './fields/TextareaField.vue'
-import EmailField from './fields/EmailField.vue'
-import NumberField from './fields/NumberField.vue'
-import SelectField from './fields/SelectField.vue'
-import RadioField from './fields/RadioField.vue'
-import CheckboxField from './fields/CheckboxField.vue'
-import DateField from './fields/DateField.vue'
-import FileField from './fields/FileField.vue'
-import ComputedField from './fields/ComputedField.vue'
-import SignatureField from './fields/SignatureField.vue'
-import HiddenField from './fields/HiddenField.vue'
-
-interface RenderableField {
-  id: string
-  type: string
-  label: string
-  name: string
-  placeholder?: string
-  required?: boolean
-  options?: { label: string; value: string }[]
-  formula?: string
-  showIf?: ShowIf
-}
-
-// Mirrors apps/nuxflow/app/components/forms/fields/index.ts's FIELD_COMPONENTS
-// map, but as actual component references — this file lives in the app
-// package (same boundary as ContactFormBlock.vue/MembershipsBlock.vue), so it
-// can import the field renderers directly rather than resolving them by
-// auto-import name.
-const FIELD_RENDERERS: Record<string, Component> = {
-  text: TextField,
-  textarea: TextareaField,
-  email: EmailField,
-  number: NumberField,
-  select: SelectField,
-  radio: RadioField,
-  checkbox: CheckboxField,
-  date: DateField,
-  file: FileField,
-  computed: ComputedField,
-  signature: SignatureField,
-  hidden: HiddenField,
-}
+import { formSteps, hiddenFieldNames, isFilled } from '#shared/lib/form-logic'
+import FormFieldList from './FormFieldList.vue'
+import type { RenderableField } from './FormFieldList.vue'
 
 const toast = useToast()
 
@@ -119,19 +76,6 @@ watchEffect(() => {
     }
   }
 })
-
-// Only the subset of RenderableField each field component actually declares
-// in its own props — passing the raw field through would leak `formula` etc.
-// onto the DOM as fallthrough attributes.
-function fieldProp(field: RenderableField) {
-  return {
-    label: field.label,
-    placeholder: field.placeholder,
-    required: field.required,
-    options: field.options,
-    expression: field.formula,
-  }
-}
 
 const loading = ref(false)
 const submitted = ref(false)
@@ -279,15 +223,7 @@ async function submit() {
           </div>
         </div>
 
-        <component
-          :is="FIELD_RENDERERS[field.type]"
-          v-for="field in visibleFields"
-          :key="field.id"
-          :field="fieldProp(field)"
-          :model-value="values[field.name]"
-          v-bind="field.type === 'computed' ? { formValues: values } : {}"
-          @update:model-value="values[field.name] = $event"
-        />
+        <FormFieldList :fields="visibleFields" :values="values" @update="(name, value) => { values[name] = value }" />
 
         <p v-if="stepError" class="text-sm text-red-600 dark:text-red-400" role="alert">{{ stepError }}</p>
 
