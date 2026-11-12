@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AdminFormsResponse } from '#shared/lib/form-types'
 // Shown for a page with a Book an Appointment block: the form people fill in when booking
 // (a waiver or questionnaire — server/utils/booking-intake.ts, kept in the item's settings as
 // `intakeFormId`, the same setting events use), and where the bookings are.
@@ -14,7 +15,7 @@ const choice = computed({
 const formOptions = ref<Array<{ label: string; value: string }>>([])
 onMounted(async () => {
   try {
-    const res = await $fetch<{ forms: Array<{ id: string; name: string; status: string }> }>('/api/v1/forms')
+    const res = await $fetch<AdminFormsResponse>('/api/v1/forms')
     formOptions.value = [{ label: 'None', value: NO_FORM }, ...res.forms.filter(f => f.status === 'active').map(f => ({ label: f.name, value: f.id }))]
   }
   catch {

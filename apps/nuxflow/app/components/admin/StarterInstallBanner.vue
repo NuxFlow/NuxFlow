@@ -2,9 +2,9 @@
 // Shown on the dashboard while a starter site is waiting to be installed — typically right
 // after setup, when a catalog starter was picked (its pages and images are added once the
 // new admin is signed in). Admins only; anyone else gets a 403 and sees nothing.
-import type { StarterInstallView } from '~/components/admin/starters/InstallModal.vue'
+import type { StartersResponse } from '#shared/lib/starters'
 
-const { data } = await useFetch<{ install: StarterInstallView | null }>('/api/v1/starters', {
+const { data } = await useFetch<Pick<StartersResponse, 'install'>>('/api/v1/starters', {
   query: { installOnly: '1' },
   // Not an error for editors/authors: they simply can't install starters.
   onResponseError: () => {},

@@ -28,6 +28,7 @@ import {
   STARTER_IMAGE_TYPES,
   summarizeCatalogEntry,
   type StarterCatalogEntry,
+  type StarterInstallView,
   type StarterSummary,
 } from '../../../shared/lib/starters'
 import { builtinStarterSummaries, getBuiltinStarter } from './builtin'
@@ -42,18 +43,6 @@ const IMAGES_PER_STEP = 6
 const BYTES_PER_STEP = 8 * 1024 * 1024
 const MAX_DEMO_BYTES = 5 * 1024 * 1024
 const MAX_CSS_BYTES = 512 * 1024
-
-export interface StarterInstallView {
-  id: string
-  starterId: string
-  starterName: string
-  mode: 'fresh' | 'switch'
-  status: InstallRow['status']
-  phase: 'resolve' | 'images' | 'apply' | 'done'
-  imagesDone: number
-  imagesTotal: number
-  error: string | null
-}
 
 /** The catalog entry a job stored once it was verified (the DB copy is trusted). */
 function manifestOf(row: InstallRow): (StarterCatalogEntry & { catalogUrl: string }) | null {

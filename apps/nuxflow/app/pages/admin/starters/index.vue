@@ -1,17 +1,8 @@
 <script setup lang="ts">
-import type { StarterSummary } from '#shared/lib/starters'
-import type { StarterInstallView } from '~/components/admin/starters/InstallModal.vue'
+import type { StartersResponse, StarterInstallView, StarterSummary } from '#shared/lib/starters'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Starter sites' })
-
-interface StartersResponse {
-  starters: StarterSummary[]
-  catalogError: string | null
-  storageReady: boolean
-  install: StarterInstallView | null
-  applied: { id: string; name: string; at: string } | null
-}
 
 const { data, error, refresh } = await useFetch<StartersResponse>('/api/v1/starters')
 

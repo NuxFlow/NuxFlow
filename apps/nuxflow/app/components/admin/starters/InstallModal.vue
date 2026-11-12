@@ -3,28 +3,7 @@
 // is applied by one request; a catalog one is installed a step per request — this dialog
 // keeps asking until it's done, showing how many images have been copied. Closing it pauses
 // the install; the Starter sites page (and the dashboard) offer to continue it.
-import type { StarterSummary } from '#shared/lib/starters'
-
-export interface StarterInstallView {
-  id: string
-  starterId: string
-  starterName: string
-  mode: 'fresh' | 'switch'
-  status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled'
-  phase: 'resolve' | 'images' | 'apply' | 'done'
-  imagesDone: number
-  imagesTotal: number
-  error: string | null
-}
-
-interface ApplyResult {
-  content: { created: number; updated: number; skipped: number }
-  draftedItems: number
-  settingsKept: string[]
-  planLimits?: string[]
-}
-
-interface Answer { install: StarterInstallView | null; result: ApplyResult | null; busy?: boolean }
+import type { StarterApplyResult, StarterInstallAnswer, StarterInstallView, StarterSummary } from '#shared/lib/starters'
 
 const props = defineProps<{
   /** The starter to switch to, when starting a new install. */
@@ -39,7 +18,7 @@ const { run, isRunning } = useAdminAction()
 const toast = useToast()
 
 const install = ref<StarterInstallView | null>(null)
-const result = ref<ApplyResult | null>(null)
+const result = ref<StarterApplyResult | null>(null)
 const message = ref('')
 const running = ref(false)
 const understood = ref(false)
@@ -82,7 +61,7 @@ onBeforeUnmount(() => { running.value = false })
 async function start() {
   if (!props.starter) return
   const id = props.starter.id
-  const started = await run(() => $fetch<Answer>('/api/v1/starters', { method: 'POST', body: { action: 'install', starterId: id } }), {
+  const started = await run(() => $fetch<StarterInstallAnswer>('/api/v1/starters', { method: 'POST', body: { action: 'install', starterId: id } }), {
     errorTitle: "Couldn't switch to this starter site",
     key: 'start',
   })
@@ -103,7 +82,7 @@ async function drive() {
   message.value = ''
   try {
     while (running.value && install.value && ['pending', 'running'].includes(install.value.status)) {
-      const answer: Answer = await $fetch<Answer>('/api/v1/starters', { method: 'POST', body: { action: 'step', installId: install.value.id } })
+      const answer: StarterInstallAnswer = await $fetch<StarterInstallAnswer>('/api/v1/starters', { method: 'POST', body: { action: 'step', installId: install.value.id } })
       if (answer.install) install.value = answer.install
       if (answer.result) result.value = answer.result
       // Another tab holds this step — wait for it rather than doing the work twice.
@@ -123,7 +102,7 @@ async function cancelInstall() {
   if (!install.value) return
   running.value = false
   const id = install.value.id
-  const cancelled = await run(() => $fetch<Answer>('/api/v1/starters', { method: 'POST', body: { action: 'cancel', installId: id } }), {
+  const cancelled = await run(() => $fetch<StarterInstallAnswer>('/api/v1/starters', { method: 'POST', body: { action: 'cancel', installId: id } }), {
     successTitle: 'Install cancelled',
     errorTitle: "Couldn't cancel the install",
     key: 'cancel',

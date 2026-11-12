@@ -5,7 +5,7 @@ import { useDb } from '../../../utils/db'
 import { resolveSetting } from '../../../utils/settings'
 import { getOpenInstall, installView, listStarters, starterStorageReady } from '../../../utils/starters/install'
 import { APPLIED_STARTER_SETTING } from '../../../utils/starters/apply'
-import type { AppliedStarter } from '../../../../shared/lib/starters'
+import type { AppliedStarter, StartersResponse } from '../../../../shared/lib/starters'
 
 const querySchema = z.object({
   // The dashboard banner only needs the unfinished install, not the catalog.
@@ -36,5 +36,5 @@ export default defineEventHandler(async (event) => {
     storageReady,
     install,
     applied: last ? { id: last.id, name: last.name, at: last.at } : null,
-  }
+  } satisfies StartersResponse
 })

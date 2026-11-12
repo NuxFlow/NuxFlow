@@ -10,6 +10,7 @@ import { unzipSync } from 'fflate'
 import { getActiveProvider } from '../../../utils/media-providers/index'
 import { assertWithinPlan } from '../../../utils/hosting-plans'
 import type { NuxFlowBackup } from '../../../utils/backup'
+import type { ThemeDemoSummary, ThemeUploadResult } from '../../../../shared/lib/theme-types'
 import { validateZipArchive } from '../../../utils/zip-validate'
 import { isHttpError } from '../../../utils/errors'
 import { purgeAllPublicPages } from '../../../utils/edge-cache'
@@ -25,7 +26,7 @@ const MIME_MAP: Record<string, string> = {
 
 interface CssBody { name: string; version?: string; css: string }
 
-function parseDemoSummary(backup: NuxFlowBackup) {
+function parseDemoSummary(backup: NuxFlowBackup): ThemeDemoSummary {
   return {
     pages: backup.content?.filter(c => c.typeSlug === 'page').length ?? 0,
     posts: backup.content?.filter(c => c.typeSlug === 'post').length ?? 0,
@@ -199,5 +200,5 @@ export default defineEventHandler(async (event) => {
 
   await writeAuditLog(event, userId, { action: 'create', resource: 'theme', resourceId: id, after: { name, version } })
 
-  return { success: true, id, hasDemoContent, demoSummary, failedImages }
+  return { success: true, id, hasDemoContent, demoSummary, failedImages } satisfies ThemeUploadResult
 })

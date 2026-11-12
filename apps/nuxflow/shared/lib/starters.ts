@@ -33,6 +33,51 @@ export interface StarterSummary {
   needsStorage: boolean
 }
 
+/** A catalog starter's install job as the admin sees it (installView(),
+ * server/utils/starters/install.ts). */
+export interface StarterInstallView {
+  id: string
+  starterId: string
+  starterName: string
+  mode: 'fresh' | 'switch'
+  status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled'
+  phase: 'resolve' | 'images' | 'apply' | 'done'
+  imagesDone: number
+  imagesTotal: number
+  error: string | null
+}
+
+/** What applying a starter did (the parts the admin shows of `ApplyStarterResult`,
+ * server/utils/starters/apply.ts). */
+export interface StarterApplyResult {
+  content: { created: number; updated: number; skipped: number }
+  draftedItems: number
+  /** Settings the starter has that the site's own value was kept for. */
+  settingsKept: string[]
+  /** What didn't fit the site's hosting plan. */
+  planLimits?: string[]
+}
+
+/** POST /api/v1/starters (`install`, `step`, `cancel`): the job, or the result once applied. */
+export interface StarterInstallAnswer {
+  install: StarterInstallView | null
+  result: StarterApplyResult | null
+  /** Another request is working on this install right now. */
+  busy?: boolean
+}
+
+/** GET /api/v1/starters: Admin → Starter sites. (`?installOnly=1` sends only `install`.) */
+export interface StartersResponse {
+  starters: StarterSummary[]
+  /** Why the catalog couldn't be read; the built-in starters are still listed. */
+  catalogError: string | null
+  /** The site has file storage for starters with images. */
+  storageReady: boolean
+  install: StarterInstallView | null
+  /** The starter this site last installed. */
+  applied: { id: string; name: string; at: string } | null
+}
+
 // ── Catalog format ────────────────────────────────────────────────────────────
 
 /**

@@ -8,6 +8,7 @@ import { contentItems, contentTaxonomyTerms, taxonomies, taxonomyTerms } from '@
 import { and, eq, desc, gt, inArray } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
 import { parseQuery } from '../../../utils/validate'
+import type { ContentListResponse } from '../../../../shared/lib/content-list-types'
 
 // updatedAfter round-trips contentItems.updatedAt, which is always written as SQLite's
 // datetime('now') — space-separated "YYYY-MM-DD HH:MM:SS", not ISO-8601 — so an offline/
@@ -99,7 +100,7 @@ export default defineEventHandler(async (event) => {
     const items = await db.query.contentItems.findMany({
       where, orderBy: [desc(contentItems.updatedAt)], columns,
     })
-    return { items, type, page, limit }
+    return { items, type, page, limit } satisfies ContentListResponse
   }
 
   const { items, total } = await paginate(
@@ -107,5 +108,5 @@ export default defineEventHandler(async (event) => {
     () => db.query.contentItems.findMany({ where, orderBy: [desc(contentItems.updatedAt)], columns, limit, offset }),
   )
 
-  return { items, type, page, limit, total }
+  return { items, type, page, limit, total } satisfies ContentListResponse
 })

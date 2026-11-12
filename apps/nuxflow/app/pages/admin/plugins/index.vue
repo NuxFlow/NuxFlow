@@ -1,27 +1,13 @@
 <script setup lang="ts">
 import { describePermission } from '#shared/lib/plugin-permissions'
+import type { AdminDynamicPlugin, AdminDynamicPluginsResponse } from '#shared/lib/plugin-types'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const { run, isRunning, toast } = useAdminAction()
 
 // Dynamic plugins
-interface DynamicPlugin {
-  id: string
-  name: string
-  version: string
-  description: string
-  isActive: boolean
-  hasServer: boolean
-  hasClient: boolean
-  installedAt: string
-  permissions: string[]
-  grantedPermissions: string[]
-  hasSettings: boolean
-  needsApproval: boolean
-}
-
-const { data: dynData, refresh: refreshDyn } = await useFetch<{ plugins: DynamicPlugin[] }>('/api/v1/dynamic-plugins')
+const { data: dynData, refresh: refreshDyn } = await useFetch<AdminDynamicPluginsResponse>('/api/v1/dynamic-plugins')
 const dynItems = computed(() => dynData.value?.plugins ?? [])
 
 const installModal = ref(false)
@@ -120,9 +106,9 @@ async function dynInstall() {
 
 // Enabling a plugin that asks for permissions goes through the review modal first; the
 // approved list is sent with the request (the server refuses a list that doesn't match).
-const reviewPlugin = ref<DynamicPlugin | null>(null)
+const reviewPlugin = ref<AdminDynamicPlugin | null>(null)
 const reviewOpen = ref(false)
-async function enablePlugin(plugin: DynamicPlugin, approvedPermissions: string[]) {
+async function enablePlugin(plugin: AdminDynamicPlugin, approvedPermissions: string[]) {
   const url: string = `/api/v1/dynamic-plugins/${plugin.id}/enable`
   await run(async () => {
     await $fetch<unknown>(url, { method: 'POST', body: { approvedPermissions } })
@@ -131,7 +117,7 @@ async function enablePlugin(plugin: DynamicPlugin, approvedPermissions: string[]
   }, { successTitle: `${plugin.name} enabled`, errorTitle: "Couldn't enable plugin", key: 'enable' })
 }
 
-async function dynToggle(plugin: DynamicPlugin) {
+async function dynToggle(plugin: AdminDynamicPlugin) {
   if (!plugin.isActive) {
     if (plugin.permissions.length > 0) {
       reviewPlugin.value = plugin
@@ -148,9 +134,9 @@ async function dynToggle(plugin: DynamicPlugin) {
   }, { successTitle: 'Plugin disabled', errorTitle: "Couldn't disable plugin" })
 }
 
-const settingsPlugin = ref<DynamicPlugin | null>(null)
+const settingsPlugin = ref<AdminDynamicPlugin | null>(null)
 const settingsOpen = ref(false)
-function openSettings(plugin: DynamicPlugin) {
+function openSettings(plugin: AdminDynamicPlugin) {
   settingsPlugin.value = plugin
   settingsOpen.value = true
 }

@@ -5,6 +5,7 @@ import type { H3Event } from 'h3'
 import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { aiGenerationJobs, contentItems, type AiGenerationPlanPage } from '@nuxflow/db/schema'
 import type { Db } from './db'
+import type { GenerationJob, GenerationJobItem } from '../../shared/lib/ai-generation-types'
 import { requireAiSdkModel, callAiOrThrow, aiErrorMessage } from './ai-sdk'
 import { assertWithinPlan } from './hosting-plans'
 import { generateCanvasPage, loadGenerationContext, type GenerationContext } from './canvas-generation'
@@ -252,19 +253,11 @@ export async function regeneratePlanPage(event: H3Event, db: Db, job: AiGenerati
   })
 }
 
-export interface AiGenerationJobItem {
-  id: string
-  title: string
-  slug: string
-  status: string
-  content: unknown
-}
-
 /**
  * The job as the admin page sees it: the row minus the lease, plus each generated draft
  * that still exists (title/slug/status/content) for the review screen's previews.
  */
-export async function jobResponse(db: Db, job: AiGenerationJob) {
+export async function jobResponse(db: Db, job: AiGenerationJob): Promise<GenerationJob> {
   const ids = (job.plan ?? []).flatMap(p => (p.contentItemId ? [p.contentItemId] : []))
   const rows = ids.length
     ? await db.query.contentItems.findMany({
@@ -276,7 +269,7 @@ export async function jobResponse(db: Db, job: AiGenerationJob) {
   return {
     ...rest,
     busy: Boolean(lockedUntil && lockedUntil > new Date().toISOString()),
-    items: rows satisfies AiGenerationJobItem[],
+    items: rows satisfies GenerationJobItem[],
   }
 }
 

@@ -3,6 +3,7 @@ import { requireAuth } from '../../../../utils/permissions'
 import { mediaFolders, media } from '@nuxflow/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { requireSiteId } from '../../../../utils/site-context'
+import type { MediaFoldersResponse } from '../../../../../shared/lib/media-types'
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
@@ -26,5 +27,5 @@ export default defineEventHandler(async (event) => {
   return {
     folders: folders.map(f => ({ ...f, fileCount: countMap[f.id] ?? 0 })),
     unfolderedCount: countMap['__null__'] ?? 0,
-  }
+  } satisfies MediaFoldersResponse
 })

@@ -2,8 +2,9 @@
 // built-in contact form).
 
 import { storedFormFiles, type StoredFormFile } from '#shared/lib/form-files'
+import type { FormSubmissionStatus } from '#shared/lib/form-types'
 
-export type SubmissionStatus = 'new' | 'read' | 'spam' | 'archived'
+export type SubmissionStatus = FormSubmissionStatus
 
 /** Files sent in one field, each with its staff-only download link. */
 export function submissionFiles(submissionId: string, key: string, value: unknown): Array<StoredFormFile & { url: string }> {

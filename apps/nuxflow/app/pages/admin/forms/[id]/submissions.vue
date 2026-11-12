@@ -6,11 +6,11 @@ import {
   submissionFiles,
   submissionPreview,
   submissionsToCsv,
-  type InboxField,
   type InboxSubmission,
   type SubmissionStatus,
 } from '~/utils/form-submissions'
 import { formatFileSize } from '#shared/lib/form-files'
+import type { FormSubmissionsResponse } from '#shared/lib/form-types'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
@@ -21,12 +21,6 @@ const { run, isRunning } = useAdminAction()
 const id = route.params.id as string
 
 type Filter = 'inbox' | 'new' | 'archived' | 'spam' | 'all'
-interface Payload {
-  form: { id: string; name: string; slug: string; fields: InboxField[] | null }
-  submissions: InboxSubmission[]
-  total: number
-  counts: Record<SubmissionStatus, number>
-}
 
 const PAGE_SIZE = 100
 // A plain `string` URL — see CLAUDE.md: Nitro's typed-route matching trips on this route's
@@ -36,7 +30,7 @@ const listUrl: string = `/api/v1/forms/${id}/submissions`
 const filter = ref<Filter>('inbox')
 // `deep: true` — Nuxt 4's useFetch data is shallow by default, and opening a message
 // updates its status (and the tab counts) in place.
-const { data, refresh, error } = await useFetch<Payload>(listUrl, {
+const { data, refresh, error } = await useFetch<FormSubmissionsResponse>(listUrl, {
   query: computed(() => ({ status: filter.value, limit: PAGE_SIZE })),
   deep: true,
 })
@@ -64,7 +58,7 @@ const filters = computed<Array<{ value: Filter; label: string; count?: number }>
 const loadingMore = computed(() => isRunning('more'))
 async function loadMore() {
   const page = Math.floor(submissions.value.length / PAGE_SIZE) + 1
-  const res = await run(() => $fetch<Payload>(listUrl, { query: { status: filter.value, limit: PAGE_SIZE, page } }), { errorTitle: "Couldn't load more submissions", key: 'more' })
+  const res = await run(() => $fetch<FormSubmissionsResponse>(listUrl, { query: { status: filter.value, limit: PAGE_SIZE, page } }), { errorTitle: "Couldn't load more submissions", key: 'more' })
   if (res) extra.value = [...extra.value, ...res.submissions]
 }
 
@@ -113,7 +107,7 @@ async function downloadCsv() {
   await run(async () => {
     const all: InboxSubmission[] = []
     for (let page = 1; page < 1000; page++) {
-      const res = await $fetch<Payload>(listUrl, { query: { status: filter.value, limit: 500, page } })
+      const res = await $fetch<FormSubmissionsResponse>(listUrl, { query: { status: filter.value, limit: 500, page } })
       all.push(...res.submissions)
       if (all.length >= res.total || !res.submissions.length) break
     }

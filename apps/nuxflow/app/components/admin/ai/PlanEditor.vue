@@ -2,12 +2,12 @@
 // Editable site plan for the Generate with AI page — the editor reviews (and can rename,
 // reword, remove, or add) the AI's proposed pages before any page is generated. The
 // edited list is what POST .../approve receives.
-export interface PlanPageDraft { title: string; slug: string; description: string }
+import type { GenerationPlanDraft } from '#shared/lib/ai-generation-types'
 
-const pages = defineModel<PlanPageDraft[]>({ required: true })
+const pages = defineModel<GenerationPlanDraft[]>({ required: true })
 defineProps<{ max: number; disabled?: boolean }>()
 
-function update(index: number, patch: Partial<PlanPageDraft>) {
+function update(index: number, patch: Partial<GenerationPlanDraft>) {
   pages.value = pages.value.map((p, i) => (i === index ? { ...p, ...patch } : p))
 }
 

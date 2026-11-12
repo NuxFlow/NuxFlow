@@ -7,6 +7,7 @@ import { paginate, countRows } from '@nuxflow/db/queries'
 import { formSubmissions } from '@nuxflow/db/schema'
 import { and, eq, desc, inArray, sql } from 'drizzle-orm'
 import { requireSiteId } from '../../../../utils/site-context'
+import type { FormSubmissionsResponse } from '../../../../../shared/lib/form-types'
 
 // `status` filters the list: `inbox` = new + read (what the admin shows by default, so
 // spam the moderation pass flagged and archived items stay out of the way); a single
@@ -54,5 +55,5 @@ export default defineEventHandler(async (event) => {
   const counts = { new: 0, read: 0, archived: 0, spam: 0 }
   for (const row of grouped) counts[row.status] = Number(row.count)
 
-  return { form, submissions, page, perPage, total, counts }
+  return { form, submissions, page, perPage, total, counts } satisfies FormSubmissionsResponse
 })

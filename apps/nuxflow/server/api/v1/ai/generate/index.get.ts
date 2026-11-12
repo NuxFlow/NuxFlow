@@ -3,6 +3,7 @@ import { useDb } from '../../../../utils/db'
 import { aiGenerationJobs } from '@nuxflow/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { requireSiteId } from '../../../../utils/site-context'
+import type { GenerationJobSummary } from '../../../../../shared/lib/ai-generation-types'
 
 /**
  * Recent generation jobs on this site (the Generate with AI page's history, which is also
@@ -20,5 +21,5 @@ export default defineEventHandler(async (event) => {
     limit: 50,
   })
 
-  return { jobs }
+  return { jobs: jobs satisfies GenerationJobSummary[] }
 })

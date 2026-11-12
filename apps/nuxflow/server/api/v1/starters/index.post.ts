@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { requireRole } from '../../../utils/permissions'
 import { requireSiteId } from '../../../utils/site-context'
 import { writeAuditLog } from '../../../utils/audit'
-import { starterIdSchema } from '../../../../shared/lib/starters'
+import { starterIdSchema, type StarterInstallAnswer } from '../../../../shared/lib/starters'
 import { cancelStarterInstall, startStarterInstall, stepStarterInstall } from '../../../utils/starters/install'
 
 // One route for the three actions (each its own route file tipped `nuxt typecheck` into
@@ -18,7 +18,7 @@ const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('cancel'), installId: z.string().min(1).max(64) }),
 ])
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<StarterInstallAnswer> => {
   const { userId } = await requireRole(event, 'admin')
   const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)

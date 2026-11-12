@@ -1,12 +1,11 @@
 <script setup lang="ts">
+import type { AdminFormSummary, AdminFormsResponse } from '#shared/lib/form-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
-
-type FormRow = { id: string; name: string; slug: string; status: string; updatedAt: string; submissionCount: number; newCount: number }
 
 // The contact form behind the Contact Form block: created automatically, fixed fields, so
 // it opens its inbox rather than the form builder.
-const isBuiltIn = (row: FormRow) => row.slug === 'contact'
-const { data } = await useFetch<{ forms: FormRow[] }>('/api/v1/forms')
+const isBuiltIn = (row: AdminFormSummary) => row.slug === 'contact'
+const { data } = await useFetch<AdminFormsResponse>('/api/v1/forms')
 const items = computed(() => data.value?.forms ?? [])
 
 type Color = 'success' | 'neutral' | 'error' | 'primary'
