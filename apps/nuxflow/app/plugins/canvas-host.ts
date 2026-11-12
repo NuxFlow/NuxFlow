@@ -5,7 +5,7 @@
  */
 
 import { defineAsyncComponent } from 'vue'
-import { canvasHostKey, type CanvasClassPass, type CanvasContent, type CanvasEventList, type CanvasHost, type CanvasGalleryPicks, type CanvasGoogleReviews, type CanvasPostFilter, type CanvasPostItem, type CanvasProductCard } from '@nuxflow/canvas'
+import { canvasHostKey, type CanvasAvailability, type CanvasClassPass, type CanvasContent, type CanvasEventList, type CanvasHost, type CanvasGalleryPicks, type CanvasGoogleReviews, type CanvasPostFilter, type CanvasPostItem, type CanvasProductCard } from '@nuxflow/canvas'
 
 // Every method rejects with an Error carrying the server's own message, which the package
 // shows to the user as-is.
@@ -26,6 +26,9 @@ export default defineNuxtPlugin((nuxtApp) => {
     async googleReviews() {
       const data = await call(() => $fetch<{ reviews: CanvasGoogleReviews | null }>('/_nuxflow/google-reviews'), 'Could not load the reviews')
       return data.reviews
+    },
+    async availability(path) {
+      return call(() => $fetch<CanvasAvailability>('/_nuxflow/availability', { query: { path } }), 'Could not load the calendar')
     },
     async loadGalleryPicks(query) {
       const data = await call(() => $fetch<{ picks: CanvasGalleryPicks | null }>('/_nuxflow/gallery-picks', { query }), 'Could not load your picks')

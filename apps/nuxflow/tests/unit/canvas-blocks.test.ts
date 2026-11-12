@@ -880,3 +880,14 @@ describe('canvas-hours block', () => {
     expect(def.defaultProps.showStatus).toBe(true)
   })
 })
+
+describe('canvas-availability block', () => {
+  it('is registered with a component, kept out of AI pages, and takes its nights from the page, not fields', async () => {
+    const { BUILTIN_BLOCK_COMPONENTS } = await import('../../../../packages/canvas/src/blocks/components')
+    const def = getBlockDefinition('canvas-availability')!
+    expect(BUILTIN_BLOCK_COMPONENTS['canvas-availability']).toBeDefined()
+    expect(def.ai?.exclude).toBe(true)
+    expect(def.fields.map(f => f.key)).not.toContain('booked')
+    expect(def.defaultProps.months).toBe(6)
+  })
+})

@@ -26,7 +26,7 @@ export const contentTypes = sqliteTable('content_types', {
 ])
 
 // Target of ON DELETE CASCADE from contentRevisions.itemId, contentTaxonomyTerms.contentItemId,
-// eventRsvps.contentItemId, galleryPicks.contentItemId, comments.itemId and (shop.ts) products/productVariants.contentItemId — same DROP-TABLE-triggers-FK-actions landmine documented in full
+// eventRsvps.contentItemId, galleryPicks.contentItemId, availabilityFeeds/availabilityBlocks.contentItemId, comments.itemId and (shop.ts) products/productVariants.contentItemId — same DROP-TABLE-triggers-FK-actions landmine documented in full
 // on `sites` in sites.ts. Also self-referenced by sourceItemId below (ON DELETE SET
 // NULL, used for translation/duplication tracking) — unlike taxonomyTerms.parentId/
 // comments.parentId elsewhere in this schema, that self-FK genuinely exists at the DB
@@ -142,6 +142,41 @@ export const contentItems = sqliteTable('content_items', {
   // For a timetable filtered by teacher or room, and for finding a room booked twice.
   index('idx_content_items_event_teacher').on(t.siteId, t.eventTeacherId).where(sql`event_teacher_id is not null`),
   index('idx_content_items_event_room').on(t.siteId, t.eventRoomId).where(sql`event_room_id is not null`),
+])
+
+// Holiday lets (apps/nuxflow/server/utils/availability.ts): calendars an item follows (its
+// iCal export links from Airbnb, Booking.com…), synced hourly into availability_blocks.
+export const availabilityFeeds = sqliteTable('availability_feeds', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  contentItemId: text('content_item_id').notNull().references(() => contentItems.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  /** "Airbnb", "Booking.com" — what the owner called it. */
+  label: text('label').notNull().default(''),
+  lastSyncedAt: text('last_synced_at'),
+  lastError: text('last_error'),
+  eventCount: integer('event_count').notNull().default(0),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_availability_feeds_item').on(t.contentItemId),
+  index('idx_availability_feeds_site').on(t.siteId),
+])
+
+// Nights an item can't be booked: from a followed calendar (feed_id set, replaced on each
+// sync) or added by hand (feed_id null). start_date is the first night, end_date the day the
+// guests leave (not a night), both YYYY-MM-DD.
+export const availabilityBlocks = sqliteTable('availability_blocks', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  contentItemId: text('content_item_id').notNull().references(() => contentItems.id, { onDelete: 'cascade' }),
+  feedId: text('feed_id').references(() => availabilityFeeds.id, { onDelete: 'cascade' }),
+  startDate: text('start_date').notNull(),
+  endDate: text('end_date').notNull(),
+  note: text('note').notNull().default(''),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_availability_blocks_item').on(t.contentItemId, t.startDate),
+  index('idx_availability_blocks_site').on(t.siteId),
 ])
 
 // A client's favourites in a Gallery block with "Let clients pick favourites" (client
