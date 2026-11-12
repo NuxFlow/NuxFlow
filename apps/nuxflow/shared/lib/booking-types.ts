@@ -1,7 +1,7 @@
-// Visitor-facing booking shapes: event RSVPs and paid places (server/utils/event-rsvp.ts),
-// one-to-one appointments (server/utils/appointments.ts) and a visitor's own list
-// (/booking/my). The server functions that build them are declared to return these.
-// Import-free.
+// Booking shapes: event RSVPs and paid places (server/utils/event-rsvp.ts), one-to-one
+// appointments (server/utils/appointments.ts), a visitor's own list (/booking/my), and the
+// staff lists at the end (attendees, appointments, class pass holders). The server
+// functions and routes that build them are declared to return these. Import-free.
 
 // ── Events ──────────────────────────────────────────────────────────────────
 
@@ -150,4 +150,82 @@ export interface MyBookings {
     expiresAt: string | null
     status: 'active' | 'refunded'
   }[]
+}
+
+// ── Staff lists ─────────────────────────────────────────────────────────────
+
+/** One booking on Admin → an event → Attendees (GET /api/v1/rsvps). */
+export interface AdminRsvp {
+  id: string
+  name: string
+  email: string
+  seats: number
+  status: RsvpStatus
+  /** The date of a repeating event; empty for a one-off. */
+  occurrenceDate: string
+  paymentMethod: BookingMethod | null
+  paymentStatus: 'paid' | 'refunded' | null
+  amountPaid: number | null
+  currency: string | null
+  /** Class pass credits used for it. */
+  creditsSpent: number
+  createdAt: string
+}
+
+export interface AdminRsvpList {
+  event: {
+    id: string
+    title: string
+    eventStartAt: string | null
+    eventEndAt: string | null
+    eventAllDay: boolean | null
+    eventRsvpEnabled: boolean | null
+    eventRsvpCapacity: number | null
+    eventPrice: number | null
+    timeZone: string
+  }
+  rsvps: AdminRsvp[]
+  counts: Record<RsvpStatus, number>
+  /** A repeating event's dates. Null for a one-off. */
+  dates: { date: string; when: string }[] | null
+}
+
+/** One row of Admin → Appointments (GET /_nuxflow/appointments?team=, listAppointments()). */
+export interface AdminAppointment {
+  id: string
+  service: string
+  startsAt: string
+  /** In the site's time zone and language. */
+  when: string
+  name: string
+  email: string
+  phone: string
+  note: string
+  /** Drafts (a booking still being made) are never listed. */
+  status: Exclude<AppointmentStatus, 'draft'>
+  price: number | null
+  currency: string | null
+  paymentStatus: 'paid' | 'refunded' | null
+}
+
+export interface AdminAppointmentList {
+  timeZone: string
+  appointments: AdminAppointment[]
+}
+
+/** Someone's class pass, on Admin → Class passes (GET /api/v1/class-passes `holdings`). */
+export interface ClassPassHolding {
+  id: string
+  passName: string
+  email: string
+  name: string
+  creditsTotal: number
+  creditsUsed: number
+  expiresAt: string | null
+  status: 'active' | 'refunded'
+  amountPaid: number
+  amountRefunded: number
+  currency: string
+  stripePaymentIntentId: string | null
+  createdAt: string
 }

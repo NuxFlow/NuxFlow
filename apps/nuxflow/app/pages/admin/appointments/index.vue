@@ -1,39 +1,26 @@
 <script setup lang="ts">
-// Admin → Appointments: one-to-one bookings made through Book an Appointment blocks
+// Admin → Appointments: one-to-one bookings made through Book an AdminAppointment blocks
 // (server/utils/appointments.ts). Read and changed through /_nuxflow/appointments (not /api;
 // see that route). Cancelling here always refunds what was paid and emails the customer.
+import type { AdminAppointment, AdminAppointmentList } from '#shared/lib/booking-types'
+
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useSeoMeta({ title: 'Appointments' })
 
-interface Appointment {
-  id: string
-  service: string
-  startsAt: string
-  when: string
-  name: string
-  email: string
-  phone: string
-  note: string
-  status: 'pending' | 'held' | 'confirmed' | 'cancelled'
-  price: number | null
-  currency: string | null
-  paymentStatus: 'paid' | 'refunded' | null
-}
-
 const scope = ref<'upcoming' | 'past'>('upcoming')
 const url = computed<string>(() => `/_nuxflow/appointments?team=${scope.value}`)
-const { data, error, refresh, pending } = useFetch<{ timeZone: string; appointments: Appointment[] }>(url, { server: false })
+const { data, error, refresh, pending } = useFetch<AdminAppointmentList>(url, { server: false })
 const { run, isRunning } = useAdminAction()
 const { confirm } = useConfirm()
 
-const STATUS: Record<Appointment['status'], { label: string; color: 'success' | 'warning' | 'neutral' | 'info' }> = {
+const STATUS: Record<AdminAppointment['status'], { label: string; color: 'success' | 'warning' | 'neutral' | 'info' }> = {
   confirmed: { label: 'Booked', color: 'success' },
   pending: { label: 'Waiting for email confirmation', color: 'warning' },
   held: { label: 'Paying now', color: 'info' },
   cancelled: { label: 'Cancelled', color: 'neutral' },
 }
 
-async function cancel(a: Appointment) {
+async function cancel(a: AdminAppointment) {
   const paid = a.paymentStatus === 'paid'
   const ok = await confirm({
     title: `Cancel ${a.name}'s appointment?`,

@@ -5,6 +5,7 @@ import { getEmailMessageOrThrow } from '../../../utils/inbox'
 import { emailMessages, users } from '@nuxflow/db/schema'
 import { and, asc, eq } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
+import type { InboxThreadResponse } from '../../../../shared/lib/inbox-types'
 
 /**
  * One message plus its whole thread (both directions, oldest first). Opening a 'new'
@@ -57,5 +58,5 @@ export default defineEventHandler(async (event) => {
       // Storage keys stay server-side — the UI downloads attachments by index.
       attachments: (m.attachments ?? []).map((a, index) => ({ index, filename: a.filename, contentType: a.contentType, size: a.size, available: !!a.key })),
     })),
-  }
+  } satisfies InboxThreadResponse
 })

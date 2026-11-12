@@ -1,26 +1,5 @@
 <script setup lang="ts">
-interface ThreadAttachment { index: number; filename: string; contentType: string; size: number; available: boolean }
-interface ThreadMessage {
-  id: string
-  direction: 'inbound' | 'outbound'
-  fromAddress: string
-  fromName: string | null
-  toAddress: string
-  subject: string
-  textBody: string | null
-  htmlBody: string | null
-  attachments: ThreadAttachment[]
-  auth: { spf?: string; dkim?: string; dmarc?: string } | null
-  status: 'new' | 'read' | 'archived' | 'spam'
-  category: string | null
-  aiSummary: string | null
-  sentByName: string | null
-  createdAt: string
-}
-interface ThreadResponse {
-  message: { id: string; threadId: string; mailboxId: string | null; status: ThreadMessage['status']; subject: string }
-  thread: ThreadMessage[]
-}
+import type { InboxThreadMessage, InboxThreadResponse } from '#shared/lib/inbox-types'
 
 const props = defineProps<{ messageId: string; canDelete: boolean }>()
 const emit = defineEmits<{ changed: []; deleted: [] }>()
@@ -31,7 +10,7 @@ const { confirm } = useConfirm()
 // Plain string-typed URLs: /api/v1/inbox/:id has sibling routes under an [id]/ folder, the
 // pattern that collapses Nitro's typed $fetch method inference (see CLAUDE.md).
 const messageUrl = computed<string>(() => `/api/v1/inbox/${props.messageId}`)
-const { data, pending, refresh } = await useFetch<ThreadResponse>(messageUrl, { watch: [messageUrl] })
+const { data, pending, refresh } = await useFetch<InboxThreadResponse>(messageUrl, { watch: [messageUrl] })
 
 const reply = ref('')
 const includeQuote = ref(true)
@@ -43,19 +22,19 @@ watch(() => props.messageId, () => { reply.value = '' })
 
 const latestInbound = computed(() => [...(data.value?.thread ?? [])].reverse().find(m => m.direction === 'inbound'))
 
-function sender(m: ThreadMessage): string {
+function sender(m: InboxThreadMessage): string {
   if (m.direction === 'outbound') return m.sentByName ? `${m.sentByName} (${m.fromAddress})` : m.fromAddress
   return m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress
 }
 
-function authWarning(m: ThreadMessage): string | null {
+function authWarning(m: InboxThreadMessage): string | null {
   const a = m.auth
   if (m.direction !== 'inbound' || !a) return null
   if (a.dmarc === 'fail' || (a.spf === 'fail' && a.dkim !== 'pass')) return 'This message failed sender verification — the From address may be forged.'
   return null
 }
 
-async function setStatus(status: ThreadMessage['status']) {
+async function setStatus(status: InboxThreadMessage['status']) {
   const url: string = messageUrl.value
   await run(async () => {
     await $fetch<unknown>(url, { method: 'PATCH', body: { status } })

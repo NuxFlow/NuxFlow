@@ -1,63 +1,10 @@
 <script setup lang="ts">
 import { formatCollectAt } from '#shared/lib/shop-collection'
 import { formatMoney, fromMinorUnits, toMinorUnits } from '#shared/lib/money'
+import type { AdminOrderDetail, AdminOrderList, AdminOrderSummary, OrderLineKind, OrderStatus } from '#shared/lib/shop-types'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Orders' })
-
-type OrderStatus = 'pending' | 'paid' | 'partially_refunded' | 'refunded' | 'expired' | 'cancelled'
-type LineKind = 'product' | 'booking' | 'pass' | 'tier' | 'appointment'
-
-interface Order {
-  id: string
-  number: number
-  status: OrderStatus
-  email: string
-  name: string
-  currency: string
-  subtotalMinor: number
-  discountMinor: number
-  shippingMinor: number
-  taxMinor: number
-  totalMinor: number
-  refundedMinor: number
-  /** Click and collect: 'collect' with the chosen time (site time). */
-  fulfilment?: 'delivery' | 'collect'
-  collectAt?: string | null
-  stripePaymentIntentId: string | null
-  paidAt: string | null
-  createdAt: string
-  shippingAddress?: { name?: string | null; phone?: string | null; line1?: string | null; line2?: string | null; city?: string | null; state?: string | null; postalCode?: string | null; country?: string | null } | null
-  lines: { kind: LineKind; name: string; quantity: number }[]
-}
-
-interface OrderLine {
-  id: string
-  kind: LineKind
-  name: string
-  description: string | null
-  quantity: number
-  unitMinor: number
-  totalMinor: number
-  isDigital: boolean
-  downloads: number
-}
-
-interface OrderRefund {
-  id: string
-  amountMinor: number
-  reason: string | null
-  createdBy: string | null
-  createdAt: string
-}
-
-interface OrderDetail {
-  order: Omit<Order, 'lines'>
-  lines: OrderLine[]
-  refunds: OrderRefund[]
-  refundedElsewhereMinor: number
-  refundNotes: string[]
-}
 
 const STATUS: Record<OrderStatus, { label: string; color: 'success' | 'warning' | 'neutral' | 'error' | 'info' }> = {
   pending: { label: 'Awaiting payment', color: 'info' },
@@ -68,7 +15,7 @@ const STATUS: Record<OrderStatus, { label: string; color: 'success' | 'warning' 
   cancelled: { label: 'Cancelled', color: 'neutral' },
 }
 
-const KIND_LABELS: Record<LineKind, string> = {
+const KIND_LABELS: Record<OrderLineKind, string> = {
   product: 'Product',
   booking: 'Booking',
   appointment: 'Appointment',
@@ -95,7 +42,7 @@ const kind = ref('any')
 const search = ref('')
 const page = ref(1)
 
-const { data, error, refresh, status } = useFetch<{ orders: Order[]; total: number; page: number; perPage: number }>('/api/v1/orders', {
+const { data, error, refresh, status } = useFetch<AdminOrderList>('/api/v1/orders', {
   query: computed(() => ({
     filter: filter.value,
     kind: kind.value === 'any' ? undefined : kind.value,
@@ -123,7 +70,7 @@ const columns = [
   { id: 'date', header: 'Date' },
 ]
 
-function itemsSummary(order: Order): string {
+function itemsSummary(order: AdminOrderSummary): string {
   const first = order.lines[0]
   if (!first) return '—'
   const name = first.quantity > 1 ? `${first.name} × ${first.quantity}` : first.name
@@ -133,7 +80,7 @@ function itemsSummary(order: Order): string {
 // ── One order ─────────────────────────────────────────────────────────────
 
 const openId = ref<string | null>(null)
-const detail = ref<OrderDetail | null>(null)
+const detail = ref<AdminOrderDetail | null>(null)
 const detailOpen = computed({
   get: () => Boolean(openId.value),
   set: (open) => {
@@ -149,10 +96,10 @@ const { run, isRunning } = useAdminAction()
 async function loadDetail(id: string) {
   const url: string = `/api/v1/orders?id=${encodeURIComponent(id)}`
   // Not useAdminAction(): a failed load shows inline in the panel.
-  detail.value = await $fetch<OrderDetail, string>(url).catch(() => null)
+  detail.value = await $fetch<AdminOrderDetail, string>(url).catch(() => null)
 }
 
-async function openOrder(order: Order) {
+async function openOrder(order: AdminOrderSummary) {
   openId.value = order.id
   detail.value = null
   await loadDetail(order.id)

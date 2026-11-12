@@ -4,12 +4,8 @@ const client = useAuthClient()
 const { run, isRunning, toast } = useAdminAction()
 const route = useRoute()
 
-interface LinkedAccount {
-  id: string
-  accountId: string
-  providerId: string
-  createdAt: Date | string
-}
+// Better Auth's own shape for a linked sign-in method, not a copy of it.
+type LinkedAccount = NonNullable<Awaited<ReturnType<typeof client.listAccounts>>['data']>[number]
 
 const PROVIDERS = [
   { id: 'google', label: 'Google', icon: 'i-simple-icons-google' },
@@ -31,7 +27,7 @@ async function fetchAccounts() {
   const list = await run(async () => {
     const res = await client.listAccounts()
     throwIfAuthError(res)
-    return (res?.data ?? []) as LinkedAccount[]
+    return res?.data ?? []
   }, { errorTitle: "Couldn't load linked accounts", key: 'load' })
   accounts.value = list ?? []
   loadFailed.value = !list

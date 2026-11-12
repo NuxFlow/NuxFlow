@@ -35,7 +35,7 @@ import {
   type Busy,
   type TimeRange,
 } from '../../shared/lib/appointments'
-import type { AppointmentFreeTimes, AppointmentLinkResult, BookingAnswer, PublicService } from '../../shared/lib/booking-types'
+import type { AdminAppointmentList, AppointmentFreeTimes, AppointmentLinkResult, BookingAnswer, PublicService } from '../../shared/lib/booking-types'
 
 export type { AppointmentLinkResult, BookingAnswer, PublicService }
 
@@ -569,7 +569,7 @@ async function cancelWithRefund(event: H3Event, row: AppointmentRow, refund: boo
 
 // ── The team ────────────────────────────────────────────────────────────────
 
-export async function listAppointments(event: H3Event, scope: 'upcoming' | 'past') {
+export async function listAppointments(event: H3Event, scope: 'upcoming' | 'past'): Promise<AdminAppointmentList> {
   const db = useDb(event)
   const siteId = requireSiteId(event)
   const now = new Date().toISOString()
@@ -597,7 +597,8 @@ export async function listAppointments(event: H3Event, scope: 'upcoming' | 'past
       email: r.email,
       phone: r.phone,
       note: r.note,
-      status: r.status,
+      // The query leaves drafts out.
+      status: r.status as Exclude<typeof r.status, 'draft'>,
       price: r.price,
       currency: r.currency,
       paymentStatus: r.paymentStatus,

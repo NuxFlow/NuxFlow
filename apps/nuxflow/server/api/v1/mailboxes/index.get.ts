@@ -7,6 +7,7 @@ import { mailboxes } from '@nuxflow/db/schema'
 import { and, asc, eq } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
 import { getSiteInfo } from '../../../utils/site-info'
+import type { MailboxesResponse } from '../../../../shared/lib/inbox-types'
 
 /**
  * Inbox mailboxes plus everything the setup panel needs to explain how mail reaches them:
@@ -42,11 +43,11 @@ export default defineEventHandler(async (event) => {
       ...mailboxAddresses(m.localPart, siteDomain, handle),
     })),
     setup: {
-      siteDomain: siteDomain.replace(/^www\./, '').split(':')[0],
+      siteDomain: siteDomain.replace(/^www\./, '').split(':')[0] ?? '',
       platformDomain,
       handle,
       emailProvider: provider || 'console',
       sendingBindingPresent: !!getEmailBinding(event),
     },
-  }
+  } satisfies MailboxesResponse
 })

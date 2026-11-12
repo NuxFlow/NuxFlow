@@ -1,35 +1,10 @@
 <script setup lang="ts">
 import { fromMinorUnits, toMinorUnits } from '#shared/lib/money'
+import type { ShopSettings } from '#shared/lib/shop'
+import type { ShopStatus } from '#shared/lib/shop-types'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Shop' })
-
-interface ShopSettings {
-  enabled: boolean
-  currency: string
-  pricesIncludeTax: boolean
-  stripeTax: boolean
-  shippingCountries: string[]
-  shippingLabel: string
-  shippingRateMinor: number
-  freeShippingOverMinor: number | null
-  collectionEnabled: boolean
-  collectionLabel: string
-  collectionInstructions: string
-  collectionLeadMinutes: number
-  collectionDays: number
-  returnsPage: string
-  downloadLimit: number
-  downloadDays: number
-}
-
-interface ShopStatus {
-  settings: ShopSettings
-  inPlan: boolean
-  paymentsReady: boolean
-  productCount: number
-  hasProductType: boolean
-}
 
 const { data, error, refresh } = useFetch<ShopStatus>('/api/v1/shop', { server: false })
 const { run, isRunning } = useAdminAction()

@@ -1,32 +1,12 @@
 <script setup lang="ts">
+import type { Mailbox, MailboxesResponse } from '#shared/lib/inbox-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Inbox addresses' })
-
-interface Mailbox {
-  id: string
-  localPart: string
-  name: string
-  forwardTo: string | null
-  notify: boolean
-  enabled: boolean
-  siteAddress: string
-  platformAddress: string | null
-}
-interface MailboxResponse {
-  mailboxes: Mailbox[]
-  setup: {
-    siteDomain: string
-    platformDomain: string | null
-    handle: string | null
-    emailProvider: string
-    sendingBindingPresent: boolean
-  }
-}
 
 const { run, isRunning, toast } = useAdminAction()
 const { confirm } = useConfirm()
 
-const { data, refresh } = await useFetch<MailboxResponse>('/api/v1/mailboxes')
+const { data, refresh } = await useFetch<MailboxesResponse>('/api/v1/mailboxes')
 
 const form = reactive({ localPart: '', name: '', forwardTo: '', notify: true })
 const creating = computed(() => isRunning('create'))

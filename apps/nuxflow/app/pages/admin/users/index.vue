@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ASSIGNABLE_ROLES, ROLE_LABELS, type AssignableRole, type Role } from '@nuxflow/db/roles'
+import type { EmailDeliveryOutcome, SiteUsersResponse } from '#shared/lib/team-types'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
-type UserRow = { id: string; name: string; email: string; role: Role; createdAt: string; pending: boolean; invitationExpiresAt?: string }
-const { data, refresh } = await useFetch<{ users: UserRow[] }>('/api/v1/users')
+const { data, refresh } = await useFetch<SiteUsersResponse>('/api/v1/users')
 const users = computed(() => data.value?.users ?? [])
 
 const { user: currentUser } = useUserSession()
@@ -21,9 +21,8 @@ const superAdminOptions: { label: string; value: Role }[] = [{ label: ROLE_LABEL
 // Set when an invite/resend succeeded but its email didn't go out (e.g. the sending domain
 // isn't onboarded yet) — the user is still added, so this is a warning, not an error.
 const emailWarning = ref('')
-type EmailDelivery = { sent: true } | { sent: false; reason: string }
 const { run, isRunning, toast } = useAdminAction()
-function noteEmailDelivery(email: string, delivery: EmailDelivery | undefined) {
+function noteEmailDelivery(email: string, delivery: EmailDeliveryOutcome | undefined) {
   emailWarning.value = delivery && !delivery.sent ? `The invitation email to ${email} wasn't sent. ${delivery.reason}` : ''
   if (delivery?.sent) toast.add({ title: 'Invitation sent', description: `A fresh link is on its way to ${email}. It works for one hour.`, color: 'success', icon: 'i-lucide-mail-check' })
 }
@@ -44,7 +43,7 @@ async function removeUser(userId: string) {
 
 async function resendInvite(userId: string) {
   const res = await run(
-    () => $fetch<{ emailDelivery?: EmailDelivery }>(`/api/v1/users/${userId}/resend-invite`, { method: 'POST' }),
+    () => $fetch<{ emailDelivery?: EmailDeliveryOutcome }>(`/api/v1/users/${userId}/resend-invite`, { method: 'POST' }),
     { errorTitle: "Couldn't resend invite", key: `resend:${userId}` },
   )
   if (res) noteEmailDelivery(users.value.find(u => u.id === userId)?.email ?? 'this user', res.emailDelivery)
@@ -75,7 +74,7 @@ async function setSuperAdmin(userId: string, grant: boolean) {
 
 async function invite() {
   const res = await run(
-    () => $fetch<{ emailDelivery?: EmailDelivery }>('/api/v1/users', { method: 'POST', body: inviteForm }),
+    () => $fetch<{ emailDelivery?: EmailDeliveryOutcome }>('/api/v1/users', { method: 'POST', body: inviteForm }),
     { errorTitle: "Couldn't invite user", key: 'invite' },
   )
   if (!res) return
