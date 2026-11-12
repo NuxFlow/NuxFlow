@@ -38,6 +38,16 @@ function looksLikeZip(bytes: Uint8Array): boolean {
   return bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4B
 }
 
+// Camera details and focal point — only when the backup has them (older backups don't), so
+// an overwrite never blanks what an existing row already holds.
+function mediaDetails(item: NuxFlowBackup['media'][number]) {
+  return {
+    ...(item.metadata !== undefined ? { metadata: item.metadata ?? undefined } : {}),
+    ...(item.focalX !== undefined ? { focalX: item.focalX } : {}),
+    ...(item.focalY !== undefined ? { focalY: item.focalY } : {}),
+  }
+}
+
 export default defineEventHandler(async (event) => {
   // A restore can provision accounts and send set-password emails for every user it
   // names (up to MAX_BACKUP_USERS) — bound how often that can be repeated.
@@ -154,6 +164,7 @@ export default defineEventHandler(async (event) => {
             storageKey: `${siteId}/${rowId}`,
             altText: item.altText ?? undefined,
             caption: item.caption ?? undefined,
+            ...mediaDetails(item),
           }
           if (existing) {
             await db.update(media).set(values).where(eq(media.id, existing.id))
@@ -216,6 +227,7 @@ export default defineEventHandler(async (event) => {
           storageKey,
           altText: item.altText ?? undefined,
           caption: item.caption ?? undefined,
+          ...mediaDetails(item),
         }
         if (existing) {
           await db.update(media).set(values).where(eq(media.id, existing.id))
@@ -243,6 +255,7 @@ export default defineEventHandler(async (event) => {
     conflictMode: query.conflictMode,
     settingsMode: query.settingsMode,
     settingsGroups,
+    readFile: readZipEntry,
   })
 
   // Restored content, settings (SEO, appearance) and redirects all feed cached pages,

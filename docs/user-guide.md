@@ -339,7 +339,7 @@ No account is needed. A pass belongs to the email address it was bought with. To
 
 Visitors can see their bookings and passes at `/booking/my`: they enter their email and get a link that works for 7 days.
 
-Pass holders are personal data your site holds. They, and the attendee lists, aren't in site backups yet, and Stripe's tax features aren't switched on, so check what you need to charge. Mention both lists in your privacy policy.
+Pass holders are personal data your site holds. They, and the attendee lists, aren't in site backups yet (the passes you sell are), and Stripe's tax features aren't switched on, so check what you need to charge. Mention both lists in your privacy policy.
 
 To see who is coming, open the event and select **View attendees** (editors and above). From there you can export a CSV, add someone by hand, move or cancel a booking (the person is emailed), and erase someone's details if they ask you to. Attendee lists are personal data that your site holds: mention them in your privacy policy. They aren't included in site backups yet.
 
@@ -727,6 +727,8 @@ Shows the coming months (six by default) with booked nights crossed out, so gues
 - **Send your dates to the booking sites.** Copy this link and add it to Airbnb and Booking.com as an *imported* calendar, so your own blocked dates close those nights there too. It only carries the dates you added yourself, not the other sites' bookings (each site already sends its own). Keep it private.
 
 Booking sites usually refresh imported calendars every few hours, so a booking taken on one can take a little while to close the dates on the others. Visitors only see which nights are taken, never notes or which site a booking came from. A translated page shows its original's calendar.
+
+A site backup keeps the booking-site links and your own blocked dates; the booking sites' nights come back at the next hourly sync. Restored onto another site, the page gets a new **Send your dates** link, so paste that into Airbnb and Booking.com again (the restore reminds you).
 
 #### Opening Hours block
 

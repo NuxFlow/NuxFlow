@@ -27,6 +27,8 @@ import { restorePlugins } from './backup-restore/restore-plugins'
 import { restoreUsers } from './backup-restore/restore-users'
 import { restoreMembershipTiers } from './backup-restore/restore-tiers'
 import { restoreRedirects } from './backup-restore/restore-redirects'
+import { restoreItemExtras } from './backup-restore/restore-item-extras'
+import { restoreClassPasses, restoreShopSwitch } from './backup-restore/restore-shop'
 
 export * from './backup-types'
 export * from './backup-export'
@@ -62,7 +64,7 @@ export async function applyBackup(
   await restoreSettings(event, db, siteId, backup, opts, result)
 
   const termIdBySlugPath = await restoreTaxonomies(db, siteId, backup, opts, result)
-  await restoreContent(db, siteId, backup, opts, result, termIdBySlugPath)
+  const written = await restoreContent(db, siteId, backup, opts, result, termIdBySlugPath)
   // After content: that's where a backup's custom content types get created.
   await restoreTaxonomyContentTypes(db, siteId, backup, opts)
 
@@ -73,6 +75,10 @@ export async function applyBackup(
   await restoreUsers(event, db, siteId, backup, opts, result)
   await restoreMembershipTiers(db, siteId, backup, opts, result)
   await restoreRedirects(db, siteId, backup, opts, result)
+  await restoreClassPasses(db, siteId, backup, opts, result)
+  // Last: products, calendars and the links to forms and tiers need those restored first.
+  await restoreShopSwitch(event, db, siteId, backup, opts, result)
+  await restoreItemExtras(event, db, siteId, backup, opts, result, written)
 
   return result
 }

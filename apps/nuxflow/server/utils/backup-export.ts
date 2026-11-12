@@ -12,10 +12,13 @@ import {
   menus, forms, media,
   themes, dynamicPlugins, pluginStorage,
   userSiteRoles, membershipTiers, redirects,
+  products, productVariants, availabilityFeeds, availabilityBlocks, classPasses,
 } from '@nuxflow/db/schema'
 import { parseFieldDefs } from '../../shared/lib/custom-fields'
-import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
 import { SENSITIVE_SETTING_KEYS, SERVER_MANAGED_SETTING_KEYS } from './settings'
+import { SHOP_ENABLED_KEY } from './shop'
+import { INTAKE_SETTING } from './booking-intake'
 import { PUSH_KEY_SETTINGS } from '../../shared/lib/setting-groups'
 import { getTaxonomyContentTypeSlugs } from './taxonomy'
 import { decryptText } from './encryption'
@@ -24,7 +27,7 @@ import { getPluginServerCode, getPluginClientBundle } from './cf-plugin-kv'
 import { parseCapabilitiesText } from './plugin-package'
 import type {
   NuxFlowBackup, BackupTheme, BackupDynamicPlugin, BackupUserRole, BackupMembershipTier,
-  BackupTaxonomy, BackupTerm, BackupContentItem,
+  BackupTaxonomy, BackupTerm, BackupContentItem, BackupProduct, BackupAvailability,
 } from './backup-types'
 
 // A plugin's settings minus its secret fields — those are encrypted under this deployment's
@@ -57,7 +60,7 @@ export interface BuildBackupOptions {
 export async function buildBackup(event: H3Event, siteId: string, options: BuildBackupOptions = {}): Promise<NuxFlowBackup> {
   const db = useDb(event)
 
-  const [site, settingRows, ctRows, itemRows, taxRows, menuRows, formRows, mediaRows, themeRows, pluginRows, roleRows, tierRows, redirectRows] = await Promise.all([
+  const [site, settingRows, ctRows, itemRows, taxRows, menuRows, formRows, mediaRows, themeRows, pluginRows, roleRows, tierRows, redirectRows, productRows, variantRows, feedRows, ownBlockRows, passRows] = await Promise.all([
     db.query.sites.findFirst({
       where: eq(sites.id, siteId),
       columns: { name: true, locale: true, timezone: true },
@@ -81,11 +84,11 @@ export async function buildBackup(event: H3Event, siteId: string, options: Build
     }),
     db.query.forms.findMany({
       where: eq(forms.siteId, siteId),
-      columns: { slug: true, name: true, fields: true, notifications: true, redirectUrl: true, status: true },
+      columns: { id: true, slug: true, name: true, fields: true, notifications: true, redirectUrl: true, status: true },
     }),
     db.query.media.findMany({
       where: eq(media.siteId, siteId),
-      columns: { id: true, originalName: true, mimeType: true, size: true, width: true, height: true, url: true, altText: true, caption: true },
+      columns: { id: true, originalName: true, mimeType: true, size: true, width: true, height: true, url: true, altText: true, caption: true, metadata: true, focalX: true, focalY: true },
     }),
     db.query.themes.findMany({ where: eq(themes.siteId, siteId) }),
     db.query.dynamicPlugins.findMany({ where: eq(dynamicPlugins.siteId, siteId) }),
@@ -95,6 +98,22 @@ export async function buildBackup(event: H3Event, siteId: string, options: Build
     }),
     db.query.membershipTiers.findMany({ where: eq(membershipTiers.siteId, siteId) }),
     db.query.redirects.findMany({ where: eq(redirects.siteId, siteId), columns: { from: true, to: true, statusCode: true } }),
+    db.query.products.findMany({ where: eq(products.siteId, siteId) }),
+    db.query.productVariants.findMany({
+      where: eq(productVariants.siteId, siteId),
+      orderBy: [asc(productVariants.sortOrder), asc(productVariants.id)],
+    }),
+    db.query.availabilityFeeds.findMany({
+      where: eq(availabilityFeeds.siteId, siteId),
+      columns: { contentItemId: true, url: true, label: true },
+    }),
+    // Own blocks only: a followed calendar's nights come back with its next sync.
+    db.query.availabilityBlocks.findMany({
+      where: and(eq(availabilityBlocks.siteId, siteId), isNull(availabilityBlocks.feedId)),
+      columns: { contentItemId: true, startDate: true, endDate: true, note: true },
+      orderBy: [asc(availabilityBlocks.startDate)],
+    }),
+    db.query.classPasses.findMany({ where: eq(classPasses.siteId, siteId) }),
   ])
 
   // Themes: D1 row plus its KV-only CSS/demo payload (see BackupTheme). getThemeCSS()
@@ -220,6 +239,40 @@ export async function buildBackup(event: H3Event, siteId: string, options: Build
     else assignmentsByItemId.set(a.contentItemId, [a])
   }
 
+  // Products, availability and links to forms/tiers, keyed by content item.
+  const formSlugById = new Map(formRows.map(f => [f.id, f.slug]))
+  const tierNameById = new Map(tierRows.map(t => [t.id, t.name]))
+  const productByItem = new Map<string, BackupProduct>()
+  for (const p of productRows) {
+    productByItem.set(p.contentItemId, { optionNames: p.optionNames, images: p.images, variants: [] })
+  }
+  for (const v of variantRows) {
+    productByItem.get(v.contentItemId)?.variants.push({
+      id: v.id,
+      sku: v.sku,
+      options: v.options,
+      priceMinor: v.priceMinor,
+      compareAtMinor: v.compareAtMinor,
+      stock: v.stock,
+      weightGrams: v.weightGrams,
+      kind: v.kind,
+      imageUrl: v.imageUrl,
+      isActive: v.isActive,
+      // The file itself is added to the .zip by the backup route, which fills in fileZipPath.
+      fileName: v.fileKey ? v.fileName : null,
+      fileSize: v.fileKey ? v.fileSize : null,
+      fileZipPath: null,
+    })
+  }
+  const availabilityByItem = new Map<string, BackupAvailability>()
+  const availabilityFor = (itemId: string) => {
+    let a = availabilityByItem.get(itemId)
+    if (!a) availabilityByItem.set(itemId, a = { feeds: [], blocks: [] })
+    return a
+  }
+  for (const f of feedRows) availabilityFor(f.contentItemId).feeds.push({ url: f.url, label: f.label })
+  for (const b of ownBlockRows) availabilityFor(b.contentItemId).blocks.push({ start: b.startDate, end: b.endDate, note: b.note })
+
   for (const item of itemRows) {
     const assignments = assignmentsByItemId.get(item.id) ?? []
     const termSlugs = assignments
@@ -260,6 +313,9 @@ export async function buildBackup(event: H3Event, siteId: string, options: Build
       eventCancelHours: item.eventCancelHours,
       eventPassesAllowed: item.eventPassesAllowed,
       fields: item.fields,
+      ...itemLinks(item.settings, formSlugById, tierNameById),
+      product: productByItem.get(item.id)?.variants.length ? productByItem.get(item.id)! : null,
+      availability: availabilityByItem.get(item.id) ?? null,
     })
   }
 
@@ -272,7 +328,9 @@ export async function buildBackup(event: H3Event, siteId: string, options: Build
   // under whatever secret is active at import time.
   const rc = useRuntimeConfig()
   const settingsMap: Record<string, unknown> = {}
+  let shopEnabled = false
   for (const row of settingRows) {
+    if (row.key === SHOP_ENABLED_KEY) shopEnabled = row.value === true || row.value === 'true'
     // Deployment-specific identifiers (the inbound email handle) never travel in a backup.
     if (SERVER_MANAGED_SETTING_KEYS.has(row.key)) continue
     // Without secrets, both push keys stay out: the public key alone would replace the
@@ -320,11 +378,39 @@ export async function buildBackup(event: H3Event, siteId: string, options: Build
       caption: m.caption ?? null,
       url: m.url,
       zipPath: null as string | null,
+      metadata: m.metadata ?? null,
+      focalX: m.focalX ?? null,
+      focalY: m.focalY ?? null,
     })),
     themes: backupThemes,
     plugins: backupPlugins,
     users: backupUsers,
     membershipTiers: backupTiers,
     redirects: redirectRows.map(r => ({ from: r.from, to: r.to, statusCode: r.statusCode })),
+    classPasses: passRows.map(p => ({
+      name: p.name,
+      description: p.description,
+      credits: p.credits,
+      price: p.price,
+      currency: p.currency,
+      validDays: p.validDays,
+      isActive: p.isActive,
+    })),
+    shop: { enabled: shopEnabled },
   }
+}
+
+// An item's links to a form (intake form) and a membership tier (access), by slug and name:
+// the ids in `settings` mean nothing once restored, where every row gets a new one.
+function itemLinks(
+  settings: Record<string, unknown> | null,
+  formSlugById: Map<string, string>,
+  tierNameById: Map<string, string>,
+): Pick<BackupContentItem, 'intakeFormSlug' | 'accessTierName'> {
+  const out: Pick<BackupContentItem, 'intakeFormSlug' | 'accessTierName'> = {}
+  const formId = settings?.[INTAKE_SETTING]
+  if (typeof formId === 'string' && formId) out.intakeFormSlug = formSlugById.get(formId) ?? null
+  const access = settings?.access
+  if (typeof access === 'string' && access.startsWith('tier:')) out.accessTierName = tierNameById.get(access.slice(5)) ?? null
+  return out
 }

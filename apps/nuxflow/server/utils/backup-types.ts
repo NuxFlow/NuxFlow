@@ -62,6 +62,59 @@ export interface BackupContentItem {
   eventPassesAllowed?: boolean | null
   /** Values of the type's custom fields. Absent in older backups. */
   fields?: Record<string, string | number | boolean | string[]> | null
+  /**
+   * Links to other records, by a name that survives a restore (ids don't: every restored
+   * row gets a new one). `settings` still holds the original ids; restore swaps them.
+   * Absent in older backups, which then keep `settings` exactly as it was.
+   */
+  intakeFormSlug?: string | null
+  accessTierName?: string | null
+  /** A shop product's options and variants (Admin → Shop). Absent for anything else. */
+  product?: BackupProduct | null
+  /** A holiday let's followed calendars and own blocked nights. Absent for anything else. */
+  availability?: BackupAvailability | null
+}
+
+export interface BackupProductVariant {
+  /** The original id — a label for the zip path only, never reused as an id. */
+  id: string
+  sku: string | null
+  options: string[]
+  priceMinor: number
+  compareAtMinor: number | null
+  stock: number | null
+  weightGrams: number | null
+  kind: 'physical' | 'digital'
+  imageUrl: string | null
+  isActive: boolean
+  /** A download's file. `fileZipPath` is where it is in the .zip; null = not bundled. */
+  fileName: string | null
+  fileSize: number | null
+  fileZipPath: string | null
+}
+
+export interface BackupProduct {
+  optionNames: string[]
+  images: { url: string; alt?: string }[]
+  variants: BackupProductVariant[]
+}
+
+export interface BackupAvailability {
+  /** Calendars followed (Airbnb, Booking.com…). Their nights come back with the next sync. */
+  feeds: { url: string; label: string }[]
+  /** Nights blocked by hand. Dates are YYYY-MM-DD; `end` is the day guests leave. */
+  blocks: { start: string; end: string; note: string }[]
+}
+
+/** A block of classes a site sells (Admin → Class passes). Holdings — what people bought — never travel. */
+export interface BackupClassPass {
+  name: string
+  description: string | null
+  credits: number
+  price: number
+  currency: string
+  validDays: number | null
+  isActive: boolean
 }
 
 /** A redirect rule (Admin → SEO → Redirects). Paths are site-relative, so they carry over to any domain. */
@@ -121,6 +174,10 @@ export interface BackupMediaItem {
   caption: string | null
   url: string
   zipPath: string | null  // relative path inside the backup zip; null = not bundled
+  /** Camera details (EXIF) and the focal point. Absent in older backups. */
+  metadata?: Record<string, unknown> | null
+  focalX?: number | null
+  focalY?: number | null
 }
 
 // Theme CSS and the customizer's generated CSS live only in KV (see cf-env.ts /
@@ -235,6 +292,13 @@ export interface NuxFlowBackup {
   membershipTiers: BackupMembershipTier[]
   /** Optional: absent from backups made before redirects were included. */
   redirects?: BackupRedirect[]
+  /** Optional: absent from backups made before class passes were included. */
+  classPasses?: BackupClassPass[]
+  /**
+   * Whether the shop was switched on. `shop.enabled` is server-managed (turning it on checks
+   * the plan), so it travels here rather than in `settings`. Absent in older backups.
+   */
+  shop?: { enabled: boolean }
 }
 
 // ── Backup format runtime validation ──────────────────────────────────────────
@@ -312,6 +376,49 @@ const backupContentItemSchema = z.object({
   eventCancelHours: z.number().int().nullable().optional(),
   eventPassesAllowed: z.boolean().nullable().optional(),
   fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).nullable().optional(),
+  intakeFormSlug: z.string().max(200).nullable().optional(),
+  accessTierName: z.string().max(200).nullable().optional(),
+  product: z.lazy(() => backupProductSchema).nullable().optional(),
+  availability: z.lazy(() => backupAvailabilitySchema).nullable().optional(),
+})
+
+// Bounds match the editor's own (products.ts productInputSchema, availability.ts).
+const backupProductVariantSchema = z.object({
+  id: z.string().max(64),
+  sku: z.string().trim().max(64).nullable(),
+  options: z.array(z.string().trim().min(1).max(60)).max(3),
+  priceMinor: z.number().int().min(0).max(100_000_000),
+  compareAtMinor: z.number().int().min(1).max(100_000_000).nullable(),
+  stock: z.number().int().min(0).max(10_000_000).nullable(),
+  weightGrams: z.number().int().min(0).max(1_000_000).nullable(),
+  kind: z.enum(['physical', 'digital']),
+  imageUrl: z.string().trim().max(2048).nullable(),
+  isActive: z.boolean(),
+  fileName: z.string().max(200).nullable(),
+  fileSize: z.number().int().min(0).nullable(),
+  fileZipPath: z.string().max(400).nullable(),
+})
+
+const backupProductSchema = z.object({
+  optionNames: z.array(z.string().trim().min(1).max(60)).max(3),
+  images: z.array(z.object({ url: z.string().trim().min(1).max(2048), alt: z.string().max(300).optional() })).max(30),
+  variants: z.array(backupProductVariantSchema).min(1).max(100),
+})
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
+const backupAvailabilitySchema = z.object({
+  feeds: z.array(z.object({ url: z.string().max(2048), label: z.string().max(60) })).max(10),
+  blocks: z.array(z.object({ start: z.string().regex(ISO_DAY), end: z.string().regex(ISO_DAY), note: z.string().max(200) })).max(500),
+})
+
+const backupClassPassSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  description: z.string().max(2000).nullable(),
+  credits: z.number().int().min(1).max(1000),
+  price: z.number().min(0).max(1_000_000),
+  currency: z.string().regex(/^[a-z]{3}$/i),
+  validDays: z.number().int().min(1).max(3650).nullable(),
+  isActive: z.boolean(),
 })
 
 const backupRedirectSchema = z.object({
@@ -367,6 +474,9 @@ const backupMediaItemSchema = z.object({
   caption: z.string().nullable(),
   url: z.string(),
   zipPath: z.string().nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+  focalX: z.number().int().min(0).max(100).nullable().optional(),
+  focalY: z.number().int().min(0).max(100).nullable().optional(),
 })
 
 const backupThemeSchema = z.object({
@@ -461,6 +571,8 @@ export const nuxFlowBackupSchema = z.object({
   users: z.array(backupUserRoleSchema).max(MAX_BACKUP_USERS),
   membershipTiers: z.array(backupMembershipTierSchema),
   redirects: z.array(backupRedirectSchema).optional(),
+  classPasses: z.array(backupClassPassSchema).max(200).optional(),
+  shop: z.object({ enabled: z.boolean() }).optional(),
 }) satisfies z.ZodType<NuxFlowBackup>
 
 // Parses and validates an uploaded backup.json against the schema above, throwing a
@@ -515,6 +627,8 @@ export interface RestoreOptions {
   settingsGroups?: SettingGroupId[]
   /** Author of newly created content items (a starter site's installer). Unset = none, as before. */
   authorId?: string
+  /** Reads a file bundled in the backup .zip (digital products' downloads). Unset = none bundled. */
+  readFile?: (path: string) => Uint8Array | undefined
 }
 
 export interface RestoreResult {
@@ -531,6 +645,19 @@ export interface RestoreResult {
   users: { created: number; updated: number; skipped: number }
   membershipTiers: { created: number; updated: number; skipped: number }
   redirects: { created: number; updated: number; skipped: number }
+  /** Optional so callers that build a result by hand (tests, older code) still type-check. */
+  classPasses?: { created: number; updated: number; skipped: number }
+  products?: { restored: number; files: number }
+  availability?: { feeds: number; blocks: number }
   /** Hosting-plan limits that stopped part of the restore (their items count as skipped). */
   planLimits?: string[]
+  /** Things restored only in part, in plain words (a missing intake form, a download left out). */
+  warnings?: string[]
+}
+
+const MAX_RESTORE_WARNINGS = 50
+
+export function addRestoreWarning(result: RestoreResult, message: string): void {
+  result.warnings ??= []
+  if (result.warnings.length < MAX_RESTORE_WARNINGS && !result.warnings.includes(message)) result.warnings.push(message)
 }

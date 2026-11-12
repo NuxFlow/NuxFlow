@@ -21,14 +21,18 @@ const restoreResult = ref<{
     users: { created: number; updated: number; skipped: number }
     membershipTiers: { created: number; updated: number; skipped: number }
     redirects?: { created: number; updated: number; skipped: number }
+    classPasses?: { created: number; updated: number; skipped: number }
+    products?: { restored: number; files: number }
+    availability?: { feeds: number; blocks: number }
     planLimits?: string[]
+    warnings?: string[]
   }
   media: { uploaded: number; skipped: number }
 } | null>(null)
 const restoreError = ref('')
 
 const restoreWhatOptions = [
-  { value: 'content', label: 'Content (pages & posts)' },
+  { value: 'content', label: 'Content (pages, posts, products, holiday-let calendars)' },
   { value: 'taxonomies', label: 'Categories & Tags' },
   { value: 'menus', label: 'Menus' },
   { value: 'forms', label: 'Forms' },
@@ -38,7 +42,7 @@ const restoreWhatOptions = [
   { value: 'themes', label: 'Themes (CSS)' },
   { value: 'plugins', label: 'Dynamic plugins (code)' },
   { value: 'users', label: 'Team members & roles' },
-  { value: 'membershipTiers', label: 'Membership tiers' },
+  { value: 'membershipTiers', label: 'Membership tiers & class passes' },
 ]
 
 function onRestoreFile(e: Event) {
@@ -212,6 +216,18 @@ async function runRestore() {
             </li>
             <li v-if="restoreResult.result.redirects && (restoreResult.result.redirects.created || restoreResult.result.redirects.updated || restoreResult.result.redirects.skipped)">
               Redirects: {{ restoreResult.result.redirects.created }} created<span v-if="restoreResult.result.redirects.updated">, {{ restoreResult.result.redirects.updated }} updated</span><span v-if="restoreResult.result.redirects.skipped">, {{ restoreResult.result.redirects.skipped }} skipped</span>
+            </li>
+            <li v-if="restoreResult.result.classPasses && (restoreResult.result.classPasses.created || restoreResult.result.classPasses.updated || restoreResult.result.classPasses.skipped)">
+              Class passes: {{ restoreResult.result.classPasses.created }} created<span v-if="restoreResult.result.classPasses.updated">, {{ restoreResult.result.classPasses.updated }} updated</span><span v-if="restoreResult.result.classPasses.skipped">, {{ restoreResult.result.classPasses.skipped }} skipped</span>
+            </li>
+            <li v-if="restoreResult.result.products?.restored">
+              Products: {{ restoreResult.result.products.restored }} restored<span v-if="restoreResult.result.products.files">, {{ restoreResult.result.products.files }} download files</span>
+            </li>
+            <li v-if="restoreResult.result.availability && (restoreResult.result.availability.feeds || restoreResult.result.availability.blocks)">
+              Holiday-let calendars: {{ restoreResult.result.availability.feeds }} followed calendars (their nights return at the next hourly sync), {{ restoreResult.result.availability.blocks }} blocked stays
+            </li>
+            <li v-for="warning in restoreResult.result.warnings ?? []" :key="warning" class="text-orange-500">
+              {{ warning }}
             </li>
             <li v-if="restoreResult.result.planLimits?.length" class="text-orange-500">
               Some items were skipped because this site's plan is full: {{ restoreResult.result.planLimits.join(', ') }}.
