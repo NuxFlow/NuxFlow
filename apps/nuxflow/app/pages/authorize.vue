@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SiteBranding } from '~/types/accounts'
+import type { AuthorizeInfo } from '#shared/lib/accounts-types'
 
 // Step 2 of signing in to a site (see server/utils/site-auth.ts), on the accounts origin:
 // a site's own domain sent the visitor here with `site` and `state`. Once they're signed
@@ -18,11 +18,6 @@ const siteId = typeof route.query.site === 'string' ? route.query.site : ''
 const state = typeof route.query.state === 'string' ? route.query.state : ''
 const wantsToJoin = route.query.intent === 'join'
 
-interface AuthorizeInfo {
-  site: SiteBranding
-  user: { name: string; email: string; image: string | null } | null
-  isMember: boolean
-}
 
 const { data, error: loadError } = await useFetch<AuthorizeInfo>('/api/accounts/authorize', {
   query: { site: siteId },

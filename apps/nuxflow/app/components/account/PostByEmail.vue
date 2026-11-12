@@ -1,13 +1,10 @@
 <script setup lang="ts">
-interface PostAddress {
-  address: { siteAddress: string; platformAddress: string | null } | null
-  senderEmail: string | null
-}
+import type { PostAddressInfo } from '#shared/lib/accounts-types'
 
 const { run, loading: busy, toast } = useAdminAction()
 const { confirm } = useConfirm()
 // 403 for anyone below author — the card just doesn't render.
-const { data, error, refresh } = await useFetch<PostAddress>('/api/v1/account/post-address')
+const { data, error, refresh } = await useFetch<PostAddressInfo>('/api/v1/account/post-address')
 
 async function generate(rotate: boolean) {
   if (rotate) {

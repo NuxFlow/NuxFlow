@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { HostingSignupInfo, PublicHostingPlan, SubdomainCheck } from '#shared/lib/hosting-types'
 import { slugify } from '#shared/lib/slug'
 import type { StarterSummary } from '#shared/lib/starters'
 // Hosting sign-up, on the accounts origin: choose a plan, a name and an address, then pay
@@ -7,32 +8,13 @@ import type { StarterSummary } from '#shared/lib/starters'
 definePageMeta({ layout: false, authWide: true })
 useHead({ title: 'Start your site' })
 
-interface PublicPlan {
-  id: string
-  name: string
-  description: string
-  priceText: string
-  currency: string
-  priceMonthly: number | null
-  priceYearly: number | null
-  trialDays: number
-  limits: {
-    maxStorageBytes: number | null
-    maxContentItems: number | null
-    maxTeamMembers: number | null
-    maxAiCallsPerMonth: number | null
-    maxEmailsPerMonth: number | null
-    maxPlugins: number | null
-    maxCustomDomains: number | null
-  }
-}
 
 const { isAccountsHost, accountsLink } = useAccounts()
 if (!isAccountsHost) await navigateTo(accountsLink('/account/hosting/new'), { external: true })
 
 const route = useRoute()
 const { loggedIn, user } = useUserSession()
-const { data } = await useFetch<{ enabled: boolean; signupsOpen: boolean; sitesDomain: string | null; plans: PublicPlan[] }>('/api/accounts/hosting', {
+const { data } = await useFetch<HostingSignupInfo>('/api/accounts/hosting', {
   default: () => ({ enabled: false, signupsOpen: false, sitesDomain: null, plans: [] }),
 })
 const plans = computed(() => data.value.plans)
@@ -42,7 +24,7 @@ const interval = ref<'month' | 'year'>(route.query.interval === 'year' ? 'year' 
 const planId = ref<string>(typeof route.query.plan === 'string' ? route.query.plan : '')
 const selected = computed(() => plans.value.find(p => p.id === planId.value) ?? null)
 
-function priceFor(plan: PublicPlan): number | null {
+function priceFor(plan: PublicHostingPlan): number | null {
   return interval.value === 'year' ? plan.priceYearly : plan.priceMonthly
 }
 watch(interval, () => {
@@ -63,7 +45,7 @@ function gb(bytes: number): string {
   return v >= 1 ? `${+v.toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`
 }
 
-function features(plan: PublicPlan): string[] {
+function features(plan: PublicHostingPlan): string[] {
   const l = plan.limits
   const out: string[] = []
   out.push(l.maxStorageBytes == null ? 'Unlimited storage' : `${gb(l.maxStorageBytes)} storage`)
@@ -99,7 +81,6 @@ watch(siteName, (name) => {
   if (!subdomainTouched.value) subdomain.value = subdomainFor(name)
 })
 
-interface SubdomainCheck { available: boolean; domain: string; reason?: string }
 const availability = ref<SubdomainCheck | null>(null)
 const checking = ref(false)
 let checkTimer: ReturnType<typeof setTimeout> | undefined

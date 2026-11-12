@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { CustomerHostedSite, CustomerHostingResponse } from '#shared/lib/hosting-types'
 // "My hosting", on the accounts origin of a hosting platform: the customer's sites, their
 // plan and billing state, and the way into Stripe's Customer Portal for card, invoices,
 // plan changes and cancelling. Arriving from Stripe Checkout (?welcome=<id>) shows the
@@ -6,18 +7,6 @@
 definePageMeta({ layout: false, middleware: ['auth'], authWide: true })
 useHead({ title: 'My hosting' })
 
-interface HostedSite {
-  id: string
-  status: string
-  interval: 'month' | 'year'
-  plan: { id: string; name: string } | null
-  site: { id: string; name: string; domain: string; status: string } | null
-  requestedSiteName: string
-  currentPeriodEnd: string | null
-  cancelAtPeriodEnd: boolean
-  pastDueSince: string | null
-  paused: boolean
-}
 
 const { isAccountsHost, accountsLink } = useAccounts()
 if (!isAccountsHost) await navigateTo(accountsLink('/account/hosting'), { external: true })
@@ -25,7 +14,7 @@ if (!isAccountsHost) await navigateTo(accountsLink('/account/hosting'), { extern
 const route = useRoute()
 const { run } = useAdminAction()
 const headers = useRequestHeaders(['cookie'])
-const { data, refresh } = await useFetch<{ subscriptions: HostedSite[] }>('/api/accounts/hosting/subscriptions', {
+const { data, refresh } = await useFetch<CustomerHostingResponse>('/api/accounts/hosting/subscriptions', {
   headers,
   default: () => ({ subscriptions: [] }),
 })
@@ -51,7 +40,7 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(timer))
 
 type BadgeColor = 'success' | 'warning' | 'error' | 'neutral' | 'info'
-function statusOf(s: HostedSite): { label: string; color: BadgeColor; note: string } {
+function statusOf(s: CustomerHostedSite): { label: string; color: BadgeColor; note: string } {
   if (s.paused || s.site?.status === 'maintenance') {
     return { label: 'Paused', color: 'error', note: s.status === 'canceled'
       ? 'Your plan has ended, so visitors see a "back soon" page. Nothing has been deleted. Contact us to restart it.'

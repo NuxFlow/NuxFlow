@@ -2,13 +2,14 @@ import { isAccountsHost, isCentralAuth } from '../../../utils/accounts-origin'
 import { hostingSignupsOpen, isHostingPlatform } from '../../../utils/hosting-platform'
 import { hostingSitesDomain, listPublicPlans } from '../../../utils/hosting-billing'
 import { useDb } from '../../../utils/db'
+import type { HostingSignupInfo } from '../../../../shared/lib/hosting-types'
 
 /**
  * Is hosting sign-up open here, and what's for sale. Public, so the sign-up page can show
  * plans before anyone signs in. `enabled: false` (not a 404) lets the account page simply
  * leave its hosting link out. `signupsOpen: false` = the operator has paused new sign-ups.
  */
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<HostingSignupInfo> => {
   const db = useDb(event)
   const enabled = isCentralAuth() && isAccountsHost(event) && await isHostingPlatform(db) && !!hostingSitesDomain()
   if (!enabled) return { enabled: false as const, signupsOpen: false, sitesDomain: null, plans: [] }

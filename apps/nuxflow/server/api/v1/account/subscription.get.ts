@@ -2,9 +2,9 @@ import { subscriptions, membershipTiers } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { requireSiteId } from '../../../utils/site-context'
-import type { TierSummary } from '../../../../shared/lib/membership-types'
+import type { AccountMembership, TierSummary } from '../../../../shared/lib/membership-types'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<AccountMembership> => {
   const session = await requireSession(event)
   const siteId = requireSiteId(event)
   const userId = session.user.id as string
@@ -41,6 +41,7 @@ export default defineEventHandler(async (event) => {
       // since `provider` alone can't tell a free row apart from a real Stripe one.
       isFree: sub.providerSubscriptionId.startsWith('free_'),
     },
-    tier,
+    // A tier deleted since: null, not left out of the JSON.
+    tier: tier ?? null,
   }
 })

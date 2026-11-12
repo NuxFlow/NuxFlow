@@ -57,3 +57,21 @@ export interface PublicClassPass {
 export interface AdminClassPass extends PublicClassPass {
   isActive: boolean
 }
+
+/** A visitor's own membership on a site's /account page (GET /api/v1/account/subscription). */
+export interface MemberSubscription {
+  id: string
+  status: 'active' | 'trialing' | 'past_due' | 'cancelled' | 'unpaid'
+  provider: 'stripe' | 'lemonsqueezy' | 'paddle'
+  currentPeriodEnd: string | null
+  cancelledAt: string | null
+  /** Cancelled, but keeps access until the paid period ends. */
+  cancelAtPeriodEnd: boolean
+  /** A free tier: no provider or billing period behind it, so cancelling ends it at once. */
+  isFree: boolean
+}
+
+export interface AccountMembership {
+  subscription: MemberSubscription | null
+  tier: TierSummary | null
+}

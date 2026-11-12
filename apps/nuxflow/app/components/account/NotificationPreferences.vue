@@ -1,16 +1,9 @@
 <script setup lang="ts">
-interface Preference {
-  type: string
-  label: string
-  description: string
-  email: boolean
-  push: boolean
-  emailLocked: boolean
-}
+import type { NotificationPreference, NotificationPreferencesResponse } from '#shared/lib/accounts-types'
 
 const { run, isRunning } = useAdminAction()
-const { data, error } = await useFetch<{ preferences: Preference[] }>('/api/v1/account/notification-preferences')
-const prefs = ref<Preference[]>([])
+const { data, error } = await useFetch<NotificationPreferencesResponse>('/api/v1/account/notification-preferences')
+const prefs = ref<NotificationPreference[]>([])
 watch(data, (d) => { prefs.value = d ? d.preferences.map(p => ({ ...p })) : [] }, { immediate: true })
 
 const saving = computed(() => isRunning('save'))

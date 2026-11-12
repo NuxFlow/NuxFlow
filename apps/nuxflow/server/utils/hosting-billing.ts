@@ -20,6 +20,7 @@ import { domainTaken } from './site-admin'
 import { changeSite, findSite, placeSiteInPool } from './pool-sites'
 import { poolAdminStub } from './pools'
 import { httpError } from './response'
+import type { CustomerHostedSite, PublicHostingPlan, SubdomainCheck } from '../../shared/lib/hosting-types'
 
 /**
  * The hosting platform's shop: a customer picks a plan and a subdomain on the accounts
@@ -103,12 +104,6 @@ export function subdomainProblem(name: string): string | null {
   if (name.includes('--')) return "Hyphens can't be next to each other."
   if (RESERVED_SUBDOMAINS.has(name)) return 'That name is reserved. Please choose another.'
   return null
-}
-
-export interface SubdomainCheck {
-  available: boolean
-  domain: string
-  reason?: string
 }
 
 /** Is `name` free? An unpaid sign-up by someone else holds a name for a day. */
@@ -198,7 +193,7 @@ async function archiveQuietly(stripe: StripeProvider, priceId: string) {
 }
 
 /** Plans offered on the sign-up page: public, with at least one price that exists in Stripe. */
-export async function listPublicPlans(db: Db) {
+export async function listPublicPlans(db: Db): Promise<PublicHostingPlan[]> {
   const plans = await db.select().from(hostingPlans).where(eq(hostingPlans.isPublic, true)).orderBy(hostingPlans.sortOrder, hostingPlans.name)
   return plans
     .filter(p => (p.priceMonthly != null && p.stripePriceMonthlyId) || (p.priceYearly != null && p.stripePriceYearlyId))
@@ -569,7 +564,7 @@ async function tellOperator(ctx: HostingContext, title: string, body: string, pu
 // ── Customer area ────────────────────────────────────────────────────────────
 
 /** A customer's sign-ups with their sites, newest first — the "My hosting" page. */
-export async function listCustomerHosting(db: Db, userId: string, event?: H3Event) {
+export async function listCustomerHosting(db: Db, userId: string, event?: H3Event): Promise<CustomerHostedSite[]> {
   const rows = await db.select({
     sub: hostingSubscriptions,
     site: { id: sites.id, name: sites.name, domain: sites.domain, status: sites.status },

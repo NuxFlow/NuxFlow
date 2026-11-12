@@ -2,21 +2,23 @@
 // The account page on the accounts origin (central sign-in): who you are, the sites you
 // belong to, and everything account-wide — password, passkeys, connected sign-in methods,
 // your data, deleting the account. Nothing here is specific to one site.
+import type { AccountSiteListing } from '#shared/lib/accounts-types'
+import type { HostingSignupInfo } from '#shared/lib/hosting-types'
+
 const { user } = useUserSession()
 const { signOutAndLeave } = useUserSession()
 
-interface UserSite { id: string; name: string; domain: string; role: string; origin: string }
-const { data } = await useFetch<{ sites: UserSite[] }>('/api/accounts/sites', {
+const { data } = await useFetch<{ sites: AccountSiteListing[] }>('/api/accounts/sites', {
   headers: useRequestHeaders(['cookie']),
   default: () => ({ sites: [] }),
 })
 
 // On a hosting platform: the way to "My hosting" (sites, plans, billing).
-const { data: hosting } = await useFetch<{ enabled: boolean }>('/api/accounts/hosting', {
+const { data: hosting } = await useFetch<Pick<HostingSignupInfo, 'enabled'>>('/api/accounts/hosting', {
   default: () => ({ enabled: false }),
 })
 
-function siteLink(site: UserSite): string {
+function siteLink(site: AccountSiteListing): string {
   const staff = !['member', 'viewer'].includes(site.role)
   // Through the site's own sign-in handoff, so it lands signed in.
   return `${site.origin}/_nuxflow/auth/start?${new URLSearchParams({ return_to: staff ? '/admin' : '/account' })}`

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { findSiteForAccounts } from '../../utils/accounts-sites'
 import { requireAccountsHost } from '../../utils/accounts-origin'
+import type { AuthorizeInfo } from '../../../shared/lib/accounts-types'
 
 const querySchema = z.object({ site: z.string().min(1).max(64) })
 
@@ -9,7 +10,7 @@ const querySchema = z.object({ site: z.string().min(1).max(64) })
  * being signed in to, who is signed in here (if anyone), and whether they're already part
  * of that site. See POST /api/accounts/authorize for the handoff itself.
  */
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<AuthorizeInfo> => {
   requireAccountsHost(event)
   const { site: siteId } = parseQuery(event, querySchema)
 
