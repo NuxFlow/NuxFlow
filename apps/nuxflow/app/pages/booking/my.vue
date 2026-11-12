@@ -5,6 +5,7 @@ useSeoMeta({ title: 'My bookings and passes', robots: 'noindex,nofollow' })
 
 interface MyList {
   bookings: Array<{ id: string; seats: number; status: string; title: string; when: string; location: string | null; cancelUrl: string; payUrl: string | null }>
+  appointments: Array<{ id: string; service: string; when: string; status: string; cancelUrl: string }>
   passes: Array<{ id: string; name: string; creditsLeft: number; creditsTotal: number; expiresAt: string | null; status: string }>
 }
 
@@ -98,6 +99,20 @@ function passDetail(pass: MyList['passes'][number]): string {
               <UButton v-if="booking.payUrl" :href="booking.payUrl" external size="sm">Book my place</UButton>
               <UButton :href="booking.cancelUrl" external size="sm" variant="outline" color="neutral">Cancel</UButton>
             </div>
+          </li>
+        </ul>
+      </section>
+
+      <section v-if="list.appointments.length" class="space-y-3" aria-labelledby="my-appointments">
+        <h2 id="my-appointments" class="font-semibold">Appointments</h2>
+        <ul class="space-y-2">
+          <li v-for="appt in list.appointments" :key="appt.id" class="rounded-xl border border-gray-200 dark:border-gray-800 p-4 flex flex-wrap items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="font-medium">{{ appt.service }}</p>
+              <p class="text-sm opacity-80">{{ appt.when }}</p>
+              <p class="text-xs opacity-70">{{ appt.status === 'confirmed' ? 'Booked' : 'Waiting for you to confirm or pay' }}</p>
+            </div>
+            <UButton :href="appt.cancelUrl" external size="sm" variant="outline" color="neutral">Cancel</UButton>
           </li>
         </ul>
       </section>

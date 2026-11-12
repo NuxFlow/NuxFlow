@@ -9,6 +9,7 @@ import { assertWebhookSiteMatch } from './payments/webhook-sync'
 import { recordPassPurchase, sendPassPurchasedEmail } from './class-passes'
 import { applyStripeRefundToBookings, releaseExpiredCheckout, settleBookingPayment } from './event-rsvp'
 import { expireShopOrder, settleShopOrder } from './shop-checkout'
+import { applyRefundToAppointments, releaseAppointmentCheckout, settleAppointmentPayment } from './appointments'
 import {
   createOrder,
   findOrderByPaymentIntent,
@@ -58,7 +59,7 @@ function intentId(session: StripeCheckoutSession): string | null {
 export function oneOffKind(session: StripeCheckoutSession): OneOffKind | null {
   const metadata = session.metadata ?? {}
   const kind = metadata.nuxflowKind
-  if (kind === 'booking' || kind === 'pass' || kind === 'tier') return kind
+  if (kind === 'booking' || kind === 'pass' || kind === 'tier' || kind === 'appointment') return kind
   if (kind) return null
   if (metadata.nuxflowBooking === 'rsvp') return 'booking'
   if (metadata.nuxflowBooking === 'pass') return 'pass'
@@ -81,6 +82,13 @@ async function describeLegacyPayment(event: H3Event, kind: OneOffKind, metadata:
       email: rsvp?.email ?? '',
       name: rsvp?.name ?? '',
       line: { kind, refId: rsvp?.contentItemId ?? null, recordId: rsvp?.id ?? null, name: item?.title ?? 'Booking', quantity: seats, unitMinor: Math.round(totalMinor / seats) },
+    }
+  }
+  if (kind === 'appointment') {
+    return {
+      email: metadata.email ?? '',
+      name: '',
+      line: { kind, refId: null, recordId: metadata.appointmentId ?? null, name: 'Appointment', quantity: 1, unitMinor: totalMinor },
     }
   }
   if (kind === 'pass') {
@@ -156,7 +164,10 @@ export async function handleOneOffCheckoutCompleted(event: H3Event, session: Str
   const paymentIntentId = intentId(session)
   const order = await settleOrder(event, session, kind)
 
-  if (kind === 'booking' && metadata.rsvpId) {
+  if (kind === 'appointment' && metadata.appointmentId) {
+    await settleAppointmentPayment(event, { appointmentId: metadata.appointmentId, sessionId: session.id, paymentIntentId, amount, currency })
+  }
+  else if (kind === 'booking' && metadata.rsvpId) {
     await settleBookingPayment(event, { rsvpId: metadata.rsvpId, sessionId: session.id, paymentIntentId, amount, currency })
   }
   else if (kind === 'pass' && metadata.passId && metadata.email) {
@@ -229,6 +240,7 @@ export async function handleOneOffCheckoutExpired(event: H3Event, session: Strip
   assertWebhookSiteMatch(event, metadata.siteId)
   await markOrderExpired(useDb(event), requireSiteId(event), session.id)
   if (kind === 'booking' && metadata.rsvpId) await releaseExpiredCheckout(event, metadata.rsvpId, session.id)
+  if (kind === 'appointment' && metadata.appointmentId) await releaseAppointmentCheckout(event, metadata.appointmentId, session.id)
 }
 
 /**
@@ -239,7 +251,10 @@ export async function handleOneOffCheckoutExpired(event: H3Event, session: Strip
  */
 export async function applyRefundToRecords(event: H3Event, paymentIntentId: string, refund: { refundedMinor: number; paymentMinor: number; currency: string }): Promise<void> {
   const fully = refund.refundedMinor >= refund.paymentMinor
-  if (fully) await applyStripeRefundToBookings(event, paymentIntentId)
+  if (fully) {
+    await applyStripeRefundToBookings(event, paymentIntentId)
+    await applyRefundToAppointments(event, paymentIntentId)
+  }
 
   const db = useDb(event)
   const siteId = requireSiteId(event)

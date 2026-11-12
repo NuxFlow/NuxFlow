@@ -82,7 +82,7 @@ describe('admin-nav', () => {
   it('shows each role a short menu holding only what it can use', () => {
     expect(rowsFor('viewer')).toHaveLength(3)
     expect(rowsFor('author')).toHaveLength(3)
-    expect(rowsFor('editor')).toHaveLength(6)
+    expect(rowsFor('editor')).toHaveLength(7)
     expect(rowsFor('admin')).toHaveLength(8)
     expect(rowsFor('super_admin', true)).toHaveLength(9)
     expect(rowsFor('author').map(e => (e.kind === 'group' ? e.label : e.item.label))).toEqual(['Dashboard', 'Content', 'Media'])

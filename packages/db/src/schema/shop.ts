@@ -71,7 +71,7 @@ export const orderLines = sqliteTable('order_lines', {
   id: text('id').primaryKey(),
   orderId: text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
-  kind: text('kind', { enum: ['product', 'booking', 'pass', 'tier'] }).notNull(),
+  kind: text('kind', { enum: ['product', 'booking', 'pass', 'tier', 'appointment'] }).notNull(),
   // What was bought: an event's content item, a class pass, a membership tier, a product
   // variant. Plain columns, no FK: the line keeps its own copy of the name and price.
   refId: text('ref_id'),

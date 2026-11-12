@@ -144,6 +144,54 @@ export const contentItems = sqliteTable('content_items', {
   index('idx_content_items_event_room').on(t.siteId, t.eventRoomId).where(sql`event_room_id is not null`),
 ])
 
+// One-to-one appointments (apps/nuxflow/server/utils/appointments.ts): a visitor books a time
+// with the site's practitioner through an Appointment block. One diary per site: no two live
+// appointments overlap, including the gap after each (blocked_until). The service lives in
+// the block (block_id on content_item_id), copied here at booking so later edits don't
+// change what was booked. content_item_id has no FK: deleting the page must not delete
+// appointments someone has paid for.
+//   draft     → just inserted, not counted (made live by one conditional UPDATE)
+//   pending   → free, waiting on the emailed confirm link (slot kept until hold_expires_at)
+//   held      → paid, at Stripe (slot kept until hold_expires_at)
+//   confirmed → booked
+//   cancelled
+export const appointments = sqliteTable('appointments', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  contentItemId: text('content_item_id').notNull(),
+  blockId: text('block_id').notNull(),
+  serviceName: text('service_name').notNull(),
+  startsAt: text('starts_at').notNull(),
+  endsAt: text('ends_at').notNull(),
+  /** endsAt plus the service's gap after it: nothing else may start before this. */
+  blockedUntil: text('blocked_until').notNull(),
+  email: text('email').notNull(),
+  name: text('name').notNull(),
+  phone: text('phone').notNull().default(''),
+  note: text('note').notNull().default(''),
+  status: text('status', { enum: ['draft', 'pending', 'held', 'confirmed', 'cancelled'] }).notNull().default('draft'),
+  price: real('price'),
+  currency: text('currency'),
+  /** Hours before the start a visitor can still cancel for a refund (0 = any time before). */
+  cancelHours: integer('cancel_hours').notNull().default(0),
+  paymentStatus: text('payment_status', { enum: ['paid', 'refunded'] }),
+  amountPaid: real('amount_paid'),
+  stripeSessionId: text('stripe_session_id'),
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+  holdExpiresAt: text('hold_expires_at'),
+  confirmSentAt: text('confirm_sent_at'),
+  confirmedAt: text('confirmed_at'),
+  reminderSentAt: text('reminder_sent_at'),
+  cancelledAt: text('cancelled_at'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_appointments_site_start').on(t.siteId, t.startsAt),
+  index('idx_appointments_site_email').on(t.siteId, t.email),
+  index('idx_appointments_payment').on(t.stripePaymentIntentId),
+  index('idx_appointments_reminder').on(t.startsAt).where(sql`status = 'confirmed' AND reminder_sent_at IS NULL`),
+])
+
 // Holiday lets (apps/nuxflow/server/utils/availability.ts): calendars an item follows (its
 // iCal export links from Airbnb, Booking.com…), synced hourly into availability_blocks.
 export const availabilityFeeds = sqliteTable('availability_feeds', {

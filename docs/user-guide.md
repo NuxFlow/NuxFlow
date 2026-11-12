@@ -667,7 +667,7 @@ To accept payments, configure at least one payment provider in **Admin → Setti
 
 Canvas is a visual drag-and-drop page builder built into NuxFlow. It adds a **Canvas** editor mode to any page or post, letting you build layouts from blocks without writing code.
 
-Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), **Video gallery**, Columns, **Container**, Feature grids, Testimonials, CTA banners, Buttons, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), **Posts**, **Events Calendar**, **Class Passes**, Contact Form, Form, **Signup box**, **Before & After**, **Logo Strip**, **Map**, **Opening Hours**, **Menu**, **Google Reviews**, **Availability Calendar**, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
+Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), **Video gallery**, Columns, **Container**, Feature grids, Testimonials, CTA banners, Buttons, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), **Posts**, **Events Calendar**, **Class Passes**, Contact Form, Form, **Signup box**, **Before & After**, **Logo Strip**, **Map**, **Opening Hours**, **Menu**, **Google Reviews**, **Availability Calendar**, **Book an Appointment**, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
 
 #### Nesting blocks
 
@@ -699,6 +699,24 @@ Shows your star rating, how many reviews you have and up to five recent reviews,
 2. In your own Google Cloud account, switch on **Places API (New)**, create an **API key** restricted to that API, and paste it in. It's stored encrypted.
 
 Google charges each look-up to that account. NuxFlow asks at most once an hour and shows the same answer to every visitor in between, so a small business pays pennies a month, usually inside Google's free allowance. Google decides which five reviews it returns; they're shown as written, with Google's name on them, as its terms require.
+
+#### Book an Appointment block
+
+For one-to-one bookings: a massage, a consultation, a lesson. Visitors pick a day, see the times that are free, and book one. No account is needed. Put one block on a page per service (an hour's massage, a half-hour call), and set it up in the block's settings:
+
+- **What is being booked**, its **length**, and how often start times are offered (every 30 minutes, every hour…).
+- **Gap after each appointment**: time kept free to tidy up or travel.
+- **Notice needed** and **how far ahead** people can book.
+- **Price**: leave it blank for a free booking. A price is paid by card through Stripe (set up in **Settings → Payments**, webhook included), and **Refund if cancelled at least … hours before** sets your cancellation rule.
+
+Your hours are shared by every Appointment block: set them in **Admin → Settings → Appointments**. Either use your opening hours from **Settings → Business** (holiday hours included) or set separate appointment hours, and add **days off** for holidays. Times are always in your site's time zone, and two appointments never overlap, whichever block they were booked from.
+
+How a booking goes through:
+- **Free:** the visitor gets an email with a link to confirm. The time is kept for them for an hour; if they don't confirm, it's free again. (With no email provider set up, bookings are confirmed straight away.)
+- **Paid:** the visitor pays straight away. The time is kept while they're paying; if a payment arrives after the time has gone to someone else, it's refunded automatically.
+- Once booked they get an email with an **Add to my calendar** link and a link to cancel, plus a reminder the day before. Their appointments also show on **My bookings** (`/booking/my`).
+
+You see every booking in **Admin → Appointments**, and get a notification for each new one. Cancelling one there always refunds what was paid and emails the customer. To ask questions before a booking (a health questionnaire, a waiver), choose a form under **Form to fill in when booking** in the page's **Appointments** panel in the editor; answers go to that form's Submissions.
 
 #### Availability Calendar block (holiday lets)
 

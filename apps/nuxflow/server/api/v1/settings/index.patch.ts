@@ -23,6 +23,7 @@ import { assertDemoAllowsSettings } from '../../../utils/demo-mode'
 import { assertSiteMayReopen } from '../../../utils/hosting-hold'
 import { BUSINESS_SETTING_KEY, normalizeBusinessSetting } from '../../../utils/business'
 import { PODCAST_SETTING_KEY, normalizePodcastSetting } from '../../../utils/podcast'
+import { APPOINTMENT_SETTINGS_KEY, normalizeAppointmentSetting } from '../../../utils/appointments'
 
 const bodySchema = z.object({
   // Site columns
@@ -135,7 +136,7 @@ export default defineEventHandler(async (event) => {
     // passes through unchanged.
     const normalized = normalizeSeoSettings(Object.entries(body.settings))
       // Settings → Business is checked here too (it has no route of its own).
-      .map(([k, v]): [string, unknown] => (k === BUSINESS_SETTING_KEY ? [k, normalizeBusinessSetting(v)] : k === PODCAST_SETTING_KEY ? [k, normalizePodcastSetting(v)] : [k, v]))
+      .map(([k, v]): [string, unknown] => (k === BUSINESS_SETTING_KEY ? [k, normalizeBusinessSetting(v)] : k === PODCAST_SETTING_KEY ? [k, normalizePodcastSetting(v)] : k === APPOINTMENT_SETTINGS_KEY ? [k, normalizeAppointmentSetting(v)] : [k, v]))
     settingEntries.push(...normalized)
 
     // Turning IndexNow on generates the site's key the first time — it's served at

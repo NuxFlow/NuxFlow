@@ -15,7 +15,9 @@ const isPass = computed(() => route.query.type === 'pass')
     <p class="opacity-80">
       {{ isPass
         ? 'Your payment went through. We\'re adding the pass to your email address and will email you how to use it.'
-        : 'Your payment went through. We\'re confirming your place and will email you the details.' }}
+        : route.query.type === 'appointment'
+          ? 'Your payment went through. We\'re confirming your appointment and will email you the details.'
+          : 'Your payment went through. We\'re confirming your place and will email you the details.' }}
     </p>
     <p class="text-sm opacity-70">If nothing arrives within a few minutes, check your spam folder.</p>
     <UButton to="/booking/my" variant="ghost">My bookings and passes</UButton>

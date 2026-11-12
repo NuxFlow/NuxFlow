@@ -197,6 +197,8 @@ export interface CanvasHost {
   videoPlaybackUrl?(request: { streamId: string; blockId: string; path: string }): Promise<string | null>
   /** Media library picker dialog — emits `select(PickedMedia)` / `selectMany(PickedMedia[])`. */
   mediaPicker?: Component
+  /** The Appointment block's time picker and booking form (props: `block`, `askPhone`). */
+  appointmentBooking?: Component
   /** Dictation button — emits `transcribed(text)`. */
   voiceInput?: Component
 }

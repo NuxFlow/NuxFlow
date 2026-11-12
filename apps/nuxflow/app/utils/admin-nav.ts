@@ -86,6 +86,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Shop', to: '/admin/shop', icon: 'i-lucide-store', minRole: 'admin', group: 'sales' },
   { label: 'Memberships', to: '/admin/memberships', icon: 'i-lucide-badge-check', minRole: 'admin', group: 'sales' },
   { label: 'Class passes', to: '/admin/class-passes', icon: 'i-lucide-ticket', minRole: 'admin', group: 'sales' },
+  { label: 'Appointments', to: '/admin/appointments', icon: 'i-lucide-calendar-clock', minRole: 'editor', group: 'sales' },
 
   { label: 'Themes', to: '/admin/themes', icon: 'i-lucide-palette', minRole: 'admin', group: 'site' },
   { label: 'Starter sites', to: '/admin/starters', icon: 'i-lucide-layout-template', minRole: 'admin', group: 'site' },

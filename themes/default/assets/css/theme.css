@@ -135,6 +135,12 @@
        .canvas-google-reviews-summary           the overall rating
        .canvas-google-review                    one review
        .canvas-google-reviews-attribution       "Reviews from Google" and the link
+     .canvas-appointment   Book an Appointment block
+       .canvas-appointment-days                 the row of days
+       .canvas-appointment-day[data-date][aria-pressed]  one day (pressed = chosen)
+       .canvas-appointment-times                the free times on the chosen day
+       .canvas-appointment-time[aria-pressed]   one time (pressed = chosen)
+       .canvas-appointment-form                 the booking details form
      .canvas-availability  Availability Calendar block (holiday lets)
        .canvas-availability-month               one month
        .canvas-availability-day[data-date][data-booked][data-past]  one day; data-booked = a booked night
