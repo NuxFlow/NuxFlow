@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCollectAt } from '#shared/lib/shop-collection'
 import { formatMoney, fromMinorUnits, toMinorUnits } from '#shared/lib/money'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
@@ -20,6 +21,9 @@ interface Order {
   taxMinor: number
   totalMinor: number
   refundedMinor: number
+  /** Click and collect: 'collect' with the chosen time (site time). */
+  fulfilment?: 'delivery' | 'collect'
+  collectAt?: string | null
   stripePaymentIntentId: string | null
   paidAt: string | null
   createdAt: string
@@ -228,6 +232,7 @@ async function confirmRefund() {
         </template>
         <template #status-cell="{ row }">
           <UBadge :color="STATUS[row.original.status].color" variant="soft" size="sm">{{ STATUS[row.original.status].label }}</UBadge>
+          <span v-if="row.original.fulfilment === 'collect' && row.original.collectAt" class="block text-xs text-gray-500">Collect {{ formatCollectAt(row.original.collectAt) }}</span>
         </template>
         <template #date-cell="{ row }">
           <span class="text-sm text-gray-500">{{ formatLocalDateTime(row.original.paidAt ?? row.original.createdAt) }}</span>
@@ -251,6 +256,11 @@ async function confirmRefund() {
           <div>
             <p class="font-medium">{{ detail.order.name || 'No name given' }}</p>
             <p class="text-sm text-gray-500">{{ detail.order.email || 'No email' }}</p>
+          </div>
+
+          <div v-if="detail.order.fulfilment === 'collect' && detail.order.collectAt" class="text-sm">
+            <p class="font-medium">Collecting</p>
+            <p class="text-gray-600 dark:text-gray-400">{{ formatCollectAt(detail.order.collectAt) }}</p>
           </div>
 
           <div v-if="addressLines.length" class="text-sm">

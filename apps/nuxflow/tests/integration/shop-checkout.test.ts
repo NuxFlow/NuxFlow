@@ -396,3 +396,56 @@ describe('the customer\'s own order and downloads', () => {
     expect(await db().query.productVariants.findFirst({ where: eq(productVariants.id, d!) })).toMatchObject({ fileName: 'two.zip', fileSize: 2 })
   })
 })
+
+describe('click and collect', () => {
+  const settings = (config: Record<string, unknown>) => (shopPost as Handler)(ev({ userId: adminId, body: { action: 'settings', config } }))
+  type CollectQuote = { collection: { label: string; days: Array<{ date: string; times: string[] }> } | null; cannotShip: boolean; canDeliver: boolean }
+
+  afterAll(async () => {
+    await settings({ collectionEnabled: false, shippingCountries: ['GB', 'US'] })
+  })
+
+  it('offers collection only when it\'s on, with the days to choose from', async () => {
+    const { variantIds: [a] } = await product([{ priceMinor: 900 }])
+    expect((await quote([{ variantId: a!, quantity: 1 }]) as unknown as CollectQuote).collection).toBeNull()
+
+    await settings({ collectionEnabled: true, collectionLabel: 'Collect from the bakery', collectionInstructions: '1 Mill Lane, side door', collectionLeadMinutes: 0, collectionDays: 2 })
+    const q = await quote([{ variantId: a!, quantity: 1 }]) as unknown as CollectQuote
+    expect(q.collection!.label).toBe('Collect from the bakery')
+    // No opening hours set: whole days, today and the next two.
+    expect(q.collection!.days).toHaveLength(3)
+    expect(q.collection!.days[0]!.times).toEqual([])
+  })
+
+  it('collects free of delivery, asks Stripe for no address, and keeps the time on the order', async () => {
+    const { variantIds: [a] } = await product([{ priceMinor: 900 }])
+    const q = await quote([{ variantId: a!, quantity: 1 }]) as unknown as CollectQuote
+    const day = q.collection!.days[1]!.date
+    const { orderId } = await checkout([{ variantId: a!, quantity: 1 }], { fulfilment: 'collect', collectAt: day })
+    expect(await getOrder(orderId)).toMatchObject({ fulfilment: 'collect', collectAt: day, shippingMinor: 0, totalMinor: 900 })
+    expect(stripe.createOrderCheckout.mock.calls[0]![0]).toMatchObject({ shipping: null })
+  })
+
+  it('refuses a time that isn\'t on offer', async () => {
+    const { variantIds: [a] } = await product([{ priceMinor: 900 }])
+    await expect(checkout([{ variantId: a!, quantity: 1 }], { fulfilment: 'collect', collectAt: '2001-01-01' })).rejects.toMatchObject({ statusCode: 409 })
+    await expect(checkout([{ variantId: a!, quantity: 1 }], { fulfilment: 'collect' })).rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  it('lets a shop that doesn\'t post sell for collection only', async () => {
+    await settings({ shippingCountries: [] })
+    const { variantIds: [a] } = await product([{ priceMinor: 900 }])
+    const q = await quote([{ variantId: a!, quantity: 1 }]) as unknown as CollectQuote
+    expect(q).toMatchObject({ cannotShip: false, canDeliver: false })
+    await expect(checkout([{ variantId: a!, quantity: 1 }])).rejects.toMatchObject({ statusCode: 409 })
+    const { orderId } = await checkout([{ variantId: a!, quantity: 1 }], { fulfilment: 'collect', collectAt: q.collection!.days[0]!.date })
+    expect((await getOrder(orderId)).fulfilment).toBe('collect')
+  })
+
+  it('refuses collection once it\'s switched off', async () => {
+    await settings({ collectionEnabled: false, shippingCountries: ['GB'] })
+    const { variantIds: [a] } = await product([{ priceMinor: 900 }])
+    const today = new Date().toISOString().slice(0, 10)
+    await expect(checkout([{ variantId: a!, quantity: 1 }], { fulfilment: 'collect', collectAt: today })).rejects.toMatchObject({ statusCode: 409 })
+  })
+})

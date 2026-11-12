@@ -44,6 +44,16 @@ export interface ShopSettings {
   shippingRateMinor: number
   /** Free delivery from this subtotal up. Null: never free. */
   freeShippingOverMinor: number | null
+  /** Click and collect: customers can collect posted goods instead (shop-collection.ts). */
+  collectionEnabled: boolean
+  /** What collecting is called at checkout. */
+  collectionLabel: string
+  /** Where and how to collect, shown at checkout and in the receipt. */
+  collectionInstructions: string
+  /** The soonest a customer can collect, in minutes after ordering. */
+  collectionLeadMinutes: number
+  /** How many days ahead (after today) collection times are offered. */
+  collectionDays: number
   /** Slug of the page with the returns policy, linked from a box to tick before paying. */
   returnsPage: string
   /** Times each download link works, and for how many days after paying. */
@@ -60,6 +70,11 @@ export const DEFAULT_SHOP_SETTINGS: ShopSettings = {
   shippingLabel: 'Standard delivery',
   shippingRateMinor: 0,
   freeShippingOverMinor: null,
+  collectionEnabled: false,
+  collectionLabel: 'Collect in person',
+  collectionInstructions: '',
+  collectionLeadMinutes: 60,
+  collectionDays: 3,
   returnsPage: '',
   downloadLimit: 5,
   downloadDays: 30,

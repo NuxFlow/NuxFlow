@@ -13,6 +13,11 @@ interface ShopSettings {
   shippingLabel: string
   shippingRateMinor: number
   freeShippingOverMinor: number | null
+  collectionEnabled: boolean
+  collectionLabel: string
+  collectionInstructions: string
+  collectionLeadMinutes: number
+  collectionDays: number
   returnsPage: string
   downloadLimit: number
   downloadDays: number
@@ -39,6 +44,11 @@ const form = reactive({
   shippingLabel: 'Standard delivery',
   shippingRate: 0,
   freeOver: null as number | null,
+  collectionEnabled: false,
+  collectionLabel: 'Collect in person',
+  collectionInstructions: '',
+  collectionLeadMinutes: 60,
+  collectionDays: 3,
   returnsPage: '',
   downloadLimit: 5,
   downloadDays: 30,
@@ -53,6 +63,11 @@ watch(() => data.value?.settings, (s) => {
     shippingLabel: s.shippingLabel,
     shippingRate: fromMinorUnits(s.shippingRateMinor, s.currency),
     freeOver: s.freeShippingOverMinor === null ? null : fromMinorUnits(s.freeShippingOverMinor, s.currency),
+    collectionEnabled: s.collectionEnabled,
+    collectionLabel: s.collectionLabel,
+    collectionInstructions: s.collectionInstructions,
+    collectionLeadMinutes: s.collectionLeadMinutes,
+    collectionDays: s.collectionDays,
     returnsPage: s.returnsPage,
     downloadLimit: s.downloadLimit,
     downloadDays: s.downloadDays,
@@ -86,6 +101,11 @@ async function saveSettings() {
       shippingLabel: form.shippingLabel,
       shippingRateMinor: toMinorUnits(Number(form.shippingRate) || 0, form.currency),
       freeShippingOverMinor: form.freeOver === null || String(form.freeOver) === '' ? null : toMinorUnits(Number(form.freeOver), form.currency),
+      collectionEnabled: form.collectionEnabled,
+      collectionLabel: form.collectionLabel.trim() || 'Collect in person',
+      collectionInstructions: form.collectionInstructions.trim(),
+      collectionLeadMinutes: Number(form.collectionLeadMinutes) || 0,
+      collectionDays: Number(form.collectionDays) || 0,
       returnsPage: form.returnsPage.trim(),
       downloadLimit: Number(form.downloadLimit),
       downloadDays: Number(form.downloadDays),
@@ -167,6 +187,24 @@ async function saveSettings() {
             <UFormField :label="`Price per order (${form.currency})`"><UInput v-model.number="form.shippingRate" type="number" min="0" step="0.01" class="w-full" /></UFormField>
             <UFormField :label="`Free from (${form.currency})`" hint="Blank: never free"><UInput v-model.number="form.freeOver" type="number" min="0" step="0.01" class="w-full" /></UFormField>
           </div>
+
+          <h2 class="font-semibold pt-2">Click and collect</h2>
+          <USwitch v-model="form.collectionEnabled" label="Let customers collect their order instead of having it posted" />
+          <template v-if="form.collectionEnabled">
+            <div class="grid gap-3 sm:grid-cols-3">
+              <UFormField label="Name at checkout"><UInput v-model="form.collectionLabel" maxlength="100" class="w-full" /></UFormField>
+              <UFormField label="Notice needed (minutes)" hint="e.g. 60"><UInput v-model.number="form.collectionLeadMinutes" type="number" min="0" max="10080" class="w-full" /></UFormField>
+              <UFormField label="Days ahead to offer" hint="0 = today only"><UInput v-model.number="form.collectionDays" type="number" min="0" max="14" class="w-full" /></UFormField>
+            </div>
+            <UFormField label="Where and how to collect" hint="Shown at checkout and in the receipt, e.g. the address and which door.">
+              <UTextarea v-model="form.collectionInstructions" :rows="2" maxlength="500" class="w-full" />
+            </UFormField>
+            <p class="text-xs text-gray-500">
+              Customers choose a time every 15 minutes within your opening hours in
+              <NuxtLink to="/admin/settings?tab=Business" class="underline">Settings → Business</NuxtLink>
+              (holiday hours included). Without opening hours, they choose a day. Collection is free.
+            </p>
+          </template>
 
           <h2 class="font-semibold pt-2">Returns</h2>
           <UFormField label="Returns policy page" hint="The slug of a page you've written, such as returns. Buyers tick a box to say they've read it. In the UK and EU people buying online can usually cancel within 14 days; this isn't legal advice, so check what applies to you.">
