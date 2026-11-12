@@ -20,7 +20,7 @@ export type OrderStatus = OrderRow['status']
 export type OrderLineKind = OrderLineRow['kind']
 
 /** What Stripe Checkout objects carry in `metadata.nuxflowKind`. */
-export type NuxflowKind = 'booking' | 'pass' | 'tier' | 'order'
+export type NuxflowKind = 'booking' | 'pass' | 'tier' | 'order' | 'appointment'
 
 /** The statuses of an order that has been paid, whatever has been refunded since. */
 export const PAID_STATUSES = ['paid', 'partially_refunded', 'refunded'] as const satisfies readonly OrderStatus[]

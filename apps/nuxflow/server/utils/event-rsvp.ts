@@ -16,6 +16,7 @@ import { hmacSha256Hex, constantTimeEqualHex } from './webhook-crypto'
 import { getStripeProvider, resolveStripeProvider } from './payments/resolve'
 import { bookingAccessLink, bookingOrigin, bookingPaymentsReady, creditsLeft, returnCredits, spendCredits } from './class-passes'
 import { refundPayment, withPendingOrder } from './orders'
+import { listAppointmentsFor } from './appointments'
 import { toMinorUnits } from '../../shared/lib/money'
 
 /**
@@ -1295,7 +1296,7 @@ export async function listBookingsFor(event: H3Event, email: string) {
   const siteId = requireSiteId(event)
   const address = normalizeEmail(email)
   const since = new Date(Date.now() - 86_400_000).toISOString()
-  const [rows, holdings] = await Promise.all([
+  const [rows, holdings, appointments] = await Promise.all([
     db.query.eventRsvps.findMany({
       where: and(
         eq(eventRsvps.siteId, siteId),
@@ -1311,6 +1312,7 @@ export async function listBookingsFor(event: H3Event, email: string) {
       orderBy: [desc(classPassHoldings.createdAt)],
       limit: 50,
     }),
+    listAppointmentsFor(event, address),
   ])
 
   const seriesById = new Map<string, RsvpEvent | null>()
@@ -1333,6 +1335,7 @@ export async function listBookingsFor(event: H3Event, email: string) {
   }
   return {
     bookings,
+    appointments,
     passes: holdings.map(h => ({
       id: h.id,
       name: h.passName,
@@ -1346,8 +1349,8 @@ export async function listBookingsFor(event: H3Event, email: string) {
 
 /** Sends someone a link to their list, if they have anything on it. */
 export async function sendBookingAccessEmail(event: H3Event, email: string): Promise<void> {
-  const { bookings, passes } = await listBookingsFor(event, email)
-  if (bookings.length === 0 && passes.length === 0) return
+  const { bookings, passes, appointments } = await listBookingsFor(event, email)
+  if (bookings.length === 0 && passes.length === 0 && appointments.length === 0) return
   await sendTemplatedEmail(event, {
     to: normalizeEmail(email),
     subject: 'Your bookings and passes',

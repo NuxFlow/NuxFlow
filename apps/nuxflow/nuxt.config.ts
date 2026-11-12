@@ -108,7 +108,7 @@ export default defineNuxtConfig({
       // from the member pools (does nothing without pools); count minutes watched of the
       // platform's Stream video and pause sites over their plan (video-usage.ts).
       // Also release places whose time has run out and send booking reminders (event-bookings.ts).
-      '0 * * * *': ['reconcile-stuck-videos', 'plan-usage-alerts', 'custom-domain-check', 'pool-directory-sync', 'video-usage', 'event-bookings', 'availability-sync'],
+      '0 * * * *': ['reconcile-stuck-videos', 'plan-usage-alerts', 'custom-domain-check', 'pool-directory-sync', 'video-usage', 'event-bookings', 'availability-sync', 'appointment-reminders'],
     },
     serverAssets: [
       { baseName: 'migrations', dir: resolve(_dirname, '../../packages/db/migrations') },

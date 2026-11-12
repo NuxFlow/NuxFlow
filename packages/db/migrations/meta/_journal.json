@@ -78,6 +78,13 @@
       "when": 1794472233891,
       "tag": "0010_availability",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1794482207745,
+      "tag": "0011_appointments",
+      "breakpoints": true
     }
   ]
 }

@@ -891,3 +891,16 @@ describe('canvas-availability block', () => {
     expect(def.defaultProps.months).toBe(6)
   })
 })
+
+describe('canvas-appointment block', () => {
+  it('is registered, kept out of AI pages, and its refund rule only shows for a paid service', async () => {
+    const { BUILTIN_BLOCK_COMPONENTS } = await import('../../../../packages/canvas/src/blocks/components')
+    const def = getBlockDefinition('canvas-appointment')!
+    expect(BUILTIN_BLOCK_COMPONENTS['canvas-appointment']).toBeDefined()
+    expect(def.ai?.exclude).toBe(true)
+    const cancel = def.fields.find(f => f.key === 'cancelHours')!
+    expect(cancel.condition?.({ price: '' })).toBe(false)
+    expect(cancel.condition?.({ price: 40 })).toBe(true)
+    expect(def.defaultProps).toMatchObject({ duration: 60, step: 30, noticeHours: 12 })
+  })
+})

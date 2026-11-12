@@ -6,7 +6,7 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Orders' })
 
 type OrderStatus = 'pending' | 'paid' | 'partially_refunded' | 'refunded' | 'expired' | 'cancelled'
-type LineKind = 'product' | 'booking' | 'pass' | 'tier'
+type LineKind = 'product' | 'booking' | 'pass' | 'tier' | 'appointment'
 
 interface Order {
   id: string
@@ -71,6 +71,7 @@ const STATUS: Record<OrderStatus, { label: string; color: 'success' | 'warning' 
 const KIND_LABELS: Record<LineKind, string> = {
   product: 'Product',
   booking: 'Booking',
+  appointment: 'Appointment',
   pass: 'Class pass',
   tier: 'Membership',
 }

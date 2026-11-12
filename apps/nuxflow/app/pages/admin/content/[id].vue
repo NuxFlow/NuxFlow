@@ -115,6 +115,7 @@ const { data: publicSite } = useFetch<PublicSiteInfo>('/api/public/site', { key:
 const isEpisodeType = computed(() => Boolean(publicSite.value?.podcast) && publicSite.value?.podcast?.contentType === activeTypeSlug.value)
 
 // Client proofing: a saved page with a gallery that lets clients pick favourites shows their picks.
+const hasAppointmentBlock = computed(() => !isNew.value && JSON.stringify(form.content ?? '').includes('canvas-appointment'))
 const hasAvailabilityBlock = computed(() => !isNew.value && JSON.stringify(form.content ?? '').includes('canvas-availability'))
 const hasProofingGallery = computed(() => !isNew.value && JSON.stringify(form.content ?? '').includes('"allowFavourites":true'))
 
@@ -602,6 +603,10 @@ onUnmounted(() => {
 
         <UCard v-if="isEpisodeType">
           <EditorPodcastPanel v-model="form.podcast" :disabled="!canEdit" />
+        </UCard>
+
+        <UCard v-if="hasAppointmentBlock && activeTypeSlug !== 'event'">
+          <EditorAppointmentPanel v-model:intake-form-id="form.intakeFormId" :disabled="!canEdit" />
         </UCard>
 
         <UCard v-if="hasAvailabilityBlock">
