@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AdminSitesResponse, SiteListing } from '#shared/lib/admin-site-types'
-import type { SiteMoveRow } from '~/components/admin/SiteMoveModal.vue'
+import type { SiteMoveSummary } from '#shared/lib/super-admin-types'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
@@ -21,20 +21,20 @@ const planItems = computed(() => [
   ...(planData.value?.plans ?? []).map(p => ({ label: p.name, value: p.id })),
 ])
 // Moving a site between pools (AdminSiteMoveModal). Only with pools, which need the hosting switch.
-const { data: moveData, refresh: refreshMoves } = await useFetch<{ moves: SiteMoveRow[] }>('/api/v1/admin/site-moves', { immediate: hostingPlatform })
+const { data: moveData, refresh: refreshMoves } = await useFetch<{ moves: SiteMoveSummary[] }>('/api/v1/admin/site-moves', { immediate: hostingPlatform })
 const canMove = computed(() => hostingPlatform && (data.value?.pools.length ?? 0) > 0)
 const unfinishedMoves = computed(() => (moveData.value?.moves ?? []).filter(m => !['done', 'cancelled'].includes(m.phase)))
 const MOVE_FAILED_TEXT = "The copy didn't match, so nothing was switched. Open it to cancel the move."
 const MOVE_PAUSED_TEXT = "The site is locked until the move finishes or is cancelled. Open it to continue."
 const isMoveOpen = ref(false)
 const moveSite = ref<SiteListing | null>(null)
-const resumeMove = ref<SiteMoveRow | null>(null)
+const resumeMove = ref<SiteMoveSummary | null>(null)
 function openMove(site: SiteListing) {
   moveSite.value = site
   resumeMove.value = null
   isMoveOpen.value = true
 }
-function continueMove(move: SiteMoveRow) {
+function continueMove(move: SiteMoveSummary) {
   moveSite.value = null
   resumeMove.value = move
   isMoveOpen.value = true

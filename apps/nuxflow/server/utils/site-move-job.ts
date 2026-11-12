@@ -9,6 +9,7 @@ import { syncSiteDirectory } from './site-directory'
 import { poolAdminStub } from './pools'
 import { CATCH_UP_TABLES, moveStore, moveTables, type FileCursor, type KvCursor, type MoveStore } from './site-move'
 import { poolBindingName } from '../../shared/lib/pool-id'
+import type { SiteMoveStep } from '../../shared/lib/super-admin-types'
 
 /**
  * Moving a site to another pool (or between a pool and the control plane), driven one
@@ -59,13 +60,9 @@ interface CopyCursor {
   fileRounds?: number
 }
 
-export interface StepResult {
+/** What one step did. The move is the whole row; the page reads `SiteMoveSummary`'s part. */
+export interface StepResult extends Omit<SiteMoveStep, 'move'> {
   move: SiteMove
-  /** Another step is needed — at once, or after `waitMs`. */
-  more: boolean
-  waitMs?: number
-  /** What the step did, for the progress line. */
-  message: string
 }
 
 const where = (move: Pick<SiteMove, 'fromPool' | 'toPool'>) => ({ from: move.fromPool, to: move.toPool })

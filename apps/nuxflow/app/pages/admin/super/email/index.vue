@@ -1,34 +1,9 @@
 <script setup lang="ts">
+import type { EmailUsageReport } from '#shared/lib/super-admin-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Email log' })
 
-interface SiteUsage {
-  siteId: string | null
-  siteName: string | null
-  domain: string | null
-  sent30d: number
-  failed30d: number
-  sent24h: number
-  cloudflare30d: number
-}
-interface Failure {
-  id: string
-  siteName: string | null
-  toAddress: string
-  subject: string
-  category: string
-  provider: string
-  error: string | null
-  createdAt: string
-}
-interface EmailUsage {
-  sites: SiteUsage[]
-  recentFailures: Failure[]
-  sendingBindingPresent: boolean
-  inboundEmailDomain: string | null
-}
-
-const { data, pending, error, refresh } = await useFetch<EmailUsage>('/api/v1/admin/email-usage')
+const { data, pending, error, refresh } = await useFetch<EmailUsageReport>('/api/v1/admin/email-usage')
 
 const totals = computed(() => (data.value?.sites ?? []).reduce(
   (t, s) => ({ sent: t.sent + s.sent30d, failed: t.failed + s.failed30d, cloudflare: t.cloudflare + s.cloudflare30d }),

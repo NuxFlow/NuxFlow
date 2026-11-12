@@ -5,6 +5,7 @@ import { getPoolId, isMemberPool, POOL_PLATFORM_SETTINGS, storePlatformSettings 
 import { isServedCopy } from './move-state'
 import { clearAiDailyCapCache } from './ai-allowance'
 import { clearAnalyticsCache } from './analytics'
+import type { PoolSite, PoolStatus } from '../../shared/lib/pool-types'
 
 /**
  * What a member pool answers when its control plane asks — over the private
@@ -27,35 +28,7 @@ export function assertCompatibleProtocol(theirs: unknown): void {
   }
 }
 
-export interface PoolStatus {
-  protocol: number
-  poolId: string | null
-  commit: string | null
-  release: string | null
-  siteCount: number
-  /** Newest migration file applied to this pool's D1. */
-  lastMigration: string | null
-  /** When the control plane last sent platform settings (null = never). */
-  settingsReceivedAt: string | null
-}
-
-export interface PoolSite {
-  id: string
-  name: string
-  domain: string
-  status: string
-  createdAt: string
-  /**
-   * The site's extra addresses (site_domains), which redirect to `domain`. Optional:
-   * a pool on an older release doesn't send it.
-   */
-  aliases?: string[]
-  /** Optional, like aliases: older pools don't send them. */
-  hostingPlanId?: string | null
-  locale?: string
-  /** Locked while being moved to another pool. Optional, like the fields above. */
-  moving?: boolean
-}
+export type { PoolSite, PoolStatus } from '../../shared/lib/pool-types'
 
 export async function poolStatus(db: Db): Promise<PoolStatus> {
   const config = useRuntimeConfig()

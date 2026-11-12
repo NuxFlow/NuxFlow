@@ -7,6 +7,7 @@ import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
 import { callPool, poolBindings } from './pools'
 import { sitePool } from './pool-sites'
 import { utcDay, utcDayAgo } from './utc-day'
+import type { SiteMonthlyUsage, SiteUsageSeries, UsageReport } from '../../shared/lib/super-admin-types'
 
 /**
  * Super Admin → Usage's figures (GET /api/v1/admin/usage, /api/v1/admin/usage/:siteId),
@@ -14,17 +15,7 @@ import { utcDay, utcDayAgo } from './utc-day'
  * pool's, which runs the same queries over its own D1 when asked (NuxflowPoolAdmin).
  */
 
-export interface MonthlySiteUsage {
-  id: string
-  name: string
-  domain: string
-  status: string
-  isPrimary: boolean
-  usage: Record<string, number>
-  snapshotDay: string | null
-  /** The member pool it lives in, or null for this Worker's own sites. */
-  poolId: string | null
-}
+export type MonthlySiteUsage = SiteMonthlyUsage
 
 /**
  * Every site's usage for one calendar month (UTC): event metrics summed over the month,
@@ -72,14 +63,15 @@ export async function localMonthlyUsage(event: H3Event, month: string): Promise<
     to: last,
     sites: siteRows.map(site => ({
       ...site,
-      usage: { ...zeros, ...usage.get(site.id) },
+      // Every metric is there: zeros first.
+      usage: { ...zeros, ...usage.get(site.id) } as SiteMonthlyUsage['usage'],
       snapshotDay: snapshotDay.get(site.id) ?? null,
     })),
   }
 }
 
 /** The month for every site: this Worker's, then each reachable pool's (unreachable pools named). */
-export async function monthlyUsageEverywhere(event: H3Event, month: string) {
+export async function monthlyUsageEverywhere(event: H3Event, month: string): Promise<Omit<UsageReport, 'month'>> {
   const own = await localMonthlyUsage(event, month)
   const unreachablePools: string[] = []
   const pooled = await Promise.all(poolBindings(event).map(async ({ binding, stub }) => {
@@ -109,7 +101,7 @@ export async function monthlyUsageEverywhere(event: H3Event, month: string) {
  * events is 0; a day with no nightly snapshot is null (not measured, rather than empty).
  * Null when the site isn't in this database.
  */
-export async function localSiteUsageSeries(event: H3Event, siteId: string, days: number) {
+export async function localSiteUsageSeries(event: H3Event, siteId: string, days: number): Promise<SiteUsageSeries | null> {
   const db = useDb(event)
   const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { id: true, name: true, domain: true } })
   if (!site) return null
@@ -130,10 +122,10 @@ export async function localSiteUsageSeries(event: H3Event, siteId: string, days:
     const i = index.get(r.day)
     if (i !== undefined && series[r.metric]) series[r.metric]![i] = r.value
   }
-  return { site, days: dayList, series }
+  // Every metric was filled in above.
+  return { site, days: dayList, series: series as SiteUsageSeries['series'] }
 }
 
-export type SiteUsageSeries = NonNullable<Awaited<ReturnType<typeof localSiteUsageSeries>>>
 
 /** One site's series wherever it lives. Null when no such site. */
 export async function siteUsageSeriesEverywhere(event: H3Event, siteId: string, days: number): Promise<SiteUsageSeries | null> {

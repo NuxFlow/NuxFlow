@@ -7,6 +7,7 @@ import { describePools } from './pools'
 import { isServedCopy } from './move-state'
 import { directoryKey, normalizeHostname, poolBindingName } from '../../shared/lib/pool-id'
 import { httpError } from './response'
+import type { DirectoryConflict, DirectorySyncResult } from '../../shared/lib/pool-types'
 
 /**
  * The site directory: which member pool serves each address, for the front-door router
@@ -20,21 +21,7 @@ import { httpError } from './response'
  * what the pools report — from Super Admin → Pools and hourly (`pool-directory-sync`).
  */
 
-export interface DirectoryConflict {
-  hostname: string
-  reason: string
-}
-
-export interface DirectorySyncResult {
-  /** Addresses now routed to a pool. */
-  routed: number
-  added: string[]
-  removed: string[]
-  /** Addresses left out: they'd send a site's visitors to the wrong place. */
-  conflicts: DirectoryConflict[]
-  /** Pools that didn't answer — their existing entries were kept. */
-  unreachable: string[]
-}
+export type { DirectoryConflict, DirectorySyncResult } from '../../shared/lib/pool-types'
 
 interface Entry { hostname: string; poolId: string; poolSiteId: string }
 
