@@ -1,17 +1,7 @@
 <script setup lang="ts">
+import type { AdminClassPass } from '#shared/lib/membership-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Class passes' })
-
-interface Pass {
-  id: string
-  name: string
-  description: string | null
-  credits: number
-  price: number
-  currency: string
-  validDays: number | null
-  isActive: boolean
-}
 
 interface Holding {
   id: string
@@ -30,7 +20,7 @@ interface Holding {
 }
 
 const search = ref('')
-const { data, error, refresh } = useFetch<{ passes: Pass[]; holdings: Holding[] }>('/api/v1/class-passes', {
+const { data, error, refresh } = useFetch<{ passes: AdminClassPass[]; holdings: Holding[] }>('/api/v1/class-passes', {
   query: computed(() => ({ search: search.value || undefined })),
   server: false,
   watch: false,
@@ -51,7 +41,7 @@ function newPass() {
   passOpen.value = true
 }
 
-function editPass(pass: Pass) {
+function editPass(pass: AdminClassPass) {
   editingId.value = pass.id
   Object.assign(passForm, {
     name: pass.name,
@@ -86,7 +76,7 @@ async function savePass() {
   }, { key: 'save-pass', successTitle: 'Pass saved', errorTitle: 'Couldn\'t save the pass' })
 }
 
-async function setActive(pass: Pass, isActive: boolean) {
+async function setActive(pass: AdminClassPass, isActive: boolean) {
   const url: string = `/api/v1/class-passes/${pass.id}`
   await run(() => $fetch<unknown, string>(url, { method: 'PATCH', body: { action: 'update', isActive } }), {
     key: `pass:${pass.id}`,
@@ -96,7 +86,7 @@ async function setActive(pass: Pass, isActive: boolean) {
   await refresh()
 }
 
-const deletePass = ref<Pass | null>(null)
+const deletePass = ref<AdminClassPass | null>(null)
 const deleteOpen = computed({
   get: () => Boolean(deletePass.value),
   set: (open) => {

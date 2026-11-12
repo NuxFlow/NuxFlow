@@ -4,6 +4,7 @@ import { findVideoEmbeds, videoEmbedUrl, videoThumbnailUrl, videoWatchUrl, type 
 import type { Db } from './db'
 import { createIsolateCache } from './isolate-cache'
 import type { IndexableEntry } from './sitemap-entries'
+import type { PageVideo } from '../../shared/lib/public-page-types'
 
 /**
  * What search engines are told about the videos on a page: the VideoObject structured
@@ -18,19 +19,7 @@ import type { IndexableEntry } from './sitemap-entries'
  * oEmbed endpoint and kept for six hours per isolate; a video with no thumbnail is left out.
  */
 
-export interface PageVideo {
-  name: string
-  description: string
-  thumbnailUrl: string
-  embedUrl: string
-  /** The video's own page on its platform. */
-  watchUrl: string
-  /** ISO 8601 with time zone. */
-  uploadDate: string
-  /** ISO 8601 duration, e.g. PT3M20S. */
-  duration?: string
-  durationSeconds?: number
-}
+export type { PageVideo }
 
 export interface VideoPageInfo {
   title: string

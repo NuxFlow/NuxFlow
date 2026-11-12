@@ -1,5 +1,6 @@
 import type { BusinessInfo } from '@nuxflow/canvas/business'
 import { extractMenus } from '@nuxflow/canvas/menu'
+import type { PageVideo } from '#shared/lib/public-page-types'
 /**
  * Pure helpers for public-page SEO: ISO dates, absolute URLs, FAQ extraction from Canvas
  * accordions, and schema.org JSON-LD. Kept free of Vue/Nuxt APIs so they're unit-testable
@@ -137,14 +138,8 @@ export interface JsonLdPage {
   videos?: JsonLdVideo[] | null
 }
 
-export interface JsonLdVideo {
-  name: string
-  description: string
-  thumbnailUrl: string
-  embedUrl: string
-  uploadDate: string
-  duration?: string
-}
+/** What VideoObject structured data needs from a page's video. */
+export type JsonLdVideo = Pick<PageVideo, 'name' | 'description' | 'thumbnailUrl' | 'embedUrl' | 'uploadDate' | 'duration'>
 
 export interface JsonLdSite {
   name: string

@@ -2,7 +2,8 @@ import { useDb } from '../../../../utils/db'
 import { requireRole } from '../../../../utils/permissions'
 import { getContentItemOrThrow } from '../../../../utils/content-queries'
 import { checkContentAccess } from '../../../../utils/content-access'
-import { comments } from '@nuxflow/db/schema'
+import { comments, users } from '@nuxflow/db/schema'
+import type { PublicComment } from '../../../../../shared/lib/comment-types'
 import { and, eq, desc } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -31,15 +32,26 @@ export default defineEventHandler(async (event) => {
     if (gate) throw notFound('Content item not found')
   }
 
-  const rows = await db.query.comments.findMany({
-    where: and(
+  // Only what a page's discussion shows: never an email address (Admin → Comments has
+  // those) or the commenter's account id. A signed-in commenter has no guest name, so their
+  // account name is looked up here — without it they all showed as "Anonymous".
+  const rows: PublicComment[] = await db.select({
+    id: comments.id,
+    body: comments.body,
+    createdAt: comments.createdAt,
+    parentId: comments.parentId,
+    status: comments.status,
+    guestName: comments.guestName,
+    authorName: users.name,
+  })
+    .from(comments)
+    .leftJoin(users, eq(comments.authorId, users.id))
+    .where(and(
       eq(comments.itemId, itemId),
       eq(comments.siteId, siteId),
       canModerate ? undefined : eq(comments.status, 'approved'),
-    ),
-    orderBy: [desc(comments.createdAt)],
-  })
+    ))
+    .orderBy(desc(comments.createdAt))
 
-  // Strip guest commenter email — only the admin moderation endpoint exposes this
-  return { comments: rows.map(({ guestEmail: _guestEmail, ...rest }) => rest) }
+  return { comments: rows }
 })

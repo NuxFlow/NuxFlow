@@ -9,6 +9,9 @@ import type { Db } from './db'
 import { assertWithinPlan } from './hosting-plans'
 import { assertPlanIncludesShop } from './shop'
 import { publicPathForItem } from './seo'
+import type { PublicProduct, PublicVariant } from '../../shared/lib/product-types'
+
+export type { PublicProduct, PublicVariant }
 
 /**
  * A product's options, variants and extra images (the side tables in schema/shop.ts). The
@@ -185,33 +188,6 @@ export async function planProductSave(event: H3Event, db: Db, siteId: string, it
 }
 
 // ── What visitors see ───────────────────────────────────────────────────────
-
-export interface PublicVariant {
-  id: string
-  options: string[]
-  label: string
-  priceMinor: number
-  compareAtMinor: number | null
-  price: string
-  /** The price as a decimal string ("12.50"), for structured data. */
-  amount: string
-  compareAt: string | null
-  kind: VariantRow['kind']
-  imageUrl: string | null
-  /** At the time the page was cached; the page asks again for the live stock. */
-  available: boolean
-}
-
-export interface PublicProduct {
-  id: string
-  currency: string
-  pricesIncludeTax: boolean
-  optionNames: string[]
-  images: { url: string; alt?: string }[]
-  variants: PublicVariant[]
-  priceLabel: string
-  available: boolean
-}
 
 export function toPublicProduct(itemId: string, loaded: { product: ProductRow | null; variants: VariantRow[] }, shop: { currency: string; pricesIncludeTax: boolean }, locale?: string): PublicProduct | null {
   if (!loaded.product) return null

@@ -1,23 +1,7 @@
 <script setup lang="ts">
+import type { AnalyticsResponse } from '#shared/lib/analytics-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Analytics' })
-
-interface Report {
-  days: 7 | 30 | 90
-  views: number
-  previousViews: number | null
-  series: { day: string; views: number }[]
-  pages: { path: string; views: number }[]
-  referrers: { host: string; views: number }[]
-  countries: { code: string; views: number }[]
-  devices: { device: string; views: number }[]
-}
-interface AnalyticsResponse {
-  recording: boolean
-  readable: boolean
-  report: Report | null
-  error: string | null
-}
 
 const RANGES = [
   { label: '7 days', value: 7 },

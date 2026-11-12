@@ -1,20 +1,7 @@
 <script setup lang="ts">
+import type { AdminComment } from '#shared/lib/comment-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Comments' })
-
-interface Comment {
-  id: string
-  body: string
-  status: 'pending' | 'approved' | 'spam' | 'trash'
-  createdAt: string
-  guestName: string | null
-  guestEmail: string | null
-  authorName: string | null
-  authorEmail: string | null
-  itemId: string
-  itemTitle: string | null
-  itemSlug: string | null
-}
 
 const statusTab = ref<'pending' | 'approved' | 'spam' | 'trash'>('pending')
 const tabs = [
@@ -24,7 +11,7 @@ const tabs = [
   { label: 'Trash', value: 'trash', color: 'neutral' },
 ]
 
-const { data, refresh, pending } = await useFetch<{ comments: Comment[] }>('/api/v1/comments', {
+const { data, refresh, pending } = await useFetch<{ comments: AdminComment[] }>('/api/v1/comments', {
   query: computed(() => ({ status: statusTab.value })),
   watch: [statusTab],
   default: () => ({ comments: [] }),
@@ -33,7 +20,7 @@ const { data, refresh, pending } = await useFetch<{ comments: Comment[] }>('/api
 const { run, isRunning, loading: anyBusy } = useAdminAction()
 const { confirm } = useConfirm()
 
-async function setStatus(id: string, status: Comment['status']) {
+async function setStatus(id: string, status: AdminComment['status']) {
   await run(async () => {
     await $fetch<unknown>(`/api/v1/comments/${id}`, { method: 'PATCH', body: { status } })
     await refresh()
@@ -53,10 +40,10 @@ async function deleteComment(id: string) {
   }, { errorTitle: "Couldn't delete comment", key: id })
 }
 
-function authorLabel(c: Comment) {
+function authorLabel(c: AdminComment) {
   return c.authorName ?? c.guestName ?? 'Anonymous'
 }
-function authorEmail(c: Comment) {
+function authorEmail(c: AdminComment) {
   return c.authorEmail ?? c.guestEmail ?? ''
 }
 
@@ -85,7 +72,7 @@ const statusColors: Record<string, UColor> = {
         :class="statusTab === tab.value
           ? 'bg-white dark:bg-gray-900 shadow-sm text-gray-900 dark:text-white'
           : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'"
-        @click="statusTab = tab.value as Comment['status']"
+        @click="statusTab = tab.value as AdminComment['status']"
       >
         {{ tab.label }}
       </button>

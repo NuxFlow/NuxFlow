@@ -7,11 +7,7 @@ import { parseQuery } from '../../utils/validate'
 import { withPublicPaths } from '../../utils/seo'
 import { requireSiteId } from '../../utils/site-context'
 import { searchIndex } from '../../utils/search'
-
-export interface SearchExcerptSegment {
-  text: string
-  highlighted: boolean
-}
+import type { SearchExcerptSegment, SearchResponse } from '../../../shared/lib/search-types'
 
 const querySchema = z.object({ q: z.string().optional() })
 
@@ -64,5 +60,5 @@ export default defineEventHandler(async (event) => {
     path: pathById.get(h.contentItemId) ?? null,
   }))
 
-  return { results }
+  return { results } satisfies SearchResponse
 })

@@ -1,25 +1,6 @@
 <script setup lang="ts">
-import type { JsonLdVideo, PublicSiteInfo } from '~/utils/seo'
-
-interface PublicPage {
-  id: string
-  title: string
-  path?: string
-  seoTitle?: string | null
-  seoDescription?: string | null
-  excerpt?: string | null
-  ogImage?: string | null
-  canonicalUrl?: string | null
-  robots?: string | null
-  locale?: string | null
-  publishedAt?: string | null
-  updatedAt?: string | null
-  content: unknown
-  hasComments?: boolean | null
-  availableLocales?: Array<{ locale: string; slug: string; rawSlug?: string }> | null
-  alternates?: Array<{ locale: string; path: string }> | null
-  videos?: JsonLdVideo[] | null
-}
+import type { PublicSiteInfo } from '~/utils/seo'
+import type { PublicPage } from '#shared/lib/public-page-types'
 
 // `cookie` is forwarded so a draft-preview cookie (api/preview/[token].get.ts) reaches the
 // page API during SSR — same as PublicContentPage.

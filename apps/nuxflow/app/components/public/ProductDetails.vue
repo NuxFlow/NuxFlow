@@ -1,31 +1,8 @@
 <script lang="ts">
-export interface PublicProductVariant {
-  id: string
-  options: string[]
-  label: string
-  priceMinor: number
-  compareAtMinor: number | null
-  price: string
-  amount: string
-  compareAt: string | null
-  kind: 'physical' | 'digital'
-  imageUrl: string | null
-  available: boolean
-}
-
-export interface PublicProductInfo {
-  id: string
-  currency: string
-  pricesIncludeTax: boolean
-  optionNames: string[]
-  images: { url: string; alt?: string }[]
-  variants: PublicProductVariant[]
-  priceLabel: string
-  available: boolean
-}
 </script>
 
 <script setup lang="ts">
+import type { PublicProduct, PublicVariant } from '#shared/lib/product-types'
 import { NuxImage } from '@nuxflow/canvas'
 import { sameOptions } from '#shared/lib/shop'
 
@@ -33,13 +10,13 @@ import { sameOptions } from '#shared/lib/shop'
 // whether it's in stock. The page is cached whole, so stock is asked for again in the
 // browser; everything else comes with the page.
 const props = defineProps<{
-  product: PublicProductInfo
+  product: PublicProduct
   title: string
   /** The featured image, shown first. */
   image?: string | null
 }>()
 
-const emit = defineEmits<{ variant: [PublicProductVariant | null] }>()
+const emit = defineEmits<{ variant: [PublicVariant | null] }>()
 
 const selected = ref<string[]>(props.product.variants[0]?.options.slice() ?? [])
 

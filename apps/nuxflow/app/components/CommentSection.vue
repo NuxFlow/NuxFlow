@@ -1,20 +1,11 @@
 <script setup lang="ts">
+import type { PublicComment } from '#shared/lib/comment-types'
 const props = defineProps<{ itemId: string }>()
-
-interface Comment {
-  id: string
-  body: string
-  createdAt: string
-  parentId: string | null
-  guestName: string | null
-  authorName: string | null
-  authorEmail: string | null
-}
 
 const { loggedIn, user } = useUserSession()
 
 // ── Comments ──────────────────────────────────────────────────────────────────
-const { data, refresh } = await useFetch<{ comments: Comment[] }>(
+const { data, refresh } = await useFetch<{ comments: PublicComment[] }>(
   `/api/v1/content/${props.itemId}/comments`,
 )
 const comments = computed(() => data.value?.comments ?? [])
@@ -22,7 +13,7 @@ const comments = computed(() => data.value?.comments ?? [])
 const roots = computed(() => comments.value.filter(c => !c.parentId))
 const repliesFor = (id: string) => comments.value.filter(c => c.parentId === id)
 
-function displayName(c: Comment) {
+function displayName(c: PublicComment) {
   return c.authorName ?? c.guestName ?? 'Anonymous'
 }
 

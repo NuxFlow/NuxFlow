@@ -1,16 +1,7 @@
 <script setup lang="ts">
+import type { PublicClassPass } from '#shared/lib/membership-types'
 // Buying a class pass, no account needed: the pass belongs to the email address given here.
 useSeoMeta({ title: 'Class passes', robots: 'noindex,nofollow' })
-
-interface Pass {
-  id: string
-  name: string
-  description: string | null
-  credits: number
-  price: number
-  currency: string
-  validDays: number | null
-}
 
 const { data: site } = useFetch<{ turnstileSiteKey?: string | null }>('/api/public/site', {
   key: 'nuxflow-public-site',
@@ -20,7 +11,7 @@ const { data: site } = useFetch<{ turnstileSiteKey?: string | null }>('/api/publ
 const route = useRoute()
 const { user } = useUserSession()
 
-const passes = ref<Pass[]>([])
+const passes = ref<PublicClassPass[]>([])
 const canBuy = ref(false)
 const loaded = ref(false)
 const chosenId = ref('')
@@ -37,7 +28,7 @@ onMounted(async () => {
   name.value = user.value?.name ?? ''
   email.value = user.value?.email ?? ''
   try {
-    const result = await $fetch<{ passes: Pass[]; canBuy: boolean }>('/api/public/class-passes')
+    const result = await $fetch<{ passes: PublicClassPass[]; canBuy: boolean }>('/api/public/class-passes')
     passes.value = result.passes
     canBuy.value = result.canBuy
     const asked = typeof route.query.buy === 'string' ? route.query.buy : ''

@@ -5,6 +5,7 @@ import { parseQuery } from '../../../utils/validate'
 import { comments, contentItems, users } from '@nuxflow/db/schema'
 import { and, eq, desc } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
+import type { AdminComment } from '../../../../shared/lib/comment-types'
 
 const querySchema = z.object({
   status: z.enum(['all', 'pending', 'approved', 'spam', 'trash']).default('pending'),
@@ -44,5 +45,5 @@ export default defineEventHandler(async (event) => {
     .orderBy(desc(comments.createdAt))
     .limit(100)
 
-  return { comments: rows }
+  return { comments: rows satisfies AdminComment[] }
 })

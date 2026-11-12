@@ -1,26 +1,9 @@
 <script setup lang="ts">
+import type { SearchResponse, SemanticResponse, SemanticResult } from '#shared/lib/search-types'
 const route = useRoute()
 const router = useRouter()
 const query = ref((route.query.q as string) ?? '')
 
-interface SearchExcerptSegment {
-  text: string
-  highlighted: boolean
-}
-
-interface SearchResult {
-  id: string
-  title: string
-  excerptSegments: SearchExcerptSegment[]
-  path: string | null
-}
-
-interface SearchResponse {
-  results: SearchResult[]
-}
-
-interface SemanticResult { id: string; title: string; score: number; path: string | null }
-interface SemanticResponse { available: boolean; results: SemanticResult[] }
 
 const { data, pending, error, execute } = await useLazyFetch<SearchResponse>('/api/v1/search', {
   query: computed(() => ({ q: query.value })),
