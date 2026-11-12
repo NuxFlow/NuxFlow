@@ -11,6 +11,7 @@
     "./video": "./src/utils/video-url.ts",
     "./events": "./src/utils/event-dates.ts",
     "./business": "./src/utils/business-hours.ts",
+    "./menu": "./src/utils/menu.ts",
     "./ai": "./src/ai/index.ts"
   },
   "scripts": {

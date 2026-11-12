@@ -1,4 +1,5 @@
 import type { BusinessInfo } from '@nuxflow/canvas/business'
+import { extractMenus } from '@nuxflow/canvas/menu'
 /**
  * Pure helpers for public-page SEO: ISO dates, absolute URLs, FAQ extraction from Canvas
  * accordions, and schema.org JSON-LD. Kept free of Vue/Nuxt APIs so they're unit-testable
@@ -275,6 +276,9 @@ export function buildPageJsonLd(page: JsonLdPage, site: JsonLdSite): Json[] {
       publisher,
     })
   }
+
+  // A café's or restaurant's Menu blocks (@nuxflow/canvas/menu).
+  for (const menu of extractMenus(page.content)) out.push({ '@context': 'https://schema.org', ...menu })
 
   const faq = extractFaqItems(page.content)
   if (faq.length > 0) {
