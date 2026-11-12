@@ -11,6 +11,8 @@ export interface CustomerOrder {
   total: string
   refunded: string | null
   shippingAddress: { name?: string | null; line1?: string | null; line2?: string | null; city?: string | null; state?: string | null; postalCode?: string | null; country?: string | null } | null
+  /** Click and collect: when, what the shop calls it, and where/how. */
+  collection?: { when: string; label: string; instructions: string } | null
   lines: {
     id: string
     name: string
@@ -53,6 +55,10 @@ const address = computed(() => {
       <div class="flex justify-between font-semibold"><dt>Total</dt><dd>{{ order.total }}</dd></div>
       <div v-if="order.refunded" class="flex justify-between text-gray-500"><dt>Refunded</dt><dd>{{ order.refunded }}</dd></div>
     </dl>
+    <div v-if="order.collection" class="text-sm">
+      <p class="font-medium">{{ order.collection.label }}: {{ order.collection.when }}</p>
+      <p v-if="order.collection.instructions" class="text-gray-600 dark:text-gray-400 whitespace-pre-line">{{ order.collection.instructions }}</p>
+    </div>
     <div v-if="address.length" class="text-sm">
       <p class="font-medium">Posting to</p>
       <p class="text-gray-600 dark:text-gray-400">{{ address.join(', ') }}</p>

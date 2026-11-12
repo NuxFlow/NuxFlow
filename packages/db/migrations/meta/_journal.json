@@ -64,6 +64,13 @@
       "when": 1794466422920,
       "tag": "0008_gallery_picks",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1794468371296,
+      "tag": "0009_click_collect",
+      "breakpoints": true
     }
   ]
 }

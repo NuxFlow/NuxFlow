@@ -50,6 +50,10 @@ export const orders = sqliteTable('orders', {
   shippingAddress: text('shipping_address', { mode: 'json' }).$type<{ name?: string | null; phone?: string | null; line1?: string | null; line2?: string | null; city?: string | null; state?: string | null; postalCode?: string | null; country?: string | null }>(),
   // When the customer ticked "I've read the returns policy".
   termsAcceptedAt: text('terms_accepted_at'),
+  // Click and collect: 'collect' with the chosen time (site time, "YYYY-MM-DDTHH:MM", or a
+  // day alone), else 'delivery' (also downloads-only orders).
+  fulfilment: text('fulfilment', { enum: ['delivery', 'collect'] }).notNull().default('delivery'),
+  collectAt: text('collect_at'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [

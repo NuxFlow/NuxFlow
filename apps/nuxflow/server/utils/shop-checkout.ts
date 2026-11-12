@@ -20,6 +20,8 @@ import { purgeContentCache } from './edge-cache'
 import { createOrder, discardOrder, findOrderForSession, getOrderLines, markOrderExpired, markOrderPaid, refundPayment, type OrderLineRow, type OrderRow } from './orders'
 import type { StripeCheckoutSession } from './booking-webhooks'
 import { downloadLink, downloadState } from './shop-downloads'
+import { getBusinessInfo } from './business'
+import { collectionDays, formatCollectAt, isCollectionChoice, type CollectionDay } from '../../shared/lib/shop-collection'
 
 /**
  * The shop's basket and checkout. The basket lives in the visitor's browser (a cookie would
@@ -129,8 +131,12 @@ export interface BasketQuote {
   pricesIncludeTax: boolean
   /** Tax is added at checkout (Stripe Tax on, prices without it). */
   taxAtCheckout: boolean
-  /** Something has to be posted and the shop posts nowhere. */
+  /** Something has to be posted and the shop neither posts it nor offers collection. */
   cannotShip: boolean
+  /** The shop posts somewhere (delivery can be chosen for posted goods). */
+  canDeliver: boolean
+  /** Click and collect, when it's on and something in the basket isn't a download. */
+  collection: { label: string; instructions: string; days: CollectionDay[] } | null
   /** The returns-policy page to agree to, when the shop has one. */
   returnsPath: string | null
   paymentsReady: boolean
@@ -160,7 +166,11 @@ export async function quoteBasket(event: H3Event, lines: readonly BasketRequestL
     currency: shop.currency,
     pricesIncludeTax: shop.pricesIncludeTax,
     taxAtCheckout: shop.stripeTax && !shop.pricesIncludeTax,
-    cannotShip: totals.needsShipping && shop.shippingCountries.length === 0,
+    cannotShip: totals.needsShipping && shop.shippingCountries.length === 0 && !shop.collectionEnabled,
+    canDeliver: shop.shippingCountries.length > 0,
+    collection: totals.needsShipping && shop.collectionEnabled
+      ? { label: shop.collectionLabel, instructions: shop.collectionInstructions, days: await collectionChoices(event, shop, locale) }
+      : null,
     returnsPath: shop.returnsPage ? publicPathForItem({ slug: shop.returnsPage }, locale) : null,
     paymentsReady,
   }
@@ -218,6 +228,22 @@ export interface CheckoutRequest {
   acceptedTerms: boolean
   /** This browser's last checkout, which a new one replaces (it came back without paying). */
   previous?: { orderId: string; token: string }
+  /** Posted goods: sent, or collected at `collectAt` (one of collectionChoices()). */
+  fulfilment?: 'delivery' | 'collect'
+  collectAt?: string
+}
+
+/** The days and times this shop's orders can be collected, from now. */
+export async function collectionChoices(event: H3Event, shop: ShopSettings, locale: string): Promise<CollectionDay[]> {
+  const site = await getSiteInfo(event, requireSiteId(event))
+  return collectionDays({
+    info: await getBusinessInfo(event),
+    timeZone: site?.timezone || 'UTC',
+    leadMinutes: shop.collectionLeadMinutes,
+    days: shop.collectionDays,
+    now: new Date(),
+    locale,
+  })
 }
 
 /**
@@ -263,8 +289,18 @@ export async function startShopCheckout(event: H3Event, input: CheckoutRequest):
   const problem = priced.find(l => l.problem)
   if (problem) conflict(`${problem.title}${problem.label ? ` (${problem.label})` : ''}: ${problem.problem}`, { variantId: problem.variantId })
 
-  const totals = basketTotals(priced, shippingSettings(shop))
-  if (totals.needsShipping && !shop.shippingCountries.length) conflict('This shop isn\'t posting anything at the moment.')
+  const delivered = basketTotals(priced, shippingSettings(shop))
+  // Click and collect: free, with a time that's still on offer now (the basket page may be old).
+  const collecting = delivered.needsShipping && input.fulfilment === 'collect'
+  if (collecting) {
+    if (!shop.collectionEnabled) conflict('This shop isn\'t offering collection at the moment.')
+    const days = await collectionChoices(event, shop, locale)
+    if (!input.collectAt || !isCollectionChoice(days, input.collectAt)) conflict('That collection time isn\'t available any more. Please choose another.')
+  }
+  else if (delivered.needsShipping && !shop.shippingCountries.length) {
+    conflict(shop.collectionEnabled ? 'Please choose a time to collect your order.' : 'This shop isn\'t posting anything at the moment.')
+  }
+  const totals = collecting ? { ...delivered, shippingMinor: 0 } : delivered
   if (shop.returnsPage && !input.acceptedTerms) validationError('Please confirm you\'ve read the returns policy.')
 
   const now = new Date()
@@ -288,6 +324,11 @@ export async function startShopCheckout(event: H3Event, input: CheckoutRequest):
     termsAcceptedAt: input.acceptedTerms ? now.toISOString() : null,
   })
 
+  if (collecting) {
+    await db.update(orders).set({ fulfilment: 'collect', collectAt: input.collectAt!, updatedAt: new Date().toISOString() })
+      .where(and(eq(orders.id, order.id), eq(orders.siteId, siteId)))
+  }
+
   const lines = await getOrderLines(db, siteId, order.id)
   for (const line of lines) {
     if (await takeLineStock(db, siteId, line)) continue
@@ -309,7 +350,8 @@ export async function startShopCheckout(event: H3Event, input: CheckoutRequest):
         const image = l.image ? absoluteUrl(l.image, origin) : null
         return { name: l.title, description: l.label || undefined, image: image && /^https:\/\//.test(image) ? image : undefined, unitMinor: l.unitMinor, quantity: l.quantity }
       }),
-      shipping: totals.needsShipping ? { countries: shop.shippingCountries, label: shop.shippingLabel, amountMinor: totals.shippingMinor } : null,
+      // Collected orders aren't posted, so Stripe asks for no address.
+      shipping: totals.needsShipping && !collecting ? { countries: shop.shippingCountries, label: shop.shippingLabel, amountMinor: totals.shippingMinor } : null,
       automaticTax: shop.stripeTax,
       pricesIncludeTax: shop.pricesIncludeTax,
       successUrl: `${origin}/checkout/thanks?${new URLSearchParams({ order: order.id, token })}`,
@@ -491,6 +533,15 @@ function notifyShopTeam(event: H3Event, title: string, body: string): void {
   }).catch(err => console.error('[shop] Team notification failed:', err)))
 }
 
+/** The receipt's lines about collecting: when, and the shop's own instructions. */
+async function collectionLines(event: H3Event, collectAt: string, locale: string): Promise<string[]> {
+  const shop = await getShopSettings(event)
+  return [
+    `${shop.collectionLabel}: ${formatCollectAt(collectAt, locale)}`,
+    ...(shop.collectionInstructions ? [shop.collectionInstructions] : []),
+  ]
+}
+
 /** The receipt: what they bought, where it's going, and the link to their order and downloads. */
 export async function sendOrderConfirmation(event: H3Event, order: OrderRow): Promise<void> {
   if (!order.email) return
@@ -508,6 +559,7 @@ export async function sendOrderConfirmation(event: H3Event, order: OrderRow): Pr
     ...(fresh.taxMinor ? [`Tax: ${money(fresh.taxMinor)}`] : []),
     `Total paid: ${money(fresh.totalMinor)}`,
     ...(address ? [`Posting to: ${[address.name, address.line1, address.line2, address.city, address.state, address.postalCode, address.country].filter(Boolean).join(', ')}`] : []),
+    ...(fresh.fulfilment === 'collect' && fresh.collectAt ? await collectionLines(event, fresh.collectAt, locale) : []),
   ]
   const hasDownloads = lines.some(l => l.isDigital)
   await sendTemplatedEmail(event, {
@@ -550,6 +602,10 @@ export async function customerOrderView(event: H3Event, orderId: string, token: 
     total: money(order.totalMinor),
     refunded: order.refundedMinor ? money(order.refundedMinor) : null,
     shippingAddress: order.shippingAddress,
+    // Click and collect: when, and where/how (the shop's own words).
+    collection: order.fulfilment === 'collect' && order.collectAt
+      ? { when: formatCollectAt(order.collectAt, locale), label: shop.collectionLabel, instructions: shop.collectionInstructions }
+      : null,
     lines: await Promise.all(lines.map(async l => ({
       id: l.id,
       name: l.name,

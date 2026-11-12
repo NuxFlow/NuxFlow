@@ -70,6 +70,19 @@ All on **Sales → Shop**. Press **Save** after changing them.
 
 Delivery is only charged when something in the basket is posted. A basket of downloads only has no delivery charge and asks for no address.
 
+### Click and collect
+
+Switch on **Let customers collect their order instead of having it posted** to offer collection at checkout. It's free, and Stripe asks for no address.
+
+- **Name at checkout**, such as "Collect from the bakery".
+- **Notice needed:** the soonest a customer can collect after ordering, in minutes (60 is an hour; 1440 is a day).
+- **Days ahead to offer:** how far ahead customers can choose (0 means today only).
+- **Where and how to collect:** shown at checkout and in the receipt, such as your address and which door to use.
+
+Customers choose a day and a time, every 15 minutes within your opening hours in **Settings → Business** (holiday hours count too, so they can't pick a day you're closed). If you haven't set opening hours, they choose a day only. Checkout checks the time again when they pay, in case it has passed since they opened the basket.
+
+To sell for **collection only** (a bakery, a café), leave **Countries you post to** empty and switch collection on. In **Admin → Orders**, each collected order shows when it's being collected, in the list and on the order.
+
 ### Returns
 
 **Returns policy page** is the slug of a page you've written yourself, such as `returns`. When it's set, customers must tick "I've read the returns policy" before they can pay, and the box links to that page. The order records when they ticked it.

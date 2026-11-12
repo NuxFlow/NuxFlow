@@ -22,6 +22,9 @@ const bodySchema = z.discriminatedUnion('action', [
     acceptedTerms: z.boolean().default(false),
     // This browser's last checkout, replaced by this one.
     previous: z.object({ orderId: z.string().min(1).max(64), token: z.string().max(128) }).optional(),
+    // Click and collect: the time chosen from the basket page's choices.
+    fulfilment: z.enum(['delivery', 'collect']).default('delivery'),
+    collectAt: z.string().regex(/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/).optional(),
     turnstileToken: z.string().max(4096).optional(),
   }),
 ])
@@ -38,5 +41,5 @@ export default defineEventHandler(async (event) => {
   // Each attempt keeps stock for half an hour, so these are what stop a bot emptying the shop.
   await rateLimit(event, { limit: 6, windowMs: 60_000, keyPrefix: 'shop-checkout' })
   if (!(await verifyTurnstile(body.turnstileToken ?? '', getClientIp(event) ?? undefined))) validationError('Spam check failed')
-  return startShopCheckout(event, { lines: body.lines, email: body.email || undefined, acceptedTerms: body.acceptedTerms, previous: body.previous })
+  return startShopCheckout(event, { lines: body.lines, email: body.email || undefined, acceptedTerms: body.acceptedTerms, previous: body.previous, fulfilment: body.fulfilment, collectAt: body.collectAt })
 })
