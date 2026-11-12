@@ -1,6 +1,6 @@
 # Payments & Memberships Setup
 
-NuxFlow has built-in support for subscription memberships, content gating, and [paid class bookings](#paid-event-bookings-and-class-passes). It connects to your choice of payment provider — Stripe, Lemon Squeezy, or Paddle — all configured through the admin dashboard with no code changes required.
+NuxFlow has built-in support for subscription memberships, content gating, [paid class bookings](#paid-event-bookings-and-class-passes) and [paid appointments](#paid-appointments). It connects to your choice of payment provider — Stripe, Lemon Squeezy, or Paddle — all configured through the admin dashboard with no code changes required.
 
 ---
 
@@ -59,7 +59,7 @@ Go to **Admin → Settings → Payments** and fill in the credentials for at lea
    - `customer.subscription.created`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
-   - `checkout.session.expired` and `charge.refunded` (for the shop, paid event bookings and class passes)
+   - `checkout.session.expired` and `charge.refunded` (for the shop, paid event bookings, class passes and paid appointments)
 4. After saving, copy the **Signing secret** (`whsec_...`) and paste it into **Settings → Payments → Stripe Webhook Secret**.
 
 > [!WARNING]
@@ -217,13 +217,24 @@ Refunds go back to the original card. Credits go back on the pass.
 
 ---
 
+## Paid appointments
+
+A **Book an Appointment** block with a price takes payment by card through Stripe when the visitor books (see [Book an Appointment block](./user-guide.md#book-an-appointment-block) in the User Guide). It uses the same Stripe keys and webhook as event bookings, with the same events (`checkout.session.completed`, `checkout.session.expired`, `charge.refunded`), so there's nothing extra to connect. Like bookings, it stays closed until the site has both the secret key and the webhook secret.
+
+- The time is kept while the visitor is at Stripe Checkout (about 30 minutes). If they leave without paying, it's free again when the session expires.
+- If a payment arrives after the time has gone to someone else, it's refunded automatically and the visitor is emailed.
+- A visitor's own cancellation is refunded if it's made at least the block's **Refund if cancelled** hours before. Cancelling from **Admin → Appointments** always refunds.
+- A full refund made in the Stripe Dashboard cancels the appointment.
+
+To check it end to end in Stripe test mode: book a paid time, pay with a test card, and confirm the "Booked" email arrives and the booking shows in **Admin → Appointments**. Then cancel it from the email's link and check the refund appears in Stripe.
+
 ## The shop
 
 The shop uses the same Stripe keys and webhook as memberships and bookings: there's nothing extra to connect. It needs `checkout.session.completed`, `checkout.session.expired` and `charge.refunded` in the webhook's events (step 2 above). Turn it on and set it up in **Sales → Shop**; see the **[Shop Guide](./shop.md)**.
 
 ## Orders
 
-Every one-off payment on the site (a shop order, a paid booking, a class pass, a membership bought in one go) is recorded as an order in **Sales → Orders** (admins only), where you can refund all or part of it. Subscriptions aren't orders; they stay under Memberships. Refunds made in Stripe's dashboard are shown there too. Details are in the [User Guide](./user-guide.md#orders).
+Every one-off payment on the site (a shop order, a paid booking, a paid appointment, a class pass, a membership bought in one go) is recorded as an order in **Sales → Orders** (admins only), where you can refund all or part of it. Subscriptions aren't orders; they stay under Memberships. Refunds made in Stripe's dashboard are shown there too. Details are in the [User Guide](./user-guide.md#orders).
 
 ## Subscription management
 
