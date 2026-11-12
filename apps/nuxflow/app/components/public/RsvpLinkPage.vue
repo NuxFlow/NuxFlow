@@ -1,21 +1,10 @@
 <script setup lang="ts">
+import type { RsvpLinkDetails, RsvpLinkResult } from '#shared/lib/booking-types'
 // The landing page for the links in booking emails (/rsvp/confirm, /rsvp/cancel). Acting
 // takes a button press (a POST), not just opening the link: mail scanners open every link in
 // an email, and would otherwise take or give up places nobody meant to.
 
 const props = defineProps<{ action: 'confirm' | 'cancel' }>()
-
-interface LinkResult {
-  status: string
-  title: string
-  when: string
-  path: string
-  payUrl?: string
-}
-
-interface CancelDetails extends LinkResult {
-  terms: { refund: 'card' | 'pass' | null; tooLate: boolean; deadline: string | null }
-}
 
 const route = useRoute()
 const id = computed(() => (typeof route.query.id === 'string' ? route.query.id : ''))
@@ -23,8 +12,8 @@ const token = computed(() => (typeof route.query.token === 'string' ? route.quer
 
 const loading = ref(false)
 const error = ref('')
-const done = ref<LinkResult | null>(null)
-const details = ref<CancelDetails | null>(null)
+const done = ref<RsvpLinkResult | null>(null)
+const details = ref<RsvpLinkDetails | null>(null)
 
 const copy = computed(() => {
   if (props.action === 'confirm') {
@@ -56,7 +45,7 @@ const outcome = computed(() => {
 onMounted(async () => {
   if (props.action !== 'cancel' || !id.value || !token.value) return
   // Only what it costs to cancel: pressing the button still works if this can't load.
-  details.value = await $fetch<CancelDetails>('/api/public/rsvp/link', {
+  details.value = await $fetch<RsvpLinkDetails>('/api/public/rsvp/link', {
     method: 'POST',
     body: { action: 'describe-cancel', id: id.value, token: token.value },
   }).catch(() => null)
@@ -66,7 +55,7 @@ async function act() {
   error.value = ''
   loading.value = true
   try {
-    done.value = await $fetch<LinkResult>('/api/public/rsvp/link', {
+    done.value = await $fetch<RsvpLinkResult>('/api/public/rsvp/link', {
       method: 'POST',
       body: { action: props.action, id: id.value, token: token.value },
     })

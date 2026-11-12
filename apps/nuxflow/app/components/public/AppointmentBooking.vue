@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AppointmentFreeTimes, BookingAnswer } from '#shared/lib/booking-types'
 import type { PublicSite } from '#shared/lib/public-site-types'
 // The Appointment block's picker and form (CanvasHost.appointmentBooking). The page is cached
 // whole, so free times are fetched here, in the browser. Reads and posts
@@ -10,16 +11,8 @@ import { hiddenFieldNames, isFilled } from '#shared/lib/form-logic'
 
 const props = defineProps<{ block: string; askPhone?: boolean }>()
 
-interface Day { date: string; times: Array<{ start: string; time: string }> }
-interface Free {
-  service: { name: string; duration: number; durationText: string; price: number | null; currency: string; cancelHours: number; canPayByCard: boolean }
-  timeZone: string
-  days: Day[]
-  previous: string | null
-  next: string | null
-  intake: { name: string; fields: RenderableField[] } | null
-}
-type Answer = { status: 'pending' | 'confirmed' | 'checkout'; url?: string }
+/** The free times, plus the intake form the route adds when the page asks for one. */
+type FreeTimes = AppointmentFreeTimes & { intake: { name: string; fields: RenderableField[] } | null }
 
 const { data: site } = useFetch<PublicSite>('/api/public/site', {
   key: 'nuxflow-public-site',
@@ -28,7 +21,7 @@ const { data: site } = useFetch<PublicSite>('/api/public/site', {
 const { user } = useUserSession()
 const uid = useId()
 
-const free = ref<Free | null>(null)
+const free = ref<FreeTimes | null>(null)
 const failedToLoad = ref(false)
 const loadingTimes = ref(false)
 const day = ref('')
@@ -48,7 +41,7 @@ const path = () => window.location.pathname.replace(/^\/+|\/+$/g, '')
 async function load(from?: string) {
   loadingTimes.value = true
   try {
-    const loaded = await $fetch<Free>('/_nuxflow/appointments', { query: { path: path(), block: props.block, from } })
+    const loaded = await $fetch<FreeTimes>('/_nuxflow/appointments', { query: { path: path(), block: props.block, from } })
     const firstLoad = !free.value
     free.value = loaded
     if (firstLoad) seedIntake(loaded.intake?.fields ?? [])
@@ -124,7 +117,7 @@ async function submit() {
   }
   sending.value = true
   try {
-    const answer = await $fetch<Answer>('/_nuxflow/appointments', {
+    const answer = await $fetch<BookingAnswer>('/_nuxflow/appointments', {
       method: 'POST',
       body: {
         action: 'book',

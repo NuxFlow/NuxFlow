@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CustomerOrder } from '~/components/shop/OrderSummary.vue'
+import type { CustomerOrder } from '#shared/lib/shop-types'
 
 // A customer's own order, from the link in their receipt. No account needed: the link's
 // token is the proof.
