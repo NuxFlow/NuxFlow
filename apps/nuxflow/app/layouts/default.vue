@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { PublicSiteInfo } from '~/utils/seo'
+import type { PublicSite } from '#shared/lib/public-site-types'
 import { localBusinessJsonLd, siteClock } from '@nuxflow/canvas/business'
 
 const route = useRoute()
 
 // Deduped with PublicSiteHeader's identical fetch — no extra request.
-const { data: site } = await useFetch<PublicSiteInfo & { headerBlockId?: string | null; footerBlockId?: string | null }>('/api/public/site', {
+const { data: site } = await useFetch<PublicSite>('/api/public/site', {
   headers: useRequestHeaders(['host']),
 })
 

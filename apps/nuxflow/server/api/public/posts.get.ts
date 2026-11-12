@@ -9,6 +9,7 @@ import { requireSiteId } from '../../utils/site-context'
 import { parseQuery } from '../../utils/validate'
 import { fieldFilterConditions, fieldSortOrder, publicFilterDefs } from '../../utils/field-filters'
 import { pageDetails, parseFieldDefs } from '../../../shared/lib/custom-fields'
+import type { PostsResponse } from '../../../shared/lib/listing-types'
 
 const CACHE_MAX_AGE = 300
 /** How many of an item's details a listing card shows. */
@@ -76,6 +77,6 @@ export default defineEventHandler(async (event) => {
       totalPages: Math.ceil(result.total / limit),
       // The filters a listing of this type offers (the Posts block's "Show filters").
       ...(defs.length ? { filters: publicFilterDefs(defs) } : {}),
-    }
+    } satisfies PostsResponse
   })
 })

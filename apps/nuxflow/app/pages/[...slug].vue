@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PublicSiteInfo } from '~/utils/seo'
+import type { PublicSite } from '#shared/lib/public-site-types'
 
 // Public content pages — rendering, SEO meta, and structured data all live in
 // PublicContentPage (app/components/public/ContentPage.vue), which the two-segment
@@ -9,7 +9,7 @@ import type { PublicSiteInfo } from '~/utils/seo'
 const route = useRoute()
 const slugPath = computed(() => (route.params.slug as string[]).join('/'))
 
-const { data: site } = await useFetch<PublicSiteInfo>('/api/public/site', { headers: useRequestHeaders(['host']) })
+const { data: site } = await useFetch<PublicSite>('/api/public/site', { headers: useRequestHeaders(['host']) })
 const isTaxonomyIndex = computed(() => !slugPath.value.includes('/')
   && (site.value?.taxonomies ?? []).some(t => t.slug === slugPath.value))
 </script>

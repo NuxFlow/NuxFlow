@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PublicSite } from '#shared/lib/public-site-types'
 // The booking form on an event page. The page itself is cached whole, so whether places are
 // left is fetched here in the browser, and nothing about a visitor is in the cached HTML.
 // An event can ask for an intake form (a waiver, a health questionnaire), answered here
@@ -37,7 +38,7 @@ interface RsvpState {
 
 type Answer = { status: 'pending' | 'confirmed' | 'waitlist' | 'checkout'; url?: string }
 
-const { data: site } = useFetch<{ turnstileSiteKey?: string | null }>('/api/public/site', {
+const { data: site } = useFetch<PublicSite>('/api/public/site', {
   key: 'nuxflow-public-site',
   headers: useRequestHeaders(['host']),
 })

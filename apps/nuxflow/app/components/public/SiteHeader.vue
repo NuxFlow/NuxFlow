@@ -1,17 +1,6 @@
 <script setup lang="ts">
+import type { PublicSite } from '#shared/lib/public-site-types'
 import type { MenuLink, MenuItem } from '#shared/lib/menu-types'
-interface SitePublic {
-  name: string
-  domain: string
-  locale: string
-  showHeader: boolean
-  showSearch: boolean
-  showStickyHeader: boolean
-  logoSize: 'sm' | 'md' | 'lg'
-  logoUrl: string | null
-  canonicalBase: string
-  shop?: { currency: string } | null
-}
 
 const logoHeightClass = computed(() => {
   const size = site.value?.logoSize ?? 'md'
@@ -20,7 +9,7 @@ const logoHeightClass = computed(() => {
   return 'h-8'
 })
 
-const { data: site } = await useFetch<SitePublic>('/api/public/site', {
+const { data: site } = await useFetch<PublicSite>('/api/public/site', {
   headers: useRequestHeaders(['host']),
 })
 const { data: menu } = await useFetch<{ items: unknown[] } | null>('/api/public/menus/header', {

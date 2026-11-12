@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import type { PublicSite } from '#shared/lib/public-site-types'
 import type { PublicClassPass } from '#shared/lib/membership-types'
 // Buying a class pass, no account needed: the pass belongs to the email address given here.
 useSeoMeta({ title: 'Class passes', robots: 'noindex,nofollow' })
 
-const { data: site } = useFetch<{ turnstileSiteKey?: string | null }>('/api/public/site', {
+const { data: site } = useFetch<PublicSite>('/api/public/site', {
   key: 'nuxflow-public-site',
   headers: useRequestHeaders(['host']),
 })

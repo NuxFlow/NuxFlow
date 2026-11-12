@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PublicSite } from '#shared/lib/public-site-types'
 import { computed, reactive, ref } from 'vue'
 import { spacingToCss, type SpacingValue } from '@nuxflow/canvas'
 
@@ -31,11 +32,11 @@ const form = reactive({
 const loading = ref(false)
 const submitted = ref(false)
 
-const { data: _siteData } = useFetch('/api/public/site', {
+const { data: _siteData } = useFetch<PublicSite>('/api/public/site', {
   key: 'nuxflow-turnstile-key',
   headers: useRequestHeaders(['host']),
 })
-const turnstileSiteKey = computed(() => (_siteData.value as { turnstileSiteKey?: string | null } | null)?.turnstileSiteKey ?? '')
+const turnstileSiteKey = computed(() => _siteData.value?.turnstileSiteKey ?? '')
 const hasTurnstile = computed(() => Boolean(turnstileSiteKey.value))
 
 const containerStyle = computed(() => {

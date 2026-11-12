@@ -1,45 +1,19 @@
-import type { BusinessInfo } from '@nuxflow/canvas/business'
 import { extractMenus } from '@nuxflow/canvas/menu'
 import type { PageVideo } from '#shared/lib/public-page-types'
+import type { PublicSite, PublicSiteSeo } from '#shared/lib/public-site-types'
 /**
  * Pure helpers for public-page SEO: ISO dates, absolute URLs, FAQ extraction from Canvas
  * accordions, and schema.org JSON-LD. Kept free of Vue/Nuxt APIs so they're unit-testable
  * (tests/unit/app-seo.test.ts) and shared by ContentPage.vue, index.vue, and the layout.
  */
 
-export interface PublicSiteSeo {
-  title: string
-  description: string
-  ogImage: string
-  twitterHandle: string
-  socialProfiles: string[]
-  verification: { google: string; bing: string; yandex: string; pinterest: string }
-  noindex: boolean
-  noindexTaxonomies: boolean
-  markdownEnabled: boolean
-}
+export type { PublicSiteSeo }
 
-export interface PublicSiteInfo {
-  name?: string
-  domain?: string
-  locale?: string | null
-  timezone?: string | null
-  canonicalBase?: string
-  logoUrl?: string | null
-  locales?: string[]
-  /** The site's taxonomies — /{slug} renders that taxonomy's overview page. */
-  taxonomies?: { slug: string; name: string }[]
-  seo?: PublicSiteSeo
-  /** The shop, when it's on (Admin → Shop). */
-  shop?: { currency: string; pricesIncludeTax: boolean } | null
-  /** Settings → Business (address, phone, opening hours), when any is set. */
-  business?: BusinessInfo | null
-  /** Settings → Podcast, when it's on: its feed for apps and the head's alternate link. */
-  podcast?: { title: string; feedUrl: string; contentType: string } | null
-  /** Settings → Appearance → Posts: "5 min read" on posts, "On this page" on long pages. */
-  showReadingTime?: boolean
-  showToc?: boolean
-}
+/**
+ * GET /api/public/site as the helpers below take it: every field optional, so they also
+ * work (and are tested) with only the parts they use.
+ */
+export type PublicSiteInfo = Partial<PublicSite>
 
 /**
  * A <link> entry for useHead(). Literal `rel` types per member (not a widened string) so

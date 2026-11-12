@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PublicSite } from '#shared/lib/public-site-types'
 // The basket. What's in it lives in this browser (useCart); every time the page opens, the
 // server prices it again and says what can't be had any more.
 useSeoMeta({ title: 'Your basket', robots: 'noindex,nofollow' })
@@ -29,7 +30,7 @@ interface Quote {
 }
 
 const cart = useCart()
-const { data: site } = useFetch<{ turnstileSiteKey?: string | null }>('/api/public/site', { key: 'nuxflow-public-site', headers: useRequestHeaders(['host']) })
+const { data: site } = useFetch<PublicSite>('/api/public/site', { key: 'nuxflow-public-site', headers: useRequestHeaders(['host']) })
 const turnstileToken = ref('')
 
 // The last checkout this browser opened, replaced by the next one (sessionStorage: this tab only).

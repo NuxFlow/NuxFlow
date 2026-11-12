@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import type { PublicSite } from '#shared/lib/public-site-types'
 import { computed } from 'vue'
 import { spacingToCss, type SpacingValue } from '@nuxflow/canvas'
-import { DEFAULT_SIGNUP_SETTINGS, publicSignupSettings, type PublicSignupSettings } from '#shared/lib/signup-prompt'
+import { DEFAULT_SIGNUP_SETTINGS, publicSignupSettings } from '#shared/lib/signup-prompt'
 
 // Signup box Canvas block (`mailing-list/signup`) — the inline, no-popup way to collect
 // email addresses. Heading/description/button come from the block; consent wording,
@@ -23,7 +24,7 @@ const props = withDefaults(defineProps<{
   padding: undefined,
 })
 
-const { data: site } = useFetch<{ signup?: PublicSignupSettings; turnstileSiteKey?: string | null }>('/api/public/site', {
+const { data: site } = useFetch<PublicSite>('/api/public/site', {
   key: 'nuxflow-public-site',
   headers: useRequestHeaders(['host']),
 })

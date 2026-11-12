@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PublicSite } from '#shared/lib/public-site-types'
 import { CONSENT_EVENT, readConsentCookie } from '@nuxflow/canvas/consent'
 import {
   isBuiltInExcludedPath,
@@ -22,10 +23,7 @@ import {
 // - on phones it's always a small bar at the bottom, never a full-screen takeover
 // - closing it keeps it away for `hideDays`
 
-const { data: site } = useFetch<{
-  signup?: PublicSignupSettings
-  turnstileSiteKey?: string | null
-}>('/api/public/site', {
+const { data: site } = useFetch<PublicSite>('/api/public/site', {
   key: 'nuxflow-public-site',
   headers: useRequestHeaders(['host']),
 })

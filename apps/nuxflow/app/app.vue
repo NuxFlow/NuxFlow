@@ -1,18 +1,8 @@
 <script setup lang="ts">
+import type { PublicSite } from '#shared/lib/public-site-types'
 import { businessContextKey, imageTransformsEnabledKey } from '@nuxflow/canvas'
-import type { BusinessInfo } from '@nuxflow/canvas/business'
-import type { PublicSiteSeo } from '~/utils/seo'
 
-const { data: siteInfo } = useFetch<{
-  name?: string
-  locale?: string | null
-  timezone?: string | null
-  business?: BusinessInfo | null
-  faviconUrl?: string | null
-  imageTransformsEnabled?: boolean
-  hasPlugins?: boolean
-  seo?: PublicSiteSeo
-}>('/api/public/site', {
+const { data: siteInfo } = useFetch<PublicSite>('/api/public/site', {
   // Explicit key so dynamic-plugins.client.ts can read this same response back out of
   // the Nuxt payload cache (via useNuxtData) instead of issuing its own separate fetch
   // just to check `hasPlugins` — see that plugin for why this works despite plugins
