@@ -598,6 +598,66 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     },
   },
 
+  // ── Menu ────────────────────────────────────────────────────────────────────
+  {
+    id: 'canvas-menu',
+    name: 'Menu',
+    description: 'A food and drink menu with sections, prices and dietary labels',
+    icon: 'i-lucide-utensils',
+    category: 'content',
+    component: 'CanvasBlockMenu',
+    ai: { hint: 'A café or restaurant menu. Use the real dishes and prices from the request; if none are given, a short sample menu with obviously placeholder prices. Dietary codes: V, VG, GF, DF, N, H, S.' },
+    thumbnailColor: '#fff7ed',
+    fields: [
+      { key: 'title', label: 'Heading', type: 'text', placeholder: 'Menu' },
+      { key: 'intro', label: 'Intro', type: 'textarea', placeholder: 'Served 8am – 3pm, every day.' },
+      {
+        key: 'itemsJson',
+        label: 'Dishes',
+        type: 'list',
+        fields: [
+          { key: 'section', label: 'Section (only on its first dish)', type: 'text', placeholder: 'Breakfast' },
+          { key: 'name', label: 'Dish', type: 'text', placeholder: 'Full English' },
+          { key: 'description', label: 'Description', type: 'textarea' },
+          { key: 'price', label: 'Price', type: 'text', placeholder: '£9.50', translatable: false },
+          { key: 'dietary', label: 'Dietary (V, VG, GF, DF, N, H, S)', type: 'text', placeholder: 'VG, GF', translatable: false },
+        ],
+      },
+      {
+        key: 'columns',
+        label: 'Layout',
+        type: 'select',
+        ai: false,
+        options: [
+          { label: 'One column', value: '1' },
+          { label: 'Two columns', value: '2' },
+        ],
+      },
+      { key: 'currency', label: 'Currency (for search engines, e.g. GBP)', type: 'text', placeholder: 'GBP', translatable: false, ai: false },
+      { key: 'showKey', label: 'Explain the dietary labels underneath', type: 'toggle', ai: false },
+      { key: 'note', label: 'Note underneath', type: 'textarea', placeholder: 'Please tell us about any allergies when you order.' },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      title: 'Menu',
+      intro: '',
+      itemsJson: JSON.stringify([
+        { section: 'Breakfast', name: 'Sourdough toast', description: 'With butter and homemade jam', price: '£4.50', dietary: 'V' },
+        { section: '', name: 'Avocado on toast', description: 'Chilli, lime, toasted seeds', price: '£8.00', dietary: 'VG' },
+        { section: 'Drinks', name: 'Flat white', description: '', price: '£3.20', dietary: '' },
+      ]),
+      columns: '1',
+      currency: 'GBP',
+      showKey: true,
+      note: 'Please tell us about any allergies when you order.',
+      bgColor: '',
+      textColor: '',
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
   // ── CTA Banner ────────────────────────────────────────────────────────────
   {
     id: 'canvas-cta',
