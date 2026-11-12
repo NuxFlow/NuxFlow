@@ -27,6 +27,11 @@ vi.mock('../../server/utils/db', () => ({
   getD1: () => null,
 }))
 vi.mock('../../server/utils/rate-limit', () => ({ rateLimit: vi.fn().mockResolvedValue(undefined) }))
+const mockNotify = vi.fn().mockResolvedValue(undefined)
+vi.mock('../../server/utils/notify', async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  notifySiteRole: (...args: unknown[]) => mockNotify(...args),
+}))
 const mockSafeFetch = vi.fn()
 vi.mock('../../server/utils/ssrf', () => ({
   isSafeUrl: () => true,
@@ -37,6 +42,8 @@ const { prepareGalleryDownload, openGalleryFile } = await import('../../server/u
 const { default: downloadHandler } = await import('../../server/api/public/gallery-download.get')
 const { default: patchHandler } = await import('../../server/api/v1/content/[id].patch')
 const { default: unlockHandler } = await import('../../server/api/public/page-unlock.post')
+const { default: picksPost } = await import('../../server/routes/_nuxflow/gallery-picks.post')
+const { default: picksGet } = await import('../../server/routes/_nuxflow/gallery-picks.get')
 
 const SITE = 'site-gallery-dl-01'
 const OTHER = 'site-gallery-dl-02'
@@ -149,5 +156,61 @@ describe('GET /api/public/gallery-download', () => {
   it('404s an out-of-range photo index and a gallery with downloads off', async () => {
     await expect((downloadHandler as HandlerFn)(visitor({ path: 'shoot', block: 'gal1', index: '99' }))).rejects.toMatchObject({ statusCode: 404 })
     await expect((downloadHandler as HandlerFn)(visitor({ path: 'no-downloads', block: 'gal1' }))).rejects.toMatchObject({ statusCode: 404 })
+  })
+})
+
+describe('client proofing (gallery picks)', () => {
+  const TOKEN_A = 'a'.repeat(32)
+  const TOKEN_B = 'b'.repeat(32)
+  const save = (body: Record<string, unknown>, cookies: Record<string, string> = {}, headers: Record<string, string> = {}) =>
+    (picksPost as HandlerFn)(createMockEvent({ siteId: SITE, session: null, cookies, headers, body: { action: 'save', block: 'gal1', ...body } }) as unknown as H3Event)
+  const editorEvent = (query: Record<string, string>, body?: unknown) =>
+    createMockEvent({ siteId: SITE, session: { user: { id: editorId, name: 'Ed', email: 'editor@gallery-dl.test' } }, query, body }) as unknown as H3Event
+
+  async function proofingPage(slug: string) {
+    return seedContentItem(getCurrentTestDb(), SITE, typeId, {
+      slug,
+      status: 'published',
+      content: { type: 'canvas', blocks: [{ id: 'gal1', type: 'canvas-gallery', props: { images: JSON.stringify(IMAGES), allowFavourites: true } }] },
+    })
+  }
+
+  it('keeps each picker apart, only photos in the gallery, and tells the team on Send', async () => {
+    const id = await proofingPage('proof-1')
+    await save({ path: 'proof-1', token: TOKEN_A, name: 'Harper', photos: ['https://cdn.example.com/site/a.jpg', 'https://not-in-gallery.test/x.jpg'] })
+    await save({ path: 'proof-1', token: TOKEN_B, name: 'Sam', photos: [`/_nuxflow/media/${SITE}/b.jpg`] })
+    expect(mockNotify).not.toHaveBeenCalled()
+
+    const res = await save({ path: 'proof-1', token: TOKEN_A, name: 'Harper', photos: ['https://cdn.example.com/site/a.jpg'], note: 'Love these', submit: true }) as { count: number }
+    expect(res.count).toBe(1)
+    expect(mockNotify).toHaveBeenCalledTimes(1)
+    expect(mockNotify.mock.calls[0]![1]).toMatchObject({ type: 'gallery.picks', title: 'Harper picked 1 photo' })
+
+    // Sending the same picks again doesn't tell the team twice.
+    await save({ path: 'proof-1', token: TOKEN_A, name: 'Harper', photos: ['https://cdn.example.com/site/a.jpg'], note: 'Love these', submit: true })
+    expect(mockNotify).toHaveBeenCalledTimes(1)
+
+    const own = await (picksGet as HandlerFn)(visitor({ path: 'proof-1', block: 'gal1', token: TOKEN_A })) as { picks: { photos: string[] } }
+    expect(own.picks.photos).toEqual(['https://cdn.example.com/site/a.jpg'])
+
+    const admin = await (picksGet as HandlerFn)(editorEvent({ item: id })) as { pickers: Array<{ name: string; photos: Array<{ fileName: string }> }> }
+    expect(admin.pickers.map(p => [p.name, p.photos.map(f => f.fileName)]).sort()).toEqual([['Harper', ['DSC_0001.jpg']], ['Sam', ['DSC_0002.jpg']]])
+  })
+
+  it('refuses a gallery without favourites, a bad token and a request from another site', async () => {
+    await galleryPage('no-proofing')
+    await expect(save({ path: 'no-proofing', token: TOKEN_A, name: 'X', photos: [] })).rejects.toMatchObject({ statusCode: 404 })
+    await expect(save({ path: 'proof-1', token: 'short', name: 'X', photos: [] })).rejects.toMatchObject({ statusCode: 422 })
+    await expect(save({ path: 'proof-1', token: TOKEN_A, name: 'X', photos: [] }, {}, { 'sec-fetch-site': 'cross-site' })).rejects.toMatchObject({ statusCode: 403 })
+    await expect((picksGet as HandlerFn)(visitor({ item: 'anything' }))).rejects.toMatchObject({ statusCode: 401 })
+  })
+
+  it('lets an editor remove a picker', async () => {
+    const id = await proofingPage('proof-2')
+    await save({ path: 'proof-2', token: TOKEN_A, name: 'Harper', photos: ['https://cdn.example.com/site/a.jpg'] })
+    const before = await (picksGet as HandlerFn)(editorEvent({ item: id })) as { pickers: Array<{ id: string }> }
+    await (picksPost as HandlerFn)(editorEvent({}, { action: 'remove', item: id, id: before.pickers[0]!.id }))
+    const after = await (picksGet as HandlerFn)(editorEvent({ item: id })) as { pickers: unknown[] }
+    expect(after.pickers).toHaveLength(0)
   })
 })

@@ -57,6 +57,13 @@
       "when": 1794424948518,
       "tag": "0007_custom_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794466422920,
+      "tag": "0008_gallery_picks",
+      "breakpoints": true
     }
   ]
 }

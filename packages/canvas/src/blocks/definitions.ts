@@ -979,6 +979,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       { key: 'showCameraDetails', label: 'Show camera details (camera, lens, settings — from the photo file)', type: 'toggle', ai: false },
       { key: 'rounded', label: 'Rounded corners', type: 'toggle' },
       { key: 'lightbox', label: 'Open lightbox on click', type: 'toggle' },
+      { key: 'allowFavourites', label: 'Let clients pick favourites (a heart on each photo, for proofing)', type: 'toggle', ai: false },
       // Client galleries: a "Download all" button (zip) and a download button per photo in
       // the lightbox. Anyone who can see the page can download — see gallery-download.ts.
       { key: 'allowDownload', label: 'Allow downloads (all photos + each photo)', type: 'toggle', ai: false },
@@ -997,6 +998,7 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
       showCameraDetails: false,
       rounded: false,
       lightbox: true,
+      allowFavourites: false,
       allowDownload: false,
       padding: { top: 16, right: 24, bottom: 16, left: 24, unit: 'px' },
     },

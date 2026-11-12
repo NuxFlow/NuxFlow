@@ -5,7 +5,7 @@
  */
 
 import { defineAsyncComponent } from 'vue'
-import { canvasHostKey, type CanvasClassPass, type CanvasContent, type CanvasEventList, type CanvasHost, type CanvasPostFilter, type CanvasPostItem, type CanvasProductCard } from '@nuxflow/canvas'
+import { canvasHostKey, type CanvasClassPass, type CanvasContent, type CanvasEventList, type CanvasHost, type CanvasGalleryPicks, type CanvasPostFilter, type CanvasPostItem, type CanvasProductCard } from '@nuxflow/canvas'
 
 // Every method rejects with an Error carrying the server's own message, which the package
 // shows to the user as-is.
@@ -22,6 +22,13 @@ export default defineNuxtPlugin((nuxtApp) => {
     async listPosts({ filters, ...query }) {
       const data = await call(() => $fetch<{ posts?: CanvasPostItem[] }>('/api/public/posts', { query: { ...query, ...filters } }), 'Could not load posts')
       return data.posts ?? []
+    },
+    async loadGalleryPicks(query) {
+      const data = await call(() => $fetch<{ picks: CanvasGalleryPicks | null }>('/_nuxflow/gallery-picks', { query }), 'Could not load your picks')
+      return data.picks
+    },
+    async saveGalleryPicks(input) {
+      return call(() => $fetch<{ count: number; submitted: boolean }>('/_nuxflow/gallery-picks', { method: 'POST', body: { action: 'save', ...input } }), input.submit ? 'Could not send your picks' : 'Could not save your picks')
     },
     async listPostFilters(type) {
       const data = await call(() => $fetch<{ filters?: CanvasPostFilter[] }>('/api/public/posts', { query: { type, limit: 1 } }), 'Could not load filters')

@@ -19,9 +19,11 @@ const props = defineProps<{
   initialIndex?: number
   /** When set (a gallery with downloads on), shows a Download button for the current image. */
   downloadUrl?: (index: number) => string
+  /** Client proofing: whether a photo is in this visitor's favourites; shows a heart. */
+  isPicked?: (index: number) => boolean
 }>()
 
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; togglePick: [index: number] }>()
 
 const current = ref(props.initialIndex ?? 0)
 
@@ -140,6 +142,19 @@ onUnmounted(() => {
     >
       <UIcon name="i-lucide-download" mode="svg" class="w-6 h-6 block" />
     </a>
+
+    <!-- Favourite (client proofing) -->
+    <button
+      v-if="isPicked"
+      type="button"
+      class="nux-lightbox-pick absolute top-4 p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+      :class="downloadUrl ? 'right-28' : 'right-16'"
+      :aria-pressed="isPicked(current)"
+      :aria-label="isPicked(current) ? 'Remove this photo from your favourites' : 'Add this photo to your favourites'"
+      @click="emit('togglePick', current)"
+    >
+      <svg viewBox="0 0 24 24" class="w-6 h-6 block" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :fill="isPicked(current) ? '#f43f5e' : 'none'" :class="isPicked(current) ? 'text-rose-500' : ''" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>
+    </button>
 
     <!-- Prev -->
     <button

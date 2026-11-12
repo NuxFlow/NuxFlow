@@ -107,6 +107,9 @@ const activeTypeSlug = computed(() => {
 const { data: contentTypesData } = useFetch<{ types: Array<{ slug: string; fields: CustomFieldDef[] }> }>('/api/v1/content-types', { server: false })
 const fieldDefs = computed(() => contentTypesData.value?.types.find(t => t.slug === activeTypeSlug.value)?.fields ?? [])
 
+// Client proofing: a saved page with a gallery that lets clients pick favourites shows their picks.
+const hasProofingGallery = computed(() => !isNew.value && JSON.stringify(form.content ?? '').includes('"allowFavourites":true'))
+
 // Tell the sidebar, once mounted: it has already rendered by the time this page's data arrives
 // on the server, so setting it earlier would make the server and browser HTML disagree.
 const editingType = useEditingContentType()
@@ -583,6 +586,10 @@ onUnmounted(() => {
               Reset to type default
             </UButton>
           </div>
+        </UCard>
+
+        <UCard v-if="hasProofingGallery">
+          <EditorGalleryPicksPanel :item-id="id" />
         </UCard>
 
         <UCard v-if="fieldDefs.length">

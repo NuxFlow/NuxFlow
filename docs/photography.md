@@ -89,6 +89,17 @@ Your client sees a password form; after entering it, their browser remembers it 
 
 > **Good to know:** the password protects the page. Each photo is stored at a long, unguessable address, but someone who is sent a photo's direct link can still open it.
 
+### Proofing: letting clients pick their favourites
+
+Switch on **Let clients pick favourites** in the Gallery block's settings. Each photo, and the lightbox, then gets a heart, and a bar above the gallery shows how many have been picked.
+
+- Your client adds their name, taps the heart on the photos they love (they can tick **Show only my picks** to review them) and presses **Send my picks**. They can add a note, such as "Can this one be black and white?".
+- Picks save as they go, so nothing is lost if they close the page and come back on the same device. Each person picks separately, so a couple can both choose on their own phones.
+- When they press **Send my picks**, you get a notification and an email (**Client picks**; change this in your notification settings). They can change their mind and send again.
+- In the page's editor, the **Client picks** panel lists everyone's picks with the date they sent them. **Copy file names** copies them in a form you can paste into Lightroom's or Capture One's text filter (`DSC_0012, DSC_0031`), and **CSV** downloads the list.
+
+No account is needed. A client is recognised by their browser, so picks made on another device show up as a separate list.
+
 ---
 
 ## Focal Point Editor

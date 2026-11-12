@@ -24,7 +24,7 @@ export { businessContextKey } from './utils/business-context'
 export type { BusinessContext } from './utils/business-context'
 export { blockIdKey } from './utils/block-context'
 export { canvasHostKey, useCanvasHost } from './host'
-export type { CanvasHost, CanvasClassPass, CanvasProductCard, CanvasProductsQuery, CanvasPostItem, CanvasPostFilter, CanvasEventItem, CanvasEventList, CanvasEventsQuery, CanvasPostsQuery, CanvasPageRequest } from './host'
+export type { CanvasHost, CanvasClassPass, CanvasProductCard, CanvasProductsQuery, CanvasPostItem, CanvasPostFilter, CanvasGalleryPicks, CanvasGalleryPicksSave, CanvasEventItem, CanvasEventList, CanvasEventsQuery, CanvasPostsQuery, CanvasPageRequest } from './host'
 
 // Vue components
 //
