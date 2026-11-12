@@ -4,6 +4,7 @@ import { parsePagination } from '../../utils/pagination'
 import { auditLogs } from '@nuxflow/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { requireSiteId } from '../../utils/site-context'
+import type { AuditLogEntry } from '../../../shared/lib/site-admin-types'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
@@ -23,5 +24,5 @@ export default defineEventHandler(async (event) => {
     offset,
   })
 
-  return { logs, page, limit }
+  return { logs: logs satisfies AuditLogEntry[], page, limit }
 })

@@ -68,3 +68,33 @@ export interface VideoAsset {
   isPrivate: boolean
   playbackUrl: string
 }
+
+// ── Moving database-stored media to real storage (server/utils/media-migration.ts)
+
+/** GET /api/v1/media/migration: what's still in the database, and whether it can move. */
+export interface MigrationStatus {
+  provider: string
+  /** True for binding-only R2: media is served through this Worker at /_nuxflow/media/. */
+  servedByWorker: boolean
+  canMigrate: boolean
+  pendingMedia: number
+  pendingMediaBytes: number
+  /** Images embedded in content and settings as `data:` URLs. */
+  pendingInline: number
+}
+
+export interface MigrationItemResult {
+  id: string
+  ok: boolean
+  error?: string
+  newUrl?: string
+}
+
+/** POST /api/v1/media/migration: one batch moved. */
+export interface MigrationBatchResult {
+  results: MigrationItemResult[]
+  /** Pass back as `cursor` for the next batch. */
+  nextCursor: string | null
+  /** True once this phase has nothing left to do. */
+  done: boolean
+}

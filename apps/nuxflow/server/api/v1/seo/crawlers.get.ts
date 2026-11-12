@@ -4,6 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { getCrawlerActivity } from '../../../utils/crawler-tracking'
 import { blockedCrawlerTokens, getSeoSettings, KNOWN_CRAWLERS } from '../../../utils/seo'
 import { requireSiteId } from '../../../utils/site-context'
+import type { CrawlerReport } from '../../../../shared/lib/seo-types'
 
 const querySchema = z.object({ days: z.coerce.number().int().min(1).max(90).default(30) })
 
@@ -23,5 +24,5 @@ export default defineEventHandler(async (event) => {
     daily: activity.daily,
     bots: activity.bots.map(b => ({ ...b, blocked: blocked.has(b.bot) })),
     registry: KNOWN_CRAWLERS.map(c => ({ token: c.token, owner: c.owner, category: c.category, legacy: Boolean(c.legacy), blocked: blocked.has(c.token) })),
-  }
+  } satisfies CrawlerReport
 })

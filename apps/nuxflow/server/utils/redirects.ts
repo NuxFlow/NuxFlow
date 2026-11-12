@@ -7,7 +7,6 @@ import type { Db } from './db'
 import { clearRedirectCache, normalizeRedirectPath } from './redirect-cache'
 
 export const REDIRECT_STATUS_CODES = [301, 302, 307, 308, 410] as const
-export type RedirectStatus = typeof REDIRECT_STATUS_CODES[number]
 
 /**
  * Validation shared by create, edit, and import. `to` may be a site path (`/new`) or an

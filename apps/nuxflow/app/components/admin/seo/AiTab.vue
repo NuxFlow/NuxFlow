@@ -1,15 +1,9 @@
 <script setup lang="ts">
+import type { CrawlerReport } from '#shared/lib/seo-types'
 const { form, saving, save } = inject(SEO_FORM_KEY)!
 
-interface CrawlerRow { bot: string; category: string; hits: number; lastSeenAt: string; lastPath: string | null; blocked: boolean }
-interface RegistryRow { token: string; owner: string; category: string; legacy: boolean; blocked: boolean }
-
 const days = ref(30)
-const { data: activity, pending: activityPending, refresh: refreshActivity } = await useFetch<{
-  days: number
-  bots: CrawlerRow[]
-  registry: RegistryRow[]
-}>('/api/v1/seo/crawlers', { query: { days } })
+const { data: activity, pending: activityPending, refresh: refreshActivity } = await useFetch<CrawlerReport>('/api/v1/seo/crawlers', { query: { days } })
 
 const modes = [
   {
@@ -52,7 +46,7 @@ function wouldBlock(category: string): boolean {
 }
 
 const registryByCategory = computed(() => {
-  const groups: Record<string, RegistryRow[]> = {}
+  const groups: Record<string, CrawlerReport['registry']> = {}
   for (const r of activity.value?.registry ?? []) {
     if (r.category === 'search') continue
     ;(groups[r.category] ??= []).push(r)

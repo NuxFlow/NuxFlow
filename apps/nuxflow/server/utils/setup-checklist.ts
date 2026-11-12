@@ -13,6 +13,7 @@ import { getAccountsOrigin } from './accounts-origin'
 import { isPrimarySite } from './site-info'
 import { requireSiteId } from './site-context'
 import { getTurnstileSecret } from './turnstile'
+import type { ChecklistItem } from '../../shared/lib/site-admin-types'
 
 /**
  * The admin dashboard's "Finish setting up your site" card (GET /api/v1/site-checklist,
@@ -25,23 +26,6 @@ import { getTurnstileSecret } from './turnstile'
  * `buildSetupChecklist()` is pure (unit-tested); `gatherSetupChecklistInputs()` collects
  * the facts it needs from settings, bindings, and the database.
  */
-
-export type ChecklistStatus = 'done' | 'todo' | 'problem'
-export type ChecklistTier = 'essential' | 'recommended'
-
-export interface ChecklistItem {
-  id: string
-  tier: ChecklistTier
-  status: ChecklistStatus
-  title: string
-  /** Plain-language explanation of the current state and why it matters. */
-  detail: string
-  /** Admin page where it's fixed. */
-  fixUrl?: string
-  fixLabel?: string
-  /** Anchor in docs/installation.md with step-by-step instructions. */
-  docsAnchor?: string
-}
 
 export interface ChecklistInputs {
   storageProvider: string

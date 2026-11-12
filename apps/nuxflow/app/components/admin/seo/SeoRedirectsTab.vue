@@ -1,17 +1,8 @@
 <script setup lang="ts">
+import type { AdminRedirect, RedirectImportResult, RedirectStatusCode } from '#shared/lib/seo-types'
 const { run, isRunning, toast } = useAdminAction()
 
-type StatusCode = 301 | 302 | 307 | 308 | 410
-
-interface Redirect {
-  id: string
-  from: string
-  to: string
-  statusCode: StatusCode
-  createdAt: string
-}
-
-const { data: redirectData, refresh: refreshRedirects } = await useFetch<{ redirects: Redirect[] }>('/api/v1/redirects')
+const { data: redirectData, refresh: refreshRedirects } = await useFetch<{ redirects: AdminRedirect[] }>('/api/v1/redirects')
 const search = ref('')
 const redirects = computed(() => {
   const all = redirectData.value?.redirects ?? []
@@ -19,7 +10,7 @@ const redirects = computed(() => {
   return q ? all.filter(r => r.from.toLowerCase().includes(q) || r.to.toLowerCase().includes(q)) : all
 })
 
-const statusOptions: { label: string; value: StatusCode }[] = [
+const statusOptions: { label: string; value: RedirectStatusCode }[] = [
   { label: '301 — Moved permanently', value: 301 },
   { label: '308 — Permanent (keeps method)', value: 308 },
   { label: '302 — Temporary', value: 302 },
@@ -27,7 +18,7 @@ const statusOptions: { label: string; value: StatusCode }[] = [
   { label: '410 — Gone (removed for good)', value: 410 },
 ]
 
-const STATUS_BADGE: Record<StatusCode, { label: string; color: 'info' | 'warning' | 'error' }> = {
+const STATUS_BADGE: Record<RedirectStatusCode, { label: string; color: 'info' | 'warning' | 'error' }> = {
   301: { label: 'Permanent', color: 'info' },
   308: { label: 'Permanent', color: 'info' },
   302: { label: 'Temporary', color: 'warning' },
@@ -37,7 +28,7 @@ const STATUS_BADGE: Record<StatusCode, { label: string; color: 'info' | 'warning
 
 // ── Add / edit ───────────────────────────────────────────────────────────────
 const editing = ref<string | null>(null)
-const form = reactive({ from: '', to: '', statusCode: 301 as StatusCode })
+const form = reactive({ from: '', to: '', statusCode: 301 as RedirectStatusCode })
 const formError = ref('')
 const saving = ref(false)
 
@@ -49,11 +40,11 @@ function resetForm() {
   formError.value = ''
 }
 
-function startEdit(r: Redirect) {
+function startEdit(r: AdminRedirect) {
   editing.value = r.id
   form.from = r.from
   form.to = r.to
-  form.statusCode = r.statusCode
+  form.statusCode = r.statusCode as RedirectStatusCode
   formError.value = ''
 }
 
@@ -101,8 +92,7 @@ const showImport = ref(false)
 const importText = ref('')
 const importOverwrite = ref(false)
 const importing = computed(() => isRunning('import'))
-interface ImportResult { created: number; updated: number; skipped: number; errors: { line: number; message: string }[] }
-const importResult = ref<ImportResult | null>(null)
+const importResult = ref<RedirectImportResult | null>(null)
 
 async function onImportFile(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
@@ -112,7 +102,7 @@ async function onImportFile(e: Event) {
 async function runImport() {
   importResult.value = null
   await run(async () => {
-    const result = await $fetch<ImportResult>('/api/v1/redirects/import', {
+    const result = await $fetch<RedirectImportResult>('/api/v1/redirects/import', {
       method: 'POST',
       body: { csv: importText.value, overwrite: importOverwrite.value },
     })
@@ -203,11 +193,11 @@ const columns = [
         </template>
         <template #statusCode-cell="{ row }">
           <UBadge
-            :color="STATUS_BADGE[row.original.statusCode as StatusCode]?.color ?? 'neutral'"
+            :color="STATUS_BADGE[row.original.statusCode as RedirectStatusCode]?.color ?? 'neutral'"
             variant="soft"
             size="sm"
           >
-            {{ row.original.statusCode }} {{ STATUS_BADGE[row.original.statusCode as StatusCode]?.label }}
+            {{ row.original.statusCode }} {{ STATUS_BADGE[row.original.statusCode as RedirectStatusCode]?.label }}
           </UBadge>
         </template>
         <template #actions-cell="{ row }">

@@ -9,6 +9,7 @@ import { isHostingPlatform } from './hosting-platform'
 import { bumpCacheVersion } from './cache-version'
 import { utcDay } from './utc-day'
 import { forbidden } from './response'
+import type { SitePlanSummary } from '../../shared/lib/site-admin-types'
 
 /**
  * Hosting plans: what the operator sells a site, and the limits that come with it
@@ -227,7 +228,7 @@ export async function assertWithinPlan(event: H3Event, key: PlanLimitKey, amount
 }
 
 /** Every limit on the site's plan with current usage — for the site owner's usage card. */
-export async function sitePlanSummary(db: Db, siteId: string) {
+export async function sitePlanSummary(db: Db, siteId: string): Promise<SitePlanSummary> {
   const plan = await getSitePlan(db, siteId)
   if (!plan) return { plan: null, limits: [] }
   // A limit of 0 means "not included" (no video, no plugins…) — nothing to show as usage.

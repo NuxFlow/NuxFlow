@@ -1,4 +1,5 @@
 import type { SeoSettings } from './seo'
+import type { AuditIssue, AuditIssueCode, SeoAuditResponse, SiteCheck } from '../../shared/lib/seo-types'
 
 export interface AuditItemInput {
   id: string
@@ -14,21 +15,12 @@ export interface AuditItemInput {
   canonicalUrl: string | null
 }
 
-export type AuditIssueCode =
-  | 'missing_description' | 'description_too_short' | 'description_too_long' | 'no_custom_description'
-  | 'title_too_long' | 'duplicate_title' | 'duplicate_description'
-  | 'missing_image' | 'inline_image' | 'noindex' | 'external_canonical'
-
-export interface AuditIssue { code: AuditIssueCode; severity: 'error' | 'warning' | 'info'; message: string }
-
-export interface SiteCheck { id: string; severity: 'error' | 'warning' | 'info' | 'ok'; message: string }
-
 const TITLE_MAX = 60
 const DESC_MIN = 50
 const DESC_MAX = 160
 
 /** Pure scoring logic for GET /api/v1/seo/audit — separated so it's unit-testable. */
-export function buildSeoAudit(items: AuditItemInput[], seo: SeoSettings, opts: { truncated: boolean }) {
+export function buildSeoAudit(items: AuditItemInput[], seo: SeoSettings, opts: { truncated: boolean }): SeoAuditResponse {
   // Duplicates only matter among pages a search engine will actually index.
   const indexed = items.filter(i => i.isPublic && !i.noindex)
   const count = (values: (string | null)[]) => {

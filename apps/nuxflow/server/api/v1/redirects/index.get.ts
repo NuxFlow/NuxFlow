@@ -3,6 +3,7 @@ import { requireRole } from '../../../utils/permissions'
 import { redirects } from '@nuxflow/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
+import type { AdminRedirect } from '../../../../shared/lib/seo-types'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
@@ -12,5 +13,5 @@ export default defineEventHandler(async (event) => {
     where: eq(redirects.siteId, siteId),
     orderBy: [desc(redirects.createdAt)],
   })
-  return { redirects: items }
+  return { redirects: items satisfies AdminRedirect[] }
 })
