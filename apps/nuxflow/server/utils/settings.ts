@@ -49,6 +49,8 @@ export const SENSITIVE_SETTING_KEYS = new Set([
   // simpler setup for a single-operator site (see gatewayRequestHeaders() in ai-sdk.ts).
   'ai.gateway_token',
   'push.vapid_private_key',
+  // Google Places API key, for the Google Reviews block (server/utils/google-reviews.ts).
+  'integrations.google_places_key',
   'cloudflare.stream_token',
   'cloudflare.images_token',
   // SMS provider credentials — added proactively ahead of SMS feature implementation

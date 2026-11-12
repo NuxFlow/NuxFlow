@@ -131,6 +131,10 @@
        .canvas-menu-diet[data-code="V|VG|GF|DF|N|H|S"]  a dietary label
        .canvas-menu-key                         the labels' key underneath
        .canvas-menu-note                        the note underneath
+     .canvas-google-reviews  Google Reviews block
+       .canvas-google-reviews-summary           the overall rating
+       .canvas-google-review                    one review
+       .canvas-google-reviews-attribution       "Reviews from Google" and the link
      .canvas-hours         Opening Hours block
        .canvas-hours-status[data-open="true|false"]  the "Open now" / "Closed" badge
        .canvas-hours-table                      the week

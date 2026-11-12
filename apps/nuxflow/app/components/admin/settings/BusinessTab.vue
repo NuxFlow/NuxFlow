@@ -7,6 +7,10 @@ import { BUSINESS_DAYS, BUSINESS_KINDS, dayName, emptyHours, parseBusinessInfo, 
 // Opening Hours block and the LocalBusiness data on every public page.
 
 const KEY = 'business.profile'
+// The Google Places API key is a separate, encrypted setting; GET shows it masked, and sending
+// the mask back keeps it (settings.ts).
+const PLACES_KEY = 'integrations.google_places_key'
+const placesKey = ref('')
 
 interface DayState { open: boolean; slots: HoursSlot[] }
 interface ExceptionState { date: string; closed: boolean; slots: HoursSlot[]; note: string }
@@ -17,7 +21,7 @@ const stored = computed(() => data.value ? parseBusinessInfo(data.value.settings
 
 const details = reactive({
   kind: 'LocalBusiness', name: '', phone: '', email: '', street: '', locality: '', region: '', postcode: '', country: '',
-  latitude: '', longitude: '', priceRange: '', hoursNote: '',
+  latitude: '', longitude: '', priceRange: '', hoursNote: '', googlePlaceId: '',
 })
 const days = reactive(Object.fromEntries(BUSINESS_DAYS.map(d => [d, { open: false, slots: [] as HoursSlot[] }])) as Record<BusinessDay, DayState>)
 const exceptions = ref<ExceptionState[]>([])
@@ -26,7 +30,7 @@ function load(info: BusinessInfo) {
   Object.assign(details, {
     kind: info.kind, name: info.name ?? '', phone: info.phone ?? '', email: info.email ?? '', street: info.street ?? '',
     locality: info.locality ?? '', region: info.region ?? '', postcode: info.postcode ?? '', country: info.country ?? '',
-    latitude: info.latitude != null ? String(info.latitude) : '', longitude: info.longitude != null ? String(info.longitude) : '', priceRange: info.priceRange ?? '', hoursNote: info.hoursNote ?? '',
+    latitude: info.latitude != null ? String(info.latitude) : '', longitude: info.longitude != null ? String(info.longitude) : '', priceRange: info.priceRange ?? '', hoursNote: info.hoursNote ?? '', googlePlaceId: info.googlePlaceId ?? '',
   })
   for (const d of BUSINESS_DAYS) {
     const slots = info.hours[d] ?? []
@@ -38,6 +42,7 @@ function load(info: BusinessInfo) {
   }))
 }
 watch(stored, info => info && load(info), { immediate: true })
+watch(() => data.value?.settings[PLACES_KEY], (v) => { placesKey.value = typeof v === 'string' ? v : '' }, { immediate: true })
 
 const kindItems = BUSINESS_KINDS.map(k => ({ label: k.label, value: k.value }))
 
@@ -78,7 +83,7 @@ async function save() {
       .map(e => ({ date: e.date, slots: e.closed ? [] : e.slots.map(s => ({ ...s })), ...(e.note.trim() ? { note: e.note.trim() } : {}) })),
   }
   await run(async () => {
-    await $fetch<unknown>('/api/v1/settings', { method: 'PATCH', body: { settings: { [KEY]: body } } })
+    await $fetch<unknown>('/api/v1/settings', { method: 'PATCH', body: { settings: { [KEY]: body, [PLACES_KEY]: placesKey.value.trim() } } })
     await refresh()
   }, { successTitle: 'Business details saved', errorTitle: 'Couldn\'t save the business details', key: 'save' })
 }
@@ -163,6 +168,26 @@ async function save() {
       <UFormField label="Note under the hours" class="mt-4" hint="Optional">
         <UInput v-model="details.hoursNote" class="w-full" placeholder="Kitchen closes 30 minutes before we do." />
       </UFormField>
+    </UCard>
+
+    <UCard>
+      <template #header>
+        <p class="text-sm font-semibold text-gray-900 dark:text-white">Google reviews</p>
+        <p class="mt-1 text-xs text-gray-500">For the Google Reviews block: your star rating and recent reviews, straight from Google. You need your business's Place ID and an API key from your own Google Cloud account (each look-up is billed to it; NuxFlow asks at most once an hour).</p>
+      </template>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <UFormField label="Google Place ID" hint="Starts ChIJ…">
+          <UInput v-model="details.googlePlaceId" class="w-full" placeholder="ChIJ…" />
+        </UFormField>
+        <UFormField label="Google Places API key" hint="Kept encrypted">
+          <UInput v-model="placesKey" type="password" autocomplete="off" class="w-full" />
+        </UFormField>
+      </div>
+      <p class="mt-3 text-xs text-gray-500">
+        Find your Place ID with Google's
+        <a href="https://developers.google.com/maps/documentation/places/web-service/place-id" target="_blank" rel="noopener" class="underline">Place ID finder</a>.
+        Create the key in Google Cloud with the "Places API (New)" switched on, and restrict it to that API.
+      </p>
     </UCard>
 
     <UCard>

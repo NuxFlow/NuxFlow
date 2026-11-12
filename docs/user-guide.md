@@ -667,7 +667,7 @@ To accept payments, configure at least one payment provider in **Admin → Setti
 
 Canvas is a visual drag-and-drop page builder built into NuxFlow. It adds a **Canvas** editor mode to any page or post, letting you build layouts from blocks without writing code.
 
-Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), **Video gallery**, Columns, **Container**, Feature grids, Testimonials, CTA banners, Buttons, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), **Posts**, **Events Calendar**, **Class Passes**, Contact Form, Form, **Signup box**, **Before & After**, **Logo Strip**, **Map**, **Opening Hours**, **Menu**, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
+Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), **Video gallery**, Columns, **Container**, Feature grids, Testimonials, CTA banners, Buttons, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), **Posts**, **Events Calendar**, **Class Passes**, Contact Form, Form, **Signup box**, **Before & After**, **Logo Strip**, **Map**, **Opening Hours**, **Menu**, **Google Reviews**, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
 
 #### Nesting blocks
 
@@ -690,6 +690,15 @@ Enable **Open lightbox on click** to let visitors view images full-screen. The l
 A café's or restaurant's menu. Add each dish under **Dishes** with its name, a description, the price as you want it shown (`£9.50`) and any dietary labels: **V** vegetarian, **VG** vegan, **GF** gluten free, **DF** dairy free, **N** contains nuts, **H** halal, **S** spicy (type them like `VG, GF`). Type a **Section** (Breakfast, Mains, Drinks) on the first dish of each section only, and the dishes below it follow it until the next section starts.
 
 Choose one or two columns. A key to the labels you've used appears underneath (turn off **Explain the dietary labels underneath** if you'd rather not), with an optional note such as "Please tell us about any allergies when you order." The menu is also given to search engines as a schema.org menu, with each dish's price and which diets it suits. Set **Currency** to your three-letter currency code (GBP, EUR, USD) for that.
+
+#### Google Reviews block
+
+Shows your star rating, how many reviews you have and up to five recent reviews, straight from your business's Google listing, with a **See all reviews on Google** link. Set it up once in **Admin → Settings → Business → Google reviews**:
+
+1. Find your business's **Place ID** with Google's Place ID finder (it starts `ChIJ`).
+2. In your own Google Cloud account, switch on **Places API (New)**, create an **API key** restricted to that API, and paste it in. It's stored encrypted.
+
+Google charges each look-up to that account. NuxFlow asks at most once an hour and shows the same answer to every visitor in between, so a small business pays pennies a month, usually inside Google's free allowance. Google decides which five reviews it returns; they're shown as written, with Google's name on them, as its terms require.
 
 #### Opening Hours block
 

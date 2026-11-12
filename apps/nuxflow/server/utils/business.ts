@@ -20,7 +20,7 @@ export async function getBusinessInfo(event: H3Event): Promise<BusinessInfo | nu
 /** True when there's anything worth publishing (an address, a phone, or some hours). */
 export function hasBusinessDetails(info: BusinessInfo | null): info is BusinessInfo {
   if (!info) return false
-  return Boolean(info.phone || info.street || info.locality || info.postcode
+  return Boolean(info.phone || info.street || info.locality || info.postcode || info.googlePlaceId
     || Object.values(info.hours).some(s => s.length) || info.exceptions.length)
 }
 
@@ -43,6 +43,7 @@ const businessSchema = z.object({
   longitude: z.number().min(-180).max(180).nullable().optional(),
   priceRange: z.string().max(20).optional(),
   hoursNote: z.string().max(200).optional(),
+  googlePlaceId: z.union([z.literal(''), z.string().trim().regex(/^[\w-]{10,300}$/, "That doesn't look like a Google Place ID (it starts ChIJ…)")]).optional(),
   hours: z.record(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']), z.array(slot).max(4)),
   exceptions: z.array(z.object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Dates look like 2026-12-25'),

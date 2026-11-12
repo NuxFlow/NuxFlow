@@ -14,6 +14,15 @@ export interface CanvasPostItem {
   details?: Array<{ key: string; label: string; text: string }>
 }
 
+/** The business's Google reviews, for the Google Reviews block. */
+export interface CanvasGoogleReviews {
+  name: string
+  rating: number | null
+  count: number
+  url: string | null
+  reviews: Array<{ author: string; authorUrl: string | null; photo: string | null; rating: number; text: string; when: string }>
+}
+
 /** A client's favourites in a Gallery block with "Let clients pick favourites". */
 export interface CanvasGalleryPicks {
   pickerName: string
@@ -151,6 +160,8 @@ export interface CanvasHost {
   listPosts(query: CanvasPostsQuery): Promise<CanvasPostItem[]>
   /** The custom-field filters a listing of this content type offers; [] for none. */
   listPostFilters?(type: string): Promise<CanvasPostFilter[]>
+  /** The site's Google reviews (Settings → Business), or null when they aren't set up. */
+  googleReviews?(): Promise<CanvasGoogleReviews | null>
   /** Client proofing: a visitor's own saved picks in a gallery, or null. */
   loadGalleryPicks?(query: { path: string; block: string; token: string }): Promise<CanvasGalleryPicks | null>
   /** Client proofing: saves (or, with `submit`, sends) a visitor's picks. */
