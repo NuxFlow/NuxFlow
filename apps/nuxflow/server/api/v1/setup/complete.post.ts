@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DEFAULT_STARTER_ID } from '../../../utils/starters/builtin'
 import type { H3Event } from 'h3'
 import { useDb } from '../../../utils/db'
 import { auditLogs } from '@nuxflow/db/schema'
@@ -41,7 +42,7 @@ const bodySchema = z.object({
     provider: z.enum(['console', 'cloudflare', 'resend', 'brevo', 'zepto']),
   }).optional(),
   // A starter site id: built in, or from the starter catalog (installed after sign-in).
-  template: starterIdSchema.default('landing'),
+  template: starterIdSchema.default(DEFAULT_STARTER_ID),
   setupToken: z.string().optional(),
 })
 

@@ -225,7 +225,7 @@ export async function listPublicPlans(db: Db) {
 
 // ── Checkout ─────────────────────────────────────────────────────────────────
 
-export interface CheckoutRequest {
+export interface HostingCheckoutRequest {
   user: { id: string; email: string; name: string }
   planId: string
   interval: 'month' | 'year'
@@ -235,7 +235,7 @@ export interface CheckoutRequest {
 }
 
 /** Records the sign-up and returns the Stripe Checkout URL to send the customer to. */
-export async function startHostingCheckout(ctx: HostingContext, req: CheckoutRequest): Promise<{ url: string; id: string }> {
+export async function startHostingCheckout(ctx: HostingContext, req: HostingCheckoutRequest): Promise<{ url: string; id: string }> {
   const { db, primary, primaryEvent } = ctx
   if (!hostingSitesDomain()) throw httpError({ status: 503, message: 'Sign-up is not open yet.' })
 

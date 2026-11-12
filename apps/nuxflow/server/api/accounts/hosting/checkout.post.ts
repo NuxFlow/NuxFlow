@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DEFAULT_STARTER_ID } from '../../../utils/starters/builtin'
 import { hostingContext, startHostingCheckout } from '../../../utils/hosting-billing'
 import { rateLimit } from '../../../utils/rate-limit'
 import { starterIdSchema } from '../../../../shared/lib/starters'
@@ -12,7 +13,7 @@ const bodySchema = z.object({
   subdomain: z.string().min(1).max(64),
   siteName: z.string().trim().min(1).max(100),
   // A starter site id (built in or from the starter catalog).
-  template: starterIdSchema.default('landing'),
+  template: starterIdSchema.default(DEFAULT_STARTER_ID),
 })
 
 /** Starts a hosting sign-up and returns the Stripe Checkout page to send the customer to. */

@@ -1,20 +1,9 @@
 <script setup lang="ts">
+import type { VideoAsset } from '#shared/lib/media-types'
 // Video edit/delete modal, extracted from media/videos.vue. Presentational, following
 // the same split as MediaDetailPanel.vue: the parent owns the save/delete API calls
 // and emits 'save'/'delete'; this only edits the local title field and copies the
 // stream URL (a pure clipboard action with no server round trip).
-interface VideoAsset {
-  id: string
-  title: string
-  cloudflareStreamId: string
-  duration: number | null
-  thumbnailUrl: string | null
-  status: 'uploading' | 'processing' | 'ready' | 'failed'
-  size: number | null
-  createdAt: string
-  isPrivate: boolean
-  playbackUrl: string
-}
 
 const open = defineModel<boolean>('open', { required: true })
 const editTitle = defineModel<string>('editTitle', { required: true })

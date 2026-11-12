@@ -1,18 +1,15 @@
 <script setup lang="ts">
+import type { ExifData } from '#shared/lib/media-types'
 // File-detail modal (focal-point picker + EXIF + alt/caption/folder form) extracted
 // from media/index.vue. Presentational — the parent still owns the fetch-on-open
 // (list projection -> full row with EXIF), save, and delete calls; this component
 // only edits the local form fields and emits 'save'/'delete'/'generate-alt-text'.
-interface ExifInfo {
-  make?: string; model?: string; exposureTime?: string
-  fNumber?: number; iso?: number; dateTimeOriginal?: string; focalLength?: number
-}
 type MediaFile = {
   id: string; originalName: string; mimeType: string; size: number
   url: string; altText: string | null; caption: string | null
   folderId: string | null; width: number | null; height: number | null
   focalX: number | null; focalY: number | null
-  metadata?: { exif?: ExifInfo } | null
+  metadata?: { exif?: ExifData } | null
   createdAt: string
 }
 export interface MediaDetailForm {
@@ -85,9 +82,9 @@ async function suggestFocalPoint() {
   }, { errorTitle: "Couldn't suggest a focal point", key: 'focal' })
 }
 
-const detailExif = computed<ExifInfo | null>(() => {
+const detailExif = computed<ExifData | null>(() => {
   const meta = props.file?.metadata
-  return (meta && typeof meta === 'object' && meta.exif) ? (meta.exif as ExifInfo) : null
+  return (meta && typeof meta === 'object' && meta.exif) ? (meta.exif as ExifData) : null
 })
 
 // Reset the "Copied!" affordance whenever a different file is opened.

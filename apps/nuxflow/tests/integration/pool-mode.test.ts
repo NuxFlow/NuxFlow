@@ -20,7 +20,8 @@ vi.mock('../../server/utils/db', () => ({
 const {
   POOL_PLATFORM_SETTINGS, getPlatformSetting, isMemberPool, storePlatformSettings,
 } = await import('../../server/utils/control-plane')
-const { default: poolConfigMiddleware, poolConfigProblem } = await import('../../server/middleware/00.pool-config')
+const { default: poolConfigMiddleware } = await import('../../server/middleware/00.pool-config')
+const { poolConfigProblem } = await import('../../server/utils/pool-config')
 const { default: multiSiteMiddleware } = await import('../../server/middleware/02.multi-site')
 const { clearSiteCache } = await import('../../server/utils/site-resolution')
 const { default: setupStatus } = await import('../../server/api/v1/setup/status.get')

@@ -2,7 +2,7 @@
 // '@nuxflow/canvas/consent', not the package root — see the comment in
 // server/plugins/site-settings-resolver.ts on why importing this utility elsewhere in
 // the app always goes through this dedicated subpath rather than the root barrel.
-import { readConsentCookie, writeConsentCookie } from '@nuxflow/canvas/consent'
+import { GDPR_BLOCK_STATE_KEY, readConsentCookie, writeConsentCookie } from '@nuxflow/canvas/consent'
 
 // A page that already has its own CanvasBlockGdpr banner sets this flag before this
 // component mounts (see the comment on that block) — skip rendering a second banner
@@ -10,7 +10,7 @@ import { readConsentCookie, writeConsentCookie } from '@nuxflow/canvas/consent'
 // nuxflow_consent cookie via @nuxflow/canvas's shared consent utility, so a choice
 // made in either one is honoured by the script-injection gate in
 // server/plugins/site-settings-resolver.ts.
-const gdprBlockPresent = useState('nuxflow:gdpr-banner-present', () => false)
+const gdprBlockPresent = useState(GDPR_BLOCK_STATE_KEY, () => false)
 
 const consent = ref(readConsentCookie())
 const show = ref(!gdprBlockPresent.value && !consent.value)

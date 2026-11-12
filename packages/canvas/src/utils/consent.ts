@@ -100,3 +100,10 @@ export function writeConsentCookie(analytics: boolean, marketing: boolean): Cons
 export function hasOptionalConsent(consent: ConsentState | null): boolean {
   return !!consent && (consent.analytics || consent.marketing)
 }
+
+/**
+ * The `useState` key a page's own GDPR block sets so the app's global cookie banner
+ * (apps/nuxflow/app/components/public/CookieConsent.vue) doesn't show a second one.
+ * One constant for both sides of the package boundary.
+ */
+export const GDPR_BLOCK_STATE_KEY = 'nuxflow:gdpr-banner-present'

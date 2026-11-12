@@ -1,19 +1,8 @@
 <script setup lang="ts">
+import type { VideoAsset } from '#shared/lib/media-types'
 // Video playback modal, extracted from media/videos.vue. Purely presentational — no
 // state or API calls of its own, just an iframe embed of the Cloudflare Stream player.
 // `playbackUrl` comes from the API, signed for a private video (utils/stream.ts).
-interface VideoAsset {
-  id: string
-  title: string
-  cloudflareStreamId: string
-  duration: number | null
-  thumbnailUrl: string | null
-  status: 'uploading' | 'processing' | 'ready' | 'failed'
-  size: number | null
-  createdAt: string
-  isPrivate: boolean
-  playbackUrl: string
-}
 
 const open = defineModel<boolean>('open', { required: true })
 

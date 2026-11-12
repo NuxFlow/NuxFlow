@@ -1,4 +1,4 @@
-import { isTrackingParam, stripQueryParams } from '../../shared/lib/tracking-params'
+import { isTrackingParam, stripQueryParams } from '#shared/lib/tracking-params'
 
 // Nuxt records the URL a page was rendered at in its payload (`payload.path`). The full-page
 // cache (server/utils/page-cache.ts) ignores click-tracking parameters, so a page rendered

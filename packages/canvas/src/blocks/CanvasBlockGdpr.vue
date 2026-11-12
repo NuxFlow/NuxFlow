@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import type { SpacingValue } from '../types'
 import { safeHref } from '../utils/sanitize-html'
 import { spacingToCss } from '../utils/spacing'
-import { readConsentCookie, writeConsentCookie, isGdprCountry } from '../utils/consent'
+import { readConsentCookie, writeConsentCookie, isGdprCountry, GDPR_BLOCK_STATE_KEY } from '../utils/consent'
 
 declare const useState: <T>(key: string, init?: () => T) => { value: T }
 declare const useRequestEvent: () => unknown
@@ -55,7 +55,7 @@ const props = withDefaults(defineProps<{
 // Set synchronously here (not in onMounted) so it's part of the SSR payload before the
 // layout's <ClientOnly> mounts the global banner on the client — see the comment on
 // that component for why this ordering is safe regardless of which one mounts first.
-useState('nuxflow:gdpr-banner-present', () => false).value = true
+useState(GDPR_BLOCK_STATE_KEY, () => false).value = true
 
 const isVisible = ref(false)
 const showDetails = ref(false)

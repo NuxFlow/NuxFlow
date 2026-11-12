@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { zonedToUtc } from '@nuxflow/canvas/events'
 import { formatDuration, freeTimes, isDayOff, parseAppointmentSettings, parseService, weekdayOf } from '../../shared/lib/appointments'
-import { hoursFor, normalizeAppointmentSetting, findAppointmentBlock, cancellationTerms } from '../../server/utils/appointments'
+import { hoursFor, normalizeAppointmentSetting, findAppointmentBlock, appointmentCancelTerms } from '../../server/utils/appointments'
 
 const service = (over: Record<string, unknown> = {}) => parseService({ duration: 60, step: 30, noticeHours: 0, ...over })
 const utc = (w: string) => zonedToUtc(w, 'UTC')
@@ -88,9 +88,9 @@ describe('helpers', () => {
 
   it('refunds a visitor\'s cancel only before the deadline', () => {
     const now = new Date('2027-03-01T09:00:00Z')
-    expect(cancellationTerms({ paymentStatus: 'paid', startsAt: '2027-03-03T09:00:00Z', cancelHours: 24 }, now)).toEqual({ refund: true, tooLate: false })
-    expect(cancellationTerms({ paymentStatus: 'paid', startsAt: '2027-03-01T20:00:00Z', cancelHours: 24 }, now)).toEqual({ refund: false, tooLate: true })
-    expect(cancellationTerms({ paymentStatus: null, startsAt: '2027-03-03T09:00:00Z', cancelHours: 24 }, now)).toEqual({ refund: false, tooLate: false })
+    expect(appointmentCancelTerms({ paymentStatus: 'paid', startsAt: '2027-03-03T09:00:00Z', cancelHours: 24 }, now)).toEqual({ refund: true, tooLate: false })
+    expect(appointmentCancelTerms({ paymentStatus: 'paid', startsAt: '2027-03-01T20:00:00Z', cancelHours: 24 }, now)).toEqual({ refund: false, tooLate: true })
+    expect(appointmentCancelTerms({ paymentStatus: null, startsAt: '2027-03-03T09:00:00Z', cancelHours: 24 }, now)).toEqual({ refund: false, tooLate: false })
   })
 
   it('says how long an appointment is', () => {

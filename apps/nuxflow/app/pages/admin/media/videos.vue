@@ -1,18 +1,7 @@
 <script setup lang="ts">
+import type { VideoAsset } from '#shared/lib/media-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
-interface VideoAsset {
-  id: string
-  title: string
-  cloudflareStreamId: string
-  duration: number | null
-  thumbnailUrl: string | null
-  status: 'uploading' | 'processing' | 'ready' | 'failed'
-  size: number | null
-  createdAt: string
-  isPrivate: boolean
-  playbackUrl: string
-}
 
 const { run, isRunning } = useAdminAction()
 const fileInput = ref<HTMLInputElement>()
