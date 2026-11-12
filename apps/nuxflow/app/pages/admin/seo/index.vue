@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { SiteSettingsResponse } from '#shared/lib/site-settings-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const { run, isRunning } = useAdminAction()
@@ -27,12 +28,7 @@ const active = ref<TabKey>(
 watch(active, (key) => { router.replace({ query: { ...route.query, tab: key } }) })
 
 // ── Shared settings form (provided to the settings tabs) ─────────────────────
-interface SettingsData {
-  site: { id: string; name: string; domain: string }
-  settings: Record<string, unknown>
-}
-
-const { data: settingsData, error: loadError, refresh: refreshSettings } = await useFetch<SettingsData>('/api/v1/settings', {
+const { data: settingsData, error: loadError, refresh: refreshSettings } = await useFetch<SiteSettingsResponse>('/api/v1/settings', {
   immediate: isAdmin.value,
 })
 

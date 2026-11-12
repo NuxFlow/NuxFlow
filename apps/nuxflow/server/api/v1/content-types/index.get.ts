@@ -4,6 +4,7 @@ import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { requireSiteId } from '../../../utils/site-context'
 import { parseFieldDefs } from '../../../../shared/lib/custom-fields'
+import type { ContentTypesResponse } from '../../../../shared/lib/content-type-types'
 
 // Admin → Content types: every type with its custom fields and how many items it has.
 // Authors read it too — the content editor needs a type's fields to show them.
@@ -26,5 +27,5 @@ export default defineEventHandler(async (event) => {
       fields: parseFieldDefs(t.schema),
       itemCount: itemCount.get(t.id) ?? 0,
     })),
-  }
+  } satisfies ContentTypesResponse
 })

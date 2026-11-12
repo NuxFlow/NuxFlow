@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { SiteSettingsResponse } from '#shared/lib/site-settings-types'
 import type {
   GeneralState,
   AppearanceState,
@@ -15,15 +16,7 @@ import type {
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
-interface SiteData {
-  site: { id: string; name: string; domain: string; locale: string; timezone: string; status: string; isPrimary?: boolean }
-  settings: Record<string, unknown>
-  ollamaAvailable?: boolean
-  imageTransformationsAvailable?: boolean
-  emailDefaults?: { provider: string; fromAddress: { cloudflare: string; other: string } }
-}
-
-const { data, error: loadError, refresh } = await useFetch<SiteData>('/api/v1/settings')
+const { data, error: loadError, refresh } = await useFetch<SiteSettingsResponse>('/api/v1/settings')
 
 const tabs = [
   { label: 'General', icon: 'i-lucide-settings' },

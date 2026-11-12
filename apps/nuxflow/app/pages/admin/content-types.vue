@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ContentTypeInfo } from '#shared/lib/content-type-types'
 import { CUSTOM_FIELD_TYPES, fieldKeyFrom, type CustomFieldDef, type CustomFieldType } from '#shared/lib/custom-fields'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
@@ -7,16 +8,6 @@ useHead({ title: 'Content types' })
 // Admin → Content types: the kinds of content a site has (pages, posts, events — and its own,
 // such as properties or menu items) and each one's custom fields. One POST with an `action`
 // (server/api/v1/content-types/index.post.ts).
-
-interface TypeRow {
-  id: string
-  slug: string
-  name: string
-  singularName: string
-  isBuiltIn: boolean
-  fields: CustomFieldDef[]
-  itemCount: number
-}
 
 /** A field being edited: choices as one per line, and whether its key was typed by hand. */
 interface FieldDraft extends Omit<CustomFieldDef, 'options'> {
@@ -27,7 +18,7 @@ interface FieldDraft extends Omit<CustomFieldDef, 'options'> {
 
 const { run, isRunning } = useAdminAction()
 const { confirm } = useConfirm()
-const { data, refresh, error } = await useFetch<{ types: TypeRow[] }>('/api/v1/content-types', { server: false })
+const { data, refresh, error } = await useFetch<{ types: ContentTypeInfo[] }>('/api/v1/content-types', { server: false })
 const types = computed(() => data.value?.types ?? [])
 
 // ── New type ────────────────────────────────────────────────────────────────
@@ -55,7 +46,7 @@ const editingId = ref<string | null>(null)
 const drafts = ref<FieldDraft[]>([])
 const typeItems = CUSTOM_FIELD_TYPES.map(t => ({ label: t.label, value: t.value }))
 
-function startEditing(type: TypeRow) {
+function startEditing(type: ContentTypeInfo) {
   editingId.value = type.id
   drafts.value = type.fields.map(f => ({ ...f, optionsText: (f.options ?? []).join('\n'), keyEdited: true, isNew: false }))
 }
@@ -81,7 +72,7 @@ const hasChoices = (type: CustomFieldType) => type === 'select' || type === 'mul
 // Listings can be filtered by numbers, yes/no and choices (server/utils/field-filters.ts).
 const canFilter = (type: CustomFieldType) => type === 'number' || type === 'boolean' || hasChoices(type)
 
-async function saveFields(type: TypeRow) {
+async function saveFields(type: ContentTypeInfo) {
   const fields = drafts.value.map(f => ({
     key: f.key.trim(),
     label: f.label.trim(),
@@ -102,7 +93,7 @@ async function saveFields(type: TypeRow) {
   await refresh()
 }
 
-async function deleteType(type: TypeRow) {
+async function deleteType(type: ContentTypeInfo) {
   const confirmed = await confirm({ title: `Delete "${type.name}"?`, description: 'The content type and its fields are removed. It has no items.', confirmLabel: 'Delete', color: 'error' })
   if (!confirmed) return
   const ok = await run(() => $fetch<{ success: boolean }>('/api/v1/content-types', {

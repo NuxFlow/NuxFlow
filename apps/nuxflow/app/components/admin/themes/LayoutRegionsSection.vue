@@ -1,15 +1,11 @@
 <script setup lang="ts">
+import type { SiteSettingsResponse } from '#shared/lib/site-settings-types'
 // Structural theming: CSS themes can restyle fixed markup but can't replace it — a
 // dynamic plugin can register a block (same registry Canvas blocks use) and be
 // designated here to own the header/footer chrome instead. See app/layouts/default.vue.
 const { run, isRunning } = useAdminAction()
 
-interface SettingsData {
-  site: { id: string }
-  settings: Record<string, unknown>
-}
-
-const { data: settingsData, refresh: refreshSettings } = await useFetch<SettingsData>('/api/v1/settings')
+const { data: settingsData, refresh: refreshSettings } = await useFetch<SiteSettingsResponse>('/api/v1/settings')
 
 // Nuxt UI's <USelect>/<SelectItem> reserves the empty string internally for "no
 // selection / show placeholder" and throws at runtime if an actual item uses '' as its

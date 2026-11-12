@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AdminSitesResponse, SiteListing } from '#shared/lib/admin-site-types'
 const props = defineProps<{
   siteId: string
   siteName: string
@@ -18,8 +19,7 @@ const deleteCountdown = ref(3)
 // is opened. The primary site (`isPrimary`) can't be deleted while others exist;
 // the server enforces that rule (deleteSiteCompletely), this only shows the
 // blocking message up front instead of making the admin click delete to find out.
-interface SiteRow { id: string; name: string; domain: string; isPrimary: boolean }
-const allSites = ref<SiteRow[]>([])
+const allSites = ref<SiteListing[]>([])
 const loadingAllSites = ref(false)
 const allSitesLoaded = ref(false)
 
@@ -27,7 +27,7 @@ async function loadAllSites() {
   if (allSitesLoaded.value || loadingAllSites.value) return
   loadingAllSites.value = true
   try {
-    const res = await $fetch<{ sites: SiteRow[] }>('/api/v1/admin/sites')
+    const res = await $fetch<AdminSitesResponse>('/api/v1/admin/sites')
     allSites.value = res.sites
     allSitesLoaded.value = true
   } catch {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import type { ContentTypesResponse } from '#shared/lib/content-type-types'
 import type { PublicSite } from '#shared/lib/public-site-types'
 import { parseEpisode } from '#shared/lib/podcast'
-import type { CustomFieldDef, CustomFieldValues } from '#shared/lib/custom-fields'
+import type { CustomFieldValues } from '#shared/lib/custom-fields'
 import { eventDay, floatingDate, todayIn, utcToZoned, zonedToUtc, type EventRecurrence } from '@nuxflow/canvas/events'
 import { renderTipTap } from '#shared/lib/render-tiptap'
 import { ulid } from 'ulid'
@@ -107,7 +108,7 @@ const activeTypeSlug = computed(() => {
 })
 
 // The content type's own fields (Admin → Content types), shown in the Details panel.
-const { data: contentTypesData } = useFetch<{ types: Array<{ slug: string; fields: CustomFieldDef[] }> }>('/api/v1/content-types', { server: false })
+const { data: contentTypesData } = useFetch<ContentTypesResponse>('/api/v1/content-types', { server: false })
 const fieldDefs = computed(() => contentTypesData.value?.types.find(t => t.slug === activeTypeSlug.value)?.fields ?? [])
 
 // Podcast episodes (Settings → Podcast): items of the podcast's content type get an audio panel.

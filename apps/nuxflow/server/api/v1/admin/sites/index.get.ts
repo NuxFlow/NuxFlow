@@ -1,6 +1,7 @@
 import { requireSuperAdmin } from '../../../../utils/permissions'
 import { describePools } from '../../../../utils/pools'
 import { listAllSites } from '../../../../utils/pool-sites'
+import type { AdminSitesResponse } from '../../../../../shared/lib/admin-site-types'
 
 /**
  * Super Admin → Sites: this Worker's sites, plus every member pool's (utils/pool-sites.ts),
@@ -13,5 +14,5 @@ export default defineEventHandler(async (event) => {
     sites,
     unreachablePools,
     pools: pools.filter(p => !p.error && p.status?.poolId).map(p => p.status!.poolId!),
-  }
+  } satisfies AdminSitesResponse
 })

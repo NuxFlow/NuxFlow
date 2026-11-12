@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AdminSitesResponse } from '#shared/lib/admin-site-types'
 import { normalizeDomain } from '#shared/lib/domain'
 import { browserTimeZone } from '#shared/lib/site-locale'
 
@@ -7,7 +8,7 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 const router = useRouter()
 
 // Member pools a site can be created in (a hosting platform's extra Workers — Super Admin → Pools).
-const { data: sitesData } = await useFetch<{ pools: string[] }>('/api/v1/admin/sites')
+const { data: sitesData } = await useFetch<AdminSitesResponse>('/api/v1/admin/sites')
 const HERE = '__control_panel__'
 const placeItems = computed(() => [
   { label: 'This control panel', value: HERE },

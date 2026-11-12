@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { SiteSettingsResponse } from '#shared/lib/site-settings-types'
+import type { ContentTypesResponse } from '#shared/lib/content-type-types'
 import { APPLE_CATEGORIES, parsePodcastSettings, type PodcastSettings } from '#shared/lib/podcast'
 
 // Settings → Podcast: the show's details for /podcast.xml (Apple Podcasts, Spotify…). One
@@ -7,8 +9,8 @@ import { APPLE_CATEGORIES, parsePodcastSettings, type PodcastSettings } from '#s
 
 const KEY = 'podcast.settings'
 const { run, isRunning } = useAdminAction()
-const { data, error, refresh } = await useFetch<{ settings: Record<string, unknown>; site?: { domain?: string } }>('/api/v1/settings')
-const { data: typesData } = useFetch<{ types: Array<{ slug: string; name: string }> }>('/api/v1/content-types', { server: false })
+const { data, error, refresh } = await useFetch<SiteSettingsResponse>('/api/v1/settings')
+const { data: typesData } = useFetch<ContentTypesResponse>('/api/v1/content-types', { server: false })
 
 const form = reactive<PodcastSettings>(parsePodcastSettings(null))
 watch(() => data.value?.settings[KEY], v => Object.assign(form, parsePodcastSettings(v)), { immediate: true })
