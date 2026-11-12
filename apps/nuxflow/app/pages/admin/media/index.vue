@@ -1,18 +1,15 @@
 <script setup lang="ts">
+import type { ExifData } from '#shared/lib/media-types'
 import type { MediaDetailForm } from '~/components/admin/media/MediaDetailPanel.vue'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
-interface ExifInfo {
-  make?: string; model?: string; exposureTime?: string
-  fNumber?: number; iso?: number; dateTimeOriginal?: string; focalLength?: number
-}
 type MediaFile = {
   id: string; originalName: string; mimeType: string; size: number
   url: string; altText: string | null; caption: string | null
   folderId: string | null; width: number | null; height: number | null
   focalX: number | null; focalY: number | null
-  metadata?: { exif?: ExifInfo } | null
+  metadata?: { exif?: ExifData } | null
   createdAt: string
 }
 type Folder = { id: string; name: string; fileCount: number }

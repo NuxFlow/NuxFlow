@@ -1,6 +1,6 @@
 import Stripe from 'stripe'
 import type { PaymentProvider } from './types'
-import { fromMinorUnits, toMinorUnits } from '../../../shared/lib/money'
+import { toMinorUnits } from '../../../shared/lib/money'
 
 /**
  * Tier prices are stored in major units (e.g. 9.99). Stripe wants the smallest currency
@@ -8,9 +8,6 @@ import { fromMinorUnits, toMinorUnits } from '../../../shared/lib/money'
  * currencies use thousandths with the last digit 0. The rules live in shared/lib/money.ts.
  */
 export const toStripeUnitAmount = toMinorUnits
-
-/** The other way round: what a webhook's smallest-unit amount is in major units. */
-export const fromStripeUnitAmount = fromMinorUnits
 
 export class StripeProvider implements PaymentProvider {
   private client: Stripe

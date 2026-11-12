@@ -222,7 +222,7 @@ export async function releaseOrderStock(db: Db, siteId: string, orderId: string,
 
 // ── Checkout ────────────────────────────────────────────────────────────────
 
-export interface CheckoutRequest {
+export interface ShopCheckoutRequest {
   lines: BasketRequestLine[]
   email?: string
   acceptedTerms: boolean
@@ -274,7 +274,7 @@ async function replacePreviousCheckout(event: H3Event, previous: { orderId: stri
  * Refuses (409, naming the line) rather than quietly dropping something that has sold out
  * since the basket page was loaded.
  */
-export async function startShopCheckout(event: H3Event, input: CheckoutRequest): Promise<{ url: string; orderId: string; token: string }> {
+export async function startShopCheckout(event: H3Event, input: ShopCheckoutRequest): Promise<{ url: string; orderId: string; token: string }> {
   const db = useDb(event)
   const siteId = requireSiteId(event)
   const [shop, site] = await Promise.all([getShopSettings(event), getSiteInfo(event, siteId)])

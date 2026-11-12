@@ -1,19 +1,8 @@
 <script setup lang="ts">
+import type { VideoAsset } from '#shared/lib/media-types'
 // Video library grid item, extracted from media/videos.vue. Purely presentational —
 // the parent owns fetching, polling, and modal state; this only renders one video's
 // thumbnail/status/meta and emits the two actions a card can trigger.
-interface VideoAsset {
-  id: string
-  title: string
-  cloudflareStreamId: string
-  duration: number | null
-  thumbnailUrl: string | null
-  status: 'uploading' | 'processing' | 'ready' | 'failed'
-  size: number | null
-  createdAt: string
-  isPrivate: boolean
-  playbackUrl: string
-}
 
 defineProps<{
   video: VideoAsset

@@ -42,7 +42,7 @@ export default defineNuxtConfig({
   // NuxFlow's multi-tenant model, where many sites on many different custom domains are
   // served by one Worker (see 02.multi-site.ts). Cloudflare Image Transformations'
   // /cdn-cgi/image/... URL format is simple enough to build directly against the
-  // current request's own origin instead — see app/components/NuxImage.vue. A throwaway
+  // current request's own origin instead — see packages/canvas/src/blocks/NuxImage.vue. A throwaway
   // spike (installed @nuxt/image, set provider:'cloudflare', ran a real `nuxt build`)
   // did confirm the module itself builds cleanly on the cloudflare-module preset — its
   // default 'ipx' provider/optimizer is the one documented to break here, pulling in

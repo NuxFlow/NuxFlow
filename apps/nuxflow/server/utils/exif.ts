@@ -1,13 +1,6 @@
-export interface ExifData {
-  make?: string
-  model?: string
-  exposureTime?: string
-  fNumber?: number
-  iso?: number
-  dateTimeOriginal?: string
-  focalLength?: number
-  flash?: number
-}
+import type { ExifData } from '../../shared/lib/media-types'
+
+export type { ExifData }
 
 /**
  * Minimal JPEG EXIF extractor — pure Web APIs, zero dependencies.

@@ -65,10 +65,6 @@ export function emptyWeek(): Record<Weekday, TimeRange[]> {
   return { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] }
 }
 
-export function defaultAppointmentSettings(): AppointmentSettings {
-  return { useOpeningHours: true, hours: emptyWeek(), daysOff: [] }
-}
-
 function ranges(value: unknown): TimeRange[] {
   if (!Array.isArray(value)) return []
   return value

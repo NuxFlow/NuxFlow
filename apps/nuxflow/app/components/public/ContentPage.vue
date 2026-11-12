@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { setResponseStatus } from 'h3'
 import Paywall from '~/components/memberships/Paywall.vue'
 import { NuxImage } from '@nuxflow/canvas'
 import type { JsonLdVideo, PublicSiteInfo } from '~/utils/seo'

@@ -515,7 +515,7 @@ async function rowFromLink(event: H3Event, purpose: LinkPurpose, id: string, tok
 }
 
 /** What a visitor cancelling now would get back. The organiser cancelling always refunds. */
-export function cancellationTerms(row: Pick<AppointmentRow, 'paymentStatus' | 'startsAt' | 'cancelHours'>, now: Date = new Date()): { refund: boolean; tooLate: boolean } {
+export function appointmentCancelTerms(row: Pick<AppointmentRow, 'paymentStatus' | 'startsAt' | 'cancelHours'>, now: Date = new Date()): { refund: boolean; tooLate: boolean } {
   if (row.paymentStatus !== 'paid') return { refund: false, tooLate: false }
   const deadline = Date.parse(row.startsAt) - row.cancelHours * 3_600_000
   const inTime = now.getTime() < deadline
@@ -537,7 +537,7 @@ async function result(event: H3Event, row: AppointmentRow, status: AppointmentLi
 export async function describeAppointmentLink(event: H3Event, purpose: 'confirm' | 'cancel', id: string, token: string) {
   const row = await rowFromLink(event, purpose, id, token)
   if (!row) return null
-  const terms = cancellationTerms(row)
+  const terms = appointmentCancelTerms(row)
   return result(event, row, row.status, purpose === 'cancel' ? terms : {})
 }
 
@@ -567,7 +567,7 @@ export async function cancelAppointmentByLink(event: H3Event, id: string, token:
   if (!row) return null
   if (row.status === 'cancelled' || row.status === 'draft') return result(event, row, 'cancelled')
   if (Date.parse(row.startsAt) <= Date.now()) return result(event, row, row.status, { tooLate: true })
-  const { refund } = cancellationTerms(row)
+  const { refund } = appointmentCancelTerms(row)
   const refunded = await cancelWithRefund(event, row, refund, 'Cancelled by the customer')
   await sendAppointmentEmail(event, row, 'cancelled_by_you', undefined, refunded).catch(err => console.error('[appointments] Cancel email failed:', err))
   const place = await placeFor(event, row)
