@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { MenuLink, MenuItem } from '#shared/lib/menu-types'
+import type { AdminMenu, MenuLink, MenuItem } from '#shared/lib/menu-types'
+import type { ContentListResponse } from '#shared/lib/content-list-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const route = useRoute()
@@ -8,7 +9,7 @@ const { run, isRunning } = useAdminAction()
 
 // ── Load menu ─────────────────────────────────────────────────────────────────
 const { data: menuData, refresh } = await useAsyncData(`menu-${id}`, () =>
-  $fetch<{ id: string; name: string; location: string | null; items: unknown[] }>(`/api/v1/menus/${id}`),
+  $fetch<AdminMenu>(`/api/v1/menus/${id}`),
   { server: false },
 )
 
@@ -57,7 +58,7 @@ watch(menuData, (val) => {
 // limit=500 (the server-side cap) so the picker still lists effectively every
 // page for realistic site sizes — this is a select dropdown, not a paged table.
 const { data: contentData, refresh: refreshContent } = await useAsyncData('nav-content-picker', () =>
-  $fetch<{ items: Array<{ id: string; title: string; slug: string; status: string }> }>('/api/v1/content?type=page&limit=500'),
+  $fetch<ContentListResponse>('/api/v1/content?type=page&limit=500'),
   { server: false },
 )
 // USelect only accepts { label, value } — slug is looked up separately in addItem()

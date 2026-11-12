@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { CanvasBlockData } from '@nuxflow/canvas'
+import type { GenerationJobItem } from '#shared/lib/ai-generation-types'
 
 // One generated page on the Generate with AI review screen: its status, an inline
 // preview of the blocks (rendered with the same NuxBlocks renderer the public site uses —
@@ -10,7 +11,7 @@ export interface GeneratedPage {
   title: string
   slug: string
   error?: string
-  item?: { id: string; title: string; slug: string; status: string; content: { blocks?: CanvasBlockData[] } | null }
+  item?: GenerationJobItem
   /** The plan entry had a draft that's since been deleted. */
   missing?: boolean
   /** Offer "Publish as homepage" — the page the plan made as the home page (or a single-page job). */
@@ -21,7 +22,8 @@ const props = defineProps<{ page: GeneratedPage; busy?: boolean }>()
 const emit = defineEmits<{ regenerate: []; discard: []; preview: []; makeHomepage: [] }>()
 
 const showPreview = ref(false)
-const blocks = computed(() => props.page.item?.content?.blocks ?? [])
+// A generated page's content is Canvas blocks.
+const blocks = computed(() => (props.page.item?.content as { blocks?: CanvasBlockData[] } | null | undefined)?.blocks ?? [])
 const statusColor = computed(() => (props.page.item?.status === 'published' ? 'success' : 'neutral'))
 </script>
 

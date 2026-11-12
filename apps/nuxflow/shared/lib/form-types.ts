@@ -1,7 +1,8 @@
-// A form's questions as visitors get them: publicFormField() and publicIntakeForm()
-// (server/utils/form-submission.ts, booking-intake.ts). Rendered by FormFieldList.vue for
-// Form blocks and for the intake form on event and appointment bookings. Import-free
-// apart from other shared/lib types.
+// Forms as visitors and staff get them. Visitors: publicFormField() and publicIntakeForm()
+// (server/utils/form-submission.ts, booking-intake.ts), rendered by FormFieldList.vue for
+// Form blocks and for the intake form on event and appointment bookings. Staff: the
+// /api/v1/forms routes (Admin → Forms, the form builder, the submissions inbox and the
+// editor's intake-form pickers). Import-free apart from other shared/lib types.
 import type { ShowIf } from './form-logic'
 
 export type FormFieldType = 'text' | 'email' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'number' | 'date' | 'file' | 'computed' | 'hidden' | 'signature' | 'step'
@@ -25,4 +26,69 @@ export interface PublicFormField {
 export interface PublicIntakeForm {
   name: string
   fields: PublicFormField[]
+}
+
+// ── Staff (Admin → Forms)
+
+export type FormStatus = 'active' | 'draft' | 'closed'
+
+/** One row of GET /api/v1/forms. Counts leave spam out. */
+export interface AdminFormSummary {
+  id: string
+  name: string
+  slug: string
+  status: FormStatus
+  createdAt: string
+  updatedAt: string
+  submissionCount: number
+  /** Not yet opened. */
+  newCount: number
+}
+
+export interface AdminFormsResponse {
+  forms: AdminFormSummary[]
+}
+
+/** A field as the form builder edits it: everything stored in `forms.fields` (the
+ * `FormField` type in packages/db/src/schema/forms.ts, which the server is checked against). */
+export interface AdminFormField extends Omit<PublicFormField, 'showIf'> {
+  validation?: Record<string, unknown>
+  showIf?: ShowIf | null
+}
+
+/** Who hears about a new submission. No `email` = the site's admin address. */
+export interface FormNotifications {
+  enabled?: boolean
+  email?: string
+}
+
+/** GET /api/v1/forms/:id: the form as the builder opens it. */
+export interface AdminForm {
+  id: string
+  name: string
+  slug: string
+  status: FormStatus
+  fields: AdminFormField[]
+  notifications: FormNotifications | null
+}
+
+export type FormSubmissionStatus = 'new' | 'read' | 'spam' | 'archived'
+
+export interface AdminFormSubmission {
+  id: string
+  createdAt: string
+  status: FormSubmissionStatus
+  /** Answers keyed by field name. A file field holds StoredFormFile[] (form-files.ts). */
+  data: Record<string, unknown>
+}
+
+/** GET /api/v1/forms/:id/submissions: one page of a form's inbox. */
+export interface FormSubmissionsResponse {
+  form: { id: string; name: string; slug: string; fields: AdminFormField[] }
+  submissions: AdminFormSubmission[]
+  page: number
+  perPage: number
+  total: number
+  /** Every submission of the form by status, for the filter tabs. */
+  counts: Record<FormSubmissionStatus, number>
 }

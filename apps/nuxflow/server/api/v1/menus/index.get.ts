@@ -3,6 +3,7 @@ import { requireAuth } from '../../../utils/permissions'
 import { menus } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
+import type { AdminMenu } from '../../../../shared/lib/menu-types'
 
 export default defineEventHandler(async (event) => {
   await requireAuth(event)
@@ -14,5 +15,5 @@ export default defineEventHandler(async (event) => {
     columns: { id: true, name: true, location: true, items: true, updatedAt: true },
   })
 
-  return { menus: rows }
+  return { menus: rows satisfies AdminMenu[] }
 })

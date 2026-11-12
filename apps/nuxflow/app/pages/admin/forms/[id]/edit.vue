@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { FORM_FILE_RULES_TEXT } from '#shared/lib/form-files'
-import { SHOW_IF_OPS, describeShowIf, parseShowIf, type ShowIf } from '#shared/lib/form-logic'
+import { SHOW_IF_OPS, describeShowIf, parseShowIf } from '#shared/lib/form-logic'
+import type { AdminForm, AdminFormField, FormFieldType } from '#shared/lib/form-types'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
@@ -8,7 +9,7 @@ const route = useRoute()
 const id = route.params.id as string
 const isNew = id === 'new'
 
-const fieldTypes = [
+const fieldTypes: { label: string; type: FormFieldType; icon: string }[] = [
   { label: 'Short text', type: 'text', icon: 'i-lucide-type' },
   { label: 'Long text', type: 'textarea', icon: 'i-lucide-align-left' },
   { label: 'Email', type: 'email', icon: 'i-lucide-mail' },
@@ -33,19 +34,7 @@ const OPTION_TYPES = ['select', 'radio', 'checkbox']
 // Field types that take a placeholder shown in the empty input.
 const PLACEHOLDER_TYPES = ['text', 'email', 'number', 'textarea']
 
-interface FormFieldOption { label: string; value: string }
-interface FormField {
-  id: string
-  type: string
-  label: string
-  name: string
-  required?: boolean
-  placeholder?: string
-  options?: FormFieldOption[]
-  formula?: string
-  showIf?: ShowIf | null
-}
-
+// What the notification controls hold (the saved form's may be partly unset).
 interface NotificationsConfig {
   enabled: boolean
   email: string
@@ -53,9 +42,9 @@ interface NotificationsConfig {
 
 const name = ref('Untitled form')
 const slug = ref('untitled-form')
-const fields = ref<FormField[]>([])
+const fields = ref<AdminFormField[]>([])
 const notifications = ref<NotificationsConfig>({ enabled: false, email: '' })
-const selectedField = ref<FormField | null>(null)
+const selectedField = ref<AdminFormField | null>(null)
 const saving = ref(false)
 
 // server: false — this endpoint requires an editor session; the SSR $fetch
@@ -64,12 +53,7 @@ const saving = ref(false)
 // always load on the client where the cookie is present.
 const { data: existingForm } = await useAsyncData(
   `form-edit-${id}`,
-  () => isNew ? Promise.resolve(null) : $fetch<{
-    name: string
-    slug: string
-    fields: FormField[]
-    notifications?: Partial<NotificationsConfig> | null
-  }>(`/api/v1/forms/${id}`),
+  () => isNew ? Promise.resolve(null) : $fetch<AdminForm>(`/api/v1/forms/${id}`),
   { server: false },
 )
 
@@ -90,9 +74,9 @@ watch(name, (v) => {
   if (isNew) slug.value = v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 })
 
-function addField(type: string) {
+function addField(type: FormFieldType) {
   const label = fieldTypes.find(f => f.type === type)?.label ?? type
-  const field: FormField = { id: `field_${Date.now()}`, type, label, name: type + '_' + fields.value.length, required: false }
+  const field: AdminFormField = { id: `field_${Date.now()}`, type, label, name: type + '_' + fields.value.length, required: false }
   if (OPTION_TYPES.includes(type)) field.options = []
   fields.value.push(field)
   selectedField.value = field
@@ -126,7 +110,7 @@ function toggleCondition(on: boolean) {
     : null
 }
 
-function conditionText(field: FormField): string {
+function conditionText(field: AdminFormField): string {
   const cond = parseShowIf(field.showIf)
   return cond ? describeShowIf(cond, fields.value) : ''
 }
@@ -136,12 +120,12 @@ function removeField(id: string) {
   if (selectedField.value?.id === id) selectedField.value = null
 }
 
-function addOption(field: FormField) {
+function addOption(field: AdminFormField) {
   if (!field.options) field.options = []
   field.options.push({ label: '', value: '' })
 }
 
-function removeOption(field: FormField, index: number) {
+function removeOption(field: AdminFormField, index: number) {
   field.options?.splice(index, 1)
 }
 

@@ -1,34 +1,8 @@
 <script setup lang="ts">
 import type { GeneratedPage } from '~/components/admin/ai/GeneratedPageCard.vue'
-import type { PlanPageDraft } from '~/components/admin/ai/PlanEditor.vue'
+import type { GenerationJob, GenerationJobSummary, GenerationPlanDraft } from '#shared/lib/ai-generation-types'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
-
-interface PlanPage extends PlanPageDraft { contentItemId?: string; error?: string }
-type JobItem = NonNullable<GeneratedPage['item']>
-interface GenerationJob {
-  id: string
-  type: 'page' | 'site'
-  status: 'planning' | 'approved' | 'generating' | 'complete' | 'failed'
-  prompt: string
-  tone: string | null
-  plan: PlanPage[] | null
-  generatedCount: number
-  totalCount: number
-  error: string | null
-  busy: boolean
-  items: JobItem[]
-}
-interface JobSummary {
-  id: string
-  prompt: string
-  type: 'page' | 'site'
-  status: GenerationJob['status']
-  tone: string | null
-  generatedCount: number
-  totalCount: number
-  createdAt: string
-}
 
 const MAX_PLAN_PAGES = 10
 const MAX_PROMPT = 2000
@@ -42,7 +16,7 @@ const tone = ref('professional')
 const job = ref<GenerationJob | null>(null)
 const starting = computed(() => isRunning('start'))
 const approving = computed(() => isRunning('approve'))
-const planDraft = ref<PlanPageDraft[]>([])
+const planDraft = ref<GenerationPlanDraft[]>([])
 const driveError = ref('')
 const bulkBusy = ref(false)
 
@@ -53,7 +27,7 @@ const typeOptions = [
 const toneOptions = ['professional', 'casual', 'friendly', 'bold', 'playful', 'technical'].map(t => ({ value: t, label: t[0]!.toUpperCase() + t.slice(1) }))
 
 // ── History (and resuming an unfinished job) ────────────────────────────────
-const { data: history, refresh: refreshHistory } = await useFetch<{ jobs: JobSummary[] }>('/api/v1/ai/generate', {
+const { data: history, refresh: refreshHistory } = await useFetch<{ jobs: GenerationJobSummary[] }>('/api/v1/ai/generate', {
   default: () => ({ jobs: [] }),
 })
 

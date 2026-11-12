@@ -4,19 +4,11 @@
 // they all read/write the same theme list state. Appearance and layout regions are
 // separate, unrelated settings (own component, own fetch) — see AppearanceSection.vue
 // and LayoutRegionsSection.vue.
+import type { AdminTheme, ThemeUploadResult } from '#shared/lib/theme-types'
+
 const { run, isRunning, toast } = useAdminAction()
 
-interface Theme {
-  id: string
-  name: string
-  packageName: string
-  version: string
-  isActive: boolean
-  hasCss: boolean
-  settings?: { hasDemoContent?: boolean } | null
-}
-
-const { data, refresh } = await useFetch<{ themes: Theme[] }>('/api/v1/themes')
+const { data, refresh } = await useFetch<{ themes: AdminTheme[] }>('/api/v1/themes')
 const installedThemes = computed(() => data.value?.themes ?? [])
 const anyDbThemeActive = computed(() => installedThemes.value.some(t => t.isActive))
 const defaultIsActive = computed(() => !anyDbThemeActive.value)
@@ -50,10 +42,10 @@ async function resetToDefault() {
 // never happened, which is exactly what was reported). Every other modal in this file
 // already uses this same declarative v-model:open pattern with no such issue.
 const deleteModalOpen = ref(false)
-const deleteTarget = ref<Theme | null>(null)
+const deleteTarget = ref<AdminTheme | null>(null)
 const deleteAlsoDemo = ref(false)
 
-function deleteTheme(theme: Theme) {
+function deleteTheme(theme: AdminTheme) {
   deleteTarget.value = theme
   deleteAlsoDemo.value = false
   deleteModalOpen.value = true
@@ -97,14 +89,13 @@ function onZipFile(e: Event) {
 
 async function uploadTheme() {
   await run(async () => {
-    type UploadResult = { id: string; hasDemoContent: boolean; demoSummary: { pages: number; posts: number; menus: number; forms: number } | null; failedImages?: string[] }
-    let result: UploadResult
+    let result: ThemeUploadResult
     if (uploadMode.value === 'zip' && zipFile.value) {
       const fd = new FormData()
       fd.append('file', zipFile.value)
-      result = await $fetch<UploadResult>('/api/v1/themes', { method: 'POST', body: fd })
+      result = await $fetch<ThemeUploadResult>('/api/v1/themes', { method: 'POST', body: fd })
     } else {
-      result = await $fetch<UploadResult>('/api/v1/themes', {
+      result = await $fetch<ThemeUploadResult>('/api/v1/themes', {
         method: 'POST',
         body: { name: uploadForm.name, version: uploadForm.version, css: uploadForm.css },
       })
@@ -150,10 +141,10 @@ async function importDemoContent(themeId: string) {
 // ── CSS theme editor ──────────────────────────────────────────────────────────
 
 const editModal = ref(false)
-const editingTheme = ref<Theme | null>(null)
+const editingTheme = ref<AdminTheme | null>(null)
 const editCss = ref('')
 
-function openEdit(theme: Theme) {
+function openEdit(theme: AdminTheme) {
   editingTheme.value = theme
   editCss.value = ''
   editModal.value = true

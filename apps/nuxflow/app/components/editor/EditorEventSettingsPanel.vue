@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AdminFormsResponse } from '#shared/lib/form-types'
 // Event Details sidebar card for the `event` content type, extracted from
 // content/[id].vue for consistency with its other already-extracted sidebar sections
 // (PublishControls, SeoPanel, TermPicker, RevisionHistory, MediaPicker, TranslateModal).
@@ -54,7 +55,7 @@ const intakeChoice = computed({
 const formOptions = ref<Array<{ label: string; value: string }>>([])
 onMounted(async () => {
   try {
-    const res = await $fetch<{ forms: Array<{ id: string; name: string; status: string }> }>('/api/v1/forms')
+    const res = await $fetch<AdminFormsResponse>('/api/v1/forms')
     formOptions.value = [
       { label: 'None', value: NO_FORM },
       ...res.forms.filter(f => f.status === 'active').map(f => ({ label: f.name, value: f.id })),

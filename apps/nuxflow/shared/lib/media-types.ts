@@ -38,6 +38,23 @@ export interface MediaFolder {
   fileCount: number
 }
 
+export interface MediaFoldersResponse {
+  folders: MediaFolder[]
+  /** Files in no folder. */
+  unfolderedCount: number
+}
+
+/** POST /api/v1/ai/bulk-alt-text: one batch of alt text written by AI. */
+export interface BulkAltTextResult {
+  processed: number
+  skipped: number
+  updated: { id: string; altText: string }[]
+  /** Ids of images the model couldn't describe. */
+  failed: string[]
+  /** More images without alt text are waiting: send another batch. */
+  hasMore: boolean
+}
+
 /** A Cloudflare Stream video in the media library, as GET /api/v1/media/video lists it. */
 export interface VideoAsset {
   id: string

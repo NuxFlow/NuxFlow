@@ -4,8 +4,9 @@ import { parseCapabilitiesText } from '../../../utils/plugin-package'
 import { permissionsCovered } from '../../../../shared/lib/plugin-permissions'
 import { dynamicPlugins } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
+import type { AdminDynamicPluginsResponse } from '../../../../shared/lib/plugin-types'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<AdminDynamicPluginsResponse> => {
   await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = event.context.siteId

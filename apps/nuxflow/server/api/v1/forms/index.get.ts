@@ -3,6 +3,7 @@ import { requireRole } from '../../../utils/permissions'
 import { forms, formSubmissions } from '@nuxflow/db/schema'
 import { and, eq, desc, ne, sql } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
+import type { AdminFormsResponse } from '../../../../shared/lib/form-types'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'editor')
@@ -32,5 +33,5 @@ export default defineEventHandler(async (event) => {
       submissionCount: Number(byForm.get(f.id)?.total ?? 0),
       newCount: Number(byForm.get(f.id)?.unread ?? 0),
     })),
-  }
+  } satisfies AdminFormsResponse
 })

@@ -18,3 +18,13 @@ export interface MenuLink {
 export interface MenuItem extends MenuLink {
   children: MenuLink[]
 }
+
+/** A menu as Admin → Navigation lists and opens it: GET /api/v1/menus (`menus`) and
+ * GET /api/v1/menus/:id. `items` is the column as stored, normalized by the editor. */
+export interface AdminMenu {
+  id: string
+  name: string
+  location: string | null
+  items: unknown[]
+  updatedAt: string
+}

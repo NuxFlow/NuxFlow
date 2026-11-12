@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MediaFolder, MediaItem } from '#shared/lib/media-types'
+import type { BulkAltTextResult, MediaFolder, MediaFoldersResponse, MediaItem } from '#shared/lib/media-types'
 import type { MediaDetailForm } from '~/components/admin/media/MediaDetailPanel.vue'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
@@ -7,12 +7,7 @@ definePageMeta({ layout: 'admin', middleware: ['auth'] })
 // ── Data ──────────────────────────────────────────────────────────────────────
 const selectedFolderId = ref<string | null | undefined>(undefined) // undefined = all
 
-interface FolderPayload {
-  folders?: MediaFolder[]
-  unfolderedCount?: number
-}
-
-const { data: folderData, refresh: refreshFolders } = await useFetch<FolderPayload>('/api/v1/media/folders')
+const { data: folderData, refresh: refreshFolders } = await useFetch<MediaFoldersResponse>('/api/v1/media/folders')
 const folders = computed<MediaFolder[]>(() => folderData.value?.folders ?? [])
 const unfolderedCount = computed(() => folderData.value?.unfolderedCount ?? 0)
 
@@ -81,7 +76,6 @@ function onAiImageGenerated(url: string) {
 // so a server-side bug that always reports `hasMore` can't spin into an unbounded loop of
 // AI-provider calls.
 const BULK_ALT_MAX_BATCHES = 200 // x 5 images = up to 1000 images per click
-type BulkAltTextResponse = { processed: number; skipped: number; updated: Array<{ id: string; altText: string }>; failed: string[]; hasMore: boolean }
 const bulkAltLoading = computed(() => isRunning('bulkAlt'))
 const bulkAltProgress = ref({ done: 0, failed: 0 })
 let bulkAltCancelled = false
@@ -94,7 +88,7 @@ async function runBulkAltText() {
   const skipIds: string[] = []
   const finished = await run(async () => {
     for (let batch = 0; batch < BULK_ALT_MAX_BATCHES && !bulkAltCancelled; batch++) {
-      const res = await $fetch<BulkAltTextResponse>('/api/v1/ai/bulk-alt-text', {
+      const res = await $fetch<BulkAltTextResult>('/api/v1/ai/bulk-alt-text', {
         method: 'POST',
         body: { skipIds },
       })

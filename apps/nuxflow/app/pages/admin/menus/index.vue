@@ -1,17 +1,10 @@
 <script setup lang="ts">
+import type { AdminMenu } from '#shared/lib/menu-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Navigation' })
 
-type MenuRow = {
-  id: string
-  name: string
-  location: string | null
-  items: unknown[]
-  updatedAt: string
-}
-
 const { data, refresh } = await useAsyncData('admin-menus', () =>
-  $fetch<{ menus: MenuRow[] }>('/api/v1/menus'), { server: false })
+  $fetch<{ menus: AdminMenu[] }>('/api/v1/menus'), { server: false })
 
 const menus = computed(() => data.value?.menus ?? [])
 

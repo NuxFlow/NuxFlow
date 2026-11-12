@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MediaFolder, MediaItem } from '#shared/lib/media-types'
+import type { MediaFoldersResponse, MediaItem } from '#shared/lib/media-types'
 // Media library picker. Single-select by default (featured images, SEO images, the
 // Image block); `multiple` is used by Gallery/Carousel image lists, where a
 // photographer adds a whole shoot at once — so it can filter by folder, sort by file
@@ -23,7 +23,7 @@ const page = ref(0)
 const loading = ref(false)
 const loadError = ref('')
 
-const { data: folderData } = useFetch<{ folders: MediaFolder[]; unfolderedCount: number }>('/api/v1/media/folders')
+const { data: folderData } = useFetch<MediaFoldersResponse>('/api/v1/media/folders')
 
 const folderItems = computed(() => [
   { label: 'All media', value: 'all' },

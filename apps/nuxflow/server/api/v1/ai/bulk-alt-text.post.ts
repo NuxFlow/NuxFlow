@@ -9,6 +9,7 @@ import { writeAuditLog } from '../../../utils/audit'
 import { media } from '@nuxflow/db/schema'
 import { and, eq, inArray, isNull, notInArray, or } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
+import type { BulkAltTextResult } from '../../../../shared/lib/media-types'
 
 const bodySchema = z.object({
   // Specific images to (re)generate alt text for; omitted = images that have none yet.
@@ -118,5 +119,5 @@ export default defineEventHandler(async (event) => {
     updated,
     failed,
     hasMore,
-  }
+  } satisfies BulkAltTextResult
 })

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ContentTypesResponse } from '#shared/lib/content-type-types'
+import type { ContentListItem, ContentListResponse } from '#shared/lib/content-list-types'
 import { formatEventWhen } from '@nuxflow/canvas/events'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
@@ -15,22 +16,8 @@ const typeSingular = computed(() => (currentType.value?.singularName ?? typeSlug
 
 useHead({ title: typeTitle })
 
-type ContentRow = {
-  id: string
-  title: string
-  slug: string
-  status: string
-  authorId: string
-  updatedAt: string
-  locale: string | null
-  sourceItemId: string | null
-  eventStartAt?: string | null
-  eventEndAt?: string | null
-  eventAllDay?: boolean | null
-}
-
 const siteTimeZone = await useSiteTimeZone()
-function eventWhen(row: ContentRow): string {
+function eventWhen(row: ContentListItem): string {
   return row.eventStartAt
     ? formatEventWhen({ eventStartAt: row.eventStartAt, eventEndAt: row.eventEndAt, eventAllDay: row.eventAllDay }, siteTimeZone.value)
     : 'No date yet'
@@ -68,11 +55,11 @@ const localeOptions = [
 
 const PAGE_SIZE = 50
 const page = ref(1)
-const accumulated = ref<ContentRow[]>([])
+const accumulated = ref<ContentListItem[]>([])
 const hasMore = ref(false)
 const loadingMore = ref(false)
 
-const { data: items, refresh: refreshFirstPage } = await useFetch<{ items: ContentRow[] }>(
+const { data: items, refresh: refreshFirstPage } = await useFetch<ContentListResponse>(
   () => '/api/v1/content',
   {
     query: computed(() => {
@@ -106,7 +93,7 @@ async function loadMore() {
       q.locale = selectedLocale.value
     }
     if (termFilter.value) q.term = termFilter.value
-    const res = await $fetch<{ items: ContentRow[] }>('/api/v1/content', { query: q })
+    const res = await $fetch<ContentListResponse>('/api/v1/content', { query: q })
     accumulated.value = [...accumulated.value, ...res.items]
     page.value = next
     hasMore.value = res.items.length === PAGE_SIZE
