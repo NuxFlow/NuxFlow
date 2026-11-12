@@ -5,7 +5,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import type { H3Event } from 'h3'
 import { and, eq } from 'drizzle-orm'
-import { auditLogs, contentItems, eventRsvps } from '@nuxflow/db/schema'
+import { auditLogs, contentItems, eventRsvps, formSubmissions, forms } from '@nuxflow/db/schema'
+import { ulid } from 'ulid'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedContentItem, seedContentType, seedRole, seedSetting, seedSite, seedUser } from '../helpers/seed'
@@ -552,5 +553,59 @@ describe('RSVPs', () => {
       await (patchHandler as Handler)(ev({ userId: editorId, params: { id }, body: { eventRsvpCapacity: 2 } }))
       await vi.waitFor(async () => expect((await rsvpRow(id, 'cap2@x.test'))?.status).toBe('confirmed'))
     })
+  })
+})
+
+describe('intake form before booking', () => {
+  async function seedWaiver(status: 'active' | 'draft' = 'active') {
+    const id = ulid()
+    await getCurrentTestDb().insert(forms).values({
+      id, siteId: SITE, name: 'Health waiver', slug: `waiver-${id.toLowerCase()}`, status,
+      fields: [
+        { id: 'w1', type: 'checkbox', label: 'Injuries', name: 'injuries', options: [{ label: 'Back', value: 'back' }, { label: 'None', value: 'none' }] },
+        { id: 'w2', type: 'textarea', label: 'Tell us about the injury', name: 'injuryDetail', required: true, showIf: { field: 'injuries', op: 'equals', value: 'back' } },
+        { id: 'w3', type: 'signature', label: 'Sign here', name: 'signature', required: true },
+        { id: 'w4', type: 'file', label: 'Doctor\'s note', name: 'note', required: true },
+      ] as never,
+    })
+    return id
+  }
+  const waiverRows = (formId: string) => getCurrentTestDb().select().from(formSubmissions).where(eq(formSubmissions.formId, formId))
+
+  it('offers the form\'s questions, without file uploads', async () => {
+    const formId = await seedWaiver()
+    const id = await seedEvent({ settings: { intakeFormId: formId } })
+    const state = await (rsvpGet as Handler)(ev({ params: { id } })) as { intake: { name: string; fields: Array<{ name: string }> } }
+    expect(state.intake.name).toBe('Health waiver')
+    expect(state.intake.fields.map(f => f.name)).toEqual(['injuries', 'injuryDetail', 'signature'])
+  })
+
+  it('refuses the booking until the shown questions are answered, and takes no place', async () => {
+    const formId = await seedWaiver()
+    const id = await seedEvent({ settings: { intakeFormId: formId } })
+    const book = (intake: Record<string, unknown>) => (rsvpPost as Handler)(ev({ params: { id }, body: { name: 'Ann', email: 'ann-waiver@x.test', intake } }))
+    await expect(book({ injuries: ['back'], signature: 'Ann' })).rejects.toMatchObject({ statusCode: 422 })
+    expect(await rsvpRow(id, 'ann-waiver@x.test')).toBeUndefined()
+    expect(await waiverRows(formId)).toHaveLength(0)
+  })
+
+  it('books and saves the answers as a submission of that form, labelled with the booking', async () => {
+    const formId = await seedWaiver()
+    const id = await seedEvent({ title: 'Yoga', settings: { intakeFormId: formId } })
+    await (rsvpPost as Handler)(ev({ params: { id }, body: { name: 'Bo', email: 'bo-waiver@x.test', intake: { injuries: ['none'], injuryDetail: 'stale', signature: 'Bo' } } }))
+    expect(await rsvpRow(id, 'bo-waiver@x.test')).toBeDefined()
+    const [sub] = await waiverRows(formId)
+    expect(sub!.data).toMatchObject({ injuries: ['none'], signature: 'Bo', 'Booked by': 'Bo <bo-waiver@x.test>' })
+    expect(sub!.data).not.toHaveProperty('injuryDetail')
+    expect(String(sub!.data.Booking)).toMatch(/^Yoga · /)
+  })
+
+  it('ignores a form that\'s no longer active', async () => {
+    const formId = await seedWaiver('draft')
+    const id = await seedEvent({ settings: { intakeFormId: formId } })
+    const state = await (rsvpGet as Handler)(ev({ params: { id } })) as { intake: unknown }
+    expect(state.intake).toBeNull()
+    await (rsvpPost as Handler)(ev({ params: { id }, body: { name: 'Cy', email: 'cy-waiver@x.test' } }))
+    expect(await rsvpRow(id, 'cy-waiver@x.test')).toBeDefined()
   })
 })
