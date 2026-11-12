@@ -4,6 +4,7 @@ import { requireHostingPlatform } from '../../../../utils/hosting-platform'
 import { parseQuery } from '../../../../utils/validate'
 import { monthlyUsageEverywhere } from '../../../../utils/usage-report'
 import { utcDay } from '../../../../utils/utc-day'
+import type { UsageReport } from '../../../../../shared/lib/super-admin-types'
 
 const querySchema = z.object({
   month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
@@ -17,5 +18,5 @@ export default defineEventHandler(async (event) => {
   await requireSuperAdmin(event)
   await requireHostingPlatform(event)
   const { month = utcDay().slice(0, 7) } = parseQuery(event, querySchema)
-  return { month, ...await monthlyUsageEverywhere(event, month) }
+  return { month, ...await monthlyUsageEverywhere(event, month) } satisfies UsageReport
 })

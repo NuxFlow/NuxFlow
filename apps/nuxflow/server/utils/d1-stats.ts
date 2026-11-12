@@ -3,6 +3,7 @@ import { getD1 } from './db'
 import { createIsolateCache } from './isolate-cache'
 import { getCfBindings } from './cf-env'
 import { getActiveProviderNameForSite } from './media-providers/index'
+import type { D1SizeStats, SiteSizeStats } from '../../shared/lib/super-admin-types'
 
 // Cloudflare's own stated design philosophy: "D1 is optimized for per-user, per-tenant,
 // or per-entity database patterns rather than single large databases." A single D1
@@ -31,32 +32,7 @@ import { getActiveProviderNameForSite } from './media-providers/index'
 // documented one.
 export const D1_PAID_PLAN_SIZE_CAP_BYTES = 10 * 1024 * 1024 * 1024
 
-export interface SiteSizeStats {
-  siteId: string
-  siteName: string
-  siteDomain: string
-  contentItemCount: number
-  contentBytes: number
-  revisionCount: number
-  revisionBytes: number
-  mediaCount: number
-  mediaBytes: number
-  /** Media-library rows whose file is stored in D1 (the storage fallback), not in real storage. */
-  localFallbackMediaCount: number
-  /**
-   * The provider new uploads go to for this site right now ('local' = no storage
-   * connected). Lets the UI tell "nothing connected" apart from "connected, but older
-   * files are still in the database and can be moved".
-   */
-  storageProvider: string
-  approxTotalBytes: number
-}
-
-export interface D1SizeStats {
-  /** Sum of every site's approxTotalBytes — see the module doc for why this isn't an authoritative on-disk measurement. */
-  approxDatabaseSizeBytes: number
-  sites: SiteSizeStats[]
-}
+export type { D1SizeStats, SiteSizeStats } from '../../shared/lib/super-admin-types'
 
 // This runs a full-table SUM(LENGTH(...)) scan across content_items, content_revisions,
 // and media with no LIMIT — deliberately, since a partial scan would misreport the

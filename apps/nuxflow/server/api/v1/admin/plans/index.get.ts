@@ -3,6 +3,7 @@ import { hostingPlans, sites } from '@nuxflow/db/schema'
 import { useDb } from '../../../../utils/db'
 import { requireSuperAdmin } from '../../../../utils/permissions'
 import { requireHostingPlatform } from '../../../../utils/hosting-platform'
+import type { AdminHostingPlan } from '../../../../../shared/lib/super-admin-types'
 
 /** Every hosting plan, with how many sites are on each. */
 export default defineEventHandler(async (event) => {
@@ -14,5 +15,5 @@ export default defineEventHandler(async (event) => {
     db.select({ planId: sites.hostingPlanId, n: count() }).from(sites).where(isNotNull(sites.hostingPlanId)).groupBy(sites.hostingPlanId),
   ])
   const sitesByPlan = new Map(counts.map(c => [c.planId, c.n]))
-  return { plans: plans.map(p => ({ ...p, siteCount: sitesByPlan.get(p.id) ?? 0 })) }
+  return { plans: plans.map(p => ({ ...p, siteCount: sitesByPlan.get(p.id) ?? 0 })) satisfies AdminHostingPlan[] }
 })

@@ -1,38 +1,9 @@
 <script setup lang="ts">
+import type { DirectorySyncResult, PoolPushResult, PoolsOverview } from '#shared/lib/pool-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Pools' })
 
-interface PoolStatus {
-  poolId: string | null
-  commit: string | null
-  release: string | null
-  siteCount: number
-  lastMigration: string | null
-  settingsReceivedAt: string | null
-}
-interface PoolReport {
-  binding: string
-  status: PoolStatus | null
-  sites: { id: string; name: string; domain: string; status: string }[]
-  error: string | null
-}
-interface PoolsState {
-  /** customerSites: sites besides the operator's own still on this Worker; plansWithoutPool: plans whose sign-ups land here. */
-  controlPlane: { commit: string | null; release: string | null; siteCount: number; customerSites: number; plansWithoutPool: number }
-  pools: PoolReport[]
-  newestRelease: string | null
-  /** Addresses the front-door router sends to each pool, by pool id. */
-  routed: Record<string, number>
-}
-interface DirectorySyncResult {
-  routed: number
-  added: string[]
-  removed: string[]
-  conflicts: { hostname: string; reason: string }[]
-  unreachable: string[]
-}
-
-const { data, error, refresh, status } = await useFetch<PoolsState>('/api/v1/admin/pools')
+const { data, error, refresh, status } = await useFetch<PoolsOverview>('/api/v1/admin/pools')
 const { run, isRunning } = useAdminAction()
 
 // Customer sites on the control panel share its Worker with sign-in and billing, so every
@@ -60,7 +31,7 @@ function releaseBadge(release: string | null): { label: string; color: 'success'
 
 async function sendSettings() {
   await run(async () => {
-    const { results } = await $fetch<{ results: { binding: string; ok: boolean; error: string | null }[] }>('/api/v1/admin/pools/settings', { method: 'POST' })
+    const { results } = await $fetch<{ results: PoolPushResult[] }>('/api/v1/admin/pools/settings', { method: 'POST' })
     await refresh()
     const failed = results.filter(r => !r.ok)
     if (failed.length) throw new Error(failed.map(r => `${r.binding}: ${r.error}`).join('; '))

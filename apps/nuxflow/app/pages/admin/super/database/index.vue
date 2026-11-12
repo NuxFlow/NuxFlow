@@ -1,28 +1,9 @@
 <script setup lang="ts">
+import type { DatabaseStatsResponse } from '#shared/lib/super-admin-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Database' })
 
-interface SiteSizeStats {
-  siteId: string
-  siteName: string
-  siteDomain: string
-  contentItemCount: number
-  contentBytes: number
-  revisionCount: number
-  revisionBytes: number
-  mediaCount: number
-  mediaBytes: number
-  localFallbackMediaCount: number
-  storageProvider: string
-  approxTotalBytes: number
-}
-interface D1Stats {
-  approxDatabaseSizeBytes: number
-  paidPlanSizeCapBytes: number
-  sites: SiteSizeStats[]
-}
-
-const { data: stats, pending: statsPending, error: statsError, refresh: refreshStats } = await useFetch<D1Stats>('/api/v1/admin/db-stats')
+const { data: stats, pending: statsPending, error: statsError, refresh: refreshStats } = await useFetch<DatabaseStatsResponse>('/api/v1/admin/db-stats')
 
 const capUsagePercent = computed(() => {
   if (!stats.value || !stats.value.paidPlanSizeCapBytes) return 0

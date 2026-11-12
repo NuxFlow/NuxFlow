@@ -1,27 +1,15 @@
 <script setup lang="ts">
+import type { SiteMoveStep, SiteMoveSummary } from '#shared/lib/super-admin-types'
 // Moving a site to another pool (server/utils/site-move-job.ts). The server does one step
 // per request; this dialog keeps asking until the move is done, showing where it's got
 // to. Closing it pauses the move (the site stays locked) — Super Admin → Sites offers to
 // continue it.
 
-export interface SiteMoveRow {
-  id: string
-  movedSiteId: string
-  siteName: string
-  siteDomain: string
-  fromPool: string | null
-  toPool: string | null
-  phase: string
-  error: string | null
-}
-
-interface StepAnswer { move: SiteMoveRow; more: boolean; waitMs?: number; message: string }
-
 const props = defineProps<{
   site: { id: string; name: string; domain: string; poolId: string | null } | null
   pools: string[]
   /** An unfinished move to continue, instead of starting one. */
-  resume: SiteMoveRow | null
+  resume: SiteMoveSummary | null
 }>()
 const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ changed: [] }>()
@@ -30,7 +18,7 @@ const { run, isRunning } = useAdminAction()
 
 const CONTROL_PANEL = '__control_panel__'
 const destination = ref('')
-const move = ref<SiteMoveRow | null>(null)
+const move = ref<SiteMoveSummary | null>(null)
 const message = ref('')
 const running = ref(false)
 
@@ -73,7 +61,7 @@ onBeforeUnmount(() => { running.value = false })
 
 async function start() {
   if (!props.site || !destination.value) return
-  const started = await run(() => $fetch<{ move: SiteMoveRow }>('/api/v1/admin/site-moves', {
+  const started = await run(() => $fetch<{ move: SiteMoveSummary }>('/api/v1/admin/site-moves', {
     method: 'POST',
     body: { siteId: props.site!.id, toPool: destination.value === CONTROL_PANEL ? null : destination.value },
   }), { errorTitle: "Couldn't start the move", key: 'start' })
@@ -91,7 +79,7 @@ async function drive() {
   try {
     while (running.value && move.value) {
       const url: string = `/api/v1/admin/site-moves/${move.value.id}/step`
-      const result: StepAnswer = await $fetch<StepAnswer>(url, { method: 'POST' })
+      const result: SiteMoveStep = await $fetch<SiteMoveStep>(url, { method: 'POST' })
       move.value = result.move
       message.value = result.message
       if (!result.more) break
@@ -111,7 +99,7 @@ async function cancelMove() {
   if (!move.value) return
   running.value = false
   const id = move.value.id
-  const cancelled = await run(() => $fetch<{ move: SiteMoveRow }>(`/api/v1/admin/site-moves/${id}/cancel`, { method: 'POST' }), {
+  const cancelled = await run(() => $fetch<{ move: SiteMoveSummary }>(`/api/v1/admin/site-moves/${id}/cancel`, { method: 'POST' }), {
     successTitle: 'Move cancelled — the site is back as it was',
     errorTitle: "Couldn't cancel the move",
     key: 'cancel',

@@ -1,28 +1,12 @@
 <script setup lang="ts">
 import type { AdminSitesResponse } from '#shared/lib/admin-site-types'
 import { PLAN_FEATURES, PLAN_LIMITS, type PlanFeatureColumn, type PlanLimitColumn } from '#shared/lib/hosting-plan-limits'
+import type { AdminHostingPlan } from '#shared/lib/super-admin-types'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Plans' })
 
-type Plan = {
-  id: string
-  name: string
-  description: string
-  priceText: string
-  sortOrder: number
-  siteCount: number
-  isPublic: boolean
-  priceMonthly: number | null
-  priceYearly: number | null
-  currency: string
-  trialDays: number
-  defaultPoolId: string | null
-  stripePriceMonthlyId: string | null
-  stripePriceYearlyId: string | null
-} & Record<PlanLimitColumn, number | null> & Record<PlanFeatureColumn, boolean>
-
-const { data, pending, error, refresh } = await useFetch<{ plans: Plan[] }>('/api/v1/admin/plans')
+const { data, pending, error, refresh } = await useFetch<{ plans: AdminHostingPlan[] }>('/api/v1/admin/plans')
 // Member pools a plan's sign-ups can get their site in (Super Admin → Pools).
 const { data: siteData } = await useFetch<AdminSitesResponse>('/api/v1/admin/sites')
 const HERE = '__control_panel__'
@@ -52,11 +36,11 @@ function money(amount: number, currency: string): string {
   }
 }
 
-function setLimits(plan: Plan) {
+function setLimits(plan: AdminHostingPlan) {
   return PLAN_LIMITS.filter(l => plan[l.column] !== null)
 }
 
-function includedFeatures(plan: Plan) {
+function includedFeatures(plan: AdminHostingPlan) {
   return PLAN_FEATURES.filter(f => plan[f.column])
 }
 
@@ -83,7 +67,7 @@ const form = reactive({
   features: {} as Record<PlanFeatureColumn, boolean>,
 })
 
-function openEditor(plan?: Plan) {
+function openEditor(plan?: AdminHostingPlan) {
   editingId.value = plan?.id ?? null
   form.name = plan?.name ?? ''
   form.description = plan?.description ?? ''
@@ -186,7 +170,7 @@ async function savePlan() {
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
-const deleting = ref<Plan | null>(null)
+const deleting = ref<AdminHostingPlan | null>(null)
 const deleteBusy = ref(false)
 const isDeleteOpen = computed({ get: () => !!deleting.value, set: (v) => { if (!v) deleting.value = null } })
 

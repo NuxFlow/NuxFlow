@@ -3,6 +3,7 @@ import { emailLog, sites } from '@nuxflow/db/schema'
 import { useDb } from '../../../utils/db'
 import { requireSuperAdmin } from '../../../utils/permissions'
 import { getEmailBinding } from '../../../utils/cf-env'
+import type { EmailUsageReport } from '../../../../shared/lib/super-admin-types'
 
 /**
  * Outbound email across every site, from NuxFlow's own send log (email_log) — Cloudflare's
@@ -54,5 +55,5 @@ export default defineEventHandler(async (event) => {
     recentFailures,
     sendingBindingPresent: !!getEmailBinding(event),
     inboundEmailDomain: String(useRuntimeConfig().inboundEmailDomain ?? '') || null,
-  }
+  } satisfies EmailUsageReport
 })

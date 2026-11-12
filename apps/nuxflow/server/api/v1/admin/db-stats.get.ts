@@ -1,5 +1,6 @@
 import { requireSuperAdmin } from '../../../utils/permissions'
 import { getD1SizeStats, D1_PAID_PLAN_SIZE_CAP_BYTES } from '../../../utils/d1-stats'
+import type { DatabaseStatsResponse } from '../../../../shared/lib/super-admin-types'
 
 // Whole-instance size visibility — same requireSuperAdmin gate as db-export.get.ts,
 // since this reports every site's data, not just the caller's current one. See
@@ -20,5 +21,5 @@ export default defineEventHandler(async (event) => {
     throw httpError({ status: 500, message: 'Failed to compute database size stats — see server logs for which query failed.' })
   }
 
-  return { ...stats, paidPlanSizeCapBytes: D1_PAID_PLAN_SIZE_CAP_BYTES }
+  return { ...stats, paidPlanSizeCapBytes: D1_PAID_PLAN_SIZE_CAP_BYTES } satisfies DatabaseStatsResponse
 })

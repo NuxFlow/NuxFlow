@@ -1,36 +1,10 @@
 <script setup lang="ts">
+import type { SiteMonthlyUsage, SiteUsageSeries, UsageReport } from '#shared/lib/super-admin-types'
+import type { UsageMetric } from '#shared/lib/usage-metrics'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 useHead({ title: 'Usage' })
 
-type MetricKey = 'views' | 'renders' | 'api' | 'ai_calls' | 'ai_credits' | 'ai_visitor_credits' | 'emails' | 'inbound_emails' | 'plugin_calls' | 'video_minutes_viewed'
-  | 'storage_bytes' | 'content_items' | 'team_members' | 'site_members' | 'plugins' | 'database_bytes'
-
-interface SiteUsage {
-  id: string
-  name: string
-  domain: string
-  status: string
-  isPrimary: boolean
-  usage: Record<MetricKey, number>
-  snapshotDay: string | null
-  /** The member pool it lives in (Super Admin → Pools), or null for this control panel's own. */
-  poolId?: string | null
-}
-interface UsageResponse {
-  month: string
-  from: string
-  to: string
-  sites: SiteUsage[]
-  /** Pools that couldn't be reached, so their sites are missing. */
-  unreachablePools?: string[]
-}
-interface TrendResponse {
-  site: { id: string; name: string; domain: string }
-  days: string[]
-  series: Record<MetricKey, (number | null)[]>
-}
-
-const METRICS: { key: MetricKey; label: string; hint: string; bytes?: boolean }[] = [
+const METRICS: { key: UsageMetric; label: string; hint: string; bytes?: boolean }[] = [
   { key: 'views', label: 'Views', hint: 'Public page requests, cached or not' },
   { key: 'renders', label: 'Renders', hint: 'Pages built by the server — the best stand-in for CPU time' },
   { key: 'api', label: 'API', hint: 'Requests to the site’s /api routes' },
@@ -51,11 +25,11 @@ const METRICS: { key: MetricKey; label: string; hint: string; bytes?: boolean }[
 const EVENT_METRICS = METRICS.slice(0, 10)
 
 const month = ref(new Date().toISOString().slice(0, 7))
-const { data, pending, error, refresh } = await useFetch<UsageResponse>('/api/v1/admin/usage', { query: { month } })
+const { data, pending, error, refresh } = await useFetch<UsageReport>('/api/v1/admin/usage', { query: { month } })
 
-const sortKey = ref<MetricKey | 'name'>('views')
+const sortKey = ref<UsageMetric | 'name'>('views')
 const sortDesc = ref(true)
-function sortBy(key: MetricKey | 'name') {
+function sortBy(key: UsageMetric | 'name') {
   if (sortKey.value === key) sortDesc.value = !sortDesc.value
   else { sortKey.value = key; sortDesc.value = key !== 'name' }
 }
@@ -70,7 +44,7 @@ const rows = computed(() => {
 
 const totals = computed(() => Object.fromEntries(EVENT_METRICS.map(m => [
   m.key, (data.value?.sites ?? []).reduce((sum, s) => sum + s.usage[m.key], 0),
-])) as Record<MetricKey, number>)
+])) as Record<UsageMetric, number>)
 
 function format(value: number | null | undefined, bytes?: boolean): string {
   if (value === null || value === undefined) return '—'
@@ -78,14 +52,14 @@ function format(value: number | null | undefined, bytes?: boolean): string {
 }
 
 // Nightly totals show — until the first snapshot has been taken for the site.
-function cell(site: SiteUsage, metric: typeof METRICS[number]): string {
+function cell(site: SiteMonthlyUsage, metric: typeof METRICS[number]): string {
   if (!site.snapshotDay && !EVENT_METRICS.includes(metric)) return '—'
   return format(site.usage[metric.key], metric.bytes)
 }
 
 // ── One site's 30-day trend ──────────────────────────────────────────────────
 const selectedSiteId = ref<string | null>(null)
-const trend = ref<TrendResponse | null>(null)
+const trend = ref<SiteUsageSeries | null>(null)
 const trendError = ref<string | null>(null)
 const trendLoading = ref(false)
 
@@ -100,7 +74,7 @@ async function showTrend(siteId: string) {
   trendLoading.value = true
   try {
     const url: string = `/api/v1/admin/usage/${siteId}`
-    trend.value = await $fetch<TrendResponse>(url, { query: { days: 30 } })
+    trend.value = await $fetch<SiteUsageSeries>(url, { query: { days: 30 } })
   } catch (err) {
     trendError.value = getErrorMessage(err, 'Could not load this site’s trend')
   } finally {
@@ -119,7 +93,7 @@ function bars(values: (number | null)[]) {
     return { x: i * (width + BAR_GAP), y: CHART_H - h, w: width, h, value: v ?? 0 }
   })
 }
-const hovered = ref<{ metric: MetricKey; index: number } | null>(null)
+const hovered = ref<{ metric: UsageMetric; index: number } | null>(null)
 </script>
 
 <template>

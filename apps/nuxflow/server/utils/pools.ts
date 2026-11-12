@@ -12,13 +12,15 @@ import type { AccountSiteListing } from '../../shared/lib/accounts-types'
 import type { UserData } from './account-data'
 import type { HostingPlanRow, NewPoolSite, PoolPrepareResult, SiteSummary } from './pool-sites'
 import type { SitePeople } from './site-deletion'
-import type { MonthlySiteUsage, SiteUsageSeries } from './usage-report'
+import type { MonthlySiteUsage } from './usage-report'
+import type { SiteUsageSeries } from '../../shared/lib/super-admin-types'
 import type { SiteChanges } from './site-admin'
 import type { AccountProvisioningStatus } from './user-provisioning'
 import type { DomainOp, DomainOpResult, PendingDomain } from './hosting-domains'
 import type { MoveOp } from './site-move'
 import { withTimeout } from './timeout'
 import { getCfEnv } from './cf-env'
+import type { ControlPlaneSummary, PoolPushResult, PoolReport } from '../../shared/lib/pool-types'
 
 /**
  * The control plane's view of its member pools (control-plane.ts). A pool is connected by
@@ -95,13 +97,7 @@ export function poolBindings(event: H3Event): { binding: string; stub: PoolAdmin
     .map(binding => ({ binding, stub: env[binding] as PoolAdminStub }))
 }
 
-export interface PoolReport {
-  binding: string
-  /** null when the pool couldn't be reached. */
-  status: PoolStatus | null
-  sites: PoolSite[]
-  error: string | null
-}
+export type { PoolReport } from '../../shared/lib/pool-types'
 
 export async function describePools(event: H3Event): Promise<PoolReport[]> {
   return Promise.all(poolBindings(event).map(async ({ binding, stub }): Promise<PoolReport> => {
@@ -120,7 +116,7 @@ export async function describePools(event: H3Event): Promise<PoolReport[]> {
 }
 
 /** This Worker's own line on the Pools page. */
-export async function controlPlaneSummary(db: Db): Promise<{ commit: string | null; release: string | null; siteCount: number; customerSites: number; plansWithoutPool: number }> {
+export async function controlPlaneSummary(db: Db): Promise<ControlPlaneSummary> {
   const config = useRuntimeConfig()
   const [[row], [customers], [plans]] = await Promise.all([
     db.select({ n: count() }).from(sites),
@@ -145,11 +141,7 @@ export async function collectPlatformSettings(db: Db): Promise<Record<string, st
   return Object.fromEntries(keys.map((key, i) => [key, values[i] ?? null]))
 }
 
-export interface PoolPushResult {
-  binding: string
-  ok: boolean
-  error: string | null
-}
+export type { PoolPushResult } from '../../shared/lib/pool-types'
 
 /**
  * Sends the platform settings to every pool. Called when Super Admin → Platform saves, and
