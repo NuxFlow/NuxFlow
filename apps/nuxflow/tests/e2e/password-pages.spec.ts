@@ -1,5 +1,6 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { ADMIN_STORAGE_STATE_PATH } from './global-setup'
+import { waitForHydration } from './helpers'
 
 /**
  * Password-protected pages (client galleries), as a visitor sees them: the password form
@@ -32,6 +33,9 @@ test('shows the password form, not the page, until the right password', async ({
   const response = await page.goto(`/${slug}`)
   expect(response?.status()).toBe(401)
   expect(await response?.text()).not.toContain(SECRET)
+  // The form only works once the page's JavaScript has taken over; a click before that did
+  // nothing, and the test failed now and then.
+  await waitForHydration(page)
 
   await expect(page.getByRole('heading', { name: 'Smith Wedding' })).toBeVisible()
   await page.getByLabel('Password', { exact: true }).fill('not-it')
