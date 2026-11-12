@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ContentTypesResponse } from '#shared/lib/content-type-types'
 import { formatEventWhen } from '@nuxflow/canvas/events'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
@@ -7,7 +8,7 @@ const typeSlug = computed(() => (route.query.type as string) || 'page')
 
 // The type's own names (Admin → Content types), so a site's "Properties" reads right; the
 // key with an "s" while they load.
-const { data: typesData } = useFetch<{ types: Array<{ slug: string; name: string; singularName: string }> }>('/api/v1/content-types', { server: false })
+const { data: typesData } = useFetch<ContentTypesResponse>('/api/v1/content-types', { server: false })
 const currentType = computed(() => typesData.value?.types.find(t => t.slug === typeSlug.value))
 const typeTitle = computed(() => currentType.value?.name ?? `${typeSlug.value.charAt(0).toUpperCase()}${typeSlug.value.slice(1)}s`)
 const typeSingular = computed(() => (currentType.value?.singularName ?? typeSlug.value).toLowerCase())

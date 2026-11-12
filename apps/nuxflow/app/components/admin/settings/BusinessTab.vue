@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { SiteSettingsResponse } from '#shared/lib/site-settings-types'
 import { BUSINESS_DAYS, BUSINESS_KINDS, dayName, emptyHours, parseBusinessInfo, type BusinessDay, type BusinessInfo, type HoursSlot } from '@nuxflow/canvas/business'
 
 // Settings → Business: address, phone and opening hours, one JSON setting
@@ -16,7 +17,7 @@ interface DayState { open: boolean; slots: HoursSlot[] }
 interface ExceptionState { date: string; closed: boolean; slots: HoursSlot[]; note: string }
 
 const { run, isRunning } = useAdminAction()
-const { data, error, refresh } = await useFetch<{ settings: Record<string, unknown> }>('/api/v1/settings')
+const { data, error, refresh } = await useFetch<SiteSettingsResponse>('/api/v1/settings')
 const stored = computed(() => data.value ? parseBusinessInfo(data.value.settings[KEY]) ?? { kind: 'LocalBusiness', hours: emptyHours(), exceptions: [] } : null)
 
 const details = reactive({

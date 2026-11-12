@@ -6,6 +6,7 @@ import { SENSITIVE_SETTING_KEYS, SECRET_MASK, isEnvFallbackWithheld, isOllamaAva
 import { planIncludes } from '../../../utils/hosting-plans'
 import { requireSiteId } from '../../../utils/site-context'
 import { defaultFromAddresses, loadEmailConfig } from '../../../utils/email'
+import type { SiteSettingsResponse } from '../../../../shared/lib/site-settings-types'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
@@ -102,5 +103,5 @@ export default defineEventHandler(async (event) => {
       provider: (await loadEmailConfig(event)).emailProvider,
       fromAddress: await defaultFromAddresses(event, siteId, site.domain),
     },
-  }
+  } satisfies SiteSettingsResponse
 })

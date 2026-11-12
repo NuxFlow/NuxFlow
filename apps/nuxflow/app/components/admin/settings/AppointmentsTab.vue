@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { SiteSettingsResponse } from '#shared/lib/site-settings-types'
 import { WEEKDAYS, emptyWeek, parseAppointmentSettings, type DayOff, type TimeRange, type Weekday } from '#shared/lib/appointments'
 
 // Settings → Appointments: when one-to-one appointments can be booked (Appointment block,
@@ -12,7 +13,7 @@ const DAY_NAMES: Record<Weekday, string> = { mon: 'Monday', tue: 'Tuesday', wed:
 interface DayState { open: boolean; slots: TimeRange[] }
 
 const { run, isRunning } = useAdminAction()
-const { data, error, refresh } = await useFetch<{ settings: Record<string, unknown> }>('/api/v1/settings')
+const { data, error, refresh } = await useFetch<SiteSettingsResponse>('/api/v1/settings')
 
 const useOpeningHours = ref(true)
 const days = reactive(Object.fromEntries(WEEKDAYS.map(d => [d, { open: false, slots: [] as TimeRange[] }])) as Record<Weekday, DayState>)

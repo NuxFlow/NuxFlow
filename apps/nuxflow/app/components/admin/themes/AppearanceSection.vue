@@ -1,12 +1,8 @@
 <script setup lang="ts">
+import type { SiteSettingsResponse } from '#shared/lib/site-settings-types'
 const { run, isRunning } = useAdminAction()
 
-interface SettingsData {
-  site: { id: string }
-  settings: Record<string, unknown>
-}
-
-const { data: settingsData, error: loadError, refresh: refreshSettings } = await useFetch<SettingsData>('/api/v1/settings')
+const { data: settingsData, error: loadError, refresh: refreshSettings } = await useFetch<SiteSettingsResponse>('/api/v1/settings')
 
 const appearance = reactive({
   darkMode: 'auto' as 'auto' | 'light' | 'dark',
