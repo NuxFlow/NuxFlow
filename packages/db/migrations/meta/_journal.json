@@ -71,6 +71,13 @@
       "when": 1794468371296,
       "tag": "0009_click_collect",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1794472233891,
+      "tag": "0010_availability",
+      "breakpoints": true
     }
   ]
 }

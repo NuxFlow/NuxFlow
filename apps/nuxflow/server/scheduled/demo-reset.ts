@@ -29,6 +29,8 @@ import {
   videoAssets,
   forms,
   formSubmissions,
+  availabilityBlocks,
+  availabilityFeeds,
   galleryPicks,
   membershipTiers,
   subscriptions,
@@ -83,6 +85,8 @@ type Db = ReturnType<typeof useDb>
 // (plans, platform settings, the site directory) belong to no site. A unit test checks
 // this covers every table in the schema, so a new table can't be missed.
 export const DEMO_WIPE_TABLES = [
+  availabilityBlocks,
+  availabilityFeeds,
   galleryPicks,
   contentTaxonomyTerms,
   taxonomyTerms,

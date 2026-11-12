@@ -667,7 +667,7 @@ To accept payments, configure at least one payment provider in **Admin → Setti
 
 Canvas is a visual drag-and-drop page builder built into NuxFlow. It adds a **Canvas** editor mode to any page or post, letting you build layouts from blocks without writing code.
 
-Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), **Video gallery**, Columns, **Container**, Feature grids, Testimonials, CTA banners, Buttons, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), **Posts**, **Events Calendar**, **Class Passes**, Contact Form, Form, **Signup box**, **Before & After**, **Logo Strip**, **Map**, **Opening Hours**, **Menu**, **Google Reviews**, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
+Available blocks include Hero sections, Text, Image, **Gallery**, **Carousel**, Video (supporting YouTube, Vimeo, and Cloudflare Stream), **Video gallery**, Columns, **Container**, Feature grids, Testimonials, CTA banners, Buttons, Spacers, Accordions, Pricing Tables (static, for arbitrary marketing copy), **Membership Pricing** (live tier grid wired to the checkout flow), **Posts**, **Events Calendar**, **Class Passes**, Contact Form, Form, **Signup box**, **Before & After**, **Logo Strip**, **Map**, **Opening Hours**, **Menu**, **Google Reviews**, **Availability Calendar**, and HTML embeds. Each block has a settings panel for configuring its content and appearance.
 
 #### Nesting blocks
 
@@ -699,6 +699,16 @@ Shows your star rating, how many reviews you have and up to five recent reviews,
 2. In your own Google Cloud account, switch on **Places API (New)**, create an **API key** restricted to that API, and paste it in. It's stored encrypted.
 
 Google charges each look-up to that account. NuxFlow asks at most once an hour and shows the same answer to every visitor in between, so a small business pays pennies a month, usually inside Google's free allowance. Google decides which five reviews it returns; they're shown as written, with Google's name on them, as its terms require.
+
+#### Availability Calendar block (holiday lets)
+
+Shows the coming months (six by default) with booked nights crossed out, so guests can see when your property is free before they get in touch. Put it on the property's page, next to a Form block for enquiries. Once the page has been saved with the block on it, an **Availability** panel appears in the editor's sidebar with three parts:
+
+- **Booking sites.** Paste each listing's calendar *export* link: on Airbnb it's under Availability → Connect calendars → Export calendar; on Booking.com, Rates & availability → Sync calendars → Export. Vrbo and most other sites have the same thing. NuxFlow fetches each one every hour and shows its booked nights. **Sync now** fetches them straight away. If a calendar can't be read, the panel says why, and the nights it had before stay in place.
+- **Your own blocked dates.** Direct bookings, your own stays, maintenance. Choose the first night and the day the guests leave (that day stays free for the next arrival). The note is only for you.
+- **Send your dates to the booking sites.** Copy this link and add it to Airbnb and Booking.com as an *imported* calendar, so your own blocked dates close those nights there too. It only carries the dates you added yourself, not the other sites' bookings (each site already sends its own). Keep it private.
+
+Booking sites usually refresh imported calendars every few hours, so a booking taken on one can take a little while to close the dates on the others. Visitors only see which nights are taken, never notes or which site a booking came from. A translated page shows its original's calendar.
 
 #### Opening Hours block
 

@@ -23,6 +23,13 @@ export interface CanvasGoogleReviews {
   reviews: Array<{ author: string; authorUrl: string | null; photo: string | null; rating: number; text: string; when: string }>
 }
 
+/** A holiday let's booked nights: `start` is the first night, `end` the day the guests leave. */
+export interface CanvasAvailability {
+  /** Today's date (YYYY-MM-DD), so the calendar greys out the past. */
+  today: string
+  booked: Array<{ start: string; end: string }>
+}
+
 /** A client's favourites in a Gallery block with "Let clients pick favourites". */
 export interface CanvasGalleryPicks {
   pickerName: string
@@ -162,6 +169,8 @@ export interface CanvasHost {
   listPostFilters?(type: string): Promise<CanvasPostFilter[]>
   /** The site's Google reviews (Settings → Business), or null when they aren't set up. */
   googleReviews?(): Promise<CanvasGoogleReviews | null>
+  /** A holiday let's booked nights, for the published page at `path` (Availability calendar block). */
+  availability?(path: string): Promise<CanvasAvailability>
   /** Client proofing: a visitor's own saved picks in a gallery, or null. */
   loadGalleryPicks?(query: { path: string; block: string; token: string }): Promise<CanvasGalleryPicks | null>
   /** Client proofing: saves (or, with `submit`, sends) a visitor's picks. */

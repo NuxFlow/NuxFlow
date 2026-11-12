@@ -634,6 +634,47 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     },
   },
 
+  // ── Availability calendar ──────────────────────────────────────────────────
+  {
+    id: 'canvas-availability',
+    name: 'Availability Calendar',
+    description: 'A holiday let calendar: booked nights from Airbnb, Booking.com and your own dates',
+    icon: 'i-lucide-calendar-range',
+    category: 'commerce',
+    component: 'CanvasBlockAvailability',
+    ai: { exclude: true },
+    thumbnailColor: '#ecfdf5',
+    fields: [
+      { key: 'title', label: 'Heading', type: 'text', placeholder: 'Availability' },
+      { key: 'intro', label: 'Text under the heading', type: 'textarea', placeholder: 'Minimum stay 3 nights. Changeover on Fridays.' },
+      { key: 'months', label: 'Months to show', type: 'number', min: 1, max: 12, step: 1 },
+      {
+        key: 'weekStart',
+        label: 'Weeks start on',
+        type: 'select',
+        translatable: false,
+        options: [
+          { label: 'Monday', value: 'monday' },
+          { label: 'Sunday', value: 'sunday' },
+        ],
+      },
+      { key: 'bookedColor', label: 'Booked nights colour', type: 'color' },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      title: 'Availability',
+      intro: '',
+      months: 6,
+      weekStart: 'monday',
+      bookedColor: '',
+      bgColor: '',
+      textColor: '',
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
   // ── Menu ────────────────────────────────────────────────────────────────────
   {
     id: 'canvas-menu',

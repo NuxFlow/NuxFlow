@@ -141,6 +141,12 @@ export const ALLOWLIST: AllowlistEntry[] = [
 
   // ── Scheduled jobs that run once for the whole installation ──────────────────────
   {
+    file: 'server/utils/availability.ts',
+    match: /from "availability_feeds" "availabilityFeeds" where \(\("availabilityFeeds"\."last_synced_at" is null or/,
+    tables: ['availability_feeds', 'sites'],
+    reason: 'syncDueFeeds(): the hourly sync of the followed holiday-let calendars that are due, on every site.',
+  },
+  {
     file: 'server/scheduled/event-bookings.ts',
     tables: ['event_rsvps', 'sites'],
     reason: 'Hourly job across every site: places whose time has run out, and day-before reminders.',
