@@ -32,6 +32,8 @@ export interface PublicSiteInfo {
   shop?: { currency: string; pricesIncludeTax: boolean } | null
   /** Settings → Business (address, phone, opening hours), when any is set. */
   business?: BusinessInfo | null
+  /** Settings → Podcast, when it's on: its feed for apps and the head's alternate link. */
+  podcast?: { title: string; feedUrl: string; contentType: string } | null
   /** Settings → Appearance → Posts: "5 min read" on posts, "On this page" on long pages. */
   showReadingTime?: boolean
   showToc?: boolean

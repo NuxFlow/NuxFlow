@@ -13,6 +13,7 @@ import { requireSiteId } from '../../../utils/site-context'
 import { markPrivateVideos } from '../../../utils/stream'
 import { addGalleryCameraDetails } from '../../../utils/gallery-camera'
 import { pageDetails, parseFieldDefs } from '../../../../shared/lib/custom-fields'
+import { parseEpisode } from '../../../../shared/lib/podcast'
 import { describePageVideos, hasVideoBlocks } from '../../../utils/video-seo'
 import { eventIcsPath } from '../../../utils/event-feed'
 import { loadProduct, toPublicProduct } from '../../../utils/products'
@@ -123,7 +124,7 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
             eq(contentItems.siteId, siteId),
             eq(contentItems.status, 'published'),
           ),
-          columns: { locale: true, slug: true, eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, eventRsvpEnabled: true, eventRecurrence: true, eventPrice: true, eventCurrency: true, fields: true },
+          columns: { locale: true, slug: true, eventStartAt: true, eventEndAt: true, eventAllDay: true, eventLocation: true, eventUrl: true, eventRsvpEnabled: true, eventRecurrence: true, eventPrice: true, eventCurrency: true, fields: true, settings: true },
         })
       : Promise.resolve(null),
     db.query.sites.findFirst({ where: eq(sites.id, siteId), columns: { locale: true, timezone: true } }),
@@ -260,6 +261,9 @@ async function assemblePageResponse(db: Db, page: ContentItemRow, siteId: string
     product,
     // The type's custom fields (Admin → Content types), formatted for reading. A translation
     // without values of its own shows its original's.
+    // An episode's audio (Settings → Podcast), for the site-wide player. A translation without
+    // its own audio plays its original's.
+    episode: parseEpisode(page.settings) ?? (sourcePageResolved ? parseEpisode((sourcePageResolved as { settings?: unknown }).settings) : null),
     details: pageDetails(parseFieldDefs(type?.schema), page.fields ?? sourcePageResolved?.fields, page.locale || defaultLocale),
     availableLocales,
     alternates,

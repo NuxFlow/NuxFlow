@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { parseEpisode } from '#shared/lib/podcast'
+import type { PublicSiteInfo } from '~/utils/seo'
 import type { CustomFieldDef, CustomFieldValues } from '#shared/lib/custom-fields'
 import { eventDay, floatingDate, todayIn, utcToZoned, zonedToUtc, type EventRecurrence } from '@nuxflow/canvas/events'
 import { renderTipTap } from '#shared/lib/render-tiptap'
@@ -84,6 +86,7 @@ const form = reactive({
   eventPassesAllowed: true,
   fields: {} as CustomFieldValues,
   intakeFormId: '',
+  podcast: { audioUrl: '', duration: '', episode: null as number | null, season: null as number | null, explicit: false },
   // Taxonomy term ids — saved with the rest of the item (see EditorTermPicker).
   termIds: [] as string[],
   // A product's options and variants (EditorProductSettingsPanel); null for anything else.
@@ -106,6 +109,10 @@ const activeTypeSlug = computed(() => {
 // The content type's own fields (Admin → Content types), shown in the Details panel.
 const { data: contentTypesData } = useFetch<{ types: Array<{ slug: string; fields: CustomFieldDef[] }> }>('/api/v1/content-types', { server: false })
 const fieldDefs = computed(() => contentTypesData.value?.types.find(t => t.slug === activeTypeSlug.value)?.fields ?? [])
+
+// Podcast episodes (Settings → Podcast): items of the podcast's content type get an audio panel.
+const { data: publicSite } = useFetch<PublicSiteInfo>('/api/public/site', { key: 'nuxflow-public-site', server: false })
+const isEpisodeType = computed(() => Boolean(publicSite.value?.podcast) && publicSite.value?.podcast?.contentType === activeTypeSlug.value)
 
 // Client proofing: a saved page with a gallery that lets clients pick favourites shows their picks.
 const hasProofingGallery = computed(() => !isNew.value && JSON.stringify(form.content ?? '').includes('"allowFavourites":true'))
@@ -192,6 +199,10 @@ watch(item, (val) => {
   form.eventPassesAllowed = val.eventPassesAllowed ?? true
   form.fields = { ...(val.fields ?? {}) }
   form.intakeFormId = String((val.settings as Record<string, unknown> | null)?.intakeFormId ?? '')
+  {
+    const ep = parseEpisode(val.settings)
+    form.podcast = { audioUrl: ep?.audioUrl ?? '', duration: ep?.duration ?? '', episode: ep?.episode ?? null, season: ep?.season ?? null, explicit: ep?.explicit ?? false }
+  }
   form.termIds = val.termIds ?? []
   form.product = val.product
     ? { ...val.product, variants: val.product.variants.map(v => ({ ...v, stockWas: v.stock })) }
@@ -321,7 +332,7 @@ async function save(overrideStatus?: string) {
       excerpt: form.excerpt || null,
       ogImage: form.ogImage || null,
       // The whole settings object is replaced on save, so everything kept in it is sent.
-      settings: { access: form.access, ...(form.intakeFormId ? { intakeFormId: form.intakeFormId } : {}) },
+      settings: { access: form.access, ...(form.intakeFormId ? { intakeFormId: form.intakeFormId } : {}), ...(form.podcast.audioUrl ? { podcast: { ...form.podcast } } : {}) },
       allowComments: form.allowComments,
       eventStartAt: eventDateForSave(form.eventStartAt, form.eventAllDay),
       eventEndAt: eventDateForSave(form.eventEndAt, form.eventAllDay),
@@ -586,6 +597,10 @@ onUnmounted(() => {
               Reset to type default
             </UButton>
           </div>
+        </UCard>
+
+        <UCard v-if="isEpisodeType">
+          <EditorPodcastPanel v-model="form.podcast" :disabled="!canEdit" />
         </UCard>
 
         <UCard v-if="hasProofingGallery">

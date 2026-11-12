@@ -613,6 +613,17 @@ Upload a logo image to replace the site name text in the public navigation bar. 
 
 ---
 
+### Podcast
+
+**Admin → Settings → Podcast** turns your posts into a podcast that Apple Podcasts, Spotify and other apps can follow.
+
+1. Give the podcast a **title**, a **description**, the **host**, an **owner email** (Apple asks for it), a **category**, and **cover art**: a square image at least 1400 × 1400 pixels. Choose which content type holds the episodes (usually Posts), switch it on and save.
+2. Upload each episode's audio (MP3 or M4A) to the **Media Library**.
+3. In a post's editor, the **Podcast episode** panel picks the audio file and takes its length (`45:10`), episode and season numbers. Publish it.
+4. Submit the feed address shown in Settings → Podcast (`https://your-site/podcast.xml`) to Apple Podcasts Connect and Spotify for Podcasters, once. New episodes then appear in the apps by themselves.
+
+On your site, an episode's page has a **Play episode** button. It plays in a bar along the bottom of the screen that **keeps playing while visitors move around your site**, with a link back to the episode and a close button. Only published, public posts with an audio file are in the feed.
+
 ### Reading time and table of contents
 
 Blog posts show how long they take to read ("5 min read") next to the date, worked out at 230 words a minute. Any post or page with three or more section headings (Heading 2 or Heading 3) gets an **On this page** list at the top that jumps to each section, and every heading has its own link (for example `/my-post#costs`) you can share. Turn either off at **Admin → Settings → Appearance → Posts and pages**.

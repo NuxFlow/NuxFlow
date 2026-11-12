@@ -35,6 +35,7 @@ useHead({
     const feedLinks = [
       { rel: 'alternate' as const, type: 'application/rss+xml' as const, title: 'RSS Feed', href: '/feed.xml' },
       { rel: 'alternate' as const, type: 'application/atom+xml' as const, title: 'Atom Feed', href: '/atom.xml' },
+      ...(site.value?.podcast ? [{ rel: 'alternate' as const, type: 'application/rss+xml' as const, title: site.value.podcast.title || 'Podcast', href: site.value.podcast.feedUrl }] : []),
     ]
     // Default canonical for routes that don't set their own (blog index, archives,
     // search). Paginated listings keep their ?page=N — Google indexes each page of a
@@ -124,5 +125,6 @@ useHead({
     <ClientOnly><PublicCookieConsent /></ClientOnly>
     <ClientOnly><PublicPushNotificationBanner /></ClientOnly>
     <ClientOnly><PublicSignupPrompt /></ClientOnly>
+    <ClientOnly><PublicAudioPlayer /></ClientOnly>
   </div>
 </template>

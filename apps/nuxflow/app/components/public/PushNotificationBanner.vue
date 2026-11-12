@@ -41,6 +41,7 @@ function dismiss() {
   >
     <div
       v-if="show"
+      data-nuxflow-bottom-bar
       class="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-lg"
     >
       <div class="max-w-4xl mx-auto flex items-center gap-4 flex-wrap">
