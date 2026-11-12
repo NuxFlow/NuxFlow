@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PublicSiteInfo } from '~/utils/seo'
+import type { PublicSite } from '#shared/lib/public-site-types'
 import type { PublicPage } from '#shared/lib/public-page-types'
 
 // `cookie` is forwarded so a draft-preview cookie (api/preview/[token].get.ts) reaches the
@@ -7,7 +7,7 @@ import type { PublicPage } from '#shared/lib/public-page-types'
 const { data: page } = await useFetch<PublicPage>('/api/public/pages/home', {
   headers: useRequestHeaders(['host', 'cookie']),
 })
-const { data: site } = await useFetch<PublicSiteInfo>('/api/public/site', { headers: useRequestHeaders(['host']) })
+const { data: site } = await useFetch<PublicSite>('/api/public/site', { headers: useRequestHeaders(['host']) })
 
 const hasCustomContent = computed(() =>
   page.value !== null && page.value?.content !== null && page.value?.content !== undefined,

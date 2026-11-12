@@ -17,12 +17,13 @@ import { parseBusinessInfo } from '@nuxflow/canvas/business'
 import { BUSINESS_SETTING_KEY, hasBusinessDetails } from '../../utils/business'
 import { PODCAST_SETTING_KEY } from '../../utils/podcast'
 import { parsePodcastSettings } from '../../../shared/lib/podcast'
+import type { PublicSite } from '../../../shared/lib/public-site-types'
 
 const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.show_reading_time', 'frontend.show_toc', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations', SIGNUP_SETTING_KEY, SHOP_ENABLED_KEY, SHOP_CONFIG_KEY, BUSINESS_SETTING_KEY, PODCAST_SETTING_KEY] as const
 
 const CACHE_MAX_AGE = 300
 
-async function buildPayload(event: H3Event, siteId: string) {
+async function buildPayload(event: H3Event, siteId: string): Promise<PublicSite> {
   const db = useDb(event)
   const site = await db.query.sites.findFirst({
     where: eq(sites.id, siteId),

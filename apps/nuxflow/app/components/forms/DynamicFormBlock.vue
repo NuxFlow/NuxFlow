@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PublicSite } from '#shared/lib/public-site-types'
 import { computed, ref, watch, watchEffect } from 'vue'
 import { spacingToCss, type SpacingValue } from '@nuxflow/canvas'
 import { formFilePartName } from '#shared/lib/form-files'
@@ -112,11 +113,11 @@ function next() {
   goTo(stepIndex.value + 1)
 }
 
-const { data: _siteData } = useFetch('/api/public/site', {
+const { data: _siteData } = useFetch<PublicSite>('/api/public/site', {
   key: 'nuxflow-turnstile-key',
   headers: useRequestHeaders(['host']),
 })
-const turnstileSiteKey = computed(() => (_siteData.value as { turnstileSiteKey?: string | null } | null)?.turnstileSiteKey ?? '')
+const turnstileSiteKey = computed(() => _siteData.value?.turnstileSiteKey ?? '')
 const hasTurnstile = computed(() => Boolean(turnstileSiteKey.value))
 const turnstileToken = ref('')
 

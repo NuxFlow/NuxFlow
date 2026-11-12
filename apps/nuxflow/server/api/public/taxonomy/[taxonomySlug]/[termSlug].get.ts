@@ -5,6 +5,7 @@ import { withEdgeCache } from '../../../../utils/edge-cache'
 import { parsePagination } from '../../../../utils/pagination'
 import { getPublicItemsForTerms, getTermAncestors, resolvePublicTermFilter } from '../../../../utils/taxonomy'
 import { requireSiteId } from '../../../../utils/site-context'
+import type { TermArchive } from '../../../../../shared/lib/listing-types'
 
 const CACHE_MAX_AGE = 300
 
@@ -58,6 +59,6 @@ export default defineEventHandler(async (event) => {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
-    }
+    } satisfies TermArchive
   })
 })

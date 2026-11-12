@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import type { PublicSite } from '#shared/lib/public-site-types'
 import { parseEpisode } from '#shared/lib/podcast'
-import type { PublicSiteInfo } from '~/utils/seo'
 import type { CustomFieldDef, CustomFieldValues } from '#shared/lib/custom-fields'
 import { eventDay, floatingDate, todayIn, utcToZoned, zonedToUtc, type EventRecurrence } from '@nuxflow/canvas/events'
 import { renderTipTap } from '#shared/lib/render-tiptap'
@@ -111,7 +111,7 @@ const { data: contentTypesData } = useFetch<{ types: Array<{ slug: string; field
 const fieldDefs = computed(() => contentTypesData.value?.types.find(t => t.slug === activeTypeSlug.value)?.fields ?? [])
 
 // Podcast episodes (Settings → Podcast): items of the podcast's content type get an audio panel.
-const { data: publicSite } = useFetch<PublicSiteInfo>('/api/public/site', { key: 'nuxflow-public-site', server: false })
+const { data: publicSite } = useFetch<PublicSite>('/api/public/site', { key: 'nuxflow-public-site', server: false })
 const isEpisodeType = computed(() => Boolean(publicSite.value?.podcast) && publicSite.value?.podcast?.contentType === activeTypeSlug.value)
 
 // Client proofing: a saved page with a gallery that lets clients pick favourites shows their picks.

@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { contentItems } from '@nuxflow/db/schema'
 import type { CustomFieldDef } from '../../shared/lib/custom-fields'
+import type { FilterableType, PublicFilterDef } from '../../shared/lib/listing-types'
 
 /**
  * Filtering and sorting public listings by a content type's custom fields — only fields the
@@ -18,17 +19,8 @@ import type { CustomFieldDef } from '../../shared/lib/custom-fields'
  * parameter.
  */
 
-export type FilterableType = 'number' | 'boolean' | 'select' | 'multiselect'
+export type { FilterableType, PublicFilterDef }
 const FILTERABLE_TYPES = new Set<string>(['number', 'boolean', 'select', 'multiselect'])
-
-export interface PublicFilterDef {
-  key: string
-  label: string
-  type: FilterableType
-  options?: string[]
-  prefix?: string
-  suffix?: string
-}
 
 /** The filters a listing of this type offers, for the Posts block's controls. */
 export function publicFilterDefs(defs: CustomFieldDef[]): PublicFilterDef[] {

@@ -11,6 +11,7 @@ import { getActiveLocales } from './locale-cache'
 import { publicPathForItem } from './seo'
 import { purgeContentCache, purgeEdgeCache } from './edge-cache'
 import { badRequest, conflict, notFound, validationError } from './response'
+import type { PublicPostCard, TermCount } from '../../shared/lib/listing-types'
 
 // ── Slugs ────────────────────────────────────────────────────────────────────
 
@@ -300,15 +301,7 @@ export async function getPublicItemsForTerms(
   return listPublicItems(db, siteId, and(inArray(contentItems.id, tagged), extra), opts)
 }
 
-export interface PublicListItem {
-  id: string
-  title: string
-  slug: string
-  path: string
-  excerpt: string | null
-  ogImage: string | null
-  publishedAt: string | null
-  typeSlug: string | null
+export interface PublicListItem extends Omit<PublicPostCard, 'details'> {
   /** The type's custom-field values (Admin → Content types) — only with `withFields`, since
    * they include fields not meant for the page; callers format what's shown (pageDetails). */
   fields?: Record<string, string | number | boolean | string[]> | null
@@ -387,7 +380,7 @@ export async function resolvePublicTermFilter(db: Db, siteId: string, taxonomySl
  * the term's own, `total` includes sub-terms (distinct items), which is what its
  * archive actually shows.
  */
-export async function getPublicTermCounts(db: Db, siteId: string, taxonomyId: string) {
+export async function getPublicTermCounts(db: Db, siteId: string, taxonomyId: string): Promise<TermCount[]> {
   const terms = await db.select({
     id: taxonomyTerms.id, slug: taxonomyTerms.slug, name: taxonomyTerms.name,
     description: taxonomyTerms.description, parentId: taxonomyTerms.parentId, sortOrder: taxonomyTerms.sortOrder,

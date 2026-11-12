@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PublicSite } from '#shared/lib/public-site-types'
 import type { TierSummary } from '#shared/lib/membership-types'
 import Paywall from '~/components/memberships/Paywall.vue'
 import { NuxImage } from '@nuxflow/canvas'
@@ -85,7 +86,7 @@ watch(page, (val) => {
 }, { immediate: true })
 
 // Deduped with layout's fetch — no extra request
-const { data: site } = await useFetch<PublicSiteInfo>('/api/public/site', { headers: useRequestHeaders(['host']) })
+const { data: site } = await useFetch<PublicSite>('/api/public/site', { headers: useRequestHeaders(['host']) })
 const canonicalBase = computed(() => site.value?.canonicalBase ?? '')
 const siteName = computed(() => site.value?.name ?? '')
 const siteSeo = computed(() => site.value?.seo)

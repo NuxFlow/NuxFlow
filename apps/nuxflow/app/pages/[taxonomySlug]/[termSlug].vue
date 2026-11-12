@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import type { TermArchive } from '#shared/lib/listing-types'
+import type { PublicSite } from '#shared/lib/public-site-types'
 import { NuxImage } from '@nuxflow/canvas'
-import type { PublicSiteInfo } from '~/utils/seo'
 
 const route = useRoute()
 const router = useRouter()
@@ -10,40 +11,15 @@ const termSlug = route.params.termSlug as string
 const page = computed(() => Math.max(1, Number(route.query.page) || 1))
 const PER_PAGE = 10
 
-interface ArchiveItem {
-  id: string
-  title: string
-  slug: string
-  path: string
-  excerpt: string | null
-  ogImage: string | null
-  publishedAt: string | null
-}
-
-interface ArchiveData {
-  taxonomy: { id: string; name: string; slug: string; isHierarchical: boolean; noindex: boolean }
-  term: {
-    id: string; name: string; slug: string; description: string | null
-    seoTitle: string | null; seoDescription: string | null; ogImage: string | null
-  }
-  ancestors: { slug: string; name: string }[]
-  children: { slug: string; name: string }[]
-  items: ArchiveItem[]
-  total: number
-  page: number
-  limit: number
-  totalPages: number
-}
-
 // Vue Router ranks this two-segment route above the `[...slug]` catch-all, so a translated
 // page (/es/about) or any other two-segment content path lands here too. The site's active
 // locales identify the translated case up front (no wasted taxonomy lookup); anything else
 // that isn't a real taxonomy archive falls back to the content page renderer, which 404s
 // properly if there's no content either.
-const { data: site } = await useFetch<PublicSiteInfo>('/api/public/site', { headers: useRequestHeaders(['host']) })
+const { data: site } = await useFetch<PublicSite>('/api/public/site', { headers: useRequestHeaders(['host']) })
 const isLocalePath = (site.value?.locales ?? []).includes(taxonomySlug)
 
-const { data, error } = await useFetch<ArchiveData>(`/api/public/taxonomy/${taxonomySlug}/${termSlug}`, {
+const { data, error } = await useFetch<TermArchive>(`/api/public/taxonomy/${taxonomySlug}/${termSlug}`, {
   query: computed(() => ({ page: page.value, limit: PER_PAGE })),
   headers: useRequestHeaders(['host']),
   immediate: !isLocalePath,

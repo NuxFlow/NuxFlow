@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { withEdgeCache } from '../../../../utils/edge-cache'
 import { getPublicTermCounts } from '../../../../utils/taxonomy'
 import { requireSiteId } from '../../../../utils/site-context'
+import type { TaxonomyOverview } from '../../../../../shared/lib/listing-types'
 
 const CACHE_MAX_AGE = 300
 
@@ -27,6 +28,6 @@ export default defineEventHandler(async (event) => {
 
     const terms = (await getPublicTermCounts(db, siteId, taxonomy.id)).filter(t => t.total > 0)
     const { id: _id, ...rest } = taxonomy
-    return { taxonomy: rest, terms }
+    return { taxonomy: rest, terms } satisfies TaxonomyOverview
   })
 })

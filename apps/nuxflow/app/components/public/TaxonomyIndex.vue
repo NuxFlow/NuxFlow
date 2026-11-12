@@ -1,24 +1,14 @@
 <script setup lang="ts">
+import type { TaxonomyOverview } from '#shared/lib/listing-types'
+import type { PublicSite } from '#shared/lib/public-site-types'
 import type { PublicSiteInfo } from '~/utils/seo'
 
 // Overview page for /{taxonomy}: every term with published content, nested for a
 // hierarchical taxonomy, with counts (a parent's count includes its sub-terms').
 const props = defineProps<{ taxonomySlug: string }>()
 
-interface OverviewTerm {
-  slug: string
-  name: string
-  description: string | null
-  parentSlug: string | null
-  count: number
-  total: number
-}
-
-const { data: site } = await useFetch<PublicSiteInfo>('/api/public/site', { headers: useRequestHeaders(['host']) })
-const { data, error } = await useFetch<{
-  taxonomy: { slug: string; name: string; description: string | null; isHierarchical: boolean; noindex: boolean }
-  terms: OverviewTerm[]
-}>(() => `/api/public/taxonomy/${props.taxonomySlug}`, { headers: useRequestHeaders(['host']) })
+const { data: site } = await useFetch<PublicSite>('/api/public/site', { headers: useRequestHeaders(['host']) })
+const { data, error } = await useFetch<TaxonomyOverview>(() => `/api/public/taxonomy/${props.taxonomySlug}`, { headers: useRequestHeaders(['host']) })
 
 if (error.value) {
   throw createError({ statusCode: error.value.statusCode ?? 500, message: error.value.statusCode === 404 ? 'Page not found' : 'Something went wrong' })

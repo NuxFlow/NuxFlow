@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PublicSite } from '#shared/lib/public-site-types'
 // The Appointment block's picker and form (CanvasHost.appointmentBooking). The page is cached
 // whole, so free times are fetched here, in the browser. Reads and posts
 // /_nuxflow/appointments (not /api; see that route). The page's intake form, when it has one,
@@ -20,7 +21,7 @@ interface Free {
 }
 type Answer = { status: 'pending' | 'confirmed' | 'checkout'; url?: string }
 
-const { data: site } = useFetch<{ turnstileSiteKey?: string | null }>('/api/public/site', {
+const { data: site } = useFetch<PublicSite>('/api/public/site', {
   key: 'nuxflow-public-site',
   headers: useRequestHeaders(['host']),
 })

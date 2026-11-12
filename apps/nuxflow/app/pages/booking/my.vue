@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PublicSite } from '#shared/lib/public-site-types'
 // Someone's bookings and passes, with no account: an emailed, signed link is what proves
 // the address. Without one, the page offers to send it.
 useSeoMeta({ title: 'My bookings and passes', robots: 'noindex,nofollow' })
@@ -9,7 +10,7 @@ interface MyList {
   passes: Array<{ id: string; name: string; creditsLeft: number; creditsTotal: number; expiresAt: string | null; status: string }>
 }
 
-const { data: site } = useFetch<{ turnstileSiteKey?: string | null }>('/api/public/site', {
+const { data: site } = useFetch<PublicSite>('/api/public/site', {
   key: 'nuxflow-public-site',
   headers: useRequestHeaders(['host']),
 })

@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import type { PostsResponse } from '#shared/lib/listing-types'
+import type { PublicSite } from '#shared/lib/public-site-types'
 import { NuxImage } from '@nuxflow/canvas'
-import type { PublicSiteInfo } from '~/utils/seo'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,32 +20,13 @@ function setLayout(l: BlogLayout) {
   localStorage.setItem('blog-layout', l)
 }
 
-interface Post {
-  id: string
-  title: string
-  slug: string
-  /** Public URL (translations live at /{locale}/{source slug}, the homepage at /). */
-  path: string
-  excerpt: string | null
-  ogImage: string | null
-  publishedAt: string | null
-}
-
-interface PostsResponse {
-  posts: Post[]
-  total: number
-  page: number
-  limit: number
-  totalPages: number
-}
-
 const { data, error } = await useFetch<PostsResponse>('/api/public/posts', {
   // Posts only — without `type` the endpoint lists every public item, pages included.
   query: computed(() => ({ type: 'post', page: page.value, limit: 10 })),
   headers: useRequestHeaders(['host']),
 })
 
-const { data: site } = await useFetch<PublicSiteInfo>('/api/public/site', { headers: useRequestHeaders(['host']) })
+const { data: site } = await useFetch<PublicSite>('/api/public/site', { headers: useRequestHeaders(['host']) })
 const canonicalBase = computed(() => site.value?.canonicalBase ?? '')
 const siteName = computed(() => site.value?.name ?? '')
 
