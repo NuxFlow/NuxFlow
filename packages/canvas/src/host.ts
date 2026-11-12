@@ -14,6 +14,26 @@ export interface CanvasPostItem {
   details?: Array<{ key: string; label: string; text: string }>
 }
 
+/** A client's favourites in a Gallery block with "Let clients pick favourites". */
+export interface CanvasGalleryPicks {
+  pickerName: string
+  photos: string[]
+  note: string | null
+  submittedAt: string | null
+}
+
+export interface CanvasGalleryPicksSave {
+  path: string
+  block: string
+  /** A random token the browser keeps, so each person edits only their own picks. */
+  token: string
+  name: string
+  photos: string[]
+  note?: string
+  /** "Send my picks" — tells the site's team. */
+  submit?: boolean
+}
+
 /** A custom field a listing can be filtered by (Admin → Content types → "Use as a filter"). */
 export interface CanvasPostFilter {
   key: string
@@ -131,6 +151,10 @@ export interface CanvasHost {
   listPosts(query: CanvasPostsQuery): Promise<CanvasPostItem[]>
   /** The custom-field filters a listing of this content type offers; [] for none. */
   listPostFilters?(type: string): Promise<CanvasPostFilter[]>
+  /** Client proofing: a visitor's own saved picks in a gallery, or null. */
+  loadGalleryPicks?(query: { path: string; block: string; token: string }): Promise<CanvasGalleryPicks | null>
+  /** Client proofing: saves (or, with `submit`, sends) a visitor's picks. */
+  saveGalleryPicks?(input: CanvasGalleryPicksSave): Promise<{ count: number; submitted: boolean }>
   listEvents(query: CanvasEventsQuery): Promise<CanvasEventList>
   /** The class passes on sale, and where to go to buy one. */
   listClassPasses?(): Promise<{ passes: CanvasClassPass[]; canBuy: boolean }>

@@ -6,7 +6,7 @@
 //  - justified — whole photos in rows of equal height (each item's flex-grow is its
 //                width/height ratio, so a row's items all end up the same height)
 // Theme hooks: .canvas-gallery[data-layout], .canvas-gallery-item, .canvas-gallery-caption.
-import { computed, inject, ref } from 'vue'
+import { computed, inject, onMounted, ref } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import type { SpacingValue } from '../types'
 import NuxLightbox from './NuxLightbox.vue'
@@ -15,6 +15,7 @@ import { spacingToCss } from '../utils/spacing'
 import { parseImageList, type ImageListItem } from '../utils/json'
 import { aspectRatioValue, imageRatio, type GalleryLayout } from '../utils/gallery'
 import { blockIdKey } from '../utils/block-context'
+import { useCanvasHost } from '../host'
 
 // Ambient — a Nuxt auto-import supplied by the host app (same pattern as NuxImage.vue).
 declare const useRequestURL: () => URL
@@ -33,6 +34,8 @@ const props = withDefaults(defineProps<{
   gap?: number
   showCaptions?: boolean
   showCameraDetails?: boolean
+  /** Client proofing: hearts on the photos and "Send my picks" (server/utils/gallery-picks.ts in NuxFlow). */
+  allowFavourites?: boolean
   rounded?: boolean
   lightbox?: boolean
   allowDownload?: boolean
@@ -46,6 +49,7 @@ const props = withDefaults(defineProps<{
   gap: 8,
   showCaptions: false,
   showCameraDetails: false,
+  allowFavourites: false,
   rounded: false,
   lightbox: true,
   allowDownload: false,
@@ -100,8 +104,7 @@ function justifiedStyle(img: ImageListItem) {
 // Served by /api/public/gallery-download, which finds this block on this page and applies
 // the page's own access rules. Off in the editor (no block id is provided there).
 const blockId = inject(blockIdKey, '')
-const downloadBase = computed(() => {
-  if (!props.allowDownload || !blockId) return ''
+const pagePath = computed(() => {
   let pathname = ''
   try {
     pathname = useRequestURL().pathname
@@ -109,9 +112,115 @@ const downloadBase = computed(() => {
   catch {
     pathname = typeof window !== 'undefined' ? window.location.pathname : ''
   }
-  const path = pathname.replace(/^\/+|\/+$/g, '')
-  return `/api/public/gallery-download?path=${encodeURIComponent(path)}&block=${encodeURIComponent(blockId)}`
+  return pathname.replace(/^\/+|\/+$/g, '')
 })
+const downloadBase = computed(() => {
+  if (!props.allowDownload || !blockId) return ''
+  return `/api/public/gallery-download?path=${encodeURIComponent(pagePath.value)}&block=${encodeURIComponent(blockId)}`
+})
+
+// ── Client proofing ─────────────────────────────────────────────────────────
+// Each person hearts photos; picks save to the site shortly after each change (and to this
+// browser, so a reload keeps them), and "Send my picks" tells the photographer. A random
+// token kept in this browser is who they are — no account. Off in the editor (no block id).
+const host = useCanvasHost()
+const picking = computed(() => props.allowFavourites && Boolean(blockId) && Boolean(host.saveGalleryPicks))
+const picked = ref<string[]>([])
+const pickerName = ref('')
+const pickNote = ref('')
+const showNote = ref(false)
+const onlyPicked = ref(false)
+const pickStatus = ref<'' | 'saving' | 'saved' | 'sent' | 'needs-name' | 'error'>('')
+const pickError = ref('')
+const nameInput = ref<HTMLInputElement | null>(null)
+let pickToken = ''
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+
+const storageKey = () => `nuxflow:picks:${pagePath.value}:${blockId}`
+function readStorage(key: string): string | null {
+  try { return localStorage.getItem(key) } catch { return null }
+}
+function writeStorage(key: string, value: string) {
+  try { localStorage.setItem(key, value) } catch { /* private mode: picks still save to the site */ }
+}
+function newToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(24))
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+}
+
+const pickedSet = computed(() => new Set(picked.value))
+const isPicked = (url: string) => pickedSet.value.has(url)
+
+function togglePick(url: string) {
+  picked.value = isPicked(url) ? picked.value.filter(u => u !== url) : [...picked.value, url]
+  writeStorage(storageKey(), JSON.stringify(picked.value))
+  queueSave()
+}
+
+function queueSave() {
+  clearTimeout(saveTimer)
+  if (!pickerName.value.trim()) {
+    pickStatus.value = 'needs-name'
+    return
+  }
+  pickStatus.value = 'saving'
+  saveTimer = setTimeout(() => { void sendPicks(false) }, 800)
+}
+
+async function sendPicks(submit: boolean) {
+  clearTimeout(saveTimer)
+  if (!host.saveGalleryPicks) return
+  if (!pickerName.value.trim()) {
+    pickStatus.value = 'needs-name'
+    nameInput.value?.focus()
+    return
+  }
+  writeStorage('nuxflow:picker-name', pickerName.value.trim())
+  pickError.value = ''
+  pickStatus.value = 'saving'
+  try {
+    await host.saveGalleryPicks({
+      path: pagePath.value, block: blockId, token: pickToken, name: pickerName.value.trim(),
+      photos: picked.value, note: pickNote.value || undefined, submit,
+    })
+    pickStatus.value = submit ? 'sent' : 'saved'
+  }
+  catch (err) {
+    pickStatus.value = 'error'
+    pickError.value = err instanceof Error ? err.message : 'Your picks couldn\'t be saved.'
+  }
+}
+
+onMounted(async () => {
+  if (!picking.value) return
+  pickToken = readStorage('nuxflow:picker-token') ?? ''
+  if (!/^[\w-]{24,128}$/.test(pickToken)) {
+    pickToken = newToken()
+    writeStorage('nuxflow:picker-token', pickToken)
+  }
+  pickerName.value = readStorage('nuxflow:picker-name') ?? ''
+  try {
+    const local = JSON.parse(readStorage(storageKey()) ?? '[]')
+    if (Array.isArray(local)) picked.value = local.filter((u): u is string => typeof u === 'string')
+  }
+  catch { /* ignore a damaged copy */ }
+  try {
+    const saved = await host.loadGalleryPicks?.({ path: pagePath.value, block: blockId, token: pickToken })
+    if (saved) {
+      picked.value = saved.photos
+      pickerName.value = pickerName.value || saved.pickerName
+      pickNote.value = saved.note ?? ''
+      showNote.value = Boolean(saved.note)
+      if (saved.submittedAt) pickStatus.value = 'sent'
+    }
+  }
+  catch { /* the local copy stands */ }
+})
+
+/** The photos shown: all, or only this person's picks — with their place in the gallery. */
+const visibleImages = computed(() => parsedImages.value
+  .map((img, i) => ({ img, i }))
+  .filter(({ img }) => !(picking.value && onlyPicked.value) || isPicked(img.url)))
 const photoDownloadUrl = (i: number) => `${downloadBase.value}&index=${i}`
 
 const lightboxOpen = ref(false)
@@ -136,13 +245,62 @@ function openLightbox(i: number) {
         Download all ({{ parsedImages.length }})
       </a>
     </div>
+    <div
+      v-if="picking && parsedImages.length"
+      class="canvas-gallery-picks mb-4 space-y-3 rounded-xl border border-current/15 p-4 text-sm"
+      role="region"
+      aria-label="Your favourites"
+    >
+      <p>
+        <strong>{{ picked.length }} {{ picked.length === 1 ? 'photo' : 'photos' }} picked.</strong>
+        Tap the heart on the ones you love, then send them.
+      </p>
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="flex flex-col gap-1">
+          <span class="font-medium">Your name</span>
+          <input
+            ref="nameInput"
+            v-model="pickerName"
+            type="text"
+            maxlength="80"
+            autocomplete="name"
+            class="rounded-md border border-current/20 bg-transparent px-2 py-1.5"
+            @change="picked.length && queueSave()"
+          >
+        </label>
+        <label class="flex items-center gap-2 pb-1.5">
+          <input v-model="onlyPicked" type="checkbox">
+          Show only my picks
+        </label>
+        <button v-if="!showNote" type="button" class="pb-1.5 underline opacity-80 hover:opacity-100" @click="showNote = true">Add a note</button>
+        <button
+          type="button"
+          class="canvas-gallery-send ml-auto rounded-md bg-primary-600 px-4 py-2 font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+          :disabled="!picked.length || pickStatus === 'saving'"
+          @click="sendPicks(true)"
+        >
+          Send my picks
+        </button>
+      </div>
+      <label v-if="showNote" class="flex flex-col gap-1">
+        <span class="font-medium">Note for the photographer</span>
+        <textarea v-model="pickNote" rows="2" maxlength="2000" class="rounded-md border border-current/20 bg-transparent px-2 py-1.5" @change="queueSave()" />
+      </label>
+      <p class="text-xs opacity-75" role="status">
+        <template v-if="pickStatus === 'needs-name'">Add your name so we know whose picks these are.</template>
+        <template v-else-if="pickStatus === 'saving'">Saving…</template>
+        <template v-else-if="pickStatus === 'saved'">Saved. Press Send my picks when you're done.</template>
+        <template v-else-if="pickStatus === 'sent'">Sent, thank you. You can still change your picks and send them again.</template>
+        <template v-else-if="pickStatus === 'error'">{{ pickError }}</template>
+      </p>
+    </div>
     <template v-if="parsedImages.length">
       <!-- Masonry -->
       <div v-if="layout === 'masonry'" :class="masonryCols" :style="{ columnGap: gapPx }">
         <figure
-          v-for="(img, i) in parsedImages"
+          v-for="{ img, i } in visibleImages"
           :key="i"
-          class="canvas-gallery-item break-inside-avoid m-0"
+          class="canvas-gallery-item relative break-inside-avoid m-0"
           :style="{ marginBottom: gapPx }"
         >
           <button
@@ -160,6 +318,16 @@ function openLightbox(i: number) {
               class="block w-full h-auto transition-transform duration-500 ease-out group-hover:scale-[1.03]"
             />
           </button>
+          <button
+            v-if="picking"
+            type="button"
+            class="canvas-gallery-pick absolute top-2 right-2 z-10 rounded-full bg-black/40 p-1.5 text-white backdrop-blur transition hover:bg-black/60"
+            :aria-pressed="isPicked(img.url)"
+            :aria-label="isPicked(img.url) ? `Remove photo ${i + 1} from your favourites` : `Add photo ${i + 1} to your favourites`"
+            @click.stop="togglePick(img.url)"
+          >
+            <svg viewBox="0 0 24 24" class="w-5 h-5 block" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :fill="isPicked(img.url) ? '#f43f5e' : 'none'" :class="isPicked(img.url) ? 'text-rose-500' : ''" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>
+          </button>
           <figcaption v-if="hasCaption(img)" class="canvas-gallery-caption mt-1.5 text-sm opacity-75">
             <template v-if="showCaptions && img.caption">{{ img.caption }}</template>
             <span v-if="showCameraDetails && img.camera" class="canvas-gallery-camera block text-xs opacity-80">{{ img.camera }}</span>
@@ -174,7 +342,7 @@ function openLightbox(i: number) {
         :style="{ gap: gapPx, '--nf-gallery-row-h-base': rowHeightPx }"
       >
         <figure
-          v-for="(img, i) in parsedImages"
+          v-for="{ img, i } in visibleImages"
           :key="i"
           class="canvas-gallery-item relative min-w-0 m-0 overflow-hidden group"
           :class="rounded ? 'rounded-lg' : ''"
@@ -195,6 +363,16 @@ function openLightbox(i: number) {
               class="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
             />
           </button>
+          <button
+            v-if="picking"
+            type="button"
+            class="canvas-gallery-pick absolute top-2 right-2 z-10 rounded-full bg-black/40 p-1.5 text-white backdrop-blur transition hover:bg-black/60"
+            :aria-pressed="isPicked(img.url)"
+            :aria-label="isPicked(img.url) ? `Remove photo ${i + 1} from your favourites` : `Add photo ${i + 1} to your favourites`"
+            @click.stop="togglePick(img.url)"
+          >
+            <svg viewBox="0 0 24 24" class="w-5 h-5 block" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :fill="isPicked(img.url) ? '#f43f5e' : 'none'" :class="isPicked(img.url) ? 'text-rose-500' : ''" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>
+          </button>
           <figcaption
             v-if="hasCaption(img)"
             class="canvas-gallery-caption pointer-events-none absolute inset-x-0 bottom-0 px-3 py-2 text-sm text-white bg-gradient-to-t from-black/70 to-transparent"
@@ -207,7 +385,7 @@ function openLightbox(i: number) {
 
       <!-- Cropped grid -->
       <div v-else class="grid" :class="gridCols" :style="{ gap: gapPx }">
-        <figure v-for="(img, i) in parsedImages" :key="i" class="canvas-gallery-item m-0">
+        <figure v-for="{ img, i } in visibleImages" :key="i" class="canvas-gallery-item relative m-0">
           <button
             type="button"
             class="relative overflow-hidden block w-full group"
@@ -224,6 +402,16 @@ function openLightbox(i: number) {
               fit="cover"
               class="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-105"
             />
+          </button>
+          <button
+            v-if="picking"
+            type="button"
+            class="canvas-gallery-pick absolute top-2 right-2 z-10 rounded-full bg-black/40 p-1.5 text-white backdrop-blur transition hover:bg-black/60"
+            :aria-pressed="isPicked(img.url)"
+            :aria-label="isPicked(img.url) ? `Remove photo ${i + 1} from your favourites` : `Add photo ${i + 1} to your favourites`"
+            @click.stop="togglePick(img.url)"
+          >
+            <svg viewBox="0 0 24 24" class="w-5 h-5 block" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :fill="isPicked(img.url) ? '#f43f5e' : 'none'" :class="isPicked(img.url) ? 'text-rose-500' : ''" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>
           </button>
           <figcaption v-if="hasCaption(img)" class="canvas-gallery-caption mt-1.5 text-sm opacity-75">
             <template v-if="showCaptions && img.caption">{{ img.caption }}</template>
@@ -248,6 +436,8 @@ function openLightbox(i: number) {
       :images="lightboxImages"
       :initial-index="lightboxIndex"
       :download-url="downloadBase ? photoDownloadUrl : undefined"
+      :is-picked="picking ? (n: number) => isPicked(parsedImages[n]?.url ?? '') : undefined"
+      @toggle-pick="(n: number) => parsedImages[n] && togglePick(parsedImages[n]!.url)"
       @close="lightboxOpen = false"
     />
   </div>

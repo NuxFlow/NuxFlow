@@ -83,12 +83,11 @@ export interface GalleryFile {
 }
 
 /**
- * Resolves and authorizes a download: the published page at `path`, its gallery block
- * `blockId` (which must allow downloads), and the files it may serve. Throws 404 for
- * anything a visitor may not download — including a page they can't see, so a gated
- * page's existence isn't confirmed.
+ * The published page at `path` and its Gallery block `blockId`, when the visitor may see
+ * the page and the block has `feature` switched on (downloads, or client favourites). Throws
+ * 404 otherwise — including for a page they can't see, so a gated page isn't confirmed.
  */
-export async function prepareGalleryDownload(event: H3Event, siteId: string, path: string, blockId: string) {
+export async function resolvePublicGallery(event: H3Event, siteId: string, path: string, blockId: string, feature: 'allowDownload' | 'allowFavourites') {
   const db = useDb(event)
   const slugPath = path.replace(/^\/+|\/+$/g, '') || 'home'
   const { locale, slug } = await parseLocalePath(db, siteId, slugPath)
@@ -99,7 +98,19 @@ export async function prepareGalleryDownload(event: H3Event, siteId: string, pat
   if (gate?.blocked) throw notFound()
 
   const block = findGalleryBlock(page.content, blockId)
-  if (!block || block.props?.allowDownload !== true) throw notFound()
+  if (!block || block.props?.[feature] !== true) throw notFound()
+  return { page, block }
+}
+
+/**
+ * Resolves and authorizes a download: the published page at `path`, its gallery block
+ * `blockId` (which must allow downloads), and the files it may serve. Throws 404 for
+ * anything a visitor may not download — including a page they can't see, so a gated
+ * page's existence isn't confirmed.
+ */
+export async function prepareGalleryDownload(event: H3Event, siteId: string, path: string, blockId: string) {
+  const db = useDb(event)
+  const { page, block } = await resolvePublicGallery(event, siteId, path, blockId, 'allowDownload')
 
   const urls = galleryImageUrls(block)
   const linkUrls = [...new Set(urls.filter(u => !u.startsWith('data:')))]

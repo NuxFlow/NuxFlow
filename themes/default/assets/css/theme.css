@@ -113,6 +113,9 @@
        .canvas-gallery-item                     each photo (<figure>)
        .canvas-gallery-caption                  its caption, when shown
        .canvas-gallery-camera                   its camera details line, when shown
+       .canvas-gallery-picks                    the client-picks bar (Let clients pick favourites)
+       .canvas-gallery-pick[aria-pressed]       each photo's heart
+       .canvas-gallery-send                     the Send my picks button
        .canvas-gallery-download                 the "Download all" button (downloads on)
      .canvas-carousel      Image carousel / slider
        .canvas-carousel-caption                 a slide's caption

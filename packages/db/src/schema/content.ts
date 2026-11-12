@@ -26,7 +26,7 @@ export const contentTypes = sqliteTable('content_types', {
 ])
 
 // Target of ON DELETE CASCADE from contentRevisions.itemId, contentTaxonomyTerms.contentItemId,
-// eventRsvps.contentItemId, comments.itemId and (shop.ts) products/productVariants.contentItemId — same DROP-TABLE-triggers-FK-actions landmine documented in full
+// eventRsvps.contentItemId, galleryPicks.contentItemId, comments.itemId and (shop.ts) products/productVariants.contentItemId — same DROP-TABLE-triggers-FK-actions landmine documented in full
 // on `sites` in sites.ts. Also self-referenced by sourceItemId below (ON DELETE SET
 // NULL, used for translation/duplication tracking) — unlike taxonomyTerms.parentId/
 // comments.parentId elsewhere in this schema, that self-FK genuinely exists at the DB
@@ -142,6 +142,28 @@ export const contentItems = sqliteTable('content_items', {
   // For a timetable filtered by teacher or room, and for finding a room booked twice.
   index('idx_content_items_event_teacher').on(t.siteId, t.eventTeacherId).where(sql`event_teacher_id is not null`),
   index('idx_content_items_event_room').on(t.siteId, t.eventRoomId).where(sql`event_room_id is not null`),
+])
+
+// A client's favourites in a Gallery block with "Let clients pick favourites" (client
+// proofing — apps/nuxflow/server/utils/gallery-picks.ts). One row per person per gallery:
+// the browser keeps a random token, stored here only as its SHA-256. Photos are kept by URL,
+// so reordering the gallery doesn't change what was picked.
+export const galleryPicks = sqliteTable('gallery_picks', {
+  id: text('id').primaryKey(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  contentItemId: text('content_item_id').notNull().references(() => contentItems.id, { onDelete: 'cascade' }),
+  blockId: text('block_id').notNull(),
+  pickerTokenHash: text('picker_token_hash').notNull(),
+  pickerName: text('picker_name').notNull(),
+  photos: text('photos', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  note: text('note'),
+  // Set when the client presses "Send my picks"; the team is told then, not on every heart.
+  submittedAt: text('submitted_at'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+  uniqueIndex('idx_gallery_picks_picker').on(t.contentItemId, t.blockId, t.pickerTokenHash),
+  index('idx_gallery_picks_site').on(t.siteId),
 ])
 
 // Who is coming to an event. The address is the identity, so one row per address per

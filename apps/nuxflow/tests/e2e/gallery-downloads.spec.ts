@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { unzipSync, strFromU8 } from 'fflate'
 import { ADMIN_STORAGE_STATE_PATH } from './global-setup'
+import { gotoHydrated } from './helpers'
 
 /**
  * Client-gallery downloads behind a page password: locked visitors can't download, and once
@@ -41,7 +42,7 @@ test('locked visitors can\'t download; unlocked ones get a zip and single photos
   const zipUrl = `/api/public/gallery-download?path=${slug}&block=gal`
   expect((await request.get(zipUrl)).status()).toBe(404)
 
-  await page.goto(`/${slug}`)
+  await gotoHydrated(page, `/${slug}`)
   await page.getByLabel('Password', { exact: true }).fill('jones2027')
   await page.getByRole('button', { name: 'View page' }).click()
 

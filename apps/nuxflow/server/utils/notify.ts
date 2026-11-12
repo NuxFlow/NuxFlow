@@ -49,6 +49,7 @@ export const NOTIFICATION_TYPES: Record<string, NotificationTypeDef> = {
   'security.passkey_removed': { label: 'Passkey removed', description: 'A passkey was removed from your account.', email: true, push: true, mandatoryEmail: true },
   'security.api_key_created': { label: 'API key created', description: 'A new API key was created for your account.', email: true, push: true, mandatoryEmail: true },
   'security.role_changed': { label: 'Role changed', description: 'Your role on this site changed.', email: true, push: true, mandatoryEmail: true },
+  'gallery.picks': { label: 'Client picks', description: 'A client sent their favourite photos from a gallery.', email: true, push: true, minRole: 'editor' },
   'event.rsvp': { label: 'Event RSVPs', description: 'Someone said they\'re coming to an event, joined its waitlist or cancelled.', email: false, push: false, minRole: 'editor' },
   'shop.order': { label: 'Shop orders', description: 'Someone bought something from the shop, or an order had to be refunded automatically.', email: true, push: true, minRole: 'admin' },
   'inbox.message': { label: 'New inbox email', description: 'An email arrived at one of this site\'s inbox addresses.', email: true, push: true, minRole: 'editor' },
