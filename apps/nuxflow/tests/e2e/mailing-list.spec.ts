@@ -9,6 +9,7 @@
  */
 import { test, expect, type Browser } from '@playwright/test'
 import { ADMIN_STORAGE_STATE_PATH } from './global-setup'
+import { gotoHydrated } from './helpers'
 
 const RUN = Date.now().toString(36)
 const EMAIL = `reader-${RUN}@example.com`
@@ -24,7 +25,7 @@ test.describe.serial('Mailing list', () => {
   test('admin turns the signup popup on', async ({ browser }) => {
     const context = await browser.newContext({ storageState: ADMIN_STORAGE_STATE_PATH })
     const page = await context.newPage()
-    await page.goto('/admin/mailing-list?tab=signup')
+    await gotoHydrated(page, '/admin/mailing-list?tab=signup')
     await expect(page.getByRole('heading', { name: 'Signup popup' })).toBeVisible({ timeout: 15_000 })
 
     const toggle = page.getByRole('switch', { name: 'Show the popup' })
@@ -80,7 +81,7 @@ test.describe.serial('Mailing list', () => {
   test('the address appears in Admin → Mailing list', async ({ browser }) => {
     const context = await browser.newContext({ storageState: ADMIN_STORAGE_STATE_PATH })
     const page = await context.newPage()
-    await page.goto('/admin/mailing-list')
+    await gotoHydrated(page, '/admin/mailing-list')
     await expect(page.getByText(EMAIL)).toBeVisible({ timeout: 15_000 })
     await expect(page.getByRole('row', { name: new RegExp(EMAIL) }).getByText('Subscribed')).toBeVisible()
     await context.close()

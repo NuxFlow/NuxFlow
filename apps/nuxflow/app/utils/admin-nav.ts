@@ -68,6 +68,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Attendees', to: '/admin/events', icon: 'i-lucide-users', minRole: 'editor', hidden: true, group: 'content', highlights: EVENTS_TO },
   { label: 'Calendar', to: '/admin/calendar', icon: 'i-lucide-calendar-days', group: 'content' },
   { label: 'Categories & tags', to: '/admin/taxonomies', icon: 'i-lucide-tag', minRole: 'editor', group: 'content' },
+  { label: 'Content types', to: '/admin/content-types', icon: 'i-lucide-shapes', minRole: 'admin', group: 'content' },
   { label: 'Generate with AI', to: '/admin/content/generate', icon: 'i-lucide-sparkles', minRole: 'editor', group: 'content' },
 
   { label: 'Library', to: '/admin/media', icon: 'i-lucide-images', group: 'media' },

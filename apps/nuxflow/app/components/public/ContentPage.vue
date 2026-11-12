@@ -5,6 +5,7 @@ import { NuxImage } from '@nuxflow/canvas'
 import type { JsonLdVideo, PublicSiteInfo } from '~/utils/seo'
 import type { PublicEventInfo } from '~/components/public/EventDetails.vue'
 import type { PublicProductInfo } from '~/components/public/ProductDetails.vue'
+import type { FieldDetail } from '#shared/lib/custom-fields'
 import { postOutline, tocHeadings } from '#shared/lib/post-outline'
 
 /**
@@ -51,6 +52,8 @@ interface PublicPage {
   type?: { slug: string; name: string } | null
   event?: PublicEventInfo | null
   product?: PublicProductInfo | null
+  /** The type's custom fields, formatted (Admin → Content types). */
+  details?: FieldDetail[]
   availableLocales?: Array<{ locale: string; slug: string; rawSlug?: string }> | null
   alternates?: Array<{ locale: string; path: string }> | null
   terms?: PublicTerm[] | null
@@ -304,6 +307,9 @@ const formattedDate = computed(() => formatDate(page.value?.publishedAt, '') || 
           <PublicProductDetails :product="page.product" :title="page.title" :image="page.ogImage" />
         </div>
         <NuxBlock :content="page.content" />
+        <div v-if="page.details?.length" class="max-w-4xl mx-auto px-6 pb-12">
+          <PublicItemDetails :details="page.details" />
+        </div>
         <CommentSection v-if="page.hasComments" :item-id="page.id" class="max-w-4xl mx-auto px-6 py-12" />
       </template>
 
@@ -375,6 +381,8 @@ const formattedDate = computed(() => formatDate(page.value?.publishedAt, '') || 
             </ol>
           </details>
         </nav>
+
+        <PublicItemDetails v-if="page.details?.length" :details="page.details" class="mb-8" />
 
         <NuxBlock :content="page.content" />
 

@@ -22,6 +22,7 @@ import { defaultProductInput, planProductSave, productInputSchema } from '../../
 import { requireSiteId } from '../../../utils/site-context'
 import { getSiteInfo } from '../../../utils/site-info'
 import { checkContentDates, contentDateFields } from '../../../utils/content-dates'
+import { checkFieldValues, fieldDefsForType } from '../../../utils/content-type-fields'
 
 const bodySchema = z.object({
   title: z.string().min(1).max(500),
@@ -32,6 +33,8 @@ const bodySchema = z.object({
   seoTitle: z.string().max(200).optional(),
   seoDescription: z.string().max(500).optional(),
   settings: z.record(z.string(), z.unknown()).optional(),
+  // The content type's custom fields (Admin → Content types), checked against its definitions.
+  fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).nullable().optional(),
   locale: z.string().max(10).optional(),
   sourceItemId: z.string().optional(),
   ...contentDateFields,
@@ -77,6 +80,8 @@ export default defineEventHandler(async (event) => {
   const dateCheck = await checkContentDates(db, siteId, body, { existing: null, typeSlug: type.slug, sourceItemId: body.sourceItemId, timeZone: site?.timezone || 'UTC' })
   if (dateCheck.problem !== undefined) throw validationError(dateCheck.problem)
 
+  const fieldValues = body.fields ? checkFieldValues(await fieldDefsForType(db, siteId, type.id), body.fields, body.status === 'published') : null
+
   await assertWithinPlan(event, 'content')
   const id = ulid()
   // A product (not a translation of one, which shows its original's) gets its variants with
@@ -101,6 +106,7 @@ export default defineEventHandler(async (event) => {
     seoTitle: body.seoTitle,
     seoDescription: body.seoDescription,
     settings: body.settings,
+    fields: fieldValues,
     locale: body.locale || siteLocale,
     sourceItemId: body.sourceItemId || null,
     eventStartAt: dateCheck.dates.eventStartAt ?? null,
