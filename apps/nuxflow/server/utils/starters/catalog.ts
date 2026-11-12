@@ -1,7 +1,6 @@
 // The starter-site catalog: fetched from the configured URL, its Ed25519 signature checked
 // against a pinned key, cached per isolate. A catalog that can't be fetched or doesn't verify
 // is reported as an error and simply leaves the built-in starters — never a failed page.
-import type { H3Event } from 'h3'
 import {
   catalogSigningInput,
   starterCatalogFileSchema,
@@ -38,8 +37,8 @@ export function clearStarterCatalogCache(): void {
   cached = null
 }
 
-export function starterCatalogConfig(event: H3Event): { url: string | null; publicKey: string } {
-  const rc = useRuntimeConfig(event) as { startersCatalogUrl?: string; startersPublicKey?: string }
+export function starterCatalogConfig(): { url: string | null; publicKey: string } {
+  const rc = useRuntimeConfig() as { startersCatalogUrl?: string; startersPublicKey?: string }
   const raw = (rc.startersCatalogUrl ?? DEFAULT_STARTERS_CATALOG_URL).trim()
   const url = raw === '' || raw === 'off' ? null : raw
   return { url, publicKey: (rc.startersPublicKey || DEFAULT_STARTERS_PUBLIC_KEY).trim() }
@@ -84,8 +83,8 @@ export async function verifyStarterCatalog(text: string, publicKey: string): Pro
   return payload.starters.filter(s => (seen.has(s.id) ? false : (seen.add(s.id), true)))
 }
 
-export async function getStarterCatalog(event: H3Event): Promise<CatalogResult> {
-  const { url, publicKey } = starterCatalogConfig(event)
+export async function getStarterCatalog(): Promise<CatalogResult> {
+  const { url, publicKey } = starterCatalogConfig()
   if (!url) return { catalog: null, error: null }
   const key = `${url}|${publicKey}`
   if (cached && cached.key === key && Date.now() - cached.at < (cached.result.error ? ERROR_CACHE_MS : CACHE_MS)) {

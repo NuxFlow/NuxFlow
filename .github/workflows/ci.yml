@@ -147,14 +147,13 @@ jobs:
           retention-days: 7
 
   nuxt5-preview:
-    name: Nuxt 5 preview (informational)
+    name: Nuxt 5 preview
     # Builds and type-checks with Nuxt 5's defaults on (NUXFLOW_NUXT5_PREVIEW, see
-    # nuxt.config.ts) to show what the upgrade still needs. Allowed to fail: it never
-    # blocks a merge. Known today: typed $fetch rejects the `: string` URL workaround for
-    # non-GET calls (CLAUDE.md's $fetch typing notes) — that goes on upgrade day.
+    # nuxt.config.ts). It was informational while the typed-$fetch errors were being
+    # cleared; it has been clean since the shared API types work (Nov 2026), so it now
+    # blocks a merge — a failure here means new code broke Nuxt 5 readiness.
     if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
-    continue-on-error: true
     env:
       NUXFLOW_NUXT5_PREVIEW: '1'
       NUXT_BETTER_AUTH_SECRET: ci-placeholder-secret-32-characters

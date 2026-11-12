@@ -1,5 +1,31 @@
 import { createConfigForNuxt } from '@nuxt/eslint-config/flat'
 
+// Nuxt 5 (Nitro v3 / h3 v2) readiness: patterns PR #144 moved behind one function each, so
+// upgrade day is a one-place change. These keep them from creeping back in (one did, in
+// the starter sites work). Each owner file gets the list minus its own pattern.
+const NUXT5_RESTRICTED = {
+  createError: {
+    selector: 'CallExpression[callee.name="createError"]',
+    message: 'Use httpError() or the helpers in server/utils/response.ts (h3 v2 replaces createError with new HTTPError()).',
+  },
+  cloudflareContext: {
+    selector: 'MemberExpression[property.name="cloudflare"][object.property.name="context"]',
+    message: 'Use getCfEnv()/getCloudflareContext()/waitUntil() from server/utils/cf-env.ts (Nitro v3 moves this to event.req.runtime.cloudflare).',
+  },
+  runtimeConfigEvent: {
+    selector: 'CallExpression[callee.name="useRuntimeConfig"][arguments.length>0]',
+    message: 'Call useRuntimeConfig() with no argument (Nuxt 5 drops the event parameter).',
+  },
+  eventPath: {
+    selector: 'MemberExpression[object.name="event"][property.name="path"]',
+    message: 'Use getRequestURL(event).pathname (h3 v2 removes event.path).',
+  },
+}
+const nuxt5Restricted = (...except) => [
+  'error',
+  ...Object.entries(NUXT5_RESTRICTED).filter(([key]) => !except.includes(key)).map(([, rule]) => rule),
+]
+
 export default createConfigForNuxt({
   features: {
     tooling: true,
@@ -52,6 +78,20 @@ export default createConfigForNuxt({
     rules: {
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
+  },
+  {
+    files: ['apps/nuxflow/server/**/*.ts'],
+    rules: { 'no-restricted-syntax': nuxt5Restricted() },
+  },
+  {
+    // The one place allowed to call createError (httpError()).
+    files: ['apps/nuxflow/server/utils/response.ts'],
+    rules: { 'no-restricted-syntax': nuxt5Restricted('createError') },
+  },
+  {
+    // The one place allowed to read event.context.cloudflare.
+    files: ['apps/nuxflow/server/utils/cf-env.ts'],
+    rules: { 'no-restricted-syntax': nuxt5Restricted('cloudflareContext') },
   },
   {
     // Terminal commands (pnpm ring:*): printing to the terminal is their whole job.

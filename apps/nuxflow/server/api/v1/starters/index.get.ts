@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
   if (query.installOnly) return { install }
 
   const [{ starters, catalogError }, storageReady, applied] = await Promise.all([
-    listStarters(event),
+    listStarters(),
     starterStorageReady(event),
     resolveSetting(event, APPLIED_STARTER_SETTING),
   ])
