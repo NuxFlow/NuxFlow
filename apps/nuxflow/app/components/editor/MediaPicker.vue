@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { MediaFolder, MediaItem } from '#shared/lib/media-types'
 // Media library picker. Single-select by default (featured images, SEO images, the
 // Image block); `multiple` is used by Gallery/Carousel image lists, where a
 // photographer adds a whole shoot at once — so it can filter by folder, sort by file
@@ -12,30 +13,17 @@ const emit = defineEmits<{
   selectMany: [PickedFile[]]
 }>()
 
-interface MediaFile {
-  id: string
-  url: string
-  originalName: string
-  altText?: string | null
-  caption?: string | null
-  mimeType: string
-  width?: number | null
-  height?: number | null
-}
-
-interface Folder { id: string; name: string; fileCount: number }
-
 const PAGE_SIZE = 200
 
 const folderId = ref<string>('all')
 const sort = ref<'newest' | 'name'>(props.multiple ? 'name' : 'newest')
-const files = ref<MediaFile[]>([])
+const files = ref<MediaItem[]>([])
 const total = ref(0)
 const page = ref(0)
 const loading = ref(false)
 const loadError = ref('')
 
-const { data: folderData } = useFetch<{ folders: Folder[]; unfolderedCount: number }>('/api/v1/media/folders')
+const { data: folderData } = useFetch<{ folders: MediaFolder[]; unfolderedCount: number }>('/api/v1/media/folders')
 
 const folderItems = computed(() => [
   { label: 'All media', value: 'all' },
@@ -57,7 +45,7 @@ async function loadPage(reset: boolean) {
     const query: Record<string, string | number> = { limit: PAGE_SIZE, page: nextPage, sort: sort.value }
     if (folderId.value === 'none') query.folderId = 'null'
     else if (folderId.value !== 'all') query.folderId = folderId.value
-    const res = await $fetch<{ files: MediaFile[]; total: number }>('/api/v1/media', { query })
+    const res = await $fetch<{ files: MediaItem[]; total: number }>('/api/v1/media', { query })
     files.value = reset ? res.files : [...files.value, ...res.files]
     total.value = res.total
     page.value = nextPage
@@ -82,7 +70,7 @@ const filtered = computed(() => {
   )
 })
 
-function toPicked(file: MediaFile): PickedFile {
+function toPicked(file: MediaItem): PickedFile {
   return { url: file.url, altText: file.altText ?? '', caption: file.caption ?? '', width: file.width, height: file.height }
 }
 
@@ -91,7 +79,7 @@ function toPicked(file: MediaFile): PickedFile {
 const selectedIds = ref<string[]>([])
 const selectedSet = computed(() => new Set(selectedIds.value))
 
-function toggle(file: MediaFile) {
+function toggle(file: MediaItem) {
   selectedIds.value = selectedSet.value.has(file.id)
     ? selectedIds.value.filter(id => id !== file.id)
     : [...selectedIds.value, file.id]
@@ -110,15 +98,15 @@ function toggleAllShown() {
 }
 
 // Selections survive a folder switch, so the files they refer to are remembered here.
-const known = new Map<string, MediaFile>()
+const known = new Map<string, MediaItem>()
 watch(files, list => list.forEach(f => known.set(f.id, f)), { immediate: true })
 
 function addSelected() {
-  const picked = selectedIds.value.map(id => known.get(id)).filter((f): f is MediaFile => Boolean(f))
+  const picked = selectedIds.value.map(id => known.get(id)).filter((f): f is MediaItem => Boolean(f))
   if (picked.length) emit('selectMany', picked.map(toPicked))
 }
 
-function onTileClick(file: MediaFile) {
+function onTileClick(file: MediaItem) {
   if (props.multiple) toggle(file)
   else emit('select', toPicked(file))
 }

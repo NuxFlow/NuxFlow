@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { membershipTiers, subscriptions } from '@nuxflow/db/schema'
 import { useDb } from './db'
+import type { TierSummary } from '../../shared/lib/membership-types'
 import { hasValidUnlock, isSiteStaff } from './page-password'
 
 /**
@@ -79,7 +80,7 @@ export async function checkContentAccess(
   return null
 }
 
-async function fetchTiers(event: H3Event, siteId: string) {
+async function fetchTiers(event: H3Event, siteId: string): Promise<TierSummary[]> {
   const db = useDb(event)
   const rows = await db.query.membershipTiers.findMany({
     where: eq(membershipTiers.siteId, siteId),

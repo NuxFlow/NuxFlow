@@ -1,24 +1,8 @@
 <script setup lang="ts">
+import type { AdminTier } from '#shared/lib/membership-types'
 const { run, isRunning } = useAdminAction()
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-interface Tier {
-  id: string
-  name: string
-  description: string | null
-  price: number
-  currency: string
-  interval: 'month' | 'year' | 'one_time'
-  features: string[]
-  isActive: boolean
-  stripeProductId?: string | null
-  stripePriceId?: string | null
-  lsProductId?: string | null
-  lsVariantId?: string | null
-  paddleProductId?: string | null
-  createdAt: string
-}
 
 interface Subscriber {
   id: string
@@ -35,7 +19,7 @@ interface Subscriber {
 
 const activeTab = ref<'tiers' | 'subscribers'>('tiers')
 
-const { data: tiersData, refresh: refreshTiers } = await useFetch<{ tiers: Tier[] }>('/api/v1/memberships')
+const { data: tiersData, refresh: refreshTiers } = await useFetch<{ tiers: AdminTier[] }>('/api/v1/memberships')
 const tiers = computed(() => tiersData.value?.tiers ?? [])
 
 const { data: subsData } = await useFetch<{ subscribers: Subscriber[] }>('/api/v1/memberships/subscribers')
@@ -44,7 +28,7 @@ const subscribers = computed(() => subsData.value?.subscribers ?? [])
 // ── Tier form ─────────────────────────────────────────────────────────────────
 
 const showTierModal = ref(false)
-const editingTier = ref<Tier | null>(null)
+const editingTier = ref<AdminTier | null>(null)
 const tierLoading = computed(() => isRunning('save'))
 const showAdvanced = ref(false)
 
@@ -85,7 +69,7 @@ function openNewTier() {
   showTierModal.value = true
 }
 
-function openEditTier(tier: Tier) {
+function openEditTier(tier: AdminTier) {
   editingTier.value = tier
   showAdvanced.value = false
   Object.assign(tierForm, {
@@ -142,7 +126,7 @@ async function saveTier() {
   }, { successTitle: isEdit ? 'Tier updated' : 'Tier created', errorTitle: "Couldn't save tier", key: 'save' })
 }
 
-async function deleteTier(tier: Tier) {
+async function deleteTier(tier: AdminTier) {
   const ok = await useConfirm().confirm({
     title: `Delete "${tier.name}"?`,
     description: 'This is blocked if any subscriber still has an active subscription on this tier — they must be migrated or cancelled first.',
@@ -167,7 +151,7 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
   unpaid: 'error',
 }
 
-function syncBadge(tier: Tier) {
+function syncBadge(tier: AdminTier) {
   if (tier.price === 0) return { label: 'Free', color: 'neutral' as const }
   const synced = !!(tier.stripePriceId || tier.lsVariantId || tier.paddleProductId)
   return synced
@@ -175,7 +159,7 @@ function syncBadge(tier: Tier) {
     : { label: 'Unsynced', color: 'error' as const }
 }
 
-function syncTitle(tier: Tier) {
+function syncTitle(tier: AdminTier) {
   const parts: string[] = []
   if (tier.stripePriceId) parts.push('Stripe')
   if (tier.lsVariantId) parts.push('Lemon Squeezy')

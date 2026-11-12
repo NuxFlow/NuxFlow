@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { TierSummary } from '#shared/lib/membership-types'
 import Paywall from '~/components/memberships/Paywall.vue'
 import { NuxImage } from '@nuxflow/canvas'
 import type { JsonLdVideo, PublicSiteInfo } from '~/utils/seo'
@@ -15,15 +16,6 @@ import { postOutline, tocHeadings } from '#shared/lib/post-outline'
  * without this a translated URL could never reach the page renderer at all.
  */
 const props = defineProps<{ slugPath: string }>()
-
-interface Tier {
-  id: string
-  name: string
-  price: number
-  currency: string
-  interval: 'month' | 'year'
-  features: string[]
-}
 
 interface Author {
   name: string
@@ -73,7 +65,7 @@ interface PublicTerm {
 interface GateData {
   gated: true
   requiredTier: string | null
-  tiers: Tier[]
+  tiers: TierSummary[]
 }
 
 const { data: page, error, refresh } = await useFetch<PublicPage>(() => `/api/public/pages/${props.slugPath}`, {

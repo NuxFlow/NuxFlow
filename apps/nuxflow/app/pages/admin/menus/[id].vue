@@ -1,30 +1,10 @@
 <script setup lang="ts">
+import type { MenuLink, MenuItem } from '#shared/lib/menu-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
 const route = useRoute()
 const id = route.params.id as string
 const { run, isRunning } = useAdminAction()
-
-interface ChildItem {
-  id: string
-  label: string
-  type: 'page' | 'url'
-  url?: string
-  contentId?: string
-  slug?: string
-  target: '_self' | '_blank'
-}
-
-interface MenuItem {
-  id: string
-  label: string
-  type: 'page' | 'url'
-  url?: string
-  contentId?: string
-  slug?: string
-  target: '_self' | '_blank'
-  children: ChildItem[]
-}
 
 // ── Load menu ─────────────────────────────────────────────────────────────────
 const { data: menuData, refresh } = await useAsyncData(`menu-${id}`, () =>
@@ -113,7 +93,7 @@ function addItem() {
   const selectedContent = contentData.value?.items.find(c => c.id === addContentId.value)
   const label = addLabel.value.trim() || (addType.value === 'page' ? (selectedContent?.title ?? '') : addUrl.value)
 
-  const newItem: ChildItem = {
+  const newItem: MenuLink = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     label,
     type: addType.value,
@@ -166,7 +146,7 @@ async function save() {
   }, { successTitle: 'Menu saved', errorTitle: "Couldn't save menu", key: 'save' })
 }
 
-function itemHref(item: MenuItem | ChildItem) {
+function itemHref(item: MenuItem | MenuLink) {
   if (item.type === 'url') return item.url ?? '#'
   return item.slug ? `/${item.slug}` : '#'
 }
