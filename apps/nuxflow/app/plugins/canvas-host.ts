@@ -5,7 +5,7 @@
  */
 
 import { defineAsyncComponent } from 'vue'
-import { canvasHostKey, type CanvasClassPass, type CanvasContent, type CanvasEventList, type CanvasHost, type CanvasPostItem, type CanvasProductCard } from '@nuxflow/canvas'
+import { canvasHostKey, type CanvasClassPass, type CanvasContent, type CanvasEventList, type CanvasHost, type CanvasPostFilter, type CanvasPostItem, type CanvasProductCard } from '@nuxflow/canvas'
 
 // Every method rejects with an Error carrying the server's own message, which the package
 // shows to the user as-is.
@@ -19,9 +19,13 @@ async function call<T>(request: () => Promise<T>, fallback: string): Promise<T> 
 
 export default defineNuxtPlugin((nuxtApp) => {
   const host: CanvasHost = {
-    async listPosts(query) {
-      const data = await call(() => $fetch<{ posts?: CanvasPostItem[] }>('/api/public/posts', { query }), 'Could not load posts')
+    async listPosts({ filters, ...query }) {
+      const data = await call(() => $fetch<{ posts?: CanvasPostItem[] }>('/api/public/posts', { query: { ...query, ...filters } }), 'Could not load posts')
       return data.posts ?? []
+    },
+    async listPostFilters(type) {
+      const data = await call(() => $fetch<{ filters?: CanvasPostFilter[] }>('/api/public/posts', { query: { type, limit: 1 } }), 'Could not load filters')
+      return data.filters ?? []
     },
     async listEvents({ limit, from, to, past, taxonomy }) {
       const data = await call(() => $fetch<Partial<CanvasEventList>>('/api/public/events', { query: { limit, from, to, past: past ? '1' : undefined, taxonomy } }), 'Could not load events')

@@ -10,6 +10,18 @@ export interface CanvasPostItem {
   excerpt: string | null
   ogImage: string | null
   publishedAt: string | null
+  /** The type's custom fields, formatted ("Price", "£250,000"), when the listing has a type. */
+  details?: Array<{ key: string; label: string; text: string }>
+}
+
+/** A custom field a listing can be filtered by (Admin → Content types → "Use as a filter"). */
+export interface CanvasPostFilter {
+  key: string
+  label: string
+  type: 'number' | 'boolean' | 'select' | 'multiselect'
+  options?: string[]
+  prefix?: string
+  suffix?: string
 }
 
 /** An event as the Calendar block shows it (GET /api/public/events in NuxFlow). */
@@ -96,6 +108,10 @@ export interface CanvasPostsQuery {
   type?: string
   taxonomy?: string
   term?: string
+  /** Custom-field filters as `f.<key>` / `f.<key>.min|max` query values. */
+  filters?: Record<string, string>
+  /** `f.<key>` (low first) or `-f.<key>` (high first), a number field. */
+  sort?: string
 }
 
 export interface CanvasPageRequest {
@@ -113,6 +129,8 @@ export interface CanvasPageRequest {
  */
 export interface CanvasHost {
   listPosts(query: CanvasPostsQuery): Promise<CanvasPostItem[]>
+  /** The custom-field filters a listing of this content type offers; [] for none. */
+  listPostFilters?(type: string): Promise<CanvasPostFilter[]>
   listEvents(query: CanvasEventsQuery): Promise<CanvasEventList>
   /** The class passes on sale, and where to go to buy one. */
   listClassPasses?(): Promise<{ passes: CanvasClassPass[]; canBuy: boolean }>

@@ -78,6 +78,8 @@ function move(index: number, by: -1 | 1) {
 }
 
 const hasChoices = (type: CustomFieldType) => type === 'select' || type === 'multiselect'
+// Listings can be filtered by numbers, yes/no and choices (server/utils/field-filters.ts).
+const canFilter = (type: CustomFieldType) => type === 'number' || type === 'boolean' || hasChoices(type)
 
 async function saveFields(type: TypeRow) {
   const fields = drafts.value.map(f => ({
@@ -89,6 +91,7 @@ async function saveFields(type: TypeRow) {
     ...(f.type === 'number' && f.prefix?.trim() ? { prefix: f.prefix.trim() } : {}),
     ...(f.type === 'number' && f.suffix?.trim() ? { suffix: f.suffix.trim() } : {}),
     ...(f.showOnPage === false ? { showOnPage: false } : {}),
+    ...(f.filterable && canFilter(f.type) ? { filterable: true } : {}),
   }))
   const ok = await run(() => $fetch<{ success: boolean }>('/api/v1/content-types', {
     method: 'POST',
@@ -208,6 +211,12 @@ async function deleteType(type: TypeRow) {
               :model-value="field.showOnPage !== false"
               label="Show on the page"
               @update:model-value="field.showOnPage = $event === true"
+            />
+            <UCheckbox
+              v-if="canFilter(field.type)"
+              :model-value="field.filterable === true"
+              label="Use as a filter on listings"
+              @update:model-value="field.filterable = $event === true"
             />
           </div>
         </div>
