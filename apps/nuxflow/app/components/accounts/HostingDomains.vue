@@ -2,27 +2,12 @@
 // "Your addresses" for one hosted site on My hosting: the main address, the customer's own
 // domains with their Cloudflare status and the DNS record to add, and connecting,
 // checking, switching the main address and removing.
+import type { CustomerDomain, CustomerDomainPanel } from '#shared/lib/hosting-types'
+
 const props = defineProps<{ subscriptionId: string }>()
 
-interface DomainRow {
-  hostname: string
-  kind: 'custom' | 'platform'
-  main: boolean
-  live: boolean
-  status: string
-  sslStatus: string | null
-  errors: string[]
-}
-interface Panel {
-  available: boolean
-  target: string
-  allowed: number | null
-  used: number
-  domains: DomainRow[]
-}
-
 const { run, isRunning } = useAdminAction()
-const { data } = await useFetch<Panel>('/api/accounts/hosting/domains', {
+const { data } = await useFetch<CustomerDomainPanel>('/api/accounts/hosting/domains', {
   query: { id: props.subscriptionId },
   headers: useRequestHeaders(['cookie']),
 })
@@ -45,7 +30,7 @@ const limitNote = computed(() => {
 })
 
 async function act(key: string, url: string, method: 'POST' | 'DELETE', body: Record<string, string>, done: string) {
-  const res = await run(() => $fetch<Panel>(url, { method, body: { id: props.subscriptionId, ...body } }), { successTitle: done, errorTitle: "Couldn't update your domain", key })
+  const res = await run(() => $fetch<CustomerDomainPanel>(url, { method, body: { id: props.subscriptionId, ...body } }), { successTitle: done, errorTitle: "Couldn't update your domain", key })
   if (res) data.value = res
   return Boolean(res)
 }
@@ -62,7 +47,7 @@ async function remove(h: string) {
   await act(`remove:${h}`, '/api/accounts/hosting/domains', 'DELETE', { hostname: h }, `${h} removed`)
 }
 
-function stateOf(d: DomainRow): { label: string; color: 'success' | 'warning' | 'error' | 'neutral' | 'info' } {
+function stateOf(d: CustomerDomain): { label: string; color: 'success' | 'warning' | 'error' | 'neutral' | 'info' } {
   if (d.main) return { label: 'Main address', color: 'info' }
   if (d.live) return { label: 'Working', color: 'success' }
   if (d.errors.length) return { label: 'Needs attention', color: 'warning' }

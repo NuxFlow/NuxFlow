@@ -15,16 +15,7 @@ import { POOL_PROTOCOL, assertCompatibleProtocol } from './pool-admin'
 import { upsertUserCopy } from './pool-session'
 import type { PoolSignInUser } from './pool-sign-in'
 import { httpError } from './response'
-
-export interface SiteBranding {
-  id: string
-  name: string
-  domain: string
-  origin: string
-  logoUrl: string | null
-  primaryColor: string | null
-  allowRegistration: boolean
-}
+import type { AccountSiteListing, SiteBranding } from '../../shared/lib/accounts-types'
 
 /** A site as the accounts origin sees it, with the signed-in person's role there. */
 export interface PoolAccountsSite {
@@ -35,14 +26,6 @@ export interface PoolAccountsSite {
 export interface AccountsSite extends PoolAccountsSite {
   /** The member pool the site lives in, or null for one of this Worker's own sites. */
   poolId: string | null
-}
-
-export interface AccountSiteListing {
-  id: string
-  name: string
-  domain: string
-  role: string
-  origin: string
 }
 
 const HEX_COLOR = /^#[0-9a-f]{3,8}$/i

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SiteBranding } from '~/types/accounts'
+import type { SiteBranding } from '#shared/lib/accounts-types'
 
 // The site someone is signing in to, shown on the accounts origin's pages — its name,
 // logo and colour as plain data from GET /api/accounts/site. Never the site's own theme

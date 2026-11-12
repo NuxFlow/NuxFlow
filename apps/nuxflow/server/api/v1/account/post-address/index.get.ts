@@ -4,9 +4,10 @@ import { getPostMailbox, describePostAddress } from '../../../../utils/post-addr
 import { users } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { requireSiteId } from '../../../../utils/site-context'
+import type { PostAddressInfo } from '../../../../../shared/lib/accounts-types'
 
 /** The caller's secret post-by-email address on this site, or `{ address: null }`. */
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<PostAddressInfo> => {
   const { userId } = await requireRole(event, 'author')
   const db = useDb(event)
   const siteId = requireSiteId(event)

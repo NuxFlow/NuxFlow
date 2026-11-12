@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { tierIntervalLabel, type TierSummary } from '#shared/lib/membership-types'
+import { tierIntervalLabel, type AccountMembership } from '#shared/lib/membership-types'
 // This site's side of "My account": membership, notifications and post-by-email for the
 // site you're on. The account's own sign-in settings are at the bottom — on a site's
 // own domain under central sign-in, only a link to the accounts origin (see useAccounts).
@@ -22,26 +22,13 @@ async function togglePush() {
   }
 }
 
-interface Subscription {
-  id: string
-  status: 'active' | 'trialing' | 'past_due' | 'cancelled' | 'unpaid'
-  provider: string
-  currentPeriodEnd: string | null
-  cancelledAt: string | null
-  cancelAtPeriodEnd: boolean
-  isFree: boolean
-}
 
-interface AccountData {
-  subscription: Subscription | null
-  tier: TierSummary | null
-}
 
 const { user } = useUserSession()
 const { onSiteDomain, accountsLink } = useAccounts()
 const { run, isRunning, toast } = useAdminAction()
 
-const { data, refresh: refreshSubscription } = await useFetch<AccountData>('/api/v1/account/subscription', {
+const { data, refresh: refreshSubscription } = await useFetch<AccountMembership>('/api/v1/account/subscription', {
   headers: useRequestHeaders(['cookie']),
 })
 

@@ -1,4 +1,4 @@
-import type { SiteBranding } from '~/types/accounts'
+import type { SiteBranding } from '#shared/lib/accounts-types'
 
 /**
  * On the accounts origin, the site named by `?site=` (the one being signed in to or

@@ -22,6 +22,7 @@ import { clearSiteCache } from './site-resolution'
 import { getClientIp } from './client-ip'
 import { httpError } from './response'
 import { httpErrorStatus } from './errors'
+import type { CustomerDomainPanel } from '../../shared/lib/hosting-types'
 
 /**
  * Customers' own domains on a hosting platform (Cloudflare for SaaS). A customer connects
@@ -549,7 +550,7 @@ async function hostedSitePlan(db: Db, site: HostedSite): Promise<HostingPlan | n
 }
 
 /** Everything the "Your addresses" panel needs for one site. */
-export async function domainPanel(ctx: HostingContext, site: HostedSite) {
+export async function domainPanel(ctx: HostingContext, site: HostedSite): Promise<CustomerDomainPanel> {
   const [rows, cfg, target, plan] = await Promise.all([
     domainStore(ctx.primaryEvent, site).rows(),
     saasConfig(ctx.primaryEvent),

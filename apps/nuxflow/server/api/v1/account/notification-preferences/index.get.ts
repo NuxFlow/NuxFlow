@@ -4,6 +4,7 @@ import { useDb } from '../../../../utils/db'
 import { requireSiteUser, roleAtLeast } from '../../../../utils/permissions'
 import { NOTIFICATION_TYPES } from '../../../../utils/notify'
 import { requireSiteId } from '../../../../utils/site-context'
+import type { NotificationPreferencesResponse } from '../../../../../shared/lib/accounts-types'
 
 /** The caller's delivery preferences on this site, one entry per type relevant to their role. */
 export default defineEventHandler(async (event) => {
@@ -27,5 +28,5 @@ export default defineEventHandler(async (event) => {
         push: saved.get(type)?.push ?? def.push,
         emailLocked: !!def.mandatoryEmail,
       })),
-  }
+  } satisfies NotificationPreferencesResponse
 })
