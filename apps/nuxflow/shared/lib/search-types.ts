@@ -31,3 +31,32 @@ export interface SemanticResponse {
   available: boolean
   results: SemanticResult[]
 }
+
+// ── Super Admin → Database: the smart-search index (searchIndexStatus(),
+// server/utils/search-index-rebuild.ts)
+
+/** The automatic re-embedding after the index's model changed. */
+export interface SearchIndexRebuild {
+  /** The embedding model this rebuild fills the index with. */
+  model: string
+  status: 'running' | 'done'
+  /** Last content item id done (ids are ULIDs, so this walks them in order). */
+  cursor: string | null
+  processed: number
+  startedAt: string
+  finishedAt?: string
+  lastError?: string
+}
+
+export type SearchIndexStatus =
+  | { available: false }
+  | {
+      available: true
+      dimensions: number | null
+      model: string | null
+      multilingual: boolean
+      vectorCount: number | null
+      indexablePages: number
+      /** Null when no rebuild for the current model has started. */
+      rebuild: SearchIndexRebuild | null
+    }

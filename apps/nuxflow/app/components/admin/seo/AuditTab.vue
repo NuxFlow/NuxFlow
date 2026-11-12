@@ -1,14 +1,7 @@
 <script setup lang="ts">
-interface AuditIssue { code: string; severity: 'error' | 'warning' | 'info'; message: string }
-interface AuditItem { id: string; title: string; path: string; typeName: string | null; issues: AuditIssue[] }
-interface SiteCheck { id: string; severity: 'error' | 'warning' | 'info' | 'ok'; message: string }
-interface AuditResponse {
-  summary: { total: number; indexed: number; withIssues: number; counts: Record<string, number>; truncated: boolean }
-  site: SiteCheck[]
-  items: AuditItem[]
-}
+import type { SeoAuditResponse } from '#shared/lib/seo-types'
 
-const { data, pending, refresh } = await useFetch<AuditResponse>('/api/v1/seo/audit')
+const { data, pending, refresh } = await useFetch<SeoAuditResponse>('/api/v1/seo/audit')
 
 const filter = ref<'problems' | 'all'>('problems')
 const visibleItems = computed(() => {

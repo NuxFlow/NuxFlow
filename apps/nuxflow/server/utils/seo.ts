@@ -2,6 +2,7 @@ import { contentItems, siteSettings, sites } from '@nuxflow/db/schema'
 import { and, eq, inArray, like } from 'drizzle-orm'
 import type { Db } from './db'
 import { createIsolateCache } from './isolate-cache'
+import type { CrawlerCategory } from '../../shared/lib/seo-types'
 
 /**
  * Shared SEO/GEO settings and helpers — the single place robots.txt, the sitemaps,
@@ -13,7 +14,7 @@ import { createIsolateCache } from './isolate-cache'
 
 // ── Crawler registry ─────────────────────────────────────────────────────────
 
-export type CrawlerCategory = 'search' | 'ai-training' | 'ai-search' | 'ai-user'
+export type { CrawlerCategory } from '../../shared/lib/seo-types'
 
 export interface KnownCrawler {
   /** Display name and robots.txt `User-agent` token. */

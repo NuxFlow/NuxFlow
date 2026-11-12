@@ -7,6 +7,7 @@ import { getAnalyticsEngine, waitUntil } from './cf-env'
 import type { KnownCrawler } from './seo'
 import { utcDay, utcDayAgo } from './utc-day'
 import { createCounterBuffer } from './counter-buffer'
+import type { CrawlerActivityRow } from '../../shared/lib/seo-types'
 
 /**
  * Records one request from a known search/AI crawler (seo.ts's detectCrawler), called by
@@ -90,14 +91,6 @@ export async function incrementCrawlerHit(db: Db, siteId: string, crawler: Known
       target: [crawlerHits.siteId, crawlerHits.day, crawlerHits.bot],
       set: { hits: sql`${crawlerHits.hits} + ${hits}`, lastPath: path, lastSeenAt: sql`(datetime('now'))` },
     })
-}
-
-export interface CrawlerActivityRow {
-  bot: string
-  category: string
-  hits: number
-  lastSeenAt: string
-  lastPath: string | null
 }
 
 /** Per-bot totals over the last `days` days (UTC), busiest first. */

@@ -1,20 +1,7 @@
 <script setup lang="ts">
+import type { PlanLimitUsage, SitePlanSummary } from '#shared/lib/site-admin-types'
 // The site's hosting plan and how much of each limit it uses — shown to admins only, and
 // only when the site's plan sets limits (the built-in unlimited plan shows nothing).
-
-interface PlanLimitUsage {
-  key: string
-  label: string
-  kind: 'hard' | 'soft'
-  monthly: boolean
-  unit: 'bytes' | 'count'
-  used: number
-  max: number
-}
-interface SitePlanSummary {
-  plan: { id: string; name: string; description: string } | null
-  limits: PlanLimitUsage[]
-}
 
 const access = await fetchAdminAccess()
 const isAdmin = roleAtLeast(access?.role, 'admin') || Boolean(access?.isSuperAdmin)

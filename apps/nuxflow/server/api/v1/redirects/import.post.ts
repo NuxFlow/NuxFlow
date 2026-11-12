@@ -4,6 +4,7 @@ import { requireRole } from '../../../utils/permissions'
 import { writeAuditLog } from '../../../utils/audit'
 import { parseRedirectCsv, redirectRuleSchema, saveRedirect } from '../../../utils/redirects'
 import { requireSiteId } from '../../../utils/site-context'
+import type { RedirectImportResult } from '../../../../shared/lib/seo-types'
 
 const MAX_RULES = 2000
 
@@ -52,5 +53,5 @@ export default defineEventHandler(async (event) => {
   }
 
   errors.sort((a, b) => a.line - b.line)
-  return { created: createdCount, updated, skipped, errors }
+  return { created: createdCount, updated, skipped, errors } satisfies RedirectImportResult
 })

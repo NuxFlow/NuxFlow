@@ -1,22 +1,9 @@
 <script setup lang="ts">
+import type { MigrationBatchResult, MigrationStatus } from '#shared/lib/media-types'
 // Plain-language "where do my files go?" status for Settings → Media, plus the one-click
 // move for anything still stored in the database (server/utils/media-migration.ts).
 // Re-checks after every settings save, since saving a provider is what makes the move
 // possible.
-
-interface MigrationStatus {
-  provider: string
-  servedByWorker: boolean
-  canMigrate: boolean
-  pendingMedia: number
-  pendingMediaBytes: number
-  pendingInline: number
-}
-interface BatchResult {
-  results: { id: string; ok: boolean; error?: string }[]
-  nextCursor: string | null
-  done: boolean
-}
 
 const props = defineProps<{ saving: boolean }>()
 
@@ -60,7 +47,7 @@ async function moveToStorage() {
       let cursor: string | null = null
       let done = false
       while (!done) {
-        const batch: BatchResult = await $fetch<BatchResult>('/api/v1/media/migration', {
+        const batch: MigrationBatchResult = await $fetch<MigrationBatchResult>('/api/v1/media/migration', {
           method: 'POST',
           body: { phase, cursor },
         })

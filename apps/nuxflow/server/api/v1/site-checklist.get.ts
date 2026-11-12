@@ -1,13 +1,14 @@
 import { requireRole } from '../../utils/permissions'
 import { isDemoMode } from '../../utils/demo-mode'
 import { buildSetupChecklist, gatherSetupChecklistInputs, getChecklistPreferences } from '../../utils/setup-checklist'
+import type { SetupChecklistResponse } from '../../../shared/lib/site-admin-types'
 
 /**
  * The dashboard's "Finish setting up your site" card — see server/utils/setup-checklist.ts.
  * Deliberately not under /api/v1/setup/…: 02.multi-site.ts skips site resolution for that
  * prefix (it belongs to the pre-install wizard).
  */
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<SetupChecklistResponse> => {
   const { userId } = await requireRole(event, 'admin')
   // The public demo shares one login and can't configure storage, email, a domain and so
   // on (demo-mode.ts blocks them), so the card would only ever be a list of dead ends.

@@ -1,15 +1,14 @@
 <script setup lang="ts">
+import type { AuditLogEntry } from '#shared/lib/site-admin-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
-
-type AuditLog = { id: string; action: string; resource: string; resourceId: string | null; userId: string; createdAt: string }
 
 const PAGE_SIZE = 200
 const page = ref(1)
-const accumulated = ref<AuditLog[]>([])
+const accumulated = ref<AuditLogEntry[]>([])
 const hasMore = ref(false)
 const loadingMore = ref(false)
 
-const { data } = await useFetch<{ logs: AuditLog[] }>('/api/v1/audit-log', {
+const { data } = await useFetch<{ logs: AuditLogEntry[] }>('/api/v1/audit-log', {
   query: { page: '1', limit: String(PAGE_SIZE) },
 })
 
@@ -25,7 +24,7 @@ async function loadMore() {
   loadingMore.value = true
   try {
     const next = page.value + 1
-    const res = await $fetch<{ logs: AuditLog[] }>('/api/v1/audit-log', {
+    const res = await $fetch<{ logs: AuditLogEntry[] }>('/api/v1/audit-log', {
       query: { page: String(next), limit: String(PAGE_SIZE) },
     })
     accumulated.value = [...accumulated.value, ...res.logs]

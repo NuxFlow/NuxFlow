@@ -1,35 +1,16 @@
 <script setup lang="ts">
+import type { ChecklistItem, SetupChecklistResponse } from '#shared/lib/site-admin-types'
 // "Finish setting up your site" — live checks of the settings every installation should
 // have (server/utils/setup-checklist.ts). Mirrors docs/installation.md's
 // After-installation checklist, which each item links to for step-by-step help.
 // Admins only (the checks read admin-level settings).
-
-interface ChecklistItem {
-  id: string
-  tier: 'essential' | 'recommended'
-  status: 'done' | 'todo' | 'problem'
-  title: string
-  detail: string
-  fixUrl?: string
-  fixLabel?: string
-  docsAnchor?: string
-  skipped: boolean
-}
-
-interface ChecklistResponse {
-  items?: ChecklistItem[]
-  summary?: { essentialOpen: number; recommendedOpen: number; problems: number; total: number; done: number }
-  hidden?: boolean
-  /** The public demo: no card at all (site-checklist.get.ts). */
-  disabled?: true
-}
 
 const DOCS_URL = 'https://github.com/NuxFlow/NuxFlow/blob/main/docs/installation.md'
 
 const access = await fetchAdminAccess()
 const isAdmin = roleAtLeast(access?.role, 'admin') || Boolean(access?.isSuperAdmin)
 
-const { data, refresh } = await useFetch<ChecklistResponse>('/api/v1/site-checklist', {
+const { data, refresh } = await useFetch<SetupChecklistResponse>('/api/v1/site-checklist', {
   immediate: isAdmin,
   headers: useRequestHeaders(['cookie', 'host']),
 })

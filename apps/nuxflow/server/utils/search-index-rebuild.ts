@@ -4,6 +4,7 @@ import { contentItems, sites } from '@nuxflow/db/schema'
 import type { Db } from './db'
 import { getCfBindings, getVectorizeIndex, getWorkersAiBinding } from './cf-env'
 import { buildEmbeddingText, embedTextsForRebuild, getSearchIndexInfo, type EmbeddingModel } from './embeddings'
+import type { SearchIndexRebuild, SearchIndexStatus } from '../../shared/lib/search-types'
 
 /**
  * Re-embeds every published, public page into the Vectorize index — after switching to a
@@ -23,17 +24,7 @@ const BATCH_SIZE = 100
 /** Batches per task run — up to 500 pages a minute. */
 const BATCHES_PER_RUN = 5
 
-export interface SearchIndexRebuildState {
-  /** The embedding model this rebuild fills the index with. */
-  model: string
-  status: 'running' | 'done'
-  /** Last content item id done (ids are ULIDs, so this walks them in order). */
-  cursor: string | null
-  processed: number
-  startedAt: string
-  finishedAt?: string
-  lastError?: string
-}
+type SearchIndexRebuildState = SearchIndexRebuild
 
 async function readState(event: H3Event): Promise<SearchIndexRebuildState | null> {
   const { kv } = getCfBindings(event)
@@ -127,7 +118,7 @@ export async function runSearchIndexRebuild(event: H3Event, db: Db): Promise<Sea
 }
 
 /** Super Admin → Database: the index, its model, and how far the rebuild has got. */
-export async function searchIndexStatus(event: H3Event, db: Db) {
+export async function searchIndexStatus(event: H3Event, db: Db): Promise<SearchIndexStatus> {
   const info = await getSearchIndexInfo(event)
   if (!info) return { available: false as const }
   const [state, [total]] = await Promise.all([

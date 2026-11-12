@@ -1,8 +1,8 @@
 <script setup lang="ts">
+import type { ApiKeySummary } from '#shared/lib/site-admin-types'
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
 
-type ApiKey = { id: string; name: string; scopes: string[]; lastUsedAt: string | null }
-const { data, refresh } = await useFetch<{ apiKeys: ApiKey[] }>('/api/v1/api-keys')
+const { data, refresh } = await useFetch<{ apiKeys: ApiKeySummary[] }>('/api/v1/api-keys')
 const keys = computed(() => data.value?.apiKeys ?? [])
 
 const creating = ref(false)

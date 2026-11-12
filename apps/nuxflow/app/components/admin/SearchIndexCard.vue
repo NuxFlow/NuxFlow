@@ -1,25 +1,8 @@
 <script setup lang="ts">
+import type { SearchIndexStatus } from '#shared/lib/search-types'
 // Super Admin → Database: the shared Vectorize index behind smart search and related
 // content — which embedding model it uses (decided by the index's size, embeddings.ts)
 // and how far the automatic re-embedding (search-index-rebuild.ts) has got.
-interface RebuildState {
-  status: 'running' | 'done'
-  processed: number
-  startedAt: string
-  finishedAt?: string
-  lastError?: string
-}
-type SearchIndexStatus =
-  | { available: false }
-  | {
-      available: true
-      dimensions: number | null
-      model: string | null
-      multilingual: boolean
-      vectorCount: number | null
-      indexablePages: number
-      rebuild: RebuildState | null
-    }
 
 const { run, isRunning } = useAdminAction()
 const { data: status, refresh } = await useFetch<SearchIndexStatus>('/api/v1/admin/search-index')

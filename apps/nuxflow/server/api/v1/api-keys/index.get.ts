@@ -3,6 +3,7 @@ import { requireRole } from '../../../utils/permissions'
 import { apiKeys } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
+import type { ApiKeySummary } from '../../../../shared/lib/site-admin-types'
 
 export default defineEventHandler(async (event) => {
   await requireRole(event, 'admin')
@@ -13,5 +14,5 @@ export default defineEventHandler(async (event) => {
     columns: { id: true, name: true, scopes: true, lastUsedAt: true, expiresAt: true, createdAt: true },
     limit: 1000,
   })
-  return { apiKeys: keys }
+  return { apiKeys: keys satisfies ApiKeySummary[] }
 })

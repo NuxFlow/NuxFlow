@@ -9,6 +9,7 @@ import { saveSetting } from './settings'
 import { purgeAllPublicPages, purgeEdgeCache } from './edge-cache'
 import { base64ToBytes } from '../../shared/lib/base64'
 import { requireSiteId } from './site-context'
+import type { MigrationBatchResult, MigrationItemResult, MigrationStatus } from '../../shared/lib/media-types'
 
 /**
  * Moves media out of the database-storage fallback (base64 `data:` URIs in D1 — see the
@@ -80,31 +81,6 @@ export class WorkBudget {
   get exhausted(): boolean {
     return this.queries >= this.maxQueries || Date.now() >= this.deadline
   }
-}
-
-export interface MigrationItemResult {
-  id: string
-  ok: boolean
-  error?: string
-  newUrl?: string
-}
-
-export interface MigrationBatchResult {
-  results: MigrationItemResult[]
-  /** Pass back as `cursor` for the next batch. */
-  nextCursor: string | null
-  /** True once this phase has nothing left to do. */
-  done: boolean
-}
-
-export interface MigrationStatus {
-  provider: string
-  /** True for binding-only R2: media is served through this Worker at /_nuxflow/media/. */
-  servedByWorker: boolean
-  canMigrate: boolean
-  pendingMedia: number
-  pendingMediaBytes: number
-  pendingInline: number
 }
 
 export function decodeDataUri(uri: string): { mime: string; bytes: Uint8Array<ArrayBuffer> } | null {
