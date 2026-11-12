@@ -1,17 +1,9 @@
 <script setup lang="ts">
-import type { ExifData } from '#shared/lib/media-types'
+import type { ExifData, MediaItem } from '#shared/lib/media-types'
 // File-detail modal (focal-point picker + EXIF + alt/caption/folder form) extracted
 // from media/index.vue. Presentational — the parent still owns the fetch-on-open
 // (list projection -> full row with EXIF), save, and delete calls; this component
 // only edits the local form fields and emits 'save'/'delete'/'generate-alt-text'.
-type MediaFile = {
-  id: string; originalName: string; mimeType: string; size: number
-  url: string; altText: string | null; caption: string | null
-  folderId: string | null; width: number | null; height: number | null
-  focalX: number | null; focalY: number | null
-  metadata?: { exif?: ExifData } | null
-  createdAt: string
-}
 export interface MediaDetailForm {
   altText: string
   caption: string
@@ -24,7 +16,7 @@ const open = defineModel<boolean>('open', { required: true })
 const form = defineModel<MediaDetailForm>('form', { required: true })
 
 const props = defineProps<{
-  file: MediaFile | null
+  file: MediaItem | null
   folderOptions: { label: string, value: string | null }[]
   loading: boolean
   saving: boolean

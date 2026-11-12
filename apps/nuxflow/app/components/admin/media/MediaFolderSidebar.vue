@@ -1,11 +1,11 @@
 <script setup lang="ts">
+import type { MediaFolder } from '#shared/lib/media-types'
 // Presentational folder list + create/delete UI extracted from media/index.vue —
 // the parent still owns all folder state and the actual fetch calls (create/delete/
 // select), this component just renders the list and bubbles user intent up via emits.
-interface Folder { id: string; name: string; fileCount: number }
 
 defineProps<{
-  folders: Folder[]
+  folders: MediaFolder[]
   unfolderedCount: number
   totalFilesCount: number
   selectedFolderId: string | null | undefined

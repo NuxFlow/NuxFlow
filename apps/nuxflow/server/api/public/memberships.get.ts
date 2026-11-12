@@ -4,6 +4,7 @@ import { useDb } from '../../utils/db'
 import { resolveStringSetting, resolveBooleanSetting } from '../../utils/settings'
 import { withEdgeCache } from '../../utils/edge-cache'
 import { requireSiteId } from '../../utils/site-context'
+import type { PublicTier } from '../../../shared/lib/membership-types'
 
 const CACHE_MAX_AGE = 300
 
@@ -34,7 +35,7 @@ export default defineEventHandler(async (event) => {
     ])
 
     return {
-      tiers: tiers.filter(t => t.isActive),
+      tiers: tiers.filter(t => t.isActive) satisfies PublicTier[],
       signupsDisabled,
       signupsDisabledMessage: (signupsDisabledMessage as string | null) || 'New signups are temporarily paused.',
     }

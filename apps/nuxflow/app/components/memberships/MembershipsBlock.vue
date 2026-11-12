@@ -1,15 +1,6 @@
 <script setup lang="ts">
+import { tierIntervalLabel, type PublicTier } from '#shared/lib/membership-types'
 import { spacingToCss, type SpacingValue } from '@nuxflow/canvas'
-
-interface Tier {
-  id: string
-  name: string
-  description: string | null
-  price: number
-  currency: string
-  interval: 'month' | 'year' | 'one_time'
-  features: string[]
-}
 
 const props = withDefaults(defineProps<{
   title?: string
@@ -31,19 +22,13 @@ const props = withDefaults(defineProps<{
   padding: undefined,
 })
 
-const { data } = await useFetch<{ tiers: Tier[], signupsDisabled: boolean, signupsDisabledMessage: string }>('/api/public/memberships', {
+const { data } = await useFetch<{ tiers: PublicTier[], signupsDisabled: boolean, signupsDisabledMessage: string }>('/api/public/memberships', {
   headers: useRequestHeaders(['host']),
 })
 
 const tiers = computed(() => data.value?.tiers ?? [])
 const signupsDisabled = computed(() => data.value?.signupsDisabled ?? false)
 const signupsDisabledMessage = computed(() => data.value?.signupsDisabledMessage ?? 'New signups are temporarily paused.')
-
-const intervalLabel: Record<string, string> = {
-  month: 'mo',
-  year: 'yr',
-  one_time: 'once',
-}
 
 const { loggedIn } = useUserSession()
 const loading = ref<string | null>(null)
@@ -130,7 +115,7 @@ const containerStyle = computed(() => {
 
           <div class="flex items-end gap-1">
             <span class="text-3xl font-bold text-gray-900 dark:text-white">{{ formatPrice(tier.price, tier.currency) }}</span>
-            <span class="text-sm text-gray-400 mb-1">/ {{ intervalLabel[tier.interval] ?? tier.interval }}</span>
+            <span class="text-sm text-gray-400 mb-1">/ {{ tierIntervalLabel(tier.interval) }}</span>
           </div>
 
           <ul v-if="tier.features.length" class="flex-1 space-y-2 border-t border-gray-100 dark:border-gray-800 pt-4">

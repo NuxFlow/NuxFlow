@@ -13,6 +13,31 @@ export interface ExifData {
   flash?: number
 }
 
+/** A file in the media library, as GET /api/v1/media lists it. */
+export interface MediaItem {
+  id: string
+  originalName: string
+  mimeType: string
+  size: number
+  url: string
+  altText: string | null
+  caption: string | null
+  folderId: string | null
+  width: number | null
+  height: number | null
+  focalX: number | null
+  focalY: number | null
+  metadata?: { exif?: ExifData } | null
+  createdAt: string
+}
+
+/** A media library folder, with how many files it holds (GET /api/v1/media/folders). */
+export interface MediaFolder {
+  id: string
+  name: string
+  fileCount: number
+}
+
 /** A Cloudflare Stream video in the media library, as GET /api/v1/media/video lists it. */
 export interface VideoAsset {
   id: string

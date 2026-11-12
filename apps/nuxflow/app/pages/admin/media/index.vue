@@ -1,34 +1,24 @@
 <script setup lang="ts">
-import type { ExifData } from '#shared/lib/media-types'
+import type { MediaFolder, MediaItem } from '#shared/lib/media-types'
 import type { MediaDetailForm } from '~/components/admin/media/MediaDetailPanel.vue'
 
 definePageMeta({ layout: 'admin', middleware: ['auth'] })
-
-type MediaFile = {
-  id: string; originalName: string; mimeType: string; size: number
-  url: string; altText: string | null; caption: string | null
-  folderId: string | null; width: number | null; height: number | null
-  focalX: number | null; focalY: number | null
-  metadata?: { exif?: ExifData } | null
-  createdAt: string
-}
-type Folder = { id: string; name: string; fileCount: number }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 const selectedFolderId = ref<string | null | undefined>(undefined) // undefined = all
 
 interface FolderPayload {
-  folders?: Folder[]
+  folders?: MediaFolder[]
   unfolderedCount?: number
 }
 
 const { data: folderData, refresh: refreshFolders } = await useFetch<FolderPayload>('/api/v1/media/folders')
-const folders = computed<Folder[]>(() => folderData.value?.folders ?? [])
+const folders = computed<MediaFolder[]>(() => folderData.value?.folders ?? [])
 const unfolderedCount = computed(() => folderData.value?.unfolderedCount ?? 0)
 
 const MEDIA_PAGE_SIZE = 60
 const mediaPage = ref(1)
-const files = ref<MediaFile[]>([])
+const files = ref<MediaItem[]>([])
 const hasMoreMedia = ref(false)
 const loadingMoreMedia = ref(false)
 
@@ -38,7 +28,7 @@ function folderQuery(): Record<string, string> {
   return q
 }
 
-const { data, error: mediaError, refresh: refreshMedia } = await useFetch<{ files: MediaFile[] }>('/api/v1/media', {
+const { data, error: mediaError, refresh: refreshMedia } = await useFetch<{ files: MediaItem[] }>('/api/v1/media', {
   query: computed(() => folderQuery()),
   watch: [selectedFolderId],
 })
@@ -53,7 +43,7 @@ async function loadMoreMedia() {
   loadingMoreMedia.value = true
   try {
     const next = mediaPage.value + 1
-    const res = await $fetch<{ files: MediaFile[] }>('/api/v1/media', {
+    const res = await $fetch<{ files: MediaItem[] }>('/api/v1/media', {
       query: { ...folderQuery(), page: String(next) },
     })
     files.value = [...files.value, ...res.files]
@@ -207,7 +197,7 @@ async function deleteFolder(id: string) {
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
 const showDetail = ref(false)
-const detail = ref<MediaFile | null>(null)
+const detail = ref<MediaItem | null>(null)
 const detailForm = ref<MediaDetailForm>({ altText: '', caption: '', folderId: null, focalX: null, focalY: null })
 const savingDetail = computed(() => isRunning('saveDetail'))
 const deletingDetail = computed(() => isRunning('deleteFile'))
@@ -224,7 +214,7 @@ async function generateDetailAltText() {
   if (res) detailForm.value = { ...detailForm.value, altText: res.altText }
 }
 
-async function openDetail(file: MediaFile) {
+async function openDetail(file: MediaItem) {
   detail.value = file
   detailForm.value = {
     altText: file.altText ?? '',
@@ -239,7 +229,7 @@ async function openDetail(file: MediaFile) {
   // keep the grid payload small — fetch the full row here so the detail modal can show it.
   detailLoading.value = true
   try {
-    const full = await $fetch<MediaFile>(`/api/v1/media/${file.id}`)
+    const full = await $fetch<MediaItem>(`/api/v1/media/${file.id}`)
     // Guard against the user opening a different file before this resolves.
     if (detail.value?.id === file.id) {
       detail.value = full

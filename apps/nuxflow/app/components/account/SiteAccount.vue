@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { tierIntervalLabel, type TierSummary } from '#shared/lib/membership-types'
 // This site's side of "My account": membership, notifications and post-by-email for the
 // site you're on. The account's own sign-in settings are at the bottom — on a site's
 // own domain under central sign-in, only a link to the accounts origin (see useAccounts).
@@ -21,15 +22,6 @@ async function togglePush() {
   }
 }
 
-interface Tier {
-  id: string
-  name: string
-  price: number
-  currency: string
-  interval: string
-  features: string[]
-}
-
 interface Subscription {
   id: string
   status: 'active' | 'trialing' | 'past_due' | 'cancelled' | 'unpaid'
@@ -42,7 +34,7 @@ interface Subscription {
 
 interface AccountData {
   subscription: Subscription | null
-  tier: Tier | null
+  tier: TierSummary | null
 }
 
 const { user } = useUserSession()
@@ -150,7 +142,7 @@ async function cancelSubscription() {
           <div>
             <p class="font-medium text-gray-900 dark:text-white">{{ tier.name }}</p>
             <p class="text-sm text-gray-500 dark:text-gray-400">
-              {{ formatPrice(tier.price, tier.currency) }} / {{ tier.interval }}
+              {{ formatPrice(tier.price, tier.currency) }} / {{ tierIntervalLabel(tier.interval) }}
             </p>
           </div>
         </div>

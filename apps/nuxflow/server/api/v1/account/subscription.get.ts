@@ -2,6 +2,7 @@ import { subscriptions, membershipTiers } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { useDb } from '../../../utils/db'
 import { requireSiteId } from '../../../utils/site-context'
+import type { TierSummary } from '../../../../shared/lib/membership-types'
 
 export default defineEventHandler(async (event) => {
   const session = await requireSession(event)
@@ -19,7 +20,7 @@ export default defineEventHandler(async (event) => {
 
   if (!sub) return { subscription: null, tier: null }
 
-  const tier = sub.tierId
+  const tier: TierSummary | null | undefined = sub.tierId
     ? await db.query.membershipTiers.findFirst({
         where: and(eq(membershipTiers.id, sub.tierId), eq(membershipTiers.siteId, siteId)),
         columns: { id: true, name: true, price: true, currency: true, interval: true, features: true },

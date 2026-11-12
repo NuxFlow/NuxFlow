@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { tierIntervalLabel, type TierSummary } from '#shared/lib/membership-types'
+
 defineProps<{
-  tiers?: Array<{ id: string; name: string; price: number; currency: string; interval: 'month' | 'year'; features: string[] }>
+  tiers?: TierSummary[]
 }>()
 
 const { loggedIn } = useUserSession()
@@ -49,7 +51,7 @@ async function subscribe(tierId: string) {
           <p class="font-semibold text-gray-900 dark:text-white">{{ tier.name }}</p>
           <p class="text-2xl font-bold text-primary-500 mt-1">
             {{ formatPrice(tier.price, tier.currency) }}
-            <span class="text-sm font-normal text-gray-400">/ {{ tier.interval }}</span>
+            <span class="text-sm font-normal text-gray-400">/ {{ tierIntervalLabel(tier.interval) }}</span>
           </p>
         </div>
         <ul class="space-y-1">

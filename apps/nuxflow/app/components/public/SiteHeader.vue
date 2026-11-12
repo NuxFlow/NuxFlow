@@ -1,13 +1,5 @@
 <script setup lang="ts">
-interface ChildItem {
-  id: string; label: string; type: 'page' | 'url'
-  url?: string; slug?: string; target: '_self' | '_blank'
-}
-interface MenuItem {
-  id: string; label: string; type: 'page' | 'url'
-  url?: string; slug?: string; target: '_self' | '_blank'
-  children: ChildItem[]
-}
+import type { MenuLink, MenuItem } from '#shared/lib/menu-types'
 interface SitePublic {
   name: string
   domain: string
@@ -39,7 +31,7 @@ const cart = useCart()
 
 const navItems = computed<MenuItem[]>(() => (menu.value?.items ?? []) as MenuItem[])
 
-function href(item: MenuItem | ChildItem) {
+function href(item: MenuItem | MenuLink) {
   return item.type === 'url' ? (item.url ?? '/') : `/${item.slug ?? ''}`
 }
 
