@@ -76,8 +76,8 @@ export async function starterStorageReady(event: H3Event): Promise<boolean> {
   return (await getActiveProvider(event)).name !== 'local'
 }
 
-export async function listStarters(event: H3Event): Promise<{ starters: StarterSummary[]; catalogError: string | null }> {
-  const { catalog, error } = await getStarterCatalog(event)
+export async function listStarters(): Promise<{ starters: StarterSummary[]; catalogError: string | null }> {
+  const { catalog, error } = await getStarterCatalog()
   const builtins = builtinStarterSummaries()
   const builtinIds = new Set(builtins.map(s => s.id))
   const fromCatalog = (catalog?.starters ?? [])
@@ -93,7 +93,7 @@ export async function listStarters(event: H3Event): Promise<{ starters: StarterS
  */
 export async function isKnownStarter(event: H3Event, id: string): Promise<boolean> {
   if (getBuiltinStarter(id)) return true
-  const { catalog } = await getStarterCatalog(event)
+  const { catalog } = await getStarterCatalog()
   return catalog ? catalog.starters.some(s => s.id === id) : true
 }
 
@@ -180,7 +180,7 @@ function storagePrefix(row: Pick<InstallRow, 'id' | 'siteId'>): string {
 }
 
 async function resolveStep(event: H3Event, db: Db, row: InstallRow): Promise<InstallRow> {
-  const { catalog, error } = await getStarterCatalog(event)
+  const { catalog, error } = await getStarterCatalog()
   if (!catalog) throw httpError({ status: 503, message: error ?? 'The starter catalog is switched off on this server.' })
   const entry = catalog.starters.find(s => s.id === row.starterId)
   if (!entry) throw notFound('That starter site is no longer in the catalog. Cancel this install and pick another.')
