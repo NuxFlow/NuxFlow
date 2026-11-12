@@ -815,7 +815,7 @@ This applies if your site has a contact form or other forms.
 #### ☐ 9. Know where your backups are
 
 - **Already on:** Cloudflare keeps a restorable history of your database automatically (D1 Time Travel, 30 days on the Workers Paid plan). An operator can roll back to any minute in that window with `wrangler d1 time-travel restore`.
-- **Do this too:** download a backup from **Administration → Import & backup → Backup** once your site has content, and again before big changes. It includes your content, settings, users' roles, and media, and it can be restored onto a fresh installation. Passwords and API keys (Stripe, email, AI) are left out unless you tick **Include passwords and API keys**. Tick it for a backup you'd restore after losing the database, and keep that file somewhere safe.
+- **Do this too:** download a backup from **Administration → Import & backup → Backup** once your site has content, and again before big changes. It includes your content (with shop products, their stock and download files, and holiday-let calendars), settings, users' roles, membership tiers, class passes and media, and it can be restored onto a fresh installation. It leaves out what belongs to your visitors and customers: orders, bookings and appointments, event attendees, pass holders, form entries and mailing-list subscribers. Passwords and API keys (Stripe, email, AI) are left out unless you tick **Include passwords and API keys**. Tick it for a backup you'd restore after losing the database, and keep that file somewhere safe.
 
 #### ☐ 10. Turn on IndexNow
 

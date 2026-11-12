@@ -9,6 +9,9 @@ import { getCfBindings } from '../../utils/cf-env'
 import { workerMediaKey } from '../../utils/media-url'
 import { requireSiteId } from '../../utils/site-context'
 import { utcDay } from '../../utils/utc-day'
+import { useDb } from '../../utils/db'
+import { productVariants } from '@nuxflow/db/schema'
+import { and, eq, isNotNull } from 'drizzle-orm'
 
 const querySchema = z.object({
   // '1' = include passwords and API keys (decrypted). Off unless asked for.
@@ -32,11 +35,20 @@ export default defineEventHandler(async (event) => {
 
   // data: URIs are already embedded in backup.json as text; everything else is bundled.
   const bundled = backup.media.filter(item => !item.url.startsWith('data:'))
+  // Digital products' downloads, from the private part of the bucket. The key never goes in
+  // backup.json (like media's storage key); the variant's old id names its place in the zip.
+  const downloadRows = await useDb(event).select({ id: productVariants.id, fileKey: productVariants.fileKey })
+    .from(productVariants)
+    .where(and(eq(productVariants.siteId, siteId), isNotNull(productVariants.fileKey)))
+  const downloadKeyById = new Map(downloadRows.map(r => [r.id, r.fileKey!]))
+  const downloads = backup.content.flatMap(item => item.product?.variants ?? [])
+    .filter(v => v.fileName && downloadKeyById.has(v.id))
   const declaredBytes = bundled.reduce((sum, item) => sum + (item.size || 0), 0)
+    + downloads.reduce((sum, v) => sum + (v.fileSize || 0), 0)
   if (declaredBytes > MAX_RAW_MEDIA_BYTES) {
     throw httpError({
       status: 413,
-      message: 'Backup exceeds 100 MB of media. Remove unused media files and try again.',
+      message: 'Backup exceeds 100 MB of media and downloads. Remove unused media files and try again.',
     })
   }
 
@@ -115,6 +127,18 @@ export default defineEventHandler(async (event) => {
         const ext = item.originalName.split('.').pop() ?? 'bin'
         item.zipPath = `images/${item.id}.${ext}`
         await addStream(item.zipPath, body, limit)
+      }
+
+      const { r2 } = getCfBindings(event)
+      for (const variant of downloads) {
+        const key = downloadKeyById.get(variant.id)!
+        // Only this site's own private shop files.
+        if (!r2 || !key.startsWith(`_private/${siteId}/shop/`)) continue
+        const object = await r2.get(key)
+        if (!object?.body) continue
+        const safeName = variant.fileName!.replace(/[^\w.-]+/g, '-').slice(-100) || 'file'
+        variant.fileZipPath = `downloads/${variant.id}/${safeName}`
+        await addStream(variant.fileZipPath, object.body, limit)
       }
 
       // Last, so it records the zipPath of every file that made it in.

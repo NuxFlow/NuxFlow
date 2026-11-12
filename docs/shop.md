@@ -188,7 +188,7 @@ There's no "mark as shipped" yet. For now, post from the address on the order an
 
 ### Personal data
 
-Orders hold customers' names, email addresses, delivery addresses and phone numbers. Mention them in your privacy policy. Orders aren't in site backups yet.
+Orders hold customers' names, email addresses, delivery addresses and phone numbers. Mention them in your privacy policy. Orders aren't in site backups yet. Products are: their options, prices, stock and download files go with your pages, and the shop comes back switched on when the plan includes it.
 
 ## Test it before you go live
 
@@ -226,7 +226,7 @@ These are planned (see the [Roadmap](./roadmap.md)) but not there yet:
 - Putting stock back automatically on a refund
 - Low-stock notifications and a sales summary on the dashboard
 - CSV export of orders, including courier formats
-- Shop data in site backups
+- Orders in site backups
 - Discount codes and gift cards
 - Order history on a customer's account, and product import from WooCommerce
 - More than one currency, and payment providers other than Stripe

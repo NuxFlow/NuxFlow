@@ -26,7 +26,7 @@ The shop's first three stages are built (see `docs/shop.md`): one orders table f
 - Low-stock notifications, and a sales summary on the dashboard.
 - CSV export of orders, including courier formats (Royal Mail Click & Drop, ShipStation).
 - An outgoing order webhook, for Zapier, Make or n8n.
-- Products and orders in the per-site backup.
+- Orders in the per-site backup (products are in it).
 
 **Growth**
 - Discount codes, gift cards and store credit.
@@ -46,7 +46,7 @@ The shop's first three stages are built (see `docs/shop.md`): one orders table f
 
 The calendar, event pages, RSVPs, waitlists, repeating events, paid bookings, class passes, reminders and the weekly timetable are built (see `docs/user-guide.md`). Still to come:
 
-- **Attendees and class passes in the site backup.** Left out for now, like mailing-list subscribers, as they're personal data and restoring would need their links to the new event ids. The kinds of pass on sale could go in on their own.
+- **Attendees and pass holdings in the site backup.** Left out for now, like mailing-list subscribers, as they're personal data and restoring would need their links to the new event ids. The kinds of pass on sale are in it.
 - **One date of a series changed on its own**, such as a different teacher or room for one week. Today a date can only be cancelled; a change like that means cancelling it and adding a one-off.
 - **Teachers and rooms**, as things a class has and a timetable can filter by, including stopping one room being booked twice.
 - **Attendance and no-shows**, marked from the attendee list.
@@ -78,7 +78,7 @@ One-to-one appointments (Book an Appointment block, Settings → Appointments) a
 
 - **Several practitioners on one site.** Today a site has one diary, so two appointments never overlap whoever they're with. A practitioner (or room) per Appointment block, each with their own hours, would let a clinic with several therapists use one site.
 - **Changing an appointment's time** from the customer's link or Admin → Appointments. Today it's cancel and book again.
-- **Appointments, followed calendars and blocked dates in the per-site backup.** Left out for now, like event attendees, as they're personal or point at other sites.
+- **Appointments in the per-site backup.** Left out for now, like event attendees, as they're personal data. (Followed calendars and blocked dates are in it.)
 - **Holiday-let booking with payment.** Today the calendar sits next to an enquiry form; taking a deposit for chosen nights would be the next step.
 - **Appointment slots in the admin calendar**, next to events and scheduled posts.
 - **Not yet tested against real Stripe or real Airbnb / Booking.com links.** Both have been tested with mocks and locally only.

@@ -10,6 +10,20 @@ import { SEO_SETTING_SCHEMAS } from '../seo-settings-schema'
 import { clearSeoSettingsCache, getSeoSettings } from '../seo'
 import { generateIndexNowKey } from '../indexnow'
 import type { NuxFlowBackup, RestoreOptions, RestoreResult } from '../backup-types'
+import { addRestoreWarning } from '../backup-types'
+import { BUSINESS_SETTING_KEY, normalizeBusinessSetting } from '../business'
+import { PODCAST_SETTING_KEY, normalizePodcastSetting } from '../podcast'
+import { APPOINTMENT_SETTINGS_KEY, normalizeAppointmentSetting } from '../appointments'
+import { SHOP_CONFIG_KEY, parseShopConfig } from '../shop'
+
+// JSON settings with their own checks on save (the settings PATCH, Admin → Shop). A backup
+// is hand-editable, so they get the same here; one that fails is left out, not the restore.
+const JSON_SETTING_CHECKS: Record<string, { label: string; normalize: (v: unknown) => unknown }> = {
+  [BUSINESS_SETTING_KEY]: { label: 'Business details', normalize: normalizeBusinessSetting },
+  [PODCAST_SETTING_KEY]: { label: 'Podcast', normalize: normalizePodcastSetting },
+  [APPOINTMENT_SETTINGS_KEY]: { label: 'Appointments', normalize: normalizeAppointmentSetting },
+  [SHOP_CONFIG_KEY]: { label: 'Shop', normalize: parseShopConfig },
+}
 
 // Mirrors what buildBackup() exports (name/locale/timezone — see the `site` field on
 // NuxFlowBackup) back onto the target site's own row. Gated on its own 'site' flag rather
@@ -70,6 +84,16 @@ export async function restoreSettings(
         const parsed = SEO_SETTING_SCHEMAS[key]?.safeParse(raw)
         if (!parsed?.success) continue
         value = parsed.data
+      }
+      const check = JSON_SETTING_CHECKS[key]
+      if (check) {
+        try {
+          value = check.normalize(raw)
+        }
+        catch {
+          addRestoreWarning(result, `${check.label} settings in the backup aren't valid, so they were left out.`)
+          continue
+        }
       }
 
       const existing = await db.query.siteSettings.findFirst({

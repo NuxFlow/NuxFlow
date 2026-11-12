@@ -60,6 +60,14 @@ async function replaceContentTerms(
   }
 }
 
+/** An item restoreContent() wrote: `created` = a new row (new id), else overwritten in place. */
+export interface WrittenItem { id: string; created: boolean }
+
+/**
+ * Restores content types and items. Returns the ids of the items it created or overwrote,
+ * by slug — the ones whose products, calendars and links (restore-item-extras.ts) follow
+ * the backup. Skipped items keep everything they had.
+ */
 export async function restoreContent(
   db: Db,
   siteId: string,
@@ -67,8 +75,9 @@ export async function restoreContent(
   opts: RestoreOptions,
   result: RestoreResult,
   termIdBySlugPath: Map<string, string>,
-): Promise<void> {
-  if (!opts.what.includes('content') || !backup.content) return
+): Promise<Map<string, WrittenItem>> {
+  const written = new Map<string, WrittenItem>()
+  if (!opts.what.includes('content') || !backup.content) return written
 
   // Build type slug -> id map
   const typeIdBySlug = new Map<string, string>()
@@ -155,6 +164,7 @@ export async function restoreContent(
         // existing item would update its fields but silently keep whatever
         // categories/tags it already had (or lacked), ignoring backupItem.termSlugs.
         await replaceContentTerms(db, existing.id, backupItem.termSlugs, termIdBySlugPath)
+        written.set(backupItem.slug, { id: existing.id, created: false })
         result.content.updated++
         continue
       } else {
@@ -191,6 +201,7 @@ export async function restoreContent(
     })
 
     await replaceContentTerms(db, id, backupItem.termSlugs, termIdBySlugPath)
+    written.set(backupItem.slug, { id, created: true })
 
     result.content.created++
   }
@@ -207,4 +218,5 @@ export async function restoreContent(
       }
     }
   }
+  return written
 }
