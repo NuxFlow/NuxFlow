@@ -101,6 +101,8 @@ NuxFlow features a powerful, visual block editor. You can build complex layouts 
 - **Layout Blocks**: Dividers and Tables.
 - **Interactive Blocks**: Buttons and embedded Forms.
 
+To add a block, use **Add block** in the editor's toolbar. The block picker has a search box (it searches block names and descriptions; press Enter to add the first match) and buttons to show one category at a time.
+
 **Tip**: You can drag and drop blocks to reorder them at any time.
 
 ### Workflow States

@@ -130,7 +130,7 @@ NuxFlow verifies the HMAC-SHA256 signature in the `Paddle-Signature` header, key
 There is no hardcoded `/pricing` route in NuxFlow. Instead, you embed your live membership tiers anywhere on your site using the **Membership Pricing** canvas block.
 
 1. In the admin go to **Content → New page** and set the slug to `/pricing` (or any path you prefer).
-2. Switch the editor to **Canvas editor** and add the **Membership Pricing** block from the block picker (under the **Commerce** category).
+2. Switch the editor to **Canvas editor** and add the **Membership Pricing** block from the block picker (search for it, or look under **Selling & booking**).
 3. In the block settings panel you can configure:
 
 | Setting | Description |
