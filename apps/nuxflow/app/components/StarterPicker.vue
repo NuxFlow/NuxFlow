@@ -16,7 +16,7 @@ const props = defineProps<{
   busyId?: string | null
   /** Every button off (an install is already under way). */
   disabled?: boolean
-  /** Narrower cards in one column (the setup wizard's card is small). */
+  /** One column of short rows, thumbnail beside the text (the setup wizard's card is small). */
   compact?: boolean
 }>()
 const emit = defineEmits<{ select: [id: string] }>()
@@ -37,12 +37,13 @@ function sizeLabel(bytes: number): string {
 </script>
 
 <template>
-  <div class="grid gap-4" :class="compact ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'">
+  <div class="grid" :class="compact ? 'grid-cols-1 gap-3' : 'grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'">
     <div
       v-for="s in starters"
       :key="s.id"
-      class="group relative flex flex-col overflow-hidden rounded-xl border bg-white transition-all dark:bg-gray-900"
+      class="group relative flex overflow-hidden rounded-xl border bg-white transition-all dark:bg-gray-900"
       :class="[
+        compact ? 'flex-row' : 'flex-col',
         selected === s.id
           ? 'border-primary-500 ring-2 ring-primary-500'
           : 'border-gray-200 dark:border-gray-800',
@@ -57,7 +58,10 @@ function sizeLabel(bytes: number): string {
       @keydown.enter.prevent="actionLabel ? undefined : choose(s)"
       @keydown.space.prevent="actionLabel ? undefined : choose(s)"
     >
-      <div class="relative aspect-[16/9] w-full overflow-hidden bg-gray-100 dark:bg-gray-800" :class="compact ? 'aspect-[16/7]' : ''">
+      <div
+        class="relative shrink-0 overflow-hidden bg-gray-100 dark:bg-gray-800"
+        :class="compact ? 'w-28 self-stretch min-h-24 sm:w-36' : 'aspect-[16/9] w-full'"
+      >
         <img
           v-if="s.previewUrl"
           :src="s.previewUrl"
@@ -66,7 +70,7 @@ function sizeLabel(bytes: number): string {
           class="h-full w-full object-cover"
         >
         <div v-else class="flex h-full w-full items-center justify-center bg-gradient-to-br text-white" :class="s.gradient ?? 'from-gray-400 to-gray-600'">
-          <UIcon :name="s.icon ?? 'i-lucide-layout-template'" class="h-10 w-10" />
+          <UIcon :name="s.icon ?? 'i-lucide-layout-template'" :class="compact ? 'h-7 w-7' : 'h-10 w-10'" />
         </div>
         <UBadge v-if="currentId === s.id" class="absolute left-2 top-2" color="primary" variant="solid" size="sm">Current</UBadge>
         <div
@@ -77,13 +81,13 @@ function sizeLabel(bytes: number): string {
         </div>
       </div>
 
-      <div class="flex flex-1 flex-col gap-2 p-4">
-        <div class="flex items-center gap-2">
-          <span class="font-semibold text-gray-900 dark:text-white">{{ s.name }}</span>
+      <div class="flex min-w-0 flex-1 flex-col" :class="compact ? 'gap-1 px-3 py-2.5' : 'gap-2 p-4'">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span class="font-semibold text-gray-900 dark:text-white" :class="compact ? 'text-sm' : ''">{{ s.name }}</span>
           <UBadge size="sm" color="neutral" variant="subtle">{{ s.category }}</UBadge>
         </div>
-        <p class="text-sm text-gray-500 dark:text-gray-400">{{ s.description }}</p>
-        <div class="mt-auto flex flex-wrap items-center gap-2 pt-1 text-xs text-gray-500 dark:text-gray-400">
+        <p class="text-gray-500 dark:text-gray-400" :class="compact ? 'text-xs line-clamp-2' : 'text-sm'" :title="compact ? s.description : undefined">{{ s.description }}</p>
+        <div class="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-xs text-gray-500 dark:text-gray-400">
           <span v-if="s.imageCount" class="inline-flex items-center gap-1">
             <UIcon name="i-lucide-image" class="h-3.5 w-3.5" />
             {{ s.imageCount }} {{ s.imageCount === 1 ? 'image' : 'images' }} · {{ sizeLabel(s.imageBytes) }}
