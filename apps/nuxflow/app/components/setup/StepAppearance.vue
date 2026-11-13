@@ -43,7 +43,7 @@ watch(starters, (list) => {
       color="info"
       variant="soft"
       icon="i-lucide-info"
-      :description="`${chosen.name}'s pages${chosen.imageCount ? ' and images' : ''} are added once you're signed in — your dashboard will show a button to finish installing it.`"
+      :description="`${chosen.name}'s pages${chosen.imageCount ? ' and images' : ''} are added automatically the first time you open your dashboard, once you're signed in.`"
     />
 
     <!-- A status line, not a form: nothing to fill in, just what will happen to uploads. -->

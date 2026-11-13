@@ -30,7 +30,7 @@ On a hosting platform, the images count towards the site's storage limit. NuxFlo
 
 ## Choosing a starter during setup
 
-The four built-in starters (Business, Blog, Portfolio, Blank) are set up straight away. A starter from the catalog needs the new admin to be signed in, because its images are copied by the admin page. So the site starts with a blank home page, and the dashboard shows **Finish setting up your site with …** with an **Install now** button. Installing it replaces the blank home page, and nothing becomes a draft.
+The four built-in starters (Business, Blog, Portfolio, Blank) are set up straight away. A starter from the catalog needs the new admin to be signed in, because its images are copied by the admin page. So the site starts with a blank home page, and the install starts by itself the first time the new admin opens the dashboard (once per browser session — if it is closed part way, the dashboard shows **Finish setting up your site with …** with an **Install now** button). Installing it replaces the blank home page, and nothing becomes a draft.
 
 ## Where starters come from
 

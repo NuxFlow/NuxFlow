@@ -139,7 +139,7 @@ async function downloadBackup() {
 </script>
 
 <template>
-  <UModal v-model:open="open" :title="done ? `${name} is installed` : `Switch to ${name}?`" :dismissible="!running">
+  <UModal v-model:open="open" :title="done ? `${name} is installed` : fresh ? `Installing ${name}` : install ? `Switching to ${name}` : `Switch to ${name}?`" :dismissible="!running">
     <template #body>
       <!-- Finished -->
       <div v-if="done" class="space-y-3 text-sm text-gray-600 dark:text-gray-300" data-testid="starter-done">

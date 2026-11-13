@@ -14,7 +14,11 @@ onMounted(() => {
 // passwords are only accepted on the accounts origin, so the wizard can't sign the new
 // admin in here — say so, rather than promising a dashboard and showing a sign-in page.
 const message = computed(() => {
-  if (onSiteDomain) return 'Your site is ready. Next, sign in with the email and password you just chose to open your dashboard…'
+  if (onSiteDomain) {
+    return props.finishInAdmin
+      ? 'Next, sign in with the email and password you just chose. Your starter site\'s pages and images are added as soon as you reach your dashboard…'
+      : 'Your site is ready. Next, sign in with the email and password you just chose to open your dashboard…'
+  }
   return props.finishInAdmin ? 'Taking you to your dashboard to finish installing your starter site…' : 'Your NuxFlow site is ready. Taking you to your homepage…'
 })
 </script>
@@ -26,7 +30,7 @@ const message = computed(() => {
     </div>
 
     <div>
-      <h2 class="text-xl font-bold text-gray-900 dark:text-white">You're all set!</h2>
+      <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ finishInAdmin ? 'Almost there!' : "You're all set!" }}</h2>
       <p class="text-sm text-gray-500 mt-2">{{ message }}</p>
     </div>
 
