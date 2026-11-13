@@ -1,8 +1,4 @@
-import { useDb } from '../utils/db'
-import { siteSettings } from '@nuxflow/db/schema'
-import { and, eq, inArray } from 'drizzle-orm'
-import type { H3Event } from 'h3'
-import { type AppearanceCache, getCachedAppearance, setCachedAppearance } from '../utils/appearance-cache'
+import { knownSiteFont, loadSiteAppearance, safeSiteColor, siteFontHref } from '../utils/site-styles'
 import { errorMessage } from '../utils/errors'
 // Deliberately '@nuxflow/canvas/consent', NOT the package root ('@nuxflow/canvas') —
 // the root barrel (src/index.ts) re-exports every Canvas block as a .vue SFC, and this
@@ -52,56 +48,10 @@ if(hasConsent()){activate();}
 window.addEventListener('nuxflow:consent-updated',function(){if(hasConsent()){activate();}});
 })()</script>`
 
-// ── Sanitization ─────────────────────────────────────────────────────────────
-
-// Allowlist for CSS color values written into inline <style> blocks.
-// Rejects anything that could break out of the CSS context.
-const CSS_COLOR_RE = /^(?:#[0-9a-fA-F]{3,8}|rgba?\([\d\s,.]+\)|hsla?\([\d\s,.%]+\)|[a-zA-Z]{2,30})$/
-
-function safeCssColor(value: string): string | null {
-  return CSS_COLOR_RE.test(value.trim()) ? value.trim() : null
-}
-
 const AUTH_PATHS = ['/login', '/register', '/forgot-password', '/reset-password', '/account', '/setup', '/authorize']
 
 function isAuthPath(path: string): boolean {
   return AUTH_PATHS.some(p => path === p || path.startsWith(`${p}/`))
-}
-
-// ── Google Fonts query strings ────────────────────────────────────────────────
-
-const FONT_QUERY: Record<string, string> = {
-  'Inter': 'family=Inter:wght@400;500;600;700;800',
-  'Geist': 'family=Geist:wght@400;500;600;700;800',
-  'Poppins': 'family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800',
-  'Plus Jakarta Sans': 'family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800',
-}
-
-async function resolveAppearance(event: H3Event, siteId: string): Promise<AppearanceCache> {
-  const cached = getCachedAppearance(siteId)
-  if (cached) return cached
-
-  const db = useDb(event)
-  const rows = await db
-    .select({ key: siteSettings.key, value: siteSettings.value })
-    .from(siteSettings)
-    .where(
-      and(
-        eq(siteSettings.siteId, siteId),
-        inArray(siteSettings.key, ['theme.dark_mode', 'theme.primary_color', 'theme.font_sans', 'appearance.custom_head_html', 'appearance.custom_body_html']),
-      ),
-    )
-
-  const map = Object.fromEntries(rows.map(r => [r.key, String(r.value ?? '')]))
-  const entry: AppearanceCache = {
-    darkMode: map['theme.dark_mode'] ?? 'auto',
-    primaryColor: map['theme.primary_color'] ?? '',
-    fontSans: map['theme.font_sans'] ?? 'system',
-    customHeadHtml: map['appearance.custom_head_html'] ?? '',
-    customBodyHtml: map['appearance.custom_body_html'] ?? '',
-  }
-  setCachedAppearance(siteId, entry)
-  return entry
 }
 
 // ── Plugin ────────────────────────────────────────────────────────────────────
@@ -122,7 +72,7 @@ export default defineNitroPlugin((nitro) => {
     if (!siteId) return
 
     try {
-      const { darkMode, primaryColor, fontSans, customHeadHtml, customBodyHtml } = await resolveAppearance(event, siteId)
+      const { darkMode, primaryColor, fontSans, customHeadHtml, customBodyHtml } = await loadSiteAppearance(event, siteId)
 
       const path = getRequestURL(event).pathname
       const isAdmin = path.startsWith('/admin')
@@ -130,7 +80,7 @@ export default defineNitroPlugin((nitro) => {
       const cssParts: string[] = []
 
       // Primary colour custom property — validate before injecting into <style>
-      const safeColor = primaryColor ? safeCssColor(primaryColor) : null
+      const safeColor = primaryColor ? safeSiteColor(primaryColor) : null
       if (safeColor) {
         cssParts.push(`--nuxflow-primary:${safeColor}`)
       }
@@ -148,13 +98,12 @@ export default defineNitroPlugin((nitro) => {
         // 'auto' → do nothing; @nuxtjs/color-mode / system preference handles it
 
         // ── Font — only inject from the known allowlist ────────────────────────
-        const knownFont = (fontSans && fontSans !== 'system' && fontSans in FONT_QUERY) ? fontSans : null
+        const knownFont = knownSiteFont(fontSans)
         if (knownFont) {
           cssParts.push(`--nuxflow-font:'${knownFont}',system-ui,-apple-system,sans-serif`)
 
-          const query = FONT_QUERY[knownFont]
-          if (query) {
-            const fontHref = `https://fonts.googleapis.com/css2?${query}&display=swap`
+          const fontHref = siteFontHref(knownFont)
+          if (fontHref) {
             html.head.push(`<link rel="preconnect" href="https://fonts.googleapis.com">`)
             html.head.push(`<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">`)
             // media="print" + onload swap: the browser fetches the stylesheet at normal
@@ -171,7 +120,7 @@ export default defineNitroPlugin((nitro) => {
 
       if (cssParts.length) {
         // Apply --nuxflow-font to body on public pages so all text picks it up
-        const knownFontForBody = (fontSans && fontSans !== 'system' && fontSans in FONT_QUERY) ? fontSans : null
+        const knownFontForBody = knownSiteFont(fontSans)
         const bodyRule = (!isAdmin && knownFontForBody)
           ? `body{font-family:var(--nuxflow-font,system-ui,-apple-system,sans-serif)}`
           : ''

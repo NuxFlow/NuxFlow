@@ -101,9 +101,11 @@ NuxFlow features a powerful, visual block editor. You can build complex layouts 
 - **Layout Blocks**: Dividers and Tables.
 - **Interactive Blocks**: Buttons and embedded Forms.
 
-To add a block, use **Add block** in the editor's toolbar. The block picker has a search box (it searches block names and descriptions; press Enter to add the first match) and buttons to show one category at a time.
+The Canvas editor shows your page the way visitors see it: your theme, colours, fonts and light or dark mode are all applied while you edit. (The site's header and footer aren't shown — use **View** or **Preview link** to see the whole page.) The buttons in the editor's toolbar switch between **Desktop**, **Tablet** and **Phone** widths, or **Fit to editor**; your choice is remembered in that browser. On a phone, the page always uses the phone's own width.
 
-**Tip**: You can drag and drop blocks to reorder them at any time.
+Click a block to edit it. To add one, use **Add block** in the editor's toolbar (or the **+** between two blocks). The block picker has a search box (it searches block names and descriptions; press Enter to add the first match) and buttons to show one category at a time.
+
+**Tip**: You can drag blocks by their handle to reorder them. On a touch screen, use the up and down arrows on the block instead.
 
 ### Workflow States
 Content follows a simple workflow:

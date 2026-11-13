@@ -45,7 +45,9 @@ test.afterEach(async ({ request }) => {
 })
 
 const panelOf = (page: Page) => page.getByTestId('canvas-settings-panel')
-const blocksOf = (page: Page) => page.locator('.group\\/block')
+// The page is drawn inside the editor's frame (CanvasFrame.vue).
+const frameOf = (page: Page) => page.frameLocator('[data-testid="canvas-frame"]')
+const blocksOf = (page: Page) => frameOf(page).locator('.group\\/block')
 
 async function openEditor(page: Page, viewport: { width: number; height: number }) {
   await page.setViewportSize(viewport)
@@ -54,6 +56,9 @@ async function openEditor(page: Page, viewport: { width: number; height: number 
 }
 
 async function selectBlock(block: Locator) {
+  // The editor's frame scrolls inside itself. Bring the whole editor on screen first, as
+  // a person would — otherwise Playwright scrolls the admin page along with the frame.
+  await block.page().getByTestId('canvas-frame').evaluate(el => el.scrollIntoView({ block: 'end' }))
   await block.scrollIntoViewIfNeeded()
   await block.click() // the centre: the sticky toolbar can cover a block's top edge
 }
@@ -164,7 +169,9 @@ test.describe('Sticky bars leave no gap for the page to show through', () => {
   for (const [name, viewport] of [['phone', PHONE], ['desktop', DESKTOP]] as const) {
     test(`the toolbar sits against the admin header on a ${name}`, async ({ page }) => {
       await openEditor(page, viewport)
-      await blocksOf(page).nth(6).scrollIntoViewIfNeeded()
+      // The editor's frame scrolls inside itself, so scroll the admin page itself until
+      // the frame's end is on screen, and then further.
+      await page.getByTestId('canvas-frame').evaluate(el => el.scrollIntoView({ block: 'end' }))
       await page.locator('main').evaluate((el) => { el.scrollTop += 150 })
       const toolbar = page.getByRole('button', { name: 'Add block' }).locator('xpath=../..')
       await expect.poll(async () => Math.round((await toolbar.boundingBox())!.y)).toBe(ADMIN_HEADER_HEIGHT)

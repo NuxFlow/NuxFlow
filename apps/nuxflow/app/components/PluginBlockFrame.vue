@@ -67,13 +67,19 @@ function retry() {
   armTimeout()
 }
 
+// The plugin frame posts to its parent window. In the Canvas editor this component is
+// itself inside the editor's frame (CanvasFrame.vue), so that parent is the editor
+// frame's window, not this app's — listen on whichever window holds the element.
+let messageWindow: Window | null = null
+
 onMounted(() => {
-  window.addEventListener('message', onMessage)
+  messageWindow = iframeRef.value?.ownerDocument.defaultView ?? window
+  messageWindow.addEventListener('message', onMessage)
   armTimeout()
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('message', onMessage)
+  messageWindow?.removeEventListener('message', onMessage)
   clearTimeout(timeoutId)
 })
 

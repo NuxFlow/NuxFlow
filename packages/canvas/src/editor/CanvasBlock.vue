@@ -212,6 +212,13 @@ function openAddPicker(slotId: string) {
 </template>
 
 <style scoped>
+/* Dragging can't reach into the editor's frame on a touch screen (SortableJS follows a
+   touch on the main document), so phones and tablets move blocks with the arrows. */
+@media (hover: none) {
+  .canvas-drag-handle {
+    display: none;
+  }
+}
 .canvas-slot-wrapper {
   position: relative;
 }
