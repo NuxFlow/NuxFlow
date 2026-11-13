@@ -163,6 +163,19 @@ export interface CanvasPageRequest {
  * so no block or editor component knows an API path. Methods throw an `Error` whose
  * message is fit to show the user.
  */
+/**
+ * How the site looks, for the editor's frame: what a public page's <head> adds on top of
+ * the app's own stylesheets. Only stylesheet URLs and CSS text — never markup.
+ */
+export interface CanvasSiteStyles {
+  /** Stylesheets to link (web fonts, usually), in order. */
+  links: string[]
+  /** CSS to add after them, in order (appearance settings, then the theme). */
+  styles: string[]
+  /** The site's colour scheme; 'auto' follows the visitor's (here, the editor's) choice. */
+  darkMode: 'light' | 'dark' | 'auto'
+}
+
 export interface CanvasHost {
   listPosts(query: CanvasPostsQuery): Promise<CanvasPostItem[]>
   /** The custom-field filters a listing of this content type offers; [] for none. */
@@ -195,6 +208,8 @@ export interface CanvasHost {
    * (empty inside the editor, where the signed-in team member is the authorization).
    */
   videoPlaybackUrl?(request: { streamId: string; blockId: string; path: string }): Promise<string | null>
+  /** The site's theme and appearance, so the editor shows a page as it looks live. */
+  siteStyles?(): Promise<CanvasSiteStyles>
   /** Media library picker dialog — emits `select(PickedMedia)` / `selectMany(PickedMedia[])`. */
   mediaPicker?: Component
   /** The Appointment block's time picker and booking form (props: `block`, `askPhone`). */

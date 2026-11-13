@@ -310,3 +310,71 @@ describe('theme-resolver', () => {
     spy.mockRestore()
   })
 })
+
+// ── The Canvas editor's frame: /_nuxflow/editor-styles ─────────────────────────
+// Runs after theme-resolver's tests, so the site's active theme is the Customizer one
+// on top of th-base.
+
+describe('editor styles (the Canvas editor frame)', () => {
+  it('keeps only https stylesheet links and <style> blocks from custom head HTML', async () => {
+    const { stylesFromHeadHtml } = await import('../../server/utils/site-styles')
+    const result = stylesFromHeadHtml([
+      '<link rel="preconnect" href="https://fonts.googleapis.com">',
+      '<link rel="stylesheet" href="https://fonts.example/a.css">',
+      `<link href='http://insecure.example/b.css' rel='stylesheet'>`,
+      '<link rel="stylesheet" href="javascript:alert(1)">',
+      '<script>alert(1)</script><script src="https://evil.example/x.js"></script>',
+      '<meta name="x" content="y">',
+      '<style>.a{color:red}</style >',
+      '<STYLE media="screen">.b{color:blue}</STYLE>',
+    ].join(''))
+    expect(result).toEqual({
+      links: ['https://fonts.example/a.css'],
+      styles: ['.a{color:red}', '.b{color:blue}'],
+    })
+  })
+
+  it('returns the site\'s look in public-page order, with no markup', async () => {
+    await setSetting('theme.dark_mode', 'dark')
+    await setSetting('theme.primary_color', '#c8a57a')
+    await setSetting('theme.font_sans', 'Inter')
+    await setSetting('appearance.custom_head_html', '<link rel="stylesheet" href="https://fonts.example/serif.css"><style>h1{font-family:Serif}</style><script>steal()</script>')
+
+    const { loadEditorSiteStyles } = await import('../../server/utils/site-styles')
+    const styles = await loadEditorSiteStyles(ev(), SITE)
+    expect(styles.darkMode).toBe('dark')
+    expect(styles.links).toEqual([
+      'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap',
+      'https://fonts.example/serif.css',
+    ])
+    expect(styles.styles).toEqual([
+      ':root{--nuxflow-primary:#c8a57a;--nuxflow-font:\'Inter\',system-ui,-apple-system,sans-serif}body{font-family:var(--nuxflow-font,system-ui,-apple-system,sans-serif)}',
+      'h1{font-family:Serif}',
+      ':root{--x:base}',
+      ':root{--x:custom}',
+    ])
+    expect(JSON.stringify(styles)).not.toContain('steal')
+  })
+
+  it('is for the site\'s content team only', async () => {
+    const { default: route } = await import('../../server/routes/_nuxflow/editor-styles.get')
+    const { seedUser, seedRole } = await import('../helpers/seed')
+    const db = getCurrentTestDb()
+    const author = { id: 'u-styles-author' }
+    const member = { id: 'u-styles-member' }
+    await seedUser(db, { id: author.id, email: 'author@styles.test' })
+    await seedUser(db, { id: member.id, email: 'member@styles.test' })
+    await seedRole(db, author.id, SITE, 'author')
+    await seedRole(db, member.id, SITE, 'member')
+
+    const call = (userId?: string) => {
+      const e = createMockEvent({ siteId: SITE, session: userId ? { user: { id: userId, name: 'U', email: 'u@styles.test' } } : undefined }) as unknown as H3Event & { context: Record<string, unknown> }
+      e.context.cloudflare = { env: { PLUGIN_KV: kv } }
+      return (route as unknown as (ev: H3Event) => Promise<{ darkMode: string }>)(e)
+    }
+
+    await expect(call()).rejects.toMatchObject({ statusCode: 401 })
+    await expect(call(member.id)).rejects.toMatchObject({ statusCode: 403 })
+    await expect(call(author.id)).resolves.toMatchObject({ darkMode: 'dark' })
+  })
+})

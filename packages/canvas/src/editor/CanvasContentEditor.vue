@@ -11,6 +11,7 @@ import BlockPicker from './BlockPicker.vue'
 import SettingsPanel from './SettingsPanel.vue'
 import InsertDivider from './InsertDivider.vue'
 import AiGenerateModal from './AiGenerateModal.vue'
+import CanvasFrame, { type FrameViewport } from './CanvasFrame.vue'
 
 const props = defineProps<{ modelValue: unknown }>()
 const emit = defineEmits<{ 'update:modelValue': [value: CanvasContent] }>()
@@ -136,10 +137,12 @@ provide(canvasApiKey, api)
 // Skipped while a text input/textarea/contenteditable has focus, so canvas-level
 // undo never fights a field's own native undo while the user is typing in it.
 
+// Duck-typed, not `instanceof HTMLElement`: keys pressed inside the editor's frame come
+// from elements of the frame's own window, which another window's HTMLElement rejects.
 function isTextEditingTarget(el: EventTarget | null): boolean {
-  if (!(el instanceof HTMLElement)) return false
-  const tag = el.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable
+  const node = el as Partial<HTMLElement> | null
+  if (!node || typeof node.tagName !== 'string') return false
+  return node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.isContentEditable === true
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -160,6 +163,35 @@ function onKeydown(e: KeyboardEvent) {
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+
+// ── Preview width ────────────────────────────────────────────────────────────
+// The page at a screen width, scaled down to the editor column — 'desktop' by default,
+// so a page looks as it does live (and opening the settings panel only rescales it,
+// rather than reflowing it into a phone layout). 'fit' uses the column's own width.
+// Remembered per browser.
+
+const VIEWPORT_KEY = 'nuxflow:canvas-viewport'
+const viewports: Array<{ id: FrameViewport; label: string; path: string }> = [
+  { id: 'fit', label: 'Fit to editor', path: 'M4 6h16M4 12h16M4 18h16' },
+  { id: 'desktop', label: 'Desktop (1280px)', path: 'M3 5h18v11H3zM8 20h8M12 16v4' },
+  { id: 'tablet', label: 'Tablet (768px)', path: 'M6 3h12v18H6zM11 18h2' },
+  { id: 'phone', label: 'Phone (390px)', path: 'M8 3h8v18H8zM11.5 18h1' },
+]
+const viewport = ref<FrameViewport>('desktop')
+
+onMounted(() => {
+  try {
+    const saved = localStorage.getItem(VIEWPORT_KEY)
+    if (saved && viewports.some(v => v.id === saved)) viewport.value = saved as FrameViewport
+  }
+  catch { /* storage unavailable */ }
+})
+
+function setViewport(id: FrameViewport) {
+  viewport.value = id
+  try { localStorage.setItem(VIEWPORT_KEY, id) }
+  catch { /* storage unavailable */ }
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -206,6 +238,25 @@ function onRootUpdate(list: CanvasBlockData[]) {
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l5-5-5-5M20 10H9a4 4 0 000 8h1" />
+            </svg>
+          </button>
+        </div>
+        <div class="hidden sm:flex items-center gap-0.5 rounded-lg bg-gray-100 dark:bg-gray-800 p-0.5" role="group" aria-label="Preview width">
+          <button
+            v-for="v in viewports"
+            :key="v.id"
+            type="button"
+            :aria-label="v.label"
+            :title="v.label"
+            :aria-pressed="viewport === v.id"
+            class="p-1 rounded-md transition-colors"
+            :class="viewport === v.id
+              ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm'
+              : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'"
+            @click="setViewport(v.id)"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="v.path" />
             </svg>
           </button>
         </div>
@@ -260,10 +311,16 @@ function onRootUpdate(list: CanvasBlockData[]) {
 
     <!-- Editor body -->
     <div class="relative flex flex-1 overflow-clip">
-      <!-- Canvas area -->
-      <div
-        class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950"
-        @click.self="selectBlock(null)"
+      <!--
+        Canvas area: the page, drawn in a frame with the site's theme (CanvasFrame.vue).
+        As tall as the screen below the admin header and this toolbar — the same height
+        the settings panel beside it is capped at — and the frame scrolls inside itself.
+      -->
+      <CanvasFrame
+        class="flex-1 min-w-0 h-[calc(100dvh-7rem)] min-h-[500px]"
+        :viewport="viewport"
+        @keydown="onKeydown"
+        @background-click="selectBlock(null)"
       >
         <!-- Empty state -->
         <div
@@ -288,7 +345,7 @@ function onRootUpdate(list: CanvasBlockData[]) {
         </div>
 
         <!-- Block list -->
-        <div v-else class="py-4" @click.self="selectBlock(null)">
+        <div v-else class="pb-8" data-frame-background>
           <InsertDivider @click="openPicker({ parentId: null, slot: null, index: 0 })" />
 
           <draggable
@@ -314,7 +371,7 @@ function onRootUpdate(list: CanvasBlockData[]) {
             </template>
           </draggable>
         </div>
-      </div>
+      </CanvasFrame>
 
       <!-- Backdrop overlay on mobile/tablet viewports -->
       <div

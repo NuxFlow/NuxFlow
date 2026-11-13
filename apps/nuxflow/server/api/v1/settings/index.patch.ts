@@ -245,7 +245,7 @@ export default defineEventHandler(async (event) => {
 
   // If any appearance settings changed, bust the per-isolate cache so the next
   // page render picks up the new values immediately.
-  const appearanceKeys = new Set(['theme.dark_mode', 'theme.primary_color', 'theme.font_sans'])
+  const appearanceKeys = new Set(['theme.dark_mode', 'theme.primary_color', 'theme.font_sans', 'appearance.custom_head_html', 'appearance.custom_body_html'])
   const touchedAppearance = body.settings && Object.keys(body.settings).some(k => appearanceKeys.has(k))
   if (touchedAppearance) clearAppearanceCache(siteId)
 
