@@ -6,6 +6,7 @@ import { createSystemEvent } from './system-event'
 import { getCfEnv, getExecutionContext, waitUntil } from './cf-env'
 import { sendNotification } from './notify'
 import { getSiteInfo } from './site-info'
+import { getSiteBranding } from './accounts-sites'
 
 /**
  * Security alerts — emails (always, regardless of preferences — see NOTIFICATION_TYPES in
@@ -66,6 +67,28 @@ export function describeUserAgent(ua: string | null | undefined): { browser: str
   return { browser, os }
 }
 
+/** The header the accounts login page sends with the site the person is signing in to. */
+export const SIGN_IN_SITE_HEADER = 'x-nuxflow-signin-site'
+
+/**
+ * "NewPTest (photo.nuxflow.dev)" — the site someone was on their way to when they signed
+ * in on the accounts origin, so an account-level alert (sent as the platform's primary
+ * site) still says which site it was about. Only ever wording: the header comes from the
+ * browser, so it never changes which site sends the alert or where it's stored. Null when
+ * it's missing, isn't a site, or is the site the alert is sent as anyway.
+ */
+export async function signInDestination(event: H3Event, alertSiteId: string): Promise<string | null> {
+  const raw = getHeader(event, SIGN_IN_SITE_HEADER)
+  if (!raw || !/^[\w-]{1,64}$/.test(raw) || raw === alertSiteId) return null
+  try {
+    const site = await getSiteBranding(event, raw)
+    return site ? `${site.name} (${site.domain})` : null
+  }
+  catch {
+    return null
+  }
+}
+
 function nowUtc(): string {
   return `${new Date().toISOString().replace('T', ' ').slice(0, 16)} UTC`
 }
@@ -112,12 +135,13 @@ export async function alertOnNewSignIn(requestEvent: H3Event, session: { userId:
 
   const where = [country && `country ${country}`, session.ipAddress && `IP ${session.ipAddress}`].filter(Boolean).join(', ')
   const firstEver = !seenAny.length
+  const destination = await signInDestination(requestEvent, siteEvent.context.siteId as string)
   await sendNotification({
     siteId: siteEvent.context.siteId as string,
     userId: session.userId,
     type,
     title: 'New sign-in to your account',
-    body: `Your account was signed in to from ${browser} on ${os}${where ? ` (${where})` : ''} at ${nowUtc()}.`,
+    body: `Someone signed in to your account${destination ? ` to use ${destination}` : ''} from ${browser} on ${os}${where ? ` (${where})` : ''} at ${nowUtc()}.`,
     data: { fingerprint, ipAddress: session.ipAddress ?? null },
     sendEmailNotification: !firstEver,
     sendPush: !firstEver,

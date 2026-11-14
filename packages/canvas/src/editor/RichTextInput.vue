@@ -273,7 +273,7 @@ function applyAiAlternative(alt: string) {
   outline: none;
   color: #111827;
 }
-:global(.dark) .nuxflow-richtext-input-content :deep(.nuxflow-richtext-input-prose) {
+:where(.dark) .nuxflow-richtext-input-content :deep(.nuxflow-richtext-input-prose) {
   color: #f3f4f6;
 }
 .nuxflow-richtext-input-content :deep(a) { color: #3b82f6; text-decoration: underline; }

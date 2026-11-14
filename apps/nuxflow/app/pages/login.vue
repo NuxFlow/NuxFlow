@@ -75,6 +75,15 @@ function carry(path: string): string {
   return qs ? `${path}?${qs}` : path
 }
 
+// Tells the server which site this sign-in is for, so the "new sign-in" alert can name it
+// (it's sent as the platform's own site under central sign-in). Wording only — see
+// signInDestination() in server/utils/security-alerts.ts.
+function signInFetchOptions(extra?: { headers: Record<string, string> }) {
+  const headers: Record<string, string> = { ...extra?.headers }
+  if (siteId.value) headers['x-nuxflow-signin-site'] = siteId.value
+  return Object.keys(headers).length ? { headers } : undefined
+}
+
 async function submit() {
   loading.value = true
   error.value = ''
@@ -83,7 +92,7 @@ async function submit() {
       email: form.email,
       password: form.password,
       rememberMe: form.rememberMe,
-      fetchOptions: captchaFetchOptions(),
+      fetchOptions: signInFetchOptions(captchaFetchOptions()),
     })
     if (signInEmail.error.value) {
       error.value = signInEmail.error.value.message ?? 'Invalid email or password'
@@ -103,7 +112,7 @@ async function signInWithPasskey() {
   loading.value = true
   error.value = ''
   try {
-    await signInPasskey.execute()
+    await signInPasskey.execute({ fetchOptions: signInFetchOptions() })
     if (signInPasskey.error.value) {
       error.value = signInPasskey.error.value.message ?? 'Biometric authentication failed'
       return

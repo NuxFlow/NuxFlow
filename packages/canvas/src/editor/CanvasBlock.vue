@@ -231,7 +231,7 @@ function openAddPicker(slotId: string) {
   border-radius: 0.5rem;
   background: rgb(249 250 251 / 0.5);
 }
-:global(.dark) .canvas-slot-wrapper--empty .canvas-slot-list {
+:where(.dark) .canvas-slot-wrapper--empty .canvas-slot-list {
   border-color: rgb(55 65 81);
   background: rgb(31 41 55 / 0.3);
 }
@@ -251,7 +251,7 @@ function openAddPicker(slotId: string) {
   color: rgb(var(--nuxflow-primary, 99 102 241));
   background: rgb(243 244 246);
 }
-:global(.dark) .canvas-slot-add:hover {
+:where(.dark) .canvas-slot-add:hover {
   background: rgb(31 41 55);
 }
 </style>
