@@ -29,7 +29,7 @@ const emit = defineEmits<{ click: [] }>()
   .divider-line {
     background-color: rgb(229 231 235 / 0.5);
   }
-  :global(.dark) .divider-line {
+  :where(.dark) .divider-line {
     background-color: rgb(31 41 55 / 0.5);
   }
   .divider-btn {

@@ -7,7 +7,7 @@ import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole } from '../helpers/seed'
-import { notifications } from '@nuxflow/db/schema'
+import { notifications, sites } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 vi.mock('../../server/utils/db', () => ({
@@ -38,8 +38,8 @@ const SAFARI_IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Apple
 let userId: string
 
 // /api/auth/** events carry no siteId — the alert has to find the site from Host.
-function authRequest(country = 'GB') {
-  const e = createMockEvent({ headers: { 'host': 'sec.localhost', 'cf-ipcountry': country } }) as unknown as { context: Record<string, unknown> }
+function authRequest(country = 'GB', extraHeaders: Record<string, string> = {}) {
+  const e = createMockEvent({ headers: { 'host': 'sec.localhost', 'cf-ipcountry': country, ...extraHeaders } }) as unknown as { context: Record<string, unknown> }
   delete e.context.siteId
   return e as unknown as H3Event
 }
@@ -88,6 +88,25 @@ describe('alertOnNewSignIn', () => {
     await alertOnNewSignIn(authRequest('FR'), { userId, userAgent: CHROME_WIN, ipAddress: '192.0.2.1' })
     expect(mockTemplated).toHaveBeenCalledTimes(2)
     expect(await signInAlerts()).toHaveLength(3)
+  })
+
+  // Under central sign-in the alert is sent as the platform's site, so it names the site
+  // the person was signing in to — from a header the accounts login page sends.
+  it('names the site being signed in to, and ignores an id that is no site', async () => {
+    const db = getCurrentTestDb()
+    await seedSite(db, { id: 'site-sec-photo', name: 'NewPTest', domain: 'photo.sec.test' })
+    const FIREFOX_LINUX = 'Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0'
+
+    await alertOnNewSignIn(authRequest('DE', { 'x-nuxflow-signin-site': 'site-sec-photo' }), { userId, userAgent: FIREFOX_LINUX, ipAddress: '192.0.2.9' })
+    const email = mockTemplated.mock.calls[0]![1] as { template: { paragraphs: string[] } }
+    expect(email.template.paragraphs[0]).toContain('to use NewPTest (photo.sec.test) from Firefox on Linux')
+
+    await alertOnNewSignIn(authRequest('NL', { 'x-nuxflow-signin-site': 'no-such-site' }), { userId, userAgent: FIREFOX_LINUX, ipAddress: '192.0.2.10' })
+    const second = mockTemplated.mock.calls[1]![1] as { template: { paragraphs: string[] } }
+    expect(second.template.paragraphs[0]).toMatch(/^Someone signed in to your account from Firefox on Linux/)
+
+    // The host-fallback tests below expect a single site.
+    await db.delete(sites).where(eq(sites.id, 'site-sec-photo'))
   })
 })
 
