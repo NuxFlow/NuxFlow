@@ -1,6 +1,6 @@
 {
   "name": "@nuxflow/canvas",
-  "version": "1.0.0-beta.0",
+  "version": "1.0.0-beta.1",
   "private": true,
   "description": "NuxFlow Canvas — visual drag-and-drop page builder",
   "type": "module",
