@@ -13,7 +13,7 @@ import { ADMIN_NAV, ADMIN_NAV_GROUPS, SUPER_ADMIN_NAV, activeNavTo, canAccessNav
 import { safeNextPath } from '../../app/composables/useAccounts'
 import { evaluateArithmeticExpression } from '../../app/utils/safe-math'
 import { formatBytes, formatDuration, formatPrice } from '../../app/utils/format'
-import { getErrorMessage } from '../../app/utils/errors'
+import { getErrorMessage, isSessionNotFresh } from '../../app/utils/errors'
 
 const ALL_ROLES: Role[] = ['viewer', 'member', 'author', 'editor', 'admin', 'super_admin']
 
@@ -260,5 +260,16 @@ describe('getErrorMessage', () => {
     expect(getErrorMessage(new Error('network down'), 'fb')).toBe('network down')
     expect(getErrorMessage(null, 'fb')).toBe('fb')
     expect(getErrorMessage('a string', 'fb')).toBe('fb')
+  })
+})
+
+describe('isSessionNotFresh', () => {
+  it('spots Better Auth refusing an old sign-in', () => {
+    expect(isSessionNotFresh({ error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' } })).toBe(true)
+  })
+  it('ignores other errors and successes', () => {
+    expect(isSessionNotFresh({ error: { code: 'UNAUTHORIZED' } })).toBe(false)
+    expect(isSessionNotFresh({ error: null })).toBe(false)
+    expect(isSessionNotFresh(null)).toBe(false)
   })
 })

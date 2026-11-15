@@ -15,6 +15,8 @@ const PROVIDERS = [
 const accounts = ref<LinkedAccount[]>([])
 const loading = ref(true)
 const loadFailed = ref(false)
+// Better Auth refused the last disconnect because the sign-in is over a day old.
+const needsReauth = ref(false)
 // Not isRunning(): stays set on success, because the browser is about to leave for OAuth.
 const linking = ref<string | null>(null)
 
@@ -66,10 +68,17 @@ async function unlinkProvider(providerId: string) {
   const account = accounts.value.find(a => a.providerId === providerId)
   if (!account) return
 
+  needsReauth.value = false
   await run(async () => {
-    throwIfAuthError(await client.unlinkAccount({ accountId: account.accountId }))
+    const res = await client.unlinkAccount({ accountId: account.accountId })
+    if (isSessionNotFresh(res)) {
+      needsReauth.value = true
+      return false
+    }
+    throwIfAuthError(res)
     await fetchAccounts()
-  }, { successTitle: 'Provider disconnected', errorTitle: "Couldn't disconnect provider", key: `unlink:${providerId}` })
+    return true
+  }, { successTitle: done => (done ? 'Provider disconnected' : undefined), errorTitle: "Couldn't disconnect provider", key: `unlink:${providerId}` })
 }
 
 // Show a toast if Better Auth redirected back with a linking error
@@ -114,6 +123,8 @@ onMounted(async () => {
       </div>
 
       <template v-else>
+        <AccountReauthNotice v-if="needsReauth" action="disconnect a sign-in method" />
+
         <!-- Email / password row -->
         <div class="flex items-center justify-between p-3.5 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
           <div class="flex items-center gap-3">
