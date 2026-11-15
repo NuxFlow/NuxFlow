@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SiteSettingsResponse } from '#shared/lib/site-settings-types'
+import { SITE_FONTS } from '#shared/lib/theme-customizer'
 const { run, isRunning } = useAdminAction()
 
 const { data: settingsData, error: loadError, refresh: refreshSettings } = await useFetch<SiteSettingsResponse>('/api/v1/settings')
@@ -16,12 +17,10 @@ const darkModeOptions = [
   { label: 'Always dark', value: 'dark' },
 ]
 
+// The same fonts the Visual Customizer offers (shared/lib/theme-customizer.ts).
 const fontOptions = [
   { label: 'System default', value: 'system' },
-  { label: 'Inter', value: 'Inter' },
-  { label: 'Geist', value: 'Geist' },
-  { label: 'Poppins', value: 'Poppins' },
-  { label: 'Plus Jakarta Sans', value: 'Plus Jakarta Sans' },
+  ...SITE_FONTS.map(f => ({ label: f.value, value: f.value })),
 ]
 
 watch(settingsData, (d) => {
@@ -96,7 +95,7 @@ const swatches = [
           </p>
           <ul class="mt-2 space-y-1 text-gray-500 dark:text-gray-400">
             <li><span class="font-medium text-gray-700 dark:text-gray-300">Colour scheme</span> — forces dark or light mode on the public site; <em>auto</em> follows each visitor's system preference.</li>
-            <li><span class="font-medium text-gray-700 dark:text-gray-300">Accent colour</span> — injected as <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">--nuxflow-primary</code>. Use <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">var(--nuxflow-primary)</code> in your theme CSS to reference it.</li>
+            <li><span class="font-medium text-gray-700 dark:text-gray-300">Accent colour</span> — colours every block's buttons and highlights, and is injected as <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">--nuxflow-primary</code>. Use <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">var(--nuxflow-primary)</code> in your theme CSS to reference it.</li>
             <li><span class="font-medium text-gray-700 dark:text-gray-300">Body font</span> — loads the Google Font and injects it as <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">--nuxflow-font</code>, applied automatically to the page body.</li>
           </ul>
         </div>

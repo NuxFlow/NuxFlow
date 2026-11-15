@@ -1,5 +1,6 @@
 import { themes } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { z } from 'zod'
 import { ulid } from 'ulid'
 import { scopedById } from '../../../utils/db-helpers'
 import { requireRole } from '../../../utils/permissions'
@@ -12,32 +13,36 @@ import { useDb } from '../../../utils/db'
 import { purgeAllPublicPages } from '../../../utils/edge-cache'
 import { requireSiteId } from '../../../utils/site-context'
 import { utcDay } from '../../../utils/utc-day'
+import { parseBody } from '../../../utils/validate'
+import { clearAppearanceCache } from '../../../utils/appearance-cache'
+import { CUSTOMIZER_VALUES_KEY } from '../../../utils/theme-customizer'
+import { customizerCss, parseCustomizerValues } from '../../../../shared/lib/theme-customizer'
 
-interface CustomizerValues {
-  colorMode: 'auto' | 'light' | 'dark'
-  primaryColor: string
-  linkColor: string
-  bodyFont: string
-  headingFont: string
-  fontSize: string
-  headingWeight: string
-  lineHeight: string
-  borderRadius: string
-}
+const bodySchema = z.object({
+  // Checked field by field by parseCustomizerValues(): an unknown or invalid value takes
+  // its default rather than failing the whole publish.
+  values: z.record(z.string(), z.unknown()),
+})
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = requireSiteId(event)
 
-  const { values, css } = await readBody<{ values: CustomizerValues; css: string }>(event)
-  if (!css?.trim()) throw badRequest('css is required')
+  const body = await parseBody(event, bodySchema)
+  const values = parseCustomizerValues(body.values)
+  // Generated here from the checked values — never taken from the browser — with the
+  // same function the preview uses, so what's published is what was previewed.
+  const ownCss = customizerCss(values)
 
-  // Persist all values so both the customizer and the themes-page dropdowns stay in sync
-  await saveSetting(event, 'theme.customizer_values', JSON.stringify(values))
+  // The four values shared with Settings → Appearance live in those settings (the
+  // resolver writes them into every page); the rest only in the customizer's theme CSS.
+  await saveSetting(event, CUSTOMIZER_VALUES_KEY, values)
   await saveSetting(event, 'theme.dark_mode', values.colorMode)
   await saveSetting(event, 'theme.primary_color', values.primaryColor)
-  await saveSetting(event, 'theme.font_sans', values.bodyFont !== 'system' ? values.bodyFont : 'system')
+  await saveSetting(event, 'theme.font_sans', values.bodyFont)
+  await saveSetting(event, 'theme.font_heading', values.headingFont)
+  clearAppearanceCache(siteId)
 
   // Find or create the customizer-managed CSS theme
   const storedThemeId = ((await resolveStringSetting(event, 'theme.customizer_theme_id'))) || null
@@ -85,8 +90,6 @@ export default defineEventHandler(async (event) => {
   // Else: customizer is already active (re-publish) — the stored base setting
   // from the previous publish is left untouched.
 
-  const ownCss = css.trim()
-
   // Write the customizer's own CSS to KV and upsert the DB row
   if (themeId) {
     await putThemeCSS(event, siteId, themeId, ownCss)
@@ -125,5 +128,5 @@ export default defineEventHandler(async (event) => {
     console.error('[themes] Failed to purge page cache after customizer publish:', err)
   }))
 
-  return { success: true, themeId }
+  return { success: true, themeId, values }
 })

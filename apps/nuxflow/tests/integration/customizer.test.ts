@@ -50,14 +50,12 @@ const SAMPLE_VALUES = {
   bodyFont: 'Inter',
   headingFont: 'same',
   fontSize: 'lg' as const,
-  headingWeight: '700' as const,
+  headingWeight: '600' as const,
   lineHeight: 'relaxed' as const,
   borderRadius: 'lg' as const,
   spacing: 'spacious' as const,
   contentWidth: 'wide' as const,
 }
-
-const SAMPLE_CSS = ':root { --nuxflow-primary: #8b5cf6; }'
 
 beforeAll(async () => {
   await initTestDb()
@@ -180,6 +178,50 @@ describe('GET /api/v1/themes/customizer', () => {
     expect(result.values.contentWidth).toBe('wide')
   })
 
+  it('takes the values shared with Settings → Appearance from those settings', async () => {
+    const site = `site-cust-shared-${ulid()}`
+    const db = getCurrentTestDb()
+    await seedSite(db, { id: site, domain: `shared-${ulid()}.localhost` })
+    const admin = await seedUser(db, { email: `admin-shared-${ulid()}@test.com`, name: 'Shared Admin' })
+    await seedRole(db, admin, site, 'admin')
+    await seedSetting(db, site, 'theme.customizer_values', { ...SAMPLE_VALUES, primaryColor: '#111111', bodyFont: 'Inter' })
+    // Changed later in Settings → Appearance:
+    await seedSetting(db, site, 'theme.primary_color', '#222222')
+    await seedSetting(db, site, 'theme.font_sans', 'Lora')
+
+    const event = createMockEvent({
+      siteId: site,
+      session: { user: { id: admin, name: 'Shared Admin', email: 'admin-shared@test.com' } },
+    }) as unknown as H3Event
+    const result = await (getHandler as Handler)(event) as { values: typeof SAMPLE_VALUES }
+    expect(result.values.primaryColor).toBe('#222222')
+    expect(result.values.bodyFont).toBe('Lora')
+    expect(result.values.borderRadius).toBe('lg') // the customizer's own values stay
+  })
+
+  it('says when another theme has replaced the customizer theme on the live site', async () => {
+    const site = `site-cust-live-${ulid()}`
+    const db = getCurrentTestDb()
+    await seedSite(db, { id: site, domain: `live-${ulid()}.localhost` })
+    const admin = await seedUser(db, { email: `admin-live-${ulid()}@test.com`, name: 'Live Admin' })
+    await seedRole(db, admin, site, 'admin')
+    const event = () => createMockEvent({
+      siteId: site,
+      session: { user: { id: admin, name: 'Live Admin', email: 'admin-live@test.com' } },
+      body: { values: SAMPLE_VALUES },
+    }) as unknown as H3Event
+
+    const published = await (postHandler as Handler)(event()) as { themeId: string }
+    let state = await (getHandler as Handler)(event()) as { live: boolean; activeThemeName: string | null }
+    expect(state).toMatchObject({ live: true, activeThemeName: null })
+
+    // e.g. a starter applied afterwards
+    await db.update(themes).set({ isActive: false }).where(eq(themes.id, published.themeId))
+    await db.insert(themes).values({ id: ulid(), siteId: site, packageName: '@starter/cafe', name: 'Café', version: '1', isActive: true, hasCss: true })
+    state = await (getHandler as Handler)(event()) as { live: boolean; activeThemeName: string | null }
+    expect(state).toMatchObject({ live: false, activeThemeName: 'Café' })
+  })
+
   it('returns customizerThemeId when the stored theme exists in DB', async () => {
     const db = getCurrentTestDb()
     const themeId = ulid()
@@ -226,26 +268,48 @@ describe('POST /api/v1/themes/customizer', () => {
 
   it('throws 401 when unauthenticated', async () => {
     await expect(
-      (postHandler as Handler)(unauthEvent({ values: SAMPLE_VALUES, css: SAMPLE_CSS })),
+      (postHandler as Handler)(unauthEvent({ values: SAMPLE_VALUES })),
     ).rejects.toMatchObject({ statusCode: 401 })
   })
 
   it('throws 403 when authenticated below admin', async () => {
     await expect(
-      (postHandler as Handler)(editorEvent({ values: SAMPLE_VALUES, css: SAMPLE_CSS })),
+      (postHandler as Handler)(editorEvent({ values: SAMPLE_VALUES })),
     ).rejects.toMatchObject({ statusCode: 403 })
   })
 
-  it('throws 400 when css is empty', async () => {
+  it('throws 422 when values are missing', async () => {
     await expect(
-      (postHandler as Handler)(adminEvent({ values: SAMPLE_VALUES, css: '' })),
-    ).rejects.toMatchObject({ statusCode: 400 })
+      (postHandler as Handler)(adminEvent({})),
+    ).rejects.toMatchObject({ statusCode: 422 })
   })
 
-  it('throws 400 when css is whitespace only', async () => {
-    await expect(
-      (postHandler as Handler)(adminEvent({ values: SAMPLE_VALUES, css: '   ' })),
-    ).rejects.toMatchObject({ statusCode: 400 })
+  it('ignores CSS sent by the browser and generates its own from the checked values', async () => {
+    const site = `site-cust-css-${ulid()}`
+    const db = getCurrentTestDb()
+    await seedSite(db, { id: site, domain: `css-${ulid()}.localhost` })
+    const admin = await seedUser(db, { email: `admin-css-${ulid()}@test.com`, name: 'Css Admin' })
+    await seedRole(db, admin, site, 'admin')
+    putThemeCSSMock.mockClear()
+
+    const event = createMockEvent({
+      siteId: site,
+      session: { user: { id: admin, name: 'Css Admin', email: 'admin-css@test.com' } },
+      body: {
+        values: { ...SAMPLE_VALUES, primaryColor: 'red;}body{display:none', borderRadius: 'full', spacing: 'huge' },
+        css: 'body{display:none}',
+      },
+    }) as unknown as H3Event
+    const result = await (postHandler as Handler)(event) as { themeId: string; values: Record<string, unknown> }
+
+    expect(result.values.primaryColor).toBe('#00dc82') // invalid → default
+    expect(result.values.borderRadius).toBe('xl') // old 'full' maps across
+    expect(result.values.spacing).toBe('normal')
+    const css = putThemeCSSMock.mock.calls[0]![3] as string
+    expect(css).not.toContain('display:none')
+    expect(css).toContain('--ui-radius:0.5rem')
+    expect(css).toContain('.dark .mesh-bg,.mesh-bg.dark{background-color:#0f172a}')
+    expect(css).toContain('.nux-article{max-width:72rem}')
   })
 
   it('creates a new CSS theme on first save and returns its ID', async () => {
@@ -258,7 +322,7 @@ describe('POST /api/v1/themes/customizer', () => {
     const event = createMockEvent({
       siteId: newSite,
       session: { user: { id: newAdmin, name: 'Post Admin', email: 'admin-post@test.com' } },
-      body: { values: SAMPLE_VALUES, css: SAMPLE_CSS },
+      body: { values: SAMPLE_VALUES },
     }) as unknown as H3Event
 
     const result = await (postHandler as Handler)(event) as { success: boolean; themeId: string }
@@ -276,8 +340,8 @@ describe('POST /api/v1/themes/customizer', () => {
     expect(theme!.hasCss).toBe(true)
     expect(theme!.isActive).toBe(true)
 
-    // putThemeCSS should have been called with the CSS
-    expect(putThemeCSSMock).toHaveBeenCalledWith(expect.anything(), newSite, result.themeId, SAMPLE_CSS)
+    // putThemeCSS should have been called with the generated CSS
+    expect(putThemeCSSMock).toHaveBeenCalledWith(expect.anything(), newSite, result.themeId, expect.stringContaining('/* NuxFlow Visual Customizer */'))
   })
 
   it('persists appearance settings alongside customizer values', async () => {
@@ -291,8 +355,7 @@ describe('POST /api/v1/themes/customizer', () => {
       siteId: settingsSite,
       session: { user: { id: settingsAdmin, name: 'Settings Admin', email: 'admin-settings@test.com' } },
       body: {
-        values: { ...SAMPLE_VALUES, colorMode: 'light', primaryColor: '#ef4444', bodyFont: 'Poppins' },
-        css: SAMPLE_CSS,
+        values: { ...SAMPLE_VALUES, colorMode: 'light', primaryColor: '#ef4444', bodyFont: 'Poppins', headingFont: 'Lora' },
       },
     }) as unknown as H3Event
 
@@ -303,12 +366,14 @@ describe('POST /api/v1/themes/customizer', () => {
     const darkMode = await resolveSetting(event, 'theme.dark_mode')
     const primaryColor = await resolveSetting(event, 'theme.primary_color')
     const fontSans = await resolveSetting(event, 'theme.font_sans')
-    const customizerValues = await resolveSetting(event, 'theme.customizer_values')
+    const fontHeading = await resolveSetting(event, 'theme.font_heading')
+    const customizerValues = await resolveSetting(event, 'theme.customizer_values') as Record<string, unknown>
 
     expect(darkMode).toBe('light')
     expect(primaryColor).toBe('#ef4444')
     expect(fontSans).toBe('Poppins')
-    expect(JSON.parse(customizerValues as string).colorMode).toBe('light')
+    expect(fontHeading).toBe('Lora')
+    expect(customizerValues.colorMode).toBe('light')
   })
 
   it('reuses the existing customizer theme on subsequent saves', async () => {
@@ -321,7 +386,7 @@ describe('POST /api/v1/themes/customizer', () => {
     const event = createMockEvent({
       siteId: reusesSite,
       session: { user: { id: reusesAdmin, name: 'Reuse Admin', email: 'admin-reuse@test.com' } },
-      body: { values: SAMPLE_VALUES, css: SAMPLE_CSS },
+      body: { values: SAMPLE_VALUES },
     }) as unknown as H3Event
 
     const first = await (postHandler as Handler)(event) as { themeId: string }
@@ -330,7 +395,7 @@ describe('POST /api/v1/themes/customizer', () => {
     const event2 = createMockEvent({
       siteId: reusesSite,
       session: { user: { id: reusesAdmin, name: 'Reuse Admin', email: 'admin-reuse@test.com' } },
-      body: { values: { ...SAMPLE_VALUES, primaryColor: '#06b6d4' }, css: ':root{--nuxflow-primary:#06b6d4}' },
+      body: { values: { ...SAMPLE_VALUES, primaryColor: '#06b6d4' } },
     }) as unknown as H3Event
 
     const second = await (postHandler as Handler)(event2) as { themeId: string }
@@ -368,7 +433,7 @@ describe('POST /api/v1/themes/customizer', () => {
     const event = createMockEvent({
       siteId: deactivateSite,
       session: { user: { id: deactivateAdmin, name: 'Deactivate Admin', email: 'admin-deactivate@test.com' } },
-      body: { values: SAMPLE_VALUES, css: SAMPLE_CSS },
+      body: { values: SAMPLE_VALUES },
     }) as unknown as H3Event
 
     const result = await (postHandler as Handler)(event) as { themeId: string }
@@ -394,7 +459,7 @@ describe('POST /api/v1/themes/customizer', () => {
     const event = createMockEvent({
       siteId: auditSite,
       session: { user: { id: auditAdmin, name: 'Audit Admin', email: 'admin-audit@test.com' } },
-      body: { values: SAMPLE_VALUES, css: SAMPLE_CSS },
+      body: { values: SAMPLE_VALUES },
     }) as unknown as H3Event
 
     await (postHandler as Handler)(event)

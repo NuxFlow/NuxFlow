@@ -1,7 +1,7 @@
 /**
  * Integration tests for the two Nitro render:html plugins that write into every SSR
  * page, plus the theme CSS KV layer they read from:
- *   server/plugins/site-settings-resolver.ts  — dark mode, primary colour, font, and
+ *   server/plugins/site-settings-resolver.ts  — colour mode, primary colour, fonts, and
  *                                               consent-gated custom head/body HTML
  *   server/plugins/theme-resolver.ts          — active/preview/customizer theme CSS
  *   server/utils/cf-theme-kv.ts               — versioned keys, legacy fallback, sanitize
@@ -24,7 +24,7 @@ vi.mock('../../server/utils/db', () => ({
 }))
 
 type RenderHook = (html: RenderHtml, ctx: { event: H3Event }) => Promise<void>
-interface RenderHtml { head: string[]; bodyAppend: string[] }
+interface RenderHtml { htmlAttrs: string[]; head: string[]; bodyAppend: string[] }
 
 globalThis.defineNitroPlugin = ((fn: unknown) => fn) as never
 
@@ -34,6 +34,7 @@ function captureRenderHook(plugin: (nitro: unknown) => void): RenderHook {
   return hook!
 }
 
+const { appearanceCss } = await import('../../shared/lib/theme-customizer')
 const { default: settingsPlugin } = await import('../../server/plugins/site-settings-resolver')
 const { default: themePlugin } = await import('../../server/plugins/theme-resolver')
 const { clearAppearanceCache } = await import('../../server/utils/appearance-cache')
@@ -71,7 +72,7 @@ function ev(opts: { siteId?: string | null; path?: string; headers?: Record<stri
   return e as unknown as H3Event
 }
 
-const blank = (): RenderHtml => ({ head: [], bodyAppend: [] })
+const blank = (): RenderHtml => ({ htmlAttrs: [], head: [], bodyAppend: [] })
 
 async function setSetting(key: string, value: string) {
   const db = getCurrentTestDb()
@@ -95,22 +96,36 @@ describe('site-settings-resolver', () => {
     expect(html).toEqual(blank())
   })
 
-  it('injects the dark-mode class script before paint, only on public pages', async () => {
+  it('forces a light/dark site through the attribute color-mode reads, only on public pages', async () => {
     await setSetting('theme.dark_mode', 'dark')
     const pub = blank()
     await renderSettings(pub, { event: ev() })
-    expect(pub.head[0]).toBe(`<script>document.documentElement.classList.add('dark')</script>`)
+    expect(pub.htmlAttrs).toEqual(['data-color-mode-forced="dark"'])
+    expect(pub.head.join('')).not.toContain('<script')
 
     const admin = blank()
     await renderSettings(admin, { event: ev({ path: '/admin/settings' }) })
-    expect(admin.head.join('')).not.toContain('classList')
+    expect(admin.htmlAttrs).toEqual([])
+
+    await setSetting('theme.dark_mode', 'auto')
+    const auto = blank()
+    await renderSettings(auto, { event: ev() })
+    expect(auto.htmlAttrs).toEqual([])
   })
 
-  it('injects a valid primary colour everywhere, including admin', async () => {
+  it('injects a valid primary colour everywhere, and the block palette on public pages only', async () => {
     await setSetting('theme.primary_color', '#ff0066')
     const admin = blank()
     await renderSettings(admin, { event: ev({ path: '/admin' }) })
     expect(admin.head.join('')).toContain('--nuxflow-primary:#ff0066')
+    expect(admin.head.join('')).not.toContain('--ui-color-primary')
+
+    const pub = blank()
+    await renderSettings(pub, { event: ev() })
+    const head = pub.head.join('')
+    expect(head).toContain('--nuxflow-primary:#ff0066')
+    expect(head).toContain('--ui-color-primary-500:#ff0066')
+    expect(head).toContain('--ui-color-primary-50:color-mix(in oklab,#ff0066 8%,white)')
   })
 
   it.each([
@@ -139,6 +154,17 @@ describe('site-settings-resolver', () => {
     await renderSettings(bad, { event: ev() })
     expect(bad.head.join('')).not.toContain('fonts.googleapis.com')
     expect(bad.head.join('')).not.toContain('<script>x')
+  })
+
+  it('loads the heading font too, in one stylesheet, and applies it to headings', async () => {
+    await setSetting('theme.font_sans', 'Lora')
+    await setSetting('theme.font_heading', 'Playfair Display')
+    const html = blank()
+    await renderSettings(html, { event: ev() })
+    const head = html.head.join('\n')
+    expect(head).toContain('css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400;1,600&amp;family=Playfair+Display:')
+    expect(head).toContain(`--nuxflow-heading-font:'Playfair Display',Georgia,serif`)
+    expect(head).toContain('h1,h2,h3,h4,h5,h6{font-family:var(--nuxflow-heading-font)}')
   })
 
   describe('custom head/body HTML consent gating', () => {
@@ -298,7 +324,7 @@ describe('theme-resolver', () => {
     await renderTheme(html, { event: ev() })
     expect(html.head).toEqual([
       '<style data-nuxflow-theme="base">:root{--x:base}</style>',
-      '<style data-nuxflow-theme>:root{--x:custom}</style>',
+      '<style data-nuxflow-theme="customizer">:root{--x:custom}</style>',
     ])
   })
 
@@ -344,11 +370,11 @@ describe('editor styles (the Canvas editor frame)', () => {
     const styles = await loadEditorSiteStyles(ev(), SITE)
     expect(styles.darkMode).toBe('dark')
     expect(styles.links).toEqual([
-      'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap',
+      'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap',
       'https://fonts.example/serif.css',
     ])
     expect(styles.styles).toEqual([
-      ':root{--nuxflow-primary:#c8a57a;--nuxflow-font:\'Inter\',system-ui,-apple-system,sans-serif}body{font-family:var(--nuxflow-font,system-ui,-apple-system,sans-serif)}',
+      appearanceCss({ primaryColor: '#c8a57a', bodyFont: 'Inter', headingFont: 'same' }),
       'h1{font-family:Serif}',
       ':root{--x:base}',
       ':root{--x:custom}',

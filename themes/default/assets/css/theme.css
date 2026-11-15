@@ -14,15 +14,26 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    SECTION 1 — Appearance settings bridge
    ─────────────────────────────────────────────────────────────────────────────
-   Two CSS custom properties are injected automatically into every public page
-   from Admin → Themes → Appearance:
+   These custom properties are injected automatically into every public page
+   from Admin → Themes → Appearance and the Visual Customizer:
 
-     --nuxflow-primary   The "Accent colour" value chosen in the picker.
-     --nuxflow-font      The "Body font" value (font-family stack).
+     --nuxflow-primary        The "Accent colour" value chosen in the picker.
+     --ui-color-primary-50…950  Nuxt UI's palette, mixed from the accent colour —
+                              every block's primary-* classes read these.
+     --nuxflow-font           The "Body font" value (font-family stack).
+     --nuxflow-heading-font   The "Heading font" value, when it differs.
+
+   The Visual Customizer also sets (only when changed from the default):
+
+     --ui-radius              Corner radius; Tailwind's rounded-sm…3xl are multiples.
+     --nuxflow-spacing-scale  Multiplies every block's top/bottom padding (default 1).
+     --nuxflow-link           Link colour in posts and text blocks.
 
    Use var(--nuxflow-primary) and var(--nuxflow-font) anywhere in your theme
    CSS so that a single admin setting changes multiple parts of the design.
    Both are available with a safe fallback when no value has been saved.
+   Inline images (url("data:image/svg+xml,…"), PNG, JPEG, GIF, WebP, AVIF) are
+   allowed; every other url() and @import is removed when the theme is saved.
 
    Example usage:
      .canvas-hero a { background: var(--nuxflow-primary, #00dc82); }

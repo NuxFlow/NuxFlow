@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import type { CustomizerValues } from '~/types/theme-customizer'
+import { type CustomizerValues, SITE_FONTS } from '#shared/lib/theme-customizer'
+
+const fontGroups = (['Sans-serif', 'Serif', 'Monospace'] as const).map(group => ({
+  group,
+  fonts: SITE_FONTS.filter(f => f.group === group).map(f => f.value),
+}))
 
 const values = defineModel<CustomizerValues>('values', { required: true })
 
@@ -39,13 +44,13 @@ const lineHeightOptions = [
   { value: 'relaxed' as const, label: 'Relaxed' },
 ]
 
+// Previews show a card's corner (rounded-lg = 2 × the radius).
 const radiusOptions = [
-  { value: 'none' as const, label: 'None', preview: '0px' },
-  { value: 'sm' as const, label: 'Small', preview: '4px' },
-  { value: 'md' as const, label: 'Medium', preview: '8px' },
-  { value: 'lg' as const, label: 'Large', preview: '12px' },
-  { value: 'xl' as const, label: 'XL', preview: '16px' },
-  { value: 'full' as const, label: 'Pill', preview: '9999px' },
+  { value: 'none' as const, label: 'Sharp', preview: '0px' },
+  { value: 'sm' as const, label: 'Subtle', preview: '4px' },
+  { value: 'md' as const, label: 'Default', preview: '8px' },
+  { value: 'lg' as const, label: 'Round', preview: '12px' },
+  { value: 'xl' as const, label: 'Rounder', preview: '16px' },
 ]
 
 const spacingOptions = [
@@ -55,11 +60,12 @@ const spacingOptions = [
 ]
 
 const contentWidthOptions = [
-  { value: 'narrow' as const, label: 'Narrow', sub: '720px' },
-  { value: 'default' as const, label: 'Default', sub: '960px' },
-  { value: 'wide' as const, label: 'Wide', sub: '1200px' },
-  { value: 'full' as const, label: 'Full', sub: '100%' },
+  { value: 'narrow' as const, label: 'Narrow' },
+  { value: 'default' as const, label: 'Default' },
+  { value: 'wide' as const, label: 'Wide' },
 ]
+
+const HINT_CLS = 'text-[11px] leading-snug text-gray-400 dark:text-gray-500'
 
 // Shared select class (avoids long repetition in template)
 const SELECT_CLS = 'w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500'
@@ -96,6 +102,7 @@ const BTN_INACTIVE = 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-2
       <!-- Accent color -->
       <div class="space-y-2">
         <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Accent color</label>
+        <p :class="HINT_CLS">Buttons, highlights and icons in every block.</p>
         <div class="flex items-center gap-2">
           <input
             v-model="values.primaryColor"
@@ -131,10 +138,11 @@ const BTN_INACTIVE = 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-2
             class="text-[10px] text-primary-500 hover:text-primary-600 dark:hover:text-primary-400"
             @click="values.linkColor = ''"
           >
-            Reset to accent
+            Reset to theme
           </button>
-          <span v-else class="text-[10px] text-gray-400 dark:text-gray-500">Using accent</span>
+          <span v-else class="text-[10px] text-gray-400 dark:text-gray-500">Using theme default</span>
         </div>
+        <p :class="HINT_CLS">Links in posts and text blocks.</p>
         <div class="flex items-center gap-2">
           <input
             type="color"
@@ -144,8 +152,8 @@ const BTN_INACTIVE = 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-2
           >
           <input
             type="text"
-            :value="values.linkColor || values.primaryColor"
-            placeholder="Same as accent"
+            :value="values.linkColor"
+            placeholder="Theme default"
             class="flex-1 px-2.5 py-1.5 text-xs font-mono rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
             @input="(e) => values.linkColor = (e.target as HTMLInputElement).value"
           >
@@ -253,27 +261,8 @@ const BTN_INACTIVE = 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-2
         <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Body font</label>
         <select v-model="values.bodyFont" :class="SELECT_CLS">
           <option value="system">System default</option>
-          <optgroup label="Sans-serif">
-            <option value="Inter">Inter</option>
-            <option value="Geist">Geist</option>
-            <option value="DM Sans">DM Sans</option>
-            <option value="Outfit">Outfit</option>
-            <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
-            <option value="Nunito">Nunito</option>
-            <option value="Poppins">Poppins</option>
-            <option value="Raleway">Raleway</option>
-            <option value="Open Sans">Open Sans</option>
-            <option value="Work Sans">Work Sans</option>
-          </optgroup>
-          <optgroup label="Serif">
-            <option value="Lora">Lora</option>
-            <option value="Merriweather">Merriweather</option>
-            <option value="Playfair Display">Playfair Display</option>
-            <option value="EB Garamond">EB Garamond</option>
-          </optgroup>
-          <optgroup label="Monospace">
-            <option value="JetBrains Mono">JetBrains Mono</option>
-            <option value="Fira Code">Fira Code</option>
+          <optgroup v-for="g in fontGroups" :key="g.group" :label="g.group">
+            <option v-for="f in g.fonts" :key="f" :value="f">{{ f }}</option>
           </optgroup>
         </select>
       </div>
@@ -284,34 +273,16 @@ const BTN_INACTIVE = 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-2
         <select v-model="values.headingFont" :class="SELECT_CLS">
           <option value="same">Same as body</option>
           <option value="system">System default</option>
-          <optgroup label="Sans-serif">
-            <option value="Inter">Inter</option>
-            <option value="Geist">Geist</option>
-            <option value="DM Sans">DM Sans</option>
-            <option value="Outfit">Outfit</option>
-            <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
-            <option value="Nunito">Nunito</option>
-            <option value="Poppins">Poppins</option>
-            <option value="Raleway">Raleway</option>
-            <option value="Open Sans">Open Sans</option>
-            <option value="Work Sans">Work Sans</option>
-          </optgroup>
-          <optgroup label="Serif">
-            <option value="Lora">Lora</option>
-            <option value="Merriweather">Merriweather</option>
-            <option value="Playfair Display">Playfair Display</option>
-            <option value="EB Garamond">EB Garamond</option>
-          </optgroup>
-          <optgroup label="Monospace">
-            <option value="JetBrains Mono">JetBrains Mono</option>
-            <option value="Fira Code">Fira Code</option>
+          <optgroup v-for="g in fontGroups" :key="g.group" :label="g.group">
+            <option v-for="f in g.fonts" :key="f" :value="f">{{ f }}</option>
           </optgroup>
         </select>
       </div>
 
       <!-- Font size -->
       <div class="space-y-1.5">
-        <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Body size</label>
+        <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Text size</label>
+        <p :class="HINT_CLS">Body text of posts and text blocks.</p>
         <div class="grid grid-cols-5 gap-1">
           <button
             v-for="s in fontSizeOptions"
@@ -327,6 +298,7 @@ const BTN_INACTIVE = 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-2
       <div class="space-y-1.5">
         <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Heading weight</label>
         <select v-model="values.headingWeight" :class="SELECT_CLS">
+          <option value="">Theme default</option>
           <option value="300">Light</option>
           <option value="400">Regular</option>
           <option value="500">Medium</option>
@@ -356,6 +328,7 @@ const BTN_INACTIVE = 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-2
       <p class="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Shape</p>
       <div class="space-y-1.5">
         <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Corner radius</label>
+        <p :class="HINT_CLS">Buttons, cards, images and inputs.</p>
         <div class="grid grid-cols-3 gap-1.5">
           <button
             v-for="r in radiusOptions"
@@ -383,6 +356,7 @@ const BTN_INACTIVE = 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-2
       <!-- Spacing density -->
       <div class="space-y-1.5">
         <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Section spacing</label>
+        <p :class="HINT_CLS">Scales the space above and below every block.</p>
         <div class="grid grid-cols-3 gap-1">
           <button
             v-for="s in spacingOptions"
@@ -396,20 +370,16 @@ const BTN_INACTIVE = 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-2
 
       <!-- Content width -->
       <div class="space-y-1.5">
-        <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Content width</label>
-        <div class="grid grid-cols-2 gap-1.5">
+        <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Article width</label>
+        <p :class="HINT_CLS">How wide posts and text pages read. Canvas pages set their own widths.</p>
+        <div class="grid grid-cols-3 gap-1">
           <button
             v-for="w in contentWidthOptions"
             :key="w.value"
-            class="flex flex-col items-center gap-0.5 py-2 rounded-md text-[11px] font-medium transition-colors"
-            :class="values.contentWidth === w.value
-              ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 ring-1 ring-inset ring-primary-400'
-              : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'"
+            class="py-1.5 rounded-md text-[11px] font-medium transition-colors"
+            :class="values.contentWidth === w.value ? BTN_ACTIVE : BTN_INACTIVE"
             @click="values.contentWidth = w.value"
-          >
-            {{ w.label }}
-            <span class="text-[9px] opacity-60 font-mono">{{ w.sub }}</span>
-          </button>
+          >{{ w.label }}</button>
         </div>
       </div>
     </section>

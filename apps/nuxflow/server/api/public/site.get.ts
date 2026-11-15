@@ -18,8 +18,9 @@ import { BUSINESS_SETTING_KEY, hasBusinessDetails } from '../../utils/business'
 import { PODCAST_SETTING_KEY } from '../../utils/podcast'
 import { parsePodcastSettings } from '../../../shared/lib/podcast'
 import type { PublicSite } from '../../../shared/lib/public-site-types'
+import { parseColorMode } from '../../../shared/lib/theme-customizer'
 
-const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.show_reading_time', 'frontend.show_toc', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations', SIGNUP_SETTING_KEY, SHOP_ENABLED_KEY, SHOP_CONFIG_KEY, BUSINESS_SETTING_KEY, PODCAST_SETTING_KEY] as const
+const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'theme.dark_mode', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.show_reading_time', 'frontend.show_toc', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations', SIGNUP_SETTING_KEY, SHOP_ENABLED_KEY, SHOP_CONFIG_KEY, BUSINESS_SETTING_KEY, PODCAST_SETTING_KEY] as const
 
 const CACHE_MAX_AGE = 300
 
@@ -64,7 +65,8 @@ async function buildPayload(event: H3Event, siteId: string): Promise<PublicSite>
   return {
     ...site,
     showHeader: (kvMap['frontend.show_header'] as boolean | undefined) !== false,
-    showColorToggle: (kvMap['frontend.show_color_toggle'] as boolean | undefined) !== false,
+    // A site that forces light or dark (Settings → Appearance) has nothing to toggle.
+    showColorToggle: (kvMap['frontend.show_color_toggle'] as boolean | undefined) !== false && parseColorMode(kvMap['theme.dark_mode']) === 'auto',
     showSearch: (kvMap['frontend.show_search'] as boolean | undefined) !== false,
     showStickyHeader: (kvMap['frontend.show_sticky_header'] as boolean | undefined) !== false,
     // Settings → Business: the Opening Hours block and the layout's LocalBusiness data.
