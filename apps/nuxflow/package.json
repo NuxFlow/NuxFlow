@@ -27,8 +27,8 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.102",
-    "@ai-sdk/google": "^4.0.117",
-    "@ai-sdk/openai": "^4.0.114",
+    "@ai-sdk/google": "^4.0.118",
+    "@ai-sdk/openai": "^4.0.115",
     "@better-auth/passkey": "^1.7.20",
     "@noble/hashes": "^2.3.0",
     "@nuxflow/canvas": "workspace:*",
@@ -44,7 +44,7 @@
     "@tiptap/extension-table": "^3.33.1",
     "@tiptap/starter-kit": "^3.33.1",
     "@tiptap/vue-3": "^3.33.1",
-    "ai": "^7.0.169",
+    "ai": "^7.0.170",
     "better-auth": "^1.7.20",
     "drizzle-orm": "0.45.4",
     "fflate": "^0.8.3",
@@ -57,7 +57,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@iconify-json/lucide": "^1.2.153",
+    "@iconify-json/lucide": "^1.2.154",
     "@iconify-json/simple-icons": "^1.2.102",
     "@libsql/client": "^0.18.0",
     "@nuxt/eslint": "^1.17.0",
