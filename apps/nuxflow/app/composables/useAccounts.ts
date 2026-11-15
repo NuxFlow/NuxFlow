@@ -28,12 +28,23 @@ export function useAccounts() {
     return `/login?${new URLSearchParams({ redirect: returnTo })}`
   }
 
+  /**
+   * The sign-in page in "confirm it's you" mode, for someone already signed in: Better Auth
+   * only lets a sign-in made in the last day add a passkey or unlink a sign-in method
+   * (`session.freshAge`). Signing in again starts a new session; the old one, and the site
+   * logins hanging off it, carry on. Never used on a site's own domain.
+   */
+  function reauthUrl(returnTo: string): string {
+    const key = isAccountsHost ? 'next' : 'redirect'
+    return `/login?${new URLSearchParams({ reauth: '1', [key]: returnTo })}`
+  }
+
   /** A link to an accounts-origin page (or the same-origin page on a single-site install). */
   function accountsLink(path: string): string {
     return central ? `${accountsOrigin}${path}` : path
   }
 
-  return { central, accountsOrigin, isAccountsHost, onSiteDomain, signInUrl, accountsLink }
+  return { central, accountsOrigin, isAccountsHost, onSiteDomain, signInUrl, reauthUrl, accountsLink }
 }
 
 // Browsers drop tab/CR/LF wherever they appear in a URL and treat `\` like `/`, so

@@ -11,6 +11,8 @@ const loading = ref(true)
 const passkeyName = ref('')
 
 const loadFailed = ref(false)
+// Better Auth refused the last add because the sign-in is over a day old.
+const needsReauth = ref(false)
 
 async function fetchPasskeys() {
   loadFailed.value = false
@@ -44,11 +46,18 @@ async function registerPasskey() {
   }
 
   const passkeyClient = client.passkey
+  needsReauth.value = false
   await run(async () => {
-    throwIfAuthError(await passkeyClient.addPasskey({ name: passkeyName.value.trim() }))
+    const res = await passkeyClient.addPasskey({ name: passkeyName.value.trim() })
+    if (isSessionNotFresh(res)) {
+      needsReauth.value = true
+      return
+    }
+    throwIfAuthError(res)
     passkeyName.value = ''
     await fetchPasskeys()
-  }, { successTitle: 'Passkey registered', errorTitle: "Couldn't register passkey", key: 'register' })
+    return true
+  }, { successTitle: added => (added ? 'Passkey registered' : undefined), errorTitle: "Couldn't register passkey", key: 'register' })
 }
 
 async function deletePasskey(id: string) {
@@ -161,6 +170,7 @@ onMounted(() => {
         <!-- Register Passkey Form -->
         <div class="space-y-4">
           <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Register a New Passkey</p>
+          <AccountReauthNotice v-if="needsReauth" action="add a passkey" />
           <div class="flex flex-col sm:flex-row gap-3">
             <UFormField class="flex-1" label="Passkey name (e.g. My Phone, Personal Laptop)">
               <UInput 

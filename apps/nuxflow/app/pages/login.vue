@@ -22,9 +22,13 @@ const destination = computed(() => isAccountsHost
   ? safeNextPath(route.query.next, siteId.value ? `/authorize?${new URLSearchParams({ site: siteId.value })}` : '/account')
   : safeNextPath(route.query.redirect, '/admin'))
 
+// "Confirm it's you" (useAccounts().reauthUrl()): an already signed-in person signing in
+// again so the session counts as fresh for a passkey or sign-in-method change.
+const { loggedIn, user } = useUserSession()
+const reauth = computed(() => route.query.reauth === '1' && loggedIn.value)
+
 // Already signed in on the accounts origin — nothing to do here.
-const { loggedIn } = useUserSession()
-if (isAccountsHost && loggedIn.value) {
+if (isAccountsHost && loggedIn.value && !reauth.value) {
   await navigateTo(destination.value)
 }
 
@@ -46,7 +50,7 @@ const {
   reset: resetCaptcha,
 } = await useSignInCaptcha()
 
-const form = reactive({ email: '', password: '', rememberMe: true })
+const form = reactive({ email: reauth.value ? (user.value?.email ?? '') : '', password: '', rememberMe: true })
 const loading = ref(false)
 const error = ref('')
 const verified = ref(false)
@@ -133,6 +137,13 @@ async function signInSocial(provider: 'google' | 'github') {
 <template>
   <div class="space-y-6">
     <AccountsSiteBrand
+      v-if="reauth"
+      :site="null"
+      heading="Confirm it's you"
+      subheading="Sign in again to change your passkeys or sign-in methods. You'll stay signed in to your sites."
+    />
+    <AccountsSiteBrand
+      v-else
       :site="site"
       :heading="site ? `Sign in to ${site.name}` : 'Sign in to NuxFlow'"
       :subheading="isAccountsHost ? 'One account for every NuxFlow site — you only ever enter your password here.' : 'Welcome back — enter your details below'"
@@ -190,7 +201,7 @@ async function signInSocial(provider: 'google' | 'github') {
 
       <!-- Registration is per site (a site's own "public registration" setting), so on the
            accounts origin it's only offered when signing in to a particular site. -->
-      <p v-if="!isAccountsHost || site?.allowRegistration" class="text-center text-sm text-gray-500 dark:text-gray-400">
+      <p v-if="!reauth && (!isAccountsHost || site?.allowRegistration)" class="text-center text-sm text-gray-500 dark:text-gray-400">
         Don't have an account?
         <NuxtLink :to="carry('/register')" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">Sign up</NuxtLink>
       </p>
