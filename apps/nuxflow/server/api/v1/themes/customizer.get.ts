@@ -4,69 +4,34 @@ import { requireRole } from '../../../utils/permissions'
 import { resolveSetting, resolveStringSetting } from '../../../utils/settings'
 import { useDb } from '../../../utils/db'
 import { requireSiteId } from '../../../utils/site-context'
+import { CUSTOMIZER_VALUES_KEY, readStoredCustomizerValues } from '../../../utils/theme-customizer'
+import { type CustomizerState, parseColorMode, parseCustomizerValues } from '../../../../shared/lib/theme-customizer'
 
-interface CustomizerValues {
-  colorMode: 'auto' | 'light' | 'dark'
-  primaryColor: string
-  linkColor: string
-  bgLight: string
-  bgDark: string
-  bodyFont: string
-  headingFont: string
-  fontSize: 'xs' | 'sm' | 'base' | 'lg' | 'xl'
-  headingWeight: '300' | '400' | '500' | '600' | '700' | '800'
-  lineHeight: 'tight' | 'normal' | 'relaxed'
-  borderRadius: 'none' | 'sm' | 'md' | 'lg' | 'xl' | 'full'
-  spacing: 'compact' | 'normal' | 'spacious'
-  contentWidth: 'narrow' | 'default' | 'wide' | 'full'
-}
-
-const DEFAULTS: CustomizerValues = {
-  colorMode: 'auto',
-  primaryColor: '#00dc82',
-  linkColor: '',
-  bgLight: '',
-  bgDark: '',
-  bodyFont: 'system',
-  headingFont: 'same',
-  fontSize: 'base',
-  headingWeight: '700',
-  lineHeight: 'normal',
-  borderRadius: 'md',
-  spacing: 'normal',
-  contentWidth: 'default',
-}
-
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<CustomizerState> => {
   await requireRole(event, 'admin')
   const db = useDb(event)
   const siteId = requireSiteId(event)
 
-  // Try to load saved customizer values
-  const storedJson = await resolveSetting(event, 'theme.customizer_values')
-  let values: CustomizerValues = { ...DEFAULTS }
+  // The four values shared with Settings → Appearance are read from those settings, so
+  // a change made there shows here (and publishing here can't undo it unseen).
+  const [stored, darkMode, primaryColor, fontSans, fontHeading, storedThemeId] = await Promise.all([
+    resolveSetting(event, CUSTOMIZER_VALUES_KEY),
+    resolveStringSetting(event, 'theme.dark_mode'),
+    resolveStringSetting(event, 'theme.primary_color'),
+    resolveStringSetting(event, 'theme.font_sans'),
+    resolveStringSetting(event, 'theme.font_heading'),
+    resolveStringSetting(event, 'theme.customizer_theme_id'),
+  ])
+  const saved = readStoredCustomizerValues(stored)
+  const values = parseCustomizerValues({
+    ...saved,
+    ...(darkMode ? { colorMode: parseColorMode(darkMode) } : {}),
+    ...(primaryColor ? { primaryColor } : {}),
+    ...(fontSans ? { bodyFont: fontSans } : {}),
+    ...(fontHeading ? { headingFont: fontHeading } : {}),
+  })
 
-  if (storedJson) {
-    try {
-      values = { ...DEFAULTS, ...JSON.parse(storedJson as string) }
-    } catch { /* use defaults on malformed JSON */ }
-  } else {
-    // First visit — migrate from existing 3-knob appearance settings
-    const darkMode = ((await resolveStringSetting(event, 'theme.dark_mode'))) || 'auto'
-    const primaryColor = ((await resolveStringSetting(event, 'theme.primary_color'))) || '#00dc82'
-    const fontSans = ((await resolveStringSetting(event, 'theme.font_sans'))) || 'system'
-    values = {
-      ...DEFAULTS,
-      colorMode: darkMode as CustomizerValues['colorMode'],
-      primaryColor,
-      bodyFont: fontSans,
-    }
-  }
-
-  // Resolve the ID of the theme that the customizer manages
-  const storedThemeId = ((await resolveStringSetting(event, 'theme.customizer_theme_id'))) || null
   let customizerThemeId: string | null = null
-
   if (storedThemeId) {
     const t = await db.query.themes.findFirst({
       where: and(eq(themes.id, storedThemeId), eq(themes.siteId, siteId), eq(themes.hasCss, true)),
@@ -75,5 +40,17 @@ export default defineEventHandler(async (event) => {
     if (t) customizerThemeId = t.id
   }
 
-  return { values, customizerThemeId }
+  // Applying a starter or activating another theme switches the customizer's theme off;
+  // the page says so rather than showing settings that aren't live.
+  const active = await db.query.themes.findFirst({
+    where: and(eq(themes.siteId, siteId), eq(themes.isActive, true)),
+    columns: { id: true, name: true },
+  })
+
+  return {
+    values,
+    customizerThemeId,
+    live: !!customizerThemeId && active?.id === customizerThemeId,
+    activeThemeName: active && active.id !== customizerThemeId ? active.name : null,
+  }
 })

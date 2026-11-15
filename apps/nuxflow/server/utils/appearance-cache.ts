@@ -6,6 +6,8 @@ export interface AppearanceCache {
   darkMode: string
   primaryColor: string
   fontSans: string
+  /** 'same' = headings use the body font. */
+  fontHeading: string
   customHeadHtml: string
   customBodyHtml: string
 }

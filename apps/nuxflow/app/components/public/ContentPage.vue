@@ -268,7 +268,8 @@ const formattedDate = computed(() => formatDate(page.value?.publishedAt, '') || 
       </template>
 
       <!-- Rich-text / other content: contained with title -->
-      <div v-else class="mx-auto px-6 py-12" :class="page.product ? 'max-w-5xl' : 'max-w-4xl'">
+      <!-- .nux-article: the reading column the Visual Customizer's "Article width" sets. -->
+      <div v-else class="mx-auto px-6 py-12" :class="page.product ? 'max-w-5xl' : 'max-w-4xl nux-article'">
         <!-- A product: its pictures, price and options, then the description below. -->
         <template v-if="page.product">
           <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">{{ page.title }}</h1>

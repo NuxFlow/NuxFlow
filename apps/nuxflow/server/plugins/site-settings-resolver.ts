@@ -1,4 +1,6 @@
-import { knownSiteFont, loadSiteAppearance, safeSiteColor, siteFontHref } from '../utils/site-styles'
+import { appearanceValues, loadSiteAppearance, safeSiteColor } from '../utils/site-styles'
+import { appearanceCss, parseColorMode, siteFontsHref } from '../../shared/lib/theme-customizer'
+import { escapeHtml } from '../../shared/lib/html-text'
 import { errorMessage } from '../utils/errors'
 // Deliberately '@nuxflow/canvas/consent', NOT the package root ('@nuxflow/canvas') —
 // the root barrel (src/index.ts) re-exports every Canvas block as a .vue SFC, and this
@@ -58,75 +60,53 @@ function isAuthPath(path: string): boolean {
 
 export default defineNitroPlugin((nitro) => {
   // Inject appearance settings into every SSR page response:
-  //   • dark_mode  → blocking <script> that adds/removes the "dark" class before
-  //                  paint, preventing a flash of wrong colour scheme
-  //   • primary_color → --nuxflow-primary CSS custom property
-  //   • font_sans  → --nuxflow-font custom property + Google Fonts <link>
+  //   • dark_mode → `data-color-mode-forced` on <html>, which @nuxtjs/color-mode's own
+  //     inline script reads before paint (a script of ours used to set the class, but
+  //     color-mode's script ran after it and re-applied the visitor's preference, and
+  //     its router hook did the same on every navigation). The client side is
+  //     app/plugins/site-color-mode.client.ts, which keeps it forced on navigation.
+  //   • primary_color, font_sans, font_heading → appearanceCss() (shared/lib/
+  //     theme-customizer.ts — the Visual Customizer's preview uses the same function)
+  //     plus one Google Fonts <link>.
   //
-  // Admin pages (/admin/*) skip the dark-mode and font injections because the
-  // admin has its own colour-mode toggle and Nuxt UI handles its font.
-  // The --nuxflow-primary variable IS injected everywhere so .nav-active and
-  // custom CSS in the admin can reference it.
+  // Admin pages (/admin/*) only get --nuxflow-primary (the sidebar's .nav-active and
+  // custom admin CSS reference it): the admin has its own colour mode, font and palette.
   nitro.hooks.hook('render:html', async (html, { event }) => {
     const siteId = event.context.siteId
     if (!siteId) return
 
     try {
-      const { darkMode, primaryColor, fontSans, customHeadHtml, customBodyHtml } = await loadSiteAppearance(event, siteId)
+      const appearance = await loadSiteAppearance(event, siteId)
+      const { customHeadHtml, customBodyHtml } = appearance
 
       const path = getRequestURL(event).pathname
       const isAdmin = path.startsWith('/admin')
 
-      const cssParts: string[] = []
-
-      // Primary colour custom property — validate before injecting into <style>
-      const safeColor = primaryColor ? safeSiteColor(primaryColor) : null
-      if (safeColor) {
-        cssParts.push(`--nuxflow-primary:${safeColor}`)
+      if (isAdmin) {
+        const color = safeSiteColor(appearance.primaryColor)
+        if (color) html.head.push(`<style data-nuxflow-appearance>:root{--nuxflow-primary:${color}}</style>`)
       }
+      else {
+        const colorMode = parseColorMode(appearance.darkMode)
+        if (colorMode !== 'auto') html.htmlAttrs.push(`data-color-mode-forced="${colorMode}"`)
 
-      if (!isAdmin) {
-        // ── Dark mode ──────────────────────────────────────────────────────────
-        // Use a blocking inline script so the class is set before any CSS or
-        // Vue hydration runs, avoiding a flash of the wrong mode.
-        if (darkMode === 'dark') {
-          html.head.unshift(`<script>document.documentElement.classList.add('dark')</script>`)
+        const values = appearanceValues(appearance)
+        const fontHref = siteFontsHref([values.bodyFont, values.headingFont])
+        if (fontHref) {
+          html.head.push(`<link rel="preconnect" href="https://fonts.googleapis.com">`)
+          html.head.push(`<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">`)
+          // media="print" + onload swap: the browser fetches the stylesheet at normal
+          // priority but doesn't block first paint on it (a print-media stylesheet isn't
+          // render-blocking for the screen); onload flips it to the real media and applies
+          // it as soon as it arrives. font-display=swap (already in the query string)
+          // still covers the interval between first paint and this stylesheet loading.
+          // <noscript> covers the no-JS case, where onload never fires.
+          const href = escapeHtml(fontHref)
+          html.head.push(`<link rel="stylesheet" href="${href}" media="print" onload="this.media='all'">`)
+          html.head.push(`<noscript><link rel="stylesheet" href="${href}"></noscript>`)
         }
-        else if (darkMode === 'light') {
-          html.head.unshift(`<script>document.documentElement.classList.remove('dark')</script>`)
-        }
-        // 'auto' → do nothing; @nuxtjs/color-mode / system preference handles it
-
-        // ── Font — only inject from the known allowlist ────────────────────────
-        const knownFont = knownSiteFont(fontSans)
-        if (knownFont) {
-          cssParts.push(`--nuxflow-font:'${knownFont}',system-ui,-apple-system,sans-serif`)
-
-          const fontHref = siteFontHref(knownFont)
-          if (fontHref) {
-            html.head.push(`<link rel="preconnect" href="https://fonts.googleapis.com">`)
-            html.head.push(`<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">`)
-            // media="print" + onload swap: the browser fetches the stylesheet at normal
-            // priority but doesn't block first paint on it (a print-media stylesheet isn't
-            // render-blocking for the screen); onload flips it to the real media and applies
-            // it as soon as it arrives. font-display=swap (already in the query string)
-            // still covers the interval between first paint and this stylesheet loading.
-            // <noscript> covers the no-JS case, where onload never fires.
-            html.head.push(`<link rel="stylesheet" href="${fontHref}" media="print" onload="this.media='all'">`)
-            html.head.push(`<noscript><link rel="stylesheet" href="${fontHref}"></noscript>`)
-          }
-        }
-      }
-
-      if (cssParts.length) {
-        // Apply --nuxflow-font to body on public pages so all text picks it up
-        const knownFontForBody = knownSiteFont(fontSans)
-        const bodyRule = (!isAdmin && knownFontForBody)
-          ? `body{font-family:var(--nuxflow-font,system-ui,-apple-system,sans-serif)}`
-          : ''
-        html.head.push(
-          `<style data-nuxflow-appearance>:root{${cssParts.join(';')}}${bodyRule}</style>`,
-        )
+        const css = appearanceCss(values)
+        if (css) html.head.push(`<style data-nuxflow-appearance>${css}</style>`)
       }
 
       // Custom code injection — admin-only setting; only injected on public pages.

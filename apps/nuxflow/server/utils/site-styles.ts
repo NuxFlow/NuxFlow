@@ -10,6 +10,7 @@ import { getThemeCSS } from './cf-theme-kv'
 import { resolveStringSetting } from './settings'
 import { type ActiveTheme, resolveActiveTheme } from './theme-cache'
 import { type AppearanceCache, getCachedAppearance, setCachedAppearance } from './appearance-cache'
+import { type AppearanceValues, appearanceCss, parseColorMode, safeCssColor, siteFontsHref } from '../../shared/lib/theme-customizer'
 
 // ── Theme CSS ─────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,8 @@ export interface SiteThemeCss {
   baseCss: string | null
   css: string | null
   isPreview: boolean
+  /** `css` is the Visual Customizer's own theme (its preview swaps it for the edited CSS). */
+  isCustomizer: boolean
 }
 
 /**
@@ -53,7 +56,7 @@ export async function loadSiteThemeCss(event: H3Event, siteId: string, previewId
     })
   }
 
-  if (!active || !active.hasCss) return { baseCss: null, css: null, isPreview }
+  if (!active || !active.hasCss) return { baseCss: null, css: null, isPreview, isCustomizer: false }
 
   // The Customizer's KV entry holds only the rules it generates, never merged with its
   // base theme (see customizer.post.ts), so editing the base theme later shows at once.
@@ -64,35 +67,19 @@ export async function loadSiteThemeCss(event: H3Event, siteId: string, previewId
     baseThemeId && baseThemeId !== active.id ? getThemeCSS(event, siteId, baseThemeId) : Promise.resolve(null),
     getThemeCSS(event, siteId, active.id, active.cssVersion),
   ])
-  return { baseCss, css, isPreview }
+  return { baseCss, css, isPreview, isCustomizer: isCustomizerTheme }
 }
 
 // ── Appearance settings ───────────────────────────────────────────────────────
 
-/** Google Fonts query strings for the fonts Settings → Appearance offers. */
-const SITE_FONT_QUERY: Record<string, string> = {
-  'Inter': 'family=Inter:wght@400;500;600;700;800',
-  'Geist': 'family=Geist:wght@400;500;600;700;800',
-  'Poppins': 'family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800',
-  'Plus Jakarta Sans': 'family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800',
-}
-
-/** The site's chosen font when it's one we offer (anything else is ignored). */
-export function knownSiteFont(fontSans: string): string | null {
-  return fontSans && fontSans !== 'system' && fontSans in SITE_FONT_QUERY ? fontSans : null
-}
-
-/** The Google Fonts stylesheet for a font knownSiteFont() accepted. */
-export function siteFontHref(font: string): string | null {
-  const query = SITE_FONT_QUERY[font]
-  return query ? `https://fonts.googleapis.com/css2?${query}&display=swap` : null
-}
-
-// Allowlist for colour values written into inline <style> blocks.
-const CSS_COLOR_RE = /^(?:#[0-9a-fA-F]{3,8}|rgba?\([\d\s,.]+\)|hsla?\([\d\s,.%]+\)|[a-zA-Z]{2,30})$/
-
+/** The site's accent colour when it's safe to write into CSS. */
 export function safeSiteColor(value: string): string | null {
-  return CSS_COLOR_RE.test(value.trim()) ? value.trim() : null
+  return safeCssColor(value)
+}
+
+/** The appearance settings as appearanceCss() takes them. */
+export function appearanceValues(a: AppearanceCache): AppearanceValues {
+  return { primaryColor: a.primaryColor, bodyFont: a.fontSans || 'system', headingFont: a.fontHeading || 'same' }
 }
 
 export async function loadSiteAppearance(event: H3Event, siteId: string): Promise<AppearanceCache> {
@@ -104,7 +91,7 @@ export async function loadSiteAppearance(event: H3Event, siteId: string): Promis
     .from(siteSettings)
     .where(and(
       eq(siteSettings.siteId, siteId),
-      inArray(siteSettings.key, ['theme.dark_mode', 'theme.primary_color', 'theme.font_sans', 'appearance.custom_head_html', 'appearance.custom_body_html']),
+      inArray(siteSettings.key, ['theme.dark_mode', 'theme.primary_color', 'theme.font_sans', 'theme.font_heading', 'appearance.custom_head_html', 'appearance.custom_body_html']),
     ))
 
   const map = Object.fromEntries(rows.map(r => [r.key, String(r.value ?? '')]))
@@ -112,6 +99,7 @@ export async function loadSiteAppearance(event: H3Event, siteId: string): Promis
     darkMode: map['theme.dark_mode'] ?? 'auto',
     primaryColor: map['theme.primary_color'] ?? '',
     fontSans: map['theme.font_sans'] ?? 'system',
+    fontHeading: map['theme.font_heading'] ?? 'same',
     customHeadHtml: map['appearance.custom_head_html'] ?? '',
     customBodyHtml: map['appearance.custom_body_html'] ?? '',
   }
@@ -176,19 +164,12 @@ export async function loadEditorSiteStyles(event: H3Event, siteId: string): Prom
   const links: string[] = []
   const styles: string[] = []
 
-  // Same order as a public page's <head>: appearance variables, custom head HTML, theme.
-  const vars: string[] = []
-  const color = appearance.primaryColor ? safeSiteColor(appearance.primaryColor) : null
-  if (color) vars.push(`--nuxflow-primary:${color}`)
-  const font = knownSiteFont(appearance.fontSans)
-  if (font) {
-    vars.push(`--nuxflow-font:'${font}',system-ui,-apple-system,sans-serif`)
-    const href = siteFontHref(font)
-    if (href) links.push(href)
-  }
-  if (vars.length) {
-    styles.push(`:root{${vars.join(';')}}${font ? 'body{font-family:var(--nuxflow-font,system-ui,-apple-system,sans-serif)}' : ''}`)
-  }
+  // Same order as a public page's <head>: appearance, custom head HTML, theme.
+  const values = appearanceValues(appearance)
+  const fontHref = siteFontsHref([values.bodyFont, values.headingFont])
+  if (fontHref) links.push(fontHref)
+  const css = appearanceCss(values)
+  if (css) styles.push(css)
 
   const head = stylesFromHeadHtml(appearance.customHeadHtml)
   links.push(...head.links)
@@ -197,6 +178,5 @@ export async function loadEditorSiteStyles(event: H3Event, siteId: string): Prom
   if (theme.baseCss) styles.push(theme.baseCss)
   if (theme.css) styles.push(theme.css)
 
-  const darkMode = appearance.darkMode === 'dark' || appearance.darkMode === 'light' ? appearance.darkMode : 'auto'
-  return { links, styles, darkMode }
+  return { links, styles, darkMode: parseColorMode(appearance.darkMode) }
 }

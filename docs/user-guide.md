@@ -552,12 +552,16 @@ The customizer is divided into a controls panel on the left and a live iframe pr
 
 | Section | Controls |
 |---|---|
-| **Appearance** | Colour scheme: Auto (follows visitor's system), Light, or Dark |
-| **Colors** | Accent colour — used for buttons, links, and highlights; choose from swatches or enter any hex value. Link colour — defaults to the accent colour; override independently if needed |
-| **Background** | Page background colour for Light mode and Dark mode separately — choose from presets or enter any hex value. Leave blank to use the active theme's default |
-| **Typography** | Body font and Heading font — choose from 17 Google Fonts across sans-serif, serif, and monospace families. Font size (XS → XL). Heading weight (Light → Extra Bold). Line spacing (Tight / Normal / Relaxed) |
-| **Shape** | Corner radius for images, blockquotes, and code blocks — from sharp (None) to fully rounded (Pill) |
-| **Layout** | Section spacing — Compact / Normal / Spacious, scales the vertical padding between page sections. Content width — Narrow (720 px) / Default (960 px) / Wide (1200 px) / Full, controls how wide the readable column is inside each section |
+| **Appearance** | Colour scheme: Auto (follows each visitor's system), Light, or Dark. Light and Dark hide the colour toggle in the site header |
+| **Colors** | Accent colour — buttons, highlights and icons in every block (and `--nuxflow-primary` for theme CSS). Link colour — links in posts and text blocks; leave it unset to keep the theme's |
+| **Background** | Page background for Light mode and Dark mode separately. Leave blank to keep the theme's |
+| **Typography** | Body font and Heading font — 16 Google Fonts across sans-serif, serif and monospace. Text size and Line spacing — body text of posts and text blocks. Heading weight (Light → Extra Bold, or the theme's) |
+| **Shape** | Corner radius — buttons, cards, images and inputs across every block, from Sharp to Rounder |
+| **Layout** | Section spacing — Compact / Normal / Spacious scales the space above and below every block (each block's own padding setting is multiplied by it). Article width — Narrow / Default / Wide sets how wide posts and text pages read; Canvas pages set their own widths |
+
+Anything left at its default writes nothing, so your theme stays exactly as it is for that setting.
+
+The Appearance, accent colour and the two fonts are the same settings as the **Global appearance** card on the Themes page — change them in either place and the other shows it.
 
 #### Device preview
 
@@ -569,7 +573,9 @@ The URL bar at the top of the preview panel lets you navigate to any public page
 
 #### Saving and publishing
 
-Changes are applied to the live preview immediately but are **not** saved until you click **Publish** in the top-right corner. When you publish, a CSS theme file is created (or updated) and activated automatically — visitors see your new styles on their next page load.
+Changes are applied to the live preview immediately but are **not** saved until you click **Publish** in the top-right corner. When you publish, a CSS theme file is created (or updated) and activated automatically, on top of the theme that was active — visitors see your new styles on their next page load. The preview is built the same way as the published page, so what you see is what visitors get.
+
+If you later apply a starter site or activate another theme, the customizer's changes come off the live site. The customizer says so when you open it, and publishing again puts them back on top of the new theme.
 
 The **Unsaved** indicator in the title bar reminds you when there are unpublished changes.
 
@@ -586,8 +592,8 @@ The **Global appearance** card at the bottom of the Themes page exposes the same
 | Setting | What it does |
 |---|---|
 | **Colour scheme** | `dark` forces dark mode on all public pages; `light` forces light mode; `auto` follows each visitor's system preference |
-| **Accent colour** | Injected into every page as the CSS variable `--nuxflow-primary`. Your theme CSS can reference `var(--nuxflow-primary)` to pick up this colour automatically. Also controls the active item highlight in the admin sidebar |
-| **Body font** | Injects the chosen Google Font and applies it to the page body via `--nuxflow-font`. Requests are loaded from `fonts.googleapis.com` |
+| **Accent colour** | Colours every block's buttons, highlights and icons (it recolours the site's `primary` palette), and is injected as the CSS variable `--nuxflow-primary` for theme CSS to use. Also controls the active item highlight in the admin sidebar |
+| **Body font** | Injects the chosen Google Font and applies it to the page body via `--nuxflow-font` (and Tailwind's `--font-sans`). Requests are loaded from `fonts.googleapis.com` |
 
 These settings are separate from the active theme CSS file — you can set an accent colour without uploading or editing any CSS. If your theme CSS also hardcodes a colour, the theme's value takes precedence for those specific selectors.
 

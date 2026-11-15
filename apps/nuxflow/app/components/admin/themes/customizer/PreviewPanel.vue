@@ -1,9 +1,14 @@
 <script setup lang="ts">
-// Owns the preview iframe and its postMessage bridge entirely — the parent only
-// needs to pass the generated CSS down as a prop, it never touches the iframe DOM
-// node directly.
+import type { ColorMode } from '#shared/lib/theme-customizer'
+
+// Owns the preview iframe and its postMessage bridge entirely — the parent only passes
+// what to show down as props, it never touches the iframe DOM node directly. The
+// receiving end is app/plugins/theme-preview-listener.client.ts.
 const props = defineProps<{
   css: string
+  /** Google Fonts stylesheet for the chosen fonts (CSS can't load them: `@import` is stripped). */
+  fontHref: string | null
+  colorMode: ColorMode
   device: 'desktop' | 'tablet' | 'mobile'
 }>()
 
@@ -12,13 +17,13 @@ const iframeEl = ref<HTMLIFrameElement | null>(null)
 
 function sendPreviewCSS() {
   iframeEl.value?.contentWindow?.postMessage(
-    { type: 'nuxflow:preview-css', css: props.css },
+    { type: 'nuxflow:preview-css', css: props.css, fontHref: props.fontHref, colorMode: props.colorMode },
     window.location.origin,
   )
 }
 
 let previewTimer: ReturnType<typeof setTimeout> | null = null
-watch(() => props.css, () => {
+watch(() => [props.css, props.fontHref, props.colorMode], () => {
   if (previewTimer) clearTimeout(previewTimer)
   previewTimer = setTimeout(sendPreviewCSS, 300)
 })
