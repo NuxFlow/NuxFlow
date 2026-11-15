@@ -34,7 +34,6 @@ function hasPnpm() {
   }
 }
 async function main() {
-  console.log();
   p.intro("create-nuxflow-app  \u2014  Edge-native CMS on Nuxt 4 + Cloudflare Workers");
   const dir = await p.text({
     message: "Where should we create your project?",
@@ -125,9 +124,11 @@ Check your internet connection and try again.`);
       "  pnpm exec wrangler dev",
       "  # \u2192 Visit http://localhost:8787/setup to finish setup",
       "",
-      "  # Go live on Cloudflare \u2014 create the D1 database, KV namespace and",
-      "  # R2 bucket, deploy, then add the auth secret. Step by step:",
-      `  #   ${DOCS_URL}`,
+      "  # Go live on your Cloudflare account (Workers Paid plan) in one",
+      "  # command: it creates the database and storage, deploys, and",
+      "  # prints your setup link. Run it from the project folder:",
+      "  pnpm nuxflow:install",
+      `  # Step by step instead: ${DOCS_URL}`,
       "  # (The .env created here is for local development only.)"
     ].filter((line) => line !== void 0).join("\n"),
     "Next steps"
