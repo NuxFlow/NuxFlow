@@ -326,8 +326,14 @@ async function copy(text: string) {
             are only used by {{ data.primarySite?.name ?? 'your main site' }} while hosting is on.
           </p>
           <p class="text-gray-500">
-            The daily cap is a safety brake on top of the plans: once all customer sites together have used this many credits in a day (UTC),
+            A customer site with <strong>no plan</strong> gets no AI on your account at all; it can still use its own key. Give a site any plan
+            (even one with every box blank) to include it.
+          </p>
+          <p class="text-gray-500">
+            The daily cap is a safety brake on top of the plans: once the customer sites together have used this many credits in a day (UTC),
             AI on Workers AI pauses for them until midnight. Your main site is never paused. 1 credit is roughly 1,000 tokens on the fast model.
+            <strong>It's counted separately in each Worker</strong>: this control plane and every pool each allow this many, so with two pools
+            the most all your sites can use in a day is three times the cap.
           </p>
           <p class="text-gray-600 dark:text-gray-300">
             Used today: <strong>{{ data.ai.creditsToday.toLocaleString() }}</strong>

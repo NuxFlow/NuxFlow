@@ -349,7 +349,7 @@ async function save() {
         <AdminSettingsPaymentsTab v-if="active === 'Payments'" v-model:payments="payments" :domain="general.domain" :saving="saving" :on-save="save" />
         <AdminSettingsMediaTab v-if="active === 'Media'" v-model:cloudflare="cloudflare" v-model:r2="r2" :saving="saving" :on-save="save" :image-transformations-available="data?.imageTransformationsAvailable !== false" />
         <AdminSettingsIntegrationsTab v-if="active === 'Integrations'" v-model:integrations="integrations" v-model:social="social" :domain="general.domain" :is-primary="isPrimarySite" :saving="saving" :on-save="save" />
-        <AdminSettingsAiTab v-if="active === 'AI Settings'" v-model:ai="ai" v-model:cloudflare="cloudflare" :ollama-available="data?.ollamaAvailable !== false" />
+        <AdminSettingsAiTab v-if="active === 'AI Settings'" v-model:ai="ai" v-model:cloudflare="cloudflare" :ollama-available="data?.ollamaAvailable !== false" :hosted-ai="data?.hostedAi ?? null" />
         <AdminSettingsPushTab v-if="active === 'Push'" v-model:push="push" :saving="saving" :on-save="save" />
         <AdminSettingsSecurityTab v-if="active === 'Security'" v-model:security="security" />
         <AdminSettingsDangerZoneTab

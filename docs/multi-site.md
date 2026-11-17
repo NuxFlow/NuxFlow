@@ -311,7 +311,9 @@ Monthly limits reset on the 1st of the month (UTC).
 A customer site's AI runs in one of two ways:
 
 - **On Workers AI, paid by you.** That's the default for any site that hasn't added its own key. It's billed to your Cloudflare account, so it's counted as **AI credits** and limited by the plan: **AI credits a month** for what the site's team does, **Visitor AI credits a month** for what visitors, incoming mail and plugins set off. Smart search always runs on Workers AI (its index needs one fixed model), so its embeddings are always counted: 1 credit each, to the team when a page is saved, to visitors for a search.
-- **On the site's own key.** A site that adds an OpenAI, Anthropic, Gemini or DeepSeek key in **Settings → AI** pays that provider directly. Its AI is never counted against its plan or the daily cap, and never refused by them.
+- **On the site's own key.** A site that adds an OpenAI, Anthropic, Gemini or DeepSeek key in **Settings → AI** pays that provider directly. Its AI is never counted against its plan or the daily cap, and never refused by them. Smart search, dictation and "Listen to this article" only run on Workers AI, so they still use the plan's credits.
+
+**A customer site needs a plan to use your AI.** A customer site with no plan has no limits on anything else, but gets no AI on your account: only its own key works. This stops a site you created by hand, with the plan left unset, from using unlimited AI on your bill. Give it any plan (even one with every box left blank) to include it. Your main site never needs a plan.
 
 **Your own keys stay yours.** While hosting is on, these env vars in `wrangler.toml` are used only by your main site, and customer sites never fall back to them:
 
@@ -333,7 +335,7 @@ A customer site's AI runs in one of two ways:
 
 Every call costs at least 1 credit, including one that fails. The numbers are relative weights, not a price: compare them with the Workers AI line on your Cloudflare bill to decide what to put in each plan.
 
-**The daily cap.** On **Super Admin → Platform → AI you pay for** you can set the most credits (team and visitor together) all customer sites may use in one day (UTC). It's a safety brake on top of the plans, for example in case a plan's AI box was left empty. Once it's reached, Workers AI pauses for every customer site until midnight UTC, and they're told they can add their own key to keep going. Your main site is never paused. You get a notification at 80% and 100%. Leave the box empty for no cap.
+**The daily cap.** On **Super Admin → Platform → AI you pay for** you can set the most credits (team and visitor together) all customer sites may use in one day (UTC). It's a safety brake on top of the plans, for example in case a plan's AI box was left empty. Once it's reached, Workers AI pauses for every customer site until midnight UTC, and they're told they can add their own key to keep going. Your main site is never paused. You get a notification at 80% and 100%. Leave the box empty for no cap. With [pools](pools.md), the cap is counted separately in each Worker: the control plane and each pool each allow this many credits a day, so the platform-wide most is the cap times the number of Workers.
 
 ---
 

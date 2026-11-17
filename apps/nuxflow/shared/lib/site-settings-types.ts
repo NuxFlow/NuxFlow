@@ -19,6 +19,12 @@ export interface SiteSettingsResponse {
   settings: Record<string, unknown>
   /** Whether Ollama may be chosen (never for customer sites on a hosting platform). */
   ollamaAvailable: boolean
+  /**
+   * Set only for a customer site on a hosting platform, where Workers AI runs on the
+   * platform's account and is limited by the site's plan (ai-allowance.ts). `included` is
+   * false when the site has no plan, so only its own key works.
+   */
+  hostedAi: { included: boolean } | null
   /** Whether the site's plan includes Cloudflare Image Transformations. */
   imageTransformationsAvailable: boolean
   /** What the Email tab shows while nothing is saved. */

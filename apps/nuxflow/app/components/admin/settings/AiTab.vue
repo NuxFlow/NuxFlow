@@ -8,7 +8,19 @@ const cloudflare = defineModel<CloudflareMediaState>('cloudflare', { required: t
 const props = withDefaults(defineProps<{
   /** False for a customer site on a hosting platform, which isn't offered Ollama. */
   ollamaAvailable?: boolean
-}>(), { ollamaAvailable: true })
+  /** Set for a customer site on a hosting platform (see SiteSettingsResponse.hostedAi). */
+  hostedAi?: { included: boolean } | null
+}>(), { ollamaAvailable: true, hostedAi: null })
+
+const workersAiNotice = computed(() => {
+  if (!props.hostedAi) {
+    return 'Runs on your own Cloudflare account via the Workers AI binding. Includes a free daily usage allowance; usage beyond that bills to your Cloudflare account at a fraction of a cent. Needs the [ai] block in wrangler.toml uncommented, and the Workers Paid plan this project already requires.'
+  }
+  if (!props.hostedAi.included) {
+    return "Your site has no hosting plan, so the platform's AI isn't included. Choose a provider below and add your own API key to use AI."
+  }
+  return "Included with your hosting plan and counted as AI credits — your dashboard's Your plan card shows how many are left this month. If they run out, add your own key from one of the providers below."
+})
 
 const allProviderOptions = [
   { label: 'Cloudflare Workers AI (recommended)', value: 'workers-ai' },
@@ -73,11 +85,16 @@ const isLocalOllamaUrl = computed(() => {
         <UAlert
           v-if="ai.provider === 'workers-ai'"
           icon="i-simple-icons-cloudflare"
-          color="info"
           variant="soft"
-          title="No API key needed"
-          description="Runs on your own Cloudflare account via the Workers AI binding. Includes a free daily usage allowance; usage beyond that bills to your Cloudflare account at a fraction of a cent. Needs the [ai] block in wrangler.toml uncommented, and the Workers Paid plan this project already requires."
+          :color="hostedAi && !hostedAi.included ? 'warning' : 'info'"
+          :title="hostedAi && !hostedAi.included ? 'Needs your own key' : 'No API key needed'"
+          :description="workersAiNotice"
         />
+        <!-- Smart search, dictation and Listen only run on Workers AI, whatever is chosen here. -->
+        <p v-if="hostedAi && ai.provider !== 'workers-ai'" class="text-sm text-gray-500">
+          Your own key covers the writing tools, page generation, translation, image descriptions and spam checks, and none of that is
+          counted against your plan. Smart search, dictation and "Listen to this article" only run on Workers AI, so they still use your plan's AI credits.
+        </p>
 
         <template v-if="ai.provider === 'openai'">
           <UFormField label="OpenAI API Key">
