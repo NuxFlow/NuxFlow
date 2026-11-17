@@ -1,8 +1,9 @@
 import { useDb } from '../utils/db'
-import { aiGenerationJobs, auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits, siteUsageDaily, siteInvitations, siteAuthCodes, siteSessions, pluginStorage, orders } from '@nuxflow/db/schema'
+import { aiGenerationJobs, auditLogs, contentRevisions, rateLimits, notifications, emailLog, emailMessages, crawlerHits, siteUsageDaily, siteInvitations, siteAuthCodes, siteSessions, pluginStorage, orders, chatConversations } from '@nuxflow/db/schema'
 import { and, count, eq, inArray, lt, ne, notInArray, sql, isNotNull, isNull, or } from 'drizzle-orm'
 import { chunk } from '../../shared/lib/array'
 import { utcDayAgo } from '../utils/utc-day'
+import { CHAT_RETENTION_DAYS } from '../utils/chatbot'
 
 // Bounds how many overflowing content items get their excess revisions pruned in a
 // single scheduled run. Each item needs its own `findMany` (Drizzle/D1 has no
@@ -207,7 +208,14 @@ export const pruneOldData = async () => {
     .where(and(inArray(orders.status, ['expired', 'cancelled']), sql`datetime(${orders.updatedAt}) < datetime(${sqliteNow(90)})`))
     .returning({ id: orders.id })
 
+  // Website chat conversations (and their messages, by cascade) after CHAT_RETENTION_DAYS —
+  // people's data, kept only as long as the chatbot's privacy wording says.
+  const oldChats = await db.delete(chatConversations)
+    .where(sql`datetime(${chatConversations.lastMessageAt}) < datetime(${sqliteNow(CHAT_RETENTION_DAYS)})`)
+    .returning({ id: chatConversations.id })
+
   return {
+    prunedChats: oldChats.length,
     lapsedOrders: lapsedOrders.length,
     prunedUnpaidOrders: unpaidOrders.length,
     prunedAuditLogs,

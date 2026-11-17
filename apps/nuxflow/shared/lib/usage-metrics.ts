@@ -22,6 +22,8 @@ export const USAGE_EVENT_METRICS = [
    * can't use up the team's allowance. Limited by the plan's "Visitor AI credits a month".
    */
   'ai_visitor_credits',
+  /** Weighted cost of platform-paid AI the website chatbot uses (answers and its index). Limited by "Chat AI credits a month". */
+  'ai_chat_credits',
   /** Emails handed to a real provider (console-only "sends" aren't counted). */
   'emails',
   /** Emails received at the site's own addresses and accepted (inbox and post-by-email). */

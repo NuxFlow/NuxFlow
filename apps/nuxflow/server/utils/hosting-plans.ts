@@ -69,9 +69,10 @@ export function planMax(plan: HostingPlan | null, key: PlanLimitKey): number | n
 }
 
 /** The site_usage_daily metric each monthly limit reads. */
-export const MONTHLY_METRIC: Record<'ai' | 'visitor_ai' | 'emails' | 'inbound' | 'views' | 'renders' | 'plugin_calls' | 'video_watch', UsageEventMetric> = {
+export const MONTHLY_METRIC: Record<'ai' | 'visitor_ai' | 'chat_ai' | 'emails' | 'inbound' | 'views' | 'renders' | 'plugin_calls' | 'video_watch', UsageEventMetric> = {
   ai: 'ai_credits',
   visitor_ai: 'ai_visitor_credits',
+  chat_ai: 'ai_chat_credits',
   emails: 'emails',
   inbound: 'inbound_emails',
   views: 'views',
@@ -203,6 +204,7 @@ export function planLimitMessage(key: PlanLimitKey, max: number): string {
     case 'ai': return "This month's AI allowance is used up. It resets on the 1st. To keep going now, add your own AI key in Settings → AI."
     case 'emails': return "This month's email allowance is used up. It resets on the 1st. Sign-in and security emails still go out."
     case 'visitor_ai': return "This month's AI allowance for visitor features is used up. It resets on the 1st."
+    case 'chat_ai': return "This month's chatbot allowance is used up. It resets on the 1st."
     case 'inbound': return "This month's allowance for receiving email is used up. New mail is turned away until the 1st."
     default: return 'This is over your plan.'
   }

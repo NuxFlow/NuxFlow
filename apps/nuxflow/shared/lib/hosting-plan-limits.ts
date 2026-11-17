@@ -21,6 +21,7 @@ export const PLAN_LIMITS = [
   // The column is still named for calls; since AI credits replaced calls it holds credits.
   { key: 'ai', column: 'maxAiCallsPerMonth', kind: 'hard', monthly: true, unit: 'count', label: 'AI credits a month', hint: 'AI you pay for (Workers AI). A writing-tool use is usually 1–3 credits, an AI-generated page 20–60, an image 10. AI on the customer’s own API key is never counted.' },
   { key: 'visitor_ai', column: 'maxVisitorAiCreditsPerMonth', kind: 'hard', monthly: true, unit: 'count', label: 'Visitor AI credits a month', hint: 'AI that visitors, incoming mail and plugins set off: Listen to this article, spam checks on comments and forms, inbox sorting, smart search and plugin AI. Kept apart from the team’s allowance so the public can’t use it up. When it runs out these features pause until the 1st; nothing else stops.' },
+  { key: 'chat_ai', column: 'maxChatCreditsPerMonth', kind: 'hard', monthly: true, unit: 'count', label: 'Chat AI credits a month', hint: 'AI the website chatbot uses: about 3 credits an answer, plus 1 per 10 pieces of text it learns from your pages. Only matters when the plan includes the chatbot. When it runs out the chatbot pauses until the 1st (it offers to take a message instead); nothing else stops.' },
   { key: 'emails', column: 'maxEmailsPerMonth', kind: 'hard', monthly: true, unit: 'count', label: 'Emails a month', hint: 'Per recipient. Sign-in, password and security emails are never blocked.' },
   { key: 'inbound', column: 'maxInboundEmailsPerMonth', kind: 'hard', monthly: true, unit: 'count', label: 'Emails received a month', hint: 'Mail arriving at the site’s own addresses (inbox and post-by-email). Over the limit, new mail is turned away until the 1st. Attachments also count towards storage.' },
   { key: 'views', column: 'maxViewsPerMonth', kind: 'soft', monthly: true, unit: 'count', label: 'Page views a month', hint: 'Soft: you get a notice at 80% and 100%; nothing is blocked.' },
@@ -43,6 +44,7 @@ export function planLimit(key: PlanLimitKey) {
  */
 export const PLAN_FEATURES = [
   { key: 'imageTransformations', column: 'allowImageTransformations', label: 'Image resizing (Cloudflare Image Transformations)', hint: 'Lets the site resize and convert images on the fly. Billed to your Cloudflare zone: 5,000 unique transformations a month free, then $0.50 per 1,000.' },
+  { key: 'chatbot', column: 'allowChatbot', label: 'Chatbot', hint: 'Lets the site switch on a chat bubble that answers visitors from the site’s own pages and takes their details as leads. Its AI is limited by “Chat AI credits a month”.' },
   { key: 'shop', column: 'allowShop', label: 'Shop', hint: 'Lets the site sell products: the Shop switch, product pages, the cart and checkout. Payments go to the customer’s own Stripe account; you never handle their money.' },
 ] as const
 

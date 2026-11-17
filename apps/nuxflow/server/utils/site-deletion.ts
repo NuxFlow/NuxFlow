@@ -6,6 +6,7 @@ import { writeAuditLog } from './audit'
 import { errorMessage } from './errors'
 import { conflict } from './response'
 import { deleteContentEmbeddings } from './embeddings'
+import { deleteChatVectors } from './chatbot-index'
 import { cancelHostingForDeletedSite } from './hosting-billing'
 import { removeDomainsForDeletedSite } from './hosting-domains'
 import { deleteStreamVideo, streamAccountFor, type StreamAccountKind } from './stream'
@@ -228,6 +229,8 @@ export async function deleteSiteCompletely(event: H3Event, siteId: string, actor
   // 2b. Semantic-search vectors live in Vectorize (namespaced by site), outside D1.
   const siteItemIds = await db.select({ id: contentItems.id }).from(contentItems).where(eq(contentItems.siteId, siteId))
   await deleteContentEmbeddings(event, siteItemIds.map(r => r.id))
+  // …and so do the chatbot's (its own namespace; the ids come from chat_chunks).
+  await deleteChatVectors(event, db, siteId)
 
   // 3. Accounts nothing else needs any more. Must be read before step 4, whose cascade
   // removes this site's roles and invitations.

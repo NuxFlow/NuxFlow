@@ -96,7 +96,8 @@ export default defineNuxtConfig({
       // search-index-rebuild re-embeds pages into Vectorize after the index changes (a
       // KV read a minute otherwise — search-index-rebuild.ts).
       // shop-holds gives back stock kept for shop checkouts that were never paid (shop-holds.ts).
-      '* * * * *': ['publish-scheduled', 'demo-reset', 'search-index-rebuild', 'shop-holds'],
+      // chatbot-index teaches each site's chatbot its changed pages (chatbot-index.ts).
+      '* * * * *': ['publish-scheduled', 'demo-reset', 'search-index-rebuild', 'shop-holds', 'chatbot-index'],
       // Nightly at 3 AM UTC — prune old data; demo instances also wipe and reseed; flag
       // long-untouched published content for its author to review; record each site's
       // usage totals (Super Admin → Usage).

@@ -274,6 +274,7 @@ Good to know:
 | **Site members** | Hard | Sign-ups and "join this site" are refused: "This site isn't accepting new members". |
 | **Plugins** | Hard | Installing is refused. Set it to 0 for a plan without plugins. |
 | **AI credits a month** | Hard | The site team's AI on Workers AI (writing tools, page generation, image descriptions) is refused until the 1st, with a message telling the site it can add its own AI key. AI on the site's own key is never limited. Set it to 0 for a plan where customers bring their own key. |
+| **Chat AI credits a month** | Hard | AI the website chatbot uses: about 3 credits an answer, plus 1 credit per 10 pieces of page text it learns. Kept apart from Visitor AI so a busy chatbot can't switch off spam checks. At the limit the chatbot pauses until the 1st and offers to take a message instead. Only matters when the plan includes the chatbot. |
 | **Visitor AI credits a month** | Hard | AI that visitors, incoming mail and plugins set off: "Listen to this article", spam checks on comments and forms, inbox sorting, smart search and plugin AI. It has its own allowance so a bot hammering a public feature can never use up the team's. At the limit these features pause until the 1st (smart search falls back to keyword search, spam checks are skipped); nothing else stops. |
 | **Emails a month** | Hard | Ordinary emails (form notifications, notices, inbox replies) are held back until the 1st. **Sign-in, password, invitation and security emails always go out.** |
 | **Emails received a month** | Hard | Mail to the site's own addresses (inbox and post-by-email) is no longer kept until the 1st. Mail set to forward still forwards. The site's admins are told once that month. |
@@ -290,6 +291,7 @@ A plan also has **included features**: things that cost you money per use and ar
 
 | Feature | What it does |
 |---|---|
+| **Chatbot** | Lets the site switch on the chat bubble (Audience → Chatbot), which answers visitors from the site's own pages and takes their details as leads. Its AI counts against **Chat AI credits a month**. Without it the switch is locked; a site moved to a plan without it has its bubble hidden straight away (its settings and knowledge are kept). |
 | **Shop** | Lets the site turn on its shop in Sales → Shop: products, the basket, checkout and downloads. Customers are paid into their own Stripe account; you never handle their money and take no cut. Download files count towards the plan's storage and receipts towards its emails a month. Without it the switch is locked; a site moved to a plan without it has its shop hidden straight away (nothing is deleted). |
 | **Image resizing (Cloudflare Image Transformations)** | Lets the site turn on Image Transformations in Settings → Media. They're billed to your Cloudflare zone (5,000 unique transformations a month free, then $0.50 per 1,000), whichever domain the site uses. Without it the switch is locked; a site moved to a plan without it stops using it straight away. |
 
@@ -332,10 +334,12 @@ A customer site's AI runs in one of two ways:
 | Dictation | 2 |
 | "Listen to this article" | 1 per 1,000 characters read |
 | Smart search (indexing a page, or one search) | 1 |
+| Chatbot answer (fast model, to **Chat AI credits**) | 1 per 1,000 tokens, usually about 3 |
+| Chatbot learning pages (to **Chat AI credits**) | 1 per 10 pieces of text |
 
 Every call costs at least 1 credit, including one that fails. The numbers are relative weights, not a price: compare them with the Workers AI line on your Cloudflare bill to decide what to put in each plan.
 
-**The daily cap.** On **Super Admin → Platform → AI you pay for** you can set the most credits (team and visitor together) all customer sites may use in one day (UTC). It's a safety brake on top of the plans, for example in case a plan's AI box was left empty. Once it's reached, Workers AI pauses for every customer site until midnight UTC, and they're told they can add their own key to keep going. Your main site is never paused. You get a notification at 80% and 100%. Leave the box empty for no cap. With [pools](pools.md), the cap is counted separately in each Worker: the control plane and each pool each allow this many credits a day, so the platform-wide most is the cap times the number of Workers.
+**The daily cap.** On **Super Admin → Platform → AI you pay for** you can set the most credits (team, visitor and chat together) all customer sites may use in one day (UTC). It's a safety brake on top of the plans, for example in case a plan's AI box was left empty. Once it's reached, Workers AI pauses for every customer site until midnight UTC, and they're told they can add their own key to keep going. Your main site is never paused. You get a notification at 80% and 100%. Leave the box empty for no cap. With [pools](pools.md), the cap is counted separately in each Worker: the control plane and each pool each allow this many credits a day, so the platform-wide most is the cap times the number of Workers.
 
 ---
 

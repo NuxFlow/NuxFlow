@@ -62,6 +62,8 @@ export const siteSettings = sqliteTable('site_settings', {
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_site_settings_site_key').on(t.siteId, t.key),
+  // Finding every site with a setting switched on (the chatbot index task, every minute).
+  index('idx_site_settings_key').on(t.key, t.siteId),
   // A site's inbound email handle routes mail for <handle>+<mailbox>@<platform domain>
   // by value across every site (server/utils/inbound-email.ts), so it must be unique.
   uniqueIndex('idx_site_settings_inbound_handle').on(t.value).where(sql`${t.key} = 'email.inbound_handle'`),

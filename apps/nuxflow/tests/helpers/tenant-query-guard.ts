@@ -152,6 +152,12 @@ export const ALLOWLIST: AllowlistEntry[] = [
     reason: 'syncDueFeeds(): the hourly sync of the followed holiday-let calendars that are due, on every site.',
   },
   {
+    file: 'server/scheduled/chatbot-index.ts',
+    match: /"site_settings"\."key" = \? and json_extract\(/,
+    tables: ['site_settings', 'sites', 'content_items', 'chat_knowledge'],
+    reason: 'sitesNeedingChatIndex(): every minute, which sites with the chatbot switched on changed since their last index sync (grouped by site).',
+  },
+  {
     file: 'server/scheduled/event-bookings.ts',
     tables: ['event_rsvps', 'sites'],
     reason: 'Hourly job across every site: places whose time has run out, and day-before reminders.',
@@ -178,7 +184,7 @@ export const ALLOWLIST: AllowlistEntry[] = [
   },
   {
     file: 'server/scheduled/prune-old-data.ts',
-    tables: ['ai_generation_jobs', 'audit_logs', 'crawler_hits', 'email_log', 'email_messages', 'notifications', 'orders', 'plugin_storage', 'site_auth_codes', 'site_invitations', 'site_sessions', 'site_usage_daily'],
+    tables: ['ai_generation_jobs', 'audit_logs', 'chat_conversations', 'crawler_hits', 'email_log', 'email_messages', 'notifications', 'orders', 'plugin_storage', 'site_auth_codes', 'site_invitations', 'site_sessions', 'site_usage_daily'],
     reason: 'Nightly retention clean-up for every site.',
   },
   {

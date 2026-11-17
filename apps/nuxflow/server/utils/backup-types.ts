@@ -117,6 +117,14 @@ export interface BackupClassPass {
   isActive: boolean
 }
 
+/** A chatbot knowledge entry (Admin → Chatbot → Knowledge). Conversations never travel. */
+export interface BackupChatKnowledge {
+  kind: 'faq' | 'text'
+  title: string
+  body: string
+  enabled: boolean
+}
+
 /** A redirect rule (Admin → SEO → Redirects). Paths are site-relative, so they carry over to any domain. */
 export interface BackupRedirect {
   from: string
@@ -299,6 +307,8 @@ export interface NuxFlowBackup {
    * the plan), so it travels here rather than in `settings`. Absent in older backups.
    */
   shop?: { enabled: boolean }
+  /** Optional: absent from backups made before the chatbot. Restored with the settings. */
+  chatKnowledge?: BackupChatKnowledge[]
 }
 
 // ── Backup format runtime validation ──────────────────────────────────────────
@@ -419,6 +429,13 @@ const backupClassPassSchema = z.object({
   currency: z.string().regex(/^[a-z]{3}$/i),
   validDays: z.number().int().min(1).max(3650).nullable(),
   isActive: z.boolean(),
+})
+
+const backupChatKnowledgeSchema = z.object({
+  kind: z.enum(['faq', 'text']),
+  title: z.string().trim().min(1).max(300),
+  body: z.string().trim().min(1).max(4000),
+  enabled: z.boolean(),
 })
 
 const backupRedirectSchema = z.object({
@@ -573,6 +590,7 @@ export const nuxFlowBackupSchema = z.object({
   redirects: z.array(backupRedirectSchema).optional(),
   classPasses: z.array(backupClassPassSchema).max(200).optional(),
   shop: z.object({ enabled: z.boolean() }).optional(),
+  chatKnowledge: z.array(backupChatKnowledgeSchema).max(500).optional(),
 }) satisfies z.ZodType<NuxFlowBackup>
 
 // Parses and validates an uploaded backup.json against the schema above, throwing a
@@ -647,6 +665,7 @@ export interface RestoreResult {
   redirects: { created: number; updated: number; skipped: number }
   /** Optional so callers that build a result by hand (tests, older code) still type-check. */
   classPasses?: { created: number; updated: number; skipped: number }
+  chatKnowledge?: { created: number; updated: number; skipped: number }
   products?: { restored: number; files: number }
   availability?: { feeds: number; blocks: number }
   /** Hosting-plan limits that stopped part of the restore (their items count as skipped). */

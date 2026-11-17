@@ -173,6 +173,8 @@ export const SERVER_MANAGED_SETTING_KEYS: ReadonlySet<string> = new Set([
   // The shop switch (shop.ts): only through Admin → Shop, which checks the plan includes it,
   // and never restored, as a backup can land on a site whose plan doesn't.
   'shop.enabled',
+  // What the chatbot's last complete index sync covered (chatbot-index.ts) — rebuilt, never restored.
+  'chatbot.index_stamp',
 ])
 
 /**

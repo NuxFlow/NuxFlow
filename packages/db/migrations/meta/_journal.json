@@ -85,6 +85,13 @@
       "when": 1794482207745,
       "tag": "0011_appointments",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1794900490630,
+      "tag": "0012_chatbot",
+      "breakpoints": true
     }
   ]
 }

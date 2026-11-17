@@ -12,7 +12,7 @@ import {
   menus, forms, media,
   themes, dynamicPlugins, pluginStorage,
   userSiteRoles, membershipTiers, redirects,
-  products, productVariants, availabilityFeeds, availabilityBlocks, classPasses,
+  products, productVariants, availabilityFeeds, availabilityBlocks, classPasses, chatKnowledge,
 } from '@nuxflow/db/schema'
 import { parseFieldDefs } from '../../shared/lib/custom-fields'
 import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
@@ -60,7 +60,7 @@ export interface BuildBackupOptions {
 export async function buildBackup(event: H3Event, siteId: string, options: BuildBackupOptions = {}): Promise<NuxFlowBackup> {
   const db = useDb(event)
 
-  const [site, settingRows, ctRows, itemRows, taxRows, menuRows, formRows, mediaRows, themeRows, pluginRows, roleRows, tierRows, redirectRows, productRows, variantRows, feedRows, ownBlockRows, passRows] = await Promise.all([
+  const [site, settingRows, ctRows, itemRows, taxRows, menuRows, formRows, mediaRows, themeRows, pluginRows, roleRows, tierRows, redirectRows, productRows, variantRows, feedRows, ownBlockRows, passRows, chatKnowledgeRows] = await Promise.all([
     db.query.sites.findFirst({
       where: eq(sites.id, siteId),
       columns: { name: true, locale: true, timezone: true },
@@ -114,6 +114,11 @@ export async function buildBackup(event: H3Event, siteId: string, options: Build
       orderBy: [asc(availabilityBlocks.startDate)],
     }),
     db.query.classPasses.findMany({ where: eq(classPasses.siteId, siteId) }),
+    db.query.chatKnowledge.findMany({
+      where: eq(chatKnowledge.siteId, siteId),
+      columns: { kind: true, title: true, body: true, enabled: true },
+      orderBy: [asc(chatKnowledge.kind), asc(chatKnowledge.title)],
+    }),
   ])
 
   // Themes: D1 row plus its KV-only CSS/demo payload (see BackupTheme). getThemeCSS()
@@ -397,6 +402,7 @@ export async function buildBackup(event: H3Event, siteId: string, options: Build
       isActive: p.isActive,
     })),
     shop: { enabled: shopEnabled },
+    chatKnowledge: chatKnowledgeRows,
   }
 }
 
