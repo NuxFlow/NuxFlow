@@ -13,7 +13,7 @@ import { sha256Hex } from './buffer'
 import { chatbotIncluded } from './chatbot'
 import { isServedCopy } from './move-state'
 import { chunk } from '../../shared/lib/array'
-import { CHATBOT_SETTING_KEY, chatNamespace, chunkText, knowledgeText, parseChatbotSettings, type ChatbotIndexStatus, type ChatbotSettings } from '../../shared/lib/chatbot'
+import { CHATBOT_SETTING_KEY, chatNamespace, chunkText, knowledgeText, MAX_CHUNKS_PER_DOCUMENT, parseChatbotSettings, type ChatbotIndexStatus, type ChatbotSettings } from '../../shared/lib/chatbot'
 
 /**
  * What the chatbot learns: each enabled site's published, public pages (those smart search
@@ -99,8 +99,8 @@ function needsWork(s: Source, existing: ExistingSource | undefined, model: strin
 }
 
 /** The text a source is learnt from: the page's title and Markdown body, or the knowledge entry. */
-async function sourceTexts(db: Db, siteId: string, list: Source[]): Promise<Map<string, { title: string; body: string }>> {
-  const out = new Map<string, { title: string; body: string }>()
+async function sourceTexts(db: Db, siteId: string, list: Source[]): Promise<Map<string, { title: string; body: string; maxChunks?: number }>> {
+  const out = new Map<string, { title: string; body: string; maxChunks?: number }>()
   const contentIds = list.filter(s => s.kind === 'content').map(s => s.id)
   const knowledgeIds = list.filter(s => s.kind === 'knowledge').map(s => s.id)
   for (const ids of chunk(contentIds, 20)) {
@@ -116,7 +116,7 @@ async function sourceTexts(db: Db, siteId: string, list: Source[]): Promise<Map<
     const rows = await db.select({ id: chatKnowledge.id, kind: chatKnowledge.kind, title: chatKnowledge.title, body: chatKnowledge.body })
       .from(chatKnowledge)
       .where(and(eq(chatKnowledge.siteId, siteId), inArray(chatKnowledge.id, ids)))
-    for (const r of rows) out.set(key('knowledge', r.id), knowledgeText(r.kind, r.title, r.body))
+    for (const r of rows) out.set(key('knowledge', r.id), { ...knowledgeText(r.kind, r.title, r.body), ...(r.kind === 'document' && { maxChunks: MAX_CHUNKS_PER_DOCUMENT }) })
   }
   return out
 }
@@ -199,7 +199,7 @@ export async function syncSiteChatIndex(event: H3Event, db: Db, siteId: string, 
         continue
       }
 
-      const pieces = chunkText(text.title, text.body)
+      const pieces = chunkText(text.title, text.body, undefined, text.maxChunks)
       if (embedded + pieces.length > budget && embedded > 0) return { done: false, embedded, stopped: 'budget' }
       const credits = Math.max(1, Math.ceil(pieces.length / AI_CREDITS.chatChunksPerCredit))
       if (pieces.length && !(await checkAiAllowance(event, credits, 'chat', siteId)).allowed) return { done: false, embedded, stopped: 'allowance' }

@@ -892,6 +892,16 @@ describe('canvas-availability block', () => {
   })
 })
 
+describe('canvas-chat block', () => {
+  it('is registered and kept out of AI pages', async () => {
+    const { BUILTIN_BLOCK_COMPONENTS } = await import('../../../../packages/canvas/src/blocks/components')
+    const def = getBlockDefinition('canvas-chat')!
+    expect(BUILTIN_BLOCK_COMPONENTS['canvas-chat']).toBeDefined()
+    expect(def.ai?.exclude).toBe(true)
+    expect(def.defaultProps).toMatchObject({ title: 'Ask us anything', chatHeading: '' })
+  })
+})
+
 describe('canvas-appointment block', () => {
   it('is registered, kept out of AI pages, and its refund rule only shows for a paid service', async () => {
     const { BUILTIN_BLOCK_COMPONENTS } = await import('../../../../packages/canvas/src/blocks/components')

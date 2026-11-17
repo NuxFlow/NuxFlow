@@ -1,5 +1,5 @@
 import { useDb } from '../utils/db'
-import { comments, contentItems, contentRevisions, dynamicPlugins, emailMessages, formSubmissions, media, pluginStorage, productVariants, sites, userSiteRoles } from '@nuxflow/db/schema'
+import { chatChunks, chatKnowledge, chatMessages, comments, contentItems, contentRevisions, dynamicPlugins, emailMessages, formSubmissions, media, pluginStorage, productVariants, sites, userSiteRoles } from '@nuxflow/db/schema'
 import { count, eq, sql } from 'drizzle-orm'
 import type { Db } from '../utils/db'
 import { writeUsageSnapshot, type UsageCount, type UsageSnapshotMetric } from '../utils/usage'
@@ -13,7 +13,7 @@ const OPERATOR_ROLE = 'super_admin'
 /**
  * Approximate bytes each site takes in the shared D1 database: the big text columns of the
  * tables that grow with use — content and its revisions, media rows (the database fallback
- * keeps whole files there), inbox bodies, form entries, comments and plugin storage. Not an
+ * keeps whole files there), inbox bodies, form entries, comments, plugin storage and the chatbot. Not an
  * exact on-disk size (D1 doesn't expose one per tenant — see d1-stats.ts), but the same
  * method every night, so it shows which sites are growing and roughly by how much.
  */
@@ -29,6 +29,10 @@ async function databaseBytesBySite(db: Db): Promise<Map<string, number>> {
     db.select({ siteId: formSubmissions.siteId, value: len(formSubmissions.data) }).from(formSubmissions).groupBy(formSubmissions.siteId),
     db.select({ siteId: comments.siteId, value: len(comments.body) }).from(comments).groupBy(comments.siteId),
     db.select({ siteId: pluginStorage.siteId, value: len(pluginStorage.value) }).from(pluginStorage).groupBy(pluginStorage.siteId),
+    // The chatbot: its documents and Q&A, the text it learnt, and visitors' chats.
+    db.select({ siteId: chatKnowledge.siteId, value: len(chatKnowledge.body) }).from(chatKnowledge).groupBy(chatKnowledge.siteId),
+    db.select({ siteId: chatChunks.siteId, value: len(chatChunks.text) }).from(chatChunks).groupBy(chatChunks.siteId),
+    db.select({ siteId: chatMessages.siteId, value: len(chatMessages.text) }).from(chatMessages).groupBy(chatMessages.siteId),
   ])
   const totals = new Map<string, number>()
   for (const rows of parts) {

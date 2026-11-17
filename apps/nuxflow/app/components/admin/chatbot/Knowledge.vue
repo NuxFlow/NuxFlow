@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChatbotIndexStatus, ChatbotStatusResponse, ChatKnowledgeEntry } from '#shared/lib/chatbot'
+import { CHAT_DOCUMENT_LIMITS, CHAT_DOCUMENT_TYPES, type ChatbotIndexStatus, type ChatbotStatusResponse, type ChatKnowledgeEntry, type ChatKnowledgeKind } from '#shared/lib/chatbot'
 
 const props = defineProps<{ status: ChatbotStatusResponse }>()
 const emit = defineEmits<{ changed: [] }>()
@@ -12,13 +12,44 @@ const index = ref<ChatbotIndexStatus>(props.status.index)
 watch(() => props.status.index, (v) => { index.value = v })
 
 const editing = ref(false)
-const form = reactive({ id: undefined as string | undefined, kind: 'faq' as 'faq' | 'text', title: '', body: '', enabled: true })
+const form = reactive({ id: undefined as string | undefined, kind: 'faq' as ChatKnowledgeKind, title: '', body: '', enabled: true })
+const bodyMax = computed(() => form.kind === 'document' ? CHAT_DOCUMENT_LIMITS.chars : CHAT_DOCUMENT_LIMITS.entryChars)
+
+// Documents: the file's text is learnt; the file itself isn't kept.
+const fileInput = ref<HTMLInputElement | null>(null)
+const accept = Object.keys(CHAT_DOCUMENT_TYPES).map(e => `.${e}`).join(',')
+const typeList = Object.values(CHAT_DOCUMENT_TYPES).map(t => t.label).join(', ')
+async function upload(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await run(() => $fetch<{ id: string; characters: number; truncated: boolean }>('/_nuxflow/chatbot', { method: 'POST', body: fd }), {
+    errorTitle: "Couldn't read that document",
+    key: 'upload',
+    successTitle: r => r.truncated
+      ? `Added — but it's long, so only the first ${CHAT_DOCUMENT_LIMITS.chars.toLocaleString()} characters are used`
+      : `Added ${file.name} (${r.characters.toLocaleString()} characters)`,
+  })
+  if (!res) return
+  await refresh()
+  emit('changed')
+}
+
+function sizeText(bytes: number | null): string {
+  if (!bytes) return ''
+  return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+const kindLabel: Record<ChatKnowledgeKind, string> = { faq: 'Q&A', text: 'Text', document: 'Document' }
 
 function openNew(kind: 'faq' | 'text') {
   Object.assign(form, { id: undefined, kind, title: '', body: '', enabled: true })
   editing.value = true
 }
 function openEdit(e: ChatKnowledgeEntry) {
+  // A document keeps its kind; its text can still be corrected here.
   Object.assign(form, { id: e.id, kind: e.kind, title: e.title, body: e.body, enabled: e.enabled })
   editing.value = true
 }
@@ -82,24 +113,28 @@ async function syncNow() {
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 class="font-semibold">Knowledge</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400">Answers to common questions, and anything else it should know that isn't on your pages.</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Answers to common questions, documents (price lists, menus, policies) and anything else it should know that isn't on your pages.</p>
           </div>
-          <div class="flex gap-2">
+          <div class="flex flex-wrap gap-2">
             <UButton icon="i-lucide-plus" @click="openNew('faq')">Question &amp; answer</UButton>
             <UButton variant="outline" icon="i-lucide-plus" @click="openNew('text')">Text</UButton>
+            <UButton variant="outline" icon="i-lucide-file-up" :loading="isRunning('upload')" @click="fileInput?.click()">Document</UButton>
+            <input ref="fileInput" type="file" class="hidden" :accept="accept" @change="upload">
           </div>
         </div>
       </template>
 
+      <p class="text-xs text-gray-500 mb-3">Documents: {{ typeList }}, up to 10 MB. Only the text is kept, not the file. PDFs and Office files need Workers AI; scanned PDFs (pictures of text) can't be read.</p>
       <p v-if="!entries.length" class="text-sm text-gray-500">Nothing yet. Add the questions people ask you most — the chatbot uses your answers word for word.</p>
       <ul v-else class="divide-y divide-gray-200 dark:divide-gray-800">
         <li v-for="e in entries" :key="e.id" class="py-3 flex items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex items-center gap-2">
-              <UBadge size="xs" variant="soft" :color="e.kind === 'faq' ? 'primary' : 'neutral'">{{ e.kind === 'faq' ? 'Q&A' : 'Text' }}</UBadge>
+              <UBadge size="xs" variant="soft" :color="e.kind === 'faq' ? 'primary' : e.kind === 'document' ? 'info' : 'neutral'">{{ kindLabel[e.kind] }}</UBadge>
               <UBadge v-if="!e.enabled" size="xs" variant="soft" color="warning">Off</UBadge>
               <p class="font-medium text-sm truncate">{{ e.title }}</p>
             </div>
+            <p v-if="e.kind === 'document'" class="text-xs text-gray-500 mt-1">{{ e.fileName }}<template v-if="e.fileSize"> · {{ sizeText(e.fileSize) }}</template> · {{ e.body.length.toLocaleString() }} characters</p>
             <p class="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">{{ e.body }}</p>
           </div>
           <div class="flex gap-1 shrink-0">
@@ -110,14 +145,14 @@ async function syncNow() {
       </ul>
     </UCard>
 
-    <UModal v-model:open="editing" :title="form.id ? 'Edit entry' : form.kind === 'faq' ? 'New question and answer' : 'New text'">
+    <UModal v-model:open="editing" :title="form.id ? (form.kind === 'document' ? 'Edit document' : 'Edit entry') : form.kind === 'faq' ? 'New question and answer' : 'New text'">
       <template #body>
         <div class="space-y-4">
           <UFormField :label="form.kind === 'faq' ? 'Question' : 'Title'" required>
             <UInput v-model="form.title" maxlength="300" class="w-full" :placeholder="form.kind === 'faq' ? 'Do you offer gift vouchers?' : 'Delivery area'" />
           </UFormField>
           <UFormField :label="form.kind === 'faq' ? 'Answer' : 'Text'" required>
-            <UTextarea v-model="form.body" :rows="6" maxlength="4000" class="w-full" />
+            <UTextarea v-model="form.body" :rows="form.kind === 'document' ? 14 : 6" :maxlength="bodyMax" class="w-full" />
           </UFormField>
           <USwitch v-model="form.enabled" label="The chatbot uses this" />
         </div>

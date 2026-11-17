@@ -49,3 +49,11 @@ export interface AudioTrack {
 export function useAudioTrack() {
   return useState<AudioTrack | null>('nuxflow:audio-track', () => null)
 }
+
+/**
+ * How many Chat blocks are on the page now (PublicChatInline). While there is one, the
+ * floating bubble stays hidden, so the page never shows two copies of the same chat.
+ */
+export function useInlineChatCount() {
+  return useState<number>('nuxflow:inline-chats', () => 0)
+}

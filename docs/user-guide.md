@@ -463,9 +463,16 @@ Comments and form submissions already pass through Cloudflare Turnstile's bot ch
 **Audience → Chatbot** (admins) puts a chat bubble in the corner of your site that answers visitors' questions. It answers from:
 - your published, public pages and posts (you can limit it to some content types),
 - your opening hours, address and contact details from **Settings → Business**, read live so they're never out of date,
-- the questions and answers and other text you add under **Knowledge**. It uses your answers word for word, so add the questions people ask you most.
+- the questions and answers and other text you add under **Knowledge**. It uses your answers word for word, so add the questions people ask you most;
+- documents you upload under **Knowledge → Document**: a price list, menu, brochure or policy as PDF, Word, Excel, OpenDocument, text, Markdown, CSV or a saved web page, up to 10 MB. Only the text is kept, not the file, and you can correct it afterwards. PDFs and Office files need Workers AI; a scanned PDF (pictures of text) can't be read.
 
 New and changed pages are learnt within a minute or two by themselves. **Update now** does it straight away.
+
+**Live details.** Some things are looked up the moment it answers, so it never quotes yesterday's price or a time that's gone (each can be switched off in Settings):
+- the next few upcoming events, with their dates and places;
+- the price and stock of a product it found a page for (when the shop is on);
+- the next free times of an appointment service on a page it found.
+It always sends visitors to the page to book or buy; it never books or orders anything itself.
 
 **What it says.** Under **Settings** you give it a name, a greeting and up to four starter questions. You can also add your own instructions (tone, what to mention, how to talk about prices) and topics it won't discuss. By default it only answers from your site's information and says it doesn't know rather than guessing. Turn that off to let it use general knowledge too; it still never invents facts about your business. It replies in the language the visitor writes in, unless you choose **Always the site's language**. It never claims to have booked, ordered or sent anything: it gives information and links to your pages.
 
@@ -473,11 +480,16 @@ New and changed pages are learnt within a minute or two by themselves. **Update 
 
 **Try it** lets you chat with it using the saved settings, even before the bubble is switched on. Those chats aren't kept. **Conversations** shows what visitors asked over the last 30 days; older conversations are deleted automatically. Mention the chat in your privacy policy.
 
+**Making it better.** Visitors can give each answer a thumbs up or down. **Insights** shows the last 30 days (conversations, questions, details left, how many answers were rated helpful) and lists what needs a look: questions it couldn't help with, and answers marked not helpful. **Add an answer** saves your answer as a question and answer under Knowledge, and the chatbot uses it from then on; **Dismiss** takes one off the list. Any answer in **Conversations** has **Add a better answer** too.
+
+**In a page.** The **Chat** block (in the Calls to action group) shows the same chat inside a page, such as a Contact or Help page, instead of the bubble. The bubble is hidden on that page. It shows nothing while the chatbot is switched off.
+
 Good to know:
 - The first message is protected by Turnstile when your site uses it.
 - Each conversation has a message limit (20 by default) to keep costs predictable.
 - On a hosting plan, the chatbot must be included in the plan, and its AI counts against **Chat AI credits a month** (about 3 credits an answer). With your own AI key in Settings → AI, answers use your key and aren't counted; learning your pages still runs on Workers AI.
-- Without a Vectorize search index on the installation, it only knows your business details.
+- Without a Vectorize search index on the installation, it only knows your business details and live details.
+- Developers: plugins granted `hook:chat.lead` are told when a visitor leaves their details (see the plugin docs).
 
 ### Stale Content Reminders
 NuxFlow periodically checks for published content that hasn't been updated in a long time (180 days by default) and sends the original author an in-app notification suggesting a review — a nudge to keep older pages accurate, not an automated edit or unpublish of any kind.

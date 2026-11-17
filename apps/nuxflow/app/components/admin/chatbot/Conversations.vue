@@ -27,6 +27,15 @@ async function openConversation(id: string) {
   }
 }
 
+// "Add a better answer" on one of the bot's replies: the question is the visitor's message before it.
+const faq = reactive({ open: false, question: '', answer: '', messageId: '' })
+function improve(index: number) {
+  const list = transcript.value?.messages ?? []
+  const reply = list[index]!
+  const question = list.slice(0, index).reverse().find(m => m.role === 'user')
+  Object.assign(faq, { open: true, question: question?.text ?? '', answer: reply.text, messageId: reply.id })
+}
+
 async function remove(id: string) {
   const ok = await confirm({ title: 'Delete this conversation?', description: 'It can\'t be brought back. An enquiry already in the Inbox stays there.', confirmLabel: 'Delete', color: 'error' })
   if (!ok) return
@@ -83,14 +92,22 @@ async function remove(id: string) {
             <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" aria-label="Delete" :loading="isRunning(`delete:${selected}`)" @click="remove(selected!)" />
           </div>
         </div>
-        <template v-for="m in transcript.messages" :key="m.id">
+        <template v-for="(m, i) in transcript.messages" :key="m.id">
           <div v-if="m.role === 'user'" class="ml-auto max-w-[85%] rounded-2xl bg-primary-600 text-white px-3 py-2 text-sm whitespace-pre-wrap break-words">{{ m.text }}</div>
           <div v-else class="max-w-[85%] space-y-1">
             <div class="rounded-2xl bg-gray-100 dark:bg-gray-800 px-3 py-2 text-sm whitespace-pre-wrap break-words">{{ m.text }}</div>
-            <p v-if="m.sources?.length" class="text-xs text-gray-500 px-1">From: {{ m.sources.map(s => s.path).join(', ') }}</p>
+            <div class="flex flex-wrap items-center gap-2 px-1 text-xs text-gray-500">
+              <span v-if="m.sources?.length">From: {{ m.sources.map(s => s.path).join(', ') }}</span>
+              <UBadge v-if="m.unanswered" size="xs" variant="soft" color="warning">Couldn't help</UBadge>
+              <UIcon v-if="m.rating === 1" name="i-lucide-thumbs-up" class="w-3.5 h-3.5 text-green-600" aria-label="Rated helpful" />
+              <UIcon v-if="m.rating === -1" name="i-lucide-thumbs-down" class="w-3.5 h-3.5 text-red-600" aria-label="Rated not helpful" />
+              <button class="underline" @click="improve(i)">Add a better answer</button>
+            </div>
           </div>
         </template>
       </div>
     </UCard>
+
+    <AdminChatbotFaqModal v-model:open="faq.open" :question="faq.question" :answer="faq.answer" :message-id="faq.messageId" />
   </div>
 </template>

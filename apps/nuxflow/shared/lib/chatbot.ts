@@ -29,6 +29,15 @@ export interface ChatbotSettings {
   showSources: boolean
   /** Visitor messages allowed in one conversation. */
   maxMessages: number
+  /** Live details it may look up for an answer (read at the moment it answers). */
+  live: {
+    /** The next few upcoming public events. */
+    events: boolean
+    /** Price and stock of products it found pages for. */
+    products: boolean
+    /** The next free times of appointment services on pages it found. */
+    appointments: boolean
+  }
   lead: {
     /** fallback = offer to take details when it can't help; always = also a button at all times; off = never. */
     mode: ChatLeadMode
@@ -66,6 +75,7 @@ export const DEFAULT_CHATBOT_SETTINGS: ChatbotSettings = {
   starterQuestions: [],
   showSources: true,
   maxMessages: 20,
+  live: { events: true, products: true, appointments: true },
   lead: {
     mode: 'fallback',
     askPhone: false,
@@ -85,9 +95,10 @@ function strList(value: unknown, maxItems: number, maxLen: number): string[] {
 /** Reads a stored value leniently, field by field — anything missing or wrong takes the default. */
 export function parseChatbotSettings(raw: unknown): ChatbotSettings {
   const d = DEFAULT_CHATBOT_SETTINGS
-  if (!raw || typeof raw !== 'object') return { ...d, lead: { ...d.lead } }
+  if (!raw || typeof raw !== 'object') return { ...d, live: { ...d.live }, lead: { ...d.lead } }
   const r = raw as Record<string, unknown>
   const lead = (r.lead && typeof r.lead === 'object' ? r.lead : {}) as Record<string, unknown>
+  const live = (r.live && typeof r.live === 'object' ? r.live : {}) as Record<string, unknown>
   const max = Number(r.maxMessages)
   return {
     enabled: r.enabled === true,
@@ -102,6 +113,11 @@ export function parseChatbotSettings(raw: unknown): ChatbotSettings {
     starterQuestions: strList(r.starterQuestions, CHATBOT_LIMITS.starterQuestions, CHATBOT_LIMITS.starterQuestion),
     showSources: r.showSources !== false,
     maxMessages: Number.isInteger(max) ? Math.min(CHATBOT_LIMITS.maxMessages, Math.max(CHATBOT_LIMITS.minMessages, max)) : d.maxMessages,
+    live: {
+      events: live.events !== false,
+      products: live.products !== false,
+      appointments: live.appointments !== false,
+    },
     lead: {
       mode: lead.mode === 'always' || lead.mode === 'off' ? lead.mode : 'fallback',
       askPhone: lead.askPhone === true,
@@ -156,7 +172,8 @@ export function chatbotShownOn(path: string, excludePaths: string[]): boolean {
 
 /**
  * The bot ends a reply with this when it can't help or the visitor asks for a person; the
- * bubble then offers the lead form. A marker rather than a tool call because the models it
+ * bubble then offers the lead form (when leads are on), and the answer is listed in
+ * Admin → Chatbot → Insights as one it couldn't help with. A marker rather than a tool call because the models it
  * runs on (Workers AI's small fast model included) follow it reliably, and it streams.
  */
 export const LEAD_MARKER = '[[CONTACT]]'
@@ -185,12 +202,14 @@ export function visibleWhileStreaming(text: string): string {
 export const CHUNK_CHARS = 1200
 /** Most chunks one page may produce (a very long page is cut short rather than costing hundreds). */
 export const MAX_CHUNKS_PER_SOURCE = 40
+/** Uploaded documents are longer than pages: a price list or handbook. */
+export const MAX_CHUNKS_PER_DOCUMENT = 120
 
 /**
  * Splits a page's text into chunks, on paragraph boundaries where possible. Each chunk
  * starts with the page's title so it makes sense on its own. Blank input = no chunks.
  */
-export function chunkText(title: string, body: string, maxChars = CHUNK_CHARS): string[] {
+export function chunkText(title: string, body: string, maxChars = CHUNK_CHARS, maxChunks = MAX_CHUNKS_PER_SOURCE): string[] {
   const paragraphs = body.replace(/\r\n/g, '\n').split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
   const pieces: string[] = []
   for (const p of paragraphs) {
@@ -222,17 +241,52 @@ export function chunkText(title: string, body: string, maxChars = CHUNK_CHARS): 
   if (current) chunks.push(current)
 
   const heading = title.trim()
-  const out = chunks.slice(0, MAX_CHUNKS_PER_SOURCE).map(c => (heading ? `${heading}\n\n${c}` : c))
+  const out = chunks.slice(0, maxChunks).map(c => (heading ? `${heading}\n\n${c}` : c))
   // A page with a title but no body still says something (e.g. "Opening times").
   if (!out.length && heading) return [heading]
   return out
 }
 
+export type ChatKnowledgeKind = 'faq' | 'text' | 'document'
+
 /** The text a knowledge entry is learnt as. */
-export function knowledgeText(kind: 'faq' | 'text', title: string, body: string): { title: string; body: string } {
+export function knowledgeText(kind: ChatKnowledgeKind, title: string, body: string): { title: string; body: string } {
   return kind === 'faq'
     ? { title: `Q: ${title.trim()}`, body: `A: ${body.trim()}` }
     : { title: title.trim(), body: body.trim() }
+}
+
+// ── Documents ─────────────────────────────────────────────────────────────────────────
+
+export const CHAT_DOCUMENT_LIMITS = {
+  /** Largest file accepted. */
+  bytes: 10 * 1024 * 1024,
+  /** Most text kept from one document (the rest is cut off, and the admin told). */
+  chars: 150_000,
+  /** Knowledge entries' own text (Q&A answers and free text). */
+  entryChars: 4000,
+} as const
+
+/**
+ * Files turned into text for the chatbot. Plain text is read as it is; the rest needs
+ * Workers AI's document conversion (`env.AI.toMarkdown()`, free for these formats).
+ * No images: converting those runs an AI model, and their text is rarely what's wanted.
+ */
+export const CHAT_DOCUMENT_TYPES: Record<string, { label: string; plain: boolean }> = {
+  txt: { label: 'Text', plain: true },
+  md: { label: 'Markdown', plain: true },
+  csv: { label: 'CSV', plain: true },
+  pdf: { label: 'PDF', plain: false },
+  docx: { label: 'Word', plain: false },
+  odt: { label: 'OpenDocument text', plain: false },
+  xlsx: { label: 'Excel', plain: false },
+  ods: { label: 'OpenDocument spreadsheet', plain: false },
+  html: { label: 'Web page', plain: false },
+}
+
+export function chatDocumentExtension(fileName: string): string | null {
+  const ext = fileName.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? ''
+  return ext in CHAT_DOCUMENT_TYPES ? ext : null
 }
 
 /** The Vectorize namespace a site's chatbot knowledge lives in (smart search uses the bare site id). */
@@ -264,10 +318,12 @@ export interface ChatbotStatusResponse {
 
 export interface ChatKnowledgeEntry {
   id: string
-  kind: 'faq' | 'text'
+  kind: ChatKnowledgeKind
   title: string
   body: string
   enabled: boolean
+  fileName: string | null
+  fileSize: number | null
   updatedAt: string
 }
 
@@ -288,5 +344,31 @@ export interface ChatTranscriptMessage {
   role: 'user' | 'assistant'
   text: string
   sources: { title: string; path: string | null }[] | null
+  unanswered: boolean
+  rating: number | null
+  createdAt: string
+}
+
+/** Admin → Chatbot → Insights: how the last 30 days went, and the answers that need a look. */
+export interface ChatInsightsResponse {
+  totals: {
+    conversations: number
+    questions: number
+    leads: number
+    helpful: number
+    unhelpful: number
+    unanswered: number
+  }
+  /** Not yet dealt with, newest first. */
+  items: ChatInsightItem[]
+}
+
+export interface ChatInsightItem {
+  /** The bot's answer. */
+  messageId: string
+  conversationId: string
+  question: string
+  answer: string
+  reason: 'unanswered' | 'unhelpful'
   createdAt: string
 }

@@ -680,6 +680,35 @@ export const CANVAS_BLOCKS: CanvasBlockDefinition[] = [
     },
   },
 
+  // ── Chat ────────────────────────────────────────────────────────────────────
+  {
+    id: 'canvas-chat',
+    name: 'Chat',
+    description: 'The website chatbot in the page, instead of the bubble in the corner',
+    icon: 'i-lucide-bot-message-square',
+    category: 'cta',
+    component: 'CanvasBlockChat',
+    // Only does anything once the site's chatbot is switched on (Admin → Chatbot).
+    ai: { exclude: true },
+    thumbnailColor: '#eef2ff',
+    fields: [
+      { key: 'title', label: 'Heading above the chat', type: 'text', placeholder: 'Ask us anything' },
+      { key: 'intro', label: 'Text under the heading', type: 'textarea' },
+      { key: 'chatHeading', label: 'Name in the chat (blank = the chatbot’s name)', type: 'text' },
+      { key: 'bgColor', label: 'Background colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+      { key: 'padding', label: 'Padding', type: 'spacing' },
+    ],
+    defaultProps: {
+      title: 'Ask us anything',
+      intro: '',
+      chatHeading: '',
+      bgColor: '',
+      textColor: '',
+      padding: { top: 48, right: 24, bottom: 48, left: 24, unit: 'px' },
+    },
+  },
+
   // ── Availability calendar ──────────────────────────────────────────────────
   {
     id: 'canvas-availability',

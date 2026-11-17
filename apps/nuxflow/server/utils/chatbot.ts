@@ -12,6 +12,7 @@ import { embedText, getSearchIndexInfo } from './embeddings'
 import { getBusinessInfo, hasBusinessDetails } from './business'
 import { sha256Hex } from './buffer'
 import { notifySiteRole } from './notify'
+import { queuePluginHook } from './plugin-hooks'
 import { ensureInboundHandle, mailboxAddresses } from './inbox'
 import { makeSnippet } from './inbound-email'
 import { validationError } from './response'
@@ -52,6 +53,8 @@ const settingsSchema = z.object({
   starterQuestions: z.array(z.string().trim().max(CHATBOT_LIMITS.starterQuestion, 'Keep starter questions short')).max(CHATBOT_LIMITS.starterQuestions, `Up to ${CHATBOT_LIMITS.starterQuestions} starter questions`),
   showSources: z.boolean(),
   maxMessages: z.number().int().min(CHATBOT_LIMITS.minMessages).max(CHATBOT_LIMITS.maxMessages),
+  // Optional: settings saved before live details existed leave them all on.
+  live: z.object({ events: z.boolean(), products: z.boolean(), appointments: z.boolean() }).optional(),
   lead: z.object({
     mode: z.enum(['fallback', 'always', 'off']),
     askPhone: z.boolean(),
@@ -110,10 +113,13 @@ export async function conversationHistory(db: Db, siteId: string, conversationId
   return rows.reverse().map(r => ({ role: r.role, content: r.text }))
 }
 
-export async function saveChatMessage(db: Db, siteId: string, conversationId: string, role: 'user' | 'assistant', text: string, sources: ChatSource[] | null = null): Promise<void> {
+export async function saveChatMessage(
+  db: Db, siteId: string, conversationId: string, role: 'user' | 'assistant', text: string,
+  extra: { id?: string; sources?: ChatSource[] | null; unanswered?: boolean } = {},
+): Promise<void> {
   // ULIDs made in the same millisecond still sort in order of creation within this isolate.
   await db.batch([
-    db.insert(chatMessages).values({ id: ulid(), siteId, conversationId, role, text, sources }),
+    db.insert(chatMessages).values({ id: extra.id ?? ulid(), siteId, conversationId, role, text, sources: extra.sources ?? null, unanswered: extra.unanswered ?? false }),
     db.update(chatConversations)
       .set({
         lastMessageAt: sql`(datetime('now'))`,
@@ -125,7 +131,7 @@ export async function saveChatMessage(db: Db, siteId: string, conversationId: st
 
 // ── What the bot finds for a question ─────────────────────────────────────────────────
 
-export interface ChatPassage { title: string; path: string | null; text: string }
+export interface ChatPassage { kind: 'content' | 'knowledge'; id: string; title: string; path: string | null; text: string }
 
 /**
  * The pieces of the site's text most like the question, from the chat namespace of the
@@ -142,14 +148,14 @@ export async function findPassages(event: H3Event, siteId: string, question: str
     const result = await index.query(values, { topK: TOP_K, namespace: chatNamespace(siteId) })
     const ids = result.matches.filter(m => m.score >= MIN_PASSAGE_SCORE).map(m => m.id)
     if (!ids.length) return []
-    const rows = await useDb(event).select({ id: chatChunks.id, title: chatChunks.title, path: chatChunks.path, text: chatChunks.text })
+    const rows = await useDb(event).select({ id: chatChunks.id, kind: chatChunks.sourceKind, sourceId: chatChunks.sourceId, title: chatChunks.title, path: chatChunks.path, text: chatChunks.text })
       .from(chatChunks)
       .where(and(eq(chatChunks.siteId, siteId), inArray(chatChunks.id, ids)))
     const byId = new Map(rows.map(r => [r.id, r]))
     // Vectorize's order (most similar first); a vector whose row is gone is skipped.
     return ids.flatMap((id) => {
       const r = byId.get(id)
-      return r ? [{ title: r.title, path: r.path, text: r.text }] : []
+      return r ? [{ kind: r.kind, id: r.sourceId, title: r.title, path: r.path, text: r.text }] : []
     })
   }
   catch (err) {
@@ -219,6 +225,30 @@ export function siteNow(timeZone: string, now = new Date()): string {
 export function storedReply(text: string): { text: string; wantsLead: boolean } {
   const { text: clean, wantsLead } = splitLeadMarker(text)
   return { text: clean.slice(0, 8000), wantsLead }
+}
+
+// ── Ratings ───────────────────────────────────────────────────────────────────────────
+
+/** The visitor's thumbs on one of the bot's answers in their own conversation (0 takes it back). */
+export async function rateChatAnswer(db: Db, siteId: string, conversation: ChatConversationRow, messageId: string, rating: -1 | 0 | 1): Promise<boolean> {
+  const [row] = await db.update(chatMessages)
+    .set({ rating: rating === 0 ? null : rating })
+    .where(and(
+      eq(chatMessages.id, messageId),
+      eq(chatMessages.siteId, siteId),
+      eq(chatMessages.conversationId, conversation.id),
+      eq(chatMessages.role, 'assistant'),
+    ))
+    .returning({ id: chatMessages.id })
+  return Boolean(row)
+}
+
+/** The visitor's conversation, only when their token owns it. */
+export async function findOwnConversation(db: Db, siteId: string, token: string, conversationId: string): Promise<ChatConversationRow | null> {
+  const tokenHash = await sha256Hex(token)
+  return (await db.query.chatConversations.findFirst({
+    where: and(eq(chatConversations.id, conversationId), eq(chatConversations.siteId, siteId), eq(chatConversations.visitorTokenHash, tokenHash)),
+  })) ?? null
 }
 
 // ── Leads into the Inbox ──────────────────────────────────────────────────────────────
@@ -313,6 +343,17 @@ export async function recordChatLead(event: H3Event, siteId: string, conversatio
     pushUrl: `/admin/inbox?message=${id}`,
     actionLabel: 'Open in inbox',
   }).catch(err => console.error('[chatbot] Lead notification failed:', err))
+
+  // Plugins granted `hook:chat.lead` (a CRM, say). Built only when one is listening.
+  queuePluginHook(event, siteId, 'chat.lead', () => Promise.resolve({
+    conversationId: conversation.id,
+    name: lead.name,
+    email: lead.email,
+    phone: lead.phone ?? null,
+    message: lead.message ?? null,
+    pagePath: conversation.pagePath,
+    transcript: messages.map(m => ({ role: m.role, text: m.text })),
+  }))
 
   return { threadId }
 }

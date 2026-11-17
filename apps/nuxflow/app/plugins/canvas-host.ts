@@ -91,6 +91,7 @@ export default defineNuxtPlugin((nuxtApp) => {
     // Lazy, so visitors never download admin-only components.
     mediaPicker: defineAsyncComponent(() => import('~/components/editor/MediaPicker.vue')),
     appointmentBooking: defineAsyncComponent(() => import('~/components/public/AppointmentBooking.vue')),
+    chatPanel: defineAsyncComponent(() => import('~/components/public/ChatInline.vue')),
     voiceInput: defineAsyncComponent(() => import('~/components/ai/VoiceInput.vue')),
   }
   nuxtApp.vueApp.provide(canvasHostKey, host)

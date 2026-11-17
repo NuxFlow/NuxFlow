@@ -14,9 +14,13 @@ export const chatKnowledge = sqliteTable('chat_knowledge', {
   id: text('id').primaryKey(),
   siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   // 'faq' = title is the question, body the answer. 'text' = anything else the bot should know.
-  kind: text('kind', { enum: ['faq', 'text'] }).notNull().default('faq'),
+  // 'document' = text taken from an uploaded file (the file itself isn't kept).
+  kind: text('kind', { enum: ['faq', 'text', 'document'] }).notNull().default('faq'),
   title: text('title').notNull(),
   body: text('body').notNull(),
+  // For a document: the uploaded file's name and size.
+  fileName: text('file_name'),
+  fileSize: integer('file_size'),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
@@ -86,7 +90,14 @@ export const chatMessages = sqliteTable('chat_messages', {
   role: text('role', { enum: ['user', 'assistant'] }).notNull(),
   text: text('text').notNull(),
   sources: text('sources', { mode: 'json' }).$type<ChatSource[]>(),
+  // An answer the bot couldn't give (it offered to pass the visitor on) — Admin → Chatbot → Insights.
+  unanswered: integer('unanswered', { mode: 'boolean' }).notNull().default(false),
+  // The visitor's thumbs: 1 helpful, -1 not.
+  rating: integer('rating'),
+  // Dealt with in Insights (an answer was added, or it was dismissed).
+  reviewedAt: text('reviewed_at'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_chat_messages_conversation').on(t.conversationId, t.createdAt),
+  index('idx_chat_messages_review').on(t.siteId, t.createdAt).where(sql`role = 'assistant' AND reviewed_at IS NULL AND (unanswered = 1 OR rating = -1)`),
 ])

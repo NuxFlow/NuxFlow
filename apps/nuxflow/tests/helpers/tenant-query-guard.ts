@@ -209,7 +209,7 @@ export const ALLOWLIST: AllowlistEntry[] = [
   },
   {
     file: 'server/scheduled/usage-snapshot.ts',
-    tables: ['comments', 'content_items', 'dynamic_plugins', 'email_messages', 'form_submissions', 'media', 'plugin_storage', 'product_variants', 'user_site_roles'],
+    tables: ['chat_chunks', 'chat_knowledge', 'chat_messages', 'comments', 'content_items', 'dynamic_plugins', 'email_messages', 'form_submissions', 'media', 'plugin_storage', 'product_variants', 'user_site_roles'],
     reason: "Nightly usage totals (and database size): one grouped query per table for every site's row at once.",
   },
   {

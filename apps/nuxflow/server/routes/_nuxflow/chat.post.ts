@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { streamText } from 'ai'
+import { ulid } from 'ulid'
 import { useDb } from '../../utils/db'
 import { requireSiteId } from '../../utils/site-context'
 import { rateLimit } from '../../utils/rate-limit'
@@ -12,10 +13,11 @@ import { getClientIp } from '../../utils/client-ip'
 import { isDemoMode } from '../../utils/demo-mode'
 import { forbidden, httpError, notFound, validationError } from '../../utils/response'
 import {
-  chatbotIncluded, conversationHistory, findPassages, getChatbotSettings, isChatToken, openConversation,
-  passageSources, recordChatLead, saveChatMessage, siteBusinessFacts, siteLanguageName, siteNow, storedReply,
+  chatbotIncluded, conversationHistory, findOwnConversation, findPassages, getChatbotSettings, isChatToken, openConversation,
+  passageSources, rateChatAnswer, recordChatLead, saveChatMessage, siteBusinessFacts, siteLanguageName, siteNow, storedReply,
 } from '../../utils/chatbot'
 import { buildChatSystemPrompt } from '../../utils/chatbot-prompt'
+import { chatLiveFacts } from '../../utils/chatbot-live'
 import { CHATBOT_LIMITS } from '../../../shared/lib/chatbot'
 
 const token = z.string().max(128)
@@ -42,6 +44,14 @@ const bodySchema = z.discriminatedUnion('action', [
     turnstileToken: z.string().max(4096).optional(),
     // Honeypot: a real visitor never fills it in.
     website: z.string().max(200).optional(),
+  }),
+  // Thumbs up (1) or down (-1) on one of the bot's answers; 0 takes it back.
+  z.object({
+    action: z.literal('rate'),
+    token,
+    conversationId: z.string().max(40),
+    messageId: z.string().max(40),
+    rating: z.union([z.literal(-1), z.literal(0), z.literal(1)]),
   }),
 ])
 
@@ -70,6 +80,13 @@ export default defineEventHandler(async (event) => {
   if (!(await chatbotIncluded(db, siteId))) forbidden('Your hosting plan doesn\'t include the chatbot', { code: 'plan_feature', feature: 'chatbot' })
   if (!isChatToken(body.token)) validationError('Invalid token')
 
+  if (body.action === 'rate') {
+    await rateLimit(event, { limit: 60, windowMs: 60_000, keyPrefix: 'chat-rate' })
+    const conversation = await findOwnConversation(db, siteId, body.token, body.conversationId)
+    if (!conversation || !(await rateChatAnswer(db, siteId, conversation, body.messageId, body.rating))) notFound('That answer no longer exists')
+    return { ok: true }
+  }
+
   if (body.action === 'lead') {
     await rateLimit(event, { limit: 5, windowMs: 10 * 60_000, keyPrefix: 'chat-lead' })
     if (settings.lead.mode === 'off') forbidden('This chat doesn\'t take messages')
@@ -92,16 +109,20 @@ export default defineEventHandler(async (event) => {
   // Up front, so a used-up allowance is a clear 403 (the bubble offers to take a message).
   const model = await requireAiSdkModel(event, 'fast', { trigger: 'chat' })
   const site = await getSiteInfo(event, siteId)
+  const siteTimes = { name: site?.name ?? '', timezone: site?.timezone ?? 'UTC', locale: site?.locale ?? 'en' }
   const [history, passages, facts] = await Promise.all([
     conversationHistory(db, siteId, conversation.id),
     findPassages(event, siteId, body.message),
-    siteBusinessFacts(event, { name: site?.name ?? '', timezone: site?.timezone ?? 'UTC', locale: site?.locale ?? 'en' }),
+    siteBusinessFacts(event, siteTimes),
   ])
+  // Prices, stock, free times and events read now — for the pages just found.
+  const liveFacts = await chatLiveFacts(event, db, siteId, siteTimes, settings, passages)
   const system = buildChatSystemPrompt({
     siteName: site?.name ?? 'this website',
     siteLanguage: siteLanguageName(site?.locale ?? 'en'),
     settings,
     businessFacts: facts,
+    liveFacts,
     passages,
     now: siteNow(site?.timezone ?? 'UTC'),
   })
@@ -117,6 +138,8 @@ export default defineEventHandler(async (event) => {
     onError: ({ error }) => console.error('[chat] Answer failed:', error),
   })
 
+  // Made now so the bubble can rate this answer (header below).
+  const answerId = ulid()
   let reply = ''
   const encoder = new TextEncoder()
   const stream = (result.textStream as ReadableStream<string>).pipeThrough(new TransformStream<string, Uint8Array>({
@@ -126,8 +149,11 @@ export default defineEventHandler(async (event) => {
     },
     async flush() {
       // Saved once the whole reply is out (the response stays open until this finishes).
-      const { text } = storedReply(reply)
-      if (text.trim()) await saveChatMessage(db, siteId, conversation.id, 'assistant', text, sources.length ? sources : null).catch(err => console.error('[chat] Saving the reply failed:', err))
+      const { text, wantsLead } = storedReply(reply)
+      if (text.trim()) {
+        await saveChatMessage(db, siteId, conversation.id, 'assistant', text, { id: answerId, sources: sources.length ? sources : null, unanswered: wantsLead })
+          .catch(err => console.error('[chat] Saving the reply failed:', err))
+      }
     },
   }))
 
@@ -135,6 +161,7 @@ export default defineEventHandler(async (event) => {
     'content-type': 'text/plain; charset=utf-8',
     'cache-control': 'no-store',
     'x-chat-conversation': conversation.id,
+    'x-chat-message': answerId,
     'x-chat-sources': encodeURIComponent(JSON.stringify(sources)),
   })
   return sendStream(event, stream)

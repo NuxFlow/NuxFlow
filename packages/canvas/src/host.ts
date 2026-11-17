@@ -214,6 +214,8 @@ export interface CanvasHost {
   mediaPicker?: Component
   /** The Appointment block's time picker and booking form (props: `block`, `askPhone`). */
   appointmentBooking?: Component
+  /** The website chatbot's conversation, for the Chat block (prop: `heading`). Renders nothing while the site's chatbot is off. */
+  chatPanel?: Component
   /** Dictation button — emits `transcribed(text)`. */
   voiceInput?: Component
 }

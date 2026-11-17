@@ -7,7 +7,7 @@ import { resolveStringSetting } from '../../utils/settings'
 import { getTurnstileSecret } from '../../utils/turnstile'
 import { chatbotIncluded, getChatbotSettings } from '../../utils/chatbot'
 import { chatIndexStatus } from '../../utils/chatbot-index'
-import { getTranscript, listConversations, listKnowledge } from '../../utils/chatbot-admin'
+import { chatInsights, getTranscript, listConversations, listKnowledge } from '../../utils/chatbot-admin'
 import type { ChatbotStatusResponse } from '../../../shared/lib/chatbot'
 
 // Admin → Chatbot. Not under /api: one more typed API address trips TS2589.
@@ -15,8 +15,9 @@ import type { ChatbotStatusResponse } from '../../../shared/lib/chatbot'
 //   ?view=knowledge                   → FAQ and free-text entries
 //   ?view=conversations[&leads=1]     → recent transcripts
 //   ?view=conversation&id=            → one transcript
+//   ?view=insights                    → last 30 days' totals, and answers that need a look
 const querySchema = z.object({
-  view: z.enum(['status', 'knowledge', 'conversations', 'conversation']).default('status'),
+  view: z.enum(['status', 'knowledge', 'conversations', 'conversation', 'insights']).default('status'),
   id: z.string().max(40).optional(),
   leads: z.enum(['0', '1']).optional(),
   page: z.coerce.number().int().min(1).max(10_000).default(1),
@@ -38,6 +39,8 @@ export default defineEventHandler(async (event) => {
       return { ...await listConversations(db, siteId, { leadsOnly: q.leads === '1', limit: PAGE_SIZE, offset: (q.page - 1) * PAGE_SIZE }), page: q.page, pageSize: PAGE_SIZE }
     case 'conversation':
       return getTranscript(db, siteId, q.id ?? '')
+    case 'insights':
+      return chatInsights(db, siteId)
     default: {
       const settings = await getChatbotSettings(event)
       const [planIncluded, model, index, siteKey] = await Promise.all([
