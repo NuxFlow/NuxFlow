@@ -298,7 +298,7 @@ on the site goes through \`env.NUXFLOW\`, and only for permissions listed in
 | \`notify\` | Send admins an in-app notification |
 | \`user:read\` | Know the signed-in user's id and role on its own routes |
 | \`network:api.example.com\` | Call that host over HTTPS (\`*.example.com\` for subdomains) |
-| \`hook:content.published\` | Be told about events (also \`content.updated\`, \`content.unpublished\`, \`form.submitted\`, \`comment.created\`) |
+| \`hook:content.published\` | Be told about events (also \`content.updated\`, \`content.unpublished\`, \`form.submitted\`, \`comment.created\`, \`chat.lead\`) |
 
 An update that asks for a new permission is switched off until an admin approves it again.
 

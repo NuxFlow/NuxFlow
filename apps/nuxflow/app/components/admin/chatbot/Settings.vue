@@ -99,6 +99,13 @@ async function save() {
         <UFormField label="Only these content types" hint="Leave empty for all of them">
           <USelectMenu v-model="form.contentTypes" :items="typeOptions" value-key="value" multiple placeholder="All content types" class="w-full" />
         </UFormField>
+        <div class="space-y-2">
+          <p class="text-sm font-medium">Live details</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400">Looked up the moment it answers, so it never quotes yesterday's price or a time that's gone.</p>
+          <USwitch v-model="form.live.events" label="Upcoming events" />
+          <USwitch v-model="form.live.products" label="Product prices and stock (when the shop is on)" />
+          <USwitch v-model="form.live.appointments" label="Next free appointment times" />
+        </div>
       </div>
     </UCard>
 

@@ -116,7 +116,7 @@ export async function buildBackup(event: H3Event, siteId: string, options: Build
     db.query.classPasses.findMany({ where: eq(classPasses.siteId, siteId) }),
     db.query.chatKnowledge.findMany({
       where: eq(chatKnowledge.siteId, siteId),
-      columns: { kind: true, title: true, body: true, enabled: true },
+      columns: { kind: true, title: true, body: true, enabled: true, fileName: true, fileSize: true },
       orderBy: [asc(chatKnowledge.kind), asc(chatKnowledge.title)],
     }),
   ])

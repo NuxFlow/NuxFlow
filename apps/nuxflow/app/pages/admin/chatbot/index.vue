@@ -8,6 +8,7 @@ const tabs = [
   { key: 'knowledge', label: 'Knowledge', icon: 'i-lucide-book-open' },
   { key: 'try', label: 'Try it', icon: 'i-lucide-message-square-text' },
   { key: 'conversations', label: 'Conversations', icon: 'i-lucide-messages-square' },
+  { key: 'insights', label: 'Insights', icon: 'i-lucide-chart-no-axes-column' },
 ] as const
 type TabKey = typeof tabs[number]['key']
 
@@ -66,6 +67,7 @@ const { data: status, refresh, error } = await useFetch<ChatbotStatusResponse>('
         <AdminChatbotSettings v-if="active === 'settings'" :status="status" @saved="refresh()" />
         <AdminChatbotKnowledge v-else-if="active === 'knowledge'" :status="status" @changed="refresh()" />
         <AdminChatbotTryIt v-else-if="active === 'try'" :status="status" />
+        <AdminChatbotInsights v-else-if="active === 'insights'" />
         <AdminChatbotConversations v-else />
       </div>
     </div>

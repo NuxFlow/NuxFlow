@@ -64,6 +64,7 @@ export const BUILTIN_BLOCK_COMPONENTS: Record<string, Component> = {
   'canvas-google-reviews': lazyBlock(() => import('./CanvasBlockGoogleReviews.vue')),
   'canvas-availability': lazyBlock(() => import('./CanvasBlockAvailability.vue')),
   'canvas-appointment': lazyBlock(() => import('./CanvasBlockAppointment.vue')),
+  'canvas-chat': lazyBlock(() => import('./CanvasBlockChat.vue')),
   'canvas-before-after': lazyBlock(() => import('./CanvasBlockBeforeAfter.vue')),
   'canvas-logos': lazyBlock(() => import('./CanvasBlockLogos.vue')),
   'canvas-map': lazyBlock(() => import('./CanvasBlockMap.vue')),

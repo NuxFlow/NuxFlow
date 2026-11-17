@@ -19,6 +19,9 @@ export interface ChatUiMessage {
   sources?: ChatSourceLink[]
   /** The reply failed, or the conversation can't go on. */
   error?: boolean
+  /** The stored answer's id, for thumbs up/down. */
+  id?: string
+  rating?: -1 | 1 | null
 }
 
 const TOKEN_KEY = 'nuxflow_chat_token'
@@ -121,6 +124,7 @@ export function useChatbot(opts: { test?: boolean } = {}) {
         return
       }
       conversationId.value = res.headers.get('x-chat-conversation') || conversationId.value
+      reply.id = res.headers.get('x-chat-message') || undefined
       let sources: ChatSourceLink[] = []
       try {
         sources = JSON.parse(decodeURIComponent(res.headers.get('x-chat-sources') || '%5B%5D')) as ChatSourceLink[]
@@ -166,6 +170,21 @@ export function useChatbot(opts: { test?: boolean } = {}) {
     save()
   }
 
+  /** Thumbs on an answer; the same thumb again takes it back. Never throws. */
+  async function rate(message: ChatUiMessage, rating: -1 | 1): Promise<void> {
+    if (!message.id || !conversationId.value) return
+    const next = message.rating === rating ? null : rating
+    const before = message.rating ?? null
+    message.rating = next
+    try {
+      await $fetch<{ ok: boolean }>('/_nuxflow/chat', { method: 'POST', body: { action: 'rate', token, conversationId: conversationId.value, messageId: message.id, rating: next ?? 0 } })
+    }
+    catch {
+      message.rating = before
+    }
+    save()
+  }
+
   function reset() {
     messages.value = []
     conversationId.value = null
@@ -175,5 +194,5 @@ export function useChatbot(opts: { test?: boolean } = {}) {
     save()
   }
 
-  return { messages, conversationId, sending, wantsLead, stopped, leadSent, needsTurnstile, send, sendLead, reset }
+  return { messages, conversationId, sending, wantsLead, stopped, leadSent, needsTurnstile, send, sendLead, rate, reset }
 }

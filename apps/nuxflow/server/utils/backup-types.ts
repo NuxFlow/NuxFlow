@@ -10,6 +10,7 @@
 import { ASSIGNABLE_ROLES } from '@nuxflow/db/roles'
 import { z } from 'zod'
 import type { SettingGroupId } from '../../shared/lib/setting-groups'
+import { CHAT_DOCUMENT_LIMITS } from '../../shared/lib/chatbot'
 
 // ── Backup format types ───────────────────────────────────────────────────────
 
@@ -119,10 +120,13 @@ export interface BackupClassPass {
 
 /** A chatbot knowledge entry (Admin → Chatbot → Knowledge). Conversations never travel. */
 export interface BackupChatKnowledge {
-  kind: 'faq' | 'text'
+  kind: 'faq' | 'text' | 'document'
   title: string
   body: string
   enabled: boolean
+  /** A document's original file name and size (the file itself was never kept). */
+  fileName?: string | null
+  fileSize?: number | null
 }
 
 /** A redirect rule (Admin → SEO → Redirects). Paths are site-relative, so they carry over to any domain. */
@@ -432,11 +436,13 @@ const backupClassPassSchema = z.object({
 })
 
 const backupChatKnowledgeSchema = z.object({
-  kind: z.enum(['faq', 'text']),
+  kind: z.enum(['faq', 'text', 'document']),
   title: z.string().trim().min(1).max(300),
-  body: z.string().trim().min(1).max(4000),
+  body: z.string().trim().min(1).max(CHAT_DOCUMENT_LIMITS.chars),
   enabled: z.boolean(),
-})
+  fileName: z.string().max(255).nullable().optional(),
+  fileSize: z.number().int().min(0).nullable().optional(),
+}).refine(k => k.kind === 'document' || k.body.length <= CHAT_DOCUMENT_LIMITS.entryChars, 'Knowledge entry too long')
 
 const backupRedirectSchema = z.object({
   from: z.string().max(2048),

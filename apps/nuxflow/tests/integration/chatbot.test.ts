@@ -11,7 +11,8 @@ import { simulateReadableStream } from 'ai'
 import { ulid } from 'ulid'
 import { chatChunks, chatConversations, chatKnowledge, chatMessages, contentItems, emailMessages, hostingPlans, mailboxes, notifications, siteSettings, sites } from '@nuxflow/db/schema'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
-import { createMockEvent } from '../helpers/event'
+import { createMockEvent, type MockMultipartEntry } from '../helpers/event'
+import type { ChatInsightsResponse } from '../../shared/lib/chatbot'
 import { seedSite, seedUser, seedRole, seedContentType, seedContentItem, seedSetting } from '../helpers/seed'
 import type * as CfEnv from '../../server/utils/cf-env'
 import type * as AiSdk from '../../server/utils/ai-sdk'
@@ -20,6 +21,19 @@ vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
   getD1: () => null,
 }))
+// Plugin hooks: recorded, never delivered.
+const pluginHooks: { hook: string; data: unknown }[] = []
+vi.mock('../../server/utils/plugin-hooks', () => ({
+  queuePluginHook: (_e: unknown, _s: string, hook: string, data: unknown) => {
+    void (async () => pluginHooks.push({ hook, data: typeof data === 'function' ? await data() : data }))()
+  },
+  dispatchPluginHook: vi.fn(),
+  queueContentHook: vi.fn(),
+  dispatchContentHook: vi.fn(),
+  contentHookFor: vi.fn(),
+}))
+// Workers AI's document conversion, for PDF uploads.
+const toMarkdown = vi.fn(async (file: { name: string }) => ({ id: '1', name: file.name, mimeType: 'application/pdf', format: 'markdown' as const, tokens: 10, data: '# Price list\n\nHaircut £30. Colour from £60.' }))
 vi.mock('../../server/utils/rate-limit', () => ({ rateLimit: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../server/utils/webpush', () => ({
   broadcastPushToSite: vi.fn().mockResolvedValue(undefined),
@@ -57,10 +71,13 @@ vi.mock('../../server/utils/embeddings', () => ({
 
 // The model the chat answers with: streams `answer` in two pieces.
 let answer = 'We open at 9. [[CONTACT]]'
+// What the model was sent last (system prompt included), as JSON.
+let lastModelPrompt = ''
 function streamingModel() {
   const half = Math.floor(answer.length / 2)
   return new MockLanguageModelV4({
-    doStream: async () => ({
+    doStream: async (options: { prompt: unknown }) => ({
+      ...((lastModelPrompt = JSON.stringify(options.prompt)) && {}),
       stream: simulateReadableStream({
         chunks: [
           { type: 'stream-start', warnings: [] },
@@ -120,16 +137,21 @@ let adminId: string
 let editorId: string
 let pageType: string
 
-function ev(opts: { userId?: string; body?: unknown; query?: Record<string, string>; site?: string; fetchSite?: string } = {}): H3Event {
+function ev(opts: { userId?: string; body?: unknown; query?: Record<string, string>; site?: string; fetchSite?: string; multipart?: MockMultipartEntry[] } = {}): H3Event {
   const event = createMockEvent({
     siteId: opts.site ?? SITE,
     session: opts.userId ? { user: { id: opts.userId, name: 'Staff', email: 'staff@chat.test' } } : undefined,
     body: opts.body,
     query: opts.query,
-    method: opts.body !== undefined ? 'POST' : 'GET',
-    headers: { 'host': 'chat.test', 'sec-fetch-site': opts.fetchSite ?? 'same-origin' },
+    method: opts.body !== undefined || opts.multipart ? 'POST' : 'GET',
+    multipartFormData: opts.multipart,
+    headers: {
+      'host': 'chat.test',
+      'sec-fetch-site': opts.fetchSite ?? 'same-origin',
+      ...(opts.multipart && { 'content-type': 'multipart/form-data; boundary=x' }),
+    },
   }) as unknown as { context: Record<string, unknown> }
-  event.context.cloudflare = { env: { AI: {}, VECTORIZE: fakeIndex }, context: { waitUntil: (p: Promise<unknown>) => { void p } } }
+  event.context.cloudflare = { env: { AI: { toMarkdown }, VECTORIZE: fakeIndex }, context: { waitUntil: (p: Promise<unknown>) => { void p } } }
   return event as unknown as H3Event
 }
 
@@ -391,5 +413,149 @@ describe('clean-up', () => {
     for (const id of ids) expect(vectors.has(id)).toBe(false)
     // Knowledge rows are untouched by that (they go with the site's FK cascade).
     expect((await db().select().from(chatKnowledge).where(eq(chatKnowledge.siteId, SITE))).length).toBe(1)
+  })
+})
+
+describe('ratings and Insights', () => {
+  let unhelpedId = ''
+  let ratedDownId = ''
+  async function ask(message: string, token = TOKEN) {
+    const e = ev({ body: { action: 'message', token, message } })
+    await readStream(await (chatRoute as Handler)(e))
+    const h = (e as unknown as { _responseHeaders: Record<string, string> })._responseHeaders
+    return { conversationId: h['x-chat-conversation']!, messageId: h['x-chat-message']! }
+  }
+
+  it('marks an answer it could not help with, and lets the visitor rate answers in their own chat only', async () => {
+    answer = 'Sorry, I do not know that. [[CONTACT]]'
+    const unhelped = await ask('Do you sell gift cards?')
+    unhelpedId = unhelped.messageId
+    expect(await db().query.chatMessages.findFirst({ where: eq(chatMessages.id, unhelped.messageId) })).toMatchObject({ role: 'assistant', unanswered: true, text: 'Sorry, I do not know that.' })
+
+    answer = 'We open at 9.'
+    const helped = await ask('When do you open?')
+    ratedDownId = helped.messageId
+    expect((await db().query.chatMessages.findFirst({ where: eq(chatMessages.id, helped.messageId) }))?.unanswered).toBe(false)
+
+    await (chatRoute as Handler)(ev({ body: { action: 'rate', token: TOKEN, conversationId: helped.conversationId, messageId: helped.messageId, rating: -1 } }))
+    expect((await db().query.chatMessages.findFirst({ where: eq(chatMessages.id, helped.messageId) }))?.rating).toBe(-1)
+    // Someone else's token can't rate it.
+    await expect((chatRoute as Handler)(ev({ body: { action: 'rate', token: 'someone-else-cccccccccccccccccccc', conversationId: helped.conversationId, messageId: helped.messageId, rating: 1 } })))
+      .rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  it('lists them in Insights with the question, until dealt with', async () => {
+    const insights = await (adminGet as Handler)(ev({ userId: adminId, query: { view: 'insights' } })) as ChatInsightsResponse
+    const byId = new Map(insights.items.map(i => [i.messageId, i]))
+    expect(byId.get(unhelpedId)).toMatchObject({ reason: 'unanswered', question: 'Do you sell gift cards?' })
+    expect(byId.get(ratedDownId)).toMatchObject({ reason: 'unhelpful', question: 'When do you open?', answer: 'We open at 9.' })
+    expect(insights.totals.unhelpful).toBeGreaterThanOrEqual(1)
+    expect(insights.totals.unanswered).toBeGreaterThanOrEqual(1)
+
+    const item = byId.get(unhelpedId)!
+    await (adminPost as Handler)(ev({ userId: adminId, body: { action: 'review', messageId: item.messageId } }))
+    const after = await (adminGet as Handler)(ev({ userId: adminId, query: { view: 'insights' } })) as ChatInsightsResponse
+    expect(after.items.map(i => i.messageId)).not.toContain(item.messageId)
+  })
+})
+
+describe('documents', () => {
+  it('learns a text file, and a PDF through the Workers AI conversion', async () => {
+    const txt = await (adminPost as Handler)(ev({ userId: adminId, multipart: [{ name: 'file', filename: 'delivery.txt', type: 'text/plain', data: new TextEncoder().encode('We deliver within 5 miles.') }] }))
+    expect(txt).toMatchObject({ characters: 26, truncated: false })
+    const pdf = await (adminPost as Handler)(ev({ userId: adminId, multipart: [{ name: 'file', filename: 'price_list-2026.pdf', type: 'application/pdf', data: new Uint8Array([37, 80, 68, 70]) }] })) as { id: string }
+    expect(toMarkdown).toHaveBeenCalledWith(expect.objectContaining({ name: 'price_list-2026.pdf' }))
+
+    const doc = await db().query.chatKnowledge.findFirst({ where: eq(chatKnowledge.id, pdf.id) })
+    expect(doc).toMatchObject({ kind: 'document', title: 'price list 2026', fileName: 'price_list-2026.pdf', fileSize: 4 })
+    expect(doc!.body).toContain('Haircut £30')
+
+    await sync()
+    const chunks = await db().select().from(chatChunks).where(eq(chatChunks.sourceId, pdf.id))
+    expect(chunks[0]!.text).toContain('Haircut £30')
+  })
+
+  it('refuses files it cannot read, and keeps Q&A short', async () => {
+    await expect((adminPost as Handler)(ev({ userId: adminId, multipart: [{ name: 'file', filename: 'photo.jpg', type: 'image/jpeg', data: new Uint8Array([1, 2, 3]) }] })))
+      .rejects.toMatchObject({ statusCode: 422 })
+    toMarkdown.mockResolvedValueOnce({ id: '1', name: 'x.pdf', mimeType: 'application/pdf', format: 'error', error: 'Encrypted PDF' } as never)
+    await expect((adminPost as Handler)(ev({ userId: adminId, multipart: [{ name: 'file', filename: 'x.pdf', type: 'application/pdf', data: new Uint8Array([1]) }] })))
+      .rejects.toMatchObject({ statusCode: 422 })
+    await expect((adminPost as Handler)(ev({ userId: adminId, body: { action: 'knowledge-save', kind: 'faq', title: 'Long', body: 'x'.repeat(5000) } })))
+      .rejects.toMatchObject({ statusCode: 422 })
+  })
+
+  it('travels in the backup, with its file name', async () => {
+    const { buildBackup } = await import('../../server/utils/backup')
+    const backup = await buildBackup(ev({ userId: adminId }), SITE)
+    expect(backup.chatKnowledge?.find(k => k.title === 'price list 2026')).toMatchObject({ kind: 'document', fileName: 'price_list-2026.pdf', fileSize: 4 })
+  })
+})
+
+describe('live details', () => {
+  it('tells the model about upcoming events as it answers', async () => {
+    const eventType = await seedContentType(db(), SITE, { slug: 'event', name: 'Events' })
+    const start = new Date(Date.now() + 3 * 86_400_000).toISOString()
+    await seedContentItem(db(), SITE, eventType, { title: 'Quiz night', slug: 'quiz-night', eventStartAt: start, eventLocation: 'The Rose' })
+    await seedContentItem(db(), SITE, eventType, { title: 'Last week', slug: 'last-week', eventStartAt: new Date(Date.now() - 7 * 86_400_000).toISOString() })
+
+    await readStream(await (chatRoute as Handler)(ev({ body: { action: 'message', token: TOKEN, message: 'What is on?' } })))
+    expect(lastModelPrompt).toContain('UPCOMING EVENTS')
+    expect(lastModelPrompt).toContain('Quiz night')
+    expect(lastModelPrompt).toContain('at The Rose')
+    expect(lastModelPrompt).not.toContain('Last week')
+
+    await setChatbot({ live: { events: false, products: true, appointments: true } })
+    await readStream(await (chatRoute as Handler)(ev({ body: { action: 'message', token: TOKEN, message: 'What is on?' } })))
+    expect(lastModelPrompt).not.toContain('UPCOMING EVENTS')
+  })
+})
+
+describe('live details for the pages it found', () => {
+  it('reads a product\'s price and stock, and a service\'s next free times', async () => {
+    const { chatLiveFacts } = await import('../../server/utils/chatbot-live')
+    const { products, productVariants } = await import('@nuxflow/db/schema')
+    await saveSetting(ev(), 'shop.enabled', true)
+
+    const productId = await seedContentItem(db(), SITE, pageType, { title: 'Big mug', slug: 'big-mug' })
+    await db().insert(products).values({ contentItemId: productId, siteId: SITE, optionNames: ['Colour'] })
+    await db().insert(productVariants).values([
+      { id: ulid(), siteId: SITE, contentItemId: productId, sku: 'MUG-B', options: ['Blue'], priceMinor: 1200, stock: 2, kind: 'physical', sortOrder: 0 },
+      { id: ulid(), siteId: SITE, contentItemId: productId, sku: 'MUG-R', options: ['Red'], priceMinor: 1200, stock: 0, kind: 'physical', sortOrder: 1 },
+    ])
+
+    const every = [{ open: '09:00', close: '17:00' }]
+    await saveSetting(ev(), 'appointments.settings', { useOpeningHours: false, hours: { mon: every, tue: every, wed: every, thu: every, fri: every, sat: every, sun: every }, daysOff: [] })
+    const bookingId = await seedContentItem(db(), SITE, pageType, {
+      title: 'Book a trim',
+      slug: 'book',
+      content: { type: 'canvas', blocks: [{ id: 'appt-1', type: 'canvas-appointment', props: { serviceName: 'Beard trim', duration: 30, noticeHours: 0, daysAhead: 14 } }] },
+    })
+
+    const settings = { ...DEFAULT_CHATBOT_SETTINGS, enabled: true }
+    const facts = await chatLiveFacts(ev(), db(), SITE, { timezone: 'UTC', locale: 'en-GB' }, settings, [
+      { kind: 'content', id: productId, title: 'Big mug', path: '/big-mug' },
+      { kind: 'content', id: bookingId, title: 'Book a trim', path: '/book' },
+    ])
+    expect(facts).toContain('PRODUCTS (live price and stock)')
+    expect(facts).toContain('Big mug (page /big-mug): Blue: £12.00, ')
+    expect(facts).toContain('; Red: £12.00, sold out')
+    expect(facts).toContain('APPOINTMENTS')
+    expect(facts).toMatch(/Beard trim \(30 min[^)]*free; book on page \/book\): next free \d{4}-\d{2}-\d{2} at /)
+
+    // Switched off, or the shop off: left out.
+    const off = await chatLiveFacts(ev(), db(), SITE, { timezone: 'UTC', locale: 'en-GB' }, { ...settings, live: { events: false, products: false, appointments: false } }, [{ kind: 'content', id: productId, title: 'Big mug', path: '/big-mug' }])
+    expect(off).toBe('')
+    await saveSetting(ev(), 'shop.enabled', false)
+    expect(await chatLiveFacts(ev(), db(), SITE, { timezone: 'UTC', locale: 'en-GB' }, { ...settings, live: { events: false, products: true, appointments: false } }, [{ kind: 'content', id: productId, title: 'Big mug', path: '/big-mug' }])).toBe('')
+  })
+})
+
+describe('the chat.lead plugin hook', () => {
+  it('hands plugins the details and the conversation', async () => {
+    pluginHooks.length = 0
+    await (chatRoute as Handler)(ev({ body: { action: 'lead', token: 'plugin-visitor-dddddddddddddddddddd', name: 'Bo', email: 'bo@example.com', message: 'Call me' } }))
+    await new Promise(r => setTimeout(r, 0))
+    expect(pluginHooks).toEqual([expect.objectContaining({ hook: 'chat.lead', data: expect.objectContaining({ name: 'Bo', email: 'bo@example.com', message: 'Call me', transcript: [] }) })])
   })
 })

@@ -20,6 +20,7 @@ export const PLUGIN_HOOK_EVENTS = {
   'content.unpublished': 'A page or post stops being public (unpublished, archived, deleted)',
   'form.submitted': 'Someone submits a form (includes what they typed)',
   'comment.created': 'Someone posts a comment (includes the comment text)',
+  'chat.lead': 'A visitor leaves their details in the website chat (includes their name, email and the conversation)',
 } as const
 
 export type PluginHookEvent = keyof typeof PLUGIN_HOOK_EVENTS
@@ -108,7 +109,7 @@ export function describePermission(permission: string): PluginPermissionInfo {
   if (permission.startsWith('hook:')) {
     const name = permission.slice('hook:'.length)
     const label = isPluginHookEvent(name) ? PLUGIN_HOOK_EVENTS[name] : name
-    const personal = name === 'form.submitted' || name === 'comment.created'
+    const personal = name === 'form.submitted' || name === 'comment.created' || name === 'chat.lead'
     return { title: `Be told: ${label.charAt(0).toLowerCase()}${label.slice(1)}`, description: `The plugin is sent the details when this happens${personal ? ', which can include visitors’ personal details' : ''}.`, risk: personal ? 'high' : 'low' }
   }
   return { title: permission, description: 'Unknown permission.', risk: 'high' }

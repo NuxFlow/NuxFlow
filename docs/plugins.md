@@ -212,6 +212,7 @@ Add `hook:<event>` to your permissions to be told when something happens. NuxFlo
 | `content.unpublished` | A public item is unpublished, archived, made members-only or deleted | same as above, plus `deleted: true` when deleted |
 | `form.submitted` | A form (including the contact form) is submitted and passes the spam check | `submissionId`, `formId`, `formSlug`, `formName`, `data` (what the visitor typed) |
 | `comment.created` | A comment that isn't spam is posted on a public page | `commentId`, `itemId`, `parentId`, `status`, `body`, `authorName`, `isGuest` |
+| `chat.lead` | A visitor leaves their details in the website chat | `conversationId`, `name`, `email`, `phone`, `message`, `pagePath`, `transcript` (`[{ role, text }]`) |
 
 Members-only and draft content never produce hooks. Visitors can't reach `/__nuxflow/…` paths: NuxFlow answers `404` there, so only NuxFlow can deliver a hook. Hooks are sent in the background after the triggering action completes. A plugin that is slow (15-second limit) or returns an error doesn't affect the save or submission, and a failed delivery is logged but not retried.
 

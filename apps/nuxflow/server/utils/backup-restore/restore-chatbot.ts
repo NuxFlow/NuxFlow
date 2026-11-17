@@ -34,7 +34,7 @@ export async function restoreChatKnowledge(db: Db, siteId: string, backup: NuxFl
       continue
     }
     const newId = ulid()
-    await db.insert(chatKnowledge).values({ id: newId, siteId, kind: entry.kind, title: entry.title, body: entry.body, enabled: entry.enabled })
+    await db.insert(chatKnowledge).values({ id: newId, siteId, kind: entry.kind, title: entry.title, body: entry.body, enabled: entry.enabled, fileName: entry.fileName ?? null, fileSize: entry.fileSize ?? null })
     byKey.set(`${entry.kind}:${entry.title}`, newId)
     total++
     counts.created++
