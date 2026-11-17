@@ -11,6 +11,7 @@ const METRICS: { key: UsageMetric; label: string; hint: string; bytes?: boolean 
   { key: 'ai_calls', label: 'AI calls', hint: 'Every AI call: text, image, transcription and speech, whoever pays' },
   { key: 'ai_credits', label: 'AI credits', hint: 'AI you pay for (Workers AI) that the site’s team used, weighted by cost. Sites’ own API keys aren’t counted' },
   { key: 'ai_visitor_credits', label: 'Visitor AI', hint: 'AI you pay for that visitors, incoming mail and plugins set off: listen, spam checks, inbox sorting, smart search, plugin AI' },
+  { key: 'ai_chat_credits', label: 'Chat AI', hint: 'AI you pay for that the website chatbot used: answers, and learning the site’s pages' },
   { key: 'emails', label: 'Emails', hint: 'Recipients a provider accepted' },
   { key: 'inbound_emails', label: 'Received', hint: 'Emails received at the site’s own addresses' },
   { key: 'plugin_calls', label: 'Plugin calls', hint: 'Requests and events handled by plugins (each runs a Dynamic Worker)' },

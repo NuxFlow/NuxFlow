@@ -459,6 +459,26 @@ Public prose pages and posts show a **Listen to this article** button that gener
 ### Automatic Spam Filtering
 Comments and form submissions already pass through Cloudflare Turnstile's bot check; NuxFlow also runs a background AI content check on anything that gets through, auto-flagging genuine spam or abuse as **Spam** so it doesn't clutter your moderation queue. This happens automatically in the background — nothing to configure, and it never delays or blocks a legitimate submission from being saved.
 
+### Chatbot
+**Audience → Chatbot** (admins) puts a chat bubble in the corner of your site that answers visitors' questions. It answers from:
+- your published, public pages and posts (you can limit it to some content types),
+- your opening hours, address and contact details from **Settings → Business**, read live so they're never out of date,
+- the questions and answers and other text you add under **Knowledge**. It uses your answers word for word, so add the questions people ask you most.
+
+New and changed pages are learnt within a minute or two by themselves. **Update now** does it straight away.
+
+**What it says.** Under **Settings** you give it a name, a greeting and up to four starter questions. You can also add your own instructions (tone, what to mention, how to talk about prices) and topics it won't discuss. By default it only answers from your site's information and says it doesn't know rather than guessing. Turn that off to let it use general knowledge too; it still never invents facts about your business. It replies in the language the visitor writes in, unless you choose **Always the site's language**. It never claims to have booked, ordered or sent anything: it gives information and links to your pages.
+
+**Taking details.** When it can't help, or the visitor asks for a person, a quote or a booking, it offers a short form (name, email, optionally phone and a message). The details arrive in your **Inbox** under **Website chat**, with the conversation, and editors and admins are notified. Reply from the Inbox to email the visitor. You can also show a "Leave a message" link at all times, or never offer the form.
+
+**Try it** lets you chat with it using the saved settings, even before the bubble is switched on. Those chats aren't kept. **Conversations** shows what visitors asked over the last 30 days; older conversations are deleted automatically. Mention the chat in your privacy policy.
+
+Good to know:
+- The first message is protected by Turnstile when your site uses it.
+- Each conversation has a message limit (20 by default) to keep costs predictable.
+- On a hosting plan, the chatbot must be included in the plan, and its AI counts against **Chat AI credits a month** (about 3 credits an answer). With your own AI key in Settings → AI, answers use your key and aren't counted; learning your pages still runs on Workers AI.
+- Without a Vectorize search index on the installation, it only knows your business details.
+
 ### Stale Content Reminders
 NuxFlow periodically checks for published content that hasn't been updated in a long time (180 days by default) and sends the original author an in-app notification suggesting a review — a nudge to keep older pages accurate, not an automated edit or unpublish of any kind.
 

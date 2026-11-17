@@ -38,12 +38,16 @@ import { forbidden } from './response'
 
 export type AiPayer = 'platform' | 'site'
 
-/** Who set the call off: the site's own team, or the public (visitors, incoming mail). */
-export type AiTrigger = 'team' | 'visitor'
+/**
+ * Who set the call off: the site's own team, the public (visitors, incoming mail), or the
+ * website chatbot — which visitors drive too, but has its own allowance because it uses far
+ * more than anything else, and must never pause spam checks when it's busy.
+ */
+export type AiTrigger = 'team' | 'visitor' | 'chat'
 
-const CREDIT_METRIC = { team: 'ai_credits', visitor: 'ai_visitor_credits' } as const
-const PLAN_KEY = { team: 'ai', visitor: 'visitor_ai' } as const
-const PLATFORM_CREDIT_METRICS = [CREDIT_METRIC.team, CREDIT_METRIC.visitor]
+const CREDIT_METRIC = { team: 'ai_credits', visitor: 'ai_visitor_credits', chat: 'ai_chat_credits' } as const
+const PLAN_KEY = { team: 'ai', visitor: 'visitor_ai', chat: 'chat_ai' } as const
+const PLATFORM_CREDIT_METRICS = [CREDIT_METRIC.team, CREDIT_METRIC.visitor, CREDIT_METRIC.chat]
 
 /**
  * Credit weights. 1 credit ≈ 1,000 tokens (prompt + answer) on the fast text model. The
@@ -60,6 +64,8 @@ export const AI_CREDITS = {
   speechCharsPerCredit: 1000,
   /** One embedding (semantic search index or query) — tiny next to a generation. */
   embedding: 1,
+  /** Pieces of page text the chatbot learns per credit (its index — chatbot-index.ts). */
+  chatChunksPerCredit: 10,
 } as const
 
 export function textCredits(totalTokens: number | undefined, heavy: boolean): number {

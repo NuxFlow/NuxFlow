@@ -78,6 +78,8 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Inbox addresses', to: '/admin/inbox/mailboxes', icon: 'i-lucide-at-sign', minRole: 'admin', hidden: true, group: 'audience', highlights: '/admin/inbox' },
   { label: 'Comments', to: '/admin/comments', icon: 'i-lucide-message-circle', minRole: 'editor', group: 'audience' },
   { label: 'Forms', to: '/admin/forms', icon: 'i-lucide-list-checks', minRole: 'editor', group: 'audience' },
+  // Admin only: settings, plus visitors' conversations and the details they left.
+  { label: 'Chatbot', to: '/admin/chatbot', icon: 'i-lucide-bot-message-square', minRole: 'admin', group: 'audience' },
   // Admin only: it's a list of visitors' email addresses (personal data).
   { label: 'Mailing list', to: '/admin/mailing-list', icon: 'i-lucide-mail-plus', minRole: 'admin', group: 'audience' },
 

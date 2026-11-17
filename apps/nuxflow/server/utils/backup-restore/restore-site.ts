@@ -13,6 +13,8 @@ import type { NuxFlowBackup, RestoreOptions, RestoreResult } from '../backup-typ
 import { addRestoreWarning } from '../backup-types'
 import { BUSINESS_SETTING_KEY, normalizeBusinessSetting } from '../business'
 import { PODCAST_SETTING_KEY, normalizePodcastSetting } from '../podcast'
+import { normalizeChatbotSetting } from '../chatbot'
+import { CHATBOT_SETTING_KEY } from '../../../shared/lib/chatbot'
 import { APPOINTMENT_SETTINGS_KEY, normalizeAppointmentSetting } from '../appointments'
 import { SHOP_CONFIG_KEY, parseShopConfig } from '../shop'
 
@@ -21,6 +23,9 @@ import { SHOP_CONFIG_KEY, parseShopConfig } from '../shop'
 const JSON_SETTING_CHECKS: Record<string, { label: string; normalize: (v: unknown) => unknown }> = {
   [BUSINESS_SETTING_KEY]: { label: 'Business details', normalize: normalizeBusinessSetting },
   [PODCAST_SETTING_KEY]: { label: 'Podcast', normalize: normalizePodcastSetting },
+  // Restored switched off: the target's plan may not include the chatbot, and it's the
+  // admin's call to turn it on there.
+  [CHATBOT_SETTING_KEY]: { label: 'Chatbot', normalize: v => ({ ...normalizeChatbotSetting(v), enabled: false }) },
   [APPOINTMENT_SETTINGS_KEY]: { label: 'Appointments', normalize: normalizeAppointmentSetting },
   [SHOP_CONFIG_KEY]: { label: 'Shop', normalize: parseShopConfig },
 }

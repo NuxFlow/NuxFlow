@@ -19,8 +19,9 @@ import { PODCAST_SETTING_KEY } from '../../utils/podcast'
 import { parsePodcastSettings } from '../../../shared/lib/podcast'
 import type { PublicSite } from '../../../shared/lib/public-site-types'
 import { parseColorMode } from '../../../shared/lib/theme-customizer'
+import { CHATBOT_SETTING_KEY, parseChatbotSettings, publicChatbotSettings } from '../../../shared/lib/chatbot'
 
-const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'theme.dark_mode', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.show_reading_time', 'frontend.show_toc', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations', SIGNUP_SETTING_KEY, SHOP_ENABLED_KEY, SHOP_CONFIG_KEY, BUSINESS_SETTING_KEY, PODCAST_SETTING_KEY] as const
+const FRONTEND_KEYS = ['frontend.show_header', 'frontend.show_color_toggle', 'theme.dark_mode', 'frontend.show_search', 'frontend.show_sticky_header', 'frontend.show_reading_time', 'frontend.show_toc', 'frontend.logo_size', 'appearance.favicon_url', 'appearance.logo_url', 'integrations.turnstile_site_key', 'layout.header_block', 'layout.footer_block', 'media.enable_image_transformations', SIGNUP_SETTING_KEY, SHOP_ENABLED_KEY, SHOP_CONFIG_KEY, BUSINESS_SETTING_KEY, PODCAST_SETTING_KEY, CHATBOT_SETTING_KEY] as const
 
 const CACHE_MAX_AGE = 300
 
@@ -49,7 +50,7 @@ async function buildPayload(event: H3Event, siteId: string): Promise<PublicSite>
     columns: { id: true },
   })
 
-  const [seo, locales, taxonomyRows, transformsIncluded, shopIncluded] = await Promise.all([
+  const [seo, locales, taxonomyRows, transformsIncluded, shopIncluded, chatbotIncludedInPlan] = await Promise.all([
     getSeoSettings(db, siteId),
     getActiveLocales(db, siteId),
     db.select({ slug: taxonomies.slug, name: taxonomies.name }).from(taxonomies)
@@ -57,6 +58,7 @@ async function buildPayload(event: H3Event, siteId: string): Promise<PublicSite>
     // A site moved to a plan without them stops using them even if the setting is still on.
     planIncludes(db, siteId, 'imageTransformations'),
     planIncludes(db, siteId, 'shop'),
+    planIncludes(db, siteId, 'chatbot'),
   ])
   const shopOn = shopIncluded && settingToBoolean(kvMap[SHOP_ENABLED_KEY])
   const shopConfig = parseShopConfig(kvMap[SHOP_CONFIG_KEY])
@@ -106,6 +108,8 @@ async function buildPayload(event: H3Event, siteId: string): Promise<PublicSite>
     // Mailing-list signup texts for the popup and the Signup box block (Admin → Mailing
     // list). The reward and list-sync settings are left out — see publicSignupSettings().
     signup: publicSignupSettings(parseSignupSettings(kvMap[SIGNUP_SETTING_KEY])),
+    // The website chatbot's bubble (Admin → Chatbot); null while it's off or not in the plan.
+    chatbot: chatbotIncludedInPlan ? publicChatbotSettings(parseChatbotSettings(kvMap[CHATBOT_SETTING_KEY])) : null,
     // The shop (Admin → Shop), for the cart and product pages; null while it's off.
     shop: shopOn ? { currency: shopConfig.currency, pricesIncludeTax: shopConfig.pricesIncludeTax } : null,
     // Site-wide SEO defaults (Admin → SEO) consumed by app.vue / layouts / pages.

@@ -93,6 +93,9 @@ globalThis.setResponseHeaders = (event: Record<string, unknown>, headers: Record
   for (const [name, value] of Object.entries(headers)) globalThis.setHeader(event, name, value)
 }
 
+// Real h3 pipes the stream into the response; tests get it back to read.
+globalThis.sendStream = (_event: Record<string, unknown>, stream: ReadableStream): ReadableStream => stream
+
 globalThis.parseCookies = (event: Record<string, unknown>): Record<string, string> =>
   ({ ...(event as { _cookies?: Record<string, string> })._cookies })
 

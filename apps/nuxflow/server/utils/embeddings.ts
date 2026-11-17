@@ -87,7 +87,7 @@ function rightSize(vector: number[] | undefined, info: SearchIndexInfo): vector 
  * editor's save re-indexes a page, to the visitor allowance for a search query. Once the
  * allowance is used up this returns null, the same as "unavailable".
  */
-async function embedText(event: H3Event, text: string, trigger: AiTrigger): Promise<number[] | null> {
+export async function embedText(event: H3Event, text: string, trigger: AiTrigger): Promise<number[] | null> {
   const ai = getWorkersAiBinding(event)
   if (!ai) return null
   const info = await getSearchIndexInfo(event)

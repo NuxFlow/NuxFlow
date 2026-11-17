@@ -4,6 +4,7 @@
 // Edge-cached for every visitor, so nothing private ever belongs here.
 import type { BusinessInfo } from '@nuxflow/canvas/business'
 import type { PublicSignupSettings } from './signup-prompt'
+import type { PublicChatbotSettings } from './chatbot'
 
 /** Site-wide SEO defaults (Admin → SEO). */
 export interface PublicSiteSeo {
@@ -56,6 +57,8 @@ export interface PublicSite {
   podcast: { title: string; feedUrl: string; contentType: string } | null
   /** Mailing-list signup texts for the popup and the Signup box block. */
   signup: PublicSignupSettings
+  /** The website chatbot's bubble; null while it's off or not in the plan. */
+  chatbot: PublicChatbotSettings | null
   /** The shop, when it's on (Admin → Shop). */
   shop: { currency: string; pricesIncludeTax: boolean } | null
   seo: PublicSiteSeo

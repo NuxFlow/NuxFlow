@@ -24,6 +24,8 @@ import { assertSiteMayReopen } from '../../../utils/hosting-hold'
 import { BUSINESS_SETTING_KEY, normalizeBusinessSetting } from '../../../utils/business'
 import { PODCAST_SETTING_KEY, normalizePodcastSetting } from '../../../utils/podcast'
 import { APPOINTMENT_SETTINGS_KEY, normalizeAppointmentSetting } from '../../../utils/appointments'
+import { getChatbotSettings, normalizeChatbotSetting } from '../../../utils/chatbot'
+import { CHATBOT_SETTING_KEY } from '../../../../shared/lib/chatbot'
 
 const bodySchema = z.object({
   // Site columns
@@ -136,7 +138,7 @@ export default defineEventHandler(async (event) => {
     // passes through unchanged.
     const normalized = normalizeSeoSettings(Object.entries(body.settings))
       // Settings → Business is checked here too (it has no route of its own).
-      .map(([k, v]): [string, unknown] => (k === BUSINESS_SETTING_KEY ? [k, normalizeBusinessSetting(v)] : k === PODCAST_SETTING_KEY ? [k, normalizePodcastSetting(v)] : k === APPOINTMENT_SETTINGS_KEY ? [k, normalizeAppointmentSetting(v)] : [k, v]))
+      .map(([k, v]): [string, unknown] => (k === BUSINESS_SETTING_KEY ? [k, normalizeBusinessSetting(v)] : k === PODCAST_SETTING_KEY ? [k, normalizePodcastSetting(v)] : k === APPOINTMENT_SETTINGS_KEY ? [k, normalizeAppointmentSetting(v)] : k === CHATBOT_SETTING_KEY ? [k, normalizeChatbotSetting(v)] : [k, v]))
     settingEntries.push(...normalized)
 
     // Turning IndexNow on generates the site's key the first time — it's served at
@@ -232,6 +234,14 @@ export default defineEventHandler(async (event) => {
     && !(await resolveBooleanSetting(event, 'media.enable_image_transformations'))
     && !(await planIncludes(db, siteId, 'imageTransformations'))) {
     throw forbidden('Image resizing is not included in this site\'s plan.', { code: 'plan_feature', feature: 'imageTransformations' })
+  }
+
+  // The chatbot's answers run on the platform's AI, so switching it on needs a plan that
+  // includes it — same rule as above: already on (a downgraded site saving) is allowed.
+  if (settingEntries.some(([k, v]) => k === CHATBOT_SETTING_KEY && (v as { enabled?: boolean }).enabled === true)
+    && !(await getChatbotSettings(event)).enabled
+    && !(await planIncludes(db, siteId, 'chatbot'))) {
+    throw forbidden('The chatbot is not included in this site’s plan.', { code: 'plan_feature', feature: 'chatbot' })
   }
 
   await batchSaveSettings(event, settingEntries)

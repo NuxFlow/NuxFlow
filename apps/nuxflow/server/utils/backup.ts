@@ -29,6 +29,7 @@ import { restoreMembershipTiers } from './backup-restore/restore-tiers'
 import { restoreRedirects } from './backup-restore/restore-redirects'
 import { restoreItemExtras } from './backup-restore/restore-item-extras'
 import { restoreClassPasses, restoreShopSwitch } from './backup-restore/restore-shop'
+import { restoreChatKnowledge } from './backup-restore/restore-chatbot'
 
 export * from './backup-types'
 export * from './backup-export'
@@ -76,6 +77,7 @@ export async function applyBackup(
   await restoreMembershipTiers(db, siteId, backup, opts, result)
   await restoreRedirects(db, siteId, backup, opts, result)
   await restoreClassPasses(db, siteId, backup, opts, result)
+  await restoreChatKnowledge(db, siteId, backup, opts, result)
   // Last: products, calendars and the links to forms and tiers need those restored first.
   await restoreShopSwitch(event, db, siteId, backup, opts, result)
   await restoreItemExtras(event, db, siteId, backup, opts, result, written)

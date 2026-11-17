@@ -125,6 +125,7 @@ useHead({
     <ClientOnly><PublicCookieConsent /></ClientOnly>
     <ClientOnly><PublicPushNotificationBanner /></ClientOnly>
     <ClientOnly><PublicSignupPrompt /></ClientOnly>
+    <ClientOnly><PublicChatWidget /></ClientOnly>
     <ClientOnly><PublicAudioPlayer /></ClientOnly>
   </div>
 </template>
