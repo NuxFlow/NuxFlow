@@ -143,6 +143,22 @@ describe('the built-in unlimited plan', () => {
     }
   })
 
+  it('but gives a customer site with no plan no AI the platform pays for', async () => {
+    // Otherwise a site created by hand with the plan left unset would be unlimited on the
+    // operator's Workers AI bill, held back only by the daily cap.
+    expect(await checkAiAllowance(ev())).toEqual({ allowed: false, reason: 'no_plan' })
+    expect(await checkAiAllowance(ev(), 1, 'visitor')).toEqual({ allowed: false, reason: 'no_plan' })
+    await expect(requireAiSdkModel(aiEv())).rejects.toMatchObject({ statusCode: 403, data: { code: 'plan_limit', limit: 'ai', max: 0 } })
+    // The operator's own site never needs a plan.
+    expect(await checkAiAllowance(ev({ siteId: PRIMARY }))).toEqual({ allowed: true })
+    // The site's own key is never refused.
+    const own = withUsageCounting(ev(), { model: mockModel([10, 10]), payer: 'site', heavy: false })
+    await expect(generateText({ model: own, prompt: 'hi', maxRetries: 0 })).resolves.toBeDefined()
+    // Any plan — even one with every box blank — brings it back.
+    await useLimits({})
+    expect(await checkAiAllowance(ev())).toEqual({ allowed: true })
+  })
+
   it('treats a blank limit on a plan as unlimited', async () => {
     await useLimits({ maxContentItems: 5 })
     expect((await checkPlanLimit(getCurrentTestDb(), TENANT, 'storage', 10 ** 12)).allowed).toBe(true)
@@ -252,6 +268,7 @@ describe('enforcement', () => {
   })
 
   it('charges platform-paid text by the tokens used, weighting the heavy model', async () => {
+    await useLimits({})
     primeUsageBuffer()
     await generateText({ model: withUsageCounting(ev(), { model: mockModel([1500, 500]), payer: 'platform', heavy: false }), prompt: 'hi', maxRetries: 0 })
     expect(pendingFor('ai_credits')).toBe(2)
@@ -444,6 +461,7 @@ describe('the platform-wide daily AI cap', () => {
   beforeEach(() => clearAiDailyCapCache())
 
   it('pauses platform-paid AI for customer sites once all of them together reach it — never the main site', async () => {
+    await useLimits({})
     await setCap(100)
     await setMonthUsage('ai_credits', 60)
     await seedSite(getCurrentTestDb(), { id: 'site-plans-tenant-2', domain: 'tenant2.plans.test' })
@@ -461,6 +479,7 @@ describe('the platform-wide daily AI cap', () => {
   })
 
   it('does nothing with no cap set, and is only for a super admin to set', async () => {
+    await useLimits({})
     await setCap(null)
     await setMonthUsage('ai_credits', 1_000_000)
     expect(await checkAiAllowance(ev())).toEqual({ allowed: true })

@@ -14,10 +14,11 @@ const hostingPlatform = (await fetchAdminAccess())?.hostingPlatform ?? false
 const { central } = useAccounts()
 const { data: planData } = await useFetch<{ plans: { id: string; name: string }[] }>('/api/v1/admin/plans', { immediate: hostingPlatform })
 
-// The select can't hold null, so the built-in unlimited plan is this sentinel in the form.
+// The select can't hold null, so "no plan" is this sentinel in the form. No plan means no
+// limits, except that a customer site gets no AI on your account (ai-allowance.ts).
 const UNLIMITED = 'unlimited'
 const planItems = computed(() => [
-  { label: 'Unlimited (built-in)', value: UNLIMITED },
+  { label: 'No plan (no limits, but no AI on your account)', value: UNLIMITED },
   ...(planData.value?.plans ?? []).map(p => ({ label: p.name, value: p.id })),
 ])
 // Moving a site between pools (AdminSiteMoveModal). Only with pools, which need the hosting switch.
@@ -43,7 +44,7 @@ async function afterMoveChange() {
   await Promise.all([refresh(), refreshMoves()])
 }
 
-const planName = (id: string | null) => (id && planData.value?.plans.find(p => p.id === id)?.name) || 'Unlimited'
+const planName = (id: string | null) => (id && planData.value?.plans.find(p => p.id === id)?.name) || 'No plan'
 
 // useRequestURL() is the same on the server and in the browser. Reading window.location
 // only in the browser left it blank in the server render, so the current site's delete
@@ -265,7 +266,7 @@ async function deleteSite() {
               ]"
             />
           </UFormField>
-          <UFormField v-if="hostingPlatform" label="Hosting plan" help="Limits apply within a minute. Manage plans in Super Admin → Plans.">
+          <UFormField v-if="hostingPlatform" label="Hosting plan" help="Limits apply within a minute. Manage plans in Super Admin → Plans. A customer site with no plan can only use AI on its own key; your main site never needs one.">
             <USelect v-model="editForm.hostingPlanId" :items="planItems" class="w-full" />
           </UFormField>
           <UAlert v-if="saveError" color="error" variant="soft" :description="saveError" />

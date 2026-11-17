@@ -4,9 +4,9 @@ import { siteUsageDaily } from '@nuxflow/db/schema'
 import { useDb, type Db } from './db'
 import { createIsolateCache } from './isolate-cache'
 import { isHostingPlatform } from './hosting-platform'
-import { checkPlanLimit, planLimitMessage, type PlanCheck } from './hosting-plans'
+import { checkPlanLimit, getSitePlan, planLimitMessage, type PlanCheck } from './hosting-plans'
 import { countUsage, pendingUsage } from './usage'
-import { getPrimarySite } from './site-info'
+import { getPrimarySite, isPrimarySite } from './site-info'
 import { getPlatformSetting } from './control-plane'
 import { utcDay } from './utc-day'
 import { forbidden } from './response'
@@ -75,9 +75,11 @@ export function speechCredits(chars: number): number {
 // ── Platform-wide daily cap ────────────────────────────────────────────────────────────
 
 /**
- * Most AI credits all hosted sites together may use in one UTC day — a safety brake so a
- * plan left without an AI limit (or a site with no plan) can't run up the operator's
- * Workers AI bill overnight. Stored on the primary site, server-managed (only
+ * Most AI credits the hosted sites in THIS Worker may use in one UTC day — a safety brake so a
+ * plan left without an AI limit can't run up the operator's Workers AI bill overnight. The
+ * count is per Worker: the control plane and each member pool count their own sites against
+ * the same number (adding up every pool on each AI call would cost an RPC per pool), so the
+ * real platform-wide ceiling is the cap × the number of Workers — the Platform page says so. Stored on the primary site, server-managed (only
  * `PUT /api/v1/admin/platform` writes it). Unset = no cap. The primary site itself is
  * never braked: it's the operator's own.
  */
@@ -120,11 +122,15 @@ export type AiAllowanceCheck =
   | { allowed: true }
   | { allowed: false, reason: 'plan', plan: PlanCheck }
   | { allowed: false, reason: 'platform', used: number, max: number }
+  | { allowed: false, reason: 'no_plan' }
 
 export const PLATFORM_AI_CAP_MESSAGE = 'AI is paused for today: the platform\'s daily AI allowance has been reached. It resets at midnight UTC. To keep going now, add your own AI key in Settings → AI.'
 
+export const NO_PLAN_AI_MESSAGE = "The platform's AI isn't included with this site, because it has no hosting plan. To use AI now, add your own AI key in Settings → AI."
+
 export function aiAllowanceMessage(check: Exclude<AiAllowanceCheck, { allowed: true }>): string {
   if (check.reason === 'platform') return PLATFORM_AI_CAP_MESSAGE
+  if (check.reason === 'no_plan') return NO_PLAN_AI_MESSAGE
   return planLimitMessage(check.plan.key, check.plan.max ?? 0)
 }
 
@@ -136,14 +142,20 @@ export function aiAllowanceMessage(check: Exclude<AiAllowanceCheck, { allowed: t
 export async function checkAiAllowance(event: H3Event, credits = 1, trigger: AiTrigger = 'team', siteId = event.context?.siteId ?? undefined): Promise<AiAllowanceCheck> {
   if (!siteId) return { allowed: true }
   const db = useDb(event)
+  if (!(await isHostingPlatform(db))) return { allowed: true }
+  // The operator's own site is never limited (and never has a plan to read).
+  if (await isPrimarySite(event, siteId)) return { allowed: true }
+
+  // A customer site with no plan would otherwise be unlimited on the operator's bill, held
+  // back only by the daily cap — e.g. a site created by hand in Super Admin → Sites with the
+  // plan left unset. No plan means no AI the platform pays for; the site's own key still works.
+  if (!(await getSitePlan(db, siteId))) return { allowed: false, reason: 'no_plan' }
   const plan = await checkPlanLimit(db, siteId, PLAN_KEY[trigger], credits)
   if (!plan.allowed) return { allowed: false, reason: 'plan', plan }
 
-  if (!(await isHostingPlatform(db))) return { allowed: true }
   const max = await getAiDailyCap(db)
   if (max === null) return { allowed: true }
   const primary = await getPrimarySite(event)
-  if (primary?.id === siteId) return { allowed: true }
   const used = await platformAiCreditsToday(db, primary?.id ?? null)
   if (used + credits > max) return { allowed: false, reason: 'platform', used, max }
   return { allowed: true }
@@ -167,9 +179,10 @@ export async function assertAiAllowance(event: H3Event, credits = 1, trigger: Ai
 /** The 403 for a refused allowance check (or an AiAllowanceError caught from inside a model call). */
 export function allowanceForbidden(source: Exclude<AiAllowanceCheck, { allowed: true }> | AiAllowanceError) {
   const check = source instanceof AiAllowanceError ? source.check : source
-  return forbidden(aiAllowanceMessage(check), check.reason === 'plan'
-    ? { code: 'plan_limit', limit: check.plan.key, used: check.plan.used, max: check.plan.max }
-    : { code: 'platform_ai_cap', used: check.used, max: check.max })
+  const message = aiAllowanceMessage(check)
+  if (check.reason === 'plan') return forbidden(message, { code: 'plan_limit', limit: check.plan.key, used: check.plan.used, max: check.plan.max })
+  if (check.reason === 'no_plan') return forbidden(message, { code: 'plan_limit', limit: 'ai', used: 0, max: 0 })
+  return forbidden(message, { code: 'platform_ai_cap', used: check.used, max: check.max })
 }
 
 /**

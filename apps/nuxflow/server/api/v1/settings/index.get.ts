@@ -3,7 +3,7 @@ import { requireRole } from '../../../utils/permissions'
 import { sites, siteSettings } from '@nuxflow/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { SENSITIVE_SETTING_KEYS, SECRET_MASK, isEnvFallbackWithheld, isOllamaAvailable } from '../../../utils/settings'
-import { planIncludes } from '../../../utils/hosting-plans'
+import { getSitePlan, planIncludes } from '../../../utils/hosting-plans'
 import { requireSiteId } from '../../../utils/site-context'
 import { defaultFromAddresses, loadEmailConfig } from '../../../utils/email'
 import type { SiteSettingsResponse } from '../../../../shared/lib/site-settings-types'
@@ -92,10 +92,13 @@ export default defineEventHandler(async (event) => {
     if (!settings['auth.github_client_id'] && githubClientId) settings['auth.github_client_id'] = githubClientId
   }
 
+  // Ollama is offered exactly where the site is not a hosted customer (settings.ts).
+  const ollamaAvailable = await isOllamaAvailable(event)
   return {
     site,
     settings,
-    ollamaAvailable: await isOllamaAvailable(event),
+    ollamaAvailable,
+    hostedAi: ollamaAvailable ? null : { included: (await getSitePlan(db, siteId)) !== null },
     imageTransformationsAvailable: await planIncludes(db, siteId, 'imageTransformations'),
     // What the Email tab shows while nothing is saved: the provider actually used (a
     // customer site falls back to Cloudflare, not the server log) and the From addresses.
