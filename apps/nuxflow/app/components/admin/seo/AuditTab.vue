@@ -9,6 +9,10 @@ const visibleItems = computed(() => {
   return filter.value === 'problems' ? items.filter(i => i.issues.some(x => x.severity !== 'info')) : items
 })
 
+// "Suggest fixes with AI" — titles and descriptions only; editor+ like the SEO route.
+const fixable = computed(() => seoFixableItems(data.value?.items ?? []))
+const showAiFix = ref(false)
+
 const SEVERITY_STYLE: Record<string, { icon: string; cls: string }> = {
   error: { icon: 'i-lucide-circle-x', cls: 'text-red-500' },
   warning: { icon: 'i-lucide-triangle-alert', cls: 'text-amber-500' },
@@ -40,7 +44,12 @@ const COUNT_LABELS: Record<string, string> = {
             <span v-if="data.summary.truncated">(newest {{ data.summary.total }} checked)</span>
           </p>
         </div>
-        <UButton size="sm" variant="ghost" icon="i-lucide-refresh-cw" :loading="pending" @click="refresh()">Re-run</UButton>
+        <div class="flex items-center gap-2">
+          <UButton v-if="fixable.length" size="sm" variant="soft" icon="i-lucide-sparkles" data-testid="seo-ai-fix" @click="showAiFix = true">
+            Suggest fixes with AI ({{ fixable.length }})
+          </UButton>
+          <UButton size="sm" variant="ghost" icon="i-lucide-refresh-cw" :loading="pending" @click="refresh()">Re-run</UButton>
+        </div>
       </div>
     </template>
 
@@ -97,4 +106,6 @@ const COUNT_LABELS: Record<string, string> = {
       </li>
     </ul>
   </UCard>
+
+  <AdminSeoAiFixModal v-if="showAiFix" v-model:open="showAiFix" :items="fixable.slice(0, 25)" :more="Math.max(0, fixable.length - 25)" @applied="refresh()" />
 </template>

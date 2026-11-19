@@ -1,9 +1,9 @@
 import { z } from 'zod'
 import { generateObject } from 'ai'
 import { contentItems } from '@nuxflow/db/schema'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { requireRole } from '../../../utils/permissions'
-import { requireAiSdkModel, callAiOrThrow } from '../../../utils/ai-sdk'
+import { requireAiSdkModel, callAiOrThrow, aiErrorMessage } from '../../../utils/ai-sdk'
 import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { getContentItemOrThrow } from '../../../utils/content-queries'
@@ -20,7 +20,11 @@ const bodySchema = z.object({
   contentId: z.string().max(64).optional(),
   // Generate the site-wide homepage title/description from the site's own content.
   scope: z.enum(['page', 'site']).default('page'),
-}).refine(b => b.title || b.contentId || b.scope === 'site', { message: 'title, contentId, or scope "site" is required' })
+  // Bulk: suggestions for several saved items at once (SEO -> Audit -> Suggest fixes with
+  // AI). Nothing is saved here: the person reviews each one and the page PATCHes the
+  // ones they tick, recorded as AI-assisted.
+  contentIds: z.array(z.string().max(64)).min(1).max(5).optional(),
+}).refine(b => b.title || b.contentId || b.contentIds || b.scope === 'site', { message: 'title, contentId, contentIds or scope "site" is required' })
 
 // Deliberately no .max() here: generateObject enforces the schema at the provider-call
 // level, so a model returning 62 characters used to fail the whole call with a 502. The
@@ -42,6 +46,25 @@ export default defineEventHandler(async (event) => {
   const input = await parseBody(event, bodySchema)
   const db = useDb(event)
   const siteId = requireSiteId(event)
+
+  if (input.contentIds) {
+    const items = await db.query.contentItems.findMany({
+      where: and(eq(contentItems.siteId, siteId), inArray(contentItems.id, [...new Set(input.contentIds)])),
+      columns: { id: true, title: true, content: true, excerpt: true, seoTitle: true, seoDescription: true, version: true },
+    })
+    // One call per item, a few at a time: a single combined prompt mixed pages up.
+    const suggestions = await Promise.all(items.map(async (item) => {
+      const base = { id: item.id, title: item.title, version: item.version, current: { seoTitle: item.seoTitle ?? '', seoDescription: item.seoDescription ?? '' } }
+      try {
+        const body = [item.excerpt, contentToMarkdown(item.content)].filter(Boolean).join('\n\n')
+        return { ...base, ...(await suggest(item.title, body)), error: null }
+      }
+      catch (e) {
+        return { ...base, seoTitle: '', seoDescription: '', error: aiErrorMessage(e) }
+      }
+    }))
+    return { suggestions }
+  }
 
   let title = input.title
   let content = input.body ?? ''
@@ -68,11 +91,13 @@ export default defineEventHandler(async (event) => {
     content = content || [item.excerpt, contentToMarkdown(item.content)].filter(Boolean).join('\n\n')
   }
 
-  const prompt = `Generate an SEO title and meta description.\nTitle: ${title}\n${content ? `Content:\n${content.slice(0, 4000)}` : ''}`
+  return suggest(title, content)
 
-  const { object } = await callAiOrThrow(() =>
-    generateObject({ model, schema: seoSchema, system: SYSTEM, prompt, maxOutputTokens: 300 }),
-  )
-
-  return { seoTitle: clampToWords(object.title, 60), seoDescription: clampToWords(object.description, 160) }
+  async function suggest(pageTitle: string, body: string) {
+    const prompt = `Generate an SEO title and meta description.\nTitle: ${pageTitle}\n${body ? `Content:\n${body.slice(0, 4000)}` : ''}`
+    const { object } = await callAiOrThrow(() =>
+      generateObject({ model, schema: seoSchema, system: SYSTEM, prompt, maxOutputTokens: 300 }),
+    )
+    return { seoTitle: clampToWords(object.title, 60), seoDescription: clampToWords(object.description, 160) }
+  }
 })
