@@ -10,6 +10,8 @@ import { gotoHydrated } from './helpers'
 test.use({ storageState: ADMIN_STORAGE_STATE_PATH })
 
 let contentId: string
+// Other pages that need fixes too, as on a real site (and in CI): the test unticks them.
+const extraIds: string[] = []
 
 test.beforeAll(async ({ request }) => {
   const res = await request.post('/api/v1/content', {
@@ -22,10 +24,16 @@ test.beforeAll(async ({ request }) => {
   })
   expect(res.ok()).toBeTruthy()
   contentId = (await res.json()).id
+  for (const n of [1, 2]) {
+    const extra = await request.post('/api/v1/content', {
+      data: { title: `SEO other ${n}`, slug: `seo-other-${n}-${Date.now()}`, status: 'published', content: { type: 'canvas', blocks: [] } },
+    })
+    extraIds.push((await extra.json()).id)
+  }
 })
 
 test.afterAll(async ({ request }) => {
-  await request.delete(`/api/v1/content/${contentId}`)
+  for (const id of [contentId, ...extraIds]) await request.delete(`/api/v1/content/${id}`)
 })
 
 test('suggestions are reviewed, then applied and recorded as AI-assisted', async ({ page, request }) => {
@@ -50,10 +58,15 @@ test('suggestions are reviewed, then applied and recorded as AI-assisted', async
   await page.getByTestId('seo-ai-fix').click()
   const rows = page.getByTestId('seo-ai-rows')
   await expect(rows).toContainText('SEO fix test')
+  // Suggestions arrive in batches; wait for the last one before changing the ticks.
+  await expect(page.getByText(/Writing suggestions/)).toHaveCount(0)
 
   // Untick every page except ours, so the test only saves its own page.
   const others = rows.locator('li').filter({ hasNotText: 'SEO fix test' })
-  for (const box of await others.getByRole('checkbox', { checked: true }).all()) await box.click()
+  // One at a time from the top: each click changes which boxes are still ticked, so a list
+  // taken up front points past the end after the first one (it did in CI, with more pages).
+  const ticked = others.getByRole('checkbox', { checked: true })
+  while (await ticked.count()) await ticked.first().click()
 
   const ours = rows.locator('li').filter({ hasText: 'SEO fix test' })
   await expect(ours.getByRole('textbox').last()).toHaveValue(/Small-batch coffee/)
