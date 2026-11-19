@@ -345,9 +345,11 @@ describe('POST /api/v1/ai/bulk-alt-text', () => {
 
   it('stops the run with the real reason when the provider rejects the key, keeping images already done', async () => {
     const db = getCurrentTestDb()
-    const okId = await seedMedia(db, SITE, { originalName: 'ok.jpg', mimeType: 'image/jpeg' })
-    const badId = await seedMedia(db, SITE, { originalName: 'bad.jpg', mimeType: 'image/jpeg' })
-    const neverId = await seedMedia(db, SITE, { originalName: 'never.jpg', mimeType: 'image/jpeg' })
+    // Ids that sort against the order they're picked in: images are described in the order
+    // chosen, not the database's. (Random ULIDs made this test fail now and then on CI.)
+    const okId = await seedMedia(db, SITE, { id: '01ZZZZZZZZZZZZZZZZZZZZZOK1', originalName: 'ok.jpg', mimeType: 'image/jpeg' })
+    const badId = await seedMedia(db, SITE, { id: '01AAAAAAAAAAAAAAAAAAAABAD1', originalName: 'bad.jpg', mimeType: 'image/jpeg' })
+    const neverId = await seedMedia(db, SITE, { id: '01AAAAAAAAAAAAAAAAAAAANEV1', originalName: 'never.jpg', mimeType: 'image/jpeg' })
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     mockGenerateText.mockClear()
 
