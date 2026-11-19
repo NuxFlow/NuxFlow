@@ -16,7 +16,8 @@ export { isTeamRole, roleAtLeast, type Role }
 // `manage:plugins` / `manage:themes` exist for the `nuxflow` CLI's deploy commands. They
 // replace signing in with an email and password, which can't work on a site's own domain
 // once central sign-in is on (/api/auth/** only exists on the accounts origin there).
-export const API_KEY_SCOPES = ['read:content', 'write:content', 'manage:plugins', 'manage:themes'] as const
+// manage:settings = only the AI safe list (shared/lib/assistant.ts), for AI assistants over MCP.
+export const API_KEY_SCOPES = ['read:content', 'write:content', 'manage:plugins', 'manage:themes', 'manage:settings'] as const
 export type ApiKeyScope = typeof API_KEY_SCOPES[number]
 
 /**

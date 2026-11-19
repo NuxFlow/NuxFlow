@@ -27,7 +27,13 @@ vi.mock('../../server/utils/rate-limit', () => ({
 }))
 
 const purgeContentCache = vi.fn().mockResolvedValue(undefined)
-vi.mock('../../server/utils/edge-cache', () => ({ purgeContentCache: (...a: unknown[]) => purgeContentCache(...a) }))
+const purgeEdgeCache = vi.fn().mockResolvedValue(undefined)
+const purgeAllPublicPages = vi.fn().mockResolvedValue(undefined)
+vi.mock('../../server/utils/edge-cache', () => ({
+  purgeContentCache: (...a: unknown[]) => purgeContentCache(...a),
+  purgeEdgeCache: (...a: unknown[]) => purgeEdgeCache(...a),
+  purgeAllPublicPages: (...a: unknown[]) => purgeAllPublicPages(...a),
+}))
 const upsertContentEmbedding = vi.fn().mockResolvedValue(undefined)
 const deleteContentEmbedding = vi.fn().mockResolvedValue(undefined)
 vi.mock('../../server/utils/embeddings', async importOriginal => ({
@@ -408,5 +414,51 @@ describe('POST /api/v1/mcp — get_content leaves secrets out', () => {
     expect(text).not.toContain('secret-hash')
     expect(text).not.toContain('secret-preview-token')
     expect(JSON.parse(text)).toMatchObject({ id, title: 'Protected', settings: { access: 'password', hasPassword: true } })
+  })
+})
+
+describe('POST /api/v1/mcp — site settings (the AI safe list)', () => {
+  let adminId: string
+  beforeAll(async () => {
+    adminId = await seedUser(getCurrentTestDb(), { email: 'mcp-admin@test.com' })
+    await seedRole(getCurrentTestDb(), adminId, SITE, 'admin')
+  })
+
+  const call = (name: string, args: unknown, o: { role?: string; scopes?: string[]; user?: string } = {}) =>
+    (mcpHandler as HandlerFn)(mkMcpEvent({
+      body: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
+      apiKeyUserId: o.user ?? adminId,
+      apiKeyRole: o.role ?? 'admin',
+      apiKeyScopes: o.scopes ?? ['read:content', 'manage:settings'],
+    })).then(r => (r as { result: { content: { text: string }[] } }).result.content[0]!.text)
+
+  it('lists the settings with their values and what is allowed', async () => {
+    const rows = JSON.parse(await call('get_site_settings', {})) as Array<{ key: string; value: unknown; allowed: unknown }>
+    expect(rows.find(r => r.key === 'theme.dark_mode')).toMatchObject({ value: 'auto', allowed: ['auto', 'light', 'dark'] })
+    expect(rows.some(r => r.key.includes('custom_head_html'))).toBe(false)
+  })
+
+  it('saves valid changes and records them as suggested by an AI assistant', async () => {
+    const text = await call('update_site_settings', { settings: { 'theme.dark_mode': 'dark', 'site.name': 'Bean MCP' }, request: 'Make it dark and rename it' })
+    expect(text).toContain('Always dark')
+    const db = getCurrentTestDb()
+    const site = await db.query.sites.findFirst({ where: (t, { eq: e }) => e(t.id, SITE) })
+    expect(site!.name).toBe('Bean MCP')
+    const log = await db.query.auditLogs.findFirst({ where: and(eq(auditLogs.siteId, SITE), eq(auditLogs.resource, 'settings')) })
+    expect(log!.action).toBe('ai_assisted_update')
+    expect(log!.after).toMatchObject({ keys: ['theme.dark_mode', 'name'], aiAssist: { kind: 'mcp', instruction: 'Make it dark and rename it' } })
+    expect(purgeAllPublicPages).toHaveBeenCalled()
+  })
+
+  it('saves nothing when any key or value is not allowed', async () => {
+    const text = await call('update_site_settings', { settings: { 'theme.dark_mode': 'light', 'appearance.custom_head_html': '<script>' } })
+    expect(text).toMatch(/^Error: nothing was saved/)
+    const rows = JSON.parse(await call('get_site_settings', {})) as Array<{ key: string; value: unknown }>
+    expect(rows.find(r => r.key === 'theme.dark_mode')!.value).toBe('dark')
+  })
+
+  it('needs an admin key with the manage:settings scope', async () => {
+    expect(await call('update_site_settings', { settings: { 'theme.dark_mode': 'light' } }, { role: 'editor', user: authorUserId })).toMatch(/belonging to an admin/)
+    expect(await call('update_site_settings', { settings: { 'theme.dark_mode': 'light' } }, { scopes: ['read:content', 'write:content'] })).toMatch(/manage:settings/)
   })
 })

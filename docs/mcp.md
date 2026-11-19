@@ -45,6 +45,10 @@ All MCP requests must be authenticated.
 | `update_content` | `write:content` | Changes an item's title, slug, content or status, or an event's details. Moving or removing dates tells the people booked, and refunds them if a date is gone. |
 | `set_content_terms` | `write:content` | Replaces an item's categories/tags, given as `taxonomy/term` paths. |
 | `delete_content` | `write:content` | Permanently deletes an item. Refused for an event with paid upcoming bookings. |
+| `get_site_settings` | `read:content` | Lists the settings an AI assistant may change (light/dark mode, accent colour, fonts, header options, homepage search title and description, site name), with their values and what's allowed. |
+| `update_site_settings` | `manage:settings` | Changes those settings, and only those. Needs an admin's key. Nothing is saved if any value is invalid. Recorded in **Settings → Audit log** as **AI-assisted**, with the request. |
+
+The settings tools are the same short, safe list the admin's own **Ask AI** helper can suggest. Credentials, the domain, custom code, payments and people can't be changed over MCP. The assistant is told to show you each change and get your agreement before calling `update_site_settings`. Your MCP client also asks you to approve each tool call, so read what it is about to change.
 
 Each tool also checks the key owner's role on the site, the same as the admin API: an `author` can only edit their own drafts and can't publish, and deleting needs `editor` or above. `tools/list` returns every tool's exact input schema.
 
