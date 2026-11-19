@@ -99,6 +99,13 @@ Small, well-scoped items left over from the Sept 2026 Cloudflare AI integration 
 
 - **Stock / AI-generated images for AI-generated pages** — page generation now uses images already in the site's media library (when there are any); a page on a fresh site still gets no imagery. Suggesting stock photos, or generating images for the page, is the follow-up.
 - **Full RAG grounding for AI page/site generation** — `generate-content.post.ts` (prose generation) already grounds its output in the site's existing content via semantic search; the block-based generator (`generateCanvasPage()` in `canvas-generation.ts`) doesn't yet do the same.
+- **AI helper: more it could do, with the same suggest-then-apply rule** (see CLAUDE.md "AI suggests, a person approves"). Not built yet:
+  - *Menus*: suggest adding/renaming menu items, shown as a before/after menu.
+  - *Business hours and other JSON settings*: suggest edits checked by their existing normalizers (`normalizeBusinessSetting()` etc.).
+  - *Prose posts*: "Change this page with AI" only works on Canvas pages; posts would need a before/after text view.
+  - *Forms*: "build me a contact form for X" in the form builder, opened as an unsaved draft.
+- **Deliberately not built (the AI would have to invent facts):** drafting answers to the chatbot's unanswered questions (the bot didn't know, so neither does the model; the owner writes those), and "refresh this stale page" (the model can't know what changed in the world). Revisit only with a source of truth to ground them in.
+- **Default accent colour contrast**: NuxFlow's default accent `#00dc82` has about 1.9:1 contrast with white text (WCAG asks 3:1 for large/bold text, 4.5:1 for normal). `accentReadabilityWarning()` (`shared/lib/assistant.ts`) skips the default so untouched sites aren't warned; consider a darker default, or dark text on primary buttons.
 
 ---
 

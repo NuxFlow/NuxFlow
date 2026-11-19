@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ASSISTANT_SETTINGS, assistantSettingsPatch, describeAssistantValue, type AssistantProposal } from '#shared/lib/assistant'
+import { ASSISTANT_SETTINGS, accentReadabilityWarning, assistantSettingsPatch, describeAssistantValue, type AssistantProposal } from '#shared/lib/assistant'
 
 // One suggestion from the admin AI helper. Nothing here happens without a click: a setting
 // is previewed (look-and-feel ones) and applied with the normal settings save, recorded
@@ -15,6 +15,7 @@ const showPreview = ref(false)
 
 const isAppearance = computed(() => props.proposal.type === 'setting' && 'appearance' in ASSISTANT_SETTINGS[props.proposal.key])
 const isColor = computed(() => props.proposal.type === 'setting' && ASSISTANT_SETTINGS[props.proposal.key].kind === 'color')
+const readability = computed(() => (props.proposal.type === 'setting' && props.proposal.key === 'theme.primary_color' ? accentReadabilityWarning(props.proposal.value) : null))
 
 async function apply() {
   const p = props.proposal
@@ -75,6 +76,10 @@ async function openLink() {
         </span>
       </div>
       <p v-if="proposal.note" class="text-xs text-gray-600 dark:text-gray-400">{{ proposal.note }}</p>
+      <p v-if="readability" class="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1.5" data-testid="assistant-readability">
+        <UIcon name="i-lucide-triangle-alert" class="w-3.5 h-3.5 mt-0.5 shrink-0" />
+        {{ readability }}
+      </p>
       <div class="flex flex-wrap items-center gap-2 pt-1">
         <template v-if="!applied">
           <UButton v-if="isAppearance" size="xs" variant="outline" color="neutral" icon="i-lucide-eye" @click="showPreview = true">Preview</UButton>
