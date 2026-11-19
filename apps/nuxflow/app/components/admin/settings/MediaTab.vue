@@ -97,7 +97,7 @@ withDefaults(defineProps<{
         <template #description>
           <ol class="list-decimal list-inside space-y-1 text-xs mt-1">
             <li>Cloudflare dashboard → this domain → <strong>Images → Transformations</strong> → enable it.</li>
-            <li>If your media is stored anywhere other than Cloudflare Images (R2 or the database fallback), also enable
+            <li>If your media is stored anywhere other than Cloudflare Images (R2), also enable
               <strong>"Resize Images from Any Origin"</strong> and allow-list this site's storage domain as a source origin.</li>
           </ol>
           Turning this on before completing those steps will make every image on the site 404.
@@ -133,7 +133,7 @@ withDefaults(defineProps<{
     icon="i-lucide-arrow-down-up"
     color="neutral"
     variant="soft"
-    description="Only one storage provider is active at a time, checked in this order: Cloudflare Images → Cloudflare R2 → the database. The first one that's set up wins. The status card at the top of this page always shows which one is in use."
+    description="Only one storage provider is active at a time, checked in this order: Cloudflare Images → Cloudflare R2. The first one that's set up wins; with neither, uploads are refused. The status card at the top of this page always shows which one is in use."
   />
 
   <UCard>

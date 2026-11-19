@@ -22,6 +22,7 @@ import { defaultProductInput, planProductSave, productInputSchema } from '../../
 import { requireSiteId } from '../../../utils/site-context'
 import { getSiteInfo } from '../../../utils/site-info'
 import { checkContentDates, contentDateFields } from '../../../utils/content-dates'
+import { inlineImageProblem } from '../../../utils/inline-images'
 import { checkFieldValues, fieldDefsForType } from '../../../utils/content-type-fields'
 
 const bodySchema = z.object({
@@ -79,6 +80,8 @@ export default defineEventHandler(async (event) => {
 
   const dateCheck = await checkContentDates(db, siteId, body, { existing: null, typeSlug: type.slug, sourceItemId: body.sourceItemId, timeZone: site?.timezone || 'UTC' })
   if (dateCheck.problem !== undefined) throw validationError(dateCheck.problem)
+  const imageProblem = inlineImageProblem(body)
+  if (imageProblem) throw validationError(imageProblem)
 
   const fieldValues = body.fields ? checkFieldValues(await fieldDefsForType(db, siteId, type.id), body.fields, body.status === 'published') : null
 

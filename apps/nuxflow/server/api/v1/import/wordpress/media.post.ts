@@ -32,6 +32,7 @@ export default defineEventHandler(async (event) => {
   const siteId = requireSiteId(event)
   const db = useDb(event)
   const body = await parseBody(event, bodySchema)
+  // 409 storage_required without file storage (the import page checks first).
   const provider = await getActiveProvider(event)
 
   const results = await Promise.all(body.urls.map(async (remoteUrl): Promise<MediaResult & { created?: boolean }> => {
@@ -71,7 +72,7 @@ export default defineEventHandler(async (event) => {
         mimeType: contentType,
         size: file.size,
         url: localUrl,
-        storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
+        storageProvider: provider.name as 'cloudflare' | 'r2',
         storageKey,
       })
       return { url: remoteUrl, localUrl, created: true }

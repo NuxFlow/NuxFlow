@@ -109,6 +109,8 @@ export default defineEventHandler(async (event) => {
       )
 
       if (imageEntries.length > 0 && demoJson) {
+        // A bundle with images needs file storage: 409 storage_required before anything
+        // is saved, rather than a theme whose demo content shows broken images.
         const provider = await getActiveProvider(event)
         const themeImageId = ulid() // stable prefix so all theme images share a folder
 
@@ -136,14 +138,13 @@ export default defineEventHandler(async (event) => {
               mimeType,
               size: imageData.byteLength,
               url,
-              storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
+              storageProvider: provider.name as 'cloudflare' | 'r2',
               storageKey,
             })
           } catch {
             // Demo content will reference the raw zip-relative path and show a
             // broken image — surfaced to the caller via failedImages rather than
-            // silently swallowed, since this usually means no real media provider
-            // is configured (the local fallback caps uploads at 512 KB).
+            // silently swallowed (a full storage allowance, or a provider error).
             failedImages.push(filename)
           }
         }

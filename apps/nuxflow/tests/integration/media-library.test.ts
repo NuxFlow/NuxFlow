@@ -12,6 +12,7 @@
  *    row (502) if the provider delete fails — so a file is never orphaned in storage.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import type * as MediaProviders from '../../server/utils/media-providers/index'
 import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
@@ -27,9 +28,17 @@ vi.mock('../../server/utils/db', () => ({
 const { mockProvider } = vi.hoisted(() => ({
   mockProvider: { name: 'r2', delete: vi.fn(), upload: vi.fn(), getUrl: vi.fn() },
 }))
-vi.mock('../../server/utils/media-providers/index', () => ({
-  getActiveProvider: vi.fn(async () => mockProvider),
-}))
+vi.mock('../../server/utils/media-providers/index', async (importOriginal) => {
+  const actual = await importOriginal<typeof MediaProviders>()
+  // name 'none' = the site has no file storage.
+  const find = async () => (mockProvider.name === 'none' ? null : mockProvider)
+  return {
+    ...actual,
+    findMediaProvider: vi.fn(find),
+    hasMediaStorage: vi.fn(async () => (await find()) !== null),
+    getActiveProvider: vi.fn(async () => (await find()) ?? actual.storageRequiredError()),
+  }
+})
 
 const { default: listHandler } = await import('../../server/api/v1/media/index.get')
 const { default: getHandler } = await import('../../server/api/v1/media/[id].get')
@@ -227,10 +236,11 @@ describe('media folders', () => {
 })
 
 describe('GET /api/v1/media/storage-status', () => {
-  it('reports the active provider and whether it is the database fallback', async () => {
-    expect(await (storageStatusHandler as Handler)(ev(viewerId))).toEqual({ provider: 'r2', isFallback: false })
-    mockProvider.name = 'local'
-    expect(await (storageStatusHandler as Handler)(ev(viewerId))).toEqual({ provider: 'local', isFallback: true })
+  it('reports the active provider and whether the site has file storage at all', async () => {
+    expect(await (storageStatusHandler as Handler)(ev(viewerId))).toEqual({ provider: 'r2', hasStorage: true })
+    mockProvider.name = 'none'
+    expect(await (storageStatusHandler as Handler)(ev(viewerId))).toEqual({ provider: null, hasStorage: false })
+    mockProvider.name = 'r2'
   })
 })
 

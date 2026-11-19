@@ -63,11 +63,11 @@ export interface SiteSizeStats {
   revisionBytes: number
   mediaCount: number
   mediaBytes: number
-  /** Media-library rows whose file is stored in D1 (the storage fallback), not in real storage. */
+  /** Media-library rows whose file is still stored in D1 (the old storage fallback). */
   localFallbackMediaCount: number
   /**
-   * The provider new uploads go to for this site right now ('local' = no storage
-   * connected). Lets the UI tell "nothing connected" apart from "connected, but older
+   * The provider new uploads go to for this site right now ('none' = no file storage,
+   * so uploads are refused). Lets the UI tell "nothing connected" apart from "connected, but older
    * files are still in the database and can be moved".
    */
   storageProvider: string

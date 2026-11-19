@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import type * as MediaProviders from '../../server/utils/media-providers/index'
 import type { H3Event } from 'h3'
 import { and, eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
@@ -29,8 +30,15 @@ const fakeProvider = {
   async exists(key: string) { return existsWorks && stored.has(key) },
 }
 vi.mock('../../server/utils/media-providers/index', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>()
-  return { ...actual, getActiveProvider: async () => fakeProvider }
+  const actual = await importOriginal<typeof MediaProviders>()
+  // name 'none' = the site has no file storage.
+  const find = async () => (fakeProvider.name === 'none' ? null : fakeProvider)
+  return {
+    ...actual,
+    findMediaProvider: vi.fn(find),
+    hasMediaStorage: vi.fn(async () => (await find()) !== null),
+    getActiveProvider: vi.fn(async () => (await find()) ?? actual.storageRequiredError()),
+  }
 })
 
 const { default: statusHandler } = await import('../../server/api/v1/media/migration.get')
@@ -243,7 +251,7 @@ describe('moving database-stored media to real storage', () => {
   })
 
   it('refuses to run while no real storage is connected', async () => {
-    providerName = 'local'
+    providerName = 'none'
     await expect((migrateHandler as Handler)(adminEvent({ phase: 'media' }))).rejects.toMatchObject({ statusCode: 409 })
   })
 

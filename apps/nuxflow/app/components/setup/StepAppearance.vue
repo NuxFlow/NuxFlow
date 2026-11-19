@@ -57,8 +57,8 @@ watch(starters, (list) => {
         <strong>File storage:</strong> R2 bucket connected — your images and files will be stored there.
       </p>
       <p v-else class="text-gray-700 dark:text-gray-300">
-        <strong>File storage:</strong> not connected yet, so images will be kept in the database for now. That's fine for trying things out —
-        you can connect storage later in Settings → Media and move everything over in one click.
+        <strong>File storage:</strong> not connected yet, so images and files can't be uploaded until it is.
+        Add an R2 bucket (the <code>MEDIA_BUCKET</code> binding in <code>wrangler.toml</code>) and redeploy — Settings → Media shows how.
       </p>
     </div>
 

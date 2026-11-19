@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { H3Event } from 'h3'
-import { getActiveProvider } from '../../server/utils/media-providers/index'
+import { findMediaProvider, getActiveProvider, hasMediaStorage } from '../../server/utils/media-providers/index'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 if (!(globalThis as any).createError) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(globalThis as any).createError = (err: { statusCode: number; message: string }) => {
+  ;(globalThis as any).createError = (err: { statusCode: number; message: string; data?: unknown }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error = new Error(err.message) as any
     error.statusCode = err.statusCode
+    error.data = err.data
     return error
   }
 }
@@ -29,9 +30,10 @@ beforeEach(() => {
 })
 
 describe('getActiveProvider — selection priority', () => {
-  it('falls back to the local provider when nothing is configured', async () => {
-    const provider = await getActiveProvider(mkEvent())
-    expect(provider.name).toBe('local')
+  it('refuses with 409 storage_required when nothing is configured (no database fallback)', async () => {
+    await expect(getActiveProvider(mkEvent())).rejects.toMatchObject({ statusCode: 409, data: { code: 'storage_required' } })
+    expect(await findMediaProvider(mkEvent())).toBeNull()
+    expect(await hasMediaStorage(mkEvent())).toBe(false)
   })
 
   it('picks Cloudflare Images when account + token + delivery URL are set', async () => {
@@ -40,28 +42,13 @@ describe('getActiveProvider — selection priority', () => {
     settings.set('cloudflare.images_delivery_url', 'https://imagedelivery.net/abc123')
     const provider = await getActiveProvider(mkEvent())
     expect(provider.name).toBe('cloudflare')
+    expect(await hasMediaStorage(mkEvent())).toBe(true)
   })
 
-  it('falls back to local when Cloudflare Images is missing its delivery URL and nothing else is configured', async () => {
+  it('has no storage when Cloudflare Images is missing its delivery URL and nothing else is configured', async () => {
     settings.set('cloudflare.account_id', 'acct123')
     settings.set('cloudflare.images_token', 'tok123')
-    const provider = await getActiveProvider(mkEvent())
-    expect(provider.name).toBe('local')
-  })
-})
-
-describe('local provider — size guard', () => {
-  it('accepts a small file', async () => {
-    const provider = await getActiveProvider(mkEvent())
-    const file = new File([new Uint8Array(1024)], 'small.png', { type: 'image/png' })
-    const result = await provider.upload(file, 'small.png', 'site-1')
-    expect(result.url).toMatch(/^data:image\/png;base64,/)
-  })
-
-  it('rejects a file over the 512 KB cap with a clear 413 error', async () => {
-    const provider = await getActiveProvider(mkEvent())
-    const file = new File([new Uint8Array(600 * 1024)], 'big.png', { type: 'image/png' })
-    await expect(provider.upload(file, 'big.png', 'site-1')).rejects.toMatchObject({ statusCode: 413 })
+    expect(await findMediaProvider(mkEvent())).toBeNull()
   })
 })
 

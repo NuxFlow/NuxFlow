@@ -21,7 +21,7 @@ import { sites, contentItems, contentTypes, userSiteRoles, media } from '@nuxflo
 import { eq } from 'drizzle-orm'
 import deleteSettingsHandler from '../../server/api/v1/settings/index.delete'
 import { deleteSiteCompletely } from '../../server/utils/site-deletion'
-import { getActiveProvider } from '../../server/utils/media-providers/index'
+import { findMediaProvider } from '../../server/utils/media-providers/index'
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -29,7 +29,7 @@ vi.mock('../../server/utils/db', () => ({
 }))
 
 vi.mock('../../server/utils/media-providers/index', () => ({
-  getActiveProvider: vi.fn(),
+  findMediaProvider: vi.fn(),
 }))
 
 type Handler = (e: H3Event) => Promise<unknown>
@@ -162,7 +162,7 @@ describe('deleteSiteCompletely — media failures and KV cleanup', () => {
     await seedRole(db, userId, siteId, 'admin')
     const mediaId = await seedMedia(db, siteId, { storageKey: `${siteId}/will-fail.jpg`, storageProvider: 'r2' })
 
-    vi.mocked(getActiveProvider).mockResolvedValue({
+    vi.mocked(findMediaProvider).mockResolvedValue({
       name: 'r2',
       upload: vi.fn(),
       delete: vi.fn().mockRejectedValue(new Error('provider unreachable')),
@@ -190,12 +190,12 @@ describe('deleteSiteCompletely — media failures and KV cleanup', () => {
     await seedMedia(db, siteId, { storageKey: `${actingSiteId}/not-theirs.jpg`, storageProvider: 'r2' })
 
     const providerDelete = vi.fn().mockResolvedValue(undefined)
-    vi.mocked(getActiveProvider).mockClear()
-    vi.mocked(getActiveProvider).mockResolvedValue({ name: 'r2', upload: vi.fn(), delete: providerDelete, getUrl: vi.fn() })
+    vi.mocked(findMediaProvider).mockClear()
+    vi.mocked(findMediaProvider).mockResolvedValue({ name: 'r2', upload: vi.fn(), delete: providerDelete, getUrl: vi.fn() })
 
     const result = await deleteSiteCompletely(mkEvent(actingSiteId, userId), siteId, userId)
 
-    const resolvedFor = vi.mocked(getActiveProvider).mock.calls.map(([e]) => (e as H3Event).context.siteId)
+    const resolvedFor = vi.mocked(findMediaProvider).mock.calls.map(([e]) => (e as H3Event).context.siteId)
     expect(resolvedFor.length).toBeGreaterThan(0)
     expect(resolvedFor.every(id => id === siteId)).toBe(true)
     expect(providerDelete).toHaveBeenCalledTimes(1)
@@ -216,7 +216,7 @@ describe('deleteSiteCompletely — media failures and KV cleanup', () => {
     const refused = 'b'.repeat(32)
     await seedVideoAsset(db, siteId, { cloudflareStreamId: gone })
     await seedVideoAsset(db, siteId, { cloudflareStreamId: refused })
-    vi.mocked(getActiveProvider).mockResolvedValue({ name: 'r2', upload: vi.fn(), delete: vi.fn(), getUrl: vi.fn() })
+    vi.mocked(findMediaProvider).mockResolvedValue({ name: 'r2', upload: vi.fn(), delete: vi.fn(), getUrl: vi.fn() })
     const mockFetch = vi.fn(async (url: string) => new Response(null, { status: url.endsWith(refused) ? 500 : 200 }))
     vi.stubGlobal('fetch', mockFetch)
 

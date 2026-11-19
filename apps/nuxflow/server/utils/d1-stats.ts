@@ -87,7 +87,7 @@ async function computeD1SizeStats(event: H3Event): Promise<D1SizeStats> {
       GROUP BY ci.site_id
     `).all<{ siteId: string; count: number; bytes: number }>()),
     // LENGTH(url) captures what actually matters here: a provider-hosted media row's
-    // url is a short link, while the local base64-data-URI fallback's url IS the file —
+    // url is a short link, while an old base64-data-URI fallback row's url IS the file —
     // this single column tells us both the byte cost and (via the local-provider count
     // below) whether a site is relying on that fallback at all.
     labeledD1Query('media size scan', d1.prepare(`

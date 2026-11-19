@@ -4,9 +4,10 @@
 # custom HTML and credential settings are refused. Everything is wiped and reseeded at
 # 3 AM UTC.
 #
-# Keep this Worker lean on purpose — do NOT add [ai], R2 (MEDIA_BUCKET), EMAIL, Vectorize,
-# Analytics Engine, or any AI/Stripe/email secrets. Demo mode refuses AI anyway, but the
-# fewer paid resources the Worker can reach, the less a visitor can cost you.
+# Keep this Worker lean on purpose — do NOT add [ai], EMAIL, Vectorize, Analytics Engine,
+# or any AI/Stripe/email secrets. Demo mode refuses AI anyway, but the fewer paid resources
+# the Worker can reach, the less a visitor can cost you. It does need its own R2 bucket:
+# NuxFlow has no database storage for images, so without one the demo can't upload any.
 name = "nuxflow-demo"
 main = ".output/server/index.mjs"
 compatibility_date = "2026-04-01"
@@ -51,6 +52,14 @@ preview_id = "your-demo-kv-preview-namespace-id"
 # Dynamic Workers loader (the app expects the binding; demo mode refuses plugin installs)
 [[worker_loaders]]
 binding = "LOADER"
+
+# Media storage — a bucket used by the demo alone, because the nightly reset empties the
+# whole bucket (demo-reset.ts). Never point this at the main site's bucket. Create with:
+#   wrangler r2 bucket create nuxflow-demo-media
+# Demo uploads are images only, with a 2 MB request cap (demo-mode.ts).
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "nuxflow-demo-media"
 
 # Cloudflare D1 database for the demo instance.
 # Create with: wrangler d1 create nuxflow-demo

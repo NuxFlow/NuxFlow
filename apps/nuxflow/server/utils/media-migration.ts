@@ -3,7 +3,7 @@ import { and, asc, count, eq, gt, inArray, like, or, sql } from 'drizzle-orm'
 import { contentItems, contentRevisions, media, menus, siteSettings, themes, userSiteRoles, users } from '@nuxflow/db/schema'
 import { useDb } from './db'
 import { sha256Hex } from './buffer'
-import { getActiveProvider, type MediaProvider } from './media-providers/index'
+import { findMediaProvider, type MediaProvider } from './media-providers/index'
 import { sanitizeSvg } from './sanitize-css-svg'
 import { saveSetting } from './settings'
 import { purgeAllPublicPages, purgeEdgeCache } from './edge-cache'
@@ -130,9 +130,9 @@ async function verifyStored(provider: MediaProvider, storageKey: string, url: st
 }
 
 async function requireRealProvider(event: H3Event): Promise<MediaProvider> {
-  const provider = await getActiveProvider(event)
-  if (provider.name === 'local') {
-    throw new MigrationUnavailableError('No media storage is connected yet — connect R2 (or another provider in Settings → Media) before moving files out of the database.')
+  const provider = await findMediaProvider(event)
+  if (!provider) {
+    throw new MigrationUnavailableError('No file storage is connected yet — add an R2 bucket (the MEDIA_BUCKET binding) before moving files out of the database.')
   }
   return provider
 }
@@ -546,7 +546,7 @@ export async function migrateInlineImagesBatch(
 export async function getMigrationStatus(event: H3Event): Promise<MigrationStatus> {
   const siteId = requireSiteId(event)
   const db = useDb(event)
-  const provider = await getActiveProvider(event)
+  const provider = await findMediaProvider(event)
 
   const [[mediaStats], [contentStats], [settingStats]] = await Promise.all([
     db.select({ n: count(), bytes: sql<number>`COALESCE(SUM(LENGTH(${media.url})), 0)` })
@@ -566,9 +566,9 @@ export async function getMigrationStatus(event: H3Event): Promise<MigrationStatu
   ])
 
   return {
-    provider: provider.name,
-    servedByWorker: (provider as { servedByWorker?: boolean }).servedByWorker === true,
-    canMigrate: provider.name !== 'local',
+    provider: provider?.name ?? 'none',
+    servedByWorker: (provider as { servedByWorker?: boolean } | null)?.servedByWorker === true,
+    canMigrate: provider !== null,
     pendingMedia: mediaStats?.n ?? 0,
     pendingMediaBytes: Number(mediaStats?.bytes ?? 0),
     pendingInline: (contentStats?.n ?? 0) + (settingStats?.n ?? 0),

@@ -20,6 +20,7 @@ import { requireSiteId } from '../../../utils/site-context'
 import { isMemberPool, POOL_PLATFORM_SETTINGS, requireControlPlane } from '../../../utils/control-plane'
 import { pushSettingsToPools } from '../../../utils/pools'
 import { assertDemoAllowsSettings } from '../../../utils/demo-mode'
+import { inlineImageProblem } from '../../../utils/inline-images'
 import { assertSiteMayReopen } from '../../../utils/hosting-hold'
 import { BUSINESS_SETTING_KEY, normalizeBusinessSetting } from '../../../utils/business'
 import { PODCAST_SETTING_KEY, normalizePodcastSetting } from '../../../utils/podcast'
@@ -80,6 +81,9 @@ export default defineEventHandler(async (event) => {
   const siteId = requireSiteId(event)
   const body = await parseBody(event, bodySchema)
   assertDemoAllowsSettings(event, body)
+  // Logo, favicon and share image are media-library URLs, never the image itself.
+  const imageProblem = inlineImageProblem(body)
+  if (imageProblem) throw validationError(imageProblem)
 
   const reserved = Object.keys(body.settings ?? {}).filter(k => SERVER_MANAGED_SETTING_KEYS.has(k))
   if (reserved.length) throw badRequest(`These settings are managed by NuxFlow and can't be set directly: ${reserved.join(', ')}`)

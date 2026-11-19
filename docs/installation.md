@@ -373,11 +373,11 @@ NuxFlow ships several AI-discoverability features out of the box — no configur
 
 **The recommended setup is one command.** Create an R2 bucket once — `wrangler r2 bucket create nuxflow-media` — and keep the `[[r2_buckets]]` block that `wrangler.toml.example` already includes. That's it: uploads go to R2 and are served from your site's own address at `/_nuxflow/media/...`. There's no public bucket access to enable and nothing to fill in under Settings → Media. The setup wizard's last step shows **"File storage: R2 bucket connected"** when this is in place. (`wrangler dev` simulates R2 locally, so no real bucket is needed for development.)
 
-Without that binding, and with no other provider configured below, uploads fall back to being stored as base64 inside the database, capped at 512 KB per file. That fallback only exists so a brand-new install works before storage is set up — it makes pages heavier (each image is inlined into the HTML) and fills the database. The admin dashboard, media library, Settings → Media, and Super Admin → Database all say so when it's happening.
+**File storage is required for images and files.** Without that binding, and without Cloudflare Images set up below, every upload is refused: the media library, AI images, theme bundles with images, starter sites, the WordPress import's images, restoring a backup with media, shop downloads and form attachments. NuxFlow never stores files inside the database: it would fill a database capped at 10 GB (and far dearer per GB than R2), and put every image inside the page HTML. The admin dashboard, media library, Settings → Media, the setup checklist and Super Admin → Database all say so when storage is missing. Images pasted into the editor are uploaded to the media library too, never embedded in the post.
 
-**Already have files stored in the database?** Once storage is connected, **Settings → Media** shows how many files are still in the database, with a **Move to …** button. It copies each file to your storage, confirms the copy works, then updates every page, draft, revision, menu, setting, and avatar that used it — and only then removes the database copy. Images embedded straight into pages (for example AI-generated ones) are added to the media library as part of the move. Anything that can't be moved is left exactly as it was and listed. It's safe to run again at any time.
+**Have files stored in the database from an older build?** Once storage is connected, **Settings → Media** shows how many files are still in the database, with a **Move to …** button. It copies each file to your storage, confirms the copy works, then updates every page, draft, revision, menu, setting, and avatar that used it — and only then removes the database copy. Images embedded straight into pages (for example AI-generated ones) are added to the media library as part of the move. Anything that can't be moved is left exactly as it was and listed. It's safe to run again at any time.
 
-NuxFlow uses one provider at a time, in this order: **Cloudflare Images → Cloudflare R2 → database fallback**. The first one that's set up wins. Settings → Media's status card always shows which one is in use.
+NuxFlow uses one provider at a time, in this order: **Cloudflare Images → Cloudflare R2**. The first one that's set up wins; with neither, uploads are refused. Settings → Media's status card always shows which one is in use.
 
 NuxFlow is built for Cloudflare, so storage is Cloudflare-only: R2 or Cloudflare Images. Earlier pre-release builds also offered S3-compatible storage and Bunny.net; they were removed before release. Moving from another platform doesn't need them — the WordPress import copies every file into your storage.
 
@@ -751,10 +751,10 @@ Each item says what goes wrong if you skip it and how to check it's done.
 
 #### ☐ 1. Connect file storage (R2)
 
-- **If you skip it:** every uploaded image is stored inside the database. Each file is limited to 512 KB, and images are inlined into your pages, which makes every page slower to load and fills up the database.
+- **If you skip it:** nobody can upload images or files — the media library, AI images, starter sites, theme images and the WordPress import's images are all refused until storage is connected.
 - **Do this:** run `wrangler r2 bucket create nuxflow-media` once from `apps/nuxflow`, keep the `[[r2_buckets]]` block in `wrangler.toml`, and deploy. There's nothing to type into the admin. See [Media Storage](#media-storage).
 - **Check:** **Admin → Settings → Media** says *"New uploads go to Cloudflare R2"*. If it says *"No file storage connected yet"*, it isn't working.
-- **Already uploaded images before this?** The same page shows how many files are still in the database, with a **Move to Cloudflare R2** button. It's safe to run more than once.
+- **Files in the database from an older build?** The same page shows how many are left, with a **Move to Cloudflare R2** button. It's safe to run more than once.
 
 #### ☐ 2. Turn on email sending
 

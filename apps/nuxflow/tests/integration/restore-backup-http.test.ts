@@ -313,6 +313,8 @@ describe('POST /api/v1/restore (real HTTP handler)', () => {
     expect(item).toBeTruthy()
   })
 
+  // Also: a file from the old database-storage fallback (a data: URI in the backup) goes to
+  // file storage on restore, never back into the database.
   it('(c.2) never takes a media storage key from the backup (it could name another tenant\'s file)', async () => {
     const backup = minimalBackup({
       media: [{
@@ -334,7 +336,8 @@ describe('POST /api/v1/restore (real HTTP handler)', () => {
     const row = await getCurrentTestDb().query.media.findFirst({
       where: and(eq(media.siteId, RESTORE_JSON_SITE), eq(media.originalName, 'site-victim/their-photo.jpg')),
     })
-    expect(row?.storageProvider).toBe('local')
+    expect(row?.storageProvider).toBe('r2')
+    expect(row?.url.startsWith('data:')).toBe(false)
     expect(row?.storageKey.startsWith(`${RESTORE_JSON_SITE}/`)).toBe(true)
   })
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import type * as MediaProviders from '../../server/utils/media-providers/index'
 import type { H3Event } from 'h3'
 import { createHash, webcrypto } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
@@ -31,9 +32,17 @@ vi.mock('../../server/utils/cf-env', async importOriginal => ({
   getAnalyticsEngine: () => null,
   waitUntil: (_event: unknown, promise: Promise<unknown>) => { void promise.catch(() => {}) },
 }))
-vi.mock('../../server/utils/media-providers/index', () => ({
-  getActiveProvider: vi.fn(async () => provider),
-}))
+vi.mock('../../server/utils/media-providers/index', async (importOriginal) => {
+  const actual = await importOriginal<typeof MediaProviders>()
+  // name 'none' = the site has no file storage.
+  const find = async () => (provider.name === 'none' ? null : provider)
+  return {
+    ...actual,
+    findMediaProvider: vi.fn(find),
+    hasMediaStorage: vi.fn(async () => (await find()) !== null),
+    getActiveProvider: vi.fn(async () => (await find()) ?? actual.storageRequiredError()),
+  }
+})
 vi.mock('../../server/utils/cf-theme-kv', () => ({
   putThemeCSS: (...args: unknown[]) => putThemeCSSMock(...(args as [])),
 }))
@@ -200,8 +209,8 @@ describe('Admin → Starter sites', () => {
     expect(await setting(SITE, 'starters.applied')).toMatchObject({ id: 'blog' })
   })
 
-  it('refuses a catalog starter with images while storage is the database fallback', async () => {
-    provider.name = 'local'
+  it('refuses a catalog starter with images while the site has no file storage', async () => {
+    provider.name = 'none'
     const start = await (postHandler as Handler)(adminEvent(SITE, { action: 'install', starterId: 'cafe' })) as Answer
     await expect((postHandler as Handler)(adminEvent(SITE, { action: 'step', installId: start.install!.id })))
       .rejects.toMatchObject({ statusCode: 409 })

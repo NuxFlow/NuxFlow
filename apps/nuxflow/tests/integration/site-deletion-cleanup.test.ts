@@ -33,6 +33,7 @@ vi.mock('../../server/utils/payments/resolve', async importOriginal => ({
 }))
 vi.mock('../../server/utils/media-providers/index', () => ({
   getActiveProvider: vi.fn(async () => ({ name: 'cloudflare', upload: vi.fn(), delete: providerDelete, getUrl: vi.fn() })),
+  findMediaProvider: vi.fn(async () => ({ name: 'cloudflare', upload: vi.fn(), delete: providerDelete, getUrl: vi.fn() })),
 }))
 
 const { deleteSiteCompletely } = await import('../../server/utils/site-deletion')

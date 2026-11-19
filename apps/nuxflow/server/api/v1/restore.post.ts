@@ -5,6 +5,7 @@ import { applyBackup, parseBackupJson, rewriteImageUrls } from '../../utils/back
 import type { NuxFlowBackup, RestoreOptions } from '../../utils/backup'
 import { unzipSync } from 'fflate'
 import { getActiveProvider } from '../../utils/media-providers/index'
+import { decodeDataUri } from '../../utils/media-migration'
 import { checkPlanLimit } from '../../utils/hosting-plans'
 import { noteLimit } from '../../utils/backup-restore/plan-limits'
 import { media } from '@nuxflow/db/schema'
@@ -106,7 +107,8 @@ export default defineEventHandler(async (event) => {
   const mediaResult = { uploaded: 0, skipped: 0 }
   let storageFull = false
 
-  // Re-upload bundled images to the active media provider
+  // Re-upload bundled images to the active media provider. A backup with media needs
+  // file storage: 409 storage_required before anything is restored.
   if (backup.media?.length && what.includes('content')) {
     const provider = await getActiveProvider(event)
     const urlMap = new Map<string, string>()
@@ -139,63 +141,20 @@ export default defineEventHandler(async (event) => {
         continue
       }
 
-      // Local-fallback ("data:" URI) media items are never bundled into the zip — the
-      // URI is already self-contained text (see buildBackup) — so there's no file to
-      // re-upload and no URL rewrite needed. But without this, the item's Media Library
-      // row would just never be recreated: the image still renders in restored content
-      // (a data: URI needs no hosting), yet it'd be missing from Admin → Media entirely.
-      if (item.url.startsWith('data:')) {
-        try {
-          const rowId = existing?.id ?? ulid()
-          const values = {
-            siteId,
-            uploadedBy: userId,
-            filename: item.originalName,
-            originalName: item.originalName,
-            mimeType: item.mimeType,
-            size: item.size,
-            width: item.width ?? undefined,
-            height: item.height ?? undefined,
-            url: item.url,
-            storageProvider: 'local' as const,
-            // Never taken from the backup: a .zip is user-editable, and a storage key naming
-            // another tenant's object was a way to get that object deleted through this
-            // site's media library. A local row's bytes live in `url`, so the key is inert.
-            storageKey: `${siteId}/${rowId}`,
-            altText: item.altText ?? undefined,
-            caption: item.caption ?? undefined,
-            ...mediaDetails(item),
-          }
-          if (existing) {
-            await db.update(media).set(values).where(eq(media.id, existing.id))
-          } else {
-            if (!(await checkPlanLimit(db, siteId, 'storage', item.size)).allowed) {
-              storageFull = true
-              mediaResult.skipped++
-              continue
-            }
-            await db.insert(media).values({ id: rowId, ...values })
-          }
-          mediaResult.uploaded++
-        } catch (e) {
-          // Without this, a corrupt local-fallback entry and a legitimate
-          // "already existed, skipped" case look identical in the response.
-          console.error(`[restore] Failed to restore local media item "${item.originalName}":`, e)
-          mediaResult.skipped++
-        }
-        continue
-      }
-
+      // A file from the old database-storage fallback travels as a data: URI in `url`
+      // (no zip entry). It's uploaded to file storage like any other file, never put back
+      // in the database; the rewrite below points restored content at the new URL.
+      const inline = item.url.startsWith('data:') ? decodeDataUri(item.url) : null
       const zipPath = item.zipPath
-      if (zipPath && (zipPath.includes('..') || zipPath.startsWith('/') || zipPath.startsWith('\\'))) {
+      if (!inline && zipPath && (zipPath.includes('..') || zipPath.startsWith('/') || zipPath.startsWith('\\'))) {
         throw badRequest(`Invalid zipPath in backup metadata: ${zipPath}. Directory traversal is forbidden.`)
       }
-      if (!zipPath) {
+      if (!inline && !zipPath) {
         mediaResult.skipped++
         continue
       }
       try {
-        const imageData = readZipEntry(zipPath)
+        const imageData = inline?.bytes ?? readZipEntry(zipPath!)
         if (!imageData) {
           mediaResult.skipped++
           continue
@@ -223,7 +182,7 @@ export default defineEventHandler(async (event) => {
           width: item.width ?? undefined,
           height: item.height ?? undefined,
           url,
-          storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
+          storageProvider: provider.name as 'cloudflare' | 'r2',
           storageKey,
           altText: item.altText ?? undefined,
           caption: item.caption ?? undefined,

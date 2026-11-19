@@ -41,6 +41,9 @@ export default defineEventHandler(async (event) => {
     throw httpError({ status: 413, message: 'File too large (max 20 MB)' })
   }
 
+  // No file storage → refuse before buffering the body (409 storage_required).
+  const provider = await getActiveProvider(event)
+
   const formData = await readFormData(event)
   const file = formData.get('file') as File | null
 
@@ -77,14 +80,12 @@ export default defineEventHandler(async (event) => {
     : new File([file], file.name, { type: mimeType })
 
   await assertWithinPlan(event, 'storage', uploadFile.size)
-  const provider = await getActiveProvider(event)
   let url: string
   try {
     ;({ url } = await provider.upload(uploadFile, storageKey, siteId))
   } catch (err) {
-    // The local fallback provider throws a real H3 error (e.g. 413 over its 512KB cap) —
-    // that's an intentional, already-correct status code, not a generic provider failure,
-    // so it must pass through unchanged rather than being flattened into a 502.
+    // A provider that throws a real H3 error chose its status on purpose — pass it
+    // through unchanged rather than flattening it into a 502.
     if (isHttpError(err)) throw err
     throw httpError({ status: 502, message: mediaErrorMessage(err) })
   }

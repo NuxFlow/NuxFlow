@@ -104,9 +104,9 @@ binding = "LOADER"
 # Optional speed-up: enable public access on the bucket (a custom domain, or its r2.dev
 # subdomain) and set that URL in Settings → Media → Cloudflare R2 (or NUXT_R2_PUBLIC_URL)
 # so browsers fetch media straight from R2 instead of through the Worker.
-# Without this binding (and no other provider configured in Settings → Media), uploads
-# fall back to base64 in the database — capped at 512 KB each and meant only for trying
-# NuxFlow out. wrangler dev simulates R2 locally, so no real bucket is needed for dev.
+# Required for images and files: without this binding (and without Cloudflare Images set
+# up in Settings → Media), every upload is refused — NuxFlow never stores files in the
+# database. wrangler dev simulates R2 locally, so no real bucket is needed for dev.
 [[r2_buckets]]
 binding = "MEDIA_BUCKET"
 bucket_name = "nuxflow-media"
