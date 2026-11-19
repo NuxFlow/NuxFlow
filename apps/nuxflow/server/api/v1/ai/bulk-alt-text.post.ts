@@ -7,7 +7,7 @@ import { rateLimit } from '../../../utils/rate-limit'
 import { useDb } from '../../../utils/db'
 import { writeAuditLog } from '../../../utils/audit'
 import { media } from '@nuxflow/db/schema'
-import { and, eq, inArray, isNull, notInArray, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, notInArray, or } from 'drizzle-orm'
 import { requireSiteId } from '../../../utils/site-context'
 import type { BulkAltTextResult } from '../../../../shared/lib/media-types'
 
@@ -51,7 +51,17 @@ export default defineEventHandler(async (event) => {
     where,
     columns: { id: true, originalName: true, mimeType: true, url: true },
     limit: mediaIds?.length ? mediaIds.length : BATCH_SIZE + 1,
+    // A stable order (oldest first — ids are ULIDs), so the page's repeated calls walk the
+    // library predictably rather than in whatever order SQLite happens to return.
+    orderBy: [asc(media.id)],
   })
+  // Chosen images are described in the order they were picked: with no ORDER BY the rows
+  // came back in an unspecified order, so a key error could stop the run before images
+  // listed earlier were reached.
+  if (mediaIds?.length) {
+    const position = new Map(mediaIds.map((id, i) => [id, i]))
+    candidates.sort((a, b) => position.get(a.id)! - position.get(b.id)!)
+  }
   const batch = candidates.slice(0, BATCH_SIZE)
 
   const updated: Array<{ id: string; altText: string }> = []
