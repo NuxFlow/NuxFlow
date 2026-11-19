@@ -451,6 +451,14 @@ Either way it's a suggestion until you decide: **Keep** it, **Try again**, or **
 
 The AI can't change site settings, the menu or the theme from here. If you ask, it says where to find them.
 
+### Ask AI (the admin helper)
+The **Ask AI** button at the top of every admin page opens a helper you can talk to in plain words:
+- **How do I…?** — "How do I add a contact form?", "Why aren't my emails sending?" It answers from this user guide and from your site's own setup checklist, and links you to the right screen.
+- **Change the look and a few settings** (admins) — "switch my site to dark mode", "make the accent colour deep green", "use a serif font for headings", "hide the search button", "rename the site". Each suggestion is a card showing the setting as it is now and as it would be. For colours, fonts and light/dark mode, **Preview** shows your site with the change before anything is saved. Press **Apply** to make the change, and **Undo** to put it back.
+- **Change a page** (editors and admins) — "make the hero on the home page shorter". The helper suggests the change, and **Open in the editor** opens that page with **Change this page with AI** ready to go, so you see the result on the page before keeping it.
+
+The helper only ever suggests: nothing changes until you press Apply (or Keep in the editor). Every change you apply from it is marked **AI-assisted** in **Settings → Audit log**, with what you asked for, so your site's history shows you made the decision. It can't touch payments, email set-up, domains, people, plugins, backups, custom code or deleting anything; for those it explains the steps and links the screen. Conversations aren't saved: they last until you close the browser tab. AI can make mistakes, so check each suggestion.
+
 ### AI Image Generation
 Generate an image from a text prompt (square, landscape, or portrait) from **Admin → Media → AI Image** — it's saved straight to your media library alongside your regular uploads. It uses OpenAI or Google Gemini when you've added one of their keys, otherwise Workers AI.
 

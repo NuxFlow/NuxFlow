@@ -119,6 +119,9 @@ export default defineNuxtConfig({
       // filesystem access at runtime. Regenerate after bumping the `vue` dependency:
       //   cp node_modules/vue/dist/vue.runtime.esm-browser.prod.js server/assets/vendor/vue-runtime.js
       { baseName: 'vendor', dir: resolve(_dirname, 'server/assets/vendor') },
+      // The user guide, which the admin AI helper answers "how do I…" questions from
+      // (server/utils/assistant-guide.ts). Only that one file, not the whole docs folder.
+      { baseName: 'docs', dir: resolve(_dirname, '../../docs'), pattern: 'user-guide.md' },
     ],
   },
 

@@ -13,7 +13,11 @@ import InsertDivider from './InsertDivider.vue'
 import AiGenerateModal from './AiGenerateModal.vue'
 import CanvasFrame, { type FrameViewport } from './CanvasFrame.vue'
 
-const props = defineProps<{ modelValue: unknown }>()
+const props = defineProps<{
+  modelValue: unknown
+  /** Opens "Change this page with AI" with this instruction (e.g. from the admin AI helper). */
+  aiInstruction?: string | null
+}>()
 const emit = defineEmits<{
   'update:modelValue': [value: CanvasContent]
   /** An AI draft is (true) or is no longer (false) waiting for review — the host pauses autosave meanwhile. */
@@ -66,6 +70,14 @@ watch(() => props.modelValue, (val) => {
 // AI generation
 
 const showAiModal = ref(false)
+// An instruction handed in by the host, used to prefill the modal the first time it opens.
+const startInstruction = ref<string | null>(null)
+onMounted(() => {
+  if (props.aiInstruction?.trim() && canvas.value.blocks.length) {
+    startInstruction.value = props.aiInstruction.trim()
+    showAiModal.value = true
+  }
+})
 
 // A generated page lands on the canvas as a preview the editor reviews in place — the
 // canvas already renders real blocks, so there's no separate preview surface to keep in
@@ -481,7 +493,7 @@ function onRootUpdate(list: CanvasBlockData[]) {
       :has-blocks="(aiReview ? aiReview.before.blocks.length : blockCount) > 0"
       :initial="aiReview?.request"
       :page="aiBasePage"
-      :initial-instruction="aiReview?.edit?.instruction"
+      :initial-instruction="aiReview?.edit?.instruction ?? startInstruction"
       @generate="onAiGenerate"
       @edited="onAiEdited"
       @close="showAiModal = false"

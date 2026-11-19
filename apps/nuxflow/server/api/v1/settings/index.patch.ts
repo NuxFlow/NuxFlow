@@ -9,6 +9,7 @@ import { siteLocaleSchema, siteTimezoneSchema } from '../../../utils/site-fields
 import { clearSiteCache } from '../../../utils/site-resolution'
 import { clearAppearanceCache } from '../../../utils/appearance-cache'
 import { writeAuditLog } from '../../../utils/audit'
+import { aiAssistSchema, aiAuditDetails, auditAction } from '../../../utils/ai-provenance'
 import { purgeEdgeCache, purgeAllPublicPages } from '../../../utils/edge-cache'
 import { waitUntil } from '../../../utils/cf-env'
 import { clearSeoSettingsCache, getSeoSettings } from '../../../utils/seo'
@@ -37,6 +38,8 @@ const bodySchema = z.object({
   status: z.enum(['active', 'maintenance']).optional(),
   // Site settings (key-value store)
   settings: z.record(z.string(), z.unknown()).optional(),
+  // Set when the person is applying a change the admin AI helper suggested (ai-provenance.ts).
+  aiAssist: aiAssistSchema.optional(),
   // AI settings compatibility
   ai: z.object({
     provider: z.string().optional(),
@@ -276,7 +279,7 @@ export default defineEventHandler(async (event) => {
     ...(body.auth ? Object.entries(body.auth).filter(([, v]) => v !== undefined).map(([k]) => `auth.${k}`) : []),
   ]
   if (changedKeys.length > 0) {
-    await writeAuditLog(event, userId, { action: 'update', resource: 'settings', after: { keys: changedKeys } })
+    await writeAuditLog(event, userId, { action: auditAction('update', body.aiAssist), resource: 'settings', after: { keys: changedKeys, ...aiAuditDetails(body.aiAssist) } })
   }
 
   if (Object.keys(siteUpdate).length > 0 || body.settings) {

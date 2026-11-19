@@ -291,6 +291,16 @@ const canEdit = computed(() => isNew.value || item.value?.canEdit !== false)
 // it. A kept suggestion is recorded with the next save (audit log: "AI-assisted"), so
 // the history shows the change was suggested by AI and approved by this person.
 const aiReviewing = ref(false)
+// "Open in the editor" from the admin AI helper: ?ai=<instruction> opens "Change this page"
+// with it filled in. Read once and dropped from the URL, so a reload doesn't ask again.
+const aiInstruction = typeof route.query.ai === 'string' ? route.query.ai.slice(0, 2000) : null
+if (aiInstruction && import.meta.client) {
+  onMounted(() => {
+    const query = { ...route.query }
+    delete query.ai
+    router.replace({ query })
+  })
+}
 const pendingAiAssist = ref<{ kind: 'generate' | 'edit'; instruction: string; summary: string } | null>(null)
 function onAiReview(active: boolean) {
   aiReviewing.value = active
@@ -565,6 +575,7 @@ onUnmounted(() => {
             v-else-if="editorMode === 'canvas'"
             ref="canvasEditorRef"
             v-model="form.content"
+            :ai-instruction="aiInstruction"
             @ai-review="onAiReview"
             @ai-kept="onAiKept"
           />

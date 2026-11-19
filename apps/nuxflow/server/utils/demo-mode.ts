@@ -41,6 +41,8 @@ const ALLOWED_AUTH_ACTIONS = new Set(['/api/auth/sign-in/email', '/api/auth/sign
 const BLOCKED_PREFIXES = [
   '/api/v1/mcp',
   '/api/v1/ai/',
+  // The admin AI helper (outside /api, see server/routes/_nuxflow/assistant.post.ts).
+  '/_nuxflow/assistant',
   '/api/public/listen/',
   '/api/accounts/',
   '/api/v1/admin/',

@@ -1,3 +1,5 @@
+import type { AssistantProposal } from '#shared/lib/assistant'
+
 // Shared `useState` slots, each defined once so every reader and writer agrees on its key,
 // type and default. (The signed-in user's slot is useSessionUserState() in useAuth.ts.)
 
@@ -56,4 +58,23 @@ export function useAudioTrack() {
  */
 export function useInlineChatCount() {
   return useState<number>('nuxflow:inline-chats', () => 0)
+}
+
+/** One turn in the admin AI helper's conversation (AdminAssistantPanel). */
+export interface AssistantTurn {
+  role: 'user' | 'assistant'
+  text: string
+  proposals?: AssistantProposal[]
+  sources?: string[]
+  /** The question this answer is for (recorded with any change applied from it). */
+  question?: string
+  error?: boolean
+}
+
+/**
+ * The admin AI helper: whether its panel is open and the conversation so far. Kept for the
+ * browser tab only (never stored on the server), so it survives moving between admin pages.
+ */
+export function useAssistantState() {
+  return useState('admin:assistant', () => ({ open: false, turns: [] as AssistantTurn[] }))
 }

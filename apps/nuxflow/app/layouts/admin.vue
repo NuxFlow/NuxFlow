@@ -24,6 +24,10 @@ const route = useRoute()
 const adminAccess = useAdminAccessState()
 // Close mobile drawer on navigation
 watch(() => route.path, () => { sidebarOpen.value = false })
+
+// "Ask AI" (AdminAssistantPanel). Off in the public demo, where every AI feature is.
+const assistant = useAssistantState()
+const showAssistant = computed(() => !!adminAccess.value?.role && !adminAccess.value.demo)
 </script>
 
 <template>
@@ -96,6 +100,17 @@ watch(() => route.path, () => { sidebarOpen.value = false })
         </div>
         <div class="flex items-center gap-3">
           <slot name="actions" />
+          <UButton
+            v-if="showAssistant"
+            size="sm"
+            variant="soft"
+            icon="i-lucide-sparkles"
+            aria-label="Ask AI"
+            data-testid="assistant-open"
+            @click="assistant.open = true"
+          >
+            <span class="hidden sm:inline">Ask AI</span>
+          </UButton>
           <ClientOnly>
             <AdminNotificationBell />
           </ClientOnly>
@@ -117,6 +132,9 @@ watch(() => route.path, () => { sidebarOpen.value = false })
         />
         <slot />
       </main>
+      <ClientOnly>
+        <AdminAssistantPanel v-if="showAssistant" />
+      </ClientOnly>
     </div>
   </div>
 </template>
