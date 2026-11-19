@@ -5,6 +5,8 @@ import { ulid } from 'ulid'
 import type { Db } from './db'
 import { checkPlanLimit, planLimitMessage } from './hosting-plans'
 import { contentItems, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
+import { ASSISTANT_SETTINGS, type AssistantSettingDef } from '../../shared/lib/assistant'
+import { checkAssistantSettings, readAssistantSettings, saveAssistantSettings } from './assistant-settings'
 import { roleAtLeast, hasApiKeyScope, canEditContentItem, AUTHOR_SETTABLE_STATUSES, type Role, type ApiKeyScope } from './permissions'
 import { archiveReplacedTranslations, getContentItem, getContentTypeBySlug } from './content-queries'
 import { hasPaidUpcomingBookings, reconcileBookings } from './event-rsvp'
@@ -100,6 +102,12 @@ const searchContentArgsSchema = z.object({
 })
 
 const listTaxonomiesArgsSchema = z.object({})
+
+const getSiteSettingsArgsSchema = z.object({})
+const updateSiteSettingsArgsSchema = z.object({
+  settings: z.record(z.string(), z.union([z.string(), z.boolean(), z.number()])),
+  request: z.string().trim().max(2000).default(''),
+})
 
 // Terms are addressed as "{taxonomySlug}/{termSlug}" (e.g. "category/news") rather than
 // by ULID — the same reason ai/suggest-terms.post.ts avoids ids: a model reproduces a
@@ -230,6 +238,23 @@ export const MCP_TOOLS: Record<string, McpToolDefinition> = {
         terms: { type: 'array', items: { type: 'string' }, description: 'Term paths like "category/news" or "tag/nuxt"; an empty array clears all terms' },
       },
       required: ['id', 'terms'],
+    },
+  },
+  get_site_settings: {
+    description: 'Read the site settings an AI assistant may change: light or dark mode, accent colour, fonts, header options, the homepage search title and description, and the site name. Each comes with its allowed values.',
+    scope: 'read:content',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  update_site_settings: {
+    description: 'Change settings from get_site_settings (and only those). ALWAYS show the person the exact change (setting, current value, new value) and get their agreement before calling this — they are responsible for the change, and it is recorded in the site audit log as suggested by an AI assistant. Needs an API key belonging to an admin, with the manage:settings scope. Nothing is saved if any value is invalid.',
+    scope: 'manage:settings',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        settings: { type: 'object', description: 'Setting key → new value, e.g. {"theme.dark_mode": "dark", "theme.primary_color": "#1a7f37"}', additionalProperties: { type: ['string', 'boolean'] } },
+        request: { type: 'string', description: 'What the person asked for, in their words (kept in the audit log)' },
+      },
+      required: ['settings'],
     },
   },
   search_content: {
@@ -545,6 +570,37 @@ async function deleteContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   return textResult(`Success: Content item ${id} has been permanently deleted.`)
 }
 
+async function getSiteSettings(args: unknown, ctx: McpToolContext): Promise<McpToolResult> {
+  const parsed = getSiteSettingsArgsSchema.safeParse(args ?? {})
+  if (!parsed.success) return textResult(`Error: ${parsed.error.issues.map(i => i.message).join('; ')}`)
+  const rows = await readAssistantSettings(ctx.event, ctx.siteId)
+  return textResult(JSON.stringify(rows.map((r) => {
+    const def: AssistantSettingDef = ASSISTANT_SETTINGS[r.key]
+    return {
+      key: r.key,
+      label: r.label,
+      value: r.value,
+      allowed: def.options ? def.options.map(o => o.value) : def.kind === 'boolean' ? [true, false] : def.kind === 'color' ? 'hex colour like #1a7f37' : `text, at most ${def.max ?? 200} characters`,
+    }
+  }), null, 2))
+}
+
+async function updateSiteSettings(args: unknown, ctx: McpToolContext): Promise<McpToolResult> {
+  if (!apiKeyRoleAtLeast(ctx.apiKeyRole, 'admin')) return textResult('Error: Only an API key belonging to an admin can change site settings.')
+  const parsed = updateSiteSettingsArgsSchema.safeParse(args ?? {})
+  if (!parsed.success) return textResult(`Error: ${parsed.error.issues.map(i => i.message).join('; ')}`)
+  const checked = checkAssistantSettings(parsed.data.settings)
+  if ('problems' in checked) return textResult(`Error: nothing was saved. ${checked.problems.join('; ')}`)
+  const changes = await saveAssistantSettings(ctx.event, {
+    siteId: ctx.siteId,
+    userId: ctx.apiKeyUserId,
+    values: checked.values,
+    aiAssist: { kind: 'mcp', instruction: parsed.data.request, summary: '' },
+  })
+  const lines = changes.map(c => `- ${ASSISTANT_SETTINGS[c.key].label}: ${c.before} → ${c.after}`)
+  return textResult(['Saved:', ...lines, 'Recorded in the audit log as suggested by an AI assistant.'].join('\n'))
+}
+
 async function listTaxonomies(args: unknown, ctx: McpToolContext): Promise<McpToolResult> {
   const parsed = listTaxonomiesArgsSchema.safeParse(args ?? {})
   if (!parsed.success) {
@@ -673,6 +729,8 @@ export async function callTool(name: string, args: unknown, ctx: McpToolContext)
     case 'search_content': return searchContent(args, ctx)
     case 'list_taxonomies': return listTaxonomies(args, ctx)
     case 'set_content_terms': return setContentTerms(args, ctx)
+    case 'get_site_settings': return getSiteSettings(args, ctx)
+    case 'update_site_settings': return updateSiteSettings(args, ctx)
     default: return textResult(`Error: Unknown tool "${name}"`)
   }
 }

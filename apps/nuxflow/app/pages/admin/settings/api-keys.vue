@@ -13,6 +13,7 @@ const SCOPE_OPTIONS = [
   { value: 'write:content', label: 'Write content (create, update, delete, publish)' },
   { value: 'manage:plugins', label: 'Install and remove plugins (for the nuxflow CLI)' },
   { value: 'manage:themes', label: 'Upload and update themes (for the nuxflow CLI)' },
+  { value: 'manage:settings', label: 'Change the look and basic settings (for AI assistants over MCP: colours, fonts, light/dark, site name)' },
 ]
 // Plugins run code on this site, so a key that can install them is as powerful as an
 // admin login. The server also requires the key's owner to still be an admin.
@@ -94,7 +95,7 @@ const columns = [
           variant="soft"
           icon="i-lucide-shield-alert"
           title="Treat this key like an admin password"
-          description="It can change the code and styling your site runs. Keep it out of shared files and repositories, and revoke it when you're done. It only works while you're still an admin of this site."
+          description="It can change the code, styling or settings of your site. Keep it out of shared files and repositories, and revoke it when you're done. It only works while you're still an admin of this site."
         />
       </div>
     </UCard>
