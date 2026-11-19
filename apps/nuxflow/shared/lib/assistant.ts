@@ -39,14 +39,14 @@ export const ASSISTANT_SETTINGS = {
     kind: 'select',
     options: [{ value: 'auto', label: "Follow the visitor's device" }, { value: 'light', label: 'Always light' }, { value: 'dark', label: 'Always dark' }],
     describe: 'Whether the public site is light, dark, or follows the visitor\'s device',
-    screen: '/admin/settings?tab=Appearance',
+    screen: '/admin/themes',
     appearance: true,
   },
   'theme.primary_color': {
     label: 'Accent colour',
     kind: 'color',
     describe: 'The brand/accent colour used for buttons, links and highlights (a hex colour like #2563eb)',
-    screen: '/admin/settings?tab=Appearance',
+    screen: '/admin/themes',
     appearance: true,
   },
   'theme.font_sans': {
@@ -54,7 +54,7 @@ export const ASSISTANT_SETTINGS = {
     kind: 'select',
     options: fontOptions,
     describe: 'The font for body text',
-    screen: '/admin/settings?tab=Appearance',
+    screen: '/admin/themes',
     appearance: true,
   },
   'theme.font_heading': {
@@ -62,7 +62,7 @@ export const ASSISTANT_SETTINGS = {
     kind: 'select',
     options: [{ value: 'same', label: 'Same as the text font' }, ...fontOptions],
     describe: 'The font for headings',
-    screen: '/admin/settings?tab=Appearance',
+    screen: '/admin/themes',
     appearance: true,
   },
   'frontend.show_header': { label: 'Show the site header', kind: 'boolean', describe: 'Show the header with logo and menu on public pages', screen: '/admin/settings?tab=Appearance' },
@@ -76,6 +76,9 @@ export const ASSISTANT_SETTINGS = {
 } as const satisfies Record<string, AssistantSettingDef>
 
 export type AssistantSettingKey = keyof typeof ASSISTANT_SETTINGS
+
+/** The accent colour of a site that never chose one (Themes → Appearance). */
+export const DEFAULT_ACCENT = '#00dc82'
 
 export function isAssistantSettingKey(key: unknown): key is AssistantSettingKey {
   return typeof key === 'string' && Object.hasOwn(ASSISTANT_SETTINGS, key)
@@ -105,12 +108,15 @@ export function normalizeAssistantSetting(key: AssistantSettingKey, value: unkno
 
 /**
  * What a setting is when it has never been saved: every header switch is on (the public
- * site treats anything but `false` as on), a select is its first option, text is empty.
+ * site treats anything but `false` as on), a select is its first option, the accent is
+ * DEFAULT_ACCENT, text is empty.
  */
 export function assistantSettingFallback(key: AssistantSettingKey): AssistantSettingValue {
   const def: AssistantSettingDef = ASSISTANT_SETTINGS[key]
   if (def.kind === 'boolean') return true
   if (def.kind === 'select') return def.options?.[0]?.value ?? ''
+  // What Themes → Appearance shows (and the site uses) for an accent never chosen.
+  if (def.kind === 'color') return DEFAULT_ACCENT
   return ''
 }
 
@@ -144,6 +150,39 @@ export function assistantSettingsPatch(values: Partial<Record<AssistantSettingKe
     else (out.settings ??= {})[key] = value
   }
   return out
+}
+
+// ── Readability of an accent colour ──────────────────────────────────────────
+
+function luminance(hex: string): number {
+  const h = hex.replace('#', '')
+  const full = h.length <= 4 ? [...h.slice(0, 3)].map(c => c + c).join('') : h.slice(0, 6)
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = Number.parseInt(full.slice(i, i + 2), 16) / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+}
+
+/** WCAG contrast ratio between two hex colours (1–21). */
+export function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number]
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+/**
+ * A plain warning when white text on this accent colour (buttons) would be hard to read,
+ * by the WCAG 3:1 minimum for large and bold text; null when it's fine or not a colour.
+ */
+export function accentReadabilityWarning(hex: unknown): string | null {
+  if (typeof hex !== 'string' || !isHexColor(hex)) return null
+  // NuxFlow's own default green fails this too, but it isn't the site owner's choice, and
+  // warning on every untouched site would only alarm people. (Default to be revisited.)
+  if (hex.toLowerCase() === DEFAULT_ACCENT) return null
+  const ratio = contrastRatio(hex, '#ffffff')
+  return ratio < 3
+    ? `White text on this colour is hard to read (contrast ${ratio.toFixed(1)}:1, at least 3:1 is recommended), so buttons may be hard to read. A darker shade would work better.`
+    : null
 }
 
 // ── What the helper sends back ───────────────────────────────────────────────

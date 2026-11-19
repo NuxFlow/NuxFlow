@@ -4,7 +4,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   ASSISTANT_SETTINGS,
+  accentReadabilityWarning,
   assistantSettingsPatch,
+  contrastRatio,
   describeAssistantValue,
   effectiveAssistantValue,
   isAssistantSettingKey,
@@ -72,5 +74,27 @@ describe('answering from the user guide', () => {
       { title: 'Email › Sending', body: 'Use a provider.' },
     ])
     expect(findGuideSections(s, 'why is sending email broken')[0]!.title).toBe('Email › Sending')
+  })
+})
+
+describe('accent colour readability', () => {
+  it('measures contrast the WCAG way', () => {
+    expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 0)
+    expect(contrastRatio('#ffffff', '#ffffff')).toBeCloseTo(1, 5)
+  })
+
+  it('warns when white button text on the accent would be hard to read', () => {
+    // The default green fails too, but isn't the owner's choice, so it isn't flagged.
+    expect(contrastRatio('#00dc82', '#ffffff')).toBeLessThan(3)
+    expect(accentReadabilityWarning('#00DC82')).toBeNull()
+    expect(accentReadabilityWarning('#ffeb3b')).toMatch(/hard to read/)
+    expect(accentReadabilityWarning('#1a7f37')).toBeNull()
+    expect(accentReadabilityWarning('#123')).toBeNull()
+    expect(accentReadabilityWarning('not a colour')).toBeNull()
+  })
+
+  it('reads an unset accent as the default the site uses', () => {
+    expect(effectiveAssistantValue('theme.primary_color', undefined)).toBe('#00dc82')
+    expect(ASSISTANT_SETTINGS['theme.primary_color'].screen).toBe('/admin/themes')
   })
 })
