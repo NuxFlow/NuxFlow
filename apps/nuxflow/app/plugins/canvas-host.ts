@@ -5,7 +5,7 @@
  */
 
 import { defineAsyncComponent } from 'vue'
-import { canvasHostKey, type CanvasAvailability, type CanvasClassPass, type CanvasContent, type CanvasEventList, type CanvasHost, type CanvasGalleryPicks, type CanvasGoogleReviews, type CanvasPostFilter, type CanvasPostItem, type CanvasProductCard, type CanvasSiteStyles } from '@nuxflow/canvas'
+import { canvasHostKey, type AiPageEditResponse, type CanvasAvailability, type CanvasClassPass, type CanvasContent, type CanvasEventList, type CanvasHost, type CanvasGalleryPicks, type CanvasGoogleReviews, type CanvasPostFilter, type CanvasPostItem, type CanvasProductCard, type CanvasSiteStyles } from '@nuxflow/canvas'
 
 // Every method rejects with an Error carrying the server's own message, which the package
 // shows to the user as-is.
@@ -77,6 +77,9 @@ export default defineNuxtPlugin((nuxtApp) => {
     },
     generatePage(request) {
       return call(() => $fetch<CanvasContent>('/api/v1/ai/generate-canvas', { method: 'POST', body: request }), 'Generation failed')
+    },
+    editPage(request) {
+      return call(() => $fetch<AiPageEditResponse>('/api/v1/ai/generate-canvas', { method: 'POST', body: request }), 'The AI could not change the page')
     },
     suggestFocalPoint(url) {
       return call(() => $fetch<{ focalX: number; focalY: number }>('/api/v1/ai/suggest-focal-point', { method: 'POST', body: { url } }), 'Could not suggest a focal point')

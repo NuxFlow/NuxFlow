@@ -24,6 +24,8 @@ export interface AuditLogEntry {
   /** Null once the user has been deleted. */
   userId: string | null
   createdAt: string
+  /** Set when the change was suggested by AI and approved by the user (server/utils/ai-provenance.ts). */
+  aiAssist?: { kind: string; instruction: string; summary: string } | null
 }
 
 // ── Dashboard: setup checklist (GET /api/v1/site-checklist)

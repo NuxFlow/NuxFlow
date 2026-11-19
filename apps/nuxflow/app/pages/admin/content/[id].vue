@@ -286,9 +286,25 @@ function onTranslated(newId: string) {
 // notice is shown rather than letting every save fail.
 const canEdit = computed(() => isNew.value || item.value?.canEdit !== false)
 
+// AI suggestions: while one is on the canvas waiting for Keep/Discard nothing is saved —
+// autosave used to publish a generated draft on a live page before anyone had looked at
+// it. A kept suggestion is recorded with the next save (audit log: "AI-assisted"), so
+// the history shows the change was suggested by AI and approved by this person.
+const aiReviewing = ref(false)
+const pendingAiAssist = ref<{ kind: 'generate' | 'edit'; instruction: string; summary: string } | null>(null)
+function onAiReview(active: boolean) {
+  aiReviewing.value = active
+  if (!active) saveError.value = ''
+}
+function onAiKept(info: { kind: 'generate' | 'edit'; instruction: string; summary: string }) {
+  pendingAiAssist.value = info
+  if (!isNew.value) save()
+}
+
 let autoSaveTimer: ReturnType<typeof setTimeout>
 watch(form, () => {
   if (isNew.value) return // don't auto-save before first explicit save
+  if (aiReviewing.value) return
   if (!formSeeded) return  // don't auto-save while initial data is still loading
   if (!canEdit.value) return
   clearTimeout(autoSaveTimer)
@@ -309,6 +325,10 @@ async function save(overrideStatus?: string) {
   if (editorMode.value === 'canvas') {
     canvasEditorRef.value?.flushPendingProps?.()
     await nextTick()
+  }
+  if (aiReviewing.value) {
+    saveError.value = 'Keep or discard the AI suggestion first.'
+    return
   }
   if (!form.title.trim()) {
     saveError.value = 'Add a title before saving.'
@@ -357,7 +377,9 @@ async function save(overrideStatus?: string) {
       termIds: form.termIds,
       pagePassword: newPassword,
       ...(form.product ? { product: form.product } : {}),
+      ...(pendingAiAssist.value ? { aiAssist: pendingAiAssist.value } : {}),
     }
+    const sentAiAssist = pendingAiAssist.value
     if (isNew.value) {
       const result = await $fetch<{ id: string }>('/api/v1/content', {
         method: 'POST',
@@ -377,6 +399,7 @@ async function save(overrideStatus?: string) {
       const contentUrl: string = `/api/v1/content/${id.value}`
       await $fetch(contentUrl, { method: 'PATCH', body })
       lastSaved.value = new Date()
+      if (pendingAiAssist.value === sentAiAssist) pendingAiAssist.value = null
       // Stock just saved is the new starting point for the next change (sent as a difference).
       if (form.product) for (const v of form.product.variants) v.stockWas = v.stock
       // Or the next autosave would send the old status and quietly unpublish the item.
@@ -542,6 +565,8 @@ onUnmounted(() => {
             v-else-if="editorMode === 'canvas'"
             ref="canvasEditorRef"
             v-model="form.content"
+            @ai-review="onAiReview"
+            @ai-kept="onAiKept"
           />
         </div>
       </div>

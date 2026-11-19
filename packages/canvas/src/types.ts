@@ -141,6 +141,32 @@ export interface AiGenerateRequest {
   mode: 'replace' | 'append'
 }
 
+/** One change "Change this page with AI" made, as listed for the person reviewing it. */
+export interface AiPageChange {
+  kind: 'updated' | 'removed' | 'added' | 'moved'
+  /** The block's id in the resulting page (for 'removed', its id in the old page). */
+  blockId: string
+  blockName: string
+  note: string
+  /** updated: the labels of the fields that changed. */
+  fields?: string[]
+}
+
+/** "Change this page with AI": an instruction and the page as it is in the editor. */
+export interface AiPageEditRequest {
+  instruction: string
+  content: CanvasContent
+}
+
+/** The changed page (not saved) and what changed, for review. */
+export interface AiPageEditResponse {
+  content: CanvasContent
+  summary: string
+  changes: AiPageChange[]
+  /** Edits the AI suggested that were refused as invalid. */
+  skipped: number
+}
+
 export function isCanvasContent(value: unknown): value is CanvasContent {
   return (
     typeof value === 'object' &&

@@ -3,6 +3,7 @@ import { assertDemoAllowsContent } from '../../../utils/demo-mode'
 import { useDb } from '../../../utils/db'
 import { requireRole, roleAtLeast, AUTHOR_SETTABLE_STATUSES } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
+import { aiAssistSchema, aiAuditDetails, auditAction } from '../../../utils/ai-provenance'
 import { getContentTypeBySlugOrThrow, getContentItemOrThrow, deriveVisibilityFromSettings, archiveReplacedTranslations } from '../../../utils/content-queries'
 import { created } from '../../../utils/response'
 import { assertWithinPlan } from '../../../utils/hosting-plans'
@@ -26,6 +27,8 @@ import { inlineImageProblem } from '../../../utils/inline-images'
 import { checkFieldValues, fieldDefsForType } from '../../../utils/content-type-fields'
 
 const bodySchema = z.object({
+  // Set when the person kept an AI suggestion before this first save (ai-provenance.ts).
+  aiAssist: aiAssistSchema.optional(),
   title: z.string().min(1).max(500),
   slug: z.string().min(1).max(500),
   typeSlug: z.string().default('page'),
@@ -51,7 +54,7 @@ export default defineEventHandler(async (event) => {
   const { userId, role } = await requireRole(event, 'author')
   const db = useDb(event)
   const siteId = requireSiteId(event)
-  const { pagePassword, product: productInput, ...body } = await parseBody(event, bodySchema)
+  const { pagePassword, product: productInput, aiAssist, ...body } = await parseBody(event, bodySchema)
   assertDemoAllowsContent(event, body.content)
   body.settings = await resolvePageSettings(body.settings, null, pagePassword)
 
@@ -127,7 +130,7 @@ export default defineEventHandler(async (event) => {
     eventPassesAllowed: body.eventPassesAllowed ?? null,
   })
 
-  const auditInsert = buildAuditLogInsert(event, userId, { action: 'create', resource: 'content_item', resourceId: id })
+  const auditInsert = buildAuditLogInsert(event, userId, { action: auditAction('create', aiAssist), resource: 'content_item', resourceId: id, ...(aiAssist ? { after: aiAuditDetails(aiAssist) } : {}) })
 
   // Only the inserts — a brand-new item has no assignments to clear.
   await batchWithAudit(db, [itemInsert, ...replaceContentTermsStatements(db, id, termIds).slice(1), ...(productPlan?.statements ?? [])], auditInsert)

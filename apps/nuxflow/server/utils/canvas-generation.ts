@@ -3,7 +3,7 @@ import { generateObject, type LanguageModel } from 'ai'
 import { ulid } from 'ulid'
 import type { H3Event } from 'h3'
 import { and, desc, eq, gt, like, not } from 'drizzle-orm'
-import { aiBlockDefinitions, buildBlockCatalog, normalizeAiBlocks, type AiCapability, type AiMediaItem, type AiRawBlock } from '@nuxflow/canvas/ai'
+import { aiBlockDefinitions, applyAiPageEdits, buildBlockCatalog, describePageForAi, normalizeAiBlocks, type AiCapability, type AiMediaItem, type AiPageChange, type AiPageEditOp, type AiRawBlock } from '@nuxflow/canvas/ai'
 import type { CanvasBlockData, CanvasBlockDefinition } from '@nuxflow/canvas'
 import { contentItems, contentTypes, forms, media, membershipTiers, sites } from '@nuxflow/db/schema'
 import { callAiOrThrow } from './ai-sdk'
@@ -195,4 +195,79 @@ export async function generateCanvasPage(model: LanguageModel, ctx: GenerationCo
     throw httpError({ status: 502, message: 'The AI returned no usable blocks — try again or rephrase the request.' })
   }
   return { title: object.title.trim(), slug: object.slug.trim(), content: { type: 'canvas', blocks } }
+}
+
+// ── Changing an existing page ────────────────────────────────────────────────
+
+export const canvasEditBodySchema = z.object({
+  instruction: z.string().trim().min(3).max(2000),
+  // The page as it is in the editor right now (unsaved edits included). Only read, never
+  // stored: what comes back is re-checked block by block by applyAiPageEdits().
+  content: z.object({ type: z.literal('canvas'), blocks: z.array(z.any()).max(200) }),
+})
+
+const editOpSchema = z.object({
+  op: z.enum(['update', 'remove', 'insert', 'move']),
+  block: z.string().describe('Label of the block to update, remove or move (e.g. "b3"); empty for insert'),
+  after: z.string().describe('insert/move only: label of the top-level block it goes after; empty = top of the page'),
+  type: z.string().describe('insert only: the new block type from the BLOCK LIBRARY; empty otherwise'),
+  props: z.array(z.object({ key: z.string(), value: z.string() }))
+    .describe('update: only the fields to change; insert: the fields of the new block; otherwise empty'),
+  children: blockSchema.shape.children,
+  note: z.string().describe('One short sentence, in plain English, saying what this edit does'),
+})
+
+export const pageEditResponseSchema = z.object({
+  summary: z.string().describe('One or two plain sentences for the site owner saying what you changed'),
+  operations: z.array(editOpSchema).describe('The smallest set of edits that does what was asked'),
+})
+
+function editSystemPrompt(ctx: GenerationContext): string {
+  return `${systemPrompt(ctx)}
+
+You are now EDITING an existing page, not writing a new one. The CURRENT PAGE lists every block with a label (b1, b2…), its type and its current field values.
+- Make the smallest set of edits that does what the owner asked. Leave everything else exactly as it is.
+- "update" changes only the fields you list; every other field keeps its value. Keep the owner's existing wording unless asked to rewrite it.
+- "insert" adds a new top-level block after the block named in "after" (empty = top of the page). "move" moves a top-level block the same way. "remove" deletes a block.
+- Never edit, move or remove a block marked "cannot be edited by AI".
+- If the request is not about this page's content or layout (for example site settings, the menu, the theme or dark mode), make no edits and say in the summary where the owner can change it.
+- Write every note and the summary for a non-technical site owner. Never mention block labels like "b3" there — name the section instead ("the hero", "the pricing table").`
+}
+
+export interface CanvasPageEdit {
+  content: GeneratedCanvasContent
+  summary: string
+  changes: AiPageChange[]
+  skipped: number
+}
+
+export async function editCanvasPage(model: LanguageModel, ctx: GenerationContext, page: CanvasBlockData[], instruction: string): Promise<CanvasPageEdit> {
+  const described = describePageForAi(page, ctx.defs, ctx.media)
+  const { object } = await callAiOrThrow(() =>
+    generateObject({
+      model,
+      schema: pageEditResponseSchema,
+      system: editSystemPrompt(ctx),
+      prompt: `CURRENT PAGE:
+${described.text}
+
+The owner asks: """${instruction}"""`,
+    }),
+  )
+  const ops: AiPageEditOp[] = object.operations.slice(0, 40).map(o => ({
+    op: o.op,
+    block: o.block,
+    after: o.after,
+    type: o.type,
+    props: Object.fromEntries(o.props.map(p => [p.key, p.value])),
+    children: o.op === 'insert' ? o.children?.map(c => ({ slot: c.slot, blocks: toRawBlocks(c.blocks) })) : undefined,
+    note: o.note,
+  }))
+  const result = applyAiPageEdits(page, ops, { defs: ctx.defs, media: ctx.media, labels: described.labels, newId: ulid })
+  return {
+    content: { type: 'canvas', blocks: result.blocks },
+    summary: object.summary.trim().slice(0, 600),
+    changes: result.changes,
+    skipped: result.skipped,
+  }
 }

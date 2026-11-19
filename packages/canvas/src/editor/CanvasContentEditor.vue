@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, provide, onMounted, onBeforeUnmount } from 'vue'
 import draggable from 'vuedraggable'
-import type { AiGenerateRequest, CanvasContent, CanvasBlockData } from '../types'
+import type { AiGenerateRequest, AiPageChange, AiPageEditResponse, CanvasContent, CanvasBlockData } from '../types'
 import { isCanvasContent, emptyCanvas } from '../types'
 import { isDescendant } from '../tree'
 import { useCanvas } from './useCanvas'
@@ -14,7 +14,13 @@ import AiGenerateModal from './AiGenerateModal.vue'
 import CanvasFrame, { type FrameViewport } from './CanvasFrame.vue'
 
 const props = defineProps<{ modelValue: unknown }>()
-const emit = defineEmits<{ 'update:modelValue': [value: CanvasContent] }>()
+const emit = defineEmits<{
+  'update:modelValue': [value: CanvasContent]
+  /** An AI draft is (true) or is no longer (false) waiting for review — the host pauses autosave meanwhile. */
+  'ai-review': [active: boolean]
+  /** The person kept an AI draft — the host records that the next save was AI-assisted. */
+  'ai-kept': [info: { kind: 'generate' | 'edit'; instruction: string; summary: string }]
+}>()
 
 const initial = isCanvasContent(props.modelValue) ? props.modelValue : emptyCanvas()
 
@@ -44,7 +50,7 @@ const {
 // in-flight debounced field edit before it reads the v-model value to save —
 // otherwise a save triggered within the ~120ms debounce window could ship
 // content missing the last keystroke(s). See useCanvas.ts's updateBlockProp.
-defineExpose({ flushPendingProps })
+defineExpose({ flushPendingProps, isAiReviewing: () => aiReview.value !== null })
 
 watch(canvas, () => emit('update:modelValue', toJSON()), { deep: true })
 
@@ -67,7 +73,26 @@ const showAiModal = ref(false)
 // "Discard" restores exactly that (even after edits to the draft) and "Regenerate" in
 // append mode replaces only the previously generated sections. Every apply/discard is a
 // normal undoable step (replaceContent) rather than a history-clearing reset().
-const aiReview = ref<{ before: CanvasContent; request: AiGenerateRequest } | null>(null)
+//
+// "Change this page" works the same way: the edits are made to `before` (never to a draft
+// already under review), and `edit` keeps what changed so the bar can list it and the
+// changed blocks can be outlined on the canvas.
+interface AiReview {
+  before: CanvasContent
+  request?: AiGenerateRequest
+  edit?: { instruction: string; summary: string; changes: AiPageChange[]; skipped: number }
+}
+const aiReview = ref<AiReview | null>(null)
+const showAiChanges = ref(true)
+
+watch(() => aiReview.value !== null, active => emit('ai-review', active))
+
+// The page AI starts from: the page before any draft under review.
+const aiBasePage = computed(() => aiReview.value?.before ?? toJSON())
+
+const aiChangedIds = computed(() => new Set(
+  (aiReview.value?.edit?.changes ?? []).filter(c => c.kind !== 'removed').map(c => c.blockId),
+))
 
 function onAiGenerate(content: CanvasContent, request: AiGenerateRequest) {
   const before = aiReview.value?.before ?? toJSON()
@@ -78,13 +103,33 @@ function onAiGenerate(content: CanvasContent, request: AiGenerateRequest) {
   showAiModal.value = false
 }
 
+function onAiEdited(result: AiPageEditResponse, instruction: string) {
+  const before = aiReview.value?.before ?? toJSON()
+  replaceContent(result.content)
+  aiReview.value = { before, edit: { instruction, summary: result.summary, changes: result.changes, skipped: result.skipped } }
+  showAiChanges.value = true
+  showAiModal.value = false
+}
+
 function keepAiDraft() {
+  const review = aiReview.value
   aiReview.value = null
+  if (!review) return
+  emit('ai-kept', review.edit
+    ? { kind: 'edit', instruction: review.edit.instruction, summary: review.edit.summary }
+    : { kind: 'generate', instruction: review.request?.description ?? '', summary: '' })
 }
 
 function discardAiDraft() {
   if (aiReview.value) replaceContent(aiReview.value.before)
   aiReview.value = null
+}
+
+const CHANGE_ICON: Record<AiPageChange['kind'], string> = { updated: '✎', added: '+', removed: '−', moved: '↕' }
+const CHANGE_VERB: Record<AiPageChange['kind'], string> = { updated: 'Changed', added: 'Added', removed: 'Removed', moved: 'Moved' }
+
+function showChange(change: AiPageChange) {
+  if (change.kind !== 'removed') selectBlock(change.blockId)
 }
 
 // ── Block picker ───────────────────────────────────────────────────────────
@@ -130,6 +175,7 @@ const api: CanvasApi = {
   recordDiscrete,
   checkMove,
   openPicker,
+  aiChangedIds,
 }
 provide(canvasApiKey, api)
 
@@ -264,13 +310,14 @@ function onRootUpdate(list: CanvasBlockData[]) {
       <div class="flex items-center gap-2">
         <button
           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 text-xs font-medium hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-          title="Generate page with AI"
+          title="Change or generate this page with AI"
+          data-testid="canvas-ai-button"
           @click="showAiModal = true"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
           </svg>
-          AI Generate
+          {{ blockCount ? 'AI' : 'AI Generate' }}
         </button>
         <button
           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-medium hover:bg-primary-700 transition-colors"
@@ -294,18 +341,45 @@ function onRootUpdate(list: CanvasBlockData[]) {
         <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
         </svg>
-        AI draft — review it on the canvas, then keep or discard it.
+        <span v-if="aiReview.edit" class="min-w-0">
+          <span class="font-medium">AI suggestion — nothing is saved until you keep it.</span>
+          <span v-if="aiReview.edit.summary" class="block text-xs text-primary-700/90 dark:text-primary-300/90">{{ aiReview.edit.summary }}</span>
+        </span>
+        <span v-else>AI draft — review it on the canvas, then keep or discard it. Nothing is saved until you keep it.</span>
       </span>
       <div class="flex items-center gap-2">
         <button type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-red-400 hover:text-red-600 transition-colors" @click="discardAiDraft">
           Discard
         </button>
         <button type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-primary-400 hover:text-primary-600 transition-colors" @click="showAiModal = true">
-          Regenerate
+          {{ aiReview.edit ? 'Try again' : 'Regenerate' }}
         </button>
-        <button type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 transition-colors" @click="keepAiDraft">
+        <button type="button" data-testid="ai-keep" class="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 transition-colors" @click="keepAiDraft">
           Keep
         </button>
+      </div>
+      <div v-if="aiReview.edit" class="basis-full">
+        <button type="button" class="text-xs font-medium text-primary-700 dark:text-primary-300 hover:underline" :aria-expanded="showAiChanges" @click="showAiChanges = !showAiChanges">
+          {{ showAiChanges ? 'Hide' : 'Show' }} what changed ({{ aiReview.edit.changes.length }})
+        </button>
+        <ul v-if="showAiChanges" class="mt-1.5 space-y-1" data-testid="ai-change-list">
+          <li v-for="(c, i) in aiReview.edit.changes" :key="i">
+            <button
+              type="button"
+              class="flex items-start gap-2 text-left text-xs text-gray-700 dark:text-gray-200 hover:text-primary-700 dark:hover:text-primary-300 disabled:hover:text-gray-700 disabled:cursor-default"
+              :disabled="c.kind === 'removed'"
+              @click="showChange(c)"
+            >
+              <span class="w-4 shrink-0 text-center font-semibold text-primary-600" aria-hidden="true">{{ CHANGE_ICON[c.kind] }}</span>
+              <span>
+                <span class="font-medium">{{ CHANGE_VERB[c.kind] }} {{ c.blockName }}</span><span v-if="c.fields?.length" class="text-gray-500 dark:text-gray-400"> ({{ c.fields.join(', ') }})</span><span v-if="c.note"> — {{ c.note }}</span>
+              </span>
+            </button>
+          </li>
+        </ul>
+        <p v-if="showAiChanges && aiReview.edit.skipped" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {{ aiReview.edit.skipped }} suggested {{ aiReview.edit.skipped === 1 ? 'change was' : 'changes were' }} left out because {{ aiReview.edit.skipped === 1 ? 'it' : 'they' }} didn't fit the page's blocks.
+        </p>
       </div>
     </div>
 
@@ -406,7 +480,10 @@ function onRootUpdate(list: CanvasBlockData[]) {
       v-if="showAiModal"
       :has-blocks="(aiReview ? aiReview.before.blocks.length : blockCount) > 0"
       :initial="aiReview?.request"
+      :page="aiBasePage"
+      :initial-instruction="aiReview?.edit?.instruction"
       @generate="onAiGenerate"
+      @edited="onAiEdited"
       @close="showAiModal = false"
     />
   </div>

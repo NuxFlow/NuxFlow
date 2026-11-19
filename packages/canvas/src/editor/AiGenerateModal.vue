@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
-import type { AiGenerateRequest, CanvasContent } from '../types'
+import type { AiGenerateRequest, AiPageEditResponse, CanvasContent } from '../types'
 import { useCanvasHost } from '../host'
 
-const props = defineProps<{ hasBlocks: boolean; initial?: AiGenerateRequest | null }>()
+const props = defineProps<{
+  hasBlocks: boolean
+  initial?: AiGenerateRequest | null
+  /** The page to change in "Change this page" mode (the page before any AI draft under review). */
+  page?: CanvasContent | null
+  /** Reopening to try a change again: the instruction last used. */
+  initialInstruction?: string | null
+}>()
 const emit = defineEmits<{
   generate: [content: CanvasContent, request: AiGenerateRequest]
+  edited: [result: AiPageEditResponse, instruction: string]
   close: []
 }>()
 
@@ -30,6 +38,23 @@ onUnmounted(() => {
   previouslyFocused?.focus()
 })
 
+const host = useCanvasHost()
+// Voice dictation lives in the host app (it needs the app's auth'd API and Nuxt UI).
+const voiceInput = host.voiceInput ?? null
+
+// "Change this page" needs a page to change and a host that can do it. It's the default
+// whenever the page already has blocks (the common case once a site exists).
+const canEdit = !!host.editPage && props.hasBlocks && !!props.page?.blocks.length
+const tab = ref<'edit' | 'new'>(canEdit && !props.initial ? 'edit' : 'new')
+const tabs = [{ id: 'edit', label: 'Change this page' }, { id: 'new', label: 'New page' }] as const
+const instruction = ref(props.initialInstruction ?? '')
+const EXAMPLES = [
+  'Make the hero heading shorter and punchier',
+  'Add a testimonials section before the contact form',
+  'Rewrite the text in a friendlier tone',
+  'Remove the pricing section',
+]
+
 const description = ref(props.initial?.description ?? '')
 const tone = ref<AiGenerateRequest['tone']>(props.initial?.tone ?? 'professional')
 const pageGoal = ref<AiGenerateRequest['pageGoal']>(props.initial?.pageGoal ?? 'landing')
@@ -37,12 +62,14 @@ const mode = ref<AiGenerateRequest['mode']>(props.initial?.mode ?? 'replace')
 const loading = ref(false)
 const error = ref('')
 
-const host = useCanvasHost()
-// Voice dictation lives in the host app (it needs the app's auth'd API and Nuxt UI).
-const voiceInput = host.voiceInput ?? null
-
 function appendDictation(text: string) {
-  description.value = description.value ? `${description.value.trimEnd()} ${text}` : text
+  const target = tab.value === 'edit' ? instruction : description
+  target.value = target.value ? `${target.value.trimEnd()} ${text}` : text
+}
+
+function switchTab(id: 'edit' | 'new') {
+  tab.value = id
+  error.value = ''
 }
 
 const toneOptions = [
@@ -63,6 +90,31 @@ const goalOptions = [
   { label: 'Blog post', value: 'blog' },
   { label: 'General', value: 'general' },
 ]
+
+async function change() {
+  if (!host.editPage || !props.page) return
+  if (instruction.value.trim().length < 3) {
+    error.value = 'Say what you would like changed.'
+    return
+  }
+  loading.value = true
+  error.value = ''
+  try {
+    const result = await host.editPage({ instruction: instruction.value.trim(), content: props.page })
+    if (!result.changes.length) {
+      // Nothing to review: say why (the summary usually explains, e.g. "dark mode is in Settings").
+      error.value = result.summary || 'The AI did not find anything to change. Try saying it another way.'
+      return
+    }
+    emit('edited', result, instruction.value.trim())
+  }
+  catch (e: unknown) {
+    error.value = (e instanceof Error && e.message) || 'The AI could not change the page. Check your AI provider settings.'
+  }
+  finally {
+    loading.value = false
+  }
+}
 
 async function generate() {
   if (description.value.trim().length < 10) {
@@ -103,15 +155,75 @@ async function generate() {
       <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-800">
         <div class="flex items-center gap-2">
           <UIcon name="i-lucide-sparkles" mode="svg" class="w-4 h-4 text-primary-500" />
-          <h2 id="ai-generate-modal-title" class="text-base font-semibold text-gray-900 dark:text-white">Generate page with AI</h2>
+          <h2 id="ai-generate-modal-title" class="text-base font-semibold text-gray-900 dark:text-white">
+            {{ tab === 'edit' ? 'Change this page with AI' : 'Generate page with AI' }}
+          </h2>
         </div>
         <button aria-label="Close" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" @click="emit('close')">
           <UIcon name="i-lucide-x" mode="svg" class="w-4 h-4" />
         </button>
       </div>
 
-      <!-- Body -->
-      <div class="px-5 py-4 space-y-4">
+      <!-- Mode -->
+      <div v-if="canEdit" class="flex gap-1 px-5 pt-4" role="tablist">
+        <button
+          v-for="t in tabs"
+          :key="t.id"
+          type="button"
+          role="tab"
+          :aria-selected="tab === t.id"
+          :data-testid="`ai-tab-${t.id}`"
+          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+          :class="tab === t.id ? 'bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'"
+          @click="switchTab(t.id)"
+        >
+          {{ t.label }}
+        </button>
+      </div>
+
+      <!-- Change this page -->
+      <div v-if="tab === 'edit'" class="px-5 py-4 space-y-4">
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label for="ai-edit-instruction" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              What would you like changed?
+            </label>
+            <component :is="voiceInput" v-if="voiceInput" @transcribed="appendDictation" />
+          </div>
+          <textarea
+            id="ai-edit-instruction"
+            v-model="instruction"
+            rows="4"
+            maxlength="2000"
+            placeholder="e.g. Make the hero heading shorter and add a testimonials section before the contact form."
+            class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 px-3 py-2 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y"
+          />
+          <div class="flex flex-wrap gap-1.5 mt-1.5">
+            <button
+              v-for="ex in EXAMPLES"
+              :key="ex"
+              type="button"
+              class="px-2 py-1 rounded-md text-xs text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 hover:text-primary-600 transition-colors"
+              @click="instruction = ex"
+            >
+              {{ ex }}
+            </button>
+          </div>
+        </div>
+
+        <p class="text-xs text-gray-500 dark:text-gray-400 flex items-start gap-1.5">
+          <UIcon name="i-lucide-eye" mode="svg" class="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          Nothing is saved yet. The changes show on the canvas with a list of what changed. Check them, then keep or discard them. AI can make mistakes.
+        </p>
+
+        <p v-if="error" class="text-sm text-red-500 flex items-start gap-1.5">
+          <UIcon name="i-lucide-alert-circle" mode="svg" class="w-4 h-4 mt-0.5 shrink-0" />
+          {{ error }}
+        </p>
+      </div>
+
+      <!-- New page -->
+      <div v-else class="px-5 py-4 space-y-4">
         <div>
           <div class="flex items-center justify-between mb-1">
             <label for="ai-generate-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -165,7 +277,7 @@ async function generate() {
 
         <p class="text-xs text-gray-500 dark:text-gray-400 flex items-start gap-1.5">
           <UIcon name="i-lucide-eye" mode="svg" class="w-3.5 h-3.5 mt-0.5 shrink-0" />
-          The result opens as a preview on the canvas — keep it, regenerate it, or discard it to get the page back exactly as it was.
+          The result opens as a preview on the canvas — keep it, regenerate it, or discard it to get the page back exactly as it was. Nothing is saved until you keep it.
         </p>
 
         <p v-if="error" class="text-sm text-red-500 flex items-center gap-1.5">
@@ -183,6 +295,18 @@ async function generate() {
           Cancel
         </button>
         <button
+          v-if="tab === 'edit'"
+          :disabled="loading || instruction.trim().length < 3"
+          data-testid="ai-edit-submit"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          @click="change"
+        >
+          <UIcon v-if="loading" name="i-lucide-loader-2" mode="svg" class="w-4 h-4 animate-spin" />
+          <UIcon v-else name="i-lucide-sparkles" mode="svg" class="w-4 h-4" />
+          {{ loading ? 'Working…' : 'Show me the changes' }}
+        </button>
+        <button
+          v-else
           :disabled="loading || description.trim().length < 10"
           class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           @click="generate"

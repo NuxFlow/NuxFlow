@@ -3,6 +3,7 @@ import { assertDemoAllowsContent } from '../../../utils/demo-mode'
 import { useDb } from '../../../utils/db'
 import { requireRole, roleAtLeast, AUTHOR_SETTABLE_STATUSES, assertCanEditContentItem } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
+import { aiAssistSchema, aiAuditDetails, auditAction } from '../../../utils/ai-provenance'
 import { queueContentPublishedPush } from '../../../utils/push-content'
 import { getContentItemOrThrow, deriveVisibilityFromSettings, archiveReplacedTranslations } from '../../../utils/content-queries'
 import { contentItems, contentRevisions, contentTypes } from '@nuxflow/db/schema'
@@ -59,6 +60,8 @@ const bodySchema = z.object({
   // Optional optimistic lock: client sends the version it last saw.
   // Server returns 409 if the item has since been updated by someone else.
   expectedVersion: z.number().int().positive().optional(),
+  // Set when this save carries an AI suggestion the person reviewed and kept (ai-provenance.ts).
+  aiAssist: aiAssistSchema.optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -85,7 +88,7 @@ export default defineEventHandler(async (event) => {
     await getContentItemOrThrow(db, siteId, body.sourceItemId, 'Source item not found', { id: true })
   }
 
-  const { expectedVersion, termIds: requestedTermIds, pagePassword, product: productInput, ...updateFields } = body
+  const { expectedVersion, termIds: requestedTermIds, pagePassword, product: productInput, aiAssist, ...updateFields } = body
 
   const site = await getSiteInfo(event, siteId)
   const dateCheck = await checkContentDates(db, siteId, updateFields, { existing, sourceItemId: updateFields.sourceItemId, timeZone: site?.timezone || 'UTC' })
@@ -167,11 +170,11 @@ export default defineEventHandler(async (event) => {
     .where(scopedById(contentItems.id, id, contentItems.siteId, siteId))
 
   const auditInsert = buildAuditLogInsert(event, userId, {
-    action: 'update',
+    action: auditAction('update', aiAssist),
     resource: 'content_item',
     resourceId: id,
     before: existing,
-    after: { ...updateFields, ...(termsChanged ? { termIds: nextTermIds } : {}), ...(productChanged ? { product: productInput } : {}) },
+    after: { ...updateFields, ...aiAuditDetails(aiAssist), ...(termsChanged ? { termIds: nextTermIds } : {}), ...(productChanged ? { product: productInput } : {}) },
   })
 
   // One D1 round trip instead of three — none of these writes depend on
