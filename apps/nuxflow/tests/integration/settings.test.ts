@@ -279,3 +279,26 @@ describe('PATCH /api/v1/settings (end-to-end multi-section save)', () => {
   })
 })
 
+
+describe('PATCH /api/v1/settings with an AI suggestion', () => {
+  it('records a change the AI helper suggested as ai_assisted_update with what was asked', async () => {
+    const { auditLogs } = await import('@nuxflow/db/schema')
+    const { and, eq } = await import('drizzle-orm')
+    const id = `${siteId}-ai`
+    await seedSite(getCurrentTestDb(), { id, domain: `ai-${Date.now()}.localhost` })
+    const adminId = await seedUser(getCurrentTestDb(), { email: `admin-${Date.now()}@settings-ai.test` })
+    await seedRole(getCurrentTestDb(), adminId, id, 'admin')
+
+    const event = createMockEvent({
+      siteId: id,
+      session: { user: { id: adminId, name: 'Admin', email: 'a@settings-ai.test' } },
+      body: { settings: { 'theme.dark_mode': 'dark' }, aiAssist: { kind: 'assistant', instruction: 'Switch to dark mode', summary: 'Light or dark mode: Always light → Always dark' } },
+    }) as unknown as H3Event
+    expect(await (patchHandler as (e: H3Event) => Promise<unknown>)(event)).toEqual({ success: true })
+    expect(await resolveSetting(mkEvent(id), 'theme.dark_mode')).toBe('dark')
+
+    const row = await getCurrentTestDb().query.auditLogs.findFirst({ where: and(eq(auditLogs.siteId, id), eq(auditLogs.resource, 'settings')) })
+    expect(row!.action).toBe('ai_assisted_update')
+    expect(row!.after).toMatchObject({ keys: ['theme.dark_mode'], aiAssist: { kind: 'assistant', instruction: 'Switch to dark mode' } })
+  })
+})
