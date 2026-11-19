@@ -1,4 +1,4 @@
-import type { InjectionKey, Ref } from 'vue'
+import type { ComputedRef, InjectionKey, Ref } from 'vue'
 
 /**
  * Mutation + selection API provided once at CanvasContentEditor.vue and
@@ -22,6 +22,8 @@ export interface CanvasApi {
   checkMove(evt: { draggedContext?: { element?: { id?: string } }; to?: HTMLElement }): boolean
   /** Opens the block picker; target omitted = insert at end of root. */
   openPicker(target?: { parentId: string | null; slot: string | null; index?: number }): void
+  /** Blocks an AI suggestion under review changed or added — outlined so they're easy to check. */
+  aiChangedIds?: ComputedRef<Set<string>>
 }
 
 export const canvasApiKey: InjectionKey<CanvasApi> = Symbol('nuxflow:canvasApi')

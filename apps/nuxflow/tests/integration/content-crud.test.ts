@@ -11,8 +11,8 @@ import type { H3Event } from 'h3'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedContentType, seedContentItem } from '../helpers/seed'
-import { contentItems, contentRevisions, redirects } from '@nuxflow/db/schema'
-import { eq } from 'drizzle-orm'
+import { auditLogs, contentItems, contentRevisions, redirects } from '@nuxflow/db/schema'
+import { desc, eq } from 'drizzle-orm'
 import createHandler from '../../server/api/v1/content/index.post'
 import patchHandler from '../../server/api/v1/content/[id].patch'
 import deleteHandler from '../../server/api/v1/content/[id].delete'
@@ -615,5 +615,42 @@ describe('POST /api/v1/content/[id]/make-homepage', () => {
     const viewerId = await seedUser(db, { email: 'viewer@home.test' })
     await seedRole(db, viewerId, HOME_SITE, 'viewer')
     await expect(call(src, viewerId)).rejects.toMatchObject({ statusCode: 403 })
+  })
+})
+
+describe('AI-assisted saves', () => {
+  async function latestAudit(resourceId: string) {
+    return getCurrentTestDb().query.auditLogs.findFirst({
+      where: eq(auditLogs.resourceId, resourceId),
+      orderBy: [desc(auditLogs.createdAt), desc(auditLogs.id)],
+    })
+  }
+
+  it('records a kept AI suggestion as an ai_assisted_update with what was asked', async () => {
+    await (patchHandler as HandlerFn)(mkPatchEvent({
+      title: 'AI-assisted title',
+      aiAssist: { kind: 'edit', instruction: 'Make the title shorter', summary: 'Shortened the title.' },
+    }))
+    const row = await latestAudit(existingItemId)
+    expect(row!.action).toBe('ai_assisted_update')
+    expect(row!.userId).toBe(authorId)
+    expect((row!.after as { aiAssist: Record<string, string> }).aiAssist).toMatchObject({
+      kind: 'edit', instruction: 'Make the title shorter', summary: 'Shortened the title.',
+    })
+  })
+
+  it('records an ordinary save as a plain update', async () => {
+    await (patchHandler as HandlerFn)(mkPatchEvent({ title: 'Typed by hand' }))
+    const row = await latestAudit(existingItemId)
+    expect(row!.action).toBe('update')
+    expect((row!.after as Record<string, unknown>).aiAssist).toBeUndefined()
+  })
+
+  it('records an AI-assisted first save as ai_assisted_create', async () => {
+    const { id } = await (createHandler as HandlerFn)(mkCreateEvent({
+      title: 'Generated page', slug: 'generated-page', typeSlug: 'post',
+      aiAssist: { kind: 'generate', instruction: 'A page about our cafe' },
+    })) as { id: string }
+    expect((await latestAudit(id))!.action).toBe('ai_assisted_create')
   })
 })

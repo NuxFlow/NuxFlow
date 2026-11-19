@@ -1,5 +1,5 @@
 import { inject, type Component, type InjectionKey } from 'vue'
-import type { CanvasContent } from './types'
+import type { AiPageEditRequest, AiPageEditResponse, CanvasContent } from './types'
 import type { AiInstruction } from './editor/useAiImprove'
 
 /** A post as the Posts block lists it (GET /api/public/posts in NuxFlow). */
@@ -199,6 +199,8 @@ export interface CanvasHost {
   improveText(text: string, instruction: AiInstruction): Promise<string[]>
   /** A whole Canvas page from a description (the editor's "Generate with AI"). */
   generatePage(request: CanvasPageRequest): Promise<CanvasContent>
+  /** Edits to the page in the editor from an instruction ("Change this page with AI"). Nothing is saved. */
+  editPage?(request: AiPageEditRequest): Promise<AiPageEditResponse>
   /** Focal point of a media-library image, as percentages (0–100) from the top left. */
   suggestFocalPoint(url: string): Promise<{ focalX: number; focalY: number }>
   /**

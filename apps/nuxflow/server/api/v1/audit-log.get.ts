@@ -24,5 +24,22 @@ export default defineEventHandler(async (event) => {
     offset,
   })
 
-  return { logs: logs satisfies AuditLogEntry[], page, limit }
+  // Only what the page shows — before/after snapshots can be whole pages of content.
+  const entries: AuditLogEntry[] = logs.map(l => ({
+    id: l.id,
+    action: l.action,
+    resource: l.resource,
+    resourceId: l.resourceId,
+    userId: l.userId,
+    createdAt: l.createdAt,
+    aiAssist: readAiAssist(l.after),
+  }))
+  return { logs: entries, page, limit }
 })
+
+function readAiAssist(after: unknown): AuditLogEntry['aiAssist'] {
+  const a = after && typeof after === 'object' ? (after as { aiAssist?: unknown }).aiAssist : null
+  if (!a || typeof a !== 'object') return null
+  const { kind, instruction, summary } = a as Record<string, unknown>
+  return { kind: String(kind ?? ''), instruction: String(instruction ?? ''), summary: String(summary ?? '') }
+}

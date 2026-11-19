@@ -442,7 +442,14 @@ Available inline while editing a page or post:
 - **Full site** — NuxFlow first proposes a **plan**: a list of pages with titles, URLs, and descriptions. Edit it before anything is generated — rename or reorder pages, rewrite what each should contain, remove pages, or add your own. Then each page is generated in turn; keep the tab open while it runs (if you leave, the generation pauses — reopen it from **Recent generations** to resume where it stopped).
 - **Review before publishing** — nothing goes live on its own. Every page lands as a draft, and the review screen lets you preview each one inline, open the full themed preview, **Regenerate** any page you don't like, discard pages, and then **Publish all** in one click.
 
-The **AI Generate** button inside the Canvas editor works the same way for the page you're editing: the result opens as a preview right on the canvas, where you can **Keep** it, **Regenerate** it, or **Discard** it to get your page back exactly as it was. You can also choose to add the generated sections after your existing blocks instead of replacing them.
+### Change a page with AI
+The **AI** button in the Canvas editor has two modes:
+- **Change this page** — say what you'd like in plain words ("make the hero heading shorter", "add a testimonials section before the contact form", "remove the pricing section"). The AI changes only what you asked for and leaves everything else as it was. The changed blocks are outlined on the canvas with an **AI changed** label, and a list says what changed and why; click an entry to jump to that block.
+- **New page** — describe a page and the AI writes it from scratch, replacing your blocks or adding the new sections after them.
+
+Either way it's a suggestion until you decide: **Keep** it, **Try again**, or **Discard** it to get your page back exactly as it was. Nothing is saved while a suggestion is waiting (autosave pauses), so a change to a published page never goes live before you've looked at it. When you keep a suggestion, the save is marked **AI-assisted** in **Settings → Audit log**, with what you asked for — so your site's history shows the change was suggested by AI and approved by you. AI can make mistakes: always check a suggestion before keeping it.
+
+The AI can't change site settings, the menu or the theme from here. If you ask, it says where to find them.
 
 ### AI Image Generation
 Generate an image from a text prompt (square, landscape, or portrait) from **Admin → Media → AI Image** — it's saved straight to your media library alongside your regular uploads. It uses OpenAI or Google Gemini when you've added one of their keys, otherwise Workers AI.

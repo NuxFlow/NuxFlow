@@ -2,3 +2,4 @@
 // them without pulling in the component barrel the package root exports.
 export * from './blocks'
 export * from './translate'
+export * from './edit'

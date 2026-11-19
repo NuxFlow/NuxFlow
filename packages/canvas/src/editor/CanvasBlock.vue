@@ -45,6 +45,9 @@ function setSlotChildren(slotId: string, list: CanvasBlockData[]) {
   props.block.children[slotId] = list
 }
 
+// Outlined while an AI suggestion that changed this block is waiting for review.
+const aiChanged = computed(() => !!props.editing && !!api?.aiChangedIds?.value.has(props.block.id))
+
 function onDragStart() {
   api?.recordDiscrete()
 }
@@ -60,9 +63,15 @@ function openAddPicker(slotId: string) {
     :class="[
       editing ? 'cursor-pointer' : '',
       selected ? 'ring-2 ring-primary-500 ring-inset' : '',
+      aiChanged && !selected ? 'outline-2 outline-dashed outline-amber-400 -outline-offset-2' : '',
     ]"
+    :data-ai-changed="aiChanged || undefined"
     @click.stop="editing && api?.selectBlock(block.id)"
   >
+    <span
+      v-if="aiChanged"
+      class="absolute top-2 left-2 z-20 rounded-md bg-amber-400 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950 pointer-events-none"
+    >AI changed</span>
     <!-- Floating action bar — appears on hover or when selected in editor mode -->
     <div
       v-if="editing"

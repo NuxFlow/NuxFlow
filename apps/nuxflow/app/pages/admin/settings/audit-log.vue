@@ -40,6 +40,14 @@ const actionColor: Record<string, Color> = {
   create: 'success', update: 'info', delete: 'error', activate: 'success',
 }
 
+// `ai_assisted_update` etc.: a change AI suggested and this user reviewed and applied.
+function baseAction(action: string) {
+  return action.replace(/^ai_assisted_/, '')
+}
+function aiAssistText(a: NonNullable<AuditLogEntry['aiAssist']>) {
+  return [a.instruction && `Asked: "${a.instruction}"`, a.summary, 'Suggested by AI, reviewed and applied by this user.'].filter(Boolean).join(' — ')
+}
+
 const columns = [
   { accessorKey: 'action', header: 'Action' },
   { accessorKey: 'resource', header: 'Resource' },
@@ -57,9 +65,14 @@ const columns = [
     <UCard>
       <UTable :data="logs" :columns="columns">
         <template #action-cell="{ row }">
-          <UBadge :color="actionColor[row.original.action] ?? 'neutral'" variant="soft" size="xs" class="capitalize">
-            {{ row.original.action }}
-          </UBadge>
+          <div class="flex items-center gap-1.5">
+            <UBadge :color="actionColor[baseAction(row.original.action)] ?? 'neutral'" variant="soft" size="xs" class="capitalize">
+              {{ baseAction(row.original.action) }}
+            </UBadge>
+            <UTooltip v-if="row.original.aiAssist" :text="aiAssistText(row.original.aiAssist)">
+              <UBadge color="primary" variant="outline" size="xs" icon="i-lucide-sparkles">AI-assisted</UBadge>
+            </UTooltip>
+          </div>
         </template>
         <template #resourceId-cell="{ row }">
           <code v-if="row.original.resourceId" class="text-xs text-gray-400">{{ row.original.resourceId.slice(0, 12) }}…</code>

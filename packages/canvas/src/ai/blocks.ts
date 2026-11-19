@@ -126,7 +126,8 @@ function resolveMedia(value: unknown, media: AiMediaItem[]): AiMediaItem | undef
   return media.find(m => m.url === s)
 }
 
-function normalizeField(f: FieldSchema, value: unknown, media: AiMediaItem[]): unknown {
+/** One field value from the model, validated against its definition; undefined = rejected. */
+export function normalizeAiField(f: FieldSchema, value: unknown, media: AiMediaItem[]): unknown {
   switch (f.type) {
     case 'text':
     case 'textarea':
@@ -217,7 +218,7 @@ export function normalizeAiBlocks(raw: unknown, opts: NormalizeAiBlocksOptions, 
     const rawProps = item.props && typeof item.props === 'object' ? item.props : {}
     for (const f of aiFields(def)) {
       if (!(f.key in rawProps)) continue
-      const v = normalizeField(f, rawProps[f.key], media)
+      const v = normalizeAiField(f, rawProps[f.key], media)
       if (v !== undefined) props[f.key] = v
     }
 
