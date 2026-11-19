@@ -20,7 +20,7 @@ import { ulid } from 'ulid'
 import type * as AiSdk from '../../server/utils/ai-sdk'
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
-import { seedSite, seedUser, seedRole, seedMedia } from '../helpers/seed'
+import { seedSite, seedUser, seedRole, seedMedia, seedContentType, seedContentItem } from '../helpers/seed'
 import seoSuggestHandler from '../../server/api/v1/ai/seo-suggest.post'
 import altTextHandler from '../../server/api/v1/ai/alt-text.post'
 import improveHandler from '../../server/api/v1/ai/improve.post'
@@ -853,5 +853,100 @@ describe('POST /api/v1/ai/suggest-focal-point', () => {
     await (suggestFocalPointHandler as HandlerFn)(mkEditorEvent({ mediaId }))
 
     expect(mockGetAiSdkModel).toHaveBeenCalledWith(expect.anything(), 'vision', expect.objectContaining({ userId: editorId }))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/ai/generate-canvas — "Change this page" (instruction + content)
+// ---------------------------------------------------------------------------
+
+describe('POST /api/v1/ai/generate-canvas — changing a page', () => {
+  const page = {
+    type: 'canvas',
+    blocks: [
+      { id: 'hero-1', type: 'canvas-hero', props: { headline: 'Welcome', subtext: 'Coffee' } },
+      { id: 'foot-1', type: 'canvas-footer', props: { copyright: 'Acme' } },
+    ],
+  }
+
+  it('returns the changed page, a summary and the list of changes, without saving anything', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject.mockResolvedValueOnce({
+      object: {
+        summary: 'Shortened the heading.',
+        operations: [
+          { op: 'update', block: 'b1', after: '', type: '', props: [{ key: 'headline', value: 'Hi' }], children: [], note: 'Shorter' },
+          { op: 'remove', block: 'b2', after: '', type: '', props: [], children: [], note: 'Footer gone' },
+        ],
+      },
+    })
+    const result = await (generateCanvasHandler as HandlerFn)(mkEditorEvent({ instruction: 'Shorter heading', content: page })) as {
+      content: { blocks: { id: string; props: Record<string, unknown> }[] }
+      summary: string
+      changes: { kind: string; blockId: string }[]
+      skipped: number
+    }
+    expect(result.content.blocks.map(b => b.id)).toEqual(['hero-1', 'foot-1'])
+    expect(result.content.blocks[0]!.props).toEqual({ headline: 'Hi', subtext: 'Coffee' })
+    expect(result.changes).toEqual([expect.objectContaining({ kind: 'updated', blockId: 'hero-1' })])
+    // The footer can't be edited by AI, so its removal was refused.
+    expect(result.skipped).toBe(1)
+    expect(result.summary).toBe('Shortened the heading.')
+
+    const [args] = mockGenerateObject.mock.calls.at(-1) as [{ system: string; prompt: string; schema: ZodType }]
+    expect(args.prompt).toContain('b1 canvas-hero')
+    expect(args.prompt).toContain('Shorter heading')
+    expect(args.system).toMatch(/EDITING an existing page/)
+    expect(nonBooleanAdditionalProperties(args.schema)).toEqual([])
+  })
+
+  it('still requires editor or above', async () => {
+    await expect(
+      (generateCanvasHandler as HandlerFn)(mkEvent({ instruction: 'Shorter heading', content: page })),
+    ).rejects.toMatchObject({ statusCode: 403 })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/ai/seo-suggest — several pages at once (SEO → Audit)
+// ---------------------------------------------------------------------------
+
+describe('POST /api/v1/ai/seo-suggest — several pages', () => {
+  let ids: string[]
+  beforeAll(async () => {
+    const db = getCurrentTestDb()
+    const typeId = await seedContentType(db, SITE, { slug: 'page', name: 'Pages', singularName: 'Page' })
+    ids = [
+      await seedContentItem(db, SITE, typeId, { slug: 'seo-a', title: 'About us', seoTitle: 'Old title' }),
+      await seedContentItem(db, SITE, typeId, { slug: 'seo-b', title: 'Menu' }),
+    ]
+    await seedSite(db, { id: 'site-ai-other', domain: 'other-ai.localhost' })
+    ids.push(await seedContentItem(db, 'site-ai-other', await seedContentType(db, 'site-ai-other', { slug: 'page', name: 'Pages', singularName: 'Page' }), { slug: 'x', title: 'Other site' }))
+  })
+
+  it('returns a suggestion per page of this site, with what each page has now, and saves nothing', async () => {
+    mockGetAiSdkModel.mockResolvedValueOnce(Symbol('fake-model'))
+    mockGenerateObject
+      .mockResolvedValueOnce({ object: { title: 'New A', description: 'Desc A' } })
+      .mockRejectedValueOnce(new Error('Model busy'))
+    const { suggestions } = await (seoSuggestHandler as HandlerFn)(mkEditorEvent({ contentIds: ids })) as {
+      suggestions: { id: string; current: { seoTitle: string }; seoTitle: string; error: string | null; version: number }[]
+    }
+    // The other site's page is never read.
+    expect(suggestions.map(s => s.id).sort()).toEqual(ids.slice(0, 2).sort())
+    const a = suggestions.find(s => s.id === ids[0])!
+    expect(a).toMatchObject({ seoTitle: 'New A', current: { seoTitle: 'Old title' }, error: null })
+    expect(typeof a.version).toBe('number')
+    // One failure doesn't fail the batch.
+    expect(suggestions.find(s => s.id === ids[1])!.error).toBeTruthy()
+
+    const item = await getCurrentTestDb().query.contentItems.findFirst({ where: (t, { eq: e }) => e(t.id, ids[0]!) })
+    expect(item!.seoTitle).toBe('Old title')
+  })
+
+  it('takes at most 5 pages per request', async () => {
+    await expect(
+      (seoSuggestHandler as HandlerFn)(mkEditorEvent({ contentIds: ['1', '2', '3', '4', '5', '6'] })),
+    ).rejects.toThrow()
   })
 })

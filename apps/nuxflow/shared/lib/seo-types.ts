@@ -74,3 +74,16 @@ export interface RedirectImportResult {
   skipped: number
   errors: { line: number; message: string }[]
 }
+
+// ── POST /api/v1/ai/seo-suggest with contentIds (SEO → Audit → Suggest fixes with AI)
+
+export interface SeoAiSuggestion {
+  id: string
+  title: string
+  version: number
+  current: { seoTitle: string; seoDescription: string }
+  seoTitle: string
+  seoDescription: string
+  /** Set when the AI couldn't write this one; the other fields are then empty. */
+  error: string | null
+}

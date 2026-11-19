@@ -430,7 +430,7 @@ NuxFlow includes AI-powered tools throughout the editor and admin, plus a couple
 Available inline while editing a page or post:
 - **Improve Writing** — select any text and ask the AI to make it more professional, shorter, longer, or simpler.
 - **Grammar & Style Check** — catches and fixes grammar and style issues.
-- **SEO Generation** — suggests a meta title and description based on your content, in the SEO panel.
+- **SEO Generation** — suggests a meta title and description based on your content, in the SEO panel. For many pages at once, **SEO → Audit → Suggest fixes with AI** writes titles and descriptions for every page with a missing, short, long or duplicate one (up to 25 per run). Each suggestion is shown next to what the page has now; tick and edit what you want, then **Apply**. Nothing changes until you do, and applied changes are marked AI-assisted in the audit log.
 - **Readability Check** — scores your content's reading ease with the standard Flesch Reading Ease and Flesch-Kincaid grade formulas (English text — other languages get the AI's estimate), plus specific flagged sentences and suggested fixes. Lives in the same SEO panel as the SEO generator; prose pages only, since a Canvas page has no single body of text to score.
 - **Alt Text** — generates descriptive alt text for images, one at a time or in bulk for your whole media library (**Admin → Media → Auto alt text**). Bulk runs work through the library a few images at a time while the page shows progress — keep the tab open until it finishes.
 - **Focal Point** — the ✨ button next to an image's focal point (in the media library, or on an Image block's settings) asks the AI where the subject is and sets the focal point for you.
