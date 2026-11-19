@@ -34,7 +34,7 @@ describe('buildSetupChecklist', () => {
   })
 
   it('flags database image storage, and leftover database files once storage is connected', () => {
-    expect(status(buildSetupChecklist({ ...healthy, storageProvider: 'local' }), 'storage')).toMatchObject({ status: 'todo', title: 'Connect file storage' })
+    expect(status(buildSetupChecklist({ ...healthy, storageProvider: 'none' }), 'storage')).toMatchObject({ status: 'todo', title: 'Connect file storage' })
     const leftover = status(buildSetupChecklist({ ...healthy, localMediaCount: 3 }), 'storage')
     expect(leftover.status).toBe('todo')
     expect(leftover.detail).toContain('3 files are still stored in the database')

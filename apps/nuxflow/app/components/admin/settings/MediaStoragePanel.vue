@@ -93,10 +93,10 @@ const progressPercent = computed(() => Math.min(100, Math.round((processed.value
       <UAlert
         v-else
         icon="i-lucide-triangle-alert"
-        color="warning"
+        color="error"
         variant="soft"
         title="No file storage connected yet"
-        description="Uploads are being kept inside the database, which is fine for trying NuxFlow out but limited to 512 KB per file. The simplest fix: add the MEDIA_BUCKET R2 binding to wrangler.toml (see wrangler.toml.example) and redeploy — nothing else to fill in. Or set up one of the providers below."
+        description="Images and files can't be uploaded until this site has file storage. The simplest fix: add the MEDIA_BUCKET R2 binding to wrangler.toml (see wrangler.toml.example) and redeploy — nothing else to fill in. Or set up Cloudflare Images below."
       />
 
       <div v-if="pendingTotal > 0 || finished" class="rounded-lg border border-gray-200 dark:border-gray-800 p-4 space-y-3">

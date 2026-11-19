@@ -57,8 +57,8 @@ describe('getActiveProvider — zero-config R2', () => {
     expect((await getActiveProvider(mkEvent())).name).toBe('cloudflare')
   })
 
-  it('falls back to the database only when no bucket and nothing configured', async () => {
-    expect((await getActiveProvider(mkEvent())).name).toBe('local')
+  it('refuses uploads when there is no bucket and nothing configured', async () => {
+    await expect(getActiveProvider(mkEvent())).rejects.toMatchObject({ statusCode: 409 })
   })
 })
 

@@ -13,7 +13,7 @@ import { and, eq, inArray, isNull, like, lt, or, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { media, sites, starterInstalls } from '@nuxflow/db/schema'
 import { useDb, type Db } from '../db'
-import { getActiveProvider } from '../media-providers/index'
+import { getActiveProvider, hasMediaStorage } from '../media-providers/index'
 import { deleteStoredMedia } from '../media-providers/storage-delete'
 import { getCfBindings } from '../cf-env'
 import { assertWithinPlan } from '../hosting-plans'
@@ -71,9 +71,9 @@ export function installView(row: InstallRow): StarterInstallView {
   }
 }
 
-/** File storage that isn't the database fallback: R2 or Cloudflare Images. */
+/** Whether the site has file storage (R2 or Cloudflare Images) for starter images. */
 export async function starterStorageReady(event: H3Event): Promise<boolean> {
-  return (await getActiveProvider(event)).name !== 'local'
+  return hasMediaStorage(event)
 }
 
 export async function listStarters(): Promise<{ starters: StarterSummary[]; catalogError: string | null }> {

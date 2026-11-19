@@ -79,7 +79,7 @@ const statCards = computed(() => [
     <UAlert v-if="statsError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="getErrorMessage(statsError, 'Could not load the dashboard numbers')" />
 
     <!-- Covers file storage along with email, domain, SEO, etc. (the media library keeps
-         its own storage-only AdminMediaFallbackWarning). -->
+         its own storage-only AdminMediaStorageWarning). -->
     <AdminStarterInstallBanner />
 
     <AdminSetupChecklist />

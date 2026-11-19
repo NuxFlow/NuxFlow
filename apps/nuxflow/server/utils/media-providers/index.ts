@@ -4,7 +4,6 @@ import { R2Provider } from './r2'
 import { resolveStringSetting } from '../settings'
 import { getCfBindings } from '../cf-env'
 import { eventForSite } from '../site-info'
-import { bytesToBase64 } from '../../../shared/lib/base64'
 import { httpError } from '../response'
 
 export interface UploadResult {
@@ -64,13 +63,22 @@ export async function assertProviderOk(res: Response, operationLabel: string, op
   throw new Error(`${operationLabel} failed: ${res.status}${body ? ` ${body}` : ''}`)
 }
 
-// The local fallback stores the file as a base64 data: URI directly in the media.url
-// D1 column — there is no real object storage backing it. Kept small and conservative;
-// this path exists only so uploads don't hard-fail before a real provider is configured,
-// not as a supported way to serve normal-sized media.
-const LOCAL_PROVIDER_MAX_BYTES = 512 * 1024
+/**
+ * Why there's no database fallback: images used to be stored as base64 `data:` URIs in
+ * D1 when no bucket was bound. That filled a 10 GB-capped database about 50x more
+ * expensive per GB than R2, put every image inside the page HTML (no browser caching,
+ * re-sent on every view) and capped files at 512 KB. NuxFlow needs the Workers Paid
+ * plan anyway, so R2 is always available — every upload path now refuses instead.
+ */
+export const STORAGE_REQUIRED_MESSAGE = "Images and files need file storage, which this site doesn't have yet. Add an R2 bucket (the MEDIA_BUCKET binding in wrangler.toml) and redeploy — there's nothing to fill in afterwards."
 
-export async function getActiveProvider(event: H3Event): Promise<MediaProvider> {
+/** The 409 every path that stores a file throws when the site has no file storage. */
+export function storageRequiredError(): never {
+  throw httpError({ status: 409, message: STORAGE_REQUIRED_MESSAGE, data: { code: 'storage_required' } })
+}
+
+/** The provider new uploads go to, or null when the site has no file storage. */
+export async function findMediaProvider(event: H3Event): Promise<MediaProvider | null> {
   // All candidate providers' settings are resolved up front in parallel —
   // each resolveSetting() call is its own D1 round trip (until the 30s
   // per-isolate cache warms up), and none of these values depend on each
@@ -87,8 +95,7 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
 
   // deliveryUrl is required alongside the token/account — without it, getUrl() builds a
   // broken relative-path URL (`${deliveryUrl}/${storageKey}/public`) for every uploaded
-  // image with no error at upload time. Falling through to the next provider mirrors the
-  // R2 check just below (`r2 && r2PublicUrl`), which requires its own delivery URL too.
+  // image with no error at upload time.
   if (imagesToken && accountId && deliveryUrl) {
     return new CloudflareImagesProvider(accountId, imagesToken, deliveryUrl)
   }
@@ -97,44 +104,31 @@ export async function getActiveProvider(event: H3Event): Promise<MediaProvider> 
   // through the MEDIA_BUCKET binding. With a public URL (a custom domain or the bucket's
   // r2.dev subdomain) browsers fetch objects straight from R2; without one, objects are
   // served through this Worker at /_nuxflow/media/<key> (server/routes/_nuxflow/media/),
-  // so having the bucket bound is all it takes for real media storage — nobody has to
-  // find and paste a public bucket URL first, the step operators kept missing and
-  // silently ending up on the database fallback below.
+  // so having the bucket bound is all it takes for real media storage.
   const { r2 } = getCfBindings(event)
   if (r2) {
     return new R2Provider({ bucket: r2, publicUrl: r2PublicUrl || null })
   }
 
-  return {
-    name: 'local',
-    async upload(file) {
-      if (file.size > LOCAL_PROVIDER_MAX_BYTES) {
-        throw httpError({
-          status: 413,
-          message: `File too large for the database storage fallback (max ${Math.floor(LOCAL_PROVIDER_MAX_BYTES / 1024)} KB — with no media storage connected, files are stored as base64 directly in the database). Connect an R2 bucket (the MEDIA_BUCKET binding in wrangler.toml) or configure a provider in Settings → Media for normal-sized uploads.`,
-        })
-      }
-      // Loud on purpose — GET /api/v1/media/storage-status (surfaced via
-      // AdminMediaFallbackWarning.vue on the dashboard and media library) already warns
-      // in the UI, and the setup wizard shows storage status, but an operator relying
-      // only on `wrangler tail`/logs still needs a signal the moment it's actually used.
-      console.warn(`[nuxflow:media] Storing "${file.name}" as base64 in D1 — no media storage connected. See Settings → Media.`)
-      const buf = await file.arrayBuffer()
-      const b64 = bytesToBase64(buf)
-      const url = `data:${file.type};base64,${b64}`
-      return { url, storageKey: file.name, provider: 'local' }
-    },
-    async delete() {},
-    getUrl(key) { return key },
-  }
+  return null
+}
+
+/** The provider new uploads go to; 409 `storage_required` when the site has none. */
+export async function getActiveProvider(event: H3Event): Promise<MediaProvider> {
+  return (await findMediaProvider(event)) ?? storageRequiredError()
+}
+
+/** Whether this site can store files at all. */
+export async function hasMediaStorage(event: H3Event): Promise<boolean> {
+  return (await findMediaProvider(event)) !== null
 }
 
 /**
- * The provider a *given* site would upload to — getActiveProvider() for a site other than
+ * The provider a *given* site would upload to ('none' without file storage) — getActiveProvider() for a site other than
  * the one this request is for (the Super Admin → Database page reports on every site).
  * resolveSetting() reads the site from event.context, so this evaluates against a
  * prototype-linked copy of the event with only `context.siteId` swapped.
  */
 export async function getActiveProviderNameForSite(event: H3Event, siteId: string): Promise<string> {
-  return (await getActiveProvider(eventForSite(event, siteId))).name
+  return (await findMediaProvider(eventForSite(event, siteId)))?.name ?? 'none'
 }

@@ -18,6 +18,7 @@ import { itemPublicPath } from './public-page'
 import { queueContentHook } from './plugin-hooks'
 import { queueContentPublishedPush } from './push-content'
 import { checkContentDates, contentDateFields } from './content-dates'
+import { inlineImageProblem } from './inline-images'
 import { getSiteInfo } from './site-info'
 import { settingsForEditor } from './page-password'
 import { contentSlugProblem, getContentTermIds, getPublicItemTerms, getTaxonomyContentTypeSlugs, getTermRefsWithAncestors, replaceContentTermsStatements } from './taxonomy'
@@ -381,6 +382,8 @@ async function createContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   const site = await getSiteInfo(ctx.event, ctx.siteId)
   const dateCheck = await checkContentDates(ctx.db, ctx.siteId, { ...parsed.data, status: statusVal }, { existing: null, typeSlug, timeZone: site?.timezone || 'UTC' })
   if (dateCheck.problem !== undefined) return textResult(`Error: ${dateCheck.problem}`)
+  const imageProblem = inlineImageProblem(parsed.data)
+  if (imageProblem) return textResult(`Error: ${imageProblem}`)
 
   const room = await checkPlanLimit(ctx.db, ctx.siteId, 'content')
   if (!room.allowed) return textResult(`Error: ${planLimitMessage('content', room.max ?? 0)}`)
@@ -468,6 +471,8 @@ async function updateContent(args: unknown, ctx: McpToolContext): Promise<McpToo
   const site = await getSiteInfo(ctx.event, ctx.siteId)
   const dateCheck = await checkContentDates(ctx.db, ctx.siteId, parsedUpdate.data, { existing, timeZone: site?.timezone || 'UTC' })
   if (dateCheck.problem !== undefined) return textResult(`Error: ${dateCheck.problem}`)
+  const updateImageProblem = inlineImageProblem(parsedUpdate.data)
+  if (updateImageProblem) return textResult(`Error: ${updateImageProblem}`)
   const { scheduledAt, eventAllDay, eventLocation, eventUrl, eventRsvpEnabled, eventRsvpCapacity, eventRsvpClosesAt, eventRecurrence, eventPrice, eventCurrency, eventCancelHours, eventPassesAllowed } = parsedUpdate.data
   Object.assign(updates, dateCheck.dates)
   for (const [key, value] of Object.entries({ scheduledAt, eventAllDay, eventLocation, eventUrl, eventRsvpEnabled, eventRsvpCapacity, eventRsvpClosesAt, eventRecurrence, eventPrice, eventCurrency, eventCancelHours, eventPassesAllowed })) {

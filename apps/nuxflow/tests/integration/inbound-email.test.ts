@@ -50,6 +50,7 @@ vi.mock('ai', async importOriginal => ({
 }))
 vi.mock('../../server/utils/media-providers/index', () => ({
   getActiveProvider: async () => ({ name: 'r2', upload: mockUpload, delete: vi.fn(), getUrl: (k: string) => k }),
+  findMediaProvider: async () => ({ name: 'r2', upload: mockUpload, delete: vi.fn(), getUrl: (k: string) => k }),
 }))
 
 const { handleInboundEmail } = await import('../../server/utils/inbound-email')

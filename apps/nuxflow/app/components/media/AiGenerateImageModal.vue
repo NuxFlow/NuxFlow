@@ -32,15 +32,12 @@ async function generate() {
   previewUrl.value = ''
   resultMediaId.value = undefined
   try {
-    const res = await $fetch<{ url: string; mediaId?: string; saved: boolean; error?: string }>('/api/v1/ai/generate-image', {
+    const res = await $fetch<{ url: string; mediaId: string; saved: true }>('/api/v1/ai/generate-image', {
       method: 'POST',
       body: { prompt: prompt.value.trim(), shape: shape.value, quality: quality.value },
     })
     previewUrl.value = res.url
     resultMediaId.value = res.mediaId
-    if (res.error) {
-      error.value = `Generated but not saved: ${res.error}`
-    }
   } catch (e: unknown) {
     error.value = getErrorMessage(e, 'Generation failed. Check the AI provider settings.')
   } finally {

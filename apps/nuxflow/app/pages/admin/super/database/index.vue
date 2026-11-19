@@ -18,8 +18,8 @@ const capUsageColor = computed(() => {
 // Two different situations, worded differently: a site with no media storage connected
 // at all (new uploads are still landing in the database), versus a site that HAS storage
 // now but still has files from before it was connected — those just need moving.
-const sitesWithoutStorage = computed(() => (stats.value?.sites ?? []).filter(s => s.storageProvider === 'local'))
-const sitesWithLeftovers = computed(() => (stats.value?.sites ?? []).filter(s => s.storageProvider !== 'local' && s.localFallbackMediaCount > 0))
+const sitesWithoutStorage = computed(() => (stats.value?.sites ?? []).filter(s => s.storageProvider === 'none'))
+const sitesWithLeftovers = computed(() => (stats.value?.sites ?? []).filter(s => s.storageProvider !== 'none' && s.localFallbackMediaCount > 0))
 
 function mediaSettingsUrl(domain: string): string {
   const here = import.meta.client ? window.location : null
@@ -136,14 +136,14 @@ async function downloadExport() {
         v-if="sitesWithoutStorage.length"
         class="mt-4"
         icon="i-lucide-triangle-alert"
-        color="warning"
+        color="error"
         variant="soft"
         :title="`No media storage connected for ${sitesWithoutStorage.length} site${sitesWithoutStorage.length === 1 ? '' : 's'}`"
       >
         <template #description>
           <span class="text-gray-800 dark:text-gray-200">
-            New uploads on <strong>{{ sitesWithoutStorage.map(s => s.siteDomain).join(', ') }}</strong> are being stored inside the database (512 KB per file max), which is the biggest avoidable contributor to database size.
-            Connect an R2 bucket by adding the <code>MEDIA_BUCKET</code> binding to <code>wrangler.toml</code> and redeploying — no other setup needed — or configure a provider in that site's Settings → Media.
+            Images and files can't be uploaded on <strong>{{ sitesWithoutStorage.map(s => s.siteDomain).join(', ') }}</strong>.
+            Connect an R2 bucket by adding the <code>MEDIA_BUCKET</code> binding to <code>wrangler.toml</code> and redeploying — no other setup needed — or configure Cloudflare Images in that site's Settings → Media.
           </span>
         </template>
       </UAlert>
@@ -188,7 +188,7 @@ async function downloadExport() {
           <template #media-cell="{ row }">
             <span class="text-sm text-gray-600 dark:text-gray-300">
               {{ row.original.mediaCount }} · {{ formatBytes(row.original.mediaBytes) }}
-              <UBadge v-if="row.original.localFallbackMediaCount" :color="row.original.storageProvider === 'local' ? 'warning' : 'info'" variant="subtle" size="xs" class="ml-1">{{ row.original.localFallbackMediaCount }} in database</UBadge>
+              <UBadge v-if="row.original.localFallbackMediaCount" :color="row.original.storageProvider === 'none' ? 'warning' : 'info'" variant="subtle" size="xs" class="ml-1">{{ row.original.localFallbackMediaCount }} in database</UBadge>
             </span>
           </template>
           <template #approxTotalBytes-cell="{ row }">

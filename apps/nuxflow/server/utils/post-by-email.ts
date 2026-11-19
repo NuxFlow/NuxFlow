@@ -6,7 +6,7 @@ import { sendNotification } from './notify'
 import { getUserSiteRole, roleAtLeast, type Role } from './permissions'
 import { uniqueContentSlug } from './content-queries'
 import { htmlToTipTap, stripHtmlToPlainText, type TTNode } from './html-to-tiptap'
-import { getActiveProvider } from './media-providers/index'
+import { findMediaProvider } from './media-providers/index'
 import { assertWithinPlan, checkPlanLimit, planLimitMessage } from './hosting-plans'
 import { buildAuditLogInsert, batchWithAudit } from './audit'
 import {
@@ -110,13 +110,17 @@ export async function handlePostByEmail(input: InboundInput): Promise<void> {
 
   // Images: raster attachments go to the media library under the owner's name; inline
   // ones (cid:) are swapped into the HTML in place, the rest appended after the text.
-  const provider = await getActiveProvider(event)
+  // Without file storage the post is still saved, just without its images (and the
+  // owner is told why).
+  const provider = await findMediaProvider(event)
   const cidToUrl = new Map<string, string>()
   const trailingImages: string[] = []
   const uploaded = new Set<string>()
+  let imagesLeftOut = 0
   for (const att of parsed.attachments.slice(0, MAX_ATTACHMENTS)) {
     const mimeType = (att.mimeType || '').toLowerCase()
     if (!DRAFT_IMAGE_TYPES.has(mimeType)) continue
+    if (!provider) { imagesLeftOut++; continue }
     const bytes = attachmentBytes(att)
     if (bytes.byteLength > MAX_DRAFT_IMAGE_BYTES) continue
     const fileId = ulid()
@@ -135,7 +139,7 @@ export async function handlePostByEmail(input: InboundInput): Promise<void> {
         mimeType,
         size: bytes.byteLength,
         url,
-        storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
+        storageProvider: provider.name as 'cloudflare' | 'r2',
         storageKey,
       })
       uploaded.add(url)
@@ -144,8 +148,7 @@ export async function handlePostByEmail(input: InboundInput): Promise<void> {
       else trailingImages.push(url)
     }
     catch (err) {
-      // The database fallback provider refuses files over 512 KB, and a full plan refuses
-      // any — skip the image, keep the post.
+      // A full plan (or a provider error) — skip the image, keep the post.
       console.error('[inbound-email] Draft image upload failed:', err)
     }
   }
@@ -216,7 +219,9 @@ export async function handlePostByEmail(input: InboundInput): Promise<void> {
     userId: ownerId,
     type: 'content.post_by_email',
     title: `Draft created: ${title}`,
-    body: 'Your email was saved as a draft. Review and publish it from the editor.',
+    body: imagesLeftOut
+      ? `Your email was saved as a draft without its ${imagesLeftOut === 1 ? 'image' : `${imagesLeftOut} images`}: this site has no file storage yet. Review and publish it from the editor.`
+      : 'Your email was saved as a draft. Review and publish it from the editor.',
     data: { contentItemId },
     sendEmailNotification: true,
     pushUrl: `/admin/content/${contentItemId}`,

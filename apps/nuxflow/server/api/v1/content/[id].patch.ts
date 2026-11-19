@@ -25,6 +25,7 @@ import type { BatchItem } from 'drizzle-orm/batch'
 import { requireSiteId } from '../../../utils/site-context'
 import { getSiteInfo } from '../../../utils/site-info'
 import { checkContentDates, contentDateFields } from '../../../utils/content-dates'
+import { inlineImageProblem } from '../../../utils/inline-images'
 import { checkFieldValues, fieldDefsForType } from '../../../utils/content-type-fields'
 import { promoteAllWaitlists, reconcileBookings } from '../../../utils/event-rsvp'
 
@@ -89,6 +90,8 @@ export default defineEventHandler(async (event) => {
   const site = await getSiteInfo(event, siteId)
   const dateCheck = await checkContentDates(db, siteId, updateFields, { existing, sourceItemId: updateFields.sourceItemId, timeZone: site?.timezone || 'UTC' })
   if (dateCheck.problem !== undefined) throw validationError(dateCheck.problem)
+  const imageProblem = inlineImageProblem(updateFields)
+  if (imageProblem) throw validationError(imageProblem)
   Object.assign(updateFields, dateCheck.dates)
 
   // Required custom fields only have to be filled in to publish; a draft can be half-done.

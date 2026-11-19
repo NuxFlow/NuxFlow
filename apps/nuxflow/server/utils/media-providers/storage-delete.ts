@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { getActiveProvider } from './index'
+import { findMediaProvider } from './index'
 import { eventForSite } from '../site-info'
 
 /**
@@ -36,8 +36,8 @@ export async function deleteStoredMedia(
     console.warn(`[media] Refusing to delete storage key outside site ${siteId}: ${file.storageKey}`)
     return false
   }
-  const provider = await getActiveProvider(eventForSite(event, siteId))
-  if (provider.name !== file.storageProvider) return false
+  const provider = await findMediaProvider(eventForSite(event, siteId))
+  if (!provider || provider.name !== file.storageProvider) return false
   await provider.delete(file.storageKey)
   return true
 }

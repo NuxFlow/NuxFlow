@@ -298,7 +298,7 @@ A theme bundle can also be published as a **starter site** that every install ca
 
 To include starter content images in `demo.json`, place them in an `images/` folder inside the zip. NuxFlow uploads them to your configured media provider and rewrites the references automatically.
 
-> **Keep bundled images under 512 KB.** If the installing site hasn't connected R2 or Cloudflare Images (common on a fresh install, before any provider setup), uploads fall back to storing the image as base64 directly in a D1 column — capped at 512 KB, since D1 rows have a hard 1 MB limit and base64 inflates size by ~33%. An image over that cap fails to upload; the theme installs anyway, but that image reference in `demo.json` is left as the raw zip-relative path and renders as a broken image on the page. Compress/resize theme images to comfortably clear 512 KB so the demo content works out of the box regardless of what the installing site has configured.
+> **A bundle with images needs file storage.** If the installing site has no R2 bucket or Cloudflare Images, the upload is refused (409 `storage_required`) before anything is installed — NuxFlow never stores images in the database. A bundle without images installs anywhere. Keep images web-sized (each counts towards a hosted site's storage allowance).
 
 ### How the CSS pipeline works
 
@@ -417,7 +417,7 @@ Because Canvas pages are full-width, add `max-width` constraints inside your sel
 
 ### ZIP packaging
 
-A theme zip must contain `theme.css` at the root. Optional files: `theme.json` (name, version metadata) and `demo.json` (starter content). Images referenced in `demo.json` go in an `images/` subfolder, each **under 512 KB** (see the note above).
+A theme zip must contain `theme.css` at the root. Optional files: `theme.json` (name, version metadata) and `demo.json` (starter content). Images referenced in `demo.json` go in an `images/` subfolder (the installing site needs file storage — see the note above).
 
 Windows zip utilities write backslash paths (`images\photo.png`). NuxFlow normalises these automatically on upload, but using POSIX paths (`images/photo.png`) is safer across all platforms.
 

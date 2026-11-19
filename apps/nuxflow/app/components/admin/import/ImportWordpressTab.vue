@@ -80,6 +80,15 @@ async function runWpImport() {
     progress.mediaTotal = imageUrls.length
     progress.contentTotal = parsed.items.length
 
+    // The media step needs file storage (409 storage_required without it) — checked first
+    // so the import doesn't stop halfway, after the categories and tags were created.
+    if (imageUrls.length > 0) {
+      const storage = await $fetch<{ hasStorage: boolean }>('/api/v1/media/storage-status')
+      if (!storage.hasStorage) {
+        throw new Error('This export has images, and this site has no file storage to copy them into. Add an R2 bucket (the MEDIA_BUCKET binding in wrangler.toml), redeploy, then run the import again.')
+      }
+    }
+
     // 1. Categories and tags, then category parents (a parent can be in a later batch).
     progress.phase = 'terms'
     const catSlugs = buildTermSlugMap([...parsed.categories].map(([nicename, cat]) => [nicename, cat.name]))

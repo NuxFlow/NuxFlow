@@ -28,6 +28,30 @@ const CODE_LANGUAGES = [
 ]
 
 const isMediaModalOpen = ref(false)
+const { run } = useAdminAction()
+
+// Images pasted or dropped into the editor are uploaded to the media library and
+// inserted by URL. Base64 images are switched off below (`allowBase64: false`), so a
+// pasted screenshot or a Word/Google Docs paste with embedded pictures can never put the
+// image itself into the post (and so into the database).
+function imageFilesOf(data: DataTransfer | null | undefined): File[] {
+  return Array.from(data?.files ?? []).filter(f => f.type.startsWith('image/'))
+}
+
+async function uploadAndInsertImages(files: File[], pos?: number) {
+  for (const file of files) {
+    const fd = new FormData()
+    fd.append('file', file)
+    const result = await run(
+      () => $fetch<{ url: string }>('/api/v1/media/upload', { method: 'POST', body: fd }),
+      { errorTitle: `Couldn't upload ${file.name || 'the image'}` },
+    )
+    if (!result || !editor.value) continue
+    const image = { type: 'image', attrs: { src: result.url, alt: '' } }
+    if (pos !== undefined) editor.value.chain().focus().insertContentAt(pos, image).run()
+    else editor.value.chain().focus().insertContent(image).run()
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -44,7 +68,7 @@ const editor = useEditor({
     }),
     Image.configure({
       inline: true,
-      allowBase64: true,
+      allowBase64: false,
     }),
     Placeholder.configure({ placeholder: 'Start writing your content here…' }),
     Highlight,
@@ -56,7 +80,25 @@ const editor = useEditor({
     }),
   ],
   content: (props.modelValue as object) ?? { type: 'doc', content: [{ type: 'paragraph' }] },
-  editorProps: { attributes: { class: 'nux-editor-prose' } },
+  editorProps: {
+    attributes: { class: 'nux-editor-prose' },
+    handlePaste(_view, event) {
+      const files = imageFilesOf(event.clipboardData)
+      if (!files.length) return false
+      event.preventDefault()
+      void uploadAndInsertImages(files)
+      return true
+    },
+    handleDrop(view, event, _slice, moved) {
+      if (moved) return false
+      const files = imageFilesOf(event.dataTransfer)
+      if (!files.length) return false
+      event.preventDefault()
+      const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
+      void uploadAndInsertImages(files, pos)
+      return true
+    },
+  },
   onUpdate({ editor: e }) {
     emit('update:modelValue', e.getJSON())
   },

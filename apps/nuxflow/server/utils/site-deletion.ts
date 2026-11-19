@@ -273,7 +273,8 @@ function siteR2Prefixes(siteId: string): string[] {
   return [`${siteId}/`, `_private/${siteId}/`]
 }
 
-async function deleteR2Prefix(r2: R2Bucket, prefix: string): Promise<void> {
+/** Deletes every object under `prefix` (`''` = the whole bucket — the demo's nightly reset). */
+export async function deleteR2Prefix(r2: R2Bucket, prefix: string): Promise<void> {
   let cursor: string | undefined
   do {
     const page = await r2.list({ prefix, cursor, limit: 1000 })

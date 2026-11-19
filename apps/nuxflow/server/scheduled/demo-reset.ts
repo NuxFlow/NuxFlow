@@ -1,4 +1,6 @@
 import { useDb } from '../utils/db'
+import { getCfBindings } from '../utils/cf-env'
+import { deleteR2Prefix } from '../utils/site-deletion'
 import {
   sites,
   orders,
@@ -361,6 +363,22 @@ export const demoFirstBoot = async () => {
   }
 }
 
+// The demo Worker has a bucket of its own (wrangler.demo.toml.example), so the nightly
+// reset empties all of it — every site row it pointed at was just wiped, and each reseed
+// makes a new site id, so nothing would ever clean up yesterday's uploads otherwise.
+// A failure is logged, never fatal: the reseed matters more than the leftovers.
+async function emptyDemoBucket(): Promise<void> {
+  if (!globalThis.__env__) return
+  const { r2 } = getCfBindings(createSystemEvent({ env: globalThis.__env__ }))
+  if (!r2) return
+  try {
+    await deleteR2Prefix(r2, '')
+  }
+  catch (err) {
+    console.error('[demo-reset] emptying the media bucket failed:', err)
+  }
+}
+
 // Runs on the dedicated 0 3 * * * cron — wipes and reseeds the demo data.
 // No internal time check: the cron schedule itself controls when this fires.
 export const demoNightlyReset = async () => {
@@ -370,6 +388,7 @@ export const demoNightlyReset = async () => {
   const now = new Date()
 
   await wipeAllTables(db)
+  await emptyDemoBucket()
 
   try {
     await seedDemo(db)

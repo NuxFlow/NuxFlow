@@ -287,7 +287,7 @@ function copyUrl(url: string) {
 
 <template>
   <div class="space-y-4">
-    <AdminMediaFallbackWarning />
+    <AdminMediaStorageWarning />
 
     <UAlert v-if="mediaError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="getErrorMessage(mediaError, 'Could not load the media library')" />
 

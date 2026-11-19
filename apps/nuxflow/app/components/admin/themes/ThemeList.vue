@@ -108,7 +108,7 @@ async function uploadTheme() {
     if (result.failedImages?.length) {
       toast.add({
         title: `${result.failedImages.length} theme image(s) failed to upload`,
-        description: `${result.failedImages.join(', ')} — likely too large for the local media fallback (512 KB limit). Connect R2 storage (see Settings → Media), then reinstall the theme.`,
+        description: `${result.failedImages.join(', ')} — your storage allowance may be full, or the upload failed. Free up space in Media (or try again), then reinstall the theme.`,
         color: 'orange',
       })
     }

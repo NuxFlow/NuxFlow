@@ -3,7 +3,7 @@ import { auditLogs, emailLog, forms, media, passkeys, sites, siteSettings } from
 import { and, count, desc, eq, inArray } from 'drizzle-orm'
 import { useDb } from './db'
 import { resolveStringSetting } from './settings'
-import { getActiveProvider } from './media-providers/index'
+import { findMediaProvider } from './media-providers/index'
 import { getAiSdkModel } from './ai-sdk'
 import { getAnalyticsEngine, getEmailBinding } from './cf-env'
 import { ANALYTICS_TOKEN_KEY } from './analytics'
@@ -68,11 +68,11 @@ export function buildSetupChecklist(i: ChecklistInputs): ChecklistItem[] {
 
   // ── Essential ──────────────────────────────────────────────────────────────
 
-  if (i.storageProvider === 'local') {
+  if (i.storageProvider === 'none') {
     items.push({
       id: 'storage', tier: 'essential', status: 'todo',
       title: 'Connect file storage',
-      detail: 'Images are being stored inside the database. That limits each file to 512 KB and makes every page that shows them slower. Create an R2 bucket and redeploy; there\'s nothing to fill in afterwards.',
+      detail: 'Images and files can\'t be uploaded until this site has file storage. Create an R2 bucket (the MEDIA_BUCKET binding) and redeploy; there\'s nothing to fill in afterwards.',
       fixUrl: '/admin/settings?tab=Media', fixLabel: 'Open media settings', docsAnchor: 'media-storage',
     })
   } else if (i.localMediaCount > 0) {
@@ -285,7 +285,7 @@ export async function gatherSetupChecklistInputs(event: H3Event, userId: string)
   const siteId = requireSiteId(event)
 
   const [provider, emailProvider, aiProviderSetting, turnstileSiteKey, seo, aiModel, site, localMedia, formRows, lastEmail, passkeyRows, lastBackup, siteCountRow] = await Promise.all([
-    getActiveProvider(event),
+    findMediaProvider(event),
     loadEmailConfig(event).then(c => c.emailProvider),
     resolveStringSetting(event, 'ai.provider', 'aiProvider'),
     resolveStringSetting(event, 'integrations.turnstile_site_key'),
@@ -310,7 +310,7 @@ export async function gatherSetupChecklistInputs(event: H3Event, userId: string)
     : ['', '']
 
   return {
-    storageProvider: provider.name,
+    storageProvider: provider?.name ?? 'none',
     localMediaCount: localMedia[0]?.n ?? 0,
     emailProvider: (emailProvider as string) || 'console',
     hasEmailBinding: Boolean(getEmailBinding(event)),

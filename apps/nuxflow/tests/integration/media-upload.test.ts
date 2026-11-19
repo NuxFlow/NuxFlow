@@ -3,11 +3,10 @@
  *
  * media-patch.test.ts covers PATCH /api/v1/media/:id; tests/unit/media-providers.test.ts
  * unit-tests the provider abstraction in isolation. Nothing previously exercised the
- * upload route's own wiring: provider selection via getActiveProvider() (which falls
- * back to the local base64-in-D1 provider when no Cloudflare Images/R2 setting
- * or binding is configured — the easiest real path to exercise without mocking a live
- * cloud provider call), the extractExif() call chain, and the resulting media.metadata
- * write, all wired together through the real handler.
+ * upload route's own wiring: provider selection via getActiveProvider() (the real R2
+ * provider over an in-memory bucket, and the 409 when there's no storage at all — there
+ * is no database fallback), the extractExif() call chain, and the resulting
+ * media.metadata write, all wired together through the real handler.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import type { H3Event } from 'h3'
@@ -17,6 +16,20 @@ import { seedSite, seedUser, seedRole } from '../helpers/seed'
 import { media } from '@nuxflow/db/schema'
 import { eq } from 'drizzle-orm'
 import uploadHandler from '../../server/api/v1/media/upload.post'
+import type * as CfEnv from '../../server/utils/cf-env'
+
+// An in-memory MEDIA_BUCKET; set to null for "no file storage".
+const objects = new Map<string, ArrayBuffer>()
+const fakeBucket = {
+  async put(key: string, body: ArrayBuffer) { objects.set(key, body) },
+  async delete(key: string) { objects.delete(key) },
+  async head(key: string) { return objects.has(key) ? {} : null },
+}
+let bucket: typeof fakeBucket | null = fakeBucket
+vi.mock('../../server/utils/cf-env', async importOriginal => ({
+  ...(await importOriginal<typeof CfEnv>()),
+  getCfBindings: () => ({ kv: null, loader: null, r2: bucket }),
+}))
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
@@ -113,36 +126,40 @@ beforeAll(async () => {
 afterAll(teardownTestDb)
 
 describe('POST /api/v1/media/upload', () => {
-  it('(a) uploads successfully via the local base64 fallback provider when no real provider is configured', async () => {
+  it('(a) uploads to the R2 bucket and serves it through the Worker', async () => {
     const file = new File([new Uint8Array([1, 2, 3, 4, 5])], 'small.png', { type: 'image/png' })
     const event = mkEvent(file)
 
     const result = await (uploadHandler as HandlerFn)(event) as { id: string; url: string }
 
     expect(result.id).toBeTruthy()
-    expect(result.url).toMatch(/^data:image\/png;base64,/)
+    expect(result.url.startsWith(`/_nuxflow/media/${SITE}/`)).toBe(true)
+    expect(result.url.endsWith('.png')).toBe(true)
+    expect(objects.has(result.url.slice('/_nuxflow/media/'.length))).toBe(true)
     expect((event as unknown as { _status?: number })._status).toBe(201)
 
     const db = getCurrentTestDb()
     const row = await db.query.media.findFirst({ where: eq(media.id, result.id) })
     expect(row).toBeTruthy()
     expect(row!.siteId).toBe(SITE)
-    expect(row!.storageProvider).toBe('local')
+    expect(row!.storageProvider).toBe('r2')
     expect(row!.mimeType).toBe('image/png')
     expect(row!.originalName).toBe('small.png')
     expect(row!.size).toBe(5)
   })
 
-  it('(b) rejects an upload over the local fallback\'s 512 KB cap with 413', async () => {
-    const oversized = new Uint8Array(513 * 1024)
-    const file = new File([oversized], 'big.png', { type: 'image/png' })
-    const event = mkEvent(file)
+  it('(b) refuses every upload with 409 storage_required when the site has no file storage', async () => {
+    bucket = null
+    try {
+      const file = new File([new Uint8Array(10)], 'nostorage.png', { type: 'image/png' })
+      await expect((uploadHandler as HandlerFn)(mkEvent(file))).rejects.toMatchObject({ statusCode: 409, data: { code: 'storage_required' } })
+    }
+    finally {
+      bucket = fakeBucket
+    }
 
-    await expect((uploadHandler as HandlerFn)(event)).rejects.toMatchObject({ statusCode: 413 })
-
-    // No media row should have been created for a rejected upload.
-    const db = getCurrentTestDb()
-    const rows = await db.query.media.findMany({ where: eq(media.originalName, 'big.png') })
+    // Nothing is written to the database instead.
+    const rows = await getCurrentTestDb().query.media.findMany({ where: eq(media.originalName, 'nostorage.png') })
     expect(rows).toHaveLength(0)
   })
 
@@ -214,8 +231,7 @@ describe('POST /api/v1/media/upload', () => {
     const file = new File([svg], 'logo.svg', { type: 'image/svg+xml;charset=utf-8' })
     const result = await (uploadHandler as HandlerFn)(mkEvent(file)) as { id: string; url: string }
 
-    expect(result.url.startsWith('data:image/svg+xml;base64,')).toBe(true)
-    const stored = atob(result.url.slice('data:image/svg+xml;base64,'.length))
+    const stored = new TextDecoder().decode(objects.get(result.url.slice('/_nuxflow/media/'.length))!)
     expect(stored).not.toMatch(/onload|<script/i)
 
     const row = await getCurrentTestDb().query.media.findFirst({ where: eq(media.id, result.id) })

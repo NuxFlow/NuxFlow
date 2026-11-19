@@ -10,6 +10,22 @@ import { contentItems, contentTaxonomyTerms, media, taxonomies, taxonomyTerms } 
 import { initTestDb, teardownTestDb, getCurrentTestDb } from '../helpers/db'
 import { createMockEvent } from '../helpers/event'
 import { seedSite, seedUser, seedRole, seedContentType, seedContentItem } from '../helpers/seed'
+import type * as CfEnv from '../../server/utils/cf-env'
+
+// An in-memory MEDIA_BUCKET: the media step needs file storage (there's no database fallback).
+const bucketObjects = new Map<string, ArrayBuffer>()
+vi.mock('../../server/utils/cf-env', async importOriginal => ({
+  ...(await importOriginal<typeof CfEnv>()),
+  getCfBindings: () => ({
+    kv: null,
+    loader: null,
+    r2: {
+      async put(key: string, body: ArrayBuffer) { bucketObjects.set(key, body) },
+      async delete(key: string) { bucketObjects.delete(key) },
+      async head(key: string) { return bucketObjects.has(key) ? {} : null },
+    },
+  }),
+}))
 
 vi.mock('../../server/utils/db', () => ({
   useDb: () => getCurrentTestDb(),
