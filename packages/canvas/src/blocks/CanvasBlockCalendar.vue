@@ -278,7 +278,7 @@ const selectedLabel = computed(() => selectedDate.value
             <button
               type="button"
               class="px-3 py-1 rounded-full border text-xs font-semibold transition-colors"
-              :class="!activeTerm ? 'bg-primary-500 border-primary-500 text-white' : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400'"
+              :class="!activeTerm ? 'bg-primary-500 border-primary-500 text-[color:var(--nuxflow-on-primary,#0f172a)]' : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400'"
               :aria-pressed="!activeTerm"
               @click="activeTerm = ''"
             >
@@ -289,7 +289,7 @@ const selectedLabel = computed(() => selectedDate.value
               :key="term.slug"
               type="button"
               class="px-3 py-1 rounded-full border text-xs font-semibold transition-colors"
-              :class="activeTerm === term.slug ? 'bg-primary-500 border-primary-500 text-white' : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400'"
+              :class="activeTerm === term.slug ? 'bg-primary-500 border-primary-500 text-[color:var(--nuxflow-on-primary,#0f172a)]' : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400'"
               :aria-pressed="activeTerm === term.slug"
               @click="activeTerm = term.slug"
             >
@@ -349,14 +349,14 @@ const selectedLabel = computed(() => selectedDate.value
                 class="aspect-square flex flex-col items-center justify-center rounded-lg text-sm transition-all relative cursor-pointer"
                 :class="[
                   selectedDate === cell.date ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-950/30' : '',
-                  cell.isToday ? 'bg-primary-500 text-white font-bold hover:bg-primary-600' : 'text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-primary-950/20',
+                  cell.isToday ? 'bg-primary-500 text-[color:var(--nuxflow-on-primary,#0f172a)] font-bold hover:bg-primary-600' : 'text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-primary-950/20',
                 ]"
                 :aria-pressed="selectedDate === cell.date"
                 :aria-label="cell.hasEvents ? `${cell.date}, has events` : cell.date"
                 @click="selectedDate = selectedDate === cell.date ? null : cell.date"
               >
                 <span>{{ cell.day }}</span>
-                <span v-if="cell.hasEvents" class="absolute bottom-1 w-1.5 h-1.5 rounded-full" :class="cell.isToday ? 'bg-white' : 'bg-primary-500'"/>
+                <span v-if="cell.hasEvents" class="absolute bottom-1 w-1.5 h-1.5 rounded-full" :class="cell.isToday ? 'bg-[var(--nuxflow-on-primary,#0f172a)]' : 'bg-primary-500'"/>
               </button>
               <div v-else class="aspect-square"/>
             </template>
@@ -452,7 +452,7 @@ const selectedLabel = computed(() => selectedDate.value
                 <a
                   v-if="event.rsvp && event.path"
                   :href="event.path"
-                  class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-xs font-semibold text-white hover:bg-primary-600 transition-colors select-none"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-xs font-semibold text-[color:var(--nuxflow-on-primary,#0f172a)] hover:bg-primary-600 transition-colors select-none"
                 >
                   RSVP
                 </a>
@@ -461,7 +461,7 @@ const selectedLabel = computed(() => selectedDate.value
                   :href="safeHref(event.eventUrl)"
                   target="_blank"
                   rel="noopener"
-                  class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-xs font-semibold text-white hover:bg-primary-600 transition-colors select-none"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-xs font-semibold text-[color:var(--nuxflow-on-primary,#0f172a)] hover:bg-primary-600 transition-colors select-none"
                 >
                   Register
                 </a>

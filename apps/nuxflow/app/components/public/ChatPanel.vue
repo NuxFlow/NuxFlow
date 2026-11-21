@@ -115,11 +115,11 @@ function startOver() {
     class="nuxflow-chat-panel flex flex-col overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
     :class="inline ? 'h-[32rem] w-full' : 'w-[calc(100vw-2rem)] sm:w-96 h-[min(36rem,calc(100dvh-6rem))] shadow-2xl'"
   >
-    <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-primary-600 text-white">
+    <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-primary-500 text-[color:var(--nuxflow-on-primary,#0f172a)]">
       <p class="font-semibold truncate">{{ heading || bot.name }}</p>
       <div class="flex items-center gap-1">
-        <UButton v-if="messages.length" size="xs" color="neutral" variant="ghost" class="text-white hover:bg-white/10" icon="i-lucide-rotate-ccw" aria-label="Start a new conversation" @click="startOver" />
-        <UButton v-if="!inline" size="xs" color="neutral" variant="ghost" class="text-white hover:bg-white/10" icon="i-lucide-x" aria-label="Close the chat" @click="emit('close')" />
+        <UButton v-if="messages.length" size="xs" color="neutral" variant="ghost" class="text-current hover:bg-current/10" icon="i-lucide-rotate-ccw" aria-label="Start a new conversation" @click="startOver" />
+        <UButton v-if="!inline" size="xs" color="neutral" variant="ghost" class="text-current hover:bg-current/10" icon="i-lucide-x" aria-label="Close the chat" @click="emit('close')" />
       </div>
     </div>
 
@@ -142,7 +142,7 @@ function startOver() {
       <template v-for="(m, i) in messages" :key="i">
         <div
           v-if="m.role === 'user'"
-          class="nuxflow-chat-msg nuxflow-chat-msg--user ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-primary-600 text-white px-3 py-2 text-sm whitespace-pre-wrap break-words"
+          class="nuxflow-chat-msg nuxflow-chat-msg--user ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-primary-500 text-[color:var(--nuxflow-on-primary,#0f172a)] px-3 py-2 text-sm whitespace-pre-wrap break-words"
         >
           {{ m.text }}
         </div>

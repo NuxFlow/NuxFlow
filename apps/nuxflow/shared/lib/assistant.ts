@@ -152,39 +152,6 @@ export function assistantSettingsPatch(values: Partial<Record<AssistantSettingKe
   return out
 }
 
-// ── Readability of an accent colour ──────────────────────────────────────────
-
-function luminance(hex: string): number {
-  const h = hex.replace('#', '')
-  const full = h.length <= 4 ? [...h.slice(0, 3)].map(c => c + c).join('') : h.slice(0, 6)
-  const [r, g, b] = [0, 2, 4].map((i) => {
-    const c = Number.parseInt(full.slice(i, i + 2), 16) / 255
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-  })
-  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
-}
-
-/** WCAG contrast ratio between two hex colours (1–21). */
-export function contrastRatio(a: string, b: string): number {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number]
-  return (hi + 0.05) / (lo + 0.05)
-}
-
-/**
- * A plain warning when white text on this accent colour (buttons) would be hard to read,
- * by the WCAG 3:1 minimum for large and bold text; null when it's fine or not a colour.
- */
-export function accentReadabilityWarning(hex: unknown): string | null {
-  if (typeof hex !== 'string' || !isHexColor(hex)) return null
-  // NuxFlow's own default green fails this too, but it isn't the site owner's choice, and
-  // warning on every untouched site would only alarm people. (Default to be revisited.)
-  if (hex.toLowerCase() === DEFAULT_ACCENT) return null
-  const ratio = contrastRatio(hex, '#ffffff')
-  return ratio < 3
-    ? `White text on this colour is hard to read (contrast ${ratio.toFixed(1)}:1, at least 3:1 is recommended), so buttons may be hard to read. A darker shade would work better.`
-    : null
-}
-
 // ── What the helper sends back ───────────────────────────────────────────────
 
 export interface AssistantSettingProposal {

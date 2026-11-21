@@ -105,7 +105,7 @@ Small, well-scoped items left over from the Sept 2026 Cloudflare AI integration 
   - *Prose posts*: "Change this page with AI" only works on Canvas pages; posts would need a before/after text view.
   - *Forms*: "build me a contact form for X" in the form builder, opened as an unsaved draft.
 - **Deliberately not built (the AI would have to invent facts):** drafting answers to the chatbot's unanswered questions (the bot didn't know, so neither does the model; the owner writes those), and "refresh this stale page" (the model can't know what changed in the world). Revisit only with a source of truth to ground them in.
-- **Default accent colour contrast**: NuxFlow's default accent `#00dc82` has about 1.9:1 contrast with white text (WCAG asks 3:1 for large/bold text, 4.5:1 for normal). `accentReadabilityWarning()` (`shared/lib/assistant.ts`) skips the default so untouched sites aren't warned; consider a darker default, or dark text on primary buttons.
+- ~~**Default accent colour contrast**~~ — done (2026-11-21): accent-filled buttons and emails use `readableTextOn()` (`shared/lib/theme-customizer.ts`), white or dark text, whichever reads better, so any accent colour stays readable (`--nuxflow-on-primary`). The admin still uses Nuxt UI's green with white text on its own buttons; a separate decision.
 
 ---
 

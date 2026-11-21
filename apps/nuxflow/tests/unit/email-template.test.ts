@@ -60,3 +60,17 @@ describe('describeUserAgent', () => {
     expect(describeUserAgent(null)).toEqual({ browser: 'an unknown browser', os: 'an unknown system' })
   })
 })
+
+describe('readable buttons and links', () => {
+  it('uses dark button text and a dark link on a light accent', () => {
+    const { html } = renderEmailTemplate({ siteName: 'A', paragraphs: [], accentColor: '#00dc82', action: { label: 'Go', url: 'https://a.test' } })
+    expect(html).toContain('color:#0f172a;text-decoration:none')
+    expect(html).toContain('style="color:#374151;word-break:break-all;"')
+  })
+
+  it('keeps white button text and the accent link on a dark accent', () => {
+    const { html } = renderEmailTemplate({ siteName: 'A', paragraphs: [], accentColor: '#1d4ed8', action: { label: 'Go', url: 'https://a.test' } })
+    expect(html).toContain('color:#ffffff;text-decoration:none')
+    expect(html).toContain('style="color:#1d4ed8;word-break:break-all;"')
+  })
+})
