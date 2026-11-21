@@ -4,13 +4,12 @@ import { requireRole } from '../../../utils/permissions'
 import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
 import { menus } from '@nuxflow/db/schema'
 import { ulid } from 'ulid'
-import { purgeEdgeCache, purgeAllPublicPages } from '../../../utils/edge-cache'
-import { waitUntil } from '../../../utils/cf-env'
+import { MENU_LOCATIONS, purgeMenuLocations } from '../../../utils/menus'
 import { requireSiteId } from '../../../utils/site-context'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100),
-  location: z.enum(['header', 'footer', 'sidebar']).nullish(),
+  location: z.enum(MENU_LOCATIONS).nullish(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -30,18 +29,7 @@ export default defineEventHandler(async (event) => {
   })
 
   await batchWithAudit(db, [menuInsert], auditInsert)
-
-  if (body.location) {
-    await purgeEdgeCache(event, [`/api/public/menus/${body.location}`])
-    // header/footer menus render into every page's shared chrome via the layout — a
-    // single named path isn't enough once full pages (not just their own JSON data) are
-    // cached. See purgeAllPublicPages' own docs for why this can't be more targeted.
-    if (body.location === 'header' || body.location === 'footer') {
-      waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
-        console.error('[menus] Failed to purge page cache after menu create:', err)
-      }))
-    }
-  }
+  await purgeMenuLocations(event, siteId, [body.location])
 
   return { id }
 })

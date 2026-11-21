@@ -1,43 +1,21 @@
-import { useDb } from '../../../utils/db'
 import { requireRole } from '../../../utils/permissions'
 import { getActiveProvider } from '../../../utils/media-providers/index'
-import { assertWithinPlan } from '../../../utils/hosting-plans'
-import { extractExif } from '../../../utils/exif'
-import { extractImageDimensions } from '../../../utils/image-dimensions'
-import { sanitizeSvg } from '../../../utils/sanitize-css-svg'
-import { mediaErrorMessage, isHttpError } from '../../../utils/errors'
-import { buildAuditLogInsert, batchWithAudit } from '../../../utils/audit'
-import { media } from '@nuxflow/db/schema'
-import { ulid } from 'ulid'
+import { MAX_MEDIA_UPLOAD_BYTES, storeMediaFile } from '../../../utils/media-upload'
 import { created, httpError } from '../../../utils/response'
 import { requireSiteId } from '../../../utils/site-context'
-import { isDemoMode } from '../../../utils/demo-mode'
-
-const MAX_SIZE = 20 * 1024 * 1024
-
-// Media library uploads only ever need to be embedded via <img>/<video>/<audio> or linked
-// to directly — no legitimate use case here needs an executable/markup MIME type. SVG is
-// the one entry that isn't inherently script-inert (see sanitizeSvg below), everything else
-// on this list can't run script when served with its own declared content-type.
-const ALLOWED_MIME_PREFIXES = ['image/', 'video/', 'audio/']
-const ALLOWED_MIME_EXACT = new Set(['application/pdf'])
-
-function isAllowedMediaMimeType(mime: string): boolean {
-  return ALLOWED_MIME_PREFIXES.some(p => mime.startsWith(p)) || ALLOWED_MIME_EXACT.has(mime)
-}
 
 export default defineEventHandler(async (event) => {
   const { userId } = await requireRole(event, 'author')
   const siteId = requireSiteId(event)
 
   // Reject an oversized body before readFormData() buffers the entire multipart payload
-  // into memory — the MAX_SIZE/provider-specific checks below only run after that buffering
+  // into memory — the size check in storeMediaFile() only runs after that buffering
   // already happened, which is too late to protect the Worker's own ~128MB isolate memory
   // ceiling (see CLAUDE.md's d1-export.ts postmortem for the same class of failure). A
   // request can lack Content-Length (chunked transfer) and skip this check entirely — the
-  // post-buffering size check below still catches those, just without the early-exit benefit.
+  // post-buffering size check still catches those, just without the early-exit benefit.
   const contentLength = Number(getHeader(event, 'content-length') ?? 0)
-  if (contentLength > MAX_SIZE) {
+  if (contentLength > MAX_MEDIA_UPLOAD_BYTES) {
     throw httpError({ status: 413, message: 'File too large (max 20 MB)' })
   }
 
@@ -46,112 +24,8 @@ export default defineEventHandler(async (event) => {
 
   const formData = await readFormData(event)
   const file = formData.get('file') as File | null
-
   if (!file) throw badRequest('No file provided')
-  if (file.size > MAX_SIZE) throw httpError({ status: 413, message: 'File too large (max 20 MB)' })
-  // The multipart part's declared Content-Type, reduced to its bare essence: lowercase,
-  // parameters dropped. Every check below compares against this — the SVG sanitizer used
-  // to test `file.type === 'image/svg+xml'` exactly, so `image/svg+xml;x=1` passed the
-  // `image/` allowlist, skipped sanitization, and was stored/served as a live SVG.
-  const mimeType = (file.type.split(';')[0] ?? '').trim().toLowerCase()
-  if (!isAllowedMediaMimeType(mimeType)) {
-    throw httpError({ status: 415, message: `Unsupported file type: ${mimeType || 'unknown'}` })
-  }
-  // The public demo takes images only — a PDF or audio file on the operator's domain is
-  // the easiest thing to abuse (demo-mode.ts).
-  if (isDemoMode(event) && !mimeType.startsWith('image/')) {
-    throw httpError({ status: 415, message: 'The live demo accepts images only.' })
-  }
 
-  const fileId = ulid()
-  // Allowlist the extension used to build the storage key — file.name is attacker-supplied
-  // and otherwise flows unvalidated into a storage identifier passed to provider APIs.
-  const rawExt = file.name.split('.').pop() ?? ''
-  const ext = /^[a-z0-9]{1,10}$/i.test(rawExt) ? rawExt : 'bin'
-  const storageKey = `${siteId}/${fileId}.${ext}`
-
-  // SVG is XML and can carry <script>/event-handler/javascript: vectors that execute when
-  // the stored file is opened directly at its own URL with its own image/svg+xml
-  // content-type — strip those before it ever reaches storage.
-  // Always re-wrapped with the normalized type, so providers store/serve exactly the
-  // type validated above rather than the raw client-declared one.
-  const uploadFile = mimeType === 'image/svg+xml'
-    ? new File([sanitizeSvg(await file.text())], file.name, { type: mimeType })
-    : new File([file], file.name, { type: mimeType })
-
-  await assertWithinPlan(event, 'storage', uploadFile.size)
-  let url: string
-  try {
-    ;({ url } = await provider.upload(uploadFile, storageKey, siteId))
-  } catch (err) {
-    // A provider that throws a real H3 error chose its status on purpose — pass it
-    // through unchanged rather than flattening it into a 502.
-    if (isHttpError(err)) throw err
-    throw httpError({ status: 502, message: mediaErrorMessage(err) })
-  }
-
-  // Extract EXIF from JPEG/TIFF images — runs after upload so it doesn't block the response path
-  let metadata: Record<string, unknown> | undefined
-  if (mimeType === 'image/jpeg' || mimeType === 'image/tiff') {
-    try {
-      const buf = await file.arrayBuffer()
-      const exif = extractExif(buf)
-      if (exif) metadata = { exif }
-    }
-    catch {
-      // EXIF extraction is best-effort; never fail the upload
-    }
-  }
-
-  // Pixel dimensions, read straight from the format's own header (see
-  // image-dimensions.ts for why — sharp/ipx cannot run in the Workers runtime, so there's
-  // no decode-the-image fallback available). Fills the width/height columns so block
-  // rendering can reserve layout space instead of causing layout shift. Best-effort, same as EXIF above — a format this doesn't
-  // recognize (or corrupt bytes) just leaves the columns null, never fails the upload.
-  let dimensions: { width: number; height: number } | null = null
-  if (mimeType === 'image/png' || mimeType === 'image/gif' || mimeType === 'image/jpeg' || mimeType === 'image/webp') {
-    try {
-      const buf = await file.arrayBuffer()
-      dimensions = extractImageDimensions(buf, mimeType)
-    }
-    catch {
-      // best-effort; never fail the upload
-    }
-  }
-
-  const db = useDb(event)
-  const mediaInsert = db.insert(media).values({
-    id: fileId,
-    siteId,
-    uploadedBy: userId,
-    filename: storageKey,
-    originalName: file.name,
-    mimeType,
-    size: file.size,
-    width: dimensions?.width,
-    height: dimensions?.height,
-    url,
-    storageProvider: provider.name as 'cloudflare' | 'local' | 'r2',
-    storageKey,
-    ...(metadata ? { metadata } : {}),
-  })
-
-  const auditInsert = buildAuditLogInsert(event, userId, {
-    action: 'create',
-    resource: 'media',
-    resourceId: fileId,
-    after: { originalName: file.name, storageKey, mimeType },
-  })
-  try {
-    await batchWithAudit(db, [mediaInsert], auditInsert)
-  } catch (err) {
-    // The file is already live in storage with no DB row referencing it — best-effort
-    // compensating delete so a D1 write failure doesn't leave a permanently orphaned blob.
-    // If the delete itself also fails, that's a single bounded orphan, not a silent
-    // unbounded leak, and it's not worth failing differently for than the original error.
-    await provider.delete(storageKey).catch(() => {})
-    throw err
-  }
-
-  return created(event, { id: fileId, url, width: dimensions?.width ?? null, height: dimensions?.height ?? null })
+  const stored = await storeMediaFile(event, provider, { file, userId, siteId })
+  return created(event, stored)
 })

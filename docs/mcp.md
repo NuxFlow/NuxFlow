@@ -6,6 +6,10 @@ With the MCP integration, you can ask your AI assistant to:
 - *"Draft a new blog post about Edge Computing and publish it."*
 - *"Fetch our 'About Us' page and rewrite the second paragraph to be more engaging."*
 - *"List all drafted pages on our site and check their SEO titles."*
+- *"Find every image without alt text and write a description for each."*
+- *"Add a Contact link to the header menu."*
+- *"I renamed /services to /what-we-do — set up the redirect."*
+- *"Summarise this week's contact form messages and tell me which ones need a reply."*
 
 ---
 
@@ -23,9 +27,11 @@ All MCP requests must be authenticated.
 
 1. Navigate to your NuxFlow Dashboard at `/admin`.
 2. Go to **Settings → API keys**.
-3. Generate a new API key with the following minimum scopes:
-   - `read:content` (required to list or get content)
-   - `write:content` (required to create, update, or delete content)
+3. Generate a new API key with the scopes the assistant needs:
+   - `read:content` — read pages, posts, media, menus and redirects
+   - `write:content` — create, change and delete them, and upload media
+   - `read:personal` — read form submissions. These are people's names, email addresses and messages, so only tick it for a key that needs them.
+   - `manage:settings` — change the look and basic settings (see below)
 4. Authenticate your MCP client by adding the API key in the request headers:
    ```http
    Authorization: Bearer <your_api_key_here>
@@ -47,10 +53,19 @@ All MCP requests must be authenticated.
 | `delete_content` | `write:content` | Permanently deletes an item. Refused for an event with paid upcoming bookings. |
 | `get_site_settings` | `read:content` | Lists the settings an AI assistant may change (light/dark mode, accent colour, fonts, header options, homepage search title and description, site name), with their values and what's allowed. |
 | `update_site_settings` | `manage:settings` | Changes those settings, and only those. Needs an admin's key. Nothing is saved if any value is invalid. Recorded in **Settings → Audit log** as **AI-assisted**, with the request. |
+| `list_media` | `read:content` | Lists the media library, newest first, with each file's URL, size, alt text and focal point. Filters: name, kind (image/video/audio/pdf), folder, images missing alt text. |
+| `update_media` | `write:content` | Sets a file's alt text, caption or focal point. Author or above. |
+| `upload_media` | `write:content` | Adds a file from a public URL (up to 20 MB) or as base64 (up to 5 MB). Same file types, SVG cleaning and storage limit as uploading in the admin. Needs file storage (R2). Author or above. |
+| `list_menus` | `read:content` | Lists menus, where each shows (header, footer, sidebar), and their links. |
+| `create_menu` / `update_menu` / `delete_menu` | `write:content` | Creates, renames, moves or deletes a menu, or replaces its links. Links point at a page by its slug or at a URL. Editor or above. |
+| `list_redirects` | `read:content` | Lists redirects. Editor or above. |
+| `create_redirect` / `delete_redirect` | `write:content` | Adds a redirect (301, 302, 307, 308 or 410 Gone) or removes one. Chains are flattened, as in **SEO → Redirects**. Editor or above. |
+| `list_forms` | `read:personal` | Lists forms with their fields and how many submissions are new. Editor or above. |
+| `list_form_submissions` | `read:personal` | Reads a form's submissions, newest first (spam and archived left out unless asked). IP addresses and browsers are never included, and uploaded files appear by name only. Editor or above. |
 
 The settings tools are the same short, safe list the admin's own **Ask AI** helper can suggest. Credentials, the domain, custom code, payments and people can't be changed over MCP. The assistant is told to show you each change and get your agreement before calling `update_site_settings`. Your MCP client also asks you to approve each tool call, so read what it is about to change.
 
-Each tool also checks the key owner's role on the site, the same as the admin API: an `author` can only edit their own drafts and can't publish, and deleting needs `editor` or above. `tools/list` returns every tool's exact input schema.
+Each tool also checks the key owner's role on the site, the same as the admin API: an `author` can only edit their own drafts and can't publish, and deleting needs `editor` or above. Every change is recorded in **Settings → Audit log** under the key owner's name. `tools/list` returns every tool's exact input schema. A refused call comes back as a tool result with `isError: true` and a plain-English reason, so the assistant can explain it or try again.
 
 ---
 

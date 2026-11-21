@@ -1,13 +1,11 @@
-import type { H3Event } from 'h3'
 import { z } from 'zod'
 import { and, asc, eq, desc, inArray, sql } from 'drizzle-orm'
 import { ulid } from 'ulid'
-import type { Db } from './db'
 import { checkPlanLimit, planLimitMessage } from './hosting-plans'
 import { contentItems, taxonomies, taxonomyTerms } from '@nuxflow/db/schema'
 import { ASSISTANT_SETTINGS, type AssistantSettingDef } from '../../shared/lib/assistant'
 import { checkAssistantSettings, readAssistantSettings, saveAssistantSettings } from './assistant-settings'
-import { roleAtLeast, hasApiKeyScope, canEditContentItem, AUTHOR_SETTABLE_STATUSES, type Role, type ApiKeyScope } from './permissions'
+import { hasApiKeyScope, canEditContentItem, AUTHOR_SETTABLE_STATUSES, type Role } from './permissions'
 import { archiveReplacedTranslations, getContentItem, getContentTypeBySlug } from './content-queries'
 import { hasPaidUpcomingBookings, reconcileBookings } from './event-rsvp'
 import { scopedById } from './db-helpers'
@@ -23,34 +21,14 @@ import { checkContentDates, contentDateFields } from './content-dates'
 import { inlineImageProblem } from './inline-images'
 import { getSiteInfo } from './site-info'
 import { settingsForEditor } from './page-password'
+import { errorMessage, httpErrorStatus } from './errors'
+import { MCP_SITE_TOOLS, callSiteTool } from './mcp-site-tools'
+import { apiKeyRoleAtLeast, textResult, type McpToolContext, type McpToolDefinition, type McpToolResult } from './mcp-common'
 import { contentSlugProblem, getContentTermIds, getPublicItemTerms, getTaxonomyContentTypeSlugs, getTermRefsWithAncestors, replaceContentTermsStatements } from './taxonomy'
 
-// Tool implementations for the MCP server (server/api/v1/mcp.ts). Extracted out of that
-// file so it stays protocol/session plumbing (SSE handshake, JSON-RPC dispatch) while the
-// actual "what does this tool do" logic — and its input validation — lives here.
-
-export interface McpToolContext {
-  event: H3Event
-  db: Db
-  siteId: string
-  apiKeyUserId: string
-  apiKeyRole: Role | undefined
-}
-
-type McpToolResult = { content: { type: 'text'; text: string }[] }
-
-function textResult(text: string): McpToolResult {
-  return { content: [{ type: 'text', text }] }
-}
-
-// The key's own declared scopes (set in api-keys/index.post.ts, resolved onto the request
-// by 03.api-key-auth.ts) are a ceiling on top of the issuing user's site role, not a
-// substitute for it — a key can be scoped down to read-only even when issued by an
-// editor/admin. Every tool below needs its matching scope in addition to whatever role
-// check it already performs.
-function apiKeyRoleAtLeast(apiKeyRole: Role | undefined, minimum: Role): boolean {
-  return roleAtLeast(apiKeyRole ?? 'viewer', minimum)
-}
+// Tool implementations for the MCP server (server/api/v1/mcp.ts), which stays protocol
+// plumbing (JSON-RPC dispatch). Content, taxonomy and settings tools live here; media,
+// menus, redirects and form submissions in mcp-site-tools.ts.
 
 const CONTENT_STATUS = z.enum(['draft', 'review', 'published', 'scheduled', 'archived'])
 
@@ -144,12 +122,6 @@ const DATE_INPUT_PROPERTIES = {
   eventCurrency: { type: 'string', description: 'Events: three-letter currency code for the price, such as GBP.' },
   eventCancelHours: { type: 'number', description: 'Events: paid bookings cancelled at least this many hours before the start get their money or credits back. Leave out for any time before it starts.' },
   eventPassesAllowed: { type: 'boolean', description: 'Events: whether a paid event can be booked with a class pass. Defaults to yes.' },
-}
-
-interface McpToolDefinition {
-  description: string
-  scope: ApiKeyScope
-  inputSchema: Record<string, unknown>
 }
 
 // The registry driving `tools/list` — description + JSON-Schema `inputSchema` only.
@@ -269,6 +241,7 @@ export const MCP_TOOLS: Record<string, McpToolDefinition> = {
       required: ['query'],
     },
   },
+  ...MCP_SITE_TOOLS,
 }
 
 /** The `tools` array returned from the `tools/list` JSON-RPC method. */
@@ -713,13 +686,25 @@ async function searchContent(args: unknown, ctx: McpToolContext): Promise<McpToo
 export async function callTool(name: string, args: unknown, ctx: McpToolContext): Promise<McpToolResult> {
   const def = MCP_TOOLS[name]
   if (!def) {
-    return textResult(`Error: Unknown tool "${name}"`)
+    return withErrorFlag(textResult(`Error: Unknown tool "${name}"`))
   }
 
   if (!hasApiKeyScope(ctx.event, def.scope)) {
-    return textResult(`Error: This API key does not have the "${def.scope}" scope required for "${name}".`)
+    return withErrorFlag(textResult(`Error: This API key does not have the "${def.scope}" scope required for "${name}".`))
   }
 
+  try {
+    return withErrorFlag(await runTool(name, args, ctx))
+  } catch (err) {
+    // A shared helper's HTTP refusal (a plan limit, storage_required, a 404) is a tool
+    // result the assistant can act on, not a protocol failure. (Any other throw still
+    // becomes a JSON-RPC internal error in mcp.ts, with the same message.)
+    if (httpErrorStatus(err) !== undefined) return withErrorFlag(textResult(`Error: ${errorMessage(err)}`))
+    throw err
+  }
+}
+
+async function runTool(name: string, args: unknown, ctx: McpToolContext): Promise<McpToolResult> {
   switch (name) {
     case 'list_content': return listContent(args, ctx)
     case 'get_content': return getContent(args, ctx)
@@ -731,6 +716,11 @@ export async function callTool(name: string, args: unknown, ctx: McpToolContext)
     case 'set_content_terms': return setContentTerms(args, ctx)
     case 'get_site_settings': return getSiteSettings(args, ctx)
     case 'update_site_settings': return updateSiteSettings(args, ctx)
-    default: return textResult(`Error: Unknown tool "${name}"`)
+    default: return (await callSiteTool(name, args, ctx)) ?? textResult(`Error: Unknown tool "${name}"`)
   }
+}
+
+/** MCP's `isError` flag, so clients can tell a refusal from a result. */
+function withErrorFlag(result: McpToolResult): McpToolResult {
+  return result.content[0]?.text.startsWith('Error') ? { ...result, isError: true } : result
 }
