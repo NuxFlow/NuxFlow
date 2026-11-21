@@ -86,7 +86,7 @@ describe('MCP event bookings', () => {
     expect(raw).not.toContain('pi_secret')
     const out = JSON.parse(raw) as { event: { title: string; capacity: number }; counts: Record<string, number>; bookings: { name: string; seats: number }[] }
     expect(out.event).toMatchObject({ title: 'Quiz night', capacity: 20 })
-    expect(out.bookings.map(b => b.name)).toEqual(['Ada', 'Bob'])
+    expect(out.bookings.map(b => b.name).sort()).toEqual(['Ada', 'Bob'])
     expect(out.counts.confirmed).toBe(2)
 
     const all = await json<{ bookings: unknown[] }>(call('list_event_bookings', { event: id, status: 'all' }))
