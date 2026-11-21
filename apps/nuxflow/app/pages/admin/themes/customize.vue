@@ -3,6 +3,7 @@ import {
   CUSTOMIZER_DEFAULTS,
   type CustomizerState,
   type CustomizerValues,
+  accentReadabilityCss,
   appearanceCss,
   customizerCss,
   parseCustomizerValues,
@@ -45,7 +46,7 @@ if (customizerData.value) {
 // Spread (not toRaw) so the computed tracks every field.
 const checkedValues = computed(() => parseCustomizerValues({ ...values }))
 const preview = computed(() => ({
-  css: `${appearanceCss(checkedValues.value)}\n${customizerCss(checkedValues.value)}`,
+  css: [accentReadabilityCss(checkedValues.value.primaryColor), appearanceCss(checkedValues.value), customizerCss(checkedValues.value)].join('\n'),
   fontHref: siteFontsHref([checkedValues.value.bodyFont, checkedValues.value.headingFont]),
   colorMode: checkedValues.value.colorMode,
 }))

@@ -152,7 +152,7 @@ body {
 .nux-content p { margin-bottom: 1.25rem; }
 .nux-content p:last-child { margin-bottom: 0; }
 
-.nux-content a { color: #00a86b; text-decoration: underline; }
+.nux-content a { color: #047857; text-decoration: underline; } /* 5.5:1 on white; #00a86b was 3:1 */
 .nux-content a:hover { opacity: .8; }
 .dark .nux-content a { color: #00dc82; }
 

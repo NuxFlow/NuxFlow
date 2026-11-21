@@ -124,6 +124,47 @@ export function readableTextOn(background: string): string {
  */
 export const ON_PRIMARY_BUTTON_CSS = ':root:not(.dark) .bg-primary.text-inverted{color:var(--nuxflow-on-primary,#0f172a)}'
 
+/** Contrast normal-size text needs on its background (WCAG AA). */
+const TEXT_CONTRAST = 4.5
+
+/**
+ * The accent as text on white: the accent itself when it already reads at 4.5:1, otherwise
+ * the same colour darkened (mixed with black, in 5% steps) just until it does.
+ */
+export function readableAccentText(hex: string): string {
+  if (!isHexColor(hex)) return hex
+  const h = hex.replace('#', '')
+  const full = h.length <= 4 ? [...h.slice(0, 3)].map(c => c + c).join('') : h.slice(0, 6)
+  const rgb = [0, 2, 4].map(i => Number.parseInt(full.slice(i, i + 2), 16))
+  const toHex = (f: number) => `#${rgb.map(c => Math.round(c * f).toString(16).padStart(2, '0')).join('')}`
+  for (let f = 1; f > 0; f -= 0.05) {
+    const candidate = toHex(f)
+    if (contrastRatio(candidate, '#ffffff') >= TEXT_CONTRAST) return f === 1 ? hex.toLowerCase() : candidate
+  }
+  return '#000000'
+}
+
+// Accent-coloured text on the light page: Nuxt UI's `text-primary` and the blocks'
+// text-primary-400…700. Light mode only (dark mode puts light text on dark backgrounds).
+const ACCENT_TEXT_SELECTOR = ':root:not(.dark) :is(.text-primary,.text-primary-400,.text-primary-500,.text-primary-600,.text-primary-700)'
+
+/**
+ * Keeps accent-coloured text readable on white, for every public page and the editor
+ * frame: '' when the accent already reads at 4.5:1 (nothing changes); for a light accent,
+ * the darker version from readableAccentText(); with no accent chosen, Nuxt UI's own
+ * darker shade (its green, or a theme's palette).
+ */
+export function accentTextCss(accent: string | null | undefined): string {
+  if (!accent || !isHexColor(accent)) return `${ACCENT_TEXT_SELECTOR}{color:var(--ui-color-primary-700)}`
+  const text = readableAccentText(accent)
+  return text === accent.toLowerCase() ? '' : `${ACCENT_TEXT_SELECTOR}{color:${text}}`
+}
+
+/** Everything that keeps accent colours readable, for a site with this accent (or none). */
+export function accentReadabilityCss(accent: string | null | undefined): string {
+  return `${ON_PRIMARY_BUTTON_CSS}${accentTextCss(accent)}`
+}
+
 // Nuxt UI's shades as mixes of the chosen colour with white (lighter) or black (darker).
 // Every block's `text-primary-500`, `bg-primary-600`… resolves to --ui-color-primary-*,
 // which Nuxt UI declares in `@layer theme`, so these unlayered declarations win.

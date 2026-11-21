@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AssistantSettingKey, AssistantSettingValue } from '#shared/lib/assistant'
-import { appearanceCss, customizerCss, parseColorMode, parseCustomizerValues, siteFontsHref, type CustomizerState } from '#shared/lib/theme-customizer'
+import { accentReadabilityCss, appearanceCss, customizerCss, parseColorMode, parseCustomizerValues, siteFontsHref, type CustomizerState } from '#shared/lib/theme-customizer'
 
 // A live preview of the site with the helper's suggested look-and-feel changes, before
 // anything is saved. Same preview frame and the same CSS functions as the Visual
@@ -24,7 +24,7 @@ const preview = computed(() => {
   })
   return {
     // The customizer's own CSS only when it's what the live site uses.
-    css: `${appearanceCss(values)}\n${data.value.live ? customizerCss(values) : ''}`,
+    css: [accentReadabilityCss(values.primaryColor), appearanceCss(values), data.value.live ? customizerCss(values) : ''].join('\n'),
     fontHref: siteFontsHref([values.bodyFont, values.headingFont]),
     colorMode: values.colorMode,
   }

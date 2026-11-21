@@ -238,7 +238,7 @@
    .nux-content wraps all TipTap-rendered rich text on pages using the
    standard block editor (not Canvas). Targets blog posts, About pages, etc.
    ───────────────────────────────────────────────────────────────────────────── */
-.nux-content a       { color: #00a86b; }
+.nux-content a       { color: #047857; }
 .dark .nux-content a { color: #00dc82; }
 
 .nux-content blockquote { border-left-color: #00dc82; }

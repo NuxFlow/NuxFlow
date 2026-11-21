@@ -10,7 +10,7 @@ import { getThemeCSS } from './cf-theme-kv'
 import { resolveStringSetting } from './settings'
 import { type ActiveTheme, resolveActiveTheme } from './theme-cache'
 import { type AppearanceCache, getCachedAppearance, setCachedAppearance } from './appearance-cache'
-import { type AppearanceValues, ON_PRIMARY_BUTTON_CSS, appearanceCss, parseColorMode, safeCssColor, siteFontsHref } from '../../shared/lib/theme-customizer'
+import { type AppearanceValues, accentReadabilityCss, appearanceCss, parseColorMode, safeCssColor, siteFontsHref } from '../../shared/lib/theme-customizer'
 
 // ── Theme CSS ─────────────────────────────────────────────────────────────────
 
@@ -168,7 +168,7 @@ export async function loadEditorSiteStyles(event: H3Event, siteId: string): Prom
   const values = appearanceValues(appearance)
   const fontHref = siteFontsHref([values.bodyFont, values.headingFont])
   if (fontHref) links.push(fontHref)
-  styles.push(ON_PRIMARY_BUTTON_CSS)
+  styles.push(accentReadabilityCss(values.primaryColor))
   const css = appearanceCss(values)
   if (css) styles.push(css)
 
