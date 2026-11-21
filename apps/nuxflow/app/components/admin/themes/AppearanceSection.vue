@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { SiteSettingsResponse } from '#shared/lib/site-settings-types'
 import { SITE_FONTS } from '#shared/lib/theme-customizer'
-import { accentReadabilityWarning } from '#shared/lib/assistant'
 const { run, isRunning } = useAdminAction()
 
 const { data: settingsData, error: loadError, refresh: refreshSettings } = await useFetch<SiteSettingsResponse>('/api/v1/settings')
@@ -33,8 +32,6 @@ watch(settingsData, (d) => {
 }, { immediate: true })
 
 const savingAppearance = computed(() => isRunning('save'))
-// Buttons put white text on the accent colour; say so when that would be hard to read.
-const accentWarning = computed(() => accentReadabilityWarning(appearance.primaryColor))
 
 async function saveAppearance() {
   await run(async () => {
@@ -143,7 +140,6 @@ const swatches = [
                 size="sm"
               />
             </div>
-            <p v-if="accentWarning" class="text-xs text-amber-600 dark:text-amber-400" data-testid="accent-readability">{{ accentWarning }}</p>
           </div>
         </UFormField>
 

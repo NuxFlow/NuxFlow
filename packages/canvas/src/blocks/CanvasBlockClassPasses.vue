@@ -87,7 +87,7 @@ onMounted(async () => {
           <a
             v-if="canBuy"
             :href="`/booking/passes?buy=${pass.id}`"
-            class="mt-auto inline-flex justify-center rounded-lg bg-primary-500 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-600 transition-colors"
+            class="mt-auto inline-flex justify-center rounded-lg bg-primary-500 px-4 py-2 text-sm font-semibold text-[color:var(--nuxflow-on-primary,#0f172a)] hover:bg-primary-600 transition-colors"
             :style="{ marginTop: '1.25rem' }"
           >
             {{ buttonText }}

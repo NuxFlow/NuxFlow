@@ -18,6 +18,11 @@
    from Admin → Themes → Appearance and the Visual Customizer:
 
      --nuxflow-primary        The "Accent colour" value chosen in the picker.
+     --nuxflow-on-primary     Text colour for anything filled with the accent: white or
+                              dark (#0f172a), whichever reads better on it. Accent
+                              buttons in the Calendar, Class passes, Product, Gallery,
+                              booking and chat use it (dark when unset). A theme that
+                              recolours --ui-color-primary-* itself should set this too.
      --ui-color-primary-50…950  Nuxt UI's palette, mixed from the accent colour —
                               every block's primary-* classes read these.
      --nuxflow-font           The "Body font" value (font-family stack).
@@ -36,7 +41,7 @@
    allowed; every other url() and @import is removed when the theme is saved.
 
    Example usage:
-     .canvas-hero a { background: var(--nuxflow-primary, #00dc82); }
+     .canvas-hero a { background: var(--nuxflow-primary, #00dc82); color: var(--nuxflow-on-primary, #0f172a); }
    ───────────────────────────────────────────────────────────────────────────── */
 
 

@@ -185,7 +185,7 @@ async function submit() {
               :key="d.date"
               type="button"
               class="canvas-appointment-day flex min-w-14 flex-col items-center rounded-lg border px-2 py-1.5 text-xs disabled:opacity-35"
-              :class="day === d.date ? 'border-primary-500 bg-primary-500 text-white' : 'border-current/20'"
+              :class="day === d.date ? 'border-primary-500 bg-primary-500 text-[color:var(--nuxflow-on-primary,#0f172a)]' : 'border-current/20'"
               :disabled="!d.times.length"
               :data-date="d.date"
               :aria-pressed="day === d.date"
@@ -208,7 +208,7 @@ async function submit() {
               :key="t.start"
               type="button"
               class="canvas-appointment-time rounded-lg border px-2 py-2 text-sm"
-              :class="start === t.start ? 'border-primary-500 bg-primary-500 text-white' : 'border-current/20 hover:border-current/50'"
+              :class="start === t.start ? 'border-primary-500 bg-primary-500 text-[color:var(--nuxflow-on-primary,#0f172a)]' : 'border-current/20 hover:border-current/50'"
               :aria-pressed="start === t.start"
               @click="start = t.start"
             >{{ t.time }}</button>

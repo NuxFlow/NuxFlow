@@ -83,6 +83,47 @@ export function safeCssColor(value: unknown): string | null {
   return CSS_COLOR_RE.test(v) ? v : null
 }
 
+// ── Readable text on a colour ─────────────────────────────────────────────────
+
+/** The dark text colour used on light accents (Tailwind slate-900, as the Button block's default). */
+export const DARK_ON_ACCENT = '#0f172a'
+
+function relativeLuminance(hex: string): number {
+  const h = hex.replace('#', '')
+  const full = h.length <= 4 ? [...h.slice(0, 3)].map(c => c + c).join('') : h.slice(0, 6)
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = Number.parseInt(full.slice(i, i + 2), 16) / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+}
+
+/** WCAG contrast ratio between two hex colours, 1 to 21. */
+export function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x) as [number, number]
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+/**
+ * White or dark text, whichever reads better on `background` (a hex colour). The better of
+ * the two is always well above WCAG's 3:1 for buttons, whatever the colour. Non-hex input
+ * (a CSS keyword, rgb()) gets white.
+ */
+export function readableTextOn(background: string): string {
+  if (!isHexColor(background)) return '#ffffff'
+  return contrastRatio(background, '#ffffff') >= contrastRatio(background, DARK_ON_ACCENT) ? '#ffffff' : DARK_ON_ACCENT
+}
+
+/**
+ * Every public page (and the editor frame) carries this, accent chosen or not: Nuxt UI's
+ * solid buttons and badges (`bg-primary text-inverted`) put white text on the accent in
+ * light mode, which on the usual greens was about 2:1. They now use
+ * --nuxflow-on-primary, or dark text when no accent is chosen (Nuxt UI's own green).
+ * Dark mode already pairs a lighter accent with dark text. Kept out of appearanceCss() so
+ * a site's defaults still write no appearance rules.
+ */
+export const ON_PRIMARY_BUTTON_CSS = ':root:not(.dark) .bg-primary.text-inverted{color:var(--nuxflow-on-primary,#0f172a)}'
+
 // Nuxt UI's shades as mixes of the chosen colour with white (lighter) or black (darker).
 // Every block's `text-primary-500`, `bg-primary-600`… resolves to --ui-color-primary-*,
 // which Nuxt UI declares in `@layer theme`, so these unlayered declarations win.
@@ -125,7 +166,10 @@ export function appearanceCss(a: AppearanceValues): string {
   const rules: string[] = []
 
   const color = safeCssColor(a.primaryColor)
-  if (color) root.push(`--nuxflow-primary:${color}`, ...primaryPaletteDeclarations(color))
+  // --nuxflow-on-primary: the text colour for anything filled with the accent (primary-500)
+  // — the Calendar, Class passes, Product and Gallery buttons. Unset (no accent chosen),
+  // they fall back to dark text, which suits Nuxt UI's default green.
+  if (color) root.push(`--nuxflow-primary:${color}`, `--nuxflow-on-primary:${readableTextOn(color)}`, ...primaryPaletteDeclarations(color))
 
   const body = siteFont(a.bodyFont)
   if (body) {

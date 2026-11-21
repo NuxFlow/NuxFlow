@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { escapeHtml, loadEmailConfig, sendEmailWithConfig, type SendResult } from './email'
 import { resolveStringSetting } from './settings'
+import { contrastRatio, readableTextOn } from '../../shared/lib/theme-customizer'
 
 export interface EmailTemplateInput {
   siteName: string
@@ -37,6 +38,11 @@ function safeUrl(url: string): string {
  */
 export function renderEmailTemplate(input: EmailTemplateInput): { html: string; text: string } {
   const accent = safeAccent(input.accentColor)
+  // The button's text is white or dark, whichever reads better on the accent (white on a
+  // light green used to be about 2:1). The plain link sits on white, so a light accent
+  // that would be hard to read there (under 4.5:1) gives way to dark grey.
+  const onAccent = readableTextOn(accent)
+  const linkColor = contrastRatio(accent, '#ffffff') >= 4.5 ? accent : '#374151'
   const site = escapeHtml(input.siteName)
 
   const paragraphs = input.paragraphs
@@ -44,8 +50,8 @@ export function renderEmailTemplate(input: EmailTemplateInput): { html: string; 
     .join('')
 
   const action = input.action
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px;"><tr><td style="border-radius:6px;background:${accent};"><a href="${escapeHtml(safeUrl(input.action.url))}" style="display:inline-block;padding:12px 24px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;">${escapeHtml(input.action.label)}</a></td></tr></table>
-<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#6b7280;">Or open this link: <a href="${escapeHtml(safeUrl(input.action.url))}" style="color:${accent};word-break:break-all;">${escapeHtml(input.action.url)}</a></p>`
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px;"><tr><td style="border-radius:6px;background:${accent};"><a href="${escapeHtml(safeUrl(input.action.url))}" style="display:inline-block;padding:12px 24px;font-size:15px;font-weight:600;color:${onAccent};text-decoration:none;border-radius:6px;">${escapeHtml(input.action.label)}</a></td></tr></table>
+<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#6b7280;">Or open this link: <a href="${escapeHtml(safeUrl(input.action.url))}" style="color:${linkColor};word-break:break-all;">${escapeHtml(input.action.url)}</a></p>`
     : ''
 
   const footnote = input.footnote

@@ -261,7 +261,7 @@ onUnmounted(() => {
         >
           <UIcon name="i-lucide-shopping-bag" class="w-4 h-4" />
           <ClientOnly>
-            <span v-if="cart.count.value" class="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-primary-600 text-white text-[10px] leading-4 text-center font-semibold">{{ cart.count.value }}</span>
+            <span v-if="cart.count.value" class="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-primary-500 text-[color:var(--nuxflow-on-primary,#0f172a)] text-[10px] leading-4 text-center font-semibold">{{ cart.count.value }}</span>
           </ClientOnly>
         </NuxtLink>
         <NuxtLink

@@ -34,7 +34,7 @@ function captureRenderHook(plugin: (nitro: unknown) => void): RenderHook {
   return hook!
 }
 
-const { appearanceCss } = await import('../../shared/lib/theme-customizer')
+const { ON_PRIMARY_BUTTON_CSS, appearanceCss } = await import('../../shared/lib/theme-customizer')
 const { default: settingsPlugin } = await import('../../server/plugins/site-settings-resolver')
 const { default: themePlugin } = await import('../../server/plugins/theme-resolver')
 const { clearAppearanceCache } = await import('../../server/utils/appearance-cache')
@@ -126,6 +126,17 @@ describe('site-settings-resolver', () => {
     expect(head).toContain('--nuxflow-primary:#ff0066')
     expect(head).toContain('--ui-color-primary-500:#ff0066')
     expect(head).toContain('--ui-color-primary-50:color-mix(in oklab,#ff0066 8%,white)')
+    // Text on accent-filled buttons: whichever of white or dark reads better on it.
+    expect(head).toMatch(/--nuxflow-on-primary:#(?:ffffff|0f172a)/)
+    expect(head).toContain(ON_PRIMARY_BUTTON_CSS)
+    expect(admin.head.join('')).not.toContain(ON_PRIMARY_BUTTON_CSS)
+  })
+
+  it('keeps accent buttons readable on public pages even when no accent is chosen', async () => {
+    await setSetting('theme.primary_color', '')
+    const pub = blank()
+    await renderSettings(pub, { event: ev() })
+    expect(pub.head.join('')).toContain(`<style data-nuxflow-on-primary>${ON_PRIMARY_BUTTON_CSS}</style>`)
   })
 
   it.each([
@@ -374,6 +385,7 @@ describe('editor styles (the Canvas editor frame)', () => {
       'https://fonts.example/serif.css',
     ])
     expect(styles.styles).toEqual([
+      ON_PRIMARY_BUTTON_CSS,
       appearanceCss({ primaryColor: '#c8a57a', bodyFont: 'Inter', headingFont: 'same' }),
       'h1{font-family:Serif}',
       ':root{--x:base}',

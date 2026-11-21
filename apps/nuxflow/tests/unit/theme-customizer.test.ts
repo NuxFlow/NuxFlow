@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   CUSTOMIZER_DEFAULTS,
+  DARK_ON_ACCENT,
+  ON_PRIMARY_BUTTON_CSS,
+  contrastRatio,
+  readableTextOn,
   appearanceCss,
   customizerCss,
   parseCustomizerValues,
@@ -119,5 +123,34 @@ describe('spacingToCss', () => {
 
   it('keeps an empty default empty', () => {
     expect(spacingToCss(null, '')).toBe('')
+  })
+})
+
+describe('readable text on the accent colour', () => {
+  it('measures contrast the WCAG way', () => {
+    expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 0)
+    expect(contrastRatio('#ffffff', '#ffffff')).toBeCloseTo(1, 5)
+  })
+
+  it('picks dark text on light accents and white on dark ones', () => {
+    expect(readableTextOn('#00dc82')).toBe(DARK_ON_ACCENT) // the default green: white was 1.8:1
+    expect(readableTextOn('#ffeb3b')).toBe(DARK_ON_ACCENT)
+    expect(readableTextOn('#1d4ed8')).toBe('#ffffff')
+    expect(readableTextOn('#123')).toBe('#ffffff')
+  })
+
+  it('never leaves accent buttons below 3:1, whatever the colour', () => {
+    for (let r = 0; r < 256; r += 17) for (let g = 0; g < 256; g += 17) for (let b = 0; b < 256; b += 17) {
+      const hex = `#${[r, g, b].map(n => n.toString(16).padStart(2, '0')).join('')}`
+      expect(contrastRatio(hex, readableTextOn(hex))).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  it('writes the text colour with the accent; Nuxt UI solid buttons read it in light mode', () => {
+    const css = appearanceCss({ primaryColor: '#00dc82', bodyFont: 'system', headingFont: 'same' })
+    expect(css).toContain(`--nuxflow-on-primary:${DARK_ON_ACCENT}`)
+    // Defaults still write nothing; the button rule is separate and always on public pages.
+    expect(appearanceCss({ primaryColor: '', bodyFont: 'system', headingFont: 'same' })).toBe('')
+    expect(ON_PRIMARY_BUTTON_CSS).toBe(':root:not(.dark) .bg-primary.text-inverted{color:var(--nuxflow-on-primary,#0f172a)}')
   })
 })

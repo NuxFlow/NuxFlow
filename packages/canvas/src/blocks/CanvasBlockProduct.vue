@@ -79,7 +79,7 @@ watch(() => props.product, load)
             <button
               v-if="item.available && item.variantId && host.addToBasket"
               type="button"
-              class="canvas-product-button inline-flex items-center rounded-lg bg-primary-600 px-5 py-3 font-semibold text-white hover:bg-primary-700"
+              class="canvas-product-button inline-flex items-center rounded-lg bg-primary-500 px-5 py-3 font-semibold text-[color:var(--nuxflow-on-primary,#0f172a)] hover:bg-primary-600"
               @click="add"
             >
               {{ addText }}
@@ -87,7 +87,7 @@ watch(() => props.product, load)
             <a
               :href="item.path"
               class="inline-flex items-center rounded-lg px-5 py-3 font-semibold"
-              :class="item.available && item.variantId && host.addToBasket ? 'border border-gray-300 dark:border-gray-700' : 'canvas-product-button bg-primary-600 text-white hover:bg-primary-700'"
+              :class="item.available && item.variantId && host.addToBasket ? 'border border-gray-300 dark:border-gray-700' : 'canvas-product-button bg-primary-500 text-[color:var(--nuxflow-on-primary,#0f172a)] hover:bg-primary-600'"
             >
               {{ item.available ? buttonText : 'Sold out' }}
             </a>

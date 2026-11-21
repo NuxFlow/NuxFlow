@@ -109,7 +109,7 @@ async function complete() {
         <div
           class="flex items-center justify-center w-8 h-8 rounded-full text-xs font-medium transition-colors"
           :class="s.id < step
-            ? 'bg-primary-500 text-white'
+            ? 'bg-primary-500 text-[color:var(--nuxflow-on-primary,#0f172a)]'
             : s.id === step
               ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300 ring-2 ring-primary-500'
               : 'bg-gray-100 text-gray-400 dark:bg-gray-800'"

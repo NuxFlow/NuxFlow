@@ -275,7 +275,7 @@ function openLightbox(i: number) {
         <button v-if="!showNote" type="button" class="pb-1.5 underline opacity-80 hover:opacity-100" @click="showNote = true">Add a note</button>
         <button
           type="button"
-          class="canvas-gallery-send ml-auto rounded-md bg-primary-600 px-4 py-2 font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+          class="canvas-gallery-send ml-auto rounded-md bg-primary-500 px-4 py-2 font-semibold text-[color:var(--nuxflow-on-primary,#0f172a)] hover:bg-primary-600 disabled:opacity-50"
           :disabled="!picked.length || pickStatus === 'saving'"
           @click="sendPicks(true)"
         >
