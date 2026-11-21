@@ -10,6 +10,10 @@ With the MCP integration, you can ask your AI assistant to:
 - *"Add a Contact link to the header menu."*
 - *"I renamed /services to /what-we-do — set up the redirect."*
 - *"Summarise this week's contact form messages and tell me which ones need a reply."*
+- *"Who's coming to Saturday's workshop, and is anyone on the waitlist?"*
+- *"Which products are running low? We've just had 24 blue mugs delivered."*
+- *"How many visitors did we get last month, and which pages did they read?"*
+- *"Approve the sensible comments waiting for moderation and mark the rest as spam."*
 
 ---
 
@@ -30,7 +34,7 @@ All MCP requests must be authenticated.
 3. Generate a new API key with the scopes the assistant needs:
    - `read:content` — read pages, posts, media, menus and redirects
    - `write:content` — create, change and delete them, and upload media
-   - `read:personal` — read form submissions. These are people's names, email addresses and messages, so only tick it for a key that needs them.
+   - `read:personal` — read people's data: form submissions, event bookings, appointments, orders and the Inbox. Only tick it for a key that needs them.
    - `manage:settings` — change the look and basic settings (see below)
 4. Authenticate your MCP client by adding the API key in the request headers:
    ```http
@@ -62,6 +66,17 @@ All MCP requests must be authenticated.
 | `create_redirect` / `delete_redirect` | `write:content` | Adds a redirect (301, 302, 307, 308 or 410 Gone) or removes one. Chains are flattened, as in **SEO → Redirects**. Editor or above. |
 | `list_forms` | `read:personal` | Lists forms with their fields and how many submissions are new. Editor or above. |
 | `list_form_submissions` | `read:personal` | Reads a form's submissions, newest first (spam and archived left out unless asked). IP addresses and browsers are never included, and uploaded files appear by name only. Editor or above. |
+| `list_event_bookings` | `read:personal` | Who has booked or RSVPed for an event (by slug or id, optionally one date of a repeating event), with places, status, payment and totals. Editor or above. |
+| `list_appointments` | `read:personal` | Upcoming or past one-to-one appointments. Editor or above. |
+| `list_orders` / `get_order` | `read:personal` | Orders (shop sales, paid bookings, class passes, memberships) and one order's lines, delivery details and refunds. Admin only. |
+| `list_inbox` / `get_inbox_thread` | `read:personal` | Inbox messages with their AI summary, and a whole conversation as plain text. Reading a thread doesn't mark it read. Editor or above. |
+| `list_comments` | `read:content` | Comments waiting for moderation (or any status), without commenters' email addresses. Editor or above. |
+| `moderate_comment` | `write:content` | Approves a comment, or moves it to spam, trash or back to pending. Editor or above. |
+| `list_products` | `read:content` | Shop products with each variant's SKU, price and stock; can list only those running low. |
+| `set_stock` | `write:content` | Sets a variant's stock, or changes it by an amount (never below 0, and sales made meanwhile aren't undone). By SKU or variant id. Editor or above. |
+| `get_analytics` | `read:content` | Visitors and page views for the last 7, 30 or 90 days: top pages, referrers, countries, devices. Editor or above. |
+
+Anything about people is **read-only** over MCP: refunds, cancelling bookings or appointments, and replying to messages stay in the admin, where you see exactly what the customer will get.
 
 The settings tools are the same short, safe list the admin's own **Ask AI** helper can suggest. Credentials, the domain, custom code, payments and people can't be changed over MCP. The assistant is told to show you each change and get your agreement before calling `update_site_settings`. Your MCP client also asks you to approve each tool call, so read what it is about to change.
 

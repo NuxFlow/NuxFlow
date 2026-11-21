@@ -17,8 +17,8 @@ export { isTeamRole, roleAtLeast, type Role }
 // replace signing in with an email and password, which can't work on a site's own domain
 // once central sign-in is on (/api/auth/** only exists on the accounts origin there).
 // manage:settings = only the AI safe list (shared/lib/assistant.ts), for AI assistants over MCP.
-// read:personal = form submissions (people's names, emails, messages) over MCP — personal
-// data, so never implied by read:content.
+// read:personal = people's data over MCP (form submissions, bookings, appointments, orders,
+// the inbox) — never implied by read:content.
 export const API_KEY_SCOPES = ['read:content', 'write:content', 'read:personal', 'manage:plugins', 'manage:themes', 'manage:settings'] as const
 export type ApiKeyScope = typeof API_KEY_SCOPES[number]
 

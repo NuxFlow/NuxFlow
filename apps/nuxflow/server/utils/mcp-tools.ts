@@ -23,12 +23,14 @@ import { getSiteInfo } from './site-info'
 import { settingsForEditor } from './page-password'
 import { errorMessage, httpErrorStatus } from './errors'
 import { MCP_SITE_TOOLS, callSiteTool } from './mcp-site-tools'
+import { MCP_BUSINESS_TOOLS, callBusinessTool } from './mcp-business-tools'
 import { apiKeyRoleAtLeast, textResult, type McpToolContext, type McpToolDefinition, type McpToolResult } from './mcp-common'
 import { contentSlugProblem, getContentTermIds, getPublicItemTerms, getTaxonomyContentTypeSlugs, getTermRefsWithAncestors, replaceContentTermsStatements } from './taxonomy'
 
 // Tool implementations for the MCP server (server/api/v1/mcp.ts), which stays protocol
 // plumbing (JSON-RPC dispatch). Content, taxonomy and settings tools live here; media,
-// menus, redirects and form submissions in mcp-site-tools.ts.
+// menus, redirects and form submissions in mcp-site-tools.ts; bookings, orders, stock,
+// inbox, comments and analytics in mcp-business-tools.ts.
 
 const CONTENT_STATUS = z.enum(['draft', 'review', 'published', 'scheduled', 'archived'])
 
@@ -242,6 +244,7 @@ export const MCP_TOOLS: Record<string, McpToolDefinition> = {
     },
   },
   ...MCP_SITE_TOOLS,
+  ...MCP_BUSINESS_TOOLS,
 }
 
 /** The `tools` array returned from the `tools/list` JSON-RPC method. */
@@ -716,7 +719,7 @@ async function runTool(name: string, args: unknown, ctx: McpToolContext): Promis
     case 'set_content_terms': return setContentTerms(args, ctx)
     case 'get_site_settings': return getSiteSettings(args, ctx)
     case 'update_site_settings': return updateSiteSettings(args, ctx)
-    default: return (await callSiteTool(name, args, ctx)) ?? textResult(`Error: Unknown tool "${name}"`)
+    default: return (await callSiteTool(name, args, ctx)) ?? (await callBusinessTool(name, args, ctx)) ?? textResult(`Error: Unknown tool "${name}"`)
   }
 }
 
