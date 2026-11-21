@@ -9,8 +9,9 @@ const creating = ref(false)
 const newKey = ref('')
 const form = reactive({ name: '', scopes: ['read:content'] as string[] })
 const SCOPE_OPTIONS = [
-  { value: 'read:content', label: 'Read content' },
-  { value: 'write:content', label: 'Write content (create, update, delete, publish)' },
+  { value: 'read:content', label: 'Read content, media, menus and redirects' },
+  { value: 'write:content', label: 'Write content (create, update, delete, publish), media, menus and redirects' },
+  { value: 'read:personal', label: "Read people's data: form submissions, bookings, appointments, orders and the inbox (for AI assistants over MCP)" },
   { value: 'manage:plugins', label: 'Install and remove plugins (for the nuxflow CLI)' },
   { value: 'manage:themes', label: 'Upload and update themes (for the nuxflow CLI)' },
   { value: 'manage:settings', label: 'Change the look and basic settings (for AI assistants over MCP: colours, fonts, light/dark, site name)' },

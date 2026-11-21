@@ -1,9 +1,7 @@
 import { z } from 'zod'
 import { requireRole } from '../../../utils/permissions'
-import { getAnalyticsEngine } from '../../../utils/cf-env'
-import { useDb } from '../../../utils/db'
-import { getPlatformSetting } from '../../../utils/control-plane'
-import { ANALYTICS_RANGES, ANALYTICS_TOKEN_KEY, AnalyticsQueryError, querySiteAnalytics, type AnalyticsRange } from '../../../utils/analytics'
+import { ANALYTICS_RANGES, type AnalyticsRange } from '../../../utils/analytics'
+import { loadSiteAnalytics } from '../../../utils/analytics-report'
 import { requireSiteId } from '../../../utils/site-context'
 import type { AnalyticsResponse } from '../../../../shared/lib/analytics-types'
 
@@ -16,24 +14,5 @@ export default defineEventHandler(async (event): Promise<AnalyticsResponse> => {
   await requireRole(event, 'editor')
   const siteId = requireSiteId(event)
   const { days } = await parseQuery(event, querySchema)
-
-  // The dataset is the operator's, so are the credentials to read it: platform settings
-  // (Super Admin → Platform, sent on to member pools) used for every site's report.
-  const db = useDb(event)
-  const [token, accountId] = await Promise.all([
-    getPlatformSetting(db, ANALYTICS_TOKEN_KEY),
-    getPlatformSetting(db, 'cloudflare.account_id'),
-  ])
-
-  const recording = getAnalyticsEngine(event) !== null
-  const readable = !!token && !!accountId && /^[a-f0-9]{32}$/i.test(accountId)
-  if (!readable) return { recording, readable, report: null, error: null }
-
-  try {
-    const report = await querySiteAnalytics({ accountId: accountId!, token: token!, dataset: useRuntimeConfig().analyticsDataset }, siteId, days as AnalyticsRange)
-    return { recording, readable, report, error: null }
-  } catch (err) {
-    if (!(err instanceof AnalyticsQueryError)) console.error('[analytics] Query failed', err)
-    return { recording, readable, report: null, error: err instanceof AnalyticsQueryError ? err.message : 'Could not load analytics from Cloudflare.' }
-  }
+  return loadSiteAnalytics(event, siteId, days as AnalyticsRange)
 })

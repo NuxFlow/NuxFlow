@@ -6,35 +6,13 @@ import { getMenuByIdOrThrow } from '../../../utils/resource-queries'
 import { menus } from '@nuxflow/db/schema'
 import { sql } from 'drizzle-orm'
 import { scopedById } from '../../../utils/db-helpers'
-import { purgeEdgeCache, purgeAllPublicPages } from '../../../utils/edge-cache'
-import { waitUntil } from '../../../utils/cf-env'
+import { MENU_LOCATIONS, menuItemsSchema, purgeMenuLocations } from '../../../utils/menus'
 import { requireSiteId } from '../../../utils/site-context'
-
-const menuItemSchema: z.ZodType<unknown> = z.lazy(() =>
-  z.object({
-    id: z.string().optional(),
-    label: z.string(),
-    type: z.enum(['page', 'url']).optional(),
-    url: z.string().optional(),
-    contentId: z.string().optional(),
-    slug: z.string().optional(),
-    target: z.enum(['_self', '_blank']).default('_self'),
-    children: z.array(z.object({
-      id: z.string().optional(),
-      label: z.string(),
-      type: z.enum(['page', 'url']).optional(),
-      url: z.string().optional(),
-      contentId: z.string().optional(),
-      slug: z.string().optional(),
-      target: z.enum(['_self', '_blank']).default('_self'),
-    })).default([]),
-  }),
-)
 
 const bodySchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  location: z.enum(['header', 'footer', 'sidebar']).nullish(),
-  items: z.array(menuItemSchema).optional(),
+  location: z.enum(MENU_LOCATIONS).nullish(),
+  items: menuItemsSchema.optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -65,17 +43,9 @@ export default defineEventHandler(async (event) => {
 
   await batchWithAudit(db, [menuUpdate], auditInsert)
 
+  // Both the old and the new location: covers a move as well as an in-place items edit.
   const newLocation = 'location' in body ? (body.location ?? null) : existing.location
-  const locations = [...new Set([existing.location, newLocation].filter((l): l is string => Boolean(l)))]
-  await purgeEdgeCache(event, locations.map(l => `/api/public/menus/${l}`))
-
-  // header/footer menus render into every page's shared chrome — covers both a location
-  // change and an in-place items edit on a menu that's already assigned to header/footer.
-  if (locations.includes('header') || locations.includes('footer')) {
-    waitUntil(event, purgeAllPublicPages(event, siteId).catch((err) => {
-      console.error('[menus] Failed to purge page cache after menu update:', err)
-    }))
-  }
+  await purgeMenuLocations(event, siteId, [existing.location, newLocation])
 
   return { ok: true }
 })
