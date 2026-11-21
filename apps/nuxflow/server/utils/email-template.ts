@@ -1,7 +1,7 @@
 import type { H3Event } from 'h3'
 import { escapeHtml, loadEmailConfig, sendEmailWithConfig, type SendResult } from './email'
 import { resolveStringSetting } from './settings'
-import { contrastRatio, readableTextOn } from '../../shared/lib/theme-customizer'
+import { readableAccentText, readableTextOn } from '../../shared/lib/theme-customizer'
 
 export interface EmailTemplateInput {
   siteName: string
@@ -39,10 +39,10 @@ function safeUrl(url: string): string {
 export function renderEmailTemplate(input: EmailTemplateInput): { html: string; text: string } {
   const accent = safeAccent(input.accentColor)
   // The button's text is white or dark, whichever reads better on the accent (white on a
-  // light green used to be about 2:1). The plain link sits on white, so a light accent
-  // that would be hard to read there (under 4.5:1) gives way to dark grey.
+  // light green used to be about 2:1). The plain link sits on white, so a light accent is
+  // darkened just enough to read there (4.5:1), as on the site.
   const onAccent = readableTextOn(accent)
-  const linkColor = contrastRatio(accent, '#ffffff') >= 4.5 ? accent : '#374151'
+  const linkColor = readableAccentText(accent)
   const site = escapeHtml(input.siteName)
 
   const paragraphs = input.paragraphs

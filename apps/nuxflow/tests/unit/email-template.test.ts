@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { renderEmailTemplate } from '../../server/utils/email-template'
+import { readableAccentText } from '../../shared/lib/theme-customizer'
 import { describeUserAgent } from '../../server/utils/security-alerts'
 
 describe('renderEmailTemplate', () => {
@@ -65,7 +66,8 @@ describe('readable buttons and links', () => {
   it('uses dark button text and a dark link on a light accent', () => {
     const { html } = renderEmailTemplate({ siteName: 'A', paragraphs: [], accentColor: '#00dc82', action: { label: 'Go', url: 'https://a.test' } })
     expect(html).toContain('color:#0f172a;text-decoration:none')
-    expect(html).toContain('style="color:#374151;word-break:break-all;"')
+    expect(html).toContain(`style="color:${readableAccentText('#00dc82')};word-break:break-all;"`)
+    expect(readableAccentText('#00dc82')).not.toBe('#00dc82')
   })
 
   it('keeps white button text and the accent link on a dark accent', () => {

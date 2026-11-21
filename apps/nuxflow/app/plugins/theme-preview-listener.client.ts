@@ -25,7 +25,7 @@ export default defineNuxtPlugin((nuxtApp) => {
     const head = document.head
 
     // The published versions of what the preview replaces.
-    head.querySelectorAll<HTMLStyleElement>('style[data-nuxflow-theme="customizer"], style[data-nuxflow-appearance]')
+    head.querySelectorAll<HTMLStyleElement>('style[data-nuxflow-theme="customizer"], style[data-nuxflow-appearance], style[data-nuxflow-on-primary]')
       .forEach((el) => { el.media = 'not all' })
 
     let style = document.getElementById('nf-customizer-preview') as HTMLStyleElement | null

@@ -34,7 +34,7 @@ function captureRenderHook(plugin: (nitro: unknown) => void): RenderHook {
   return hook!
 }
 
-const { ON_PRIMARY_BUTTON_CSS, appearanceCss } = await import('../../shared/lib/theme-customizer')
+const { ON_PRIMARY_BUTTON_CSS, accentReadabilityCss, appearanceCss } = await import('../../shared/lib/theme-customizer')
 const { default: settingsPlugin } = await import('../../server/plugins/site-settings-resolver')
 const { default: themePlugin } = await import('../../server/plugins/theme-resolver')
 const { clearAppearanceCache } = await import('../../server/utils/appearance-cache')
@@ -136,7 +136,8 @@ describe('site-settings-resolver', () => {
     await setSetting('theme.primary_color', '')
     const pub = blank()
     await renderSettings(pub, { event: ev() })
-    expect(pub.head.join('')).toContain(`<style data-nuxflow-on-primary>${ON_PRIMARY_BUTTON_CSS}</style>`)
+    expect(pub.head.join('')).toContain(`<style data-nuxflow-on-primary>${accentReadabilityCss('')}</style>`)
+    expect(pub.head.join('')).toContain('var(--ui-color-primary-700)')
   })
 
   it.each([
@@ -385,7 +386,7 @@ describe('editor styles (the Canvas editor frame)', () => {
       'https://fonts.example/serif.css',
     ])
     expect(styles.styles).toEqual([
-      ON_PRIMARY_BUTTON_CSS,
+      accentReadabilityCss('#c8a57a'),
       appearanceCss({ primaryColor: '#c8a57a', bodyFont: 'Inter', headingFont: 'same' }),
       'h1{font-family:Serif}',
       ':root{--x:base}',

@@ -1,5 +1,5 @@
 import { appearanceValues, loadSiteAppearance, safeSiteColor } from '../utils/site-styles'
-import { ON_PRIMARY_BUTTON_CSS, appearanceCss, parseColorMode, siteFontsHref } from '../../shared/lib/theme-customizer'
+import { accentReadabilityCss, appearanceCss, parseColorMode, siteFontsHref } from '../../shared/lib/theme-customizer'
 import { escapeHtml } from '../../shared/lib/html-text'
 import { errorMessage } from '../utils/errors'
 // Deliberately '@nuxflow/canvas/consent', NOT the package root ('@nuxflow/canvas') —
@@ -105,7 +105,7 @@ export default defineNitroPlugin((nitro) => {
           html.head.push(`<link rel="stylesheet" href="${href}" media="print" onload="this.media='all'">`)
           html.head.push(`<noscript><link rel="stylesheet" href="${href}"></noscript>`)
         }
-        html.head.push(`<style data-nuxflow-on-primary>${ON_PRIMARY_BUTTON_CSS}</style>`)
+        html.head.push(`<style data-nuxflow-on-primary>${accentReadabilityCss(values.primaryColor)}</style>`)
         const css = appearanceCss(values)
         if (css) html.head.push(`<style data-nuxflow-appearance>${css}</style>`)
       }

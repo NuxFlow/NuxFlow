@@ -3,6 +3,9 @@ import {
   CUSTOMIZER_DEFAULTS,
   DARK_ON_ACCENT,
   ON_PRIMARY_BUTTON_CSS,
+  accentReadabilityCss,
+  accentTextCss,
+  readableAccentText,
   contrastRatio,
   readableTextOn,
   appearanceCss,
@@ -152,5 +155,33 @@ describe('readable text on the accent colour', () => {
     // Defaults still write nothing; the button rule is separate and always on public pages.
     expect(appearanceCss({ primaryColor: '', bodyFont: 'system', headingFont: 'same' })).toBe('')
     expect(ON_PRIMARY_BUTTON_CSS).toBe(':root:not(.dark) .bg-primary.text-inverted{color:var(--nuxflow-on-primary,#0f172a)}')
+  })
+})
+
+describe('readable accent text on white', () => {
+  it('keeps an accent that already reads well, and darkens a light one just enough', () => {
+    expect(readableAccentText('#1D4ED8')).toBe('#1d4ed8')
+    const green = readableAccentText('#00dc82')
+    expect(contrastRatio(green, '#ffffff')).toBeGreaterThanOrEqual(4.5)
+    // Just enough: one step lighter would fail.
+    const [r, g, b] = [1, 3, 5].map(i => Number.parseInt(green.slice(i, i + 2), 16))
+    expect(g! / 0xDC).toBeGreaterThan(0.4)
+    expect(r).toBe(0)
+    expect(b! / 0x82).toBeCloseTo(g! / 0xDC, 1)
+  })
+
+  it('gives every colour readable text', () => {
+    for (let r = 0; r < 256; r += 51) for (let g = 0; g < 256; g += 51) for (let b = 0; b < 256; b += 51) {
+      const hex = `#${[r, g, b].map(n => n.toString(16).padStart(2, '0')).join('')}`
+      expect(contrastRatio(readableAccentText(hex), '#ffffff')).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('writes a light-mode text rule only when the accent needs one', () => {
+    expect(accentTextCss('#1d4ed8')).toBe('')
+    expect(accentTextCss('#00dc82')).toBe(`:root:not(.dark) :is(.text-primary,.text-primary-400,.text-primary-500,.text-primary-600,.text-primary-700){color:${readableAccentText('#00dc82')}}`)
+    // No accent chosen: Nuxt UI's own darker shade.
+    expect(accentTextCss('')).toContain('{color:var(--ui-color-primary-700)}')
+    expect(accentReadabilityCss('#00dc82')).toBe(ON_PRIMARY_BUTTON_CSS + accentTextCss('#00dc82'))
   })
 })
